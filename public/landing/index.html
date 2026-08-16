@@ -506,5 +506,52 @@ class Component extends DCLogic {
   }
 }
 </script>
+
+<!-- ===== extra animation layer (added on top of the design tool runtime) ===== -->
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var css = document.createElement('style');
+  css.textContent = [
+    '@keyframes socia-sheen{to{left:130%}}',
+    '@keyframes socia-drift{0%,100%{translate:0 0}50%{translate:16px -12px}}',
+    '@keyframes socia-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}',
+    '[data-reveal]{opacity:1!important;transform:none!important}',
+    'nav{transition:box-shadow .25s ease, background .25s ease}',
+    'nav.socia-scrolled{box-shadow:0 6px 24px rgba(15,17,21,.08);background:rgba(250,248,245,.94)!important}',
+    '[data-feature]:hover{transform:translateY(-5px)!important;box-shadow:0 22px 48px rgba(15,17,21,.12)!important;border-color:rgba(37,99,255,.28)!important}',
+    'a[href="/signup"]{position:relative;overflow:hidden}',
+    'a[href="/signup"]::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.4),transparent);transform:skewX(-18deg);pointer-events:none}',
+    'a[href="/signup"]:hover::after{animation:socia-sheen .85s ease}',
+    '@media (prefers-reduced-motion: no-preference){',
+    '  header div[style*="border-radius: 20px"]{animation:socia-float 6s ease-in-out infinite;animation-delay:1.2s}',
+    '  header div[style*="glowPulse"]{animation:glowPulse 9s ease-in-out infinite, socia-drift 20s ease-in-out infinite !important}',
+    '}'
+  ].join('\n');
+  document.head.appendChild(css);
+
+  function ready(fn){ document.readyState !== 'loading' ? fn() : document.addEventListener('DOMContentLoaded', fn); }
+
+  ready(function () {
+    // 9. nav shadow on scroll
+    var nav = document.querySelector('nav');
+    if (nav) {
+      var onScroll = function () { nav.classList.toggle('socia-scrolled', window.scrollY > 12); };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
+
+    if (reduce) return; // skip motion-heavy enhancements for reduced-motion users
+
+    // 7. pause the logo marquee on hover (best-effort)
+    var mq = document.querySelector('[style*="marquee"]');
+    if (mq) {
+      mq.addEventListener('mouseenter', function () { mq.style.animationPlayState = 'paused'; });
+      mq.addEventListener('mouseleave', function () { mq.style.animationPlayState = 'running'; });
+    }
+  });
+})();
+</script>
 </body>
 </html>
