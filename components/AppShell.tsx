@@ -11,8 +11,10 @@ type NavItem = {
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", glyph: "▦", key: "dashboard" },
   { href: "/analytics", label: "Analytics", glyph: "📈", key: "analytics" },
-  { href: "/tool", label: "Content Plan", glyph: "✦", key: "tool" },
   { href: "/competitors", label: "Competitors", glyph: "◎", key: "competitors" },
+  { href: "/chat", label: "AI Strategist", glyph: "💬", key: "chat" },
+  { href: "/tool", label: "Content Plan", glyph: "✦", key: "tool" },
+  { href: "/scorer", label: "Video Scorer", glyph: "▶", key: "scorer" },
   { href: "/calendar", label: "Calendar", glyph: "◷", key: "calendar" },
   { href: "/settings", label: "Settings", glyph: "⚙", key: "settings" },
 ];

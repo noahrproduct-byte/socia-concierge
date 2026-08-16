@@ -37,6 +37,9 @@ export async function updateSession(request: NextRequest) {
     "/dashboard",
     "/analytics",
     "/competitors",
+    "/chat",
+    "/tool",
+    "/scorer",
     "/calendar",
     "/settings",
   ];
