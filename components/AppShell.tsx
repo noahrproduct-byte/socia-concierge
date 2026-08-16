@@ -1,25 +1,30 @@
 import Link from "next/link";
+import {
+  LayoutDashboard,
+  BarChart3,
+  Radar,
+  Sparkles,
+  FileText,
+  Video,
+  CalendarDays,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
+import AccountMenu from "@/components/AccountMenu";
 
-type NavItem = {
-  href: string;
-  label: string;
-  glyph: string;
-  key: string;
-  soon?: boolean;
-};
+type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 
 const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", glyph: "▦", key: "dashboard" },
-  { href: "/analytics", label: "Analytics", glyph: "📈", key: "analytics" },
-  { href: "/competitors", label: "Competitors", glyph: "◎", key: "competitors" },
-  { href: "/chat", label: "AI Strategist", glyph: "💬", key: "chat" },
-  { href: "/tool", label: "Content Plan", glyph: "✦", key: "tool" },
-  { href: "/scorer", label: "Video Scorer", glyph: "▶", key: "scorer" },
-  { href: "/calendar", label: "Calendar", glyph: "◷", key: "calendar" },
-  { href: "/settings", label: "Settings", glyph: "⚙", key: "settings" },
+  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
+  { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
+  { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
+  { href: "/chat", label: "AI Strategist", Icon: Sparkles, key: "chat" },
+  { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
+  { href: "/scorer", label: "Video Scorer", Icon: Video, key: "scorer" },
+  { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
+  { href: "/settings", label: "Settings", Icon: Settings, key: "settings" },
 ];
 
-// The logged-in app frame: fixed left sidebar + main content area.
 export default function AppShell({
   active,
   userEmail,
@@ -33,43 +38,21 @@ export default function AppShell({
     <div className="app">
       <aside className="side">
         <Link href="/dashboard" className="side-logo">
-          <span className="brand-mark">S</span>
-          <span>SOCIA</span>
+          <span className="side-mark">S</span>
+          <span className="side-word">SOCIA</span>
         </Link>
 
-        <nav className="side-nav">
-          {NAV.map((item) =>
-            item.soon ? (
-              <span key={item.key} className="side-link soon">
-                <span className="side-glyph">{item.glyph}</span>
-                {item.label}
-                <span className="soon-badge">Soon</span>
-              </span>
-            ) : (
-              <Link
-                key={item.key}
-                href={item.href}
-                className={`side-link${active === item.key ? " active" : ""}`}
-              >
-                <span className="side-glyph">{item.glyph}</span>
-                {item.label}
-              </Link>
-            ),
-          )}
+        <nav className="side-nav" aria-label="Main">
+          {NAV.map(({ href, label, Icon, key }) => (
+            <Link key={key} href={href} className={`side-link${active === key ? " active" : ""}`}>
+              <Icon size={18} strokeWidth={2} className="side-ico" />
+              <span>{label}</span>
+            </Link>
+          ))}
         </nav>
 
         <div className="side-foot">
-          <div className="side-user">
-            <span className="side-avatar">
-              {(userEmail?.[0] ?? "?").toUpperCase()}
-            </span>
-            <span className="side-email">{userEmail ?? "Signed in"}</span>
-          </div>
-          <form action="/auth/signout" method="post">
-            <button className="side-signout" type="submit">
-              Log out
-            </button>
-          </form>
+          <AccountMenu email={userEmail} />
         </div>
       </aside>
 
