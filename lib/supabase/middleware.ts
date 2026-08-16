@@ -31,9 +31,10 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect the dashboard: if not logged in, send to /login.
+  // Protect logged-in pages: if not logged in, send to /login.
   const path = request.nextUrl.pathname;
-  if (!user && path.startsWith("/dashboard")) {
+  const protectedPaths = ["/dashboard", "/analytics"];
+  if (!user && protectedPaths.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
