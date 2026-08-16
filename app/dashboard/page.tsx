@@ -44,19 +44,19 @@ export default async function DashboardPage() {
           <span className="hub-link">View analytics →</span>
         </Link>
 
-        <div className="hub-card muted">
+        <Link href="/competitors" className="hub-card">
           <span className="hub-glyph">◎</span>
           <h3>Competitors</h3>
-          <p>Track rivals and catch their outlier posts. Coming soon.</p>
-          <span className="soon-badge">Soon</span>
-        </div>
+          <p>Track rivals and catch their outlier posts, with the &quot;why&quot;.</p>
+          <span className="hub-link">Scan competitors →</span>
+        </Link>
 
-        <div className="hub-card muted">
+        <Link href="/calendar" className="hub-card">
           <span className="hub-glyph">◷</span>
           <h3>Calendar</h3>
-          <p>Schedule and auto-post to every platform. Coming soon.</p>
-          <span className="soon-badge">Soon</span>
-        </div>
+          <p>Plan your week and see your audience&apos;s best times to post.</p>
+          <span className="hub-link">Open calendar →</span>
+        </Link>
       </div>
     </AppShell>
   );

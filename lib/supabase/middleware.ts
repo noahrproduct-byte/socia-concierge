@@ -33,7 +33,13 @@ export async function updateSession(request: NextRequest) {
 
   // Protect logged-in pages: if not logged in, send to /login.
   const path = request.nextUrl.pathname;
-  const protectedPaths = ["/dashboard", "/analytics"];
+  const protectedPaths = [
+    "/dashboard",
+    "/analytics",
+    "/competitors",
+    "/calendar",
+    "/settings",
+  ];
   if (!user && protectedPaths.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";

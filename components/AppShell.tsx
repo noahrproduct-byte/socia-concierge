@@ -12,9 +12,9 @@ const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", glyph: "▦", key: "dashboard" },
   { href: "/analytics", label: "Analytics", glyph: "📈", key: "analytics" },
   { href: "/tool", label: "Content Plan", glyph: "✦", key: "tool" },
-  { href: "#", label: "Competitors", glyph: "◎", key: "competitors", soon: true },
-  { href: "#", label: "Calendar", glyph: "◷", key: "calendar", soon: true },
-  { href: "#", label: "Settings", glyph: "⚙", key: "settings", soon: true },
+  { href: "/competitors", label: "Competitors", glyph: "◎", key: "competitors" },
+  { href: "/calendar", label: "Calendar", glyph: "◷", key: "calendar" },
+  { href: "/settings", label: "Settings", glyph: "⚙", key: "settings" },
 ];
 
 // The logged-in app frame: fixed left sidebar + main content area.
