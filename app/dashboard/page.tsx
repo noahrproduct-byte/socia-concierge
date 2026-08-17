@@ -14,8 +14,10 @@ import {
   ArrowRight,
   ChevronDown,
   Users2,
+  Link2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/profile";
 import AppShell from "@/components/AppShell";
 import { MetricCard, PlatformBadge } from "@/components/ui";
 import PerformanceChart from "@/components/PerformanceChart";
@@ -64,6 +66,65 @@ export default async function DashboardPage() {
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+
+  const profile = await getProfile(supabase, user.id);
+  const connected = profile?.account_connected ?? false;
+
+  // No social account connected yet → show a real connect/empty state,
+  // not fabricated analytics.
+  if (!connected) {
+    return (
+      <AppShell active="dashboard" userEmail={user.email}>
+        <div className="dash-header">
+          <div>
+            <h1 className="dash-greeting">
+              {greeting}, {name} <span aria-hidden>👋</span>
+            </h1>
+            <p className="dash-context">Let&apos;s get your account set up.</p>
+          </div>
+        </div>
+
+        <div className="connect-card">
+          <span className="connect-ico"><Link2 size={26} /></span>
+          <h2>Connect a social account</h2>
+          <p>
+            SOCIA analyzes your posts to build your dashboard, audits, and weekly plan.
+            Connect Instagram or TikTok to see your real numbers here.
+          </p>
+          <div className="connect-actions">
+            <Link href="/settings" className="btn-primary">Connect account</Link>
+            {!profile?.niche && (
+              <Link href="/settings" className="btn-secondary">Set your niche</Link>
+            )}
+          </div>
+          <span className="connect-note">
+            No account connected yet — your analytics will appear here once you connect one.
+          </span>
+        </div>
+
+        <div className="kpi-row">
+          {["Total Followers", "Engagement Rate", "Reach / week", "Posts Published"].map((l) => (
+            <div className="metric muted" key={l}>
+              <div className="metric-head"><span className="metric-label">{l}</span></div>
+              <div className="metric-value">—</div>
+              <div className="metric-foot"><span className="metric-compare">No data yet</span></div>
+            </div>
+          ))}
+        </div>
+
+        {profile?.niche && (
+          <div className="panel-grid">
+            <Link href="/niche" className="hub-card">
+              <span className="hub-glyph">🔥</span>
+              <h3>What&apos;s working in {profile.niche}</h3>
+              <p>See the videos and formats performing best in your niche right now.</p>
+              <span className="hub-link">Explore your niche →</span>
+            </Link>
+          </div>
+        )}
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell active="dashboard" userEmail={user.email}>
