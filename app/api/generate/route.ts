@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { SYSTEM, buildUserPrompt } from "@/lib/prompt";
 import { deliverableSchema, type GenerateInput } from "@/lib/schema";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 // Opus 5 thinks before answering; give the request room.
@@ -92,7 +93,34 @@ export async function POST(req: Request) {
         { status: 502 },
       );
     }
-    return NextResponse.json({ data });
+
+    // Save to the signed-in user's history. Best-effort: if the `plans` table
+    // doesn't exist yet or the user is logged out, generation still succeeds.
+    let saved = null;
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: row } = await supabase
+          .from("plans")
+          .insert({
+            user_id: user.id,
+            client_handle: input.clientHandle || null,
+            niche: input.niche || null,
+            platform: input.platform || null,
+            data,
+          })
+          .select("id, client_handle, niche, platform, data, created_at")
+          .single();
+        saved = row;
+      }
+    } catch {
+      // ignore save errors — the plan was still generated
+    }
+
+    return NextResponse.json({ data, saved });
   } catch (err: unknown) {
     const message =
       err instanceof Error ? err.message : "Unexpected error generating the plan.";

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { Deliverable, GenerateInput } from "@/lib/schema";
+import { useState, useEffect } from "react";
+import type { Deliverable, GenerateInput, SavedPlan } from "@/lib/schema";
 
 const EMPTY: GenerateInput = {
   clientHandle: "",
@@ -18,6 +18,15 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Deliverable | null>(null);
+  const [history, setHistory] = useState<SavedPlan[]>([]);
+
+  // Load this user's saved plans on mount.
+  useEffect(() => {
+    fetch("/api/plans")
+      .then((r) => (r.ok ? r.json() : { plans: [] }))
+      .then((j) => setHistory(j.plans ?? []))
+      .catch(() => {});
+  }, []);
 
   function set<K extends keyof GenerateInput>(key: K, value: GenerateInput[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -36,6 +45,7 @@ export default function Home() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Something went wrong.");
       setResult(json.data as Deliverable);
+      if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
     } finally {
@@ -135,6 +145,25 @@ export default function Home() {
             </button>
 
             {error && <div className="err">{error}</div>}
+
+            {history.length > 0 && (
+              <div className="recent">
+                <div className="recent-head">Recent plans</div>
+                {history.map((h) => (
+                  <button
+                    key={h.id}
+                    className="recent-item"
+                    onClick={() => {
+                      setResult(h.data);
+                      setError(null);
+                    }}
+                  >
+                    <b>{h.client_handle || h.niche || "Untitled plan"}</b>
+                    <small>{new Date(h.created_at).toLocaleDateString()}</small>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="report">

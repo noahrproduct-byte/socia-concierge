@@ -135,3 +135,13 @@ export type GenerateInput = {
   competitors: string;
   goal: string;
 };
+
+// A plan saved to the database (one row in the `plans` table).
+export type SavedPlan = {
+  id: string;
+  client_handle: string | null;
+  niche: string | null;
+  platform: string | null;
+  data: Deliverable;
+  created_at: string;
+};
