@@ -102,3 +102,26 @@ create policy "Users can delete their own conversations"
 
 create index if not exists conversations_user_updated_idx
   on public.conversations (user_id, updated_at desc);
+
+-- A user's connected Instagram account + the long-lived access token we use to
+-- pull their real posts and insights. One row per user (their primary IG).
+create table if not exists public.instagram_connections (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  ig_user_id text,
+  username text,
+  account_type text,
+  access_token text not null,
+  token_expires_at timestamptz,
+  connected_at timestamptz not null default now()
+);
+
+alter table public.instagram_connections enable row level security;
+
+create policy "Users can read their own instagram connection"
+  on public.instagram_connections for select using (auth.uid() = user_id);
+create policy "Users can insert their own instagram connection"
+  on public.instagram_connections for insert with check (auth.uid() = user_id);
+create policy "Users can update their own instagram connection"
+  on public.instagram_connections for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their own instagram connection"
+  on public.instagram_connections for delete using (auth.uid() = user_id);

@@ -44,7 +44,7 @@ export default function ConnectionsManager() {
 
   return (
     <div>
-      <ConnectAccounts connected={connected} onToggle={toggle} />
+      <ConnectAccounts connected={connected} onToggle={toggle} exclude={["Instagram"]} />
       <p className="onb-connect-note">
         {saving
           ? "Saving…"

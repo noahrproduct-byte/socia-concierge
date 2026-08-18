@@ -84,13 +84,15 @@ const ACCOUNTS: Account[] = [
 export default function ConnectAccounts({
   connected,
   onToggle,
+  exclude = [],
 }: {
   connected: string[];
   onToggle: (id: string) => void;
+  exclude?: string[];
 }) {
   return (
     <div className="conn-grid">
-      {ACCOUNTS.map((a) => {
+      {ACCOUNTS.filter((a) => !exclude.includes(a.id)).map((a) => {
         const on = connected.includes(a.id);
         return (
           <div className="conn-item" key={a.id}>

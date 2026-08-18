@@ -3,15 +3,27 @@ import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import ProfileForm from "@/components/ProfileForm";
 import ConnectionsManager from "@/components/ConnectionsManager";
+import InstagramConnect from "@/components/InstagramConnect";
 
 export const metadata = { title: "Settings — SOCIA" };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ig?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  const { ig } = await searchParams;
+  const { data: igConn } = await supabase
+    .from("instagram_connections")
+    .select("username")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
   return (
     <AppShell active="settings" userEmail={user.email}>
@@ -38,6 +50,10 @@ export default async function SettingsPage() {
           <div className="chart-head">
             <h3>Connected accounts</h3>
             <span className="head-note">Connect a platform to pull analytics</span>
+          </div>
+          <InstagramConnect username={igConn?.username ?? null} status={ig} />
+          <div className="ig-connect-divider">
+            <span>Other platforms — coming soon</span>
           </div>
           <ConnectionsManager />
         </section>
