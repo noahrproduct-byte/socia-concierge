@@ -19,9 +19,28 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Deliverable | null>(null);
   const [history, setHistory] = useState<SavedPlan[]>([]);
+  const [hasNiche, setHasNiche] = useState(true);
 
-  // Load this user's saved plans on mount.
+  // Prefill from the user's profile + load their saved plans on mount.
   useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : { profile: null }))
+      .then((j) => {
+        const p = j.profile;
+        if (p) {
+          setForm((f) => ({
+            ...f,
+            clientHandle: p.brand_name || f.clientHandle,
+            niche: p.niche || f.niche,
+            goal: p.goals || f.goal,
+            platform: (Array.isArray(p.platforms) && p.platforms[0]) || f.platform,
+          }));
+          setHasNiche(!!p.niche);
+        } else {
+          setHasNiche(false);
+        }
+      })
+      .catch(() => {});
     fetch("/api/plans")
       .then((r) => (r.ok ? r.json() : { plans: [] }))
       .then((j) => setHistory(j.plans ?? []))
@@ -59,7 +78,7 @@ export default function Home() {
         <div className="topin">
           <div className="logo">S</div>
           <div className="brand">
-            SOCIA<span>Concierge Engine · internal</span>
+            SOCIA<span>Content Plan</span>
           </div>
         </div>
       </header>
@@ -67,22 +86,28 @@ export default function Home() {
       <div className="wrap">
         <div className="grid">
           <div className="panel">
-            <h2>New client plan</h2>
+            <h2>Your content plan</h2>
             <p className="hint">
-              Paste what you know about the account. The more real data, the
-              sharper the plan.
+              SOCIA builds a weekly plan for your account. Add anything recent to
+              sharpen it, or just hit generate.
             </p>
 
-            <label>Client handle</label>
+            {!hasNiche && (
+              <div className="tool-tip">
+                Tip: <a href="/onboarding">set your niche</a> for sharper plans.
+              </div>
+            )}
+
+            <label>Your account / handle</label>
             <input
-              placeholder="@joes.pizza.austin"
+              placeholder="@yourhandle or your brand name"
               value={form.clientHandle}
               onChange={(e) => set("clientHandle", e.target.value)}
             />
 
-            <label>Niche / vertical</label>
+            <label>Your niche</label>
             <input
-              placeholder="Neighbourhood pizza restaurant"
+              placeholder="e.g. Fitness &amp; health"
               value={form.niche}
               onChange={(e) => set("niche", e.target.value)}
             />
@@ -99,10 +124,10 @@ export default function Home() {
             </select>
 
             <label>
-              Client goal <span className="opt">— optional</span>
+              Your goal <span className="opt">— optional</span>
             </label>
             <input
-              placeholder="Fill more tables Tue–Thu"
+              placeholder="e.g. grow to 50k, drive bookings, sell a course"
               value={form.goal}
               onChange={(e) => set("goal", e.target.value)}
             />
@@ -129,8 +154,8 @@ export default function Home() {
             />
 
             <label>
-              Competitors &amp; what&apos;s working{" "}
-              <span className="opt">— one per line</span>
+              Competitors you watch{" "}
+              <span className="opt">— optional, one per line</span>
             </label>
             <textarea
               placeholder={
@@ -141,7 +166,7 @@ export default function Home() {
             />
 
             <button className="btn" onClick={generate} disabled={loading}>
-              {loading ? "Analyzing…" : "Generate plan"}
+              {loading ? "Analyzing…" : "Generate my plan"}
             </button>
 
             {error && <div className="err">{error}</div>}
@@ -183,10 +208,9 @@ export default function Home() {
             ) : (
               <div className="empty">
                 <div>
-                  <div className="big">Your deliverable appears here.</div>
-                  Fill in the brief and hit Generate. You&apos;ll get a health
-                  score, an honest audit, competitor gaps, and a 5–7 post plan
-                  you can send straight to the client.
+                  <div className="big">Your plan appears here.</div>
+                  Hit Generate and you&apos;ll get a health score, an honest
+                  audit, competitor gaps, and a 5–7 post plan for your account.
                 </div>
               </div>
             )}
