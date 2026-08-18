@@ -21,6 +21,7 @@ import { MetricCard, PlatformBadge } from "@/components/ui";
 import PerformanceChart from "@/components/PerformanceChart";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import AccountSwitcher from "@/components/AccountSwitcher";
+import ContentScoreCard from "@/components/ContentScoreCard";
 import {
   KPIS,
   AI_BRIEF,
@@ -150,6 +151,9 @@ export default async function DashboardPage() {
           <MetricCard key={k.key} kpi={k} icon={KPI_ICON[k.key]} />
         ))}
       </div>
+
+      {/* Content Score (brand signature) */}
+      <ContentScoreCard />
 
       {/* AI Strategy Brief + Recommended Actions */}
       <div className="dash-2col brief">

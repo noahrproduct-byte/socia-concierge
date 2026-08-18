@@ -2609,6 +2609,7 @@ a.hub-card:hover {
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 20px;
+  box-shadow: 0 1px 2px rgba(15, 17, 21, 0.05);
 }
 .card-head {
   display: flex;
