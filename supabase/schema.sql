@@ -56,3 +56,25 @@ create policy "Users can update their own profile"
   on public.profiles for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Shared cache of "what's working" per niche (generated once, reused by everyone
+-- in that niche — keeps the AI cost low and the page instant).
+create table if not exists public.niche_trends (
+  niche text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.niche_trends enable row level security;
+
+create policy "Signed-in users can read niche trends"
+  on public.niche_trends for select
+  using (auth.role() = 'authenticated');
+
+create policy "Signed-in users can add niche trends"
+  on public.niche_trends for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Signed-in users can update niche trends"
+  on public.niche_trends for update
+  using (auth.role() = 'authenticated');

@@ -145,3 +145,53 @@ export type SavedPlan = {
   data: Deliverable;
   created_at: string;
 };
+
+// "What's working in your niche" — AI-generated, cached per niche.
+export type NicheTrends = {
+  niche: string;
+  summary: string;
+  trends: {
+    title: string;
+    format: string;
+    whyItWorks: string;
+    exampleHook: string;
+    momentum: string; // "Hot" | "Rising" | "Steady"
+  }[];
+  topHooks: string[];
+  formats: { name: string; note: string }[];
+};
+
+export const nicheTrendsSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    niche: { type: "string" },
+    summary: { type: "string" },
+    trends: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          title: { type: "string" },
+          format: { type: "string" },
+          whyItWorks: { type: "string" },
+          exampleHook: { type: "string" },
+          momentum: { type: "string" },
+        },
+        required: ["title", "format", "whyItWorks", "exampleHook", "momentum"],
+      },
+    },
+    topHooks: { type: "array", items: { type: "string" } },
+    formats: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: { name: { type: "string" }, note: { type: "string" } },
+        required: ["name", "note"],
+      },
+    },
+  },
+  required: ["niche", "summary", "trends", "topHooks", "formats"],
+};

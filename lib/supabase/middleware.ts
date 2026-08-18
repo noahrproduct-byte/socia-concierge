@@ -38,6 +38,7 @@ export async function updateSession(request: NextRequest) {
     "/onboarding",
     "/analytics",
     "/competitors",
+    "/niche",
     "/chat",
     "/tool",
     "/scorer",

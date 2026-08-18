@@ -3419,3 +3419,172 @@ a.hub-card:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ---------- niche trends ---------- */
+.nt-loading {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--slate);
+}
+.nt-loading .spinner {
+  margin-bottom: 16px;
+}
+.nt-loading p {
+  font-size: 15px;
+  color: var(--charcoal);
+  font-weight: 600;
+}
+.nt-loading span {
+  font-size: 12.5px;
+  margin-top: 6px;
+}
+.nt-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: linear-gradient(180deg, #fff, #fbfcff);
+  border: 1px solid #e7ecfb;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.nt-summary-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--accent);
+}
+.nt-summary p {
+  font-size: 14.5px;
+  color: var(--charcoal);
+  margin-top: 5px;
+  max-width: 70ch;
+}
+.nt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.nt-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+}
+.nt-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.nt-card h3 {
+  font-size: 15px;
+  margin-bottom: 7px;
+  letter-spacing: -0.2px;
+}
+.nt-why {
+  font-size: 13px;
+  color: var(--slate);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.nt-hook {
+  background: var(--ivory);
+  border: 1px dashed var(--silver);
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-style: italic;
+}
+.nt-hook b {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--slate);
+  margin-bottom: 3px;
+}
+.momentum {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.momentum.hot {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+.momentum.rising {
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--success);
+}
+.momentum.steady {
+  background: var(--silver);
+  color: var(--slate);
+}
+.nt-hooks {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nt-hooks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--charcoal);
+  line-height: 1.45;
+}
+.nt-hook-n {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.nt-formats {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.nt-formats li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.nt-formats li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.nt-formats b {
+  font-size: 13.5px;
+}
+.nt-formats small {
+  font-size: 12.5px;
+  color: var(--slate);
+  line-height: 1.45;
+}
+@media (max-width: 900px) {
+  .nt-grid {
+    grid-template-columns: 1fr;
+  }
+}

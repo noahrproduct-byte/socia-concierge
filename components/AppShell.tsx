@@ -8,6 +8,7 @@ import {
   Video,
   CalendarDays,
   Settings,
+  Flame,
   type LucideIcon,
 } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
@@ -18,6 +19,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
   { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
   { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
+  { href: "/niche", label: "Niche Trends", Icon: Flame, key: "niche" },
   { href: "/chat", label: "AI Strategist", Icon: Sparkles, key: "chat" },
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
   { href: "/scorer", label: "Video Scorer", Icon: Video, key: "scorer" },
