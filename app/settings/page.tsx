@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
+import ProfileForm from "@/components/ProfileForm";
 
 export const metadata = { title: "Settings — SOCIA" };
 
@@ -31,15 +32,12 @@ export default async function SettingsPage() {
       <div className="settings">
         <section className="chart-card">
           <div className="chart-head">
-            <h3>Profile</h3>
+            <h3>Your profile</h3>
+            <span className="head-note">Powers your recommendations and niche trends</span>
           </div>
           <label>Email</label>
           <input type="email" value={user.email ?? ""} readOnly />
-          <label>Display name</label>
-          <input type="text" placeholder="Your name or brand" />
-          <button className="authbtn" style={{ maxWidth: 160, marginTop: 16 }}>
-            Save changes
-          </button>
+          <ProfileForm mode="settings" />
         </section>
 
         <section className="chart-card">

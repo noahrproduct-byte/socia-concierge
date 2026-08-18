@@ -94,7 +94,7 @@ export default async function DashboardPage() {
           <div className="connect-actions">
             <Link href="/settings" className="btn-primary">Connect account</Link>
             {!profile?.niche && (
-              <Link href="/settings" className="btn-secondary">Set your niche</Link>
+              <Link href="/onboarding" className="btn-secondary">Set your niche</Link>
             )}
           </div>
           <span className="connect-note">

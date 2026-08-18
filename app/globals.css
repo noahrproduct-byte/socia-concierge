@@ -3327,3 +3327,95 @@ a.hub-card:hover {
 .metric.muted .metric-value {
   color: #c2c7d0;
 }
+
+/* ---------- onboarding ---------- */
+.onb-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 40px 20px;
+  background: var(--ivory);
+}
+.onb-card {
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 34px 32px;
+  box-shadow: 0 10px 40px rgba(15, 17, 21, 0.06);
+}
+.onb-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.4px;
+  margin-bottom: 20px;
+}
+.onb-logo .side-mark {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+}
+.onb-card h1 {
+  font-size: 24px;
+  letter-spacing: -0.6px;
+  margin-bottom: 6px;
+}
+.onb-sub {
+  font-size: 14px;
+  color: var(--slate);
+  line-height: 1.5;
+  margin-bottom: 22px;
+}
+.onb-card label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  margin: 16px 0 6px;
+}
+.onb-card input,
+.onb-card select {
+  width: 100%;
+}
+.onb-skip {
+  text-align: center;
+  margin-top: 16px;
+}
+.onb-skip a {
+  font-size: 13.5px;
+  color: var(--slate);
+  font-weight: 600;
+}
+.onb-skip a:hover {
+  color: var(--accent);
+}
+
+/* niche / platform chips */
+.chipset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.chip {
+  background: #fff;
+  border: 1px solid var(--silver);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--charcoal);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.chip:hover {
+  border-color: var(--accent);
+}
+.chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}

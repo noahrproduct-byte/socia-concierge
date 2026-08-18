@@ -35,6 +35,7 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const protectedPaths = [
     "/dashboard",
+    "/onboarding",
     "/analytics",
     "/competitors",
     "/chat",

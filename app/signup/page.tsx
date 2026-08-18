@@ -36,7 +36,7 @@ export default function SignupPage() {
       return;
     }
     if (data.session) {
-      router.push("/dashboard");
+      router.push("/onboarding");
       router.refresh();
     } else {
       setMsg(
