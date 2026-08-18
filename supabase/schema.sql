@@ -78,3 +78,27 @@ create policy "Signed-in users can add niche trends"
 create policy "Signed-in users can update niche trends"
   on public.niche_trends for update
   using (auth.role() = 'authenticated');
+
+-- Saved AI Strategist chat conversations, one row per conversation.
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  title text,
+  messages jsonb not null default '[]',
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+alter table public.conversations enable row level security;
+
+create policy "Users can read their own conversations"
+  on public.conversations for select using (auth.uid() = user_id);
+create policy "Users can insert their own conversations"
+  on public.conversations for insert with check (auth.uid() = user_id);
+create policy "Users can update their own conversations"
+  on public.conversations for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete their own conversations"
+  on public.conversations for delete using (auth.uid() = user_id);
+
+create index if not exists conversations_user_updated_idx
+  on public.conversations (user_id, updated_at desc);

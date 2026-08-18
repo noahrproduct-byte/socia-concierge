@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
+import { createClient } from "@/lib/supabase/server";
+import { getProfile, type Profile } from "@/lib/profile";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// The strategist persona. It's told the account context so replies feel like
-// they come from a tool that already knows the user's numbers.
-const SYSTEM = `You are SOCIA, an AI social media strategist embedded in the user's dashboard. You already know their account (context below). Answer like a sharp, concise strategist: specific, actionable, and backed by their numbers. Keep replies short — 2 to 5 sentences or a tight list. Never generic.
+// Build the strategist's system prompt from the user's real profile, so the
+// chat answers for *their* account and niche — not a hardcoded demo.
+function buildSystem(p: Profile | null): string {
+  const ctx =
+    p && p.niche
+      ? `The user's account:
+- Niche: ${p.niche}
+- Brand / handle: ${p.brand_name || "(not set)"}
+- Main goal: ${p.goals || "(not set)"}
+- Platforms: ${(p.platforms || []).join(", ") || "(not set)"}`
+      : `The user hasn't set their niche yet. Give the best general advice you can, and when it would help, suggest they set their niche in Settings so you can tailor answers.`;
 
-ACCOUNT CONTEXT (demo account):
-- @tonys.slice.house — family-run pizza restaurant in Austin
-- ~12,500 followers, growing ~3%/month
-- Best performers: Reels that open on a face + spoken hook in the first 1.5s; cheese-pull and dough-tossing clips
-- Weak: static menu photos, and posts that open on the logo
-- Audience most active Tuesday & Thursday at 7PM
-- Currently posts ~2x/week; competitors post 4–5x/week`;
+  return `You are SOCIA, an AI social media strategist embedded in the user's dashboard. Answer like a sharp, concise strategist: specific, actionable, and tailored to their niche and goals. Keep replies short — 2 to 5 sentences or a tight list. Never generic.
+
+${ctx}`;
+}
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -39,11 +46,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No message to send." }, { status: 400 });
   }
 
+  // Pull the user's profile to personalize the system prompt.
+  let profile: Profile | null = null;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) profile = await getProfile(supabase, user.id);
+  } catch {
+    // fall back to the generic system prompt
+  }
+
   try {
     const res = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: SYSTEM,
+      system: buildSystem(profile),
       messages,
     });
     if (res.stop_reason === "refusal") {
