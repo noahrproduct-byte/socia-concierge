@@ -1,5 +1,7 @@
 import { ArrowUpRight, ArrowDownRight, Camera, Music2, Play } from "lucide-react";
 import type { Kpi } from "@/lib/demoData";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 // ---- TrendBadge ----
 export function TrendBadge({ change, up }: { change: number; up: boolean }) {
@@ -73,22 +75,34 @@ export function Sparkline({
 // ---- MetricCard ----
 export function MetricCard({ kpi, icon }: { kpi: Kpi; icon: React.ReactNode }) {
   return (
-    <div className="metric">
-      <div className="metric-head">
-        <span className="metric-label">{kpi.label}</span>
-        <span className="metric-icon">{icon}</span>
+    <Card className="gap-3 rounded-2xl px-5 py-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] font-medium text-muted-foreground">{kpi.label}</span>
+        <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
+          {icon}
+        </span>
       </div>
-      <div className="metric-value">
-        {kpi.value}
-        <TrendBadge change={kpi.change} up={kpi.up} />
+      <div className="flex items-end gap-2">
+        <span className="text-[28px] font-bold leading-none tracking-tight text-[var(--charcoal)]">
+          {kpi.value}
+        </span>
+        <span
+          className={cn(
+            "mb-0.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+            kpi.up ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600",
+          )}
+        >
+          {kpi.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+          {Math.abs(kpi.change)}%
+        </span>
       </div>
-      <div className="metric-foot">
-        <span className="metric-compare">{kpi.compare}</span>
-        <span className="metric-spark">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground">{kpi.compare}</span>
+        <span className="h-8 w-28 shrink-0">
           <Sparkline data={kpi.spark} variant={kpi.variant} up={kpi.up} />
         </span>
       </div>
-    </div>
+    </Card>
   );
 }
 

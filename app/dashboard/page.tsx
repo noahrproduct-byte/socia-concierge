@@ -12,8 +12,6 @@ import {
   Zap,
   Flame,
   ArrowRight,
-  ChevronDown,
-  Users2,
   Link2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
@@ -22,6 +20,7 @@ import AppShell from "@/components/AppShell";
 import { MetricCard, PlatformBadge } from "@/components/ui";
 import PerformanceChart from "@/components/PerformanceChart";
 import DateRangeSelector from "@/components/DateRangeSelector";
+import AccountSwitcher from "@/components/AccountSwitcher";
 import {
   KPIS,
   AI_BRIEF,
@@ -138,9 +137,7 @@ export default async function DashboardPage() {
         </div>
         <div className="dash-controls">
           <DateRangeSelector />
-          <button className="pill-btn">
-            <Users2 size={15} /> All Accounts <ChevronDown size={14} className="drop-chev" />
-          </button>
+          <AccountSwitcher />
           <Link href="/chat" className="btn-primary">
             <Sparkles size={15} /> Ask AI Strategist
           </Link>

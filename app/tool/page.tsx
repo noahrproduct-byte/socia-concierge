@@ -84,7 +84,7 @@ export default function Home() {
       </header>
 
       <div className="wrap">
-        <div className="grid">
+        <div className="split-grid">
           <div className="panel">
             <h2>Your content plan</h2>
             <p className="hint">

@@ -42,7 +42,7 @@
 
   --muted-foreground: oklch(0.556 0 0);
 
-  --accent: oklch(0.97 0 0);
+  --shadcn-accent: oklch(0.97 0 0); /* shadcn menu/hover neutral; brand --accent (blue) is set later */
 
   --accent-foreground: oklch(0.205 0 0);
 
@@ -145,7 +145,8 @@ body {
 }
 
 /* ---------- layout ---------- */
-.grid {
+/* renamed from .grid to avoid colliding with Tailwind's `grid` utility */
+.split-grid {
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 28px;
@@ -153,7 +154,7 @@ body {
   align-items: start;
 }
 @media (max-width: 900px) {
-  .grid {
+  .split-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -919,7 +920,7 @@ section.block > h3 {
   body {
     background: #fff;
   }
-  .grid {
+  .split-grid {
     grid-template-columns: 1fr;
     padding: 0;
   }
@@ -3945,7 +3946,7 @@ a.hub-card:hover {
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
+  --color-accent: var(--shadcn-accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -3980,7 +3981,7 @@ a.hub-card:hover {
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --shadcn-accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
