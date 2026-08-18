@@ -24,14 +24,11 @@ export const NICHES = [
   "Other",
 ];
 
-const PLATFORMS = ["Instagram", "TikTok", "YouTube", "LinkedIn", "X"];
-
 export default function ProfileForm({ mode }: { mode: "onboarding" | "settings" }) {
   const router = useRouter();
   const [niche, setNiche] = useState("");
   const [brand, setBrand] = useState("");
   const [goals, setGoals] = useState("");
-  const [platforms, setPlatforms] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -46,15 +43,10 @@ export default function ProfileForm({ mode }: { mode: "onboarding" | "settings" 
           setNiche(p.niche ?? "");
           setBrand(p.brand_name ?? "");
           setGoals(p.goals ?? "");
-          setPlatforms(Array.isArray(p.platforms) ? p.platforms : []);
         }
       })
       .catch(() => {});
   }, []);
-
-  function togglePlatform(p: string) {
-    setPlatforms((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
-  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -65,7 +57,7 @@ export default function ProfileForm({ mode }: { mode: "onboarding" | "settings" 
       const res = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ niche, brand_name: brand, goals, platforms }),
+        body: JSON.stringify({ niche, brand_name: brand, goals }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Couldn't save.");
@@ -97,20 +89,6 @@ export default function ProfileForm({ mode }: { mode: "onboarding" | "settings" 
 
       <label>Your main goal <span className="opt">— helps the AI</span></label>
       <input value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="e.g. grow followers, drive bookings, sell a course" />
-
-      <label>Which platforms? <span className="opt">— pick any</span></label>
-      <div className="chipset">
-        {PLATFORMS.map((p) => (
-          <button
-            type="button"
-            key={p}
-            className={`chip${platforms.includes(p) ? " on" : ""}`}
-            onClick={() => togglePlatform(p)}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
 
       <button className="authbtn" type="submit" disabled={loading} style={{ maxWidth: mode === "settings" ? 180 : "none" }}>
         {loading ? "Saving…" : mode === "onboarding" ? "Continue" : "Save profile"}

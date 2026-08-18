@@ -13,6 +13,21 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // First-time users (no niche set yet) go through onboarding, unless the
+      // link already points somewhere specific (e.g. password reset).
+      if (!searchParams.get("next")) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("niche")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (!profile?.niche) return NextResponse.redirect(`${origin}/onboarding`);
+        }
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

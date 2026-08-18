@@ -2,15 +2,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import ProfileForm from "@/components/ProfileForm";
+import ConnectionsManager from "@/components/ConnectionsManager";
 
 export const metadata = { title: "Settings — SOCIA" };
-
-const SOCIALS = [
-  { name: "Instagram", glyph: "📷" },
-  { name: "TikTok", glyph: "🎵" },
-  { name: "YouTube", glyph: "▶" },
-  { name: "LinkedIn", glyph: "in" },
-];
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -45,16 +39,7 @@ export default async function SettingsPage() {
             <h3>Connected accounts</h3>
             <span className="head-note">Connect a platform to pull analytics</span>
           </div>
-          <div className="conn-list">
-            {SOCIALS.map((s) => (
-              <div className="conn-row" key={s.name}>
-                <span className="conn-icon">{s.glyph}</span>
-                <span className="conn-name">{s.name}</span>
-                <span className="conn-status">Not connected</span>
-                <button className="conn-btn">Connect</button>
-              </div>
-            ))}
-          </div>
+          <ConnectionsManager />
         </section>
 
         <section className="chart-card plan-card">

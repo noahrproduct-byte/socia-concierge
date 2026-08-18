@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     brand_name?: string;
     goals?: string;
     platforms?: string[];
+    account_connected?: boolean;
   };
   try {
     body = await req.json();
@@ -40,17 +41,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { error } = await supabase.from("profiles").upsert(
-    {
-      user_id: user.id,
-      niche: body.niche || null,
-      brand_name: body.brand_name || null,
-      goals: body.goals || null,
-      platforms: Array.isArray(body.platforms) ? body.platforms : null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
+  const row: Record<string, unknown> = {
+    user_id: user.id,
+    niche: body.niche || null,
+    brand_name: body.brand_name || null,
+    goals: body.goals || null,
+    updated_at: new Date().toISOString(),
+  };
+  // Only touch platforms / account_connected when the caller sends them, so the
+  // profile form (niche/goal) and the connections manager can save independently
+  // without wiping each other.
+  if (Array.isArray(body.platforms)) row.platforms = body.platforms;
+  if (typeof body.account_connected === "boolean") {
+    row.account_connected = body.account_connected;
+  }
+
+  const { error } = await supabase.from("profiles").upsert(row, { onConflict: "user_id" });
 
   if (error) {
     return NextResponse.json(
