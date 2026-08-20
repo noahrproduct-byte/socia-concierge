@@ -86,21 +86,25 @@ export function MetricCard({ kpi, icon }: { kpi: Kpi; icon: React.ReactNode }) {
         <span className="text-[28px] font-bold leading-none tracking-tight text-[var(--charcoal)]">
           {kpi.value}
         </span>
-        <span
-          className={cn(
-            "mb-0.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
-            kpi.up ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600",
-          )}
-        >
-          {kpi.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-          {Math.abs(kpi.change)}%
-        </span>
+        {kpi.change !== null && (
+          <span
+            className={cn(
+              "mb-0.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+              kpi.up ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600",
+            )}
+          >
+            {kpi.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+            {Math.abs(kpi.change)}%
+          </span>
+        )}
       </div>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground">{kpi.compare}</span>
-        <span className="h-8 w-28 shrink-0">
-          <Sparkline data={kpi.spark} variant={kpi.variant} up={kpi.up} />
-        </span>
+        {kpi.spark.length > 1 && (
+          <span className="h-8 w-28 shrink-0">
+            <Sparkline data={kpi.spark} variant={kpi.variant} up={kpi.up} />
+          </span>
+        )}
       </div>
     </Card>
   );

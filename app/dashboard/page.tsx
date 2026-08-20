@@ -17,6 +17,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
+import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import type { Kpi } from "@/lib/demoData";
 import AppShell from "@/components/AppShell";
 import { MetricCard, PlatformBadge } from "@/components/ui";
 import PerformanceChart from "@/components/PerformanceChart";
@@ -55,6 +57,120 @@ const INTEL_ICON: Record<string, React.ReactNode> = {
   flame: <Flame size={15} />,
   trend: <TrendingUp size={15} />,
 };
+
+// ---- real-data helpers (synced Instagram snapshot) ----
+function fmtNum(n: number | null | undefined): string {
+  if (n == null) return "–";
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+function avg(xs: number[]): number {
+  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+}
+function fmtDate(ts?: string): string {
+  if (!ts) return "";
+  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function formatLabel(t?: string): string {
+  if (t === "VIDEO") return "Reel";
+  if (t === "CAROUSEL_ALBUM") return "Carousel";
+  return "Post";
+}
+
+type ContentRow = {
+  title: string;
+  date: string;
+  format: string;
+  platform: "ig" | "tt" | "yt";
+  aVal: string;
+  aLabel: string;
+  bVal: string;
+  bLabel: string;
+  mult: string | null;
+};
+
+function buildLiveData(followers: number | null, mediaCount: number | null, media: IgMediaItem[]) {
+  const eng = media.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
+  const chronological = [...media].reverse(); // API returns newest first
+  const engSpark = chronological.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
+  const likesSpark = chronological.map((m) => m.like_count ?? 0);
+  const engRate =
+    followers && followers > 0 && media.length ? (avg(eng) / followers) * 100 : null;
+  const recent = eng.slice(0, 5);
+  const prev = eng.slice(5, 10);
+  const engChange =
+    recent.length && prev.length && avg(prev) > 0
+      ? Math.round(((avg(recent) - avg(prev)) / avg(prev)) * 1000) / 10
+      : null;
+  const avgLikes = media.length ? Math.round(avg(media.map((m) => m.like_count ?? 0))) : null;
+
+  const kpis: Kpi[] = [
+    {
+      key: "followers",
+      label: "Total Followers",
+      value: fmtNum(followers),
+      change: null,
+      up: true,
+      compare: "Live from Instagram",
+      spark: [],
+    },
+    {
+      key: "engagement",
+      label: "Engagement Rate",
+      value: engRate != null ? engRate.toFixed(1) + "%" : "–",
+      change: engChange,
+      up: (engChange ?? 0) >= 0,
+      compare: "last 5 vs prev 5 posts",
+      spark: engSpark,
+    },
+    {
+      key: "reach",
+      label: "Avg Likes / Post",
+      value: fmtNum(avgLikes),
+      change: null,
+      up: true,
+      compare: `across ${media.length} recent posts`,
+      spark: likesSpark,
+    },
+    {
+      key: "posts",
+      label: "Posts Published",
+      value: String(mediaCount ?? media.length),
+      change: null,
+      up: true,
+      compare: "on your profile",
+      spark: engSpark,
+      variant: "bar",
+    },
+  ];
+
+  const avgEng = avg(eng);
+  const topRows: ContentRow[] = [...media]
+    .sort(
+      (x, y) =>
+        (y.like_count ?? 0) + (y.comments_count ?? 0) - ((x.like_count ?? 0) + (x.comments_count ?? 0)),
+    )
+    .slice(0, 4)
+    .map((m) => {
+      const e = (m.like_count ?? 0) + (m.comments_count ?? 0);
+      const mult = avgEng > 0 ? e / avgEng : null;
+      const firstLine = (m.caption || "").split("\n")[0].trim();
+      return {
+        title: firstLine ? firstLine.slice(0, 46) : "(no caption)",
+        date: fmtDate(m.timestamp),
+        format: formatLabel(m.media_type),
+        platform: "ig" as const,
+        aVal: fmtNum(m.like_count ?? 0),
+        aLabel: "Likes",
+        bVal: fmtNum(m.comments_count ?? 0),
+        bLabel: "Com.",
+        mult: mult ? mult.toFixed(1) + "×" : null,
+      };
+    });
+
+  return { kpis, topRows };
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -151,6 +267,28 @@ export default async function DashboardPage() {
     );
   }
 
+  // Live synced Instagram data (auto-refreshes when stale). Falls back to the
+  // demo dataset when nothing has synced yet.
+  const snap = await getIgSnapshot(supabase, user.id);
+  const media = snap?.media ?? [];
+  const live = Boolean(snap && snap.followers_count != null);
+  const { kpis, topRows } = live
+    ? buildLiveData(snap!.followers_count, snap!.media_count, media)
+    : {
+        kpis: KPIS,
+        topRows: TOP_CONTENT.map((c) => ({
+          title: c.title,
+          date: c.date,
+          format: c.format,
+          platform: c.platform,
+          aVal: c.reach,
+          aLabel: "Reach",
+          bVal: c.eng,
+          bLabel: "Eng.",
+          mult: String(c.mult),
+        })) as ContentRow[],
+      };
+
   return (
     <AppShell active="dashboard" userEmail={user.email}>
       {/* Header */}
@@ -159,7 +297,11 @@ export default async function DashboardPage() {
           <h1 className="dash-greeting">
             {greeting}, {name} <span aria-hidden>👋</span>
           </h1>
-          <p className="dash-context">Here&apos;s what&apos;s happening with your content.</p>
+          <p className="dash-context">
+            {live
+              ? <>Live data for <b>@{snap!.username}</b>, synced from Instagram.</>
+              : <>Here&apos;s what&apos;s happening with your content.</>}
+          </p>
         </div>
         <div className="dash-controls">
           <DateRangeSelector />
@@ -172,7 +314,7 @@ export default async function DashboardPage() {
 
       {/* KPIs */}
       <div className="kpi-row">
-        {KPIS.map((k) => (
+        {kpis.map((k) => (
           <MetricCard key={k.key} kpi={k} icon={KPI_ICON[k.key]} />
         ))}
       </div>
@@ -250,7 +392,10 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="content-list">
-            {TOP_CONTENT.map((c, i) => (
+            {topRows.length === 0 && (
+              <p className="page-sub">No posts synced yet — they&apos;ll appear after your next post.</p>
+            )}
+            {topRows.map((c, i) => (
               <div className="content-row" key={i}>
                 <span className="content-thumb" aria-hidden>
                   {i + 1}
@@ -263,14 +408,14 @@ export default async function DashboardPage() {
                 </div>
                 <div className="content-stats">
                   <span>
-                    <b>{c.reach}</b>
-                    <small>Reach</small>
+                    <b>{c.aVal}</b>
+                    <small>{c.aLabel}</small>
                   </span>
                   <span>
-                    <b>{c.eng}</b>
-                    <small>Eng.</small>
+                    <b>{c.bVal}</b>
+                    <small>{c.bLabel}</small>
                   </span>
-                  <span className="content-mult">▲ {c.mult}</span>
+                  {c.mult && <span className="content-mult">▲ {c.mult}</span>}
                 </div>
               </div>
             ))}

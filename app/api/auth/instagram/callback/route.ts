@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/instagram";
+import { syncInstagram } from "@/lib/instagramSync";
 
 export const runtime = "nodejs";
 
@@ -88,6 +89,14 @@ export async function GET(req: Request) {
         { user_id: user.id, account_connected: true, updated_at: new Date().toISOString() },
         { onConflict: "user_id" },
       );
+
+    // 5) First sync, immediately — profile + recent posts are cached before
+    // the user even lands back in the app, so the dashboard is live at once.
+    try {
+      await syncInstagram(supabase, user.id);
+    } catch {
+      // pages self-heal with a stale-triggered sync
+    }
 
     return settings("connected");
   } catch (e) {

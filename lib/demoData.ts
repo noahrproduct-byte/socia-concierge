@@ -6,7 +6,7 @@ export type Kpi = {
   key: string;
   label: string;
   value: string;
-  change: number; // percent
+  change: number | null; // percent (null = no history yet)
   up: boolean;
   compare: string;
   spark: number[];

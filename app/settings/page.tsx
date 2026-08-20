@@ -19,11 +19,25 @@ export default async function SettingsPage({
   if (!user) redirect("/login");
 
   const { ig } = await searchParams;
-  const { data: igConn } = await supabase
-    .from("instagram_connections")
-    .select("username")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  // Full row first; fall back to the base column if cache columns don't exist yet.
+  let igConn: { username: string | null; last_synced_at?: string | null; followers_count?: number | null } | null = null;
+  {
+    const full = await supabase
+      .from("instagram_connections")
+      .select("username, last_synced_at, followers_count")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!full.error) {
+      igConn = full.data;
+    } else {
+      const base = await supabase
+        .from("instagram_connections")
+        .select("username")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      igConn = base.data;
+    }
+  }
 
   return (
     <AppShell active="settings" userEmail={user.email}>
@@ -51,7 +65,12 @@ export default async function SettingsPage({
             <h3>Connected accounts</h3>
             <span className="head-note">Connect a platform to pull analytics</span>
           </div>
-          <InstagramConnect username={igConn?.username ?? null} status={ig} />
+          <InstagramConnect
+            username={igConn?.username ?? null}
+            status={ig}
+            syncedAt={igConn?.last_synced_at ?? null}
+            followers={igConn?.followers_count ?? null}
+          />
           <div className="ig-connect-divider">
             <span>Other platforms — coming soon</span>
           </div>

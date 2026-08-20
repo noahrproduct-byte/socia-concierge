@@ -125,3 +125,12 @@ create policy "Users can update their own instagram connection"
   on public.instagram_connections for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "Users can delete their own instagram connection"
   on public.instagram_connections for delete using (auth.uid() = user_id);
+
+-- Synced snapshot of the connected account (profile + recent posts), refreshed
+-- automatically on connect and whenever it goes stale.
+alter table public.instagram_connections
+  add column if not exists profile jsonb,
+  add column if not exists media jsonb,
+  add column if not exists followers_count integer,
+  add column if not exists media_count integer,
+  add column if not exists last_synced_at timestamptz;
