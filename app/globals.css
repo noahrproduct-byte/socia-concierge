@@ -4614,7 +4614,8 @@ a.hub-card:hover {
 .down { color: var(--so-cyan); }
 
 /* word + block reveals */
-.so-w { display: inline-block; opacity: 0; transform: translateY(0.6em); filter: blur(5px); transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), filter 0.55s ease; }
+.so-w { display: inline-block; margin-right: 0.24em; opacity: 0; transform: translateY(0.6em); filter: blur(5px); transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), filter 0.55s ease; }
+.so-w:last-child { margin-right: 0; }
 .so-words.in .so-w { opacity: 1; transform: none; filter: none; }
 .so-rise { opacity: 0; transform: translateY(22px); transition: opacity 0.65s ease, transform 0.65s cubic-bezier(0.22, 1, 0.36, 1); }
 .so-rise.in { opacity: 1; transform: none; }
