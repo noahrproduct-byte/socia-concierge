@@ -101,10 +101,12 @@ function buildLiveData(followers: number | null, mediaCount: number | null, medi
     followers && followers > 0 && media.length ? (avg(eng) / followers) * 100 : null;
   const recent = eng.slice(0, 5);
   const prev = eng.slice(5, 10);
-  const engChange =
+  let engChange =
     recent.length && prev.length && avg(prev) > 0
       ? Math.round(((avg(recent) - avg(prev)) / avg(prev)) * 1000) / 10
       : null;
+  // A four-digit swing is real math but reads like a bug — hide extremes.
+  if (engChange !== null && Math.abs(engChange) > 300) engChange = null;
   const avgLikes = media.length ? Math.round(avg(media.map((m) => m.like_count ?? 0))) : null;
 
   const kpis: Kpi[] = [
