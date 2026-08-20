@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
+import { igConfigured } from "@/lib/instagram";
 import AppShell from "@/components/AppShell";
 import { MetricCard, PlatformBadge } from "@/components/ui";
 import PerformanceChart from "@/components/PerformanceChart";
@@ -73,6 +74,7 @@ export default async function DashboardPage() {
   // No social account connected yet → show a real connect/empty state,
   // not fabricated analytics.
   if (!connected) {
+    const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     return (
       <AppShell active="dashboard" userEmail={user.email}>
         <div className="dash-header">
@@ -84,32 +86,55 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="connect-card">
-          <span className="connect-ico"><Link2 size={26} /></span>
-          <h2>Connect a social account</h2>
-          <p>
-            SOCIA analyzes your posts to build your dashboard, audits, and weekly plan.
-            Connect Instagram or TikTok to see your real numbers here.
-          </p>
-          <div className="connect-actions">
-            <Link href="/settings" className="btn-primary">Connect account</Link>
-            {!profile?.niche && (
-              <Link href="/onboarding" className="btn-secondary">Set your niche</Link>
-            )}
+        {/* tinted connect banner */}
+        <div className="db-connect">
+          <span className="db-connect-ico"><Link2 size={22} /></span>
+          <div className="db-connect-copy">
+            <h2>Connect your Instagram account</h2>
+            <p>See how your community grows, what content performs best, and how you compare to your competitors.</p>
           </div>
-          <span className="connect-note">
-            No account connected yet — your analytics will appear here once you connect one.
-          </span>
+          <Link href={igHref} className="db-connect-cta">Connect Instagram</Link>
         </div>
 
-        <div className="kpi-row">
-          {["Total Followers", "Engagement Rate", "Reach / week", "Posts Published"].map((l) => (
-            <div className="metric muted" key={l}>
-              <div className="metric-head"><span className="metric-label">{l}</span></div>
-              <div className="metric-value">—</div>
-              <div className="metric-foot"><span className="metric-compare">No data yet</span></div>
+        {/* what you get, illustrated */}
+        <div className="db-feats">
+          <section className="db-feat">
+            <h3>Know your audience</h3>
+            <p>Track your follower growth and discover who actually watches you.</p>
+            <div className="mockp">
+              <div className="mockp-head"><span className="side-mark sm">S</span> Audience · top segments</div>
+              <div className="mock-row"><span>18 to 24</span><span className="mock-bar"><i style={{ width: "34%" }} /></span><b>34%</b></div>
+              <div className="mock-row"><span>25 to 34</span><span className="mock-bar"><i style={{ width: "42%" }} /></span><b>42%</b></div>
+              <div className="mock-row"><span>35 to 44</span><span className="mock-bar"><i style={{ width: "18%" }} /></span><b>18%</b></div>
+              <span className="mock-chip left"><small>Followers</small><b>12.4K</b><em>+234 this month</em></span>
             </div>
-          ))}
+          </section>
+
+          <section className="db-feat">
+            <h3>See every format&apos;s numbers</h3>
+            <p>Reach, views, and engagement for posts, reels, and stories in detail.</p>
+            <div className="mockp donuts">
+              <div className="mockp-head"><span className="side-mark sm">S</span> Engagement · by format</div>
+              <div className="mock-donut-row">
+                <span className="mock-donut" style={{ ["--v" as string]: "42%" }}><b>4.2%</b><small>Posts</small></span>
+                <span className="mock-donut hot" style={{ ["--v" as string]: "68%" }}><b>6.8%</b><small>Reels</small></span>
+                <span className="mock-donut warm" style={{ ["--v" as string]: "21%" }}><b>2.1%</b><small>Stories</small></span>
+              </div>
+              <span className="mock-chip right"><small>Top format</small><b>Reels</b><em>84.2K views</em></span>
+            </div>
+          </section>
+
+          <section className="db-feat">
+            <h3>Watch your competitors</h3>
+            <p>Add competitor accounts and compare their growth with yours.</p>
+            <div className="mockp">
+              <div className="mockp-head"><span className="side-mark sm">S</span> Competitors · followers vs you</div>
+              <div className="mock-row"><span>@brand_a</span><span className="mock-sub">24.1K followers</span><b className="pos">+24%</b></div>
+              <div className="mock-row"><span>@brand_b</span><span className="mock-sub">18.7K followers</span><b className="pos">+12%</b></div>
+              <div className="mock-row"><span>@brand_c</span><span className="mock-sub">9.4K followers</span><b className="neg">-5%</b></div>
+              <span className="mock-chip left"><small>Avg gap</small><b>+3.2%</b><em>vs competitors</em></span>
+            </div>
+          </section>
         </div>
 
         {profile?.niche && (
