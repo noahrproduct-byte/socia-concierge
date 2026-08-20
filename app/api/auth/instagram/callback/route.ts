@@ -10,7 +10,9 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const origin = url.origin;
-  const settings = (state: string) => NextResponse.redirect(`${origin}/settings?ig=${state}`);
+  // The start route put the return page in the OAuth state param.
+  const dest = url.searchParams.get("state") === "onboarding" ? "onboarding" : "settings";
+  const settings = (state: string) => NextResponse.redirect(`${origin}/${dest}?ig=${state}`);
 
   const error = url.searchParams.get("error");
   if (error) return settings("denied");

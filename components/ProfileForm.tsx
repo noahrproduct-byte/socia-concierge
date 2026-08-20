@@ -3,26 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export const NICHES = [
-  "Food & Restaurant",
-  "Fitness & Health",
-  "Beauty & Skincare",
-  "Fashion & Style",
-  "Travel",
-  "Tech & Gadgets",
-  "Education & How-to",
-  "Gaming",
-  "Business & Finance",
-  "Lifestyle & Vlogs",
-  "Home & Decor",
-  "Real Estate",
-  "Music & Entertainment",
-  "Parenting & Family",
-  "Art & Design",
-  "Pets & Animals",
-  "Automotive",
-  "Other",
-];
+import { NICHES } from "@/lib/niches";
+
+export { NICHES };
 
 export default function ProfileForm({ mode }: { mode: "onboarding" | "settings" }) {
   const router = useRouter();

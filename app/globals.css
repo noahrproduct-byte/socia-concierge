@@ -4349,6 +4349,67 @@ a.hub-card:hover {
 .ob-price-cta { width: 100%; justify-content: center; }
 .ob-price-note { display: block; text-align: center; font-size: 11px; color: var(--slate); margin-top: 8px; }
 .ob-skiprow { text-align: center; margin-top: 22px; }
+
+/* account snapshot + AI insights (confirm step) */
+.conn-live-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--good);
+  background: rgba(22, 163, 74, 0.1);
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ob-acct {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 6px 20px rgba(15, 17, 21, 0.06);
+}
+.ob-acct-avatar {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--sky), var(--accent));
+}
+.ob-acct-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ob-acct-meta b { font-size: 15px; letter-spacing: -0.2px; }
+.ob-acct-meta small { font-size: 12px; color: var(--slate); }
+.ob-acct-stats { margin-left: auto; display: flex; gap: 22px; }
+.ob-acct-stats span { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.ob-acct-stats b { font-size: 16px; letter-spacing: -0.3px; }
+.ob-acct-stats small { font-size: 10.5px; color: var(--slate); text-transform: uppercase; letter-spacing: 0.05em; }
+.ob-insights { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.ob-insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13.5px;
+  color: var(--charcoal);
+  background: var(--accent-soft);
+  border: 1px solid rgba(37, 99, 255, 0.14);
+  border-radius: 12px;
+  padding: 11px 14px;
+  line-height: 1.45;
+}
+.ob-insight svg { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+@media (max-width: 560px) {
+  .ob-acct { flex-wrap: wrap; }
+  .ob-acct-stats { margin-left: 0; width: 100%; justify-content: space-between; }
+}
 .ob-textlink { background: none; border: none; color: var(--slate); font-size: 13.5px; font-weight: 600; cursor: pointer; }
 .ob-textlink:hover { color: var(--accent); }
 

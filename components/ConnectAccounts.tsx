@@ -85,15 +85,45 @@ export default function ConnectAccounts({
   connected,
   onToggle,
   exclude = [],
+  instagramHref,
+  igUsername,
 }: {
   connected: string[];
   onToggle: (id: string) => void;
   exclude?: string[];
+  /** When set, the Instagram button starts the real OAuth flow at this URL. */
+  instagramHref?: string;
+  /** When set, Instagram renders as live-connected to this account. */
+  igUsername?: string | null;
 }) {
   return (
     <div className="conn-grid">
       {ACCOUNTS.filter((a) => !exclude.includes(a.id)).map((a) => {
+        const isIgLive = a.id === "Instagram" && (instagramHref || igUsername);
         const on = connected.includes(a.id);
+
+        if (isIgLive) {
+          return (
+            <div className="conn-item" key={a.id}>
+              <div className="conn-head">
+                {a.mark(a.color, 20)}
+                <span>{a.name}</span>
+                <span className="conn-live-badge">Live</span>
+              </div>
+              {igUsername ? (
+                <span className="conn-cta on" style={{ cursor: "default" }}>
+                  <Check size={16} /> Connected as @{igUsername}
+                </span>
+              ) : (
+                <a className="conn-cta" style={{ background: a.color }} href={instagramHref}>
+                  <span>{a.cta}</span>
+                  <span className="conn-cta-mark">{a.mark("#fff", 18)}</span>
+                </a>
+              )}
+            </div>
+          );
+        }
+
         return (
           <div className="conn-item" key={a.id}>
             <div className="conn-head">
@@ -107,7 +137,7 @@ export default function ConnectAccounts({
               onClick={() => onToggle(a.id)}
             >
               {on ? (
-                <><Check size={16} /> Connected — click to remove</>
+                <><Check size={16} /> Connected. Click to remove</>
               ) : (
                 <>
                   <span>{a.cta}</span>
