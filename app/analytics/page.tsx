@@ -1,8 +1,40 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
+import LiveSync from "@/components/LiveSync";
+import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 
 export const metadata = { title: "Analytics — SOCIA" };
+
+// ---- live helpers ----
+function fmtNum(n: number | null | undefined): string {
+  if (n == null) return "–";
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(n);
+}
+function avg(xs: number[]): number {
+  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+}
+// Best time to post: the weekday+hour bucket whose posts earn the most engagement.
+function bestTime(media: IgMediaItem[]): string | null {
+  const buckets = new Map<string, { score: number; label: string }>();
+  for (const m of media) {
+    if (!m.timestamp) continue;
+    const d = new Date(m.timestamp);
+    const day = d.toLocaleDateString("en-US", { weekday: "short" });
+    const hour = d.getHours();
+    const key = `${day}-${hour}`;
+    const score = (m.like_count ?? 0) + (m.comments_count ?? 0);
+    const ampm = hour === 0 ? "12AM" : hour < 12 ? `${hour}AM` : hour === 12 ? "12PM" : `${hour - 12}PM`;
+    const cur = buckets.get(key) ?? { score: 0, label: `${day} ${ampm}` };
+    cur.score += score;
+    buckets.set(key, cur);
+  }
+  let best: { score: number; label: string } | null = null;
+  for (const b of buckets.values()) if (!best || b.score > best.score) best = b;
+  return best?.label ?? null;
+}
 
 // ---- demo data (replace with real platform data once connected) ----
 const LABELS = ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"];
@@ -36,6 +68,36 @@ export default async function AnalyticsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Live synced snapshot (auto-refreshes when stale); demo numbers otherwise.
+  const snap = await getIgSnapshot(supabase, user.id);
+  const live = Boolean(snap && snap.followers_count != null);
+  const media = snap?.media ?? [];
+  const eng = media.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
+  const engRate =
+    live && snap!.followers_count! > 0 && media.length
+      ? ((avg(eng) / snap!.followers_count!) * 100).toFixed(1) + "%"
+      : null;
+  const avgLikes = media.length ? Math.round(avg(media.map((m) => m.like_count ?? 0))) : null;
+  const best = live ? bestTime(media) : null;
+
+  const livePosts = [...media]
+    .sort(
+      (x, y) =>
+        (y.like_count ?? 0) + (y.comments_count ?? 0) - ((x.like_count ?? 0) + (x.comments_count ?? 0)),
+    )
+    .slice(0, 4)
+    .map((m) => {
+      const e = (m.like_count ?? 0) + (m.comments_count ?? 0);
+      const firstLine = (m.caption || "").split("\n")[0].trim();
+      return {
+        title: firstLine ? firstLine.slice(0, 44) : "(no caption)",
+        metric: `${fmtNum(m.like_count ?? 0)} likes`,
+        sub: `${fmtNum(m.comments_count ?? 0)} comments`,
+        up: e >= avg(eng),
+      };
+    });
+  const posts = live && livePosts.length ? livePosts : TOP_POSTS;
+
   return (
     <AppShell active="analytics" userEmail={user.email}>
       <div className="page-head">
@@ -43,10 +105,13 @@ export default async function AnalyticsPage() {
           <div className="eyebrow">Overview</div>
           <h1>Analytics</h1>
           <p className="page-sub">
-            Your performance across the last 8 weeks, benchmarked against your niche.
+            {live
+              ? <>Live snapshot of <b>@{snap!.username}</b>, synced from Instagram. Deeper history builds as we keep syncing.</>
+              : <>Your performance across the last 8 weeks, benchmarked against your niche.</>}
           </p>
         </div>
         <div className="range" role="group" aria-label="Date range">
+          {live && <LiveSync syncedAt={snap!.last_synced_at} />}
           <button>7d</button>
           <button className="on">30d</button>
           <button>90d</button>
@@ -54,10 +119,21 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="stat-grid">
-        <StatTile label="Followers" value="12,480" delta="+3.2%" up />
-        <StatTile label="Reach / week" value="1.24M" delta="+34%" up />
-        <StatTile label="Engagement rate" value="5.8%" delta="+0.6pt" up />
-        <StatTile label="Best time to post" value="Tue 7PM" delta="Consistent" />
+        {live ? (
+          <>
+            <StatTile label="Followers" value={(snap!.followers_count ?? 0).toLocaleString()} delta="Live from Instagram" />
+            <StatTile label="Avg likes / post" value={fmtNum(avgLikes)} delta={`across ${media.length} posts`} />
+            <StatTile label="Engagement rate" value={engRate ?? "–"} delta="per post, of followers" />
+            <StatTile label="Best time to post" value={best ?? "–"} delta="from your top posts" />
+          </>
+        ) : (
+          <>
+            <StatTile label="Followers" value="12,480" delta="+3.2%" up />
+            <StatTile label="Reach / week" value="1.24M" delta="+34%" up />
+            <StatTile label="Engagement rate" value="5.8%" delta="+0.6pt" up />
+            <StatTile label="Best time to post" value="Tue 7PM" delta="Consistent" />
+          </>
+        )}
       </div>
 
       <div className="panel-grid">
@@ -90,7 +166,7 @@ export default async function AnalyticsPage() {
             <h3>Top performing posts</h3>
           </div>
           <ul className="post-list">
-            {TOP_POSTS.map((p, i) => (
+            {posts.map((p, i) => (
               <li key={i}>
                 <span className="rankdot">{i + 1}</span>
                 <span className="post-meta">

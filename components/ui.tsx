@@ -2,6 +2,7 @@ import { ArrowUpRight, ArrowDownRight, Camera, Music2, Play } from "lucide-react
 import type { Kpi } from "@/lib/demoData";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import CountUp from "@/components/CountUp";
 
 // ---- TrendBadge ----
 export function TrendBadge({ change, up }: { change: number; up: boolean }) {
@@ -84,7 +85,7 @@ export function MetricCard({ kpi, icon }: { kpi: Kpi; icon: React.ReactNode }) {
       </div>
       <div className="flex items-end gap-2">
         <span className="text-[28px] font-bold leading-none tracking-tight text-[var(--charcoal)]">
-          {kpi.value}
+          <CountUp value={kpi.value} />
         </span>
         {kpi.change !== null && (
           <span

@@ -98,7 +98,10 @@ export async function GET(req: Request) {
       // pages self-heal with a stale-triggered sync
     }
 
-    return settings("connected");
+    // Success lands on the dashboard, where the sync cinematic plays over the
+    // freshly-live data. The onboarding path keeps its own analysis sequence.
+    if (dest === "onboarding") return settings("connected");
+    return NextResponse.redirect(`${origin}/dashboard?ig=connected`);
   } catch (e) {
     console.error("IG callback error:", e);
     return settings("error");

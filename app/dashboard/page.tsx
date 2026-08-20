@@ -25,6 +25,8 @@ import PerformanceChart from "@/components/PerformanceChart";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import AccountSwitcher from "@/components/AccountSwitcher";
 import ContentScoreCard from "@/components/ContentScoreCard";
+import SyncCinematic from "@/components/SyncCinematic";
+import LiveSync from "@/components/LiveSync";
 import {
   KPIS,
   AI_BRIEF,
@@ -172,12 +174,18 @@ function buildLiveData(followers: number | null, mediaCount: number | null, medi
   return { kpis, topRows };
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ig?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  const { ig } = await searchParams;
+  const justConnected = ig === "connected";
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -291,6 +299,9 @@ export default async function DashboardPage() {
 
   return (
     <AppShell active="dashboard" userEmail={user.email}>
+      {justConnected && (
+        <SyncCinematic username={snap?.username} followers={snap?.followers_count} />
+      )}
       {/* Header */}
       <div className="dash-header">
         <div>
@@ -304,6 +315,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="dash-controls">
+          {live && <LiveSync syncedAt={snap!.last_synced_at} />}
           <DateRangeSelector />
           <AccountSwitcher />
           <Link href="/chat" className="btn-primary">
