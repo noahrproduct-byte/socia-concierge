@@ -1,11 +1,20 @@
 // Instagram API with Instagram Login — shared config for the OAuth flow.
 // Docs: https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login
 
+// Only request scopes that are actually enabled on the Instagram use case in the
+// Meta app dashboard. Instagram rejects the whole authorization request if you ask
+// for a permission the app has not been configured for — the user never gets
+// redirected back, and no request ever reaches /api/auth/instagram/callback.
+//
+// Requesting unused permissions is also a documented App Review rejection cause,
+// so keep this list to the minimum the product actually uses.
+//
+// Add back when the matching feature ships AND the permission is enabled in Meta:
+//   instagram_business_content_publish  -> scheduling / auto-posting
+//   instagram_business_manage_comments  -> comment management
+//   instagram_business_manage_messages  -> DM management
 export const IG_SCOPES = [
   "instagram_business_basic",
-  "instagram_business_manage_messages",
-  "instagram_business_manage_comments",
-  "instagram_business_content_publish",
   "instagram_business_manage_insights",
 ].join(",");
 
