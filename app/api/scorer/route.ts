@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { BENCHMARKS, BENCHMARK_VERSION } from "@/lib/benchmarks";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
@@ -49,7 +50,9 @@ Scoring rules:
 - If you cannot assess a dimension (for example Audio when no transcript was provided), still score it but say plainly in the note that it was inferred from limited information.
 - The retention curve should start at 100 and fall realistically. Typical short-form loses 20-35% in the first 3 seconds, then declines more gently. Make the steepest drop line up with the weakest moment you identified.
 
-Respond with ONLY a valid JSON object. No markdown fences, no preamble.`;
+Respond with ONLY a valid JSON object. No markdown fences, no preamble.
+
+${BENCHMARKS}`;
 
 function extractJSON(text: string): unknown {
   const cleaned = text.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
@@ -158,7 +161,7 @@ Give between 3 and 5 fixes, ordered by impact.`;
       );
     }
 
-    return NextResponse.json(score);
+    return NextResponse.json({ ...score, benchmarkVersion: BENCHMARK_VERSION });
   } catch (err) {
     console.error("[/api/scorer] failed:", err);
     return NextResponse.json(
