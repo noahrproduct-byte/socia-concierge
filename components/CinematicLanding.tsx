@@ -1169,6 +1169,12 @@ export default function CinematicLanding() {
         <div className="so-wrap">
           <Rise><span className="so-label">BEFORE / AFTER SOCIA</span></Rise>
           <h2 className="so-h2 dark"><Words text="Better decisions compound." /></h2>
+          <Rise delay={120}>
+            <p className="so-lead dark">
+              From scattered signals to clear next moves. SOCIA turns your content data
+              into decisions you can act on.
+            </p>
+          </Rise>
 
           <div className="so-ba">
             <Rise className="so-ba-col without">
@@ -1181,7 +1187,19 @@ export default function CinematicLanding() {
                 </ul>
               </div>
             </Rise>
-            <Rise delay={120} className="so-ba-col with">
+            <Rise delay={150} className="so-ba-mid-rise">
+              <div className="so-ba-mid" aria-hidden>
+                <svg viewBox="0 0 96 200" preserveAspectRatio="none">
+                  <path className="so-basig" d="M0,28 C30,28 34,88 46,97" fill="none" />
+                  <path className="so-basig s2" d="M0,58 C28,58 34,92 46,99" fill="none" />
+                  <path className="so-basig s3" d="M0,100 L46,100" fill="none" />
+                  <path className="so-basig s4" d="M0,142 C28,142 34,108 46,101" fill="none" />
+                  <path className="so-basig s5" d="M0,172 C30,172 34,112 46,103" fill="none" />
+                </svg>
+                <span className="so-ba-arrow"><ArrowRight size={15} /></span>
+              </div>
+            </Rise>
+            <Rise delay={260} className="so-ba-col with">
               <div className="so-ba-inner">
                 <small>WITH SOCIA</small>
                 <ul>
@@ -1195,18 +1213,22 @@ export default function CinematicLanding() {
 
           {/* product story */}
           <div className="so-story">
-            {[
-              ["01", "Your entire content strategy, scored.", "Content Audit"],
-              ["02", "See opportunities before competitors do.", "Competitor Intelligence"],
-              ["03", "Know whether content is strong before publishing.", "Video Scorer"],
-              ["04", "Turn analytics into your next post.", "AI Strategist"],
-              ["05", "Know exactly when to publish.", "Smart Calendar"],
-            ].map(([n, t, m], i) => (
+            {([
+              ["01", "Your entire content strategy, scored.", "Content Audit", BarChart3, "Health score, five factor breakdown, momentum."],
+              ["02", "See opportunities before competitors do.", "Competitor Intelligence", Users, "Rising formats and outlier posts, tracked daily."],
+              ["03", "Know whether content is strong before publishing.", "Video Scorer", Play, "Hook, retention, clarity, pacing. Scored pre-publish."],
+              ["04", "Turn analytics into your next post.", "AI Strategist", Sparkles, "Chat with an AI that knows your numbers."],
+              ["05", "Know exactly when to publish.", "Smart Calendar", CalendarDays, "Best windows from your audience activity."],
+            ] as const).map(([n, t, m, Ico, d], i) => (
               <Rise key={n} delay={i * 60} className="so-story-row">
                 <div className="so-story-card" data-cursor="VIEW">
                   <span className="so-story-num">{n}</span>
-                  <h3>{t}</h3>
-                  <span className="so-story-mod">{m} interface</span>
+                  <span className="so-story-ico"><Ico size={17} /></span>
+                  <div className="so-story-txt">
+                    <h3>{t}</h3>
+                    <span className="so-story-mod">{m} interface</span>
+                    <span className="so-story-detail">{d}</span>
+                  </div>
                 </div>
               </Rise>
             ))}
@@ -1218,6 +1240,13 @@ export default function CinematicLanding() {
             <div className="so-price-grid">
               <Rise className="so-price free">
                 <div className="so-price-inner">
+                  <svg className="so-price-art" viewBox="0 0 420 220" preserveAspectRatio="none" aria-hidden>
+                    <path d="M-10,205 C110,190 210,150 430,40" fill="none" stroke="rgba(76,141,255,0.16)" strokeWidth="1" />
+                    <path d="M-10,215 C130,205 240,175 430,90" fill="none" stroke="rgba(76,141,255,0.1)" strokeWidth="1" />
+                    <path d="M-10,190 C90,180 220,120 430,-10" fill="none" stroke="rgba(76,141,255,0.07)" strokeWidth="1" />
+                    <circle cx="318" cy="97" r="2" fill="rgba(96,165,250,0.4)" />
+                    <circle cx="238" cy="140" r="1.6" fill="rgba(96,165,250,0.3)" />
+                  </svg>
                   <small>FREE AUDIT</small>
                   <p className="so-price-lead">See what SOCIA finds in your account.</p>
                   <ul>
@@ -1232,8 +1261,14 @@ export default function CinematicLanding() {
               <Rise delay={100} className="so-price paid">
                 <div className="so-price-inner">
                   <small>WHEN YOU&apos;RE READY</small>
-                  <div className="so-paid-row"><b>Pro</b><span>$29/mo · daily AI plans, scoring, best-time engine</span></div>
-                  <div className="so-paid-row"><b>Growth</b><span>$79/mo · unlimited accounts, trend alerts, priority AI</span></div>
+                  <div className="so-paid-row">
+                    <div className="so-paid-head"><b>Pro</b><span className="so-paid-price">$29<i>/mo</i></span></div>
+                    <span className="so-paid-desc">Daily AI plans, scoring, best-time engine</span>
+                  </div>
+                  <div className="so-paid-row">
+                    <div className="so-paid-head"><b>Growth</b><span className="so-paid-price">$79<i>/mo</i></span></div>
+                    <span className="so-paid-desc">Unlimited accounts, trend alerts, priority AI</span>
+                  </div>
                   <span className="so-micro dark">Both start with 7 days free. Cancel anytime.</span>
                 </div>
               </Rise>
