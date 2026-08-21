@@ -321,6 +321,9 @@ export default function VideoScorer({ niche }: { niche?: string }) {
         </div>
       )}
 
+      {/* Empty state — the page used to be blank below the fields until an upload */}
+      {!videoUrl && !busy && !error && <EmptyState />}
+
       {videoUrl && (
         <div className="vs-layout">
           <aside className="vs-player vs-in">
@@ -442,6 +445,77 @@ export default function VideoScorer({ niche }: { niche?: string }) {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Shown before anything is uploaded. Explains what the tool returns using small
+ * animated demos. Every panel is explicitly labelled as an example — this must never
+ * be mistaken for a real result, which is exactly what the old mockup got wrong.
+ */
+function EmptyState() {
+  return (
+    <div className="vs-empty vs-in">
+      <div className="vs-empty-head">
+        <span className="vs-badge">Example — not your data</span>
+        <p>Drop a video above and you&apos;ll get these three things back in about 30 seconds.</p>
+      </div>
+
+      <div className="vs-empty-grid">
+        <div className="vs-ecard" style={{ animationDelay: "60ms" }}>
+          <div className="vs-ering">
+            <svg viewBox="0 0 80 80" width="80" height="80">
+              <circle cx="40" cy="40" r="33" className="vs-ering-track" />
+              <circle
+                cx="40"
+                cy="40"
+                r="33"
+                className="vs-ering-fill"
+                transform="rotate(-90 40 40)"
+              />
+            </svg>
+            <b>84</b>
+          </div>
+          <h4>A score you can argue with</h4>
+          <p>Hook, script, visual and audio rated separately — each with the reason.</p>
+        </div>
+
+        <div className="vs-ecard" style={{ animationDelay: "160ms" }}>
+          <svg viewBox="0 0 160 70" className="vs-ecurve" preserveAspectRatio="none">
+            <polyline
+              points="0,6 16,10 32,34 48,40 64,45 80,49 96,53 112,56 128,59 144,61 160,63"
+              className="vs-ecurve-line"
+            />
+            <circle cx="32" cy="34" r="3.5" className="vs-ecurve-dot" />
+          </svg>
+          <h4>Where people leave</h4>
+          <p>A predicted retention curve, with the steepest drop marked to the second.</p>
+        </div>
+
+        <div className="vs-ecard" style={{ animationDelay: "260ms" }}>
+          <ul className="vs-efixes">
+            <li>
+              <span className="vs-etime high">0:00</span>
+              <span>Cut the logo intro</span>
+            </li>
+            <li>
+              <span className="vs-etime med">0:06</span>
+              <span>Move the payoff earlier</span>
+            </li>
+            <li>
+              <span className="vs-etime low">0:11</span>
+              <span>Caption the CTA</span>
+            </li>
+          </ul>
+          <h4>Fixes, not feedback</h4>
+          <p>Timestamped and specific. Click one and the video jumps there.</p>
+        </div>
+      </div>
+
+      <div className="vs-empty-note">
+        Frames are read on your device. The video file is never uploaded anywhere.
+      </div>
+    </div>
   );
 }
 
@@ -584,12 +658,74 @@ function ScorerStyles() {
       @keyframes vsBob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
       @keyframes vsShine { to { background-position: 200% 0 } }
 
+      @keyframes vsSweep { to { transform: translateX(220%) } }
+      @keyframes vsRingDemo { from { stroke-dashoffset: 207 } to { stroke-dashoffset: 33 } }
+      @keyframes vsCurveDemo { from { stroke-dashoffset: 260 } to { stroke-dashoffset: 0 } }
+      @keyframes vsFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+
       .vs-in { animation: vsIn .45s cubic-bezier(.22,1,.36,1) both; }
 
-      .vs-drop { transition: border-color .2s, background .2s, padding .3s ease; }
-      .vs-drop.vs-drag { border-color:#2563FF !important; background: rgba(37,99,255,.07); }
+      /* Dropzone gets a light sweep so it reads as interactive, and lifts on hover */
+      .vs-drop { position:relative; overflow:hidden;
+                 transition: border-color .2s, background .2s, padding .3s ease,
+                             transform .18s, box-shadow .18s;
+                 animation: vsIn .45s cubic-bezier(.22,1,.36,1) both; }
+      .vs-drop::after { content:''; position:absolute; top:0; left:-60%; width:40%; height:100%;
+                        background: linear-gradient(90deg, transparent,
+                          rgba(37,99,255,.07), transparent);
+                        animation: vsSweep 3.4s ease-in-out infinite; pointer-events:none; }
+      .vs-drop:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,.10); }
+      .vs-drop.vs-drag { border-color:#2563FF !important; background: rgba(37,99,255,.07);
+                         transform: scale(1.008); }
       .vs-drop.vs-compact { padding-top:18px; padding-bottom:18px; }
+      .vs-drop.vs-compact::after { display:none; }
       .vs-bob { animation: vsBob 2.4s ease-in-out infinite; }
+
+      .scorer-context { animation: vsIn .45s cubic-bezier(.22,1,.36,1) both; animation-delay:.07s; }
+
+      /* Empty state */
+      .vs-empty { margin-top: 26px; animation-delay:.14s; }
+      .vs-empty-head { text-align:center; margin-bottom:18px; }
+      .vs-badge { display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.7px;
+                  text-transform:uppercase; padding:4px 10px; border-radius:99px;
+                  background: rgba(128,128,128,.12); opacity:.7; }
+      .vs-empty-head p { margin:10px 0 0; font-size:14.5px; opacity:.6; }
+      .vs-empty-grid { display:grid; gap:14px; }
+      @media (min-width: 820px) { .vs-empty-grid { grid-template-columns: repeat(3,1fr); } }
+      .vs-ecard { border:1px solid rgba(128,128,128,.16); border-radius:16px; padding:20px;
+                  animation: vsIn .5s cubic-bezier(.22,1,.36,1) both;
+                  transition: transform .18s, border-color .18s; }
+      .vs-ecard:hover { transform: translateY(-3px); border-color: rgba(37,99,255,.35); }
+      .vs-ecard h4 { margin:14px 0 5px; font-size:14.5px; }
+      .vs-ecard p { margin:0; font-size:13px; line-height:1.5; opacity:.62; }
+
+      .vs-ering { position:relative; width:80px; height:80px; animation: vsFloat 3.6s ease-in-out infinite; }
+      .vs-ering b { position:absolute; inset:0; display:grid; place-items:center;
+                    font-size:22px; letter-spacing:-.5px; }
+      .vs-ering-track { fill:none; stroke:rgba(128,128,128,.16); stroke-width:7; }
+      .vs-ering-fill { fill:none; stroke:#2563FF; stroke-width:7; stroke-linecap:round;
+                       stroke-dasharray:207; animation: vsRingDemo 1.6s cubic-bezier(.22,1,.36,1) both;
+                       animation-delay:.3s; }
+
+      .vs-ecurve { width:100%; height:70px; }
+      .vs-ecurve-line { fill:none; stroke:#2563FF; stroke-width:2.5; stroke-linecap:round;
+                        stroke-dasharray:260; animation: vsCurveDemo 1.6s ease-out both;
+                        animation-delay:.45s; }
+      .vs-ecurve-dot { fill:#ef4444; animation: vsPulse 2s ease-in-out infinite; animation-delay:1.8s; }
+
+      .vs-efixes { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+      .vs-efixes li { display:flex; align-items:center; gap:9px; font-size:12.5px; opacity:.8;
+                      animation: vsIn .4s ease both; }
+      .vs-efixes li:nth-child(1){ animation-delay:.5s }
+      .vs-efixes li:nth-child(2){ animation-delay:.62s }
+      .vs-efixes li:nth-child(3){ animation-delay:.74s }
+      .vs-etime { font-size:10.5px; font-weight:700; padding:3px 7px; border-radius:6px; flex:none;
+                  font-variant-numeric:tabular-nums; }
+      .vs-etime.high { background:rgba(239,68,68,.14); color:#dc2626; }
+      .vs-etime.med  { background:rgba(245,158,11,.14); color:#d97706; }
+      .vs-etime.low  { background:rgba(37,99,255,.12); color:#2563FF; }
+
+      .vs-empty-note { margin-top:16px; text-align:center; font-size:12.5px; opacity:.45; }
 
       .vs-steps { margin:18px 0 6px; }
       .vs-step { display:flex; align-items:center; gap:10px; padding:5px 0; font-size:13.5px;
@@ -659,7 +795,13 @@ function ScorerStyles() {
 
       @media (prefers-reduced-motion: reduce) {
         .vs-in, .vs-fill, .vs-ring-fill, .vs-line, .vs-area, .vs-thumb, .vs-fixes li,
-        .vs-pulse, .vs-bob, .vs-step.active .vs-dot { animation: none !important; }
+        .vs-pulse, .vs-bob, .vs-step.active .vs-dot, .vs-drop, .scorer-context,
+        .vs-empty, .vs-ecard, .vs-ering, .vs-ering-fill, .vs-ecurve-line,
+        .vs-ecurve-dot, .vs-efixes li { animation: none !important; }
+        .vs-drop::after { display: none; }
+        .vs-drop:hover, .vs-ecard:hover { transform: none; }
+        .vs-ering-fill { stroke-dashoffset: 33; }
+        .vs-ecurve-line { stroke-dashoffset: 0; }
       }
     `}</style>
   );
