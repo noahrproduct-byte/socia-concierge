@@ -736,90 +736,192 @@ export default function CinematicLanding() {
       {/* ================= 03 ENGINE ================= */}
       <section id="engine" className="so-ch so-engine">
         <div className="so-wrap">
-          <Rise><span className="so-label">THE SOCIA INTELLIGENCE ENGINE</span></Rise>
-          <h2 className="so-h2 dark"><Words text="Everything from audit to analytics." blue="to analytics." /></h2>
-          <Rise delay={120}>
-            <p className="so-lead dark">
-              One system watches, analyzes, plans, creates, and measures. Every week
-              starts smarter than the last.
-            </p>
-          </Rise>
+          <div className="so-eng-head">
+            <Rise><span className="so-label">THE SOCIA INTELLIGENCE ENGINE</span></Rise>
+            <h2 className="so-h2 dark">
+              <Words text="Everything from audit" />
+              <br />
+              <span className="so-blue"><Words text="to your next move." /></span>
+            </h2>
+            <Rise delay={120}>
+              <p className="so-lead dark">
+                SOCIA watches your content, competitors, audience, and performance. Then it
+                turns those signals into the next thing you should do.
+              </p>
+            </Rise>
+          </div>
 
-          <div className="so-bento">
-            {/* content audit — large */}
-            <Rise className="so-b b-audit">
-              <div className="so-b-inner" data-cursor="VIEW">
-                <div className="so-b-head"><ScanSearch size={15} /> CONTENT AUDIT</div>
-                <div className="so-audit-score"><b><Num value={92} /></b><span>/ 100</span><em>Account Health</em><i className="so-audit-delta">↑ +12</i></div>
-                <div className="so-audit-bars">
-                  {[["Hook strength", 91], ["Posting consistency", 84], ["Topic concentration", 76], ["Engagement efficiency", 88], ["Content diversity", 71]].map(([l, v]) => (
-                    <div key={l as string} className="so-abar"><span>{l}</span><i><em style={{ width: `${v}%` }} /></i><b>{v}</b></div>
-                  ))}
+          <div className="so-eng-grid">
+            {/* intelligence paths */}
+            <svg className="so-epaths" viewBox="0 0 1200 660" preserveAspectRatio="none" aria-hidden>
+              <path className="so-epath p-audit" d="M560,180 C660,180 700,220 790,240" />
+              <path className="so-epath p-comp" d="M770,150 C800,150 810,170 830,190" />
+              <path className="so-epath p-scorer" d="M480,520 C640,520 700,420 800,380" />
+              <path className="so-epath p-sched" d="M740,540 C780,530 800,470 815,420" />
+              <circle className="so-enode n1" cx="790" cy="240" r="3.5" />
+              <circle className="so-enode n2" cx="830" cy="190" r="3.5" />
+              <circle className="so-enode n3" cx="800" cy="380" r="3.5" />
+            </svg>
+
+            {/* CONTENT AUDIT */}
+            <Rise className="so-eng-area e-audit">
+              <div className="so-ecard" data-cursor="VIEW">
+                <div className="so-ecard-head">
+                  <span className="so-ecard-ico"><ScanSearch size={13} /></span> CONTENT AUDIT
+                  <span className="so-echip up">+12 vs last week</span>
+                </div>
+                <div className="so-audit-flex">
+                  <div className="so-audit-left">
+                    <small className="so-mlabel dark">ACCOUNT HEALTH</small>
+                    <div className="so-audit-big"><b>92</b><span>/ 100</span></div>
+                    <div className="so-radial light">
+                      <svg viewBox="0 0 84 84" aria-hidden>
+                        <defs>
+                          <linearGradient id="soring3" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor="#2563ff" />
+                            <stop offset="100%" stopColor="#60a5fa" />
+                          </linearGradient>
+                        </defs>
+                        <circle cx="42" cy="42" r="34" fill="none" stroke="rgba(15,17,21,0.08)" strokeWidth="7" />
+                        <circle className="so-ring-fill" cx="42" cy="42" r="34" fill="none" stroke="url(#soring3)" strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6" transform="rotate(-90 42 42)" />
+                      </svg>
+                      <span className="so-radial-num dark">92</span>
+                    </div>
+                    <b className="so-audit-state">Strong</b>
+                    <span className="so-audit-note">Keep momentum going.</span>
+                  </div>
+                  <div className="so-audit-bars">
+                    {[["Hook strength", 91], ["Posting consistency", 84], ["Topic concentration", 76], ["Engagement efficiency", 88], ["Content diversity", 71]].map(([l, v]) => (
+                      <div key={l as string} className="so-abar" title={`${l}: ${v}/100`}>
+                        <span>{l}</span><i><em style={{ width: `${v}%` }} /></i><b>{v}</b>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <Link href="/signup" className="so-b-cta">View full audit <ArrowRight size={13} /></Link>
               </div>
             </Rise>
 
-            {/* competitor intelligence */}
-            <Rise delay={80} className="so-b b-comp">
-              <div className="so-b-inner" data-cursor="VIEW">
-                <div className="so-b-head"><Radar size={15} /> COMPETITOR INTELLIGENCE</div>
-                <div className="so-comp-rows">
-                  <div><i>A</i><span>Competitor A</span><b className="up">+31% momentum</b></div>
-                  <div><i>B</i><span>Competitor B</span><b>2 outlier posts detected</b></div>
-                  <div><i>C</i><span>Competitor C</span><b>Educational Reels gaining traction</b></div>
+            {/* COMPETITOR INTELLIGENCE */}
+            <Rise delay={120} className="so-eng-area e-comp">
+              <div className="so-ecard" data-cursor="VIEW">
+                <div className="so-ecard-head"><span className="so-ecard-ico"><Radar size={13} /></span> COMPETITOR INTELLIGENCE</div>
+                <div className="so-crows">
+                  <div className="so-crow">
+                    <i>A</i>
+                    <div><b>Competitor A</b><span className="up">+31% momentum</span></div>
+                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path d="M0,18 L14,15 L28,16 L42,11 L56,8 L70,6 L84,2" fill="none" stroke="#16a34a" strokeWidth="1.6" /></svg>
+                  </div>
+                  <div className="so-crow">
+                    <i>B</i>
+                    <div><b>Competitor B</b><span>2 outlier posts detected</span></div>
+                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path d="M0,14 L14,16 L28,7 L42,15 L56,4 L70,13 L84,10" fill="none" stroke="#a78bfa" strokeWidth="1.6" /></svg>
+                  </div>
+                  <div className="so-crow">
+                    <i>C</i>
+                    <div><b>Competitor C</b><span>Educational Reels gaining traction</span></div>
+                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path d="M0,17 L14,16 L28,14 L42,14 L56,10 L70,9 L84,6" fill="none" stroke="#2563ff" strokeWidth="1.6" /></svg>
+                  </div>
                 </div>
                 <Link href="/signup" className="so-b-cta">Scan competitors <ArrowRight size={13} /></Link>
               </div>
             </Rise>
 
-            {/* recommendation engine */}
-            <Rise delay={140} className="so-b b-rec">
-              <div className="so-b-inner" data-cursor="CREATE">
-                <div className="so-b-head"><TrendingUp size={15} /> RECOMMENDATION ENGINE</div>
+            {/* RECOMMENDATION ENGINE */}
+            <Rise delay={420} className="so-eng-area e-rec">
+              <div className="so-ecard rec" data-cursor="VIEW">
+                <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE</div>
                 <span className="so-rec-tag">HIGH IMPACT</span>
-                <h3>Publish another educational Reel.</h3>
+                <h3>Publish another educational Reel this week.</h3>
                 <p className="so-rec-why"><b>Why?</b> Your educational videos are generating 2.4× your average engagement.</p>
-                <p className="so-rec-hook">Recommended hook: <em>&ldquo;3 mistakes killing your content reach…&rdquo;</em></p>
+                <div className="so-predictbox" title="Projected from your last 30 posts">
+                  <div>
+                    <small>PREDICTED PERFORMANCE</small>
+                    <b>+31%</b>
+                    <span>above baseline</span>
+                  </div>
+                  <svg viewBox="0 0 120 54" preserveAspectRatio="none" aria-hidden>
+                    <path className="so-draw l" d="M4,48 L22,44 L40,45 L58,38 L76,30 L94,20 L116,8" fill="none" stroke="#2563ff" strokeWidth="2" />
+                    {[[4, 48], [40, 45], [76, 30], [116, 8]].map(([x, y]) => (
+                      <circle key={x} cx={x} cy={y} r="2.4" fill="#2563ff" />
+                    ))}
+                  </svg>
+                </div>
+                <div className="so-reasons">
+                  {[["Hook demand", "Strong"], ["Audience interest", "Rising"], ["Timing", "Optimal"], ["Competitor saturation", "Low"]].map(([l, v]) => (
+                    <div key={l}><span>{l}</span><b className="up">{v}</b></div>
+                  ))}
+                </div>
                 <Link href="/signup" className="so-b-cta">See all recommendations <ArrowRight size={13} /></Link>
               </div>
             </Rise>
 
-            {/* video scorer */}
-            <Rise delay={200} className="so-b b-score">
-              <div className="so-b-inner" data-cursor="PLAY">
-                <div className="so-b-head"><Video size={15} /> VIDEO SCORER</div>
-                <div className="so-vs">
-                  <div className="so-vs-big"><b><Num value={82} /></b><span>/ 100</span></div>
-                  <div className="so-vs-subs">
-                    {[["HOOK", 91], ["RETENTION", 78], ["CLARITY", 86], ["PACING", 74], ["OVERALL", 84]].map(([l, v]) => (
-                      <span key={l as string}><small>{l}</small><b>{v}</b></span>
-                    ))}
+            {/* VIDEO SCORER */}
+            <Rise delay={200} className="so-eng-area e-scorer">
+              <div className="so-ecard" data-cursor="PLAY">
+                <div className="so-ecard-head"><span className="so-ecard-ico"><Video size={13} /></span> VIDEO SCORER</div>
+                <div className="so-vsgrid">
+                  {[["HOOK", 91, "How well the first seconds stop the scroll"], ["RETENTION", 78, "How much of the video people watch"], ["CLARITY", 86, "How easy the message is to follow"], ["PACING", 74, "How well the edit holds attention"]].map(([l, v, t]) => (
+                    <div key={l as string} title={t as string}><small>{l}</small><b>{v}</b></div>
+                  ))}
+                  <div className="so-vsradial" title="Overall score">
+                    <svg viewBox="0 0 84 84" aria-hidden>
+                      <circle cx="42" cy="42" r="34" fill="none" stroke="rgba(15,17,21,0.08)" strokeWidth="7" />
+                      <circle className="so-ring-fill r84" cx="42" cy="42" r="34" fill="none" stroke="#2563ff" strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6" transform="rotate(-90 42 42)" />
+                    </svg>
+                    <span className="so-radial-num dark sm">84</span>
                   </div>
+                  <div title="Projected retention lift after fixes"><small>PREDICTED RETENTION</small><b className="up">+17%</b></div>
                 </div>
-                <p className="so-vs-pred">Predicted retention <b className="up">+17%</b></p>
                 <Link href="/signup" className="so-b-cta">Improve video <ArrowRight size={13} /></Link>
               </div>
             </Rise>
 
-            {/* smart scheduling */}
-            <Rise delay={260} className="so-b b-sched">
-              <div className="so-b-inner" data-cursor="VIEW">
-                <div className="so-b-head"><CalendarDays size={15} /> SMART SCHEDULING</div>
-                <div className="so-week">
-                  {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                    <div key={i} className={`so-day ${[1, 3, 5].includes(i) ? "hot" : ""}`}>
+            {/* SMART SCHEDULING */}
+            <Rise delay={280} className="so-eng-area e-sched">
+              <div className="so-ecard" data-cursor="VIEW">
+                <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING</div>
+                <div className="so-sweek">
+                  {[["M", ""], ["T", "6:20 PM"], ["W", ""], ["T", "6:40 PM"], ["F", ""], ["S", "11:15 AM"], ["S", ""]].map(([d, t], i) => (
+                    <div key={i} className={`so-sday ${t ? "hot" : ""}`} title={t ? `Recommended: ${t}` : "No strong window"}>
                       <span>{d}</span>
-                      {i === 1 && <b>6:20 PM</b>}
-                      {i === 3 && <b>6:40 PM</b>}
-                      {i === 5 && <b>11:15 AM</b>}
+                      <b>{t ? t.split(" ")[0] : "–"}</b>
+                      {t && <em>★</em>}
                     </div>
                   ))}
                 </div>
-                <p className="so-week-note"><Clock size={12} /> Optimal time · 6:40 PM · audience peak</p>
+                <p className="so-sweek-note"><Clock size={12} /> Optimal time · 6:40 PM · Audience peak</p>
+                <Link href="/signup" className="so-b-cta">View calendar <ArrowRight size={13} /></Link>
               </div>
             </Rise>
           </div>
+
+          {/* one system strip */}
+          <Rise delay={300}>
+            <div className="so-onestrip">
+              <span className="so-onestrip-ico"><Sparkles size={17} /></span>
+              <div className="so-onestrip-copy">
+                <b>One system. Smarter every week.</b>
+                <span className="so-oneseq">
+                  {["AUDIT", "PLAN", "CREATE", "SCORE", "PUBLISH", "MEASURE", "LEARN"].map((s, i) => (
+                    <em key={s}>{s}{i < 6 && <ArrowRight size={9} />}</em>
+                  ))}
+                </span>
+                <small>The more you post, the smarter SOCIA gets.</small>
+              </div>
+              <div className="so-oneviz" aria-hidden>
+                <svg viewBox="0 0 460 80" preserveAspectRatio="xMidYMid meet">
+                  <path className="so-sig" d="M0,14 C90,14 150,36 218,40" fill="none" stroke="rgba(37,99,255,0.30)" strokeWidth="1" />
+                  <path className="so-sig s2" d="M0,30 C90,28 160,38 218,40" fill="none" stroke="rgba(37,99,255,0.25)" strokeWidth="1" />
+                  <path className="so-sig s3" d="M0,50 C90,52 160,42 218,40" fill="none" stroke="rgba(37,99,255,0.25)" strokeWidth="1" />
+                  <path className="so-sig s4" d="M0,66 C100,66 160,44 218,40" fill="none" stroke="rgba(37,99,255,0.30)" strokeWidth="1" />
+                  <path className="so-sig main" d="M262,40 L452,40" fill="none" stroke="#2563ff" strokeWidth="2" />
+                  <circle cx="452" cy="40" r="2.5" fill="#60a5fa" />
+                </svg>
+                <span className="so-oneviz-mark"><BrandMark size={30} /></span>
+              </div>
+            </div>
+          </Rise>
         </div>
       </section>
 
