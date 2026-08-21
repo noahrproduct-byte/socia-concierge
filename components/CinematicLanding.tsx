@@ -16,6 +16,10 @@ import {
   ScanSearch,
   Clock,
   Play,
+  Send,
+  PenLine,
+  PieChart,
+  BookOpen,
   Zap,
   Target,
   Users,
@@ -156,49 +160,218 @@ function AskDemo() {
 
 /* ---------------- The Loop ---------------- */
 
+const LOOP_N = 7;
+const LOOP_R = 246; // orbit radius inside the 560 viewBox
+const LOOP_C = 2 * Math.PI * LOOP_R;
+
 const LOOP_STAGES = [
-  { n: "01", t: "AUDIT", d: "Analyze your content, audience, niche, and competitors." },
-  { n: "02", t: "PLAN", d: "Generate a weekly strategy based on opportunities." },
-  { n: "03", t: "CREATE", d: "Turn strategy into posts, hooks, scripts, and concepts." },
-  { n: "04", t: "SCORE", d: "Analyze content before publishing." },
-  { n: "05", t: "PUBLISH", d: "Post during optimal audience windows." },
-  { n: "06", t: "MEASURE", d: "Track what actually happened." },
-  { n: "07", t: "LEARN", d: "Feed performance back into the next strategy." },
-];
+  {
+    n: "01", t: "AUDIT", Ico: ScanSearch, short: "See what's working now.",
+    head: ["Understand exactly", "what's working."],
+    feats: [
+      [BarChart3, "Analyzes content performance", "Identifies strengths and weaknesses."],
+      [ScanSearch, "Finds hidden patterns", "Discovers what your best posts have in common."],
+      [Target, "Creates your baseline", "Turns performance into a measurable strategy."],
+    ],
+  },
+  {
+    n: "02", t: "PLAN", Ico: CalendarDays, short: "Build your next strategy.",
+    head: ["A weekly plan", "built on signal."],
+    feats: [
+      [Target, "Prioritizes opportunities", "Ranks what will move your account this week."],
+      [CalendarDays, "Maps your calendar", "Puts formats and topics on the right days."],
+      [Check, "Sets clear targets", "Every post gets a job to do."],
+    ],
+  },
+  {
+    n: "03", t: "CREATE", Ico: PenLine, short: "Create content that connects.",
+    head: ["Make content", "that connects."],
+    feats: [
+      [PenLine, "Generates hooks and scripts", "Starts every post from a proven angle."],
+      [Users, "Matches your voice", "Builds on your niche and your past winners."],
+      [Sparkles, "Removes guesswork", "You create. SOCIA guides the shape."],
+    ],
+  },
+  {
+    n: "04", t: "SCORE", Ico: BarChart3, short: "Predict before you post.",
+    head: ["Know the outcome", "before you post."],
+    feats: [
+      [Zap, "Predicts performance", "Scores hook, clarity, pacing, and retention."],
+      [ScanSearch, "Flags weak points", "Shows exactly what to fix before publishing."],
+      [Check, "Protects your average", "Weak posts get better. Strong posts ship."],
+    ],
+  },
+  {
+    n: "05", t: "PUBLISH", Ico: Send, short: "Post at the right moment.",
+    head: ["Post during optimal", "audience windows."],
+    feats: [
+      [Clock, "Finds your best times", "Based on when your audience is most active."],
+      [Target, "Matches content to moment", "Aligns your message with real-time opportunity."],
+      [TrendingUp, "Increases probability of impact", "More reach. More engagement. More growth."],
+    ],
+  },
+  {
+    n: "06", t: "MEASURE", Ico: PieChart, short: "See what actually worked.",
+    head: ["See what", "actually worked."],
+    feats: [
+      [PieChart, "Tracks real outcomes", "Reach, retention, saves, and follows. Not vanity."],
+      [BarChart3, "Compares result to prediction", "Every post sharpens the next forecast."],
+      [ScanSearch, "Surfaces the why", "Shows what actually drove the result."],
+    ],
+  },
+  {
+    n: "07", t: "LEARN", Ico: BookOpen, short: "Turn results into intelligence.",
+    head: ["Every result makes", "SOCIA smarter."],
+    feats: [
+      [BookOpen, "Feeds results back", "Wins and misses update your strategy."],
+      [TrendingUp, "Compounds your data", "Each cycle starts smarter than the last."],
+      [Sparkles, "Improves recommendations", "Next week's plan is built on this week's proof."],
+    ],
+  },
+] as const;
 
 function Loop() {
-  const [ref, inView] = useInView<HTMLDivElement>(0.3);
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    if (!inView) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const iv = setInterval(() => setActive((a) => (a + 1) % LOOP_STAGES.length), 1400);
-    return () => clearInterval(iv);
-  }, [inView]);
+  const [ref, inView] = useInView<HTMLDivElement>(0.22);
+  const [stage, setStage] = useState(4); // logical selection: panel, strip, progress arc
+  const [lit, setLit] = useState(4); // node currently lit (−1 while the signal travels)
+  const [shown, setShown] = useState(4); // panel content on screen
+  const [rot, setRot] = useState((4 / LOOP_N) * 360); // cumulative dot rotation, always forward
+  const [travel, setTravel] = useState(false);
+  const [pulse, setPulse] = useState(false);
+  const stageRef = useRef(4);
+  const busyRef = useRef(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  const select = useCallback((j: number) => {
+    const cur = stageRef.current;
+    if (j === cur || busyRef.current) return;
+    stageRef.current = j;
+    setStage(j);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setLit(j);
+      setShown(j);
+      setRot((j / LOOP_N) * 360);
+      return;
+    }
+    busyRef.current = true;
+    setLit(-1);
+    setTravel(true);
+    setRot((r) => r + (((j - cur + LOOP_N) % LOOP_N) * 360) / LOOP_N);
+    timers.current.push(setTimeout(() => setShown(j), 190));
+    timers.current.push(
+      setTimeout(() => {
+        setLit(j);
+        setTravel(false);
+        setPulse(true);
+        busyRef.current = false;
+        timers.current.push(setTimeout(() => setPulse(false), 450));
+      }, 640),
+    );
+  }, []);
+
+  const S = LOOP_STAGES[shown];
 
   return (
-    <div ref={ref} className={`so-loop ${inView ? "in" : ""}`}>
-      <div className="so-loop-ring" aria-hidden>
-        <div className="so-loop-core"><BrandMark size={22} />SOCIA</div>
-        {LOOP_STAGES.map((s, i) => {
-          const ang = (i / LOOP_STAGES.length) * Math.PI * 2 - Math.PI / 2;
-          const x = 50 + 44 * Math.cos(ang);
-          const y = 50 + 44 * Math.sin(ang);
-          return (
-            <span
-              key={s.n}
-              className={`so-loop-node ${i === active ? "on" : ""}`}
-              style={{ left: `${x}%`, top: `${y}%` }}
-            >
-              {s.t}
-            </span>
-          );
-        })}
+    <div ref={ref} className={`so-loop2 ${inView ? "in" : ""}`}>
+      <div className="so-lgrid">
+        {/* the loop */}
+        <div className="so-lring">
+          <svg className="so-lorbit" viewBox="0 0 560 560" aria-hidden>
+            <circle className="so-lorbit-base" cx="280" cy="280" r={LOOP_R} fill="none" />
+            {Array.from({ length: LOOP_N }, (_, i) => {
+              const a = ((i + 0.5) / LOOP_N) * Math.PI * 2 - Math.PI / 2;
+              const x = 280 + LOOP_R * Math.cos(a);
+              const y = 280 + LOOP_R * Math.sin(a);
+              const deg = (a * 180) / Math.PI + 90;
+              return (
+                <path
+                  key={i}
+                  className="so-larrow"
+                  d="M-3.2,-2.5 L2.6,0 L-3.2,2.5"
+                  transform={`translate(${x} ${y}) rotate(${deg})`}
+                  fill="none"
+                />
+              );
+            })}
+            <circle
+              className="so-lorbit-prog"
+              cx="280" cy="280" r={LOOP_R} fill="none"
+              strokeDasharray={`${(stage / LOOP_N) * LOOP_C} ${LOOP_C}`}
+              transform="rotate(-90 280 280)"
+            />
+            <g className={`so-ldot ${travel ? "go" : ""}`} style={{ transform: `rotate(${rot}deg)` }}>
+              <circle cx="280" cy={280 - LOOP_R} r="4.5" />
+            </g>
+          </svg>
+
+          <div className={`so-lcore ${pulse ? "pulse" : ""}`}><BrandMark size={22} /> SOCIA</div>
+
+          {LOOP_STAGES.map((s, i) => {
+            const a = (i / LOOP_N) * Math.PI * 2 - Math.PI / 2;
+            const x = 50 + 44 * Math.cos(a);
+            const y = 50 + 44 * Math.sin(a);
+            return (
+              <button
+                key={s.t}
+                type="button"
+                className={`so-lnode ${lit === i ? "on" : ""}`}
+                style={{ left: `${x}%`, top: `${y}%`, "--d": `${0.5 + i * 0.05}s` } as React.CSSProperties}
+                onClick={() => select(i)}
+                aria-pressed={lit === i}
+              >
+                <span className="so-lnode-c"><s.Ico size={16} /></span>
+                <b>{s.t}</b>
+                <small>{s.short}</small>
+              </button>
+            );
+          })}
+
+          <span className="so-llink" key={stage} aria-hidden />
+        </div>
+
+        {/* active stage */}
+        <div className="so-lpanel">
+          <span className="so-lpanel-num">{LOOP_STAGES[stage].n}</span>
+          <div className={`so-lpanel-body ${shown !== stage ? "out" : ""}`} key={shown}>
+            <h3>{S.t}<i /></h3>
+            <p className="so-lpanel-lead">{S.head[0]}<br />{S.head[1]}</p>
+            <small className="so-lpanel-label">WHAT SOCIA DOES</small>
+            <div className="so-lfeats">
+              {S.feats.map(([Fi, t, d]) => (
+                <div key={t} className="so-lfeat">
+                  <span className="so-lfeat-ico"><Fi size={15} /></span>
+                  <div><b>{t}</b><span>{d}</span></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="so-loop-stage">
-        <span className="so-loop-num">{LOOP_STAGES[active].n}</span>
-        <h3>{LOOP_STAGES[active].t}</h3>
-        <p>{LOOP_STAGES[active].d}</p>
+
+      {/* compounding strip */}
+      <div className="so-lstrip">
+        <div className="so-lgraph" aria-hidden>
+          <svg viewBox="0 0 150 56" preserveAspectRatio="none">
+            <path className="so-lgarea" d="M4,50 L18,44 L30,47 L44,38 L58,42 L72,30 L86,34 L100,22 L114,26 L132,12 L146,8 L146,54 L4,54 Z" />
+            <path className="so-lgline" d="M4,50 L18,44 L30,47 L44,38 L58,42 L72,30 L86,34 L100,22 L114,26 L132,12 L146,8" fill="none" />
+          </svg>
+          <span className="so-lgchip">+32%</span>
+        </div>
+        <div className="so-lstrip-copy">
+          <b>The more you post, the smarter SOCIA gets.</b>
+          <small>Every cycle gives SOCIA more signal. Better signals create better decisions.</small>
+        </div>
+        <span className="so-lseq">
+          {LOOP_STAGES.map((s, i) => (
+            <em key={s.t} className={stage === i ? "on" : ""}>
+              <button type="button" onClick={() => select(i)}>{s.t}</button>
+              {i < LOOP_N - 1 && <ArrowRight size={9} />}
+            </em>
+          ))}
+        </span>
       </div>
     </div>
   );
@@ -982,7 +1155,7 @@ export default function CinematicLanding() {
       {/* ================= 05 LOOP ================= */}
       <section id="loop" className="so-ch so-loopsec">
         <div className="so-wrap">
-          <Rise><span className="so-label">HOW SOCIA WORKS</span></Rise>
+          <Rise><span className="so-label">THE SOCIA LOOP</span></Rise>
           <h2 className="so-h2 dark"><Words text="A system that compounds every week." /></h2>
           <Rise delay={120}>
             <p className="so-lead dark">Every post creates another signal. Every signal makes SOCIA smarter.</p>
