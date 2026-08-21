@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
+import BrandMark from "@/components/BrandMark";
 import { createClient } from "@/lib/supabase/server";
 import { igConfigured } from "@/lib/instagram";
 
@@ -96,7 +97,7 @@ export default async function AppShell({
     <div className="app">
       <aside className="side">
         <Link href="/dashboard" className="side-logo">
-          <span className="side-mark">S</span>
+          <BrandMark size={32} />
           <span className="side-word">SOCIA</span>
         </Link>
 

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { NICHES } from "@/lib/niches";
 import ConnectAccounts from "./ConnectAccounts";
+import BrandMark from "./BrandMark";
 
 type Phase = "connect" | "analyzing" | "confirm" | "building" | "pricing";
 
@@ -263,7 +264,7 @@ export default function OnboardingFlow({
       <div className="ob-shell">
         <div className="ob-progress">
           <div className="ob-brand">
-            <span className="side-mark">S</span> SOCIA
+            <BrandMark size={30} /> SOCIA
           </div>
           <div className="ob-steps">
             {STEPS.map((s, i) => (

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import BrandMark from "@/components/BrandMark";
 import AuthShell, { GoogleIcon } from "@/components/AuthShell";
 
 export default function LoginPage() {
@@ -63,7 +64,7 @@ export default function LoginPage() {
   return (
     <AuthShell>
       <div className="auth-mobilelogo">
-        <span className="brand-mark">S</span>SOCIA
+        <BrandMark size={32} />SOCIA
       </div>
 
       <h1>Welcome back</h1>

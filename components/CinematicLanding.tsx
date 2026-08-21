@@ -17,6 +17,7 @@ import {
   Clock,
 } from "lucide-react";
 import IntelligenceField from "./IntelligenceField";
+import BrandMark from "./BrandMark";
 
 /* ---------------- shared hooks ---------------- */
 
@@ -170,7 +171,7 @@ function Loop() {
   return (
     <div ref={ref} className={`so-loop ${inView ? "in" : ""}`}>
       <div className="so-loop-ring" aria-hidden>
-        <div className="so-loop-core"><span className="side-mark">S</span>SOCIA</div>
+        <div className="so-loop-core"><BrandMark size={22} />SOCIA</div>
         {LOOP_STAGES.map((s, i) => {
           const ang = (i / LOOP_STAGES.length) * Math.PI * 2 - Math.PI / 2;
           const x = 50 + 44 * Math.cos(ang);
@@ -314,7 +315,7 @@ export default function CinematicLanding() {
 
       {/* nav */}
       <header className={`so-nav ${theme !== "light" ? "on-dark" : "on-light"}`}>
-        <Link href="/" className="so-brand"><span className="side-mark">S</span> SOCIA</Link>
+        <Link href="/" className="so-brand"><BrandMark size={26} /> SOCIA</Link>
         <nav className="so-nav-links" aria-label="Sections">
           <button onClick={() => jump("engine")}>Product</button>
           <button onClick={() => jump("ask")}>Strategist</button>
@@ -684,7 +685,7 @@ export default function CinematicLanding() {
           <div className="so-footer-statement">Better content starts with better decisions.</div>
           <div className="so-footer-grid">
             <div className="so-footer-brand">
-              <span className="so-brand"><span className="side-mark">S</span> SOCIA</span>
+              <span className="so-brand"><BrandMark size={26} /> SOCIA</span>
               <p>AI social intelligence for creators and teams.</p>
             </div>
             <div>

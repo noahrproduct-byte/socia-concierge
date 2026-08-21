@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Sparkles, Camera } from "lucide-react";
+import BrandMark from "./BrandMark";
 
 // The premium connect moment: plays once right after Instagram OAuth lands the
 // user back on the dashboard. Three acts — link, scan, reveal — then fades out
@@ -76,7 +77,7 @@ export default function SyncCinematic({
       {act === "link" && (
         <div className="sc-stage">
           <div className="sc-link">
-            <span className="sc-node sc-node-socia"><span className="side-mark">S</span></span>
+            <span className="sc-node sc-node-socia"><BrandMark size={40} /></span>
             <span className="sc-beam" aria-hidden>
               <i /><i /><i />
             </span>

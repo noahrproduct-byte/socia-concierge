@@ -5163,6 +5163,9 @@ a.hub-card:hover {
 .so-footer-copy { font-size: 12px; color: var(--so-dimmer); border-top: 1px solid var(--so-line); padding-top: 24px; }
 
 /* ---------- responsive ---------- */
+/* real brand mark image (blue S + sparkle on dark tile) */
+.brandmark { border-radius: 24%; display: block; flex-shrink: 0; }
+
 /* brand mark: cobalt→sky gradient tile + sparkle (from the brand board) */
 .so .side-mark { background: linear-gradient(135deg, #2563ff, #60a5fa); position: relative; }
 .so-brand { position: relative; }
