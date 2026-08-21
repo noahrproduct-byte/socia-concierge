@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import BrandMark from "@/components/BrandMark";
 import AuthShell, { GoogleIcon } from "@/components/AuthShell";
@@ -13,6 +14,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -81,23 +83,45 @@ export default function LoginPage() {
 
       <form onSubmit={loginWithPassword}>
         <label>Email</label>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-        />
+        <div className="field">
+          <Mail size={16} className="field-ico" />
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
         <label>Password</label>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-        />
+        <div className="field">
+          <Lock size={16} className="field-ico" />
+          <input
+            type={showPw ? "text" : "password"}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+          />
+          <button
+            type="button"
+            className="field-eye"
+            onClick={() => setShowPw((s) => !s)}
+            aria-label={showPw ? "Hide password" : "Show password"}
+          >
+            {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+
+        <div className="auth-row">
+          <label className="remember">
+            <input type="checkbox" defaultChecked /> Remember me
+          </label>
+          <Link href="/forgot-password" className="auth-mini">Forgot password?</Link>
+        </div>
+
         <button className="authbtn" type="submit" disabled={loading}>
-          {loading ? "Logging in…" : "Log in"}
+          {loading ? "Logging in…" : <>Log in <ArrowRight size={15} /></>}
         </button>
       </form>
 
@@ -109,7 +133,6 @@ export default function LoginPage() {
       {err && <div className="authmsg err">{err}</div>}
 
       <div className="authfoot">
-        <Link href="/forgot-password">Forgot password?</Link>
         <span>
           No account? <Link href="/signup">Sign up</Link>
         </span>

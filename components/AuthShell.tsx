@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Zap, Target, CalendarDays } from "lucide-react";
+import BrandMark from "./BrandMark";
 
 // The premium split-screen wrapper shared by every auth page:
 // a branded showcase panel on the left, the form on the right.
@@ -8,7 +10,7 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
       <aside className="auth-brand">
         <div className="auth-brand-inner">
           <Link href="/" className="brand-logo">
-            <span className="brand-mark">S</span>
+            <BrandMark size={44} />
             <span className="brand-word">
               SOCIA<em>Your AI Social Strategist</em>
             </span>
@@ -21,29 +23,63 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
               <span className="grad">before you post it.</span>
             </h2>
             <p className="brand-sub">
-              AI-powered content ideas, scoring, and scheduling — built for
-              creators and brands that want to grow on purpose.
+              AI-powered content ideas, scoring, and scheduling, built for
+              creators and brands that grow on purpose.
             </p>
 
             <ul className="brand-features">
-              <li>Audit any account in seconds</li>
-              <li>See what competitors are winning with</li>
-              <li>Get a full week of posts, hooks included</li>
+              <li>
+                <span className="bf-ico"><Zap size={16} /></span>
+                <div>
+                  <b>Audit any account in seconds</b>
+                  <small>Instant insights and performance score.</small>
+                </div>
+              </li>
+              <li>
+                <span className="bf-ico"><Target size={16} /></span>
+                <div>
+                  <b>See what competitors are winning with</b>
+                  <small>Spot opportunities before they peak.</small>
+                </div>
+              </li>
+              <li>
+                <span className="bf-ico"><CalendarDays size={16} /></span>
+                <div>
+                  <b>Get a full week of posts, hooks included</b>
+                  <small>Done-for-you content you can publish.</small>
+                </div>
+              </li>
             </ul>
 
             <div className="score-card">
-              <div className="score-top">
-                <span>Content Score</span>
-                <span className="score-badge">Great</span>
+              <div className="score-left">
+                <div className="score-top">
+                  <span>Content Score</span>
+                  <span className="score-badge">Great</span>
+                </div>
+                <div className="score-num">
+                  87<small>/100</small>
+                </div>
+                <div className="score-bars">
+                  <Bar label="Hook" value={92} />
+                  <Bar label="Retention" value={85} />
+                  <Bar label="Relevance" value={88} />
+                </div>
               </div>
-              <div className="score-num">
-                87<small>/100</small>
-              </div>
-              <div className="score-bars">
-                <Bar label="Hook" value={92} />
-                <Bar label="Retention" value={85} />
-                <Bar label="Relevance" value={88} />
-              </div>
+              <svg className="score-chart" viewBox="0 0 200 150" preserveAspectRatio="none" aria-hidden>
+                {[40, 80, 120, 160].map((x) => (
+                  <line key={x} x1={x} y1="10" x2={x} y2="145" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                ))}
+                <path
+                  d="M4,138 L26,120 L44,126 L66,96 L84,102 L104,78 L122,84 L142,58 L158,44 L176,30 L188,18"
+                  fill="none"
+                  stroke="#2563ff"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                />
+                <circle cx="188" cy="18" r="8" fill="rgba(96,165,250,0.25)" />
+                <circle cx="188" cy="18" r="3.5" fill="#8ab4ff" />
+              </svg>
             </div>
           </div>
 
