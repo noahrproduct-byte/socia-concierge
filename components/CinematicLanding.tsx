@@ -15,6 +15,14 @@ import {
   CalendarDays,
   ScanSearch,
   Clock,
+  Play,
+  Zap,
+  Target,
+  Users,
+  LayoutDashboard,
+  FileText,
+  BarChart3,
+  Settings,
 } from "lucide-react";
 import IntelligenceField from "./IntelligenceField";
 import BrandMark from "./BrandMark";
@@ -261,12 +269,14 @@ export default function CinematicLanding() {
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
+    const nav = document.querySelector(".so-nav");
     const tick = () => {
       const el = heroRef.current;
       if (el) {
         const p = Math.min(1.4, window.scrollY / window.innerHeight);
         el.style.setProperty("--p", String(p));
       }
+      if (nav) nav.classList.toggle("compact", window.scrollY > 40);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -353,69 +363,175 @@ export default function CinematicLanding() {
 
       {/* ================= 01 PROMISE ================= */}
       <section id="promise" ref={heroRef} className="so-ch so-hero">
-        <div className="so-hero-inner">
-          <Rise><span className="so-tag"><Sparkles size={12} /> AI SOCIAL INTELLIGENCE</span></Rise>
-          <h1>
-            <Words text="Know what to post" />
-            <br />
-            <span className="so-blue"><Words text="before you post it." /></span>
-          </h1>
-          <Rise delay={350}>
-            <p className="so-hero-sub">
-              SOCIA studies your content, audience, competitors, and performance. Then it
-              tells you what to post, why it should work, and when to publish.
-            </p>
-          </Rise>
-          <Rise delay={450}>
-            <div className="so-hero-ctas">
-              <Link href="/signup" className="so-btn so-btn-blue" data-cursor="AUDIT">
-                Start Free Audit <ArrowRight size={15} />
-              </Link>
-              <button className="so-btn so-btn-ghost" onClick={() => jump("engine")} data-cursor="VIEW">
-                See How It Works
-              </button>
-            </div>
-            <span className="so-micro">No credit card · Audit in under 60 seconds</span>
-          </Rise>
-
-          {/* dimensional product interface */}
-          <div className="so-deck" data-cursor="EXPLORE">
-            <div className="so-deck-main">
-              <div className="so-deck-head">
-                <span className="side-mark sm">S</span> SOCIA · Live intelligence
-                <span className="so-deck-pulse" />
+        <div className="so-hgrid">
+          <div className="so-hleft">
+            <Rise><span className="so-label">AI SOCIAL INTELLIGENCE</span></Rise>
+            <h1>
+              <Words text="Know what to post" />
+              <br />
+              <span className="so-blue"><Words text="before you post it." /></span>
+            </h1>
+            <Rise delay={320}>
+              <p className="so-hero-sub">
+                SOCIA studies your content, audience, competitors, and performance. Then it
+                tells you what to post, why it should work, and when to publish.
+              </p>
+            </Rise>
+            <Rise delay={420}>
+              <div className="so-hero-ctas">
+                <Link href="/signup" className="so-btn so-btn-blue" data-cursor="AUDIT">
+                  Start Free Audit <ArrowRight size={15} />
+                </Link>
+                <button className="so-btn so-btn-ghost play" onClick={() => jump("engine")} data-cursor="VIEW">
+                  <span className="so-play"><Play size={10} fill="currentColor" /></span> See How It Works
+                </button>
               </div>
-              <div className="so-deck-grid">
-                <div className="so-mod"><small>ACCOUNT HEALTH</small><b><Num value={92} /> / 100</b><i className="so-mod-bar"><em style={{ width: "92%" }} /></i></div>
-                <div className="so-mod"><small>ENGAGEMENT</small><b className="up">+<Num value={18.6} suffix="%" /></b></div>
-                <div className="so-mod"><small>REACH</small><b><Num value={178.4} suffix="K" /></b></div>
-                <div className="so-mod"><small>CONTENT OPPORTUNITIES</small><b>{"3 detected"}</b></div>
-              </div>
-              <svg className="so-deck-chart" viewBox="0 0 320 74" preserveAspectRatio="none" aria-hidden>
-                <defs>
-                  <linearGradient id="soga" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2563ff" stopOpacity="0.28" />
-                    <stop offset="100%" stopColor="#2563ff" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <path className="so-chart-area" d="M0,60 L30,54 L60,57 L90,46 L120,49 L150,38 L180,41 L210,30 L240,25 L270,27 L300,14 L320,10 L320,74 L0,74 Z" fill="url(#soga)" />
-                <path className="so-chart-line" d="M0,60 L30,54 L60,57 L90,46 L120,49 L150,38 L180,41 L210,30 L240,25 L270,27 L300,14 L320,10" fill="none" stroke="#60a5fa" strokeWidth="2" />
-              </svg>
-            </div>
-            <div className="so-deck-chip c1"><small>COMPETITOR MOVEMENT</small><b className="up">+24%</b></div>
-            <div className="so-deck-chip c2"><small>BEST POSTING WINDOW</small><b>Thursday · 6:40 PM</b></div>
-            <div className="so-deck-chip c3"><small>RECOMMENDATION</small><b>Educational Reel</b><span>2.4× your average engagement</span></div>
+              <span className="so-micro">No credit card · Audit in under 60 seconds</span>
+            </Rise>
           </div>
 
-          {/* trust layer */}
-          <div className="so-trust">
-            <small>TRUSTED BY CREATORS &amp; TEAMS</small>
-            <div className="so-trust-stats">
-              <div><b><Num value={40} suffix="K+" /></b><span>accounts analyzed</span></div>
-              <div><b><Num value={6} suffix=" hrs" /></b><span>saved per week</span></div>
-              <div><b><Num value={3.2} suffix="×" /></b><span>engagement improvement</span></div>
-              <div><b><Num value={92} suffix="%" /></b><span>strategy completion</span></div>
+          {/* dimensional product interface */}
+          <div className="so-hright" data-cursor="EXPLORE">
+            <div className="so-dash">
+              <div className="so-dash-head">
+                <BrandMark size={18} /> <b>SOCIA</b>
+                <span className="so-dash-live"><i /> Live</span>
+                <span className="so-dash-updated">Last updated 2 min ago</span>
+              </div>
+              <div className="so-dash-body">
+                <aside className="so-dash-side" aria-hidden>
+                  {[
+                    ["Overview", LayoutDashboard, true],
+                    ["Strategist", Sparkles, false],
+                    ["Content", FileText, false],
+                    ["Analytics", BarChart3, false],
+                    ["Competitors", Radar, false],
+                    ["Calendar", CalendarDays, false],
+                    ["Settings", Settings, false],
+                  ].map(([label, Icon, on]) => {
+                    const I = Icon as typeof LayoutDashboard;
+                    return (
+                      <span key={label as string} className={on ? "on" : ""}>
+                        <I size={11} /> {label as string}
+                      </span>
+                    );
+                  })}
+                </aside>
+                <div className="so-dash-main">
+                  <div className="so-dash-row1">
+                    <small>CONTENT PERFORMANCE</small>
+                    <span className="so-dash-chip">Last 7 days</span>
+                  </div>
+                  <div className="so-dash-mid">
+                    <div className="so-radial">
+                      <svg viewBox="0 0 84 84" aria-hidden>
+                        <defs>
+                          <linearGradient id="soring" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor="#4c86ff" />
+                            <stop offset="100%" stopColor="#60a5fa" />
+                          </linearGradient>
+                        </defs>
+                        <circle cx="42" cy="42" r="34" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
+                        <circle className="so-ring-fill" cx="42" cy="42" r="34" fill="none" stroke="url(#soring)" strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6" transform="rotate(-90 42 42)" />
+                      </svg>
+                      <span className="so-radial-num"><Num value={92} /><small>HEALTH</small></span>
+                    </div>
+                    <div className="so-dash-stats">
+                      <div><span>Engagement</span><b className="up">+18.6%</b></div>
+                      <div><span>Reach</span><b className="up">+24.3%</b></div>
+                      <div><span>Followers</span><b className="up">+12.7%</b></div>
+                    </div>
+                  </div>
+                  <div className="so-dash-chartwrap">
+                    <span className="so-chart-chip">+18.6%</span>
+                    <svg className="so-dash-chart" viewBox="0 0 320 70" preserveAspectRatio="none" aria-hidden>
+                      <defs>
+                        <linearGradient id="soga" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#2563ff" stopOpacity="0.30" />
+                          <stop offset="100%" stopColor="#2563ff" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path className="so-chart-area" d="M0,56 L46,50 L92,53 L138,42 L184,46 L230,32 L276,24 L320,12 L320,70 L0,70 Z" fill="url(#soga)" />
+                      <path className="so-chart-line" d="M0,56 L46,50 L92,53 L138,42 L184,46 L230,32 L276,24 L320,12" fill="none" stroke="#60a5fa" strokeWidth="2" />
+                    </svg>
+                    <div className="so-dash-days">
+                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                        <span key={d}>{d}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="so-dash-bottom">
+                    <div className="so-dash-panel">
+                      <small>BEST POSTING WINDOW</small>
+                      <b>Thursday · 6:40 PM</b>
+                      <div className="so-winbars" aria-hidden>
+                        {[34, 48, 40, 88, 56, 44, 30].map((h, i) => (
+                          <i key={i} className={i === 3 ? "hot" : ""} style={{ height: `${h}%` }} />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="so-dash-panel">
+                      <small>CONTENT OPPORTUNITIES</small>
+                      <b>3 detected</b>
+                      <span className="so-dash-link">View insights <ArrowRight size={11} /></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+
+            <div className="so-fcard f1">
+              <small>COMPETITOR MOVEMENT</small>
+              <b className="up">+24%</b>
+              <svg viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden>
+                <path d="M0,20 L15,16 L30,18 L45,10 L60,13 L75,6 L90,3" fill="none" stroke="#4c86ff" strokeWidth="2" />
+              </svg>
+            </div>
+            <div className="so-fcard f2">
+              <span className="so-fcard-ico"><Sparkles size={13} /></span>
+              <div>
+                <small>AI RECOMMENDATION</small>
+                <b>Post a behind-the-scenes video.</b>
+                <span>It&apos;s performing well for your top competitors.</span>
+              </div>
+              <ArrowRight size={14} className="so-fcard-arrow" />
+            </div>
+          </div>
+        </div>
+
+        {/* data landscape */}
+        <div className="so-terrain" aria-hidden>
+          <svg viewBox="0 0 1440 220" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="soterr" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2563ff" stopOpacity="0.12" />
+                <stop offset="100%" stopColor="#2563ff" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M0,150 L110,118 L230,142 L350,96 L470,128 L590,86 L710,120 L830,78 L950,112 L1070,70 L1190,104 L1310,64 L1440,92 L1440,220 L0,220 Z" fill="url(#soterr)" />
+            <path d="M0,150 L110,118 L230,142 L350,96 L470,128 L590,86 L710,120 L830,78 L950,112 L1070,70 L1190,104 L1310,64 L1440,92" fill="none" stroke="rgba(76,134,255,0.30)" strokeWidth="1.2" />
+            <path d="M0,190 L140,168 L280,184 L420,152 L560,176 L700,146 L840,170 L980,140 L1120,162 L1260,132 L1440,150" fill="none" stroke="rgba(76,134,255,0.14)" strokeWidth="1" />
+            <circle className="so-tnode" cx="350" cy="96" r="3" />
+            <circle className="so-tnode d2" cx="830" cy="78" r="3" />
+            <circle className="so-tnode d3" cx="1190" cy="104" r="3" />
+            <circle cx="590" cy="86" r="2" fill="rgba(139,176,255,0.5)" />
+            <circle cx="1070" cy="70" r="2" fill="rgba(139,176,255,0.5)" />
+          </svg>
+        </div>
+
+        {/* proof band */}
+        <div className="so-proof">
+          <small>TRUSTED BY CREATORS &amp; TEAMS</small>
+          <div className="so-prooflogos">
+            {["northloop", "Verve", "STUDIO/9", "Hatch&Co", "Meridian", "bloomtide"].map((l) => (
+              <span key={l}>{l}</span>
+            ))}
+          </div>
+          <div className="so-proofstats">
+            <div><span className="so-proof-ico"><Zap size={16} /></span><b><Num value={3.2} suffix="×" /></b><span>more engagement</span></div>
+            <div><span className="so-proof-ico"><Clock size={16} /></span><b><Num value={6} suffix="hrs" /></b><span>saved per week</span></div>
+            <div><span className="so-proof-ico"><Target size={16} /></span><b><Num value={92} suffix="%" /></b><span>score-to-hit rate</span></div>
+            <div><span className="so-proof-ico"><Users size={16} /></span><b><Num value={40} suffix="k+" /></b><span>accounts audited</span></div>
           </div>
         </div>
       </section>
@@ -454,7 +570,7 @@ export default function CinematicLanding() {
       <section id="engine" className="so-ch so-engine">
         <div className="so-wrap">
           <Rise><span className="so-label">THE SOCIA INTELLIGENCE ENGINE</span></Rise>
-          <h2 className="so-h2 dark"><Words text="Everything from audit to analytics." /></h2>
+          <h2 className="so-h2 dark"><Words text="Everything from audit to analytics." blue="to analytics." /></h2>
           <Rise delay={120}>
             <p className="so-lead dark">
               One system watches, analyzes, plans, creates, and measures. Every week
@@ -467,7 +583,7 @@ export default function CinematicLanding() {
             <Rise className="so-b b-audit">
               <div className="so-b-inner" data-cursor="VIEW">
                 <div className="so-b-head"><ScanSearch size={15} /> CONTENT AUDIT</div>
-                <div className="so-audit-score"><b><Num value={92} /></b><span>/ 100</span><em>Account Health</em></div>
+                <div className="so-audit-score"><b><Num value={92} /></b><span>/ 100</span><em>Account Health</em><i className="so-audit-delta">↑ +12</i></div>
                 <div className="so-audit-bars">
                   {[["Hook strength", 91], ["Posting consistency", 84], ["Topic concentration", 76], ["Engagement efficiency", 88], ["Content diversity", 71]].map(([l, v]) => (
                     <div key={l as string} className="so-abar"><span>{l}</span><i><em style={{ width: `${v}%` }} /></i><b>{v}</b></div>
@@ -498,7 +614,7 @@ export default function CinematicLanding() {
                 <h3>Publish another educational Reel.</h3>
                 <p className="so-rec-why"><b>Why?</b> Your educational videos are generating 2.4× your average engagement.</p>
                 <p className="so-rec-hook">Recommended hook: <em>&ldquo;3 mistakes killing your content reach…&rdquo;</em></p>
-                <Link href="/signup" className="so-b-cta">Create this post <ArrowRight size={13} /></Link>
+                <Link href="/signup" className="so-b-cta">See all recommendations <ArrowRight size={13} /></Link>
               </div>
             </Rise>
 
@@ -509,7 +625,7 @@ export default function CinematicLanding() {
                 <div className="so-vs">
                   <div className="so-vs-big"><b><Num value={82} /></b><span>/ 100</span></div>
                   <div className="so-vs-subs">
-                    {[["HOOK", 91], ["RETENTION", 78], ["CLARITY", 86], ["PACING", 74]].map(([l, v]) => (
+                    {[["HOOK", 91], ["RETENTION", 78], ["CLARITY", 86], ["PACING", 74], ["OVERALL", 84]].map(([l, v]) => (
                       <span key={l as string}><small>{l}</small><b>{v}</b></span>
                     ))}
                   </div>
@@ -533,7 +649,7 @@ export default function CinematicLanding() {
                     </div>
                   ))}
                 </div>
-                <p className="so-week-note"><Clock size={12} /> Audience activity peak</p>
+                <p className="so-week-note"><Clock size={12} /> Optimal time · 6:40 PM · audience peak</p>
               </div>
             </Rise>
           </div>
