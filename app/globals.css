@@ -5645,7 +5645,7 @@ a.hub-card:hover {
   box-shadow: 0 2px 5px rgba(15, 17, 21, 0.04);
 }
 .so-onestrip-ico { flex-shrink: 0; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(37, 99, 255, 0.1); border: 1px solid rgba(37, 99, 255, 0.2); color: var(--so-blue); }
-.so-onestrip-copy { flex-shrink: 0; max-width: 380px; }
+.so-onestrip-copy { flex-shrink: 1; min-width: 0; max-width: 500px; }
 .so-onestrip-copy > b { display: block; font-family: var(--font-display), var(--font); font-size: 19px; font-weight: 600; letter-spacing: -0.4px; margin-bottom: 6px; }
 .so-oneseq { display: flex; flex-wrap: wrap; gap: 3px 8px; margin-bottom: 6px; }
 .so-oneseq em { display: inline-flex; align-items: center; gap: 7px; font-style: normal; font-size: 9px; font-weight: 750; letter-spacing: 0.1em; color: var(--so-ink-dim); }
