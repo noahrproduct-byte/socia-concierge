@@ -5408,10 +5408,12 @@ a.hub-card:hover {
   margin-bottom: 7px;
   color: rgba(255, 255, 255, 0.8);
 }
-.so-thumb-media.g1 { background: linear-gradient(140deg, #1d2a44, #10192c); }
-.so-thumb-media.g2 { background: linear-gradient(140deg, #232f3f, #131a26); }
-.so-thumb-media.g3 { background: linear-gradient(140deg, #1e3a68, #12203c); }
-.so-thumb-media.g4 { background: linear-gradient(140deg, #26283a, #151624); }
+.so-thumb-media::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: rgba(5, 7, 12, 0.28); }
+.so-thumb-media svg { position: relative; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6)); }
+.so-thumb-media.g1 { background: url("/brand/thumbs/t1.jpg") center/cover; }
+.so-thumb-media.g2 { background: url("/brand/thumbs/t2.jpg") center/cover; }
+.so-thumb-media.g3 { background: url("/brand/thumbs/t3.jpg") center/cover; }
+.so-thumb-media.g4 { background: url("/brand/thumbs/t4.jpg") center/cover; }
 .so-thumb-check { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 999px; background: var(--so-blue); color: #fff; border: 2px solid #0a101d; }
 .so-thumb b { display: block; font-size: 11.5px; letter-spacing: -0.2px; color: #fff; font-variant-numeric: tabular-nums; }
 .so-thumb small { display: block; font-size: 8.5px; color: var(--so-dimmer); margin-bottom: 3px; }
