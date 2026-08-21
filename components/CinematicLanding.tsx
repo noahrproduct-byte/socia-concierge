@@ -736,8 +736,18 @@ export default function CinematicLanding() {
       {/* ================= 03 ENGINE ================= */}
       <section id="engine" className="so-ch so-engine">
         <div className="so-wrap">
+          {/* faint intelligence field behind the composition */}
+          <svg className="so-eng-field" viewBox="0 0 1200 900" preserveAspectRatio="none" aria-hidden>
+            <path d="M-20,540 C300,490 720,430 1230,150" fill="none" stroke="rgba(37,99,255,0.07)" strokeWidth="1" />
+            <path d="M-20,640 C340,600 780,530 1230,270" fill="none" stroke="rgba(37,99,255,0.055)" strokeWidth="1" />
+            <path d="M380,40 C700,110 960,210 1230,400" fill="none" stroke="rgba(37,99,255,0.05)" strokeWidth="1" />
+            <circle cx="985" cy="238" r="2.2" fill="rgba(37,99,255,0.32)" />
+            <circle cx="1105" cy="196" r="2" fill="rgba(37,99,255,0.26)" />
+            <circle cx="880" cy="452" r="2.2" fill="rgba(37,99,255,0.3)" />
+            <circle cx="1150" cy="330" r="1.8" fill="rgba(37,99,255,0.22)" />
+          </svg>
           <div className="so-eng-head">
-            <Rise><span className="so-label">THE SOCIA INTELLIGENCE ENGINE</span></Rise>
+            <Rise><span className="so-eng-eyebrow"><i /><b>THE SOCIA</b> INTELLIGENCE ENGINE</span></Rise>
             <h2 className="so-h2 dark">
               <Words text="Everything from audit" />
               <br />
@@ -810,17 +820,17 @@ export default function CinematicLanding() {
                   <div className="so-crow">
                     <i>A</i>
                     <div><b>Competitor A</b><span className="up">+31% momentum</span></div>
-                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path d="M0,18 L14,15 L28,16 L42,11 L56,8 L70,6 L84,2" fill="none" stroke="#16a34a" strokeWidth="1.6" /></svg>
+                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,18 L14,15 L28,16 L42,11 L56,8 L70,6 L84,2" fill="none" stroke="#16a34a" strokeWidth="1.6" /></svg>
                   </div>
                   <div className="so-crow">
                     <i>B</i>
                     <div><b>Competitor B</b><span>2 outlier posts detected</span></div>
-                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path d="M0,14 L14,16 L28,7 L42,15 L56,4 L70,13 L84,10" fill="none" stroke="#a78bfa" strokeWidth="1.6" /></svg>
+                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,14 L14,16 L28,7 L42,15 L56,4 L70,13 L84,10" fill="none" stroke="#a78bfa" strokeWidth="1.6" /></svg>
                   </div>
                   <div className="so-crow">
                     <i>C</i>
                     <div><b>Competitor C</b><span>Educational Reels gaining traction</span></div>
-                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path d="M0,17 L14,16 L28,14 L42,14 L56,10 L70,9 L84,6" fill="none" stroke="#2563ff" strokeWidth="1.6" /></svg>
+                    <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,17 L14,16 L28,14 L42,14 L56,10 L70,9 L84,6" fill="none" stroke="#2563ff" strokeWidth="1.6" /></svg>
                   </div>
                 </div>
                 <Link href="/signup" className="so-b-cta">Scan competitors <ArrowRight size={13} /></Link>
@@ -828,7 +838,7 @@ export default function CinematicLanding() {
             </Rise>
 
             {/* RECOMMENDATION ENGINE */}
-            <Rise delay={420} className="so-eng-area e-rec">
+            <Rise delay={550} className="so-eng-area e-rec">
               <div className="so-ecard rec" data-cursor="VIEW">
                 <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE</div>
                 <span className="so-rec-tag">HIGH IMPACT</span>
@@ -837,7 +847,7 @@ export default function CinematicLanding() {
                 <div className="so-predictbox" title="Projected from your last 30 posts">
                   <div>
                     <small>PREDICTED PERFORMANCE</small>
-                    <b>+31%</b>
+                    <b>+<Num value={31} suffix="%" duration={900} /></b>
                     <span>above baseline</span>
                   </div>
                   <svg viewBox="0 0 120 54" preserveAspectRatio="none" aria-hidden>
@@ -848,8 +858,16 @@ export default function CinematicLanding() {
                   </svg>
                 </div>
                 <div className="so-reasons">
-                  {[["Hook demand", "Strong"], ["Audience interest", "Rising"], ["Timing", "Optimal"], ["Competitor saturation", "Low"]].map(([l, v]) => (
-                    <div key={l}><span>{l}</span><b className="up">{v}</b></div>
+                  {([
+                    ["Hook demand", "Strong", TrendingUp],
+                    ["Audience interest", "Rising", Users],
+                    ["Timing", "Optimal", Clock],
+                    ["Competitor saturation", "Low", Radar],
+                  ] as const).map(([l, v, Ico]) => (
+                    <div key={l}>
+                      <span className="so-reason-l"><i><Ico size={12} /></i>{l}</span>
+                      <b className="up">{v}</b>
+                    </div>
                   ))}
                 </div>
                 <Link href="/signup" className="so-b-cta">See all recommendations <ArrowRight size={13} /></Link>
@@ -859,17 +877,23 @@ export default function CinematicLanding() {
             {/* VIDEO SCORER */}
             <Rise delay={200} className="so-eng-area e-scorer">
               <div className="so-ecard" data-cursor="PLAY">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><Video size={13} /></span> VIDEO SCORER</div>
+                <div className="so-ecard-head">
+                  <span className="so-ecard-ico"><Video size={13} /></span> VIDEO SCORER
+                  <span className="so-vplay" aria-hidden><Play size={10} fill="currentColor" /></span>
+                </div>
                 <div className="so-vsgrid">
                   {[["HOOK", 91, "How well the first seconds stop the scroll"], ["RETENTION", 78, "How much of the video people watch"], ["CLARITY", 86, "How easy the message is to follow"], ["PACING", 74, "How well the edit holds attention"]].map(([l, v, t]) => (
                     <div key={l as string} title={t as string}><small>{l}</small><b>{v}</b></div>
                   ))}
                   <div className="so-vsradial" title="Overall score">
-                    <svg viewBox="0 0 84 84" aria-hidden>
-                      <circle cx="42" cy="42" r="34" fill="none" stroke="rgba(15,17,21,0.08)" strokeWidth="7" />
-                      <circle className="so-ring-fill r84" cx="42" cy="42" r="34" fill="none" stroke="#2563ff" strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6" transform="rotate(-90 42 42)" />
-                    </svg>
-                    <span className="so-radial-num dark sm">84</span>
+                    <small>OVERALL</small>
+                    <div className="so-vsring">
+                      <svg viewBox="0 0 84 84" aria-hidden>
+                        <circle cx="42" cy="42" r="34" fill="none" stroke="rgba(15,17,21,0.08)" strokeWidth="7" />
+                        <circle className="so-ring-fill r84" cx="42" cy="42" r="34" fill="none" stroke="#2563ff" strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6" transform="rotate(-90 42 42)" />
+                      </svg>
+                      <span className="so-radial-num dark sm">84</span>
+                    </div>
                   </div>
                   <div title="Projected retention lift after fixes"><small>PREDICTED RETENTION</small><b className="up">+17%</b></div>
                 </div>
@@ -882,11 +906,20 @@ export default function CinematicLanding() {
               <div className="so-ecard" data-cursor="VIEW">
                 <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING</div>
                 <div className="so-sweek">
-                  {[["M", ""], ["T", "6:20 PM"], ["W", ""], ["T", "6:40 PM"], ["F", ""], ["S", "11:15 AM"], ["S", ""]].map(([d, t], i) => (
-                    <div key={i} className={`so-sday ${t ? "hot" : ""}`} title={t ? `Recommended: ${t}` : "No strong window"}>
-                      <span>{d}</span>
-                      <b>{t ? t.split(" ")[0] : "–"}</b>
-                      {t && <em>★</em>}
+                  {[["M", "", ""], ["T", "6:20", "PM"], ["W", "", ""], ["T", "6:40", "PM"], ["F", "", ""], ["S", "11:15", "AM"], ["S", "", ""]].map(([d, t, m], i) => (
+                    <div key={i} className="so-sdaycol">
+                      <span className="so-sday-l">{d}</span>
+                      <div className={`so-scell ${t ? "hot" : ""}`} title={t ? `Recommended: ${t} ${m}` : "No strong window"}>
+                        {t ? (
+                          <>
+                            <b>{t}</b>
+                            <small>{m}</small>
+                            <em>★</em>
+                          </>
+                        ) : (
+                          <span>–</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -902,24 +935,18 @@ export default function CinematicLanding() {
               <span className="so-onestrip-ico"><Sparkles size={17} /></span>
               <div className="so-onestrip-copy">
                 <b>One system. Smarter every week.</b>
-                <span className="so-oneseq">
-                  {["AUDIT", "PLAN", "CREATE", "SCORE", "PUBLISH", "MEASURE", "LEARN"].map((s, i) => (
-                    <em key={s}>{s}{i < 6 && <ArrowRight size={9} />}</em>
-                  ))}
-                </span>
-                <small>The more you post, the smarter SOCIA gets.</small>
+                <small>More signals. Better decisions. Bigger results.</small>
               </div>
-              <div className="so-oneviz" aria-hidden>
-                <svg viewBox="0 0 460 80" preserveAspectRatio="xMidYMid meet">
-                  <path className="so-sig" d="M0,14 C90,14 150,36 218,40" fill="none" stroke="rgba(37,99,255,0.30)" strokeWidth="1" />
-                  <path className="so-sig s2" d="M0,30 C90,28 160,38 218,40" fill="none" stroke="rgba(37,99,255,0.25)" strokeWidth="1" />
-                  <path className="so-sig s3" d="M0,50 C90,52 160,42 218,40" fill="none" stroke="rgba(37,99,255,0.25)" strokeWidth="1" />
-                  <path className="so-sig s4" d="M0,66 C100,66 160,44 218,40" fill="none" stroke="rgba(37,99,255,0.30)" strokeWidth="1" />
-                  <path className="so-sig main" d="M262,40 L452,40" fill="none" stroke="#2563ff" strokeWidth="2" />
-                  <circle cx="452" cy="40" r="2.5" fill="#60a5fa" />
-                </svg>
-                <span className="so-oneviz-mark"><BrandMark size={30} /></span>
-              </div>
+              <span className="so-oneseq">
+                {["AUDIT", "PLAN", "CREATE", "SCORE", "PUBLISH", "MEASURE", "LEARN"].map((s, i) => (
+                  <em key={s} className={s === "PUBLISH" ? "on" : ""}><b>{s}</b>{i < 6 && <ArrowRight size={9} />}</em>
+                ))}
+              </span>
+              <svg className="so-onebars" viewBox="0 0 104 36" aria-hidden>
+                {[9, 12, 11, 15, 18, 17, 22, 26, 29, 33].map((h, i) => (
+                  <rect key={i} x={i * 10.5} y={36 - h} width="6.5" height={h} rx="2" className={i >= 8 ? "hi" : ""} />
+                ))}
+              </svg>
             </div>
           </Rise>
         </div>
