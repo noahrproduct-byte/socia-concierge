@@ -361,14 +361,13 @@ export default function CinematicLanding() {
           </h1>
           <Rise delay={350}>
             <p className="so-hero-sub">
-              SOCIA is your AI social strategist. It analyzes your content, competitors,
-              audience, and performance — then tells you what to post, why it&apos;ll work,
-              and when to publish it.
+              SOCIA studies your content, audience, competitors, and performance. Then it
+              tells you what to post, why it should work, and when to publish.
             </p>
           </Rise>
           <Rise delay={450}>
             <div className="so-hero-ctas">
-              <Link href="/signup" className="so-btn so-btn-light" data-cursor="AUDIT">
+              <Link href="/signup" className="so-btn so-btn-blue" data-cursor="AUDIT">
                 Start Free Audit <ArrowRight size={15} />
               </Link>
               <button className="so-btn so-btn-ghost" onClick={() => jump("engine")} data-cursor="VIEW">
@@ -426,7 +425,7 @@ export default function CinematicLanding() {
           <h2 className="so-h2"><Words text="Posting shouldn’t be guesswork." /></h2>
           <Rise delay={150}>
             <p className="so-lead">
-              Creators produce more content than ever — but most still make decisions using
+              Creators produce more content than ever, but most still make decisions using
               instinct, outdated analytics, and whatever happened to work last week.
               <b> SOCIA turns those signals into decisions.</b>
             </p>
@@ -457,7 +456,7 @@ export default function CinematicLanding() {
           <h2 className="so-h2 dark"><Words text="Everything from audit to analytics." /></h2>
           <Rise delay={120}>
             <p className="so-lead dark">
-              One system watches, analyzes, plans, creates, and measures — so every week
+              One system watches, analyzes, plans, creates, and measures. Every week
               starts smarter than the last.
             </p>
           </Rise>
@@ -673,7 +672,7 @@ export default function CinematicLanding() {
             </p>
           </Rise>
           <Rise delay={250}>
-            <Link href="/signup" className="so-btn so-btn-light big" data-cursor="AUDIT">
+            <Link href="/signup" className="so-btn so-btn-blue big" data-cursor="AUDIT">
               Start Your Free Audit <ArrowRight size={16} />
             </Link>
             <span className="so-micro">No credit card · Audit in under 60 seconds · Cancel anytime</span>
