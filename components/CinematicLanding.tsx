@@ -539,30 +539,197 @@ export default function CinematicLanding() {
       {/* ================= 02 PROBLEM ================= */}
       <section id="problem" className="so-ch so-problem">
         <div className="so-wrap">
-          <h2 className="so-h2"><Words text="Posting shouldn’t be guesswork." /></h2>
-          <Rise delay={150}>
+          <Rise><span className="so-label">02 PROBLEM</span></Rise>
+          <h2 className="so-h2">
+            <Words text="Posting shouldn’t" />
+            <br />
+            <Words text="be guesswork." />
+          </h2>
+          <Rise delay={120}>
             <p className="so-lead">
               Creators produce more content than ever, but most still make decisions using
               instinct, outdated analytics, and whatever happened to work last week.
-              <b> SOCIA turns those signals into decisions.</b>
             </p>
           </Rise>
-          <div className="so-signals">
-            {[
-              ["NO CLEAR STRATEGY", "Posting without a plan creates inconsistent results."],
-              ["WRONG CONTENT", "Guessing what works wastes time and reach."],
-              ["MISSED OPPORTUNITIES", "Winning formats and topics are often visible before creators notice them."],
-              ["FALLING BEHIND", "Competitors learn faster while you’re still interpreting yesterday’s analytics."],
-            ].map(([t, d], i) => (
-              <Rise key={t} delay={i * 120} className="so-signal-wrap">
-                <div className="so-signal">
-                  <span className="so-signal-dot" />
-                  <h3>{t}</h3>
-                  <p>{d}</p>
+          <Rise delay={200}>
+            <p className="so-prob-emph"><span className="so-blue">SOCIA</span> turns those signals into decisions.</p>
+          </Rise>
+
+          <div className="so-probgrid">
+            {/* NO CLEAR STRATEGY */}
+            <Rise className="so-pcard-w">
+              <div className="so-pcard">
+                <div className="so-pcard-head"><span className="so-pcard-ico"><CalendarDays size={14} /></span> NO CLEAR STRATEGY</div>
+                <div className="so-pcard-cols">
+                  <div className="so-pcard-copy">
+                    <p>Posting without a plan creates inconsistent results.</p>
+                    <small className="so-mlabel">POSTING CONSISTENCY</small>
+                    <b className="so-mval">42%</b>
+                    <span className="so-mbar"><em style={{ width: "42%" }} /></span>
+                  </div>
+                  <div className="so-weekdots" aria-label="Posting activity, four weeks">
+                    {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                      <span key={i} className="so-wd-day">{d}</span>
+                    ))}
+                    {[
+                      [0, 0, 2, 0, 0, 0, 1],
+                      [0, 1, 0, 0, 1, 0, 1],
+                      [1, 0, 1, 0, 0, 1, 0],
+                      [1, 0, 0, 1, 0, 1, 0],
+                    ].map((week, w) =>
+                      week.map((n, d) => (
+                        <span key={`${w}-${d}`} className={`so-dot n${n}`} tabIndex={-1}>
+                          <i className="so-tip">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]} · {n} {n === 1 ? "post" : "posts"}</i>
+                        </span>
+                      )),
+                    )}
+                  </div>
                 </div>
-              </Rise>
-            ))}
+              </div>
+            </Rise>
+
+            {/* WRONG CONTENT */}
+            <Rise delay={80} className="so-pcard-w">
+              <div className="so-pcard">
+                <div className="so-pcard-head"><span className="so-pcard-ico"><Play size={13} /></span> WRONG CONTENT</div>
+                <div className="so-pcard-cols">
+                  <div className="so-pcard-copy">
+                    <p>Guessing what works wastes time and reach.</p>
+                    <small className="so-mlabel">CONTENT FIT</small>
+                    <b className="so-mval low">LOW</b>
+                    <span className="so-mbar low"><em style={{ width: "18%" }} /></span>
+                  </div>
+                  <div className="so-thumbs">
+                    {[
+                      { views: "4.2K", eng: "0.8%", g: "g1", win: false },
+                      { views: "6.1K", eng: "1.1%", g: "g2", win: false },
+                      { views: "28.7K", eng: "4.6%", g: "g3", win: true },
+                      { views: "3.3K", eng: "0.6%", g: "g4", win: false },
+                    ].map((t, i) => (
+                      <div key={i} className={`so-thumb ${t.win ? "win" : ""}`}>
+                        <span className={`so-thumb-media ${t.g}`}>
+                          <Play size={12} fill="currentColor" />
+                          {t.win && <i className="so-thumb-check"><Check size={9} strokeWidth={3.5} /></i>}
+                        </span>
+                        <b>{t.views}</b>
+                        <small>views</small>
+                        <b className={t.win ? "so-blue" : ""}>{t.eng}</b>
+                        <small>engagement</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Rise>
+
+            {/* MISSED OPPORTUNITIES */}
+            <Rise delay={140} className="so-pcard-w">
+              <div className="so-pcard">
+                <div className="so-pcard-head"><span className="so-pcard-ico"><TrendingUp size={14} /></span> MISSED OPPORTUNITIES</div>
+                <div className="so-pcard-cols chart">
+                  <div className="so-pcard-copy">
+                    <p>Winning formats and topics are often visible before creators notice them.</p>
+                  </div>
+                  <div className="so-chartbox">
+                    <div className="so-anno">
+                      <small>EDUCATIONAL REELS</small>
+                      <b>+68%</b>
+                      <span>niche momentum</span>
+                      <em>Opportunity missed</em>
+                    </div>
+                    <svg viewBox="0 0 340 130" preserveAspectRatio="none" aria-hidden>
+                      <defs>
+                        <linearGradient id="sopm" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#2563ff" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#2563ff" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      {[0, 25, 50, 75, 100].map((v) => (
+                        <g key={v}>
+                          <text x="26" y={112 - v * 0.96} textAnchor="end" fontSize="7" fill="#5c6474">{v}</text>
+                          <line x1="34" y1={108 - v * 0.96} x2="330" y2={108 - v * 0.96} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+                        </g>
+                      ))}
+                      <path className="so-draw a" d="M36,100 L66,98 L96,99 L126,95 L156,94 L186,90 L216,83 L246,71 L276,55 L306,43 L330,33 L330,108 L36,108 Z" fill="url(#sopm)" stroke="none" />
+                      <path className="so-draw l" d="M36,100 L66,98 L96,99 L126,95 L156,94 L186,90 L216,83 L246,71 L276,55 L306,43 L330,33" fill="none" stroke="#4c86ff" strokeWidth="2" />
+                      <line x1="276" y1="55" x2="276" y2="108" stroke="rgba(76,134,255,0.4)" strokeWidth="1" strokeDasharray="3 3" />
+                      {[[36, 100, 8], [126, 95, 13], [216, 83, 26], [276, 55, 55], [330, 33, 78]].map(([x, y, v]) => (
+                        <circle key={x} className={x === 276 ? "so-pt hot" : "so-pt"} cx={x} cy={y} r={x === 276 ? 4 : 2.5}>
+                          <title>{`+${v}% momentum`}</title>
+                        </circle>
+                      ))}
+                    </svg>
+                    <div className="so-xaxis">
+                      {["APR 1", "APR 8", "APR 15", "APR 22", "APR 29"].map((d) => <span key={d}>{d}</span>)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Rise>
+
+            {/* FALLING BEHIND */}
+            <Rise delay={200} className="so-pcard-w">
+              <div className="so-pcard">
+                <div className="so-pcard-head"><span className="so-pcard-ico"><Users size={14} /></span> FALLING BEHIND</div>
+                <div className="so-pcard-cols chart">
+                  <div className="so-pcard-copy">
+                    <p>Competitors learn faster while you&apos;re still interpreting yesterday&apos;s analytics.</p>
+                    <span className="so-outlier"><Radar size={12} /> 2 OUTLIER POSTS DETECTED</span>
+                  </div>
+                  <div className="so-chartbox">
+                    <div className="so-legend">
+                      <span><i className="ca" /> Competitor A</span>
+                      <span><i className="cb" /> Competitor B</span>
+                      <span><i className="cy" /> Your account</span>
+                    </div>
+                    <div className="so-endlabels">
+                      <b className="ca">+31%</b>
+                      <b className="cb">+24%</b>
+                      <b className="cy">+3%</b>
+                    </div>
+                    <svg viewBox="0 0 340 120" preserveAspectRatio="none" aria-hidden>
+                      <path className="so-draw l" d="M20,96 L70,88 L120,74 L170,58 L220,44 L270,30 L330,18" fill="none" stroke="#48c78e" strokeWidth="2" />
+                      <path className="so-draw l d2" d="M20,98 L70,92 L120,84 L170,72 L220,60 L270,50 L330,40" fill="none" stroke="#a78bfa" strokeWidth="2" />
+                      <path className="so-draw l d3" d="M20,100 L70,98 L120,97 L170,95 L220,94 L270,92 L330,90" fill="none" stroke="#4c86ff" strokeWidth="2" />
+                      {[[20, 96], [120, 74], [220, 44], [330, 18]].map(([x, y]) => (
+                        <circle key={`a${x}`} className="so-pt ga" cx={x} cy={y} r="2.5"><title>Competitor A</title></circle>
+                      ))}
+                      {[[20, 98], [120, 84], [220, 60], [330, 40]].map(([x, y]) => (
+                        <circle key={`b${x}`} className="so-pt gb" cx={x} cy={y} r="2.5"><title>Competitor B</title></circle>
+                      ))}
+                      {[[20, 100], [120, 97], [220, 94], [330, 90]].map(([x, y]) => (
+                        <circle key={`y${x}`} className="so-pt gy" cx={x} cy={y} r="2.5"><title>Your account</title></circle>
+                      ))}
+                    </svg>
+                    <div className="so-xaxis three">
+                      {["APR 1", "APR 15", "APR 29"].map((d) => <span key={d}>{d}</span>)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Rise>
           </div>
+
+          {/* intelligence strip */}
+          <Rise delay={200}>
+            <div className="so-strip">
+              <span className="so-strip-ico"><ScanSearch size={18} /></span>
+              <div className="so-strip-copy">
+                <b>SOCIA connects the dots others miss.</b>
+                <span>From scattered signals to smart, confident decisions.</span>
+              </div>
+              <svg className="so-strip-sig" viewBox="0 0 520 80" preserveAspectRatio="xMidYMid meet" aria-hidden>
+                <path className="so-sig" d="M0,12 C120,12 200,38 320,40" fill="none" stroke="rgba(76,134,255,0.35)" strokeWidth="1" />
+                <path className="so-sig s2" d="M0,28 C110,26 210,39 320,40" fill="none" stroke="rgba(76,134,255,0.3)" strokeWidth="1" />
+                <path className="so-sig s3" d="M0,44 C120,46 200,41 320,40" fill="none" stroke="rgba(76,134,255,0.3)" strokeWidth="1" />
+                <path className="so-sig s4" d="M0,60 C130,62 210,42 320,40" fill="none" stroke="rgba(76,134,255,0.35)" strokeWidth="1" />
+                <path className="so-sig s5" d="M0,74 C140,74 220,44 320,40" fill="none" stroke="rgba(76,134,255,0.25)" strokeWidth="1" />
+                <path className="so-sig main" d="M320,40 L508,40" fill="none" stroke="#4c86ff" strokeWidth="2" />
+                <circle className="so-sig-node" cx="320" cy="40" r="3.5" fill="#4c86ff" />
+                <circle cx="508" cy="40" r="2.5" fill="#8bb0ff" />
+              </svg>
+            </div>
+          </Rise>
         </div>
       </section>
 
