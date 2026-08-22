@@ -8770,3 +8770,25 @@ a.hub-card:hover {
 /* trending row in the single live-context panel */
 .ch2-trending { display: flex; align-items: flex-start; gap: 10px; margin-top: 11px; padding-top: 11px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .ch2-trending-label { display: block; font-size: 9px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.38); margin-bottom: 2px; }
+
+/* ============================================================
+   Dark application shell (app-dark) — edge-to-edge immersive pages
+   ============================================================ */
+.app-dark { background: #080c16; }
+.app-dark .app-main { color: #fff; }
+/* the workspace stops being a card and becomes the page itself */
+.app-dark .ch2 {
+  background:
+    radial-gradient(560px 320px at 16% 0%, rgba(37, 99, 255, 0.08), transparent 65%),
+    radial-gradient(460px 340px at 100% 100%, rgba(37, 99, 255, 0.05), transparent 60%);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 6px 0 10px;
+  min-height: calc(100vh - 70px);
+}
+/* send button press feedback */
+.ch2-composer button:active { transform: scale(0.95); }
+@media (max-width: 860px) {
+  .app-dark .ch2 { min-height: 0; padding: 4px 0 8px; }
+}

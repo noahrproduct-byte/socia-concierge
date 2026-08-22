@@ -107,7 +107,7 @@ export default async function ChatPage() {
   };
 
   return (
-    <AppShell active="chat" userEmail={user.email}>
+    <AppShell active="chat" userEmail={user.email} dark>
       <ChatClient context={context} />
     </AppShell>
   );

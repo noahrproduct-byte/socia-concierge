@@ -38,10 +38,13 @@ const NAV: NavItem[] = [
 export default async function AppShell({
   active,
   userEmail,
+  dark = false,
   children,
 }: {
   active: string;
   userEmail?: string | null;
+  /** Full dark application shell (edge-to-edge), for immersive pages. */
+  dark?: boolean;
   children: React.ReactNode;
 }) {
   // Channel state for the sidebar (best effort; the shell renders fine without it).
@@ -94,7 +97,7 @@ export default async function AppShell({
   ];
 
   return (
-    <div className="app">
+    <div className={`app${dark ? " app-dark" : ""}`}>
       <aside className="side">
         <Link href="/dashboard" className="side-logo">
           <BrandMark size={32} />
