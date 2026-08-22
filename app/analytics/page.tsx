@@ -16,6 +16,7 @@ import DateRangeSelector from "@/components/DateRangeSelector";
 import AccountSwitcher from "@/components/AccountSwitcher";
 import { MetricCard } from "@/components/ui";
 import { GrowthChart, FormatBars, Reveal, type GrowthPoint } from "@/components/AnalyticsCharts";
+import RadarChart from "@/components/RadarChart";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { Kpi } from "@/lib/demoData";
 
@@ -516,40 +517,5 @@ function HourBars({ media }: { media: IgMediaItem[] }) {
         <span>12AM</span><span>6AM</span><span>12PM</span><span>6PM</span><span>12AM</span>
       </div>
     </div>
-  );
-}
-
-// Pentagon radar of the account's own derived profile (0–100 per axis).
-function RadarChart({ values, axes }: { values: number[]; axes: string[] }) {
-  const C = 90;
-  const R = 62;
-  const pt = (i: number, r: number) => {
-    const a = (Math.PI * 2 * i) / values.length - Math.PI / 2;
-    return `${C + r * Math.cos(a)},${C + r * Math.sin(a)}`;
-  };
-  const ring = (frac: number) => values.map((_, i) => pt(i, R * frac)).join(" ");
-  const poly = values.map((v, i) => pt(i, (v / 100) * R)).join(" ");
-  return (
-    <svg className="an2-radar" viewBox="0 0 180 180" role="img" aria-label="Account profile radar">
-      {[0.33, 0.66, 1].map((f) => (
-        <polygon key={f} points={ring(f)} className="an2-radar-ring" />
-      ))}
-      {values.map((_, i) => (
-        <line key={i} x1={C} y1={C} x2={pt(i, R).split(",")[0]} y2={pt(i, R).split(",")[1]} className="an2-radar-spoke" />
-      ))}
-      <polygon points={poly} className="an2-radar-poly" />
-      {values.map((v, i) => {
-        const [x, y] = pt(i, (v / 100) * R).split(",").map(Number);
-        return <circle key={i} cx={x} cy={y} r="2.4" className="an2-radar-dot" />;
-      })}
-      {axes.map((a, i) => {
-        const [x, y] = pt(i, R + 14).split(",").map(Number);
-        return (
-          <text key={a} x={x} y={y + 3} textAnchor="middle" className="an2-radar-label">
-            {a}
-          </text>
-        );
-      })}
-    </svg>
   );
 }
