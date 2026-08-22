@@ -33,7 +33,7 @@ const extractionSchema = {
     sub_niche: { type: "string" },
     content_style: { type: "string" },
     audience: { type: "string" },
-    confidence: { type: "integer", minimum: 0, maximum: 100 },
+    confidence: { type: "integer" },
     signals: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 6 },
     candidates: {
       type: "array",
@@ -254,6 +254,9 @@ Allowed niches: ${NICHES.join(", ")}`;
     const block = res.content.find((b: { type: string }) => b.type === "text");
     const text = block && "text" in block ? (block as { text: string }).text : "";
     const extracted = parseJson(text) as Extracted | null;
+    if (extracted) {
+      extracted.confidence = Math.max(0, Math.min(100, Math.round(Number(extracted.confidence) || 0)));
+    }
 
     // 4) Save automatically only when the model is genuinely confident.
     if (extracted && extracted.confidence >= 75) {
@@ -272,7 +275,8 @@ Allowed niches: ${NICHES.join(", ")}`;
     });
   } catch (err: unknown) {
     console.error("analysis failed:", err);
-    return NextResponse.json({ connected: true, account, extracted: null });
+    const hint = err instanceof Error ? err.message.slice(0, 160) : String(err).slice(0, 160);
+    return NextResponse.json({ connected: true, account, extracted: null, error_hint: hint });
   }
 }
 
