@@ -185,10 +185,11 @@ export type NicheIntel = {
   trends: {
     title: string;
     momentum_pct: number; // negative = cooling
+    competition: string; // Low / Medium / High — for the opportunity map
     why: string;
     hook: string;
   }[];
-  actions: { title: string; reason: string }[];
+  actions: { title: string; reason: string; impact: string }[];
 };
 
 const pulseRowSchema = {
@@ -276,10 +277,11 @@ export const nicheIntelSchema = {
         properties: {
           title: { type: "string" },
           momentum_pct: { type: "integer" },
+          competition: { type: "string" },
           why: { type: "string" },
           hook: { type: "string" },
         },
-        required: ["title", "momentum_pct", "why", "hook"],
+        required: ["title", "momentum_pct", "competition", "why", "hook"],
       },
     },
     actions: {
@@ -287,8 +289,12 @@ export const nicheIntelSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        properties: { title: { type: "string" }, reason: { type: "string" } },
-        required: ["title", "reason"],
+        properties: {
+          title: { type: "string" },
+          reason: { type: "string" },
+          impact: { type: "string" },
+        },
+        required: ["title", "reason", "impact"],
       },
     },
   },

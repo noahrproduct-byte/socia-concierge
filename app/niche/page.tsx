@@ -66,8 +66,8 @@ export default async function NichePage() {
                 What&apos;s winning in {niche} right now.
               </h1>
               <p className="dash-context">
-                SOCIA analyzed the patterns gaining traction across your niche and turned
-                them into ideas you can actually use.
+                SOCIA watches your niche, competitors, and audience to find the
+                opportunities worth acting on.
               </p>
             </div>
             <div className="dash-controls">

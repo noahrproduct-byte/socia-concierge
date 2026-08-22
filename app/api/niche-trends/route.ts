@@ -16,13 +16,13 @@ const SYSTEM = `You are SOCIA, an AI social media strategist. Given a content ni
 Rules:
 - Be specific and practical. A creator should be able to act on every item today.
 - Every hook is written as the actual first line of a video, in the creator's voice.
-- All percentages are your own honest market estimates of relative momentum, not measured platform data. Keep them plausible (roughly 5-40 for rising, -5 to -25 for declining). v is always 2.
+- All percentages are your own honest market estimates of relative momentum, not measured platform data. Keep them plausible (roughly 5-40 for rising, -5 to -25 for declining). v is always 3.
 - stats: small honest counts summarizing the briefing itself (how many rising formats/hooks/patterns it contains), and the single strongest momentum area.
 - breakout: the ONE strongest current opportunity. cover_line is a short punchy on-image text (max ~8 words). why_moving explains the mechanism in plain words. velocity/competition/opportunity are High, Medium, or Low. audience_overlap is Strong, Moderate, or Weak.
 - fit_pct and why_fits_you: ONLY meaningful when account context is provided — then judge honestly how well the breakout suits that specific account and say why in one or two sentences referencing their actual content. If NO account context is provided, set fit_pct to 0 and why_fits_you to an empty string. Never invent knowledge of their account.
 - pulse: 5 rows per tab (formats, topics, hooks), each with an estimated change_pct; include at least one declining row per tab so the picture is honest.
-- trends: exactly 5 additional rising trends (not the breakout), each with momentum_pct, a one-line why, and a hook.
-- actions: exactly 3 next actions, ordered by fit when account context exists, each with a short reason (why this, why now).`;
+- trends: exactly 5 additional rising trends (not the breakout), each with momentum_pct, competition (Low, Medium, or High), a one-line why, and a hook.
+- actions: exactly 3 next actions, ordered by fit when account context exists, each with a short reason (why this, why now) and impact: the metric it should move, 1-2 words plus an arrow, like "Discovery ↑" or "Saves ↑".`;
 
 function parseJson(text: string): unknown {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
         .eq("niche", cacheKey)
         .maybeSingle();
       const doc = cached?.data as NicheIntel | undefined;
-      if (doc && doc.v === 2 && doc.breakout) {
+      if (doc && doc.v === 3 && doc.breakout) {
         return NextResponse.json({ data: doc, cached: true });
       }
     } catch {
@@ -126,7 +126,7 @@ export async function GET(req: Request) {
     const text = textBlock && "text" in textBlock ? (textBlock as { text: string }).text : "";
     const data = parseJson(text) as NicheIntel | null;
     if (!data) return NextResponse.json({ error: "Couldn't parse trends." }, { status: 502 });
-    data.v = 2;
+    data.v = 3;
     data.trends = (data.trends ?? []).slice(0, 5);
     data.actions = (data.actions ?? []).slice(0, 3);
 
