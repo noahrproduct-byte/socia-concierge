@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   RefreshCw,
@@ -92,7 +92,65 @@ function Spark({ seed, pct, big = false }: { seed: string; pct: number; big?: bo
 
 const TABS = ["formats", "topics", "hooks"] as const;
 type Tab = (typeof TABS)[number];
-const COMP_X: Record<string, number> = { Low: 18, Medium: 50, High: 82 };
+const COMP_X: Record<string, number> = { Low: 22, Medium: 50, High: 78 };
+
+// ---------------- opportunity map ----------------
+// Virtual plot space; rendered with % positions so it stays responsive.
+const MW = 880;
+const MH = 400;
+
+type MapDot = {
+  label: string;
+  full: string;
+  x: number; // px in virtual space
+  y: number;
+  r: number;
+  hot: boolean;
+  momentum: number;
+  competition: string;
+  why: string;
+  idx: number;
+};
+type Box = { l: number; t: number; r: number; b: number };
+const hits = (a: Box, b: Box) =>
+  !(a.r <= b.l || b.r <= a.l || a.b <= b.t || b.b <= a.t);
+
+// Greedy label placement: try right/left/above/below (+staggers), never
+// overlapping other labels, dots, the zone caption, or the plot edges.
+function placeLabels(dots: MapDot[]) {
+  const placed: Box[] = [
+    { l: 0, t: 0, r: 205, b: 58 }, // zone caption
+    { l: MW - 110, t: 0, r: MW, b: 24 }, // CROWDED
+    { l: 0, t: MH - 24, r: 110, b: MH }, // EMERGING
+    { l: MW - 110, t: MH - 24, r: MW, b: MH }, // SATURATED
+    ...dots.map((d) => ({ l: d.x - 10, t: d.y - 10, r: d.x + 10, b: d.y + 10 })),
+  ];
+  return dots.map((d) => {
+    const w = Math.min(170, d.label.length * 6.4 + 10);
+    const h = d.hot ? 46 : 17;
+    const cands: [number, number, string][] = [
+      [d.x + 13, d.y - h / 2, "r"],
+      [d.x - 13 - w, d.y - h / 2, "l"],
+      [d.x - w / 2, d.y - 15 - h, "a"],
+      [d.x - w / 2, d.y + 15, "b"],
+      [d.x + 13, d.y + 6, "r"],
+      [d.x + 13, d.y - h - 6, "r"],
+      [d.x - 13 - w, d.y + 6, "l"],
+      [d.x - 13 - w, d.y - h - 6, "l"],
+    ];
+    let pick: [number, number, string] = cands[0];
+    for (const c of cands) {
+      const box: Box = { l: c[0], t: c[1], r: c[0] + w, b: c[1] + h };
+      const inside = box.l >= 4 && box.r <= MW - 4 && box.t >= 4 && box.b <= MH - 4;
+      if (inside && !placed.some((p) => hits(p, box))) {
+        pick = c;
+        break;
+      }
+    }
+    placed.push({ l: pick[0], t: pick[1], r: pick[0] + w, b: pick[1] + h });
+    return { ...d, lx: pick[0], ly: pick[1], lw: w, side: pick[2] };
+  });
+}
 
 export default function NicheTrends({ niche }: { niche: string }) {
   const [data, setData] = useState<NicheIntel | null>(null);
@@ -168,21 +226,45 @@ export default function NicheTrends({ niche }: { niche: string }) {
   const mapTrends = data.trends.filter((t) => t.competition && COMP_X[t.competition] != null);
   const cover = coverFor(data.niche);
 
-  const mapDots = [
-    ...(COMP_X[b.competition] != null
-      ? [{ label: "Breakout", x: COMP_X[b.competition], pct: b.momentum_pct, hot: true }]
-      : []),
-    ...mapTrends.map((t) => ({
-      label: t.title.length > 22 ? t.title.slice(0, 21) + "…" : t.title,
-      x: COMP_X[t.competition],
-      pct: t.momentum_pct,
+  // Build map dots in the virtual plot space, normalized to the actual data
+  // range so points use the full height instead of clustering.
+  const rawDots: Omit<MapDot, "y" | "x">[] = [];
+  const src: { m: number; c: string }[] = [];
+  if (COMP_X[b.competition] != null) {
+    rawDots.push({
+      label: b.title.length > 26 ? b.title.slice(0, 25) + "…" : b.title,
+      full: b.title,
+      r: 6,
+      hot: true,
+      momentum: b.momentum_pct,
+      competition: b.competition,
+      why: b.why_moving,
+      idx: -1,
+    });
+    src.push({ m: b.momentum_pct, c: b.competition });
+  }
+  mapTrends.forEach((t, i) => {
+    rawDots.push({
+      label: t.title.length > 26 ? t.title.slice(0, 25) + "…" : t.title,
+      full: t.title,
+      r: t.momentum_pct >= 25 ? 5 : t.momentum_pct >= 15 ? 4 : 3,
       hot: false,
-    })),
-  ];
-  const mapY = (pct: number) => {
-    const clamped = Math.max(-25, Math.min(40, pct));
-    return 16 + (1 - (clamped + 25) / 65) * 168; // 16..184 in a 220-high plot
-  };
+      momentum: t.momentum_pct,
+      competition: t.competition,
+      why: t.why,
+      idx: i,
+    });
+    src.push({ m: t.momentum_pct, c: t.competition });
+  });
+  const mLo = Math.min(...src.map((s) => s.m));
+  const mHi = Math.max(...src.map((s) => s.m));
+  const mSpan = mHi - mLo || 1;
+  const mapDots: MapDot[] = rawDots.map((d, i) => ({
+    ...d,
+    x: (COMP_X[d.competition] / 100) * MW + ((i * 37) % 5 - 2) * 14,
+    y: 0.2 * MH + (1 - (d.momentum - mLo) / mSpan) * 0.58 * MH,
+  }));
+  const zoneCount = mapDots.filter((d) => d.x < MW / 2 && d.y < MH * 0.49).length;
 
   // The model sometimes returns a format *description*; the pill wants a word.
   const fmtPill = (() => {
@@ -404,44 +486,7 @@ export default function NicheTrends({ niche }: { niche: string }) {
 
       {/* opportunity map */}
       {mapDots.length >= 3 && (
-        <section className="nt2-map db2-rise" style={{ animationDelay: "420ms" }}>
-          <div className="nt2-panel-head">
-            <h3>Where the opportunity is moving</h3>
-            <span className="nt2-est">AI-estimated position</span>
-          </div>
-          <div className="nt2-map-plot">
-            <svg viewBox="0 0 640 220" preserveAspectRatio="none" aria-label="Opportunity map: momentum vs competition">
-              <rect x="8" y="8" width="300" height="100" rx="10" className="nt2-map-sweet" />
-              <text x="20" y="28" className="nt2-map-sweetlabel">High momentum · Low competition</text>
-              {[55, 110, 165].map((y) => (
-                <line key={y} x1="0" y1={y} x2="640" y2={y} className="nt2-map-grid" />
-              ))}
-              {mapDots.map((d) => {
-                const x = (d.x / 100) * 640;
-                const y = mapY(d.pct);
-                const left = d.x > 60;
-                return (
-                  <g key={d.label}>
-                    <circle cx={x} cy={y} r={d.hot ? 5 : 3.5} className={d.hot ? "nt2-map-dot hot" : "nt2-map-dot"} />
-                    <text
-                      x={left ? x - 9 : x + 9}
-                      y={y + 3.5}
-                      textAnchor={left ? "end" : "start"}
-                      className={d.hot ? "nt2-map-label hot" : "nt2-map-label"}
-                    >
-                      {d.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-            <div className="nt2-map-axes">
-              <span>Low competition</span>
-              <span>High competition</span>
-            </div>
-            <span className="nt2-map-yaxis">Momentum ↑</span>
-          </div>
-        </section>
+        <OpportunityMap dots={mapDots} zoneCount={zoneCount} personalized={personalized} fitPct={b.fit_pct} />
       )}
 
       {/* LEVEL 3: next moves */}
@@ -497,5 +542,157 @@ export default function NicheTrends({ niche }: { niche: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------- the opportunity map ----------------
+function OpportunityMap({
+  dots,
+  zoneCount,
+  personalized,
+  fitPct,
+}: {
+  dots: MapDot[];
+  zoneCount: number;
+  personalized: boolean;
+  fitPct: number;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const [inView, setInView] = useState(false);
+  const [sel, setSel] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setInView(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.25 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const laid = placeLabels(dots);
+  const chosen = sel != null ? laid[sel] : null;
+  const ranked = [...laid].sort((a, b2) => (b2.hot ? 1 : 0) - (a.hot ? 1 : 0) || b2.momentum - a.momentum);
+  const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+
+  return (
+    <section ref={ref} className={`nt2m db2-rise ${inView ? "in" : ""}`} style={{ animationDelay: "420ms" }}>
+      <div className="nt2m-head">
+        <div>
+          <h3>Where the opportunity is moving</h3>
+          <p className="nt2m-insight">
+            <b>{zoneCount} {zoneCount === 1 ? "opportunity is" : "opportunities are"}</b> gaining
+            momentum faster than competition.
+          </p>
+        </div>
+        <span className="nt2-est">Estimated from your niche briefing</span>
+      </div>
+
+      {/* desktop plot */}
+      <div className="nt2m-plot" role="img" aria-label="Opportunity map: momentum vs competition">
+        <div className="nt2m-zone" aria-hidden />
+        <div className="nt2m-zonelabel" aria-hidden>
+          <b>Best opportunity zone</b>
+          <span>High momentum · Low competition</span>
+        </div>
+        <span className="nt2m-corner tr" aria-hidden>Crowded</span>
+        <span className="nt2m-corner bl" aria-hidden>Emerging</span>
+        <span className="nt2m-corner br" aria-hidden>Saturated</span>
+        <i className="nt2m-mid v" aria-hidden />
+        <i className="nt2m-mid h" aria-hidden />
+
+        {laid.map((d, i) => (
+          <div
+            key={d.full}
+            className={`nt2m-pt ${d.hot ? "hot" : ""} ${sel === i ? "sel" : ""} ${sel != null && sel !== i ? "mute" : ""}`}
+            style={{ ["--d" as string]: `${200 + (d.hot ? laid.length * 70 : i * 70)}ms` }}
+          >
+            <button
+              className="nt2m-dot"
+              style={{ left: pct(d.x, MW), top: pct(d.y, MH), width: d.r * 2, height: d.r * 2 }}
+              onClick={() => setSel(sel === i ? null : i)}
+              type="button"
+              aria-pressed={sel === i}
+              aria-label={`${d.full}: +${d.momentum}% momentum, ${d.competition} competition`}
+            />
+            <div
+              className={`nt2m-label s-${d.side}`}
+              style={{ left: pct(d.lx, MW), top: pct(d.ly, MH), maxWidth: d.lw }}
+              title={d.full}
+            >
+              <span className="nt2m-name">{d.label}</span>
+              {d.hot && (
+                <>
+                  <span className="nt2m-mom">+{d.momentum}% momentum</span>
+                  <span className="nt2m-badge">Breakout</span>
+                </>
+              )}
+            </div>
+            <div className={`nt2m-tip ${d.y < MH * 0.35 ? "below" : ""}`} style={{ left: pct(d.x, MW), top: pct(d.y, MH) }}>
+              <b>{d.full}</b>
+              {d.hot && <span className="nt2m-badge">Breakout</span>}
+              <div className="nt2m-tip-rows">
+                <span>Momentum <em>+{d.momentum}%</em></span>
+                <span>Competition <em>{d.competition}</em></span>
+                {d.hot && personalized && <span>Account fit <em>{fitPct}%</em></span>}
+              </div>
+              <Link href="/tool" className="nt2m-tip-cta">↗ View opportunity</Link>
+            </div>
+          </div>
+        ))}
+
+        <div className="nt2m-axes">
+          <span>Low competition</span>
+          <span className="nt2m-axis-x">Competition →</span>
+          <span>High competition</span>
+        </div>
+        <span className="nt2m-yaxis">Momentum ↑</span>
+      </div>
+
+      {/* mobile ranked list */}
+      <ol className="nt2m-list">
+        {ranked.map((d) => (
+          <li key={d.full}>
+            <span className={`nt2m-rankdot ${d.hot ? "hot" : ""}`} />
+            <span className="nt2m-rankmeta">
+              <b>{d.full}</b>
+              <small>
+                Momentum +{d.momentum}% · {d.competition} competition
+                {d.hot ? " · Breakout" : ""}
+              </small>
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      {/* selected insight */}
+      {chosen && (
+        <div className="nt2m-selins" aria-live="polite">
+          <div className="nt2m-selmeta">
+            {chosen.hot && <small className="nt2m-selkind">Breakout opportunity</small>}
+            <b>{chosen.full}</b>
+            <span className="nt2m-selstats">
+              Momentum <em>+{chosen.momentum}%</em> · Competition <em>{chosen.competition}</em>
+              {chosen.hot && personalized && <> · Fit for you <em>{fitPct}%</em></>}
+            </span>
+            <p>{chosen.why}</p>
+          </div>
+          <Link href="/tool" className="btn-primary db2-ask sm">
+            Explore opportunity <ArrowRight size={13} />
+          </Link>
+        </div>
+      )}
+    </section>
   );
 }
