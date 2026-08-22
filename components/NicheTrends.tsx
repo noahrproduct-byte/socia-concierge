@@ -70,7 +70,10 @@ function sparkPoints(seedStr: string, pct: number, W = 72, H = 20, n = 12): stri
 
 function Spark({ seed, pct, big = false }: { seed: string; pct: number; big?: boolean }) {
   const W = big ? 220 : 72;
-  const H = big ? 44 : 20;
+  const H = big ? 64 : 20;
+  const pts = sparkPoints(seed, pct, W, H, big ? 20 : 12);
+  const last = pts.split(" ").pop()!.split(",").map(Number);
+  const color = pct >= 0 ? (big ? "#34d399" : "#16a34a") : "#dc2626";
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -78,14 +81,27 @@ function Spark({ seed, pct, big = false }: { seed: string; pct: number; big?: bo
       preserveAspectRatio="none"
       aria-hidden
     >
+      {big && (
+        <>
+          <defs>
+            <linearGradient id="nt2sfade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.16" />
+              <stop offset="100%" stopColor={color} stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path className="nt2s-area" d={`M${pts.split(" ")[0].split(",")[0]},${H} L${pts.split(" ").join(" L")} L${W},${H} Z`} fill="url(#nt2sfade)" />
+        </>
+      )}
       <polyline
-        points={sparkPoints(seed, pct, W, H, big ? 20 : 12)}
+        className={big ? "nt2s-line" : undefined}
+        points={pts}
         fill="none"
-        stroke={pct >= 0 ? "#16a34a" : "#dc2626"}
+        stroke={color}
         strokeWidth={big ? 1.8 : 1.5}
         strokeLinejoin="round"
         pathLength={100}
       />
+      {big && <circle className="nt2s-end" cx={last[0]} cy={last[1]} r="3" fill="#a7f3d0" />}
     </svg>
   );
 }
@@ -280,35 +296,91 @@ export default function NicheTrends({ niche }: { niche: string }) {
   // Guard against a zero momentum headline: fall back to the breakout's.
   const momentumPct = data.stats.momentum_pct > 0 ? data.stats.momentum_pct : b.momentum_pct;
 
+  const firstSentence = (t: string) => (t.split(/(?<=\.)\s/)[0] || t).slice(0, 200);
+  const working = (data.pulse.formats ?? []).filter((r) => r.change_pct > 0).slice(0, 4);
+  const pace = momentumPct >= 20 ? "Accelerating" : momentumPct >= 8 ? "Rising" : "Building";
+  const take2 = (b.why_moving.split(/(?<=\.)\s/)[0] || b.why_moving).slice(0, 160);
+
   return (
     <div className="nt2">
-      {/* LEVEL 2 preview: the niche signal */}
-      <div className="nt2-signal db2-rise">
-        <div className="nt2-signal-main">
-          <small>Momentum this week</small>
-          <div className="nt2-signal-row">
-            <b className="nt2-signal-pct">
-              +<CountUp value={String(momentumPct)} />%
-            </b>
-            <span className="nt2-signal-what">{data.stats.momentum_label}</span>
+      {/* the niche signal: an intelligence surface, not a KPI strip */}
+      <div className="nt2s db2-rise in">
+        <div className="nt2s-grid">
+          <div className="nt2s-left">
+            <small className="nt2s-eyebrow" title="AI market estimate from your niche briefing, not measured platform data.">
+              Momentum this week
+            </small>
+            <div className="nt2s-head">
+              <b className="nt2s-pct">
+                +<CountUp value={String(momentumPct)} />%
+              </b>
+              <div className="nt2s-what">
+                <h3>{data.stats.momentum_label}</h3>
+                <span className="nt2s-badge">Top opportunity</span>
+              </div>
+            </div>
+            <div className="nt2s-blocks">
+              <div>
+                <small>Why it&apos;s moving</small>
+                <p>{firstSentence(data.summary)}</p>
+              </div>
+              {working.length > 0 && (
+                <div>
+                  <small>What&apos;s working</small>
+                  <div className="nt2s-chips">
+                    {working.map((r) => (
+                      <span key={r.label}>{r.label}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <small>The opening</small>
+                <p>{firstSentence(b.why_moving)}</p>
+              </div>
+            </div>
           </div>
-          <p className="nt2-signal-sub">{data.summary}</p>
-        </div>
-        <div className="nt2-signal-counts">
-          <span>↗ <b>{data.stats.rising_formats}</b> rising formats</span>
-          <span>↗ <b>{data.stats.opportunity_hooks}</b> hooks gaining traction</span>
-          <span><b>{data.stats.competitor_patterns}</b> competitor patterns detected</span>
-        </div>
-        <div className="nt2-signal-side">
-          <Spark seed={data.stats.momentum_label} pct={data.stats.momentum_pct} big />
-          <div className="nt2-signal-foot">
-            <span className="nt2-est" title="These signals are SOCIA's AI market estimates, not measured platform data.">
-              AI-estimated signals
-            </span>
-            <button className="nd-mini" onClick={() => load(true)} type="button">
-              <RefreshCw size={12} /> Refresh
-            </button>
+
+          <div className="nt2s-stack">
+            {([
+              [TrendingUp, data.stats.rising_formats, "rising formats", "purple"],
+              [Target, data.stats.opportunity_hooks, "hooks gaining traction", "blue"],
+              [Radar, data.stats.competitor_patterns, "competitor patterns detected", "amber"],
+            ] as const).map(([Ico, n, label, tone], i) => (
+              <div className="nt2s-sig" key={label}>
+                <span className={`nt2s-sig-ico ${tone}`}><Ico size={15} /></span>
+                <span className="nt2s-sig-meta">
+                  <b><CountUp value={String(n)} /></b> {label}
+                </span>
+                <Spark seed={label} pct={10 - i * 3} />
+              </div>
+            ))}
           </div>
+
+          <div className="nt2s-viz">
+            <small>Opportunity momentum</small>
+            <Spark seed={data.stats.momentum_label} pct={momentumPct} big />
+            <div className="nt2s-viz-foot">
+              <b>+{momentumPct}%</b>
+              <span className="nt2s-pace">{pace}</span>
+            </div>
+            <div className="nt2s-viz-meta">
+              <span className="nt2-est" title="These signals are SOCIA's AI market estimates, not measured platform data.">
+                AI-estimated signals
+              </span>
+              <button className="nd-mini" onClick={() => load(true)} type="button">
+                <RefreshCw size={12} /> Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="nt2s-takebar">
+          <span className="nt2s-takelabel"><Sparkles size={13} /> SOCIA take</span>
+          <p>&ldquo;{take2}&rdquo;</p>
+          <a href="#opportunity-map" className="nt2s-maplink">
+            View full opportunity map <ArrowRight size={13} />
+          </a>
         </div>
       </div>
 
@@ -495,7 +567,6 @@ export default function NicheTrends({ niche }: { niche: string }) {
           personalized={personalized}
           fitPct={b.fit_pct}
           audienceOverlap={b.audience_overlap}
-          breakoutWhy={b.why_moving}
         />
       )}
 
@@ -583,14 +654,12 @@ function OpportunityMap({
   personalized,
   fitPct,
   audienceOverlap,
-  breakoutWhy,
 }: {
   dots: MapDot[];
   zoneCount: number;
   personalized: boolean;
   fitPct: number;
   audienceOverlap: string;
-  breakoutWhy: string;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [inView, setInView] = useState(false);
@@ -625,7 +694,6 @@ function OpportunityMap({
     (a, b2) => (b2.hot ? 1 : 0) - (a.hot ? 1 : 0) || b2.momentum - a.momentum,
   );
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;
-  const take = (breakoutWhy.split(/(?<=\.)\s/)[0] || breakoutWhy).slice(0, 160);
 
   const LEGEND: [Kind, string][] = [
     ["breakout", "Strongest mix of momentum and low competition"],
@@ -636,7 +704,7 @@ function OpportunityMap({
   ];
 
   return (
-    <section ref={ref} className={`nt2m db2-rise ${inView ? "in" : ""}`} style={{ animationDelay: "420ms" }}>
+    <section ref={ref} id="opportunity-map" className={`nt2m db2-rise ${inView ? "in" : ""}`} style={{ animationDelay: "420ms" }}>
       <div className="nt2m-head">
         <div>
           <h3>Where the opportunity is moving <TrendingUp size={16} className="nt2m-hico" /></h3>
@@ -753,11 +821,6 @@ function OpportunityMap({
           </Link>
         </aside>
       </div>
-
-      {/* SOCIA take */}
-      <p className="nt2m-take">
-        <b>SOCIA take</b> &ldquo;{take}&rdquo;
-      </p>
 
       {/* mobile ranked list */}
       <ol className="nt2m-list">
