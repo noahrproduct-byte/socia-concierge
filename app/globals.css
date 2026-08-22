@@ -7755,3 +7755,7 @@ a.hub-card:hover {
   .nt2-skel > * { animation: none; }
   .nt2-cover img, .nt2-trend { transition: none; }
 }
+
+/* nt2 grids join the min-width guard */
+.nt2-main > *, .nt2-side > *, .nt2-hero-grid > *, .nt2-strip > *,
+.nt2-actions > *, .nt2-actions-list > *, .nt2-action > * { min-width: 0; }
