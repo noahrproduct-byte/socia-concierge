@@ -229,10 +229,14 @@ export default function NicheTrends({ niche }: { niche: string }) {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={cover} alt="" />
-              <span className="nt2-cover-tag">{b.format.toUpperCase()}</span>
-              <b className="nt2-cover-line">{b.cover_line}</b>
-              <span className="nt2-cover-play" aria-hidden><Play size={16} fill="currentColor" /></span>
-              <em className="nt2-cover-note">Concept preview</em>
+              <span className="nt2-cover-tag">{b.format.toUpperCase()} · CONCEPT</span>
+              <span className="nt2-cover-play" aria-hidden><Play size={18} fill="currentColor" /></span>
+              <span className="nt2-cover-bottom">
+                <b className="nt2-cover-hook">{b.cover_line}</b>
+                <span className="nt2-cover-meta">
+                  <em>Concept preview</em>
+                </span>
+              </span>
             </button>
             <div className="nt2-hero-body">
               <div className="nt2-hero-head">
@@ -464,8 +468,12 @@ export default function NicheTrends({ niche }: { niche: string }) {
             <div className="nt2-modal-cover">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={cover} alt="" />
-              <b>{b.cover_line}</b>
-              <em>Concept preview · not a real post</em>
+              <span className="nt2-cover-bottom">
+                <b className="nt2-cover-hook">{b.cover_line}</b>
+                <span className="nt2-cover-meta">
+                  <em>Concept preview · not a real post</em>
+                </span>
+              </span>
             </div>
             <div className="nt2-modal-body">
               <h3>{b.title}</h3>

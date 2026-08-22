@@ -18,7 +18,7 @@ Rules:
 - Every hook is written as the actual first line of a video, in the creator's voice.
 - All percentages are your own honest market estimates of relative momentum, not measured platform data. Keep them plausible (roughly 5-40 for rising, -5 to -25 for declining). v is always 3.
 - stats: small honest counts summarizing the briefing itself (how many rising formats/hooks/patterns it contains), and the single strongest momentum area.
-- breakout: the ONE strongest current opportunity. cover_line is a short punchy on-image text (max ~8 words). why_moving explains the mechanism in plain words. velocity/competition/opportunity are High, Medium, or Low. audience_overlap is Strong, Moderate, or Weak.
+- breakout: the ONE strongest current opportunity. cover_line is the short punchy text burned onto the video cover: at most 6 words, like a spoken hook fragment ("This tray feeds 30 people."), never a format description. why_moving explains the mechanism in plain words. velocity/competition/opportunity are High, Medium, or Low. audience_overlap is Strong, Moderate, or Weak.
 - fit_pct and why_fits_you: ONLY meaningful when account context is provided — then judge honestly how well the breakout suits that specific account and say why in one or two sentences referencing their actual content. If NO account context is provided, set fit_pct to 0 and why_fits_you to an empty string. Never invent knowledge of their account.
 - pulse: 5 rows per tab (formats, topics, hooks), each with an estimated change_pct; include at least one declining row per tab so the picture is honest.
 - trends: exactly 5 additional rising trends (not the breakout), each with momentum_pct, competition (Low, Medium, or High), a one-line why, and a hook.
