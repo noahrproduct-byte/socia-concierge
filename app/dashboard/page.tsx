@@ -262,7 +262,7 @@ function buildLiveBrief(media: IgMediaItem[]) {
         text:
           reelMult && reelMult >= 1.1
             ? `Reels drive ${reelMult.toFixed(1)}× more engagement than your average post.`
-            : `Your top post earned ${topMult.toFixed(1)}× your average engagement.`,
+            : `You average ${Math.round(overall).toLocaleString("en-US")} engagements per post right now.`,
       },
       { icon: "clock", text: windowText },
       {
