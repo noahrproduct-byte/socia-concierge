@@ -126,8 +126,10 @@ function placeLabels(dots: MapDot[]) {
     ...dots.map((d) => ({ l: d.x - 10, t: d.y - 10, r: d.x + 10, b: d.y + 10 })),
   ];
   return dots.map((d) => {
-    const w = Math.min(170, d.label.length * 6.4 + 10);
-    const h = d.hot ? 46 : 17;
+    const natural = d.full.length * 6.4 + 10;
+    const w = Math.min(150, natural);
+    const lines = natural > 150 ? 2 : 1;
+    const h = lines * 15 + 16 + (d.hot ? 20 : 0);
     const cands: [number, number, string][] = [
       [d.x + 13, d.y - h / 2, "r"],
       [d.x - 13 - w, d.y - h / 2, "l"],
@@ -486,7 +488,14 @@ export default function NicheTrends({ niche }: { niche: string }) {
 
       {/* opportunity map */}
       {mapDots.length >= 3 && (
-        <OpportunityMap dots={mapDots} zoneCount={zoneCount} personalized={personalized} fitPct={b.fit_pct} />
+        <OpportunityMap
+          dots={mapDots}
+          zoneCount={zoneCount}
+          personalized={personalized}
+          fitPct={b.fit_pct}
+          audienceOverlap={b.audience_overlap}
+          breakoutWhy={b.why_moving}
+        />
       )}
 
       {/* LEVEL 3: next moves */}
@@ -546,20 +555,46 @@ export default function NicheTrends({ niche }: { niche: string }) {
 }
 
 // ---------------- the opportunity map ----------------
+type Kind = "breakout" | "rising" | "neutral" | "emerging" | "saturated";
+const KIND_LABEL: Record<Kind, string> = {
+  breakout: "Breakout opportunity",
+  rising: "Rising opportunity",
+  neutral: "Neutral",
+  emerging: "Emerging",
+  saturated: "Saturated",
+};
+function kindOf(d: MapDot, mid: number): Kind {
+  if (d.hot) return "breakout";
+  if (d.momentum < 0) return "saturated";
+  if (d.momentum >= mid) {
+    if (d.competition === "High") return "neutral";
+    return "rising";
+  }
+  if (d.competition === "High") return "saturated";
+  return "emerging";
+}
+const momentumWord = (pct: number) =>
+  pct < 0 ? "Declining" : pct >= 25 ? "High" : pct >= 12 ? "Medium" : "Low";
+
 function OpportunityMap({
   dots,
   zoneCount,
   personalized,
   fitPct,
+  audienceOverlap,
+  breakoutWhy,
 }: {
   dots: MapDot[];
   zoneCount: number;
   personalized: boolean;
   fitPct: number;
+  audienceOverlap: string;
+  breakoutWhy: string;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [inView, setInView] = useState(false);
-  const [sel, setSel] = useState<number | null>(null);
+  const hotIdx = Math.max(0, dots.findIndex((d) => d.hot));
+  const [sel, setSel] = useState<number>(hotIdx);
 
   useEffect(() => {
     const el = ref.current;
@@ -575,124 +610,181 @@ function OpportunityMap({
           io.disconnect();
         }
       },
-      { threshold: 0.25 },
+      { threshold: 0.2 },
     );
     io.observe(el);
     return () => io.disconnect();
   }, []);
 
+  const mid = (Math.min(...dots.map((d) => d.momentum)) + Math.max(...dots.map((d) => d.momentum))) / 2;
   const laid = placeLabels(dots);
-  const chosen = sel != null ? laid[sel] : null;
-  const ranked = [...laid].sort((a, b2) => (b2.hot ? 1 : 0) - (a.hot ? 1 : 0) || b2.momentum - a.momentum);
+  const chosen = laid[sel] ?? laid[hotIdx];
+  const chosenKind = kindOf(chosen, mid);
+  const ranked = [...laid].sort(
+    (a, b2) => (b2.hot ? 1 : 0) - (a.hot ? 1 : 0) || b2.momentum - a.momentum,
+  );
   const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+  const take = (breakoutWhy.split(/(?<=\.)\s/)[0] || breakoutWhy).slice(0, 160);
+
+  const LEGEND: [Kind, string][] = [
+    ["breakout", "Strongest mix of momentum and low competition"],
+    ["rising", "Good momentum with favorable competition"],
+    ["neutral", "Balanced momentum and competition"],
+    ["emerging", "Early signals with room to grow"],
+    ["saturated", "High competition or low momentum"],
+  ];
 
   return (
     <section ref={ref} className={`nt2m db2-rise ${inView ? "in" : ""}`} style={{ animationDelay: "420ms" }}>
       <div className="nt2m-head">
         <div>
-          <h3>Where the opportunity is moving</h3>
+          <h3>Where the opportunity is moving <TrendingUp size={16} className="nt2m-hico" /></h3>
           <p className="nt2m-insight">
             <b>{zoneCount} {zoneCount === 1 ? "opportunity is" : "opportunities are"}</b> gaining
             momentum faster than competition.
           </p>
         </div>
-        <span className="nt2-est">Estimated from your niche briefing</span>
+        <span className="nt2-est">Based on your niche signals</span>
       </div>
 
-      {/* desktop plot */}
-      <div className="nt2m-plot" role="img" aria-label="Opportunity map: momentum vs competition">
-        <div className="nt2m-zone" aria-hidden />
-        <div className="nt2m-zonelabel" aria-hidden>
-          <b>Best opportunity zone</b>
-          <span>High momentum · Low competition</span>
-        </div>
-        <span className="nt2m-corner tr" aria-hidden>Crowded</span>
-        <span className="nt2m-corner bl" aria-hidden>Emerging</span>
-        <span className="nt2m-corner br" aria-hidden>Saturated</span>
-        <i className="nt2m-mid v" aria-hidden />
-        <i className="nt2m-mid h" aria-hidden />
-
-        {laid.map((d, i) => (
-          <div
-            key={d.full}
-            className={`nt2m-pt ${d.hot ? "hot" : ""} ${sel === i ? "sel" : ""} ${sel != null && sel !== i ? "mute" : ""}`}
-            style={{ ["--d" as string]: `${200 + (d.hot ? laid.length * 70 : i * 70)}ms` }}
-          >
-            <button
-              className="nt2m-dot"
-              style={{ left: pct(d.x, MW), top: pct(d.y, MH), width: d.r * 2, height: d.r * 2 }}
-              onClick={() => setSel(sel === i ? null : i)}
-              type="button"
-              aria-pressed={sel === i}
-              aria-label={`${d.full}: +${d.momentum}% momentum, ${d.competition} competition`}
-            />
-            <div
-              className={`nt2m-label s-${d.side}`}
-              style={{ left: pct(d.lx, MW), top: pct(d.ly, MH), maxWidth: d.lw }}
-              title={d.full}
-            >
-              <span className="nt2m-name">{d.label}</span>
-              {d.hot && (
-                <>
-                  <span className="nt2m-mom">+{d.momentum}% momentum</span>
-                  <span className="nt2m-badge">Breakout</span>
-                </>
-              )}
-            </div>
-            <div className={`nt2m-tip ${d.y < MH * 0.35 ? "below" : ""}`} style={{ left: pct(d.x, MW), top: pct(d.y, MH) }}>
-              <b>{d.full}</b>
-              {d.hot && <span className="nt2m-badge">Breakout</span>}
-              <div className="nt2m-tip-rows">
-                <span>Momentum <em>+{d.momentum}%</em></span>
-                <span>Competition <em>{d.competition}</em></span>
-                {d.hot && personalized && <span>Account fit <em>{fitPct}%</em></span>}
-              </div>
-              <Link href="/tool" className="nt2m-tip-cta">↗ View opportunity</Link>
-            </div>
+      <div className="nt2m-body">
+        {/* map */}
+        <div className="nt2m-plot" role="img" aria-label="Opportunity map: momentum vs competition">
+          <div className="nt2m-zone" aria-hidden />
+          <div className="nt2m-zonelabel" aria-hidden>
+            <b>Best opportunity zone</b>
+            <span>High momentum · Low competition</span>
           </div>
-        ))}
+          <span className="nt2m-corner tr" aria-hidden>Crowded</span>
+          <span className="nt2m-corner bl" aria-hidden>Emerging</span>
+          <span className="nt2m-corner br" aria-hidden>Saturated</span>
+          <i className="nt2m-mid v" aria-hidden />
+          <i className="nt2m-mid h" aria-hidden />
 
-        <div className="nt2m-axes">
-          <span>Low competition</span>
-          <span className="nt2m-axis-x">Competition →</span>
-          <span>High competition</span>
+          {laid.map((d, i) => {
+            const kind = kindOf(d, mid);
+            return (
+              <div
+                key={d.full}
+                className={`nt2m-pt k-${kind} ${d.hot ? "hot" : ""} ${sel === i ? "sel" : ""}`}
+                style={{ ["--d" as string]: `${200 + (d.hot ? laid.length * 70 : i * 70)}ms` }}
+              >
+                <button
+                  className="nt2m-dot"
+                  style={{ left: pct(d.x, MW), top: pct(d.y, MH), width: d.r * 2, height: d.r * 2 }}
+                  onClick={() => setSel(i)}
+                  type="button"
+                  aria-pressed={sel === i}
+                  aria-label={`${d.full}: ${d.momentum >= 0 ? "+" : ""}${d.momentum}% momentum, ${d.competition} competition`}
+                />
+                <div
+                  className={`nt2m-label s-${d.side}`}
+                  style={{ left: pct(d.lx, MW), top: pct(d.ly, MH), width: d.lw }}
+                  title={d.full}
+                >
+                  <span className="nt2m-name">{d.full}</span>
+                  <span className={`nt2m-mom ${d.momentum >= 0 ? "" : "neg"}`}>
+                    {d.momentum >= 0 ? "+" : ""}{d.momentum}% momentum
+                  </span>
+                  {d.hot && <span className="nt2m-badge">Breakout</span>}
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="nt2m-axes">
+            <span>Low competition</span>
+            <span className="nt2m-axis-x">← Competition →</span>
+            <span>High competition</span>
+          </div>
+          <span className="nt2m-yaxis">Momentum ↑</span>
         </div>
-        <span className="nt2m-yaxis">Momentum ↑</span>
+
+        {/* detail panel */}
+        <aside className="nt2m-detail" key={sel} aria-live="polite">
+          <small className={`nt2m-kind k-${chosenKind}`}>{KIND_LABEL[chosenKind]}</small>
+          <div className="nt2m-detail-head">
+            <h4>{chosen.full}</h4>
+            <span className={`nt2m-detail-pct ${chosen.momentum >= 0 ? "" : "neg"}`}>
+              {chosen.momentum >= 0 ? "+" : ""}{chosen.momentum}%<small>momentum</small>
+            </span>
+          </div>
+          <div className="nt2m-detail-rows">
+            <div>
+              <span><TrendingUp size={13} /> Momentum</span>
+              <b className={chosen.momentum >= 25 ? "good" : chosen.momentum < 0 ? "bad" : ""}>{momentumWord(chosen.momentum)}</b>
+            </div>
+            <div>
+              <span><Radar size={13} /> Competition</span>
+              <b className={chosen.competition === "Low" ? "good" : chosen.competition === "Medium" ? "warn" : ""}>{chosen.competition}</b>
+            </div>
+            {chosen.hot && personalized && (
+              <div>
+                <span><Target size={13} /> Fit for your account</span>
+                <b className="good">{fitPct}%</b>
+              </div>
+            )}
+            {chosen.hot && audienceOverlap && (
+              <div>
+                <span><Zap size={13} /> Audience overlap</span>
+                <b className={audienceOverlap === "Strong" ? "good" : ""}>{audienceOverlap}</b>
+              </div>
+            )}
+          </div>
+          <div className="nt2m-why">
+            <small>Why it matters</small>
+            <p>{chosen.why}</p>
+          </div>
+          <Link href="/tool" className="btn-primary db2-ask nt2m-explore">
+            Explore opportunity <ArrowRight size={14} />
+          </Link>
+          <Link href="/chat" className="nt2m-ask">
+            Ask the strategist <ArrowRight size={12} />
+          </Link>
+        </aside>
       </div>
+
+      {/* SOCIA take */}
+      <p className="nt2m-take">
+        <b>SOCIA take</b> &ldquo;{take}&rdquo;
+      </p>
 
       {/* mobile ranked list */}
       <ol className="nt2m-list">
-        {ranked.map((d) => (
-          <li key={d.full}>
-            <span className={`nt2m-rankdot ${d.hot ? "hot" : ""}`} />
-            <span className="nt2m-rankmeta">
-              <b>{d.full}</b>
-              <small>
-                Momentum +{d.momentum}% · {d.competition} competition
-                {d.hot ? " · Breakout" : ""}
-              </small>
-            </span>
-          </li>
-        ))}
+        {ranked.map((d, i) => {
+          const kind = kindOf(d, mid);
+          return (
+            <li key={d.full}>
+              <span className="nt2m-ranknum">{String(i + 1).padStart(2, "0")}</span>
+              <span className="nt2m-rankmeta">
+                <b>{d.full}</b>
+                <small>
+                  Momentum {d.momentum >= 0 ? "+" : ""}{d.momentum}% · {d.competition} competition
+                  {d.hot && personalized ? ` · Fit ${fitPct}%` : ""}
+                </small>
+              </span>
+              <span className={`nt2m-rankkind k-${kind}`}>{KIND_LABEL[kind].split(" ")[0]}</span>
+            </li>
+          );
+        })}
       </ol>
 
-      {/* selected insight */}
-      {chosen && (
-        <div className="nt2m-selins" aria-live="polite">
-          <div className="nt2m-selmeta">
-            {chosen.hot && <small className="nt2m-selkind">Breakout opportunity</small>}
-            <b>{chosen.full}</b>
-            <span className="nt2m-selstats">
-              Momentum <em>+{chosen.momentum}%</em> · Competition <em>{chosen.competition}</em>
-              {chosen.hot && personalized && <> · Fit for you <em>{fitPct}%</em></>}
-            </span>
-            <p>{chosen.why}</p>
-          </div>
-          <Link href="/tool" className="btn-primary db2-ask sm">
-            Explore opportunity <ArrowRight size={13} />
-          </Link>
+      {/* legend */}
+      <div className="nt2m-legend">
+        <div className="nt2m-legend-copy">
+          <small>How to read this map</small>
+          <span>Top left is ideal: high momentum with low competition.</span>
         </div>
-      )}
+        {LEGEND.map(([kind, desc]) => (
+          <div className="nt2m-legend-item" key={kind}>
+            <i className={`k-${kind}`} />
+            <div>
+              <b>{KIND_LABEL[kind]}</b>
+              <span>{desc}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
