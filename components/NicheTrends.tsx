@@ -184,6 +184,17 @@ export default function NicheTrends({ niche }: { niche: string }) {
     return 16 + (1 - (clamped + 25) / 65) * 168; // 16..184 in a 220-high plot
   };
 
+  // The model sometimes returns a format *description*; the pill wants a word.
+  const fmtPill = (() => {
+    const f = b.format || "";
+    for (const known of ["Reel", "Carousel", "Story", "Short", "Video", "Post"]) {
+      if (new RegExp(known, "i").test(f)) return known.toUpperCase();
+    }
+    return f.length <= 14 ? f.toUpperCase() : "VIDEO";
+  })();
+  // Guard against a zero momentum headline: fall back to the breakout's.
+  const momentumPct = data.stats.momentum_pct > 0 ? data.stats.momentum_pct : b.momentum_pct;
+
   return (
     <div className="nt2">
       {/* LEVEL 2 preview: the niche signal */}
@@ -192,7 +203,7 @@ export default function NicheTrends({ niche }: { niche: string }) {
           <small>Momentum this week</small>
           <div className="nt2-signal-row">
             <b className="nt2-signal-pct">
-              +<CountUp value={String(data.stats.momentum_pct)} />%
+              +<CountUp value={String(momentumPct)} />%
             </b>
             <span className="nt2-signal-what">{data.stats.momentum_label}</span>
           </div>
@@ -229,7 +240,7 @@ export default function NicheTrends({ niche }: { niche: string }) {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={cover} alt="" />
-              <span className="nt2-cover-tag">{b.format.toUpperCase()} · CONCEPT</span>
+              <span className="nt2-cover-tag">{fmtPill} · CONCEPT</span>
               <span className="nt2-cover-play" aria-hidden><Play size={18} fill="currentColor" /></span>
               <span className="nt2-cover-bottom">
                 <b className="nt2-cover-hook">{b.cover_line}</b>
