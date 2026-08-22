@@ -34,7 +34,7 @@ const extractionSchema = {
     content_style: { type: "string" },
     audience: { type: "string" },
     confidence: { type: "integer" },
-    signals: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 6 },
+    signals: { type: "array", items: { type: "string" } },
     candidates: {
       type: "array",
       items: {
@@ -46,13 +46,11 @@ const extractionSchema = {
         required: ["niche", "why"],
         additionalProperties: false,
       },
-      minItems: 0,
-      maxItems: 3,
     },
     brand_name: { type: "string" },
     goal: { type: "string" },
     summary: { type: "string" },
-    highlights: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 3 },
+    highlights: { type: "array", items: { type: "string" } },
     best_format: { type: "string" },
   },
   required: [
@@ -256,6 +254,9 @@ Allowed niches: ${NICHES.join(", ")}`;
     const extracted = parseJson(text) as Extracted | null;
     if (extracted) {
       extracted.confidence = Math.max(0, Math.min(100, Math.round(Number(extracted.confidence) || 0)));
+      extracted.signals = (extracted.signals ?? []).slice(0, 6);
+      extracted.candidates = (extracted.candidates ?? []).slice(0, 3);
+      extracted.highlights = (extracted.highlights ?? []).slice(0, 3);
     }
 
     // 4) Save automatically only when the model is genuinely confident.
