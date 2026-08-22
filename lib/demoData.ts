@@ -10,6 +10,7 @@ export type Kpi = {
   up: boolean;
   compare: string;
   spark: number[];
+  sparkLabels?: string[];
   variant?: "line" | "bar";
 };
 

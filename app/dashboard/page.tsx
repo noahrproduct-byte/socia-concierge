@@ -97,6 +97,11 @@ function buildLiveData(followers: number | null, mediaCount: number | null, medi
   const chronological = [...media].reverse(); // API returns newest first
   const engSpark = chronological.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
   const likesSpark = chronological.map((m) => m.like_count ?? 0);
+  const dateLabels = chronological.map((m) => fmtDate(m.timestamp));
+  const weekMs = 7 * 24 * 3600 * 1000;
+  const postsThisWeek = media.filter(
+    (m) => m.timestamp && Date.now() - new Date(m.timestamp).getTime() < weekMs,
+  ).length;
   const engRate =
     followers && followers > 0 && media.length ? (avg(eng) / followers) * 100 : null;
   const recent = eng.slice(0, 5);
@@ -127,6 +132,7 @@ function buildLiveData(followers: number | null, mediaCount: number | null, medi
       up: (engChange ?? 0) >= 0,
       compare: "last 5 vs prev 5 posts",
       spark: engSpark,
+      sparkLabels: dateLabels,
     },
     {
       key: "reach",
@@ -136,6 +142,7 @@ function buildLiveData(followers: number | null, mediaCount: number | null, medi
       up: true,
       compare: `across ${media.length} recent posts`,
       spark: likesSpark,
+      sparkLabels: dateLabels,
     },
     {
       key: "posts",
@@ -143,8 +150,9 @@ function buildLiveData(followers: number | null, mediaCount: number | null, medi
       value: String(mediaCount ?? media.length),
       change: null,
       up: true,
-      compare: "on your profile",
+      compare: postsThisWeek > 0 ? `+${postsThisWeek} this week` : "on your profile",
       spark: engSpark,
+      sparkLabels: dateLabels,
       variant: "bar",
     },
   ];
@@ -174,6 +182,95 @@ function buildLiveData(followers: number | null, mediaCount: number | null, medi
     });
 
   return { kpis, topRows };
+}
+
+// Derive an honest strategy brief from the synced media. Returns null when
+// there isn't enough signal, in which case the demo copy is shown instead.
+function buildLiveBrief(media: IgMediaItem[]) {
+  if (media.length < 6) return null;
+  const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
+  const all = media.map(engOf);
+  const overall = avg(all);
+  if (!overall) return null;
+
+  const reels = media.filter((m) => m.media_type === "VIDEO");
+  const reelMult = reels.length >= 3 ? avg(reels.map(engOf)) / overall : null;
+  const topMult = Math.max(...all) / overall;
+
+  // Strongest weekday + hour bucket by average engagement.
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const byDay = new Map<number, number[]>();
+  const byHour = new Map<number, number[]>();
+  for (const m of media) {
+    if (!m.timestamp) continue;
+    const d = new Date(m.timestamp);
+    byDay.set(d.getDay(), [...(byDay.get(d.getDay()) ?? []), engOf(m)]);
+    byHour.set(d.getHours(), [...(byHour.get(d.getHours()) ?? []), engOf(m)]);
+  }
+  const best = <K,>(m: Map<K, number[]>): K | null => {
+    let k: K | null = null;
+    let v = -1;
+    for (const [key, xs] of m) {
+      const a = avg(xs);
+      if (a > v) {
+        v = a;
+        k = key;
+      }
+    }
+    return k;
+  };
+  const bestDay = best(byDay);
+  const bestHour = best(byHour);
+  const hourLabel =
+    bestHour == null
+      ? null
+      : bestHour === 0
+        ? "12 AM"
+        : bestHour < 12
+          ? `${bestHour} AM`
+          : bestHour === 12
+            ? "12 PM"
+            : `${bestHour - 12} PM`;
+
+  const windowText =
+    bestDay != null && hourLabel
+      ? `Your audience responds best on ${days[bestDay]}s around ${hourLabel}.`
+      : "Post more inside your strongest engagement windows.";
+
+  const head =
+    reelMult && reelMult >= 1.2
+      ? {
+          lead: "Your Reels are",
+          highlight: "outperforming your average",
+          tail: `by ${Math.round((reelMult - 1) * 100)}% right now.`,
+        }
+      : {
+          lead: "Your top content is",
+          highlight: `${topMult.toFixed(1)}× above your average`,
+          tail: "this month.",
+        };
+
+  return {
+    ...head,
+    body:
+      bestDay != null && hourLabel
+        ? `Your strongest window is ${days[bestDay]} around ${hourLabel}. Posting more consistently inside it could increase reach.`
+        : "Posting more consistently between your strongest engagement windows could increase reach.",
+    insights: [
+      {
+        icon: "trend",
+        text:
+          reelMult && reelMult >= 1.1
+            ? `Reels drive ${reelMult.toFixed(1)}× more engagement than your average post.`
+            : `Your top post earned ${topMult.toFixed(1)}× your average engagement.`,
+      },
+      { icon: "clock", text: windowText },
+      {
+        icon: "target",
+        text: `Computed from your last ${media.length} posts, synced from Instagram.`,
+      },
+    ],
+  };
 }
 
 export default async function DashboardPage({
@@ -298,6 +395,7 @@ export default async function DashboardPage({
           mult: String(c.mult),
         })) as ContentRow[],
       };
+  const brief = (live ? buildLiveBrief(media) : null) ?? AI_BRIEF;
 
   return (
     <AppShell active="dashboard" userEmail={user.email}>
@@ -305,7 +403,7 @@ export default async function DashboardPage({
         <SyncCinematic username={snap?.username} followers={snap?.followers_count} />
       )}
       {/* Header */}
-      <div className="dash-header">
+      <div className="dash-header db2-rise">
         <div>
           <h1 className="dash-greeting">
             {greeting}, {name} <span aria-hidden>👋</span>
@@ -320,7 +418,7 @@ export default async function DashboardPage({
           {live && <LiveSync syncedAt={snap!.last_synced_at} />}
           <DateRangeSelector />
           <AccountSwitcher />
-          <Link href="/chat" className="btn-primary">
+          <Link href="/chat" className="btn-primary db2-ask">
             <Sparkles size={15} /> Ask AI Strategist
           </Link>
         </div>
@@ -328,8 +426,8 @@ export default async function DashboardPage({
 
       {/* KPIs */}
       <div className="kpi-row">
-        {kpis.map((k) => (
-          <MetricCard key={k.key} kpi={k} icon={KPI_ICON[k.key]} />
+        {kpis.map((k, i) => (
+          <MetricCard key={k.key} kpi={k} icon={KPI_ICON[k.key]} index={i} />
         ))}
       </div>
 
@@ -338,16 +436,25 @@ export default async function DashboardPage({
 
       {/* AI Strategy Brief + Recommended Actions */}
       <div className="dash-2col brief">
-        <section className="card ai-brief">
+        <section className="card ai-brief db2-rise" style={{ animationDelay: "420ms" }}>
+          <div className="db2-orbit" aria-hidden>
+            <i className="o1" />
+            <i className="o2" />
+            <span className="orbits">
+              <span className="ob b1"><PlatformBadge platform="ig" /></span>
+              <span className="ob b2"><PlatformBadge platform="yt" /></span>
+              <span className="ob b3"><PlatformBadge platform="tt" /></span>
+            </span>
+          </div>
           <div className="ai-brief-badge">
             <Sparkles size={14} /> AI Strategy Brief
           </div>
           <h2 className="ai-brief-head">
-            {AI_BRIEF.lead} <span className="accent-text">{AI_BRIEF.highlight}</span> {AI_BRIEF.tail}
+            {brief.lead} <span className="accent-text">{brief.highlight}</span> {brief.tail}
           </h2>
-          <p className="ai-brief-body">{AI_BRIEF.body}</p>
+          <p className="ai-brief-body">{brief.body}</p>
           <div className="ai-brief-insights">
-            {AI_BRIEF.insights.map((ins, i) => (
+            {brief.insights.map((ins, i) => (
               <div className="ai-insight" key={i}>
                 <span className="ai-insight-ico">{INSIGHT_ICON[ins.icon]}</span>
                 <span>{ins.text}</span>
@@ -355,16 +462,16 @@ export default async function DashboardPage({
             ))}
           </div>
           <div className="ai-brief-actions">
-            <Link href="/chat" className="btn-primary">
+            <Link href="/chat" className="btn-primary db2-ask">
               <Sparkles size={15} /> Ask AI Strategist
             </Link>
-            <Link href="/analytics" className="btn-secondary">
-              View full strategy
+            <Link href="/analytics" className="btn-secondary db2-more">
+              View full strategy <ArrowRight size={14} />
             </Link>
           </div>
         </section>
 
-        <section className="card">
+        <section className="card db2-rise" style={{ animationDelay: "500ms" }}>
           <div className="card-head">
             <h3>Recommended Actions</h3>
             <Link href="/analytics" className="link-mini">

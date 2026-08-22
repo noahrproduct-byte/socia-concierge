@@ -1,8 +1,7 @@
 import { ArrowUpRight, ArrowDownRight, Camera, Music2, Play } from "lucide-react";
 import type { Kpi } from "@/lib/demoData";
-import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import CountUp from "@/components/CountUp";
+import SparkLive from "@/components/SparkLive";
 
 // ---- TrendBadge ----
 export function TrendBadge({ change, up }: { change: number; up: boolean }) {
@@ -74,40 +73,46 @@ export function Sparkline({
 }
 
 // ---- MetricCard ----
-export function MetricCard({ kpi, icon }: { kpi: Kpi; icon: React.ReactNode }) {
+export function MetricCard({
+  kpi,
+  icon,
+  index = 0,
+}: {
+  kpi: Kpi;
+  icon: React.ReactNode;
+  index?: number;
+}) {
   return (
-    <Card className="gap-3 rounded-2xl px-5 py-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
-      <div className="flex items-center justify-between">
-        <span className="text-[13px] font-medium text-muted-foreground">{kpi.label}</span>
-        <span className="grid size-8 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)]">
-          {icon}
-        </span>
+    <section className="db2-kpi db2-rise" style={{ animationDelay: `${80 + index * 70}ms` }}>
+      <div className="db2-kpi-top">
+        <span className="db2-kpi-ico">{icon}</span>
+        <span className="db2-kpi-label">{kpi.label}</span>
       </div>
-      <div className="flex items-end gap-2">
-        <span className="text-[28px] font-bold leading-none tracking-tight text-[var(--charcoal)]">
-          <CountUp value={kpi.value} />
-        </span>
-        {kpi.change !== null && (
-          <span
-            className={cn(
-              "mb-0.5 inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
-              kpi.up ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600",
-            )}
-          >
+      <div className="db2-kpi-value">
+        <CountUp value={kpi.value} />
+      </div>
+      <span className="db2-kpi-compare">{kpi.compare}</span>
+      <div className="db2-kpi-foot">
+        {kpi.change !== null ? (
+          <span className={`db2-kpi-delta ${kpi.up ? "up" : "down"}`}>
             {kpi.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
             {Math.abs(kpi.change)}%
           </span>
+        ) : (
+          <span />
         )}
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] text-muted-foreground">{kpi.compare}</span>
         {kpi.spark.length > 1 && (
-          <span className="h-8 w-28 shrink-0">
-            <Sparkline data={kpi.spark} variant={kpi.variant} up={kpi.up} />
+          <span className="db2-kpi-spark">
+            <SparkLive
+              data={kpi.spark}
+              labels={kpi.sparkLabels}
+              variant={kpi.variant}
+              up={kpi.up}
+            />
           </span>
         )}
       </div>
-    </Card>
+    </section>
   );
 }
 
