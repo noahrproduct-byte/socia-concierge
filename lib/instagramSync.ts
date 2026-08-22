@@ -15,6 +15,8 @@ export type IgMediaItem = {
   comments_count?: number;
   timestamp?: string;
   permalink?: string;
+  media_url?: string;
+  thumbnail_url?: string; // video poster frame
 };
 
 export type IgSnapshot = {
@@ -44,7 +46,7 @@ async function fetchFromInstagram(token: string): Promise<{
     const mediaUrl = new URL("https://graph.instagram.com/v21.0/me/media");
     mediaUrl.searchParams.set(
       "fields",
-      "id,caption,media_type,like_count,comments_count,timestamp,permalink",
+      "id,caption,media_type,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url",
     );
     mediaUrl.searchParams.set("limit", "25");
     mediaUrl.searchParams.set("access_token", token);

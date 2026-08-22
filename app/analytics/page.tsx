@@ -1,12 +1,27 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import {
+  Sparkles,
+  Users,
+  Heart,
+  Activity,
+  CalendarClock,
+  ExternalLink,
+  ArrowRight,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import LiveSync from "@/components/LiveSync";
+import DateRangeSelector from "@/components/DateRangeSelector";
+import AccountSwitcher from "@/components/AccountSwitcher";
+import { MetricCard } from "@/components/ui";
+import { GrowthChart, FormatBars, Reveal, type GrowthPoint } from "@/components/AnalyticsCharts";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import type { Kpi } from "@/lib/demoData";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
-// ---- live helpers ----
+// ---- helpers ----
 function fmtNum(n: number | null | undefined): string {
   if (n == null) return "–";
   if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
@@ -16,6 +31,8 @@ function fmtNum(n: number | null | undefined): string {
 function avg(xs: number[]): number {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 }
+const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
+
 // Best time to post: the weekday+hour bucket whose posts earn the most engagement.
 function bestTime(media: IgMediaItem[]): string | null {
   const buckets = new Map<string, { score: number; label: string }>();
@@ -25,10 +42,9 @@ function bestTime(media: IgMediaItem[]): string | null {
     const day = d.toLocaleDateString("en-US", { weekday: "short" });
     const hour = d.getHours();
     const key = `${day}-${hour}`;
-    const score = (m.like_count ?? 0) + (m.comments_count ?? 0);
     const ampm = hour === 0 ? "12AM" : hour < 12 ? `${hour}AM` : hour === 12 ? "12PM" : `${hour - 12}PM`;
     const cur = buckets.get(key) ?? { score: 0, label: `${day} ${ampm}` };
-    cur.score += score;
+    cur.score += engOf(m);
     buckets.set(key, cur);
   }
   let best: { score: number; label: string } | null = null;
@@ -36,30 +52,85 @@ function bestTime(media: IgMediaItem[]): string | null {
   return best?.label ?? null;
 }
 
-// ---- demo data (replace with real platform data once connected) ----
-const LABELS = ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"];
-const YOU = [10.9, 11.2, 11.4, 11.3, 11.8, 12.0, 12.3, 12.5]; // followers, thousands
-const NICHE = [10.8, 10.9, 11.0, 11.1, 11.2, 11.3, 11.35, 11.4];
+// Two-hour engagement histogram across the day (12 buckets), for the best-time card.
+function hourHistogram(media: IgMediaItem[]): { values: number[]; hot: number } {
+  const values = Array(12).fill(0);
+  for (const m of media) {
+    if (!m.timestamp) continue;
+    values[Math.floor(new Date(m.timestamp).getHours() / 2)] += engOf(m);
+  }
+  let hot = 0;
+  values.forEach((v, i) => {
+    if (v > values[hot]) hot = i;
+  });
+  return { values, hot };
+}
 
-const FORMATS = [
+// Weekly engagement buckets (avg engagement of posts in each week that has posts).
+function weeklyEngagement(media: IgMediaItem[]): GrowthPoint[] {
+  const weeks = new Map<number, { xs: number[]; start: Date }>();
+  for (const m of media) {
+    if (!m.timestamp) continue;
+    const d = new Date(m.timestamp);
+    const start = new Date(d);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - start.getDay());
+    const key = start.getTime();
+    const cur = weeks.get(key) ?? { xs: [], start };
+    cur.xs.push(engOf(m));
+    weeks.set(key, cur);
+  }
+  const short = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return [...weeks.values()]
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+    .slice(-8)
+    .map((w) => {
+      const end = new Date(w.start);
+      end.setDate(end.getDate() + 6);
+      return { label: `${short(w.start)} – ${short(end)}`, value: avg(w.xs) };
+    });
+}
+
+// Real per-format engagement rates (% of followers), only for formats present.
+function formatRates(media: IgMediaItem[], followers: number) {
+  const groups: [string, (m: IgMediaItem) => boolean][] = [
+    ["Reels", (m) => m.media_type === "VIDEO"],
+    ["Carousels", (m) => m.media_type === "CAROUSEL_ALBUM"],
+    ["Static", (m) => m.media_type === "IMAGE"],
+  ];
+  return groups
+    .map(([label, test]) => {
+      const xs = media.filter(test);
+      return {
+        label,
+        value: xs.length ? Math.round((avg(xs.map(engOf)) / followers) * 1000) / 10 : 0,
+        note: `${xs.length} post${xs.length === 1 ? "" : "s"}`,
+        count: xs.length,
+      };
+    })
+    .filter((g) => g.count > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+const clamp = (v: number) => Math.max(8, Math.min(100, Math.round(v)));
+
+// ---- demo data (shown only before an account is connected) ----
+const DEMO_LABELS = ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"];
+const DEMO_YOU = [10.9, 11.2, 11.4, 11.3, 11.8, 12.0, 12.3, 12.5];
+const DEMO_NICHE = [10.8, 10.9, 11.0, 11.1, 11.2, 11.3, 11.35, 11.4];
+const DEMO_FORMATS = [
   { label: "Reels", value: 7.2 },
   { label: "Carousels", value: 5.1 },
   { label: "Stories", value: 3.9 },
   { label: "Static", value: 2.8 },
 ];
-
-const BENCH = [
-  { label: "Engagement rate", you: 5.8, niche: 3.9, unit: "%" },
-  { label: "Save rate", you: 2.1, niche: 1.2, unit: "%" },
-  { label: "Follows / post", you: 34, niche: 21, unit: "" },
+const DEMO_POSTS = [
+  { title: "Owner tossing dough (Reel)", sub: "610 saves", metric: "22.4k views", up: true },
+  { title: "Cheese pull close-up (Reel)", sub: "420 saves", metric: "14.1k views", up: true },
+  { title: "Behind the scenes: new oven", sub: "180 saves", metric: "9.8k views", up: true },
+  { title: "Menu update (Carousel)", sub: "12 saves", metric: "0.8k views", up: false },
 ];
-
-const TOP_POSTS = [
-  { title: "Owner tossing dough (Reel)", metric: "22.4k views", sub: "610 saves", up: true },
-  { title: "Cheese pull close-up (Reel)", metric: "14.1k views", sub: "420 saves", up: true },
-  { title: "Behind the scenes: new oven", metric: "9.8k views", sub: "180 saves", up: true },
-  { title: "Menu update (Carousel)", metric: "0.8k views", sub: "12 saves", up: false },
-];
+const DEMO_RADAR = [72, 84, 66, 78, 90];
 
 export default async function AnalyticsPage() {
   const supabase = await createClient();
@@ -68,156 +139,354 @@ export default async function AnalyticsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Live synced snapshot (auto-refreshes when stale); demo numbers otherwise.
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
+  const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+
   const snap = await getIgSnapshot(supabase, user.id);
   const live = Boolean(snap && snap.followers_count != null);
   const media = snap?.media ?? [];
-  const eng = media.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
-  const engRate =
-    live && snap!.followers_count! > 0 && media.length
-      ? ((avg(eng) / snap!.followers_count!) * 100).toFixed(1) + "%"
-      : null;
+  const followers = snap?.followers_count ?? 0;
+  const eng = media.map(engOf);
+  const overallAvg = avg(eng);
+
+  // --- KPI cards ---
+  const engRateNum =
+    live && followers > 0 && media.length ? (overallAvg / followers) * 100 : null;
   const avgLikes = media.length ? Math.round(avg(media.map((m) => m.like_count ?? 0))) : null;
   const best = live ? bestTime(media) : null;
+  const chronological = [...media].reverse();
+  const dateLabels = chronological.map((m) =>
+    m.timestamp ? new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "",
+  );
+  const recent = eng.slice(0, 5);
+  const prev = eng.slice(5, 10);
+  let engChange =
+    recent.length && prev.length && avg(prev) > 0
+      ? Math.round(((avg(recent) - avg(prev)) / avg(prev)) * 1000) / 10
+      : null;
+  if (engChange !== null && Math.abs(engChange) > 300) engChange = null;
 
+  const kpis: Kpi[] = live
+    ? [
+        {
+          key: "followers",
+          label: "Followers",
+          value: followers.toLocaleString("en-US"),
+          change: null,
+          up: true,
+          compare: "Live from Instagram",
+          spark: [],
+        },
+        {
+          key: "reach",
+          label: "Avg likes / post",
+          value: fmtNum(avgLikes),
+          change: null,
+          up: true,
+          compare: `across ${media.length} posts`,
+          spark: chronological.map((m) => m.like_count ?? 0),
+          sparkLabels: dateLabels,
+        },
+        {
+          key: "engagement",
+          label: "Engagement rate",
+          value: engRateNum != null ? engRateNum.toFixed(1) + "%" : "–",
+          change: engChange,
+          up: (engChange ?? 0) >= 0,
+          compare: "per post, of followers",
+          spark: chronological.map(engOf),
+          sparkLabels: dateLabels,
+        },
+      ]
+    : [
+        { key: "followers", label: "Followers", value: "12,480", change: 3.2, up: true, compare: "demo data", spark: [] },
+        { key: "reach", label: "Reach / week", value: "1.24M", change: 34, up: true, compare: "demo data", spark: [] },
+        { key: "engagement", label: "Engagement rate", value: "5.8%", change: 0.6, up: true, compare: "demo data", spark: [] },
+      ];
+
+  // --- big chart: weekly engagement (live) or demo follower growth ---
+  const weekly = live ? weeklyEngagement(media) : [];
+  const growthPoints: GrowthPoint[] = live
+    ? weekly
+    : DEMO_LABELS.map((l, i) => ({ label: l, value: DEMO_YOU[i] }));
+  const growthBaseline = live
+    ? weekly.length
+      ? weekly.map(() => overallAvg)
+      : null
+    : DEMO_NICHE;
+
+  // --- formats ---
+  const formats = live && followers > 0 ? formatRates(media, followers) : DEMO_FORMATS;
+
+  // --- top posts ---
   const livePosts = [...media]
-    .sort(
-      (x, y) =>
-        (y.like_count ?? 0) + (y.comments_count ?? 0) - ((x.like_count ?? 0) + (x.comments_count ?? 0)),
-    )
+    .sort((a, b) => engOf(b) - engOf(a))
     .slice(0, 4)
     .map((m) => {
-      const e = (m.like_count ?? 0) + (m.comments_count ?? 0);
       const firstLine = (m.caption || "").split("\n")[0].trim();
       return {
-        title: firstLine ? firstLine.slice(0, 44) : "(no caption)",
-        metric: `${fmtNum(m.like_count ?? 0)} likes`,
+        title: firstLine ? firstLine.slice(0, 52) : "(no caption)",
         sub: `${fmtNum(m.comments_count ?? 0)} comments`,
-        up: e >= avg(eng),
+        metric: `${fmtNum(m.like_count ?? 0)} likes`,
+        up: engOf(m) >= overallAvg,
+        thumb: m.thumbnail_url || m.media_url || null,
+        href: m.permalink || null,
       };
     });
-  const posts = live && livePosts.length ? livePosts : TOP_POSTS;
+  const posts = live && livePosts.length
+    ? livePosts
+    : DEMO_POSTS.map((p) => ({ ...p, thumb: null, href: null }));
+
+  // --- baseline comparison (live: your recent 5 posts vs your average) ---
+  const recentLikes = media.slice(0, 5).map((m) => m.like_count ?? 0);
+  const recentComments = media.slice(0, 5).map((m) => m.comments_count ?? 0);
+  const allLikes = media.map((m) => m.like_count ?? 0);
+  const allComments = media.map((m) => m.comments_count ?? 0);
+  const bench = live
+    ? [
+        {
+          label: "Engagement rate",
+          a: followers > 0 ? Math.round((avg(recent) / followers) * 1000) / 10 : 0,
+          b: followers > 0 ? Math.round((overallAvg / followers) * 1000) / 10 : 0,
+          unit: "%",
+        },
+        {
+          label: "Likes / post",
+          a: Math.round(avg(recentLikes)),
+          b: Math.round(avg(allLikes)),
+          unit: "",
+        },
+        {
+          label: "Comments / post",
+          a: Math.round(avg(recentComments) * 10) / 10,
+          b: Math.round(avg(allComments) * 10) / 10,
+          unit: "",
+        },
+      ]
+    : [
+        { label: "Engagement rate", a: 5.8, b: 3.9, unit: "%" },
+        { label: "Save rate", a: 2.1, b: 1.2, unit: "%" },
+        { label: "Follows / post", a: 34, b: 21, unit: "" },
+      ];
+  const benchNames: [string, string] = live ? ["last 5", "your avg"] : ["you", "niche"];
+
+  // --- insight card (live: honest, derived from the account's own posts) ---
+  const reels = media.filter((m) => m.media_type === "VIDEO");
+  const reelMult = reels.length >= 3 && overallAvg > 0 ? avg(reels.map(engOf)) / overallAvg : null;
+  const topMult = overallAvg > 0 && eng.length ? Math.max(...eng) / overallAvg : null;
+  const spanDays =
+    media.length >= 2 && media[media.length - 1].timestamp && media[0].timestamp
+      ? Math.max(
+          7,
+          (new Date(media[0].timestamp!).getTime() -
+            new Date(media[media.length - 1].timestamp!).getTime()) /
+            86400000,
+        )
+      : null;
+  const postsPerWeek = spanDays ? (media.length / spanDays) * 7 : null;
+  const momentum = recent.length && prev.length && avg(prev) > 0 ? avg(recent) / avg(prev) : null;
+  const commentShare = overallAvg > 0 ? avg(allComments) / overallAvg : null;
+
+  const radar = live
+    ? [
+        clamp(((engRateNum ?? 0) / 5) * 100),
+        clamp(((postsPerWeek ?? 0) / 5) * 100),
+        clamp(((momentum ?? 0) / 2) * 100),
+        clamp(((commentShare ?? 0) / 0.12) * 100),
+        clamp(((topMult ?? 0) / 6) * 100),
+      ]
+    : DEMO_RADAR;
+  const radarAxes = live
+    ? ["Engagement", "Consistency", "Momentum", "Community", "Virality"]
+    : ["Engagement", "Retention", "Consistency", "Growth", "Quality"];
+  const insightHead = live
+    ? reelMult && reelMult >= 1.2
+      ? { a: "Reels earn", b: `${reelMult.toFixed(1)}× your average`, c: "engagement" }
+      : topMult
+        ? { a: "Your top post earned", b: `${topMult.toFixed(1)}× your average`, c: "engagement" }
+        : { a: "Your content profile,", b: "computed from real posts", c: "" }
+    : { a: "You outperform", b: "78%", c: "of similar accounts" };
+  const insightSub = live
+    ? `Profile computed from your last ${media.length} posts.`
+    : "Demo data. Connect your account for your real profile.";
 
   return (
     <AppShell active="analytics" userEmail={user.email}>
-      <div className="page-head">
+      {/* Header */}
+      <div className="dash-header db2-rise">
         <div>
-          <div className="eyebrow">Overview</div>
-          <h1>Analytics</h1>
-          <p className="page-sub">
+          <h1 className="dash-greeting">
+            {greeting}, {name} <span aria-hidden>👋</span>
+          </h1>
+          <p className="dash-context">
             {live
-              ? <>Live snapshot of <b>@{snap!.username}</b>, synced from Instagram. Deeper history builds as we keep syncing.</>
-              : <>Your performance across the last 8 weeks, benchmarked against your niche.</>}
+              ? <>Live snapshot of <b>@{snap!.username}</b>, synced from Instagram.</>
+              : <>Your performance overview. Connect an account for live data.</>}
           </p>
         </div>
-        <div className="range" role="group" aria-label="Date range">
+        <div className="dash-controls">
           {live && <LiveSync syncedAt={snap!.last_synced_at} />}
-          <button>7d</button>
-          <button className="on">30d</button>
-          <button>90d</button>
+          <DateRangeSelector />
+          <AccountSwitcher />
+          <Link href="/chat" className="btn-primary db2-ask">
+            <Sparkles size={15} /> Ask AI Strategist
+          </Link>
         </div>
       </div>
 
-      <div className="stat-grid">
-        {live ? (
-          <>
-            <StatTile label="Followers" value={(snap!.followers_count ?? 0).toLocaleString()} delta="Live from Instagram" />
-            <StatTile label="Avg likes / post" value={fmtNum(avgLikes)} delta={`across ${media.length} posts`} />
-            <StatTile label="Engagement rate" value={engRate ?? "–"} delta="per post, of followers" />
-            <StatTile label="Best time to post" value={best ?? "–"} delta="from your top posts" />
-          </>
-        ) : (
-          <>
-            <StatTile label="Followers" value="12,480" delta="+3.2%" up />
-            <StatTile label="Reach / week" value="1.24M" delta="+34%" up />
-            <StatTile label="Engagement rate" value="5.8%" delta="+0.6pt" up />
-            <StatTile label="Best time to post" value="Tue 7PM" delta="Consistent" />
-          </>
-        )}
+      {/* KPI cards */}
+      <div className="kpi-row">
+        {kpis.map((k, i) => (
+          <MetricCard
+            key={k.key}
+            kpi={k}
+            icon={k.key === "followers" ? <Users size={16} /> : k.key === "reach" ? <Heart size={16} /> : <Activity size={16} />}
+            index={i}
+          />
+        ))}
+        {/* Best time to post, with the real posting-hour histogram */}
+        <section className="db2-kpi db2-rise an2-besttime" style={{ animationDelay: "290ms" }}>
+          <div className="db2-kpi-top">
+            <span className="db2-kpi-ico"><CalendarClock size={16} /></span>
+            <span className="db2-kpi-label">Best time to post</span>
+          </div>
+          <div className="db2-kpi-value an2-besttime-val">{live ? (best ?? "–") : "Tue 7PM"}</div>
+          <span className="db2-kpi-compare">
+            {live ? "when your posts earn the most" : "demo data"}
+          </span>
+          {live && media.length > 0 && <HourBars media={media} />}
+        </section>
       </div>
 
-      <div className="panel-grid">
-        <section className="chart-card wide">
+      {/* Growth + formats */}
+      <div className="panel-grid an2-main">
+        <section className="chart-card wide db2-rise" style={{ animationDelay: "360ms" }}>
           <div className="chart-head">
-            <h3>Follower growth</h3>
+            <h3>{live ? "Engagement over time" : "Follower growth"}</h3>
             <div className="legend">
+              <span className="legend-item"><span className="swatch you" /> You</span>
               <span className="legend-item">
-                <span className="swatch you" /> You
-              </span>
-              <span className="legend-item">
-                <span className="swatch niche" /> Niche avg
+                <span className="swatch niche" /> {live ? "Your average" : "Niche avg"}
               </span>
             </div>
           </div>
-          <LineChart />
+          {growthPoints.length >= 2 ? (
+            <GrowthChart
+              points={growthPoints}
+              baseline={growthBaseline}
+              baselineName={live ? "Your avg" : "Niche avg"}
+              ariaLabel={live ? "Average engagement per week" : "Follower growth vs niche average"}
+            />
+          ) : (
+            <p className="page-sub">Not enough posting history yet. Keep posting and this chart fills in.</p>
+          )}
         </section>
 
-        <section className="chart-card">
+        <section className="chart-card db2-rise" style={{ animationDelay: "430ms" }}>
           <div className="chart-head">
             <h3>Engagement by format</h3>
           </div>
-          <BarChart />
+          <FormatBars items={formats} />
+          <p className="an2-formats-note">
+            {live ? "Avg engagement per post, as % of followers." : "Demo data."}
+          </p>
         </section>
       </div>
 
-      <div className="panel-grid">
-        <section className="chart-card">
+      {/* Top posts + benchmark/insight */}
+      <div className="panel-grid an2-bottom">
+        <section className="chart-card db2-rise" style={{ animationDelay: "500ms" }}>
           <div className="chart-head">
             <h3>Top performing posts</h3>
+            {live && snap?.username && (
+              <a
+                className="link-mini"
+                href={`https://instagram.com/${snap.username}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View profile
+              </a>
+            )}
           </div>
-          <ul className="post-list">
+          <ul className="an2-posts">
             {posts.map((p, i) => (
-              <li key={i}>
-                <span className="rankdot">{i + 1}</span>
-                <span className="post-meta">
+              <li className="an2-post" key={i}>
+                <span className="an2-post-rank">{i + 1}</span>
+                {p.thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="an2-post-thumb" src={p.thumb} alt="" loading="lazy" width={44} height={44} />
+                ) : (
+                  <span className="an2-post-thumb ph" aria-hidden />
+                )}
+                <span className="an2-post-meta">
                   <b>{p.title}</b>
                   <small>{p.sub}</small>
                 </span>
-                <span className={`post-metric ${p.up ? "up" : "down"}`}>
+                <span className={`an2-post-metric ${p.up ? "up" : "down"}`}>
                   {p.up ? "▲" : "▼"} {p.metric}
                 </span>
+                {p.href && (
+                  <a
+                    className="an2-post-open"
+                    href={p.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open on Instagram"
+                    aria-label="Open on Instagram"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                )}
               </li>
             ))}
           </ul>
         </section>
 
-        <section className="chart-card">
+        <section className="chart-card db2-rise" style={{ animationDelay: "570ms" }}>
           <div className="chart-head">
-            <h3>Benchmarked vs your niche</h3>
+            <h3>{live ? "Recent posts vs your baseline" : "Benchmarked vs your niche"}</h3>
           </div>
-          <div className="bench">
-            {BENCH.map((b) => {
-              const max = Math.max(b.you, b.niche);
-              return (
-                <div className="bench-row" key={b.label}>
-                  <div className="bench-label">{b.label}</div>
-                  <div className="bench-bars">
-                    <span className="bench-track">
-                      <span
-                        className="bench-fill you"
-                        style={{ width: `${(b.you / max) * 100}%` }}
-                      />
-                    </span>
-                    <span className="bench-num">
-                      {b.you}
-                      {b.unit} <em>you</em>
-                    </span>
+          <div className="an2-bench-grid">
+            <Reveal className="bench an2-bench">
+              {bench.map((b) => {
+                const max = Math.max(b.a, b.b) || 1;
+                return (
+                  <div className="bench-row" key={b.label}>
+                    <div className="bench-label">{b.label}</div>
+                    <div className="bench-bars">
+                      <span className="bench-track">
+                        <span className="bench-fill you" style={{ ["--w" as string]: `${(b.a / max) * 100}%` }} />
+                      </span>
+                      <span className="bench-num">
+                        {b.a}{b.unit} <em>{benchNames[0]}</em>
+                      </span>
+                    </div>
+                    <div className="bench-bars">
+                      <span className="bench-track">
+                        <span className="bench-fill niche" style={{ ["--w" as string]: `${(b.b / max) * 100}%` }} />
+                      </span>
+                      <span className="bench-num muted">
+                        {b.b}{b.unit} <em>{benchNames[1]}</em>
+                      </span>
+                    </div>
                   </div>
-                  <div className="bench-bars">
-                    <span className="bench-track">
-                      <span
-                        className="bench-fill niche"
-                        style={{ width: `${(b.niche / max) * 100}%` }}
-                      />
-                    </span>
-                    <span className="bench-num muted">
-                      {b.niche}
-                      {b.unit} <em>niche</em>
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </Reveal>
+
+            <Reveal className="an2-insight" delay={120}>
+              <h4>
+                {insightHead.a} <b>{insightHead.b}</b> {insightHead.c}
+              </h4>
+              <RadarChart values={radar} axes={radarAxes} />
+              <p className="an2-insight-sub">{insightSub}</p>
+              <Link href="/competitors" className="an2-insight-cta">
+                See how you compare <ArrowRight size={13} />
+              </Link>
+            </Reveal>
           </div>
         </section>
       </div>
@@ -225,109 +494,60 @@ export default async function AnalyticsPage() {
   );
 }
 
-function StatTile({
-  label,
-  value,
-  delta,
-  up,
-}: {
-  label: string;
-  value: string;
-  delta: string;
-  up?: boolean;
-}) {
+// ---- server-rendered pieces ----
+
+// Real posting-hour histogram (12 two-hour buckets) for the best-time card.
+function HourBars({ media }: { media: IgMediaItem[] }) {
+  const { values, hot } = hourHistogram(media);
+  const max = Math.max(...values) || 1;
   return (
-    <div className="stat-tile">
-      <span className="stat-label">{label}</span>
-      <b className="stat-val">{value}</b>
-      <span className={`stat-delta ${up === undefined ? "flat" : up ? "up" : "down"}`}>
-        {up === true ? "▲ " : up === false ? "▼ " : ""}
-        {delta}
-      </span>
+    <div className="an2-hours">
+      <div className="an2-hours-bars" aria-hidden>
+        {values.map((v, i) => (
+          <i
+            key={i}
+            className={i === hot ? "hot" : ""}
+            style={{ height: `${Math.max(10, (v / max) * 100)}%` }}
+            title={`${i * 2}:00 – ${i * 2 + 2}:00`}
+          />
+        ))}
+      </div>
+      <div className="an2-hours-axis" aria-hidden>
+        <span>12AM</span><span>6AM</span><span>12PM</span><span>6PM</span><span>12AM</span>
+      </div>
     </div>
   );
 }
 
-// ---- inline SVG charts (no chart library; brand hue + neutral benchmark) ----
-function LineChart() {
-  const W = 680,
-    H = 240,
-    padL = 34,
-    padR = 14,
-    padT = 16,
-    padB = 26;
-  const plotW = W - padL - padR;
-  const plotH = H - padT - padB;
-  const all = [...YOU, ...NICHE];
-  const min = Math.min(...all) - 0.3;
-  const max = Math.max(...all) + 0.3;
-  const x = (i: number) => padL + (i / (LABELS.length - 1)) * plotW;
-  const y = (v: number) => padT + (1 - (v - min) / (max - min)) * plotH;
-
-  const youPts = YOU.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-  const nichePts = NICHE.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-  const area = `M${x(0)},${y(YOU[0])} ${YOU.map((v, i) => `L${x(i)},${y(v)}`).join(" ")} L${x(YOU.length - 1)},${padT + plotH} L${x(0)},${padT + plotH} Z`;
-  const grid = [0, 0.25, 0.5, 0.75, 1].map((t) => padT + t * plotH);
-
+// Pentagon radar of the account's own derived profile (0–100 per axis).
+function RadarChart({ values, axes }: { values: number[]; axes: string[] }) {
+  const C = 90;
+  const R = 62;
+  const pt = (i: number, r: number) => {
+    const a = (Math.PI * 2 * i) / values.length - Math.PI / 2;
+    return `${C + r * Math.cos(a)},${C + r * Math.sin(a)}`;
+  };
+  const ring = (frac: number) => values.map((_, i) => pt(i, R * frac)).join(" ");
+  const poly = values.map((v, i) => pt(i, (v / 100) * R)).join(" ");
   return (
-    <svg className="svgchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Follower growth vs niche average">
-      <defs>
-        <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2563FF" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#2563FF" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {grid.map((gy, i) => (
-        <line key={i} x1={padL} y1={gy} x2={W - padR} y2={gy} className="grid" />
+    <svg className="an2-radar" viewBox="0 0 180 180" role="img" aria-label="Account profile radar">
+      {[0.33, 0.66, 1].map((f) => (
+        <polygon key={f} points={ring(f)} className="an2-radar-ring" />
       ))}
-      {LABELS.map((l, i) => (
-        <text key={l} x={x(i)} y={H - 8} className="axislabel" textAnchor="middle">
-          {l}
-        </text>
+      {values.map((_, i) => (
+        <line key={i} x1={C} y1={C} x2={pt(i, R).split(",")[0]} y2={pt(i, R).split(",")[1]} className="an2-radar-spoke" />
       ))}
-      <path d={area} fill="url(#areaFill)" />
-      <polyline points={nichePts} className="line niche" strokeDasharray="5 5" />
-      <polyline points={youPts} className="line you" />
-      {YOU.map((v, i) => (
-        <circle key={i} cx={x(i)} cy={y(v)} r="3.5" className="dot you">
-          <title>{`${LABELS[i]}: ${v}k followers`}</title>
-        </circle>
-      ))}
-    </svg>
-  );
-}
-
-function BarChart() {
-  const W = 320,
-    H = 240,
-    padL = 10,
-    padR = 10,
-    padT = 14,
-    padB = 30;
-  const plotW = W - padL - padR;
-  const plotH = H - padT - padB;
-  const max = Math.max(...FORMATS.map((f) => f.value));
-  const gap = 16;
-  const bw = (plotW - gap * (FORMATS.length - 1)) / FORMATS.length;
-
-  return (
-    <svg className="svgchart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Engagement rate by content format">
-      {FORMATS.map((f, i) => {
-        const h = (f.value / max) * plotH;
-        const bx = padL + i * (bw + gap);
-        const by = padT + (plotH - h);
+      <polygon points={poly} className="an2-radar-poly" />
+      {values.map((v, i) => {
+        const [x, y] = pt(i, (v / 100) * R).split(",").map(Number);
+        return <circle key={i} cx={x} cy={y} r="2.4" className="an2-radar-dot" />;
+      })}
+      {axes.map((a, i) => {
+        const [x, y] = pt(i, R + 14).split(",").map(Number);
         return (
-          <g key={f.label}>
-            <rect x={bx} y={by} width={bw} height={h} rx="5" className="bar">
-              <title>{`${f.label}: ${f.value}%`}</title>
-            </rect>
-            <text x={bx + bw / 2} y={by - 6} textAnchor="middle" className="barval">
-              {f.value}%
-            </text>
-            <text x={bx + bw / 2} y={H - 10} textAnchor="middle" className="axislabel">
-              {f.label}
-            </text>
-          </g>
+          <text key={a} x={x} y={y + 3} textAnchor="middle" className="an2-radar-label">
+            {a}
+          </text>
         );
       })}
     </svg>
