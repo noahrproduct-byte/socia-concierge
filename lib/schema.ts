@@ -146,27 +146,128 @@ export type SavedPlan = {
   created_at: string;
 };
 
-// "What's working in your niche" — AI-generated, cached per niche.
-export type NicheTrends = {
+// "What's winning in your niche" v2 — the full AI intelligence document.
+// All percentages are the model's own market estimates (the UI labels them
+// as AI-estimated signals); fit fields are personalized when account context
+// was available at generation time.
+export type PulseRow = { label: string; change_pct: number }; // negative = declining
+
+export type NicheIntel = {
+  v: number; // 2 — used to invalidate old cached shapes
   niche: string;
   summary: string;
+  stats: {
+    rising_formats: number;
+    opportunity_hooks: number;
+    competitor_patterns: number;
+    momentum_label: string; // e.g. "POV content"
+    momentum_pct: number;
+  };
+  breakout: {
+    title: string;
+    format: string; // Reel / Carousel / ...
+    momentum_pct: number;
+    cover_line: string; // short overlay text for the concept preview
+    why_moving: string;
+    angle_hook: string; // the actual first line, quoted in the UI
+    velocity: string; // High / Medium / Low
+    competition: string;
+    fit_pct: number; // 0 when no account context was available
+    audience_overlap: string;
+    opportunity: string;
+    why_fits_you: string;
+  };
+  pulse: {
+    formats: PulseRow[];
+    topics: PulseRow[];
+    hooks: PulseRow[];
+  };
   trends: {
     title: string;
-    format: string;
-    whyItWorks: string;
-    exampleHook: string;
-    momentum: string; // "Hot" | "Rising" | "Steady"
+    momentum_pct: number; // negative = cooling
+    why: string;
+    hook: string;
   }[];
-  topHooks: string[];
-  formats: { name: string; note: string }[];
+  actions: { title: string; reason: string }[];
 };
 
-export const nicheTrendsSchema = {
+const pulseRowSchema = {
+  type: "array",
+  items: {
+    type: "object",
+    additionalProperties: false,
+    properties: { label: { type: "string" }, change_pct: { type: "integer" } },
+    required: ["label", "change_pct"],
+  },
+};
+
+export const nicheIntelSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    v: { type: "integer" },
     niche: { type: "string" },
     summary: { type: "string" },
+    stats: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        rising_formats: { type: "integer" },
+        opportunity_hooks: { type: "integer" },
+        competitor_patterns: { type: "integer" },
+        momentum_label: { type: "string" },
+        momentum_pct: { type: "integer" },
+      },
+      required: [
+        "rising_formats",
+        "opportunity_hooks",
+        "competitor_patterns",
+        "momentum_label",
+        "momentum_pct",
+      ],
+    },
+    breakout: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        title: { type: "string" },
+        format: { type: "string" },
+        momentum_pct: { type: "integer" },
+        cover_line: { type: "string" },
+        why_moving: { type: "string" },
+        angle_hook: { type: "string" },
+        velocity: { type: "string" },
+        competition: { type: "string" },
+        fit_pct: { type: "integer" },
+        audience_overlap: { type: "string" },
+        opportunity: { type: "string" },
+        why_fits_you: { type: "string" },
+      },
+      required: [
+        "title",
+        "format",
+        "momentum_pct",
+        "cover_line",
+        "why_moving",
+        "angle_hook",
+        "velocity",
+        "competition",
+        "fit_pct",
+        "audience_overlap",
+        "opportunity",
+        "why_fits_you",
+      ],
+    },
+    pulse: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        formats: pulseRowSchema,
+        topics: pulseRowSchema,
+        hooks: pulseRowSchema,
+      },
+      required: ["formats", "topics", "hooks"],
+    },
     trends: {
       type: "array",
       items: {
@@ -174,24 +275,22 @@ export const nicheTrendsSchema = {
         additionalProperties: false,
         properties: {
           title: { type: "string" },
-          format: { type: "string" },
-          whyItWorks: { type: "string" },
-          exampleHook: { type: "string" },
-          momentum: { type: "string" },
+          momentum_pct: { type: "integer" },
+          why: { type: "string" },
+          hook: { type: "string" },
         },
-        required: ["title", "format", "whyItWorks", "exampleHook", "momentum"],
+        required: ["title", "momentum_pct", "why", "hook"],
       },
     },
-    topHooks: { type: "array", items: { type: "string" } },
-    formats: {
+    actions: {
       type: "array",
       items: {
         type: "object",
         additionalProperties: false,
-        properties: { name: { type: "string" }, note: { type: "string" } },
-        required: ["name", "note"],
+        properties: { title: { type: "string" }, reason: { type: "string" } },
+        required: ["title", "reason"],
       },
     },
   },
-  required: ["niche", "summary", "trends", "topHooks", "formats"],
+  required: ["v", "niche", "summary", "stats", "breakout", "pulse", "trends", "actions"],
 };

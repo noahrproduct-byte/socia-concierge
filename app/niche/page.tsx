@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Link2 } from "lucide-react";
+import { Link2, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
@@ -8,6 +8,9 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import AppShell from "@/components/AppShell";
 import NicheTrends from "@/components/NicheTrends";
 import NicheDetection, { type NicheDetail } from "@/components/NicheDetection";
+import LiveSync from "@/components/LiveSync";
+import DateRangeSelector from "@/components/DateRangeSelector";
+import AccountSwitcher from "@/components/AccountSwitcher";
 
 export const metadata = { title: "Niche Trends — SOCIA" };
 
@@ -41,19 +44,41 @@ export default async function NichePage() {
 
   return (
     <AppShell active="niche" userEmail={user.email}>
-      <div className="page-head">
-        <div>
-          <div className="eyebrow">Niche intelligence</div>
-          <h1>Niche Trends</h1>
-          <p className="page-sub">
-            What&apos;s performing well in your niche right now: formats, hooks, and concepts.
-          </p>
+      {!niche && (
+        <div className="page-head">
+          <div>
+            <div className="eyebrow">Niche intelligence</div>
+            <h1>Niche Trends</h1>
+            <p className="page-sub">
+              What&apos;s performing well in your niche right now: formats, hooks, and concepts.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {niche ? (
         <>
           {/* niche is known → intelligence feed, with the editable indicator */}
+          <div className="dash-header db2-rise">
+            <div>
+              <div className="eyebrow">Niche intelligence</div>
+              <h1 className="dash-greeting nt2-headline">
+                What&apos;s winning in {niche} right now.
+              </h1>
+              <p className="dash-context">
+                SOCIA analyzed the patterns gaining traction across your niche and turned
+                them into ideas you can actually use.
+              </p>
+            </div>
+            <div className="dash-controls">
+              {snap?.last_synced_at && <LiveSync syncedAt={snap.last_synced_at} />}
+              <DateRangeSelector />
+              <AccountSwitcher />
+              <Link href="/chat" className="btn-primary db2-ask">
+                <Sparkles size={15} /> Ask AI Strategist
+              </Link>
+            </div>
+          </div>
           <NicheDetection
             mode="settled"
             niche={niche}
