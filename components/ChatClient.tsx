@@ -6,10 +6,7 @@ import {
   Plus,
   Sparkles,
   Send,
-  Lightbulb,
   TrendingUp,
-  LineChart,
-  CalendarDays,
   Target,
   Compass,
   Activity,
@@ -35,24 +32,19 @@ export type StrategistContext = {
 
 const SUGGESTIONS = [
   {
-    Ico: Lightbulb,
+    n: "01",
     title: "What should I post this week?",
-    desc: "Get 3–5 content ideas tailored to your niche.",
+    desc: "Get ideas based on what's working right now.",
   },
   {
-    Ico: TrendingUp,
-    title: "What's working in my niche right now?",
-    desc: "See the top trends, hooks, and formats moving fast.",
+    n: "02",
+    title: "What's working in my niche?",
+    desc: "See the trends and formats gaining momentum.",
   },
   {
-    Ico: LineChart,
-    title: "Why did my engagement change this week?",
-    desc: "Analyze the shift and get exact ways to respond.",
-  },
-  {
-    Ico: CalendarDays,
-    title: "Give me a 7-day content plan",
-    desc: "A day-by-day plan designed around your audience.",
+    n: "03",
+    title: "Why did my performance change?",
+    desc: "Understand what moved and what to do next.",
   },
 ];
 
@@ -68,9 +60,9 @@ function ago(iso: string): string {
 export default function ChatClient({ context }: { context: StrategistContext }) {
   const welcome: Msg = {
     role: "assistant",
-    content: `Hi${context.name ? ` ${context.name}` : ""}! I'm your SOCIA strategist. I know your ${
+    content: `Hi${context.name ? ` ${context.name}` : ""}! I'm your SOCIA strategist. I already know your ${
       context.niche ? `niche (${context.subNiche || context.niche}), ` : "niche, "
-    }goals, and what's working (and what's not). Ask me anything about content, strategy, or growth.`,
+    }your performance, and what's moving right now. What do you want to figure out?`,
   };
 
   const [messages, setMessages] = useState<Msg[]>([welcome]);
@@ -152,15 +144,12 @@ export default function ChatClient({ context }: { context: StrategistContext }) 
 
   const fresh = messages.length <= 1;
   const chips = [
-    context.niche && { Ico: Compass, label: "Knows your niche", value: context.subNiche || context.niche },
-    context.username && {
-      Ico: Activity,
-      label: "Tracks your numbers",
-      value: `Live from @${context.username}`,
-    },
-    { Ico: TrendingUp, label: "Watches your niche", value: "Trend & format intelligence" },
-    context.goal && { Ico: Target, label: "Understands your goals", value: context.goal },
-  ].filter(Boolean) as { Ico: typeof Compass; label: string; value: string }[];
+    context.niche && { Ico: Compass, value: context.subNiche || context.niche },
+    context.username && { Ico: Activity, value: "Live account data" },
+    { Ico: TrendingUp, value: "Niche intelligence" },
+    context.goal && { Ico: Target, value: `Goal: ${context.goal}` },
+  ].filter(Boolean) as { Ico: typeof Compass; value: string }[];
+  const trending = context.insights.find((i) => i.tone === "green");
 
   return (
     <div className="ch2">
@@ -175,15 +164,11 @@ export default function ChatClient({ context }: { context: StrategistContext }) 
         </div>
       </div>
       {chips.length > 0 && (
-        <div className="ch2-chips">
-          {chips.map(({ Ico, label, value }) => (
-            <div className="ch2-chip" key={label}>
-              <span className="ch2-chip-ico"><Ico size={14} /></span>
-              <span className="ch2-chip-meta">
-                <b>{label}</b>
-                <small>{value}</small>
-              </span>
-            </div>
+        <div className="ch2-strip">
+          {chips.map(({ Ico, value }) => (
+            <span className="ch2-status" key={value}>
+              <Ico size={12} /> {value}
+            </span>
           ))}
         </div>
       )}
@@ -231,11 +216,14 @@ export default function ChatClient({ context }: { context: StrategistContext }) 
               <div className="ch2-suggest">
                 <small className="ch2-suggest-label">Suggested for you</small>
                 <div className="ch2-suggest-grid">
-                  {SUGGESTIONS.map(({ Ico, title, desc }) => (
+                  {SUGGESTIONS.map(({ n, title, desc }) => (
                     <button key={title} className="ch2-sug" onClick={() => send(title)} type="button">
-                      <span className="ch2-sug-ico"><Ico size={15} /></span>
-                      <b>{title}</b>
-                      <small>{desc}</small>
+                      <span className="ch2-sug-num">{n}</span>
+                      <span className="ch2-sug-meta">
+                        <b>{title}</b>
+                        <small>{desc}</small>
+                      </span>
+                      <ArrowRight size={15} className="ch2-sug-arrow" />
                     </button>
                   ))}
                 </div>
@@ -267,48 +255,36 @@ export default function ChatClient({ context }: { context: StrategistContext }) 
           <p className="ch2-disclaimer">SOCIA can make mistakes. Always review before publishing.</p>
         </div>
 
-        {/* intelligence rail */}
+        {/* one compact live-context panel */}
         <aside className="ch2-rail">
           <section className="ch2-panel">
-            <small className="ch2-panel-label">Your account context</small>
+            <small className="ch2-panel-label">Live context</small>
             <div className="ch2-ctx">
-              {context.goal && (
-                <div><span><Target size={13} /> Primary goal</span><b>{context.goal}</b></div>
-              )}
               {context.niche && (
                 <div><span><Compass size={13} /> Niche</span><b>{context.subNiche || context.niche}</b></div>
               )}
               {context.engRate && (
-                <div><span><Activity size={13} /> Avg. engagement</span><b>{context.engRate}</b></div>
+                <div><span><Activity size={13} /> Engagement</span><b>{context.engRate}</b></div>
               )}
               {context.bestTime && (
-                <div><span><Clock size={13} /> Best time to post</span><b>{context.bestTime}</b></div>
+                <div><span><Clock size={13} /> Best time</span><b>{context.bestTime}</b></div>
+              )}
+              {context.goal && (
+                <div><span><Target size={13} /> Goal</span><b>{context.goal}</b></div>
               )}
             </div>
-            <Link href="/analytics" className="ch2-rail-link">
-              View full account snapshot <ArrowRight size={12} />
-            </Link>
-          </section>
-
-          <section className="ch2-panel">
-            <small className="ch2-panel-label">Recent insights</small>
-            {context.insights.length > 0 ? (
-              <div className="ch2-insights">
-                {context.insights.map((ins) => (
-                  <div className="ch2-ins" key={ins.text.slice(0, 24)}>
-                    <span className={`ch2-ins-ico ${ins.tone}`}><Zap size={12} /></span>
-                    <span className="ch2-ins-meta">
-                      <p>{ins.text}</p>
-                      <small className={ins.tone}>{ins.sub}</small>
-                    </span>
-                  </div>
-                ))}
+            {trending && (
+              <div className="ch2-trending">
+                <span className="ch2-ins-ico green"><Zap size={12} /></span>
+                <span className="ch2-ins-meta">
+                  <small className="ch2-trending-label">Trending now</small>
+                  <p>{trending.text}</p>
+                  <small className="green">{trending.sub}</small>
+                </span>
               </div>
-            ) : (
-              <p className="ch2-ins-empty">Your niche briefing builds insights here.</p>
             )}
-            <Link href="/niche" className="ch2-rail-link">
-              Explore Niche Trends <ArrowRight size={12} />
+            <Link href="/analytics" className="ch2-rail-link">
+              View account snapshot <ArrowRight size={12} />
             </Link>
           </section>
         </aside>

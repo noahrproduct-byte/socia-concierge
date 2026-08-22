@@ -8730,3 +8730,43 @@ a.hub-card:hover {
   .ch2-typing span { animation: none; opacity: 0.7; }
   .ch2-sug { transition: none; }
 }
+
+/* ============================================================
+   AI Strategist v2.1 — simplified: strip, three prompts, one panel
+   ============================================================ */
+/* subtle ambient lighting */
+.ch2 {
+  background:
+    radial-gradient(520px 300px at 18% 0%, rgba(37, 99, 255, 0.09), transparent 65%),
+    radial-gradient(420px 320px at 100% 100%, rgba(37, 99, 255, 0.05), transparent 60%),
+    linear-gradient(150deg, #0a0f1e, #0c1428 55%, #0e1830);
+}
+
+/* one horizontal status strip */
+.ch2-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 14px 0 18px; }
+.ch2-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  padding: 6px 13px;
+}
+.ch2-status svg { color: #8ab4ff; }
+
+/* three strong prompts as rows */
+.ch2-suggest-grid { grid-template-columns: 1fr; gap: 9px; max-width: 560px; }
+.ch2-sug { display: flex; align-items: center; gap: 15px; padding: 13px 17px; }
+.ch2-sug-num { flex-shrink: 0; font-size: 12px; font-weight: 780; color: #8ab4ff; font-variant-numeric: tabular-nums; }
+.ch2-sug-meta { flex: 1; min-width: 0; }
+.ch2-sug-meta b { margin-bottom: 2px; }
+.ch2-sug-arrow { flex-shrink: 0; color: rgba(255, 255, 255, 0.3); transition: transform 0.2s, color 0.2s; }
+.ch2-sug:hover .ch2-sug-arrow { transform: translateX(3px); color: #8ab4ff; }
+
+/* trending row in the single live-context panel */
+.ch2-trending { display: flex; align-items: flex-start; gap: 10px; margin-top: 11px; padding-top: 11px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.ch2-trending-label { display: block; font-size: 9px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.38); margin-bottom: 2px; }
