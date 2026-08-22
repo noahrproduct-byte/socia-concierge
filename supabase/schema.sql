@@ -134,3 +134,7 @@ alter table public.instagram_connections
   add column if not exists followers_count integer,
   add column if not exists media_count integer,
   add column if not exists last_synced_at timestamptz;
+
+-- Niche detection hierarchy (additive; the app degrades gracefully without these)
+alter table public.profiles add column if not exists niche_detail jsonb;
+alter table public.profiles add column if not exists niche_analyzed_at timestamptz;

@@ -7464,3 +7464,118 @@ a.hub-card:hover {
 .dash-header > *, .chart-card, .card {
   min-width: 0;
 }
+
+/* ============================================================
+   Niche detection (nd-) — SOCIA asks only when it cannot know
+   ============================================================ */
+.nd-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 28px 30px;
+  box-shadow: 0 1px 2px rgba(15, 17, 21, 0.04);
+  max-width: 640px;
+}
+.nd-card.center { text-align: center; margin: 40px auto; }
+.nd-title { font-size: 20px; font-weight: 750; letter-spacing: -0.4px; margin-bottom: 6px; }
+.nd-sub { font-size: 13.5px; line-height: 1.6; color: var(--slate); margin-bottom: 16px; max-width: 46ch; }
+.nd-card.center .nd-sub { margin: 0 auto 16px; }
+
+/* analyzing */
+.nd-orb { position: relative; display: inline-grid; place-items: center; width: 64px; height: 64px; margin-bottom: 14px; }
+.nd-orb::before, .nd-orb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 99, 255, 0.25);
+  animation: nd-ripple 2.2s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+.nd-orb::after { animation-delay: 1.1s; }
+@keyframes nd-ripple {
+  0% { transform: scale(0.7); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+.nd-steps { list-style: none; display: flex; flex-direction: column; gap: 9px; width: max-content; margin: 6px auto 0; text-align: left; }
+.nd-steps li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #9aa1ad; transition: color 0.25s; }
+.nd-steps li.active { color: var(--charcoal); }
+.nd-steps li.done { color: var(--charcoal); }
+.nd-step-dot { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 999px; border: 1.5px solid var(--silver); color: #fff; flex-shrink: 0; }
+.nd-steps li.done .nd-step-dot { background: var(--success); border-color: var(--success); }
+.nd-steps li.active .nd-step-dot { border-color: var(--accent); color: var(--accent); }
+
+/* detected */
+.nd-found { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 750; color: var(--success); background: rgba(22, 163, 74, 0.09); padding: 5px 12px; border-radius: 999px; margin-bottom: 16px; }
+.nd-result { margin-bottom: 10px; }
+.nd-niche { font-size: 26px; font-weight: 780; letter-spacing: -0.7px; }
+.nd-subniche { font-size: 15px; font-weight: 650; color: var(--accent); margin-top: 2px; }
+.nd-style { font-size: 12.5px; color: var(--slate); margin-top: 3px; }
+.nd-signals { margin: 14px 0; }
+.nd-signals small { display: block; font-size: 10px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: #9aa1ad; margin-bottom: 8px; }
+.nd-signals > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.nd-signal { font-size: 12px; font-weight: 600; color: var(--charcoal); background: var(--ivory); border: 1px solid var(--line); padding: 4px 11px; border-radius: 999px; }
+.nd-confbar { margin: 4px 0 18px; }
+.nd-confbar small { display: block; font-size: 11px; font-weight: 700; color: var(--slate); margin-bottom: 6px; }
+.nd-confbar span { display: block; height: 6px; border-radius: 999px; background: var(--silver); overflow: hidden; }
+.nd-confbar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--cobalt), var(--sky)); transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+.nd-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+/* low confidence candidates */
+.nd-cands { display: flex; flex-direction: column; gap: 10px; margin-bottom: 6px; }
+.nd-cand {
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 13px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.2s;
+}
+.nd-cand:hover { border-color: rgba(37, 99, 255, 0.45); background: var(--accent-soft); transform: translateY(-1px); }
+.nd-cand b { display: block; font-size: 14px; margin-bottom: 2px; }
+.nd-cand small { font-size: 12px; color: var(--slate); line-height: 1.5; }
+
+/* describe */
+.nd-label { display: block; font-size: 12.5px; font-weight: 650; margin-bottom: 6px; }
+.nd-input { width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; font-size: 14px; font-family: inherit; resize: vertical; margin-bottom: 14px; }
+.nd-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 255, 0.12); }
+.nd-orlabel { display: flex; align-items: center; gap: 12px; margin: 20px 0 12px; font-size: 11px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa1ad; }
+.nd-orlabel::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.nd-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.nd-opt {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 15px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--charcoal);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.nd-opt:hover { border-color: rgba(37, 99, 255, 0.45); background: var(--accent-soft); color: var(--accent); }
+.nd-opt:disabled { opacity: 0.5; cursor: wait; }
+.nd-err { margin-top: 10px; font-size: 12.5px; color: var(--danger); }
+.nd-foot { margin-top: 18px; font-size: 12px; color: #9aa1ad; }
+.nd-foot a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+/* settled chip */
+.nd-chip-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.nd-chip { display: inline-flex; align-items: baseline; gap: 9px; background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; }
+.nd-chip small { font-size: 10px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: #9aa1ad; }
+.nd-chip b { font-size: 13px; }
+.nd-chip b span { color: var(--accent); }
+.nd-mini { display: inline-flex; align-items: center; gap: 5px; background: none; border: none; font-size: 12.5px; font-weight: 650; color: var(--accent); cursor: pointer; padding: 4px 6px; border-radius: 7px; }
+.nd-mini:hover { background: var(--accent-soft); }
+.nd-mini.mt { margin-top: 12px; }
+.nd-conf { font-size: 11px; color: #9aa1ad; }
+
+@media (max-width: 560px) {
+  .nd-card { padding: 22px 18px; }
+  .nd-actions .btn-primary { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nd-orb::before, .nd-orb::after { animation: none; opacity: 0.4; transform: none; }
+  .nd-confbar i { transition: none; }
+}
