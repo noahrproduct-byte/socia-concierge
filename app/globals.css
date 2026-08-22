@@ -1029,7 +1029,7 @@ section.block > h3 {
 /* ---------- app shell (sidebar + main) ---------- */
 .app {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
   background: var(--ivory);
 }
@@ -2327,7 +2327,7 @@ a.hub-card:hover {
 
 /* ---------- refined sidebar ---------- */
 .app {
-  grid-template-columns: 248px 1fr;
+  grid-template-columns: 248px minmax(0, 1fr);
 }
 .side {
   padding: 18px 14px;
@@ -6991,7 +6991,8 @@ a.hub-card:hover {
    App shell — mobile navigation (sidebar becomes a top bar)
    ============================================================ */
 @media (max-width: 860px) {
-  .app { grid-template-columns: 1fr; }
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .side, .app-main { min-width: 0; max-width: 100%; }
   .side {
     position: sticky;
     top: 0;
