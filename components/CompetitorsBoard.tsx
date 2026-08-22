@@ -136,6 +136,9 @@ export default function CompetitorsBoard({
                   <span><b>{o.views}</b> views</span>
                   <span><b>{o.saves}</b> saves</span>
                 </div>
+                <Link href="/tool" className="cp2-out-cta" onClick={(e) => e.stopPropagation()}>
+                  Turn this into a post <ArrowRight size={12} />
+                </Link>
               </div>
             </article>
           ))}

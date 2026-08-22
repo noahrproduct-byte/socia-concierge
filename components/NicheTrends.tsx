@@ -126,10 +126,10 @@ function placeLabels(dots: MapDot[]) {
     ...dots.map((d) => ({ l: d.x - 10, t: d.y - 10, r: d.x + 10, b: d.y + 10 })),
   ];
   return dots.map((d) => {
-    const natural = d.full.length * 6.4 + 10;
+    const natural = d.full.length * 6.8 + 12;
     const w = Math.min(150, natural);
     const lines = natural > 150 ? 2 : 1;
-    const h = lines * 15 + 16 + (d.hot ? 20 : 0);
+    const h = lines * 16 + 18 + (d.hot ? 22 : 0);
     const cands: [number, number, string][] = [
       [d.x + 13, d.y - h / 2, "r"],
       [d.x - 13 - w, d.y - h / 2, "l"],
@@ -142,14 +142,15 @@ function placeLabels(dots: MapDot[]) {
     ];
     let pick: [number, number, string] = cands[0];
     for (const c of cands) {
-      const box: Box = { l: c[0], t: c[1], r: c[0] + w, b: c[1] + h };
-      const inside = box.l >= 4 && box.r <= MW - 4 && box.t >= 4 && box.b <= MH - 4;
+      // Inflate by a safety margin so estimate drift can't create contact.
+      const box: Box = { l: c[0] - 4, t: c[1] - 4, r: c[0] + w + 4, b: c[1] + h + 4 };
+      const inside = box.l >= 0 && box.r <= MW && box.t >= 0 && box.b <= MH;
       if (inside && !placed.some((p) => hits(p, box))) {
         pick = c;
         break;
       }
     }
-    placed.push({ l: pick[0], t: pick[1], r: pick[0] + w, b: pick[1] + h });
+    placed.push({ l: pick[0] - 4, t: pick[1] - 4, r: pick[0] + w + 4, b: pick[1] + h + 4 });
     return { ...d, lx: pick[0], ly: pick[1], lw: w, side: pick[2] };
   });
 }
@@ -687,6 +688,15 @@ function OpportunityMap({
                     {d.momentum >= 0 ? "+" : ""}{d.momentum}% momentum
                   </span>
                   {d.hot && <span className="nt2m-badge">Breakout</span>}
+                </div>
+                <div className={`nt2m-tip ${d.y < MH * 0.35 ? "below" : ""}`} style={{ left: pct(d.x, MW), top: pct(d.y, MH) }}>
+                  <b>{d.full}</b>
+                  <div className="nt2m-tip-rows">
+                    <span>Momentum <em>{d.momentum >= 0 ? "+" : ""}{d.momentum}%</em></span>
+                    <span>Competition <em>{d.competition}</em></span>
+                    {d.hot && personalized && <span>Account fit <em>{fitPct}%</em></span>}
+                    <span>Status <em>{KIND_LABEL[kind].split(" ")[0]}</em></span>
+                  </div>
                 </div>
               </div>
             );
