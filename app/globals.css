@@ -7455,3 +7455,12 @@ a.hub-card:hover {
   .cp2-tline { stroke-dashoffset: 0 !important; }
   .an2-reveal.in .cp2-ring-fill, .cp2-ring-fill { stroke-dashoffset: var(--target) !important; }
 }
+
+/* Grid/flex children must never propagate their content's min-width and
+   widen the layout — the standard min-width:0 guard, applied to every
+   app-area grid whose tracks collapse on smaller screens. */
+.dash-2col > *, .panel-grid > *, .kpi-row > *, .stat-grid > *,
+.cp2-columns > *, .an2-bench-grid > *, .db2-score > *, .cp2-pos-grid > *,
+.dash-header > *, .chart-card, .card {
+  min-width: 0;
+}
