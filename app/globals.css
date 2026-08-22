@@ -6986,3 +6986,45 @@ a.hub-card:hover {
   .db2-score-glow { display: none; }
   .db2-kpi, .action { transition: none; }
 }
+
+/* ============================================================
+   App shell — mobile navigation (sidebar becomes a top bar)
+   ============================================================ */
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .side {
+    position: sticky;
+    top: 0;
+    height: auto;
+    z-index: 40;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .side-sec, .side-channels, .side-upgrade { display: none; }
+  .side-logo { margin: 0; padding: 0; flex-shrink: 0; }
+  .side-nav {
+    flex-direction: row;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    gap: 4px;
+    padding: 2px;
+    scrollbar-width: none;
+  }
+  .side-nav::-webkit-scrollbar { display: none; }
+  .side-link { flex-shrink: 0; padding: 8px 12px; font-size: 13px; white-space: nowrap; }
+  .side-link.active::before { display: none; }
+  .side-foot { margin: 0; padding: 0; border: none; flex-shrink: 0; }
+  .acct-menu {
+    top: calc(100% + 8px);
+    bottom: auto;
+    left: auto;
+    right: 0;
+    min-width: 200px;
+  }
+  .app-main { padding: 20px 16px 56px; }
+}
