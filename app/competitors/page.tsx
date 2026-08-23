@@ -17,11 +17,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
-import CompetitorsBoard, {
-  ExportButton,
-  type Tracked,
-  type Outlier,
-} from "@/components/CompetitorsBoard";
+import { ExportButton, NicheViral } from "@/components/CompetitorsBoard";
 import { Reveal } from "@/components/AnalyticsCharts";
 import CountUp from "@/components/CountUp";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
@@ -39,20 +35,9 @@ import type { BrandDetail } from "@/lib/profile";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
-// ------------------------------------------------------------------
-// The competitor strip is ILLUSTRATIVE (labeled "Examples" in the UI):
-// SOCIA's Instagram integration cannot read other accounts, so no real
-// competitor records exist yet. Everything else on this page is computed
-// from the user's own synced posts via lib/metrics.
-// ------------------------------------------------------------------
-const TRACKED: Tracked[] = [
-  { handle: "@cheese.pull.daily", followers: "89K", eng: "4.7%", momentum: 6, spark: [3, 4, 3, 5, 6, 6, 8], avatar: "/brand/comp/a1.jpg" },
-  { handle: "@trendy.slice", followers: "112K", eng: "5.1%", momentum: 5, spark: [4, 4, 5, 5, 6, 7, 7], avatar: "/brand/comp/a2.jpg" },
-  { handle: "@rival.pizza", followers: "48.2K", eng: "3.8%", momentum: 3, spark: [3, 3, 4, 3, 4, 4, 5], avatar: "/brand/comp/a3.jpg" },
-  { handle: "@nyc.pizza.tour", followers: "320K", eng: "6.2%", momentum: 4, spark: [5, 6, 5, 6, 7, 7, 8], avatar: "/brand/comp/a4.jpg" },
-  { handle: "@dough.diaries", followers: "27.5K", eng: "2.9%", momentum: 2, spark: [3, 2, 3, 3, 3, 4, 4], avatar: "/brand/comp/a5.jpg" },
-];
-
+// Everything on this page is either computed from the user's own synced
+// posts via lib/metrics, or (the viral section) real posts found by live
+// web search. No fictional data remains.
 const FMT: Record<string, { label: string; singular: string; chip: string }> = {
   VIDEO: { label: "Reels", singular: "Reel", chip: "REEL" },
   CAROUSEL_ALBUM: { label: "Carousels", singular: "Carousel", chip: "CAROUSEL" },
@@ -72,8 +57,6 @@ function ago(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.round(hrs / 24)}d ago`;
 }
-
-const TONES = ["amber", "blue", "green", "purple"] as const;
 
 export default async function CompetitorsPage() {
   const supabase = await createClient();
@@ -110,66 +93,9 @@ export default async function CompetitorsPage() {
   }
   const typeMedian = (t: string) => median((byType.get(t) ?? []).map(engagementOf));
 
-  // Account-level comment share, for outlier evidence.
   const totalLikes = posts.reduce((a, p) => a + (p.like_count ?? 0), 0);
   const totalComments = posts.reduce((a, p) => a + (p.comments_count ?? 0), 0);
   const totalEng = totalLikes + totalComments;
-  const commentShare = totalEng > 0 ? totalComments / totalEng : null;
-
-  // ---- outliers: the user's posts ≥1.5× their comparable median ----------
-  const outliers: Outlier[] = [];
-  if (enough) {
-    const scored = posts
-      .map((p) => {
-        const t = p.media_type ?? "IMAGE";
-        const sameType = byType.get(t) ?? [];
-        const useType = sameType.length >= 3;
-        const baseline = useType ? typeMedian(t) : overallMedian;
-        const mult = outlierMultiplier(engagementOf(p), baseline);
-        const basis = useType
-          ? `Compared with the median of your ${sameType.length} ${FMT[t]?.label.toLowerCase() ?? "posts"}.`
-          : `Compared with your overall median across ${N} posts.`;
-        const basisShort = useType
-          ? `the median of your ${sameType.length} ${FMT[t]?.label.toLowerCase() ?? "posts"}`
-          : `your overall median (${N} posts)`;
-        return { p, mult, basis, basisShort };
-      })
-      .filter((s): s is typeof s & { mult: number } => s.mult != null && s.mult >= 1.5)
-      .sort((a, b) => b.mult - a.mult)
-      .slice(0, 4);
-
-    scored.forEach(({ p, mult, basis, basisShort }, i) => {
-      const t = p.media_type ?? "IMAGE";
-      const eng = engagementOf(p);
-      const postCommentShare = eng > 0 ? (p.comments_count ?? 0) / eng : 0;
-      const bits = [`${fmtMult(mult)} ${basisShort}`];
-      if (commentShare != null && postCommentShare > commentShare * 2 && (p.comments_count ?? 0) >= 5) {
-        bits.push("unusually strong comment pull");
-      }
-      outliers.push({
-        title: (p.caption?.split("\n")[0].trim().slice(0, 64) || `${FMT[t]?.singular ?? "Post"}`),
-        img: p.media_type === "VIDEO" ? p.thumbnail_url ?? p.media_url ?? null : p.media_url ?? null,
-        permalink: p.permalink ?? null,
-        format: FMT[t]?.chip ?? "POST",
-        isVideo: t === "VIDEO",
-        mult: fmtMult(mult),
-        basis,
-        evidence: bits.join(" · ") + ".",
-        likes: p.like_count ?? null,
-        comments: p.comments_count ?? null,
-        tone: TONES[i % TONES.length],
-      });
-    });
-  }
-
-  const filterNote = enough
-    ? `Posts at 1.5×+ your median · last ${N} posts${synced ? ` · synced ${synced}` : ""}`
-    : "Needs at least 5 synced posts";
-  const emptyNote = !snap
-    ? "Connect your Instagram and your real outliers appear here."
-    : !enough
-      ? `Not enough history yet — SOCIA has ${N} synced post${N === 1 ? "" : "s"} and needs 5.`
-      : "No outliers right now — nothing in your recent posts is beating 1.5× your median.";
 
   // ---- format performance rows -------------------------------------------
   type TrendRow = {
@@ -330,9 +256,7 @@ export default async function CompetitorsPage() {
     const bestRatio = best && overallMedian ? (typeMedian(best.t) ?? 0) / overallMedian : null;
     takeaway =
       best && bestRatio && bestRatio > 1.1
-        ? `${best.label} are doing the heavy lifting — ${fmtMult(bestRatio)} your overall median across your last ${N} posts. ${
-            outliers[0] ? `Turn “${outliers[0].title}” into a repeatable series.` : "Double down there this week."
-          }`
+        ? `${best.label} are doing the heavy lifting — ${fmtMult(bestRatio)} your overall median across your last ${N} posts. Double down there this week.`
         : `Your formats perform evenly across your last ${N} posts — your biggest lever is cadence and stronger openers.`;
   }
 
@@ -353,7 +277,26 @@ export default async function CompetitorsPage() {
           </div>
         </div>
 
-        <CompetitorsBoard tracked={TRACKED} outliers={outliers} filterNote={filterNote} emptyNote={emptyNote}>
+        <div className="cp3-cols">
+          {/* viral posts from other creators in the niche — real, web-found */}
+          <section className="cp3-outcard">
+            <div className="cp3-card-head">
+              <h3>
+                Viral in your niche{" "}
+                <span
+                  className="cp3-info"
+                  title="Real short-form posts by other creators, found by live web search and linked to the originals. View counts appear only when the platform page reported them; the 'why' line is AI interpretation."
+                >
+                  <Info size={12} />
+                </span>
+              </h3>
+              <span className="cp3-filter">
+                Other creators · not your account{synced ? ` · your data synced ${synced}` : ""}
+              </span>
+            </div>
+            <NicheViral />
+          </section>
+
           {/* center intelligence column */}
           <div className="cp3-center">
             <Reveal className="cp3-panel">
@@ -559,7 +502,7 @@ export default async function CompetitorsPage() {
               </Link>
             </Reveal>
           </aside>
-        </CompetitorsBoard>
+        </div>
 
         {/* smart takeaway — templated from the real calculations above */}
         <Reveal className="cp3-takeaway" delay={150}>

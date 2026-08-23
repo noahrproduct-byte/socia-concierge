@@ -1,54 +1,21 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  ChevronLeft,
-  ChevronRight,
   Play,
-  Layers,
   ArrowRight,
   Download,
-  Heart,
-  MessageCircle,
   Image as ImageIcon,
-  Info,
+  ExternalLink,
+  Loader2,
+  AtSign,
 } from "lucide-react";
+import type { ViralDoc, ViralItem } from "@/app/api/niche-viral/route";
 
-// Competitor strip (labeled examples — SOCIA has no competitor data access
-// yet) + the user's REAL outlier posts, computed from their synced media.
-
-const IgGlyph = (
-  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#d92e7f" strokeWidth="2.4" className="cp3-acct-ig" aria-hidden>
-    <rect x="3" y="3" width="18" height="18" rx="5" />
-    <circle cx="12" cy="12" r="4" />
-    <circle cx="17.5" cy="6.5" r="1.4" fill="#d92e7f" stroke="none" />
-  </svg>
-);
-
-export type Tracked = {
-  handle: string;
-  followers: string;
-  eng: string;
-  momentum: number;
-  spark: number[];
-  avatar?: string | null;
-};
-
-// A real post from the user's own account, with its computed outlier math.
-export type Outlier = {
-  title: string; // first caption line (or format label)
-  img: string | null;
-  permalink: string | null;
-  format: string; // REEL / CAROUSEL / STATIC
-  isVideo: boolean;
-  mult: string; // e.g. "4.1×" — engagement vs same-format median
-  basis: string; // tooltip: what the multiplier was compared against
-  evidence: string; // factual, calculated line — no invented claims
-  likes: number | null;
-  comments: number | null;
-  tone: "amber" | "blue" | "green" | "purple";
-};
+// Competitors page client pieces. The old fictional competitor strip is gone;
+// "Viral in your niche" shows REAL posts by other creators, discovered via
+// live web search on the server (see /api/niche-viral for the honesty rules).
 
 /** Print the page — the same lightweight export the plan report uses. */
 export function ExportButton() {
@@ -59,185 +26,138 @@ export function ExportButton() {
   );
 }
 
-function MiniSpark({ data }: { data: number[] }) {
-  const W = 58;
-  const H = 20;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const span = max - min || 1;
-  const pts = data
-    .map((v, i) => `${(i / (data.length - 1)) * W},${H - 2 - ((v - min) / span) * (H - 4)}`)
-    .join(" ");
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="cp3-spark" aria-hidden preserveAspectRatio="none">
-      <polyline
-        points={pts}
-        fill="none"
-        stroke="var(--cobalt)"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-        pathLength={100}
-        className="cp3-sparkline"
-      />
-    </svg>
-  );
+const TONES = ["amber", "blue", "green", "purple"] as const;
+
+function ago(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
 }
 
-function OutlierMedia({ o }: { o: Outlier }) {
+function ViralCard({ item, tone, delay }: { item: ViralItem; tone: string; delay: number }) {
   const [broken, setBroken] = useState(false);
-  const body = (
-    <div className={`cp3-out-media${!o.img || broken ? " ph" : ""}`}>
-      {o.img && !broken ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={o.img} alt="" loading="lazy" onError={() => setBroken(true)} />
-      ) : (
-        <span className="cp3-media-ph" aria-hidden>
-          <ImageIcon size={26} />
-        </span>
-      )}
-      <span className={`cp3-mult ${o.tone}`} title={o.basis}>
-        {o.mult} median
-      </span>
-      <span className="cp3-play" aria-hidden>
-        {o.isVideo ? <Play size={14} fill="currentColor" /> : <Layers size={14} />}
-      </span>
-    </div>
-  );
-  // Clicking opens the real post on Instagram when we have its permalink.
-  return o.permalink ? (
-    <a href={o.permalink} target="_blank" rel="noreferrer" aria-label="Open this post on Instagram">
-      {body}
-    </a>
-  ) : (
-    body
+  return (
+    <article className="cp3-out" style={{ animationDelay: `${delay}ms` }}>
+      <a href={item.url} target="_blank" rel="noreferrer" aria-label="Watch the original post">
+        <div className={`cp3-out-media${!item.thumb || broken ? " ph" : ""}`}>
+          {item.thumb && !broken ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.thumb} alt="" loading="lazy" onError={() => setBroken(true)} />
+          ) : (
+            <span className="cp3-media-ph" aria-hidden>
+              <ImageIcon size={26} />
+            </span>
+          )}
+          <span
+            className={`cp3-mult ${tone}`}
+            title={
+              item.views
+                ? "View count as reported by the platform page where SOCIA found this — not independently verified."
+                : "The platform didn't report a view count in what SOCIA read, so none is shown."
+            }
+          >
+            {item.views ? `${item.views} views` : item.platform === "tiktok" ? "TikTok" : "Shorts"}
+          </span>
+          <span className="cp3-play" aria-hidden>
+            <Play size={14} fill="currentColor" />
+          </span>
+        </div>
+      </a>
+      <div className="cp3-out-body">
+        <div className="cp3-out-top">
+          <b title={item.title}>{item.title || "Untitled post"}</b>
+          <span className="cp3-fmt">{item.platform === "tiktok" ? "TIKTOK" : "SHORTS"}</span>
+        </div>
+        <p
+          className="cp3-why"
+          title="AI interpretation of a real post SOCIA found — not a measured statistic."
+        >
+          <span>Why it&apos;s working:</span> {item.why}
+        </p>
+        <div className="cp3-out-metrics">
+          <span>
+            <AtSign size={12} /> <b>{item.creator.replace(/^@/, "")}</b>
+          </span>
+          <a className="cp3-watch" href={item.url} target="_blank" rel="noreferrer">
+            <ExternalLink size={11} /> Watch original
+          </a>
+        </div>
+        <Link href="/tool" className="cp3-out-cta">
+          Turn this into a post <ArrowRight size={12} />
+        </Link>
+      </div>
+    </article>
   );
 }
 
-export default function CompetitorsBoard({
-  tracked,
-  outliers,
-  filterNote,
-  emptyNote,
-  children,
-}: {
-  tracked: Tracked[];
-  outliers: Outlier[];
-  /** Honest description of the outlier calculation + data freshness. */
-  filterNote: string;
-  /** Shown when there are no qualifying outliers (or no data). */
-  emptyNote?: string | null;
-  /** Center + right intelligence columns, rendered by the page. */
-  children?: React.ReactNode;
-}) {
-  const railRef = useRef<HTMLDivElement>(null);
+export function NicheViral() {
+  const [doc, setDoc] = useState<ViralDoc | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  function scrollRail(dir: 1 | -1) {
-    railRef.current?.scrollBy({ left: dir * 280, behavior: "smooth" });
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    fetch("/api/niche-viral")
+      .then(async (r) => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || "Search failed.");
+        setDoc(j as ViralDoc);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "Search failed."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(load, [load]);
+
+  if (loading) {
+    return (
+      <>
+        <div className="cp3-outgrid">
+          {[0, 1, 2, 3].map((i) => (
+            <div className="cp3-out cp3-skel" key={i} style={{ animationDelay: `${i * 70}ms` }}>
+              <div className="cp3-out-media" />
+              <div className="cp3-out-body">
+                <span className="cp3-skel-line w60" />
+                <span className="cp3-skel-line" />
+                <span className="cp3-skel-line w80" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="cp3-nodata">
+          <Loader2 size={13} className="spin" style={{ verticalAlign: -2, marginRight: 6 }} />
+          Searching the open web for what&apos;s genuinely viral in your niche — about 20–40s on the
+          first load of the day.
+        </p>
+      </>
+    );
+  }
+
+  if (error || !doc) {
+    return (
+      <div className="cp3-nodata">
+        {error ?? "Couldn't load viral posts."}{" "}
+        <button className="cp3-retry" type="button" onClick={load}>
+          Try again
+        </button>
+      </div>
+    );
   }
 
   return (
     <>
-      {/* competitor strip — illustrative examples until live tracking ships */}
-      <div className="cp3-stripwrap">
-        <span
-          className="cp3-demo-chip"
-          title="Illustrative example accounts. SOCIA can't read competitor accounts until live tracking ships with the Growth plan."
-        >
-          Examples
-        </span>
-        <button className="cp3-railbtn l" onClick={() => scrollRail(-1)} aria-label="Scroll competitors left" type="button">
-          <ChevronLeft size={15} />
-        </button>
-        <div className="cp3-strip" ref={railRef}>
-          {tracked.map((c, i) => (
-            <div
-              key={c.handle}
-              className="cp3-acct"
-              style={{ animationDelay: `${i * 60}ms` }}
-              title="Example account — not real competitor data"
-            >
-              {c.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="cp3-avatar" src={c.avatar} alt="" width={40} height={40} loading="lazy" />
-              ) : (
-                <span className="cp3-avatar ph">{c.handle.replace("@", "")[0].toUpperCase()}</span>
-              )}
-              <span className="cp3-acct-meta">
-                <b>
-                  {IgGlyph} {c.handle}
-                </b>
-                <small>{c.followers} followers</small>
-                <small className="cp3-eng">
-                  Eng. {c.eng} <em>▲ {c.momentum}%</em>
-                </small>
-              </span>
-              <MiniSpark data={c.spark} />
-            </div>
-          ))}
-        </div>
-        <button className="cp3-railbtn r" onClick={() => scrollRail(1)} aria-label="Scroll competitors right" type="button">
-          <ChevronRight size={15} />
-        </button>
+      <div className="cp3-outgrid">
+        {doc.items.map((item, i) => (
+          <ViralCard key={item.url} item={item} tone={TONES[i % TONES.length]} delay={i * 70} />
+        ))}
       </div>
-
-      {/* intelligence columns */}
-      <div className="cp3-cols">
-        {/* the user's real outliers */}
-        <section className="cp3-outcard">
-          <div className="cp3-card-head">
-            <h3>
-              Your top outliers{" "}
-              <span
-                className="cp3-info"
-                title="Your own posts whose engagement (likes + comments) runs at least 1.5× the median of your comparable posts. Competitor posts aren't available yet."
-              >
-                <Info size={12} />
-              </span>
-            </h3>
-            <span className="cp3-filter">{filterNote}</span>
-          </div>
-          {outliers.length > 0 ? (
-            <div className="cp3-outgrid">
-              {outliers.map((o, i) => (
-                <article className="cp3-out" key={o.title + i} style={{ animationDelay: `${i * 70}ms` }}>
-                  <OutlierMedia o={o} />
-                  <div className="cp3-out-body">
-                    <div className="cp3-out-top">
-                      <b title={o.title}>{o.title}</b>
-                      <span className="cp3-fmt">{o.format}</span>
-                    </div>
-                    <p className="cp3-why" title={o.evidence}>
-                      <span>Evidence:</span> {o.evidence}
-                    </p>
-                    <div className="cp3-out-metrics">
-                      {o.likes != null && (
-                        <span>
-                          <Heart size={12} /> <b>{o.likes.toLocaleString("en-US")}</b> likes
-                        </span>
-                      )}
-                      {o.comments != null && (
-                        <span>
-                          <MessageCircle size={12} /> <b>{o.comments.toLocaleString("en-US")}</b> comments
-                        </span>
-                      )}
-                    </div>
-                    <Link href="/tool" className="cp3-out-cta">
-                      Turn this into a post <ArrowRight size={12} />
-                    </Link>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="cp3-nodata">{emptyNote ?? "Not enough history yet."}</p>
-          )}
-          <Link href="/analytics" className="cp3-viewmore">
-            View all your posts <ArrowRight size={13} />
-          </Link>
-        </section>
-
-        {children}
-      </div>
+      <p className="cp3-viral-foot">
+        Found by live web search · refreshed {ago(doc.found_at)} · links open the original posts
+      </p>
     </>
   );
 }

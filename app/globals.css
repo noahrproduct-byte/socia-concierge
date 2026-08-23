@@ -9849,3 +9849,15 @@ html { scroll-behavior: smooth; }
 .cp3-out-media.ph { display: grid; place-items: center; }
 .cp3-media-ph { color: #cbc6bb; }
 .cp3-gauge-delta.down { color: #b45309; }
+
+/* ---- Viral-in-your-niche: skeleton, footer, watch link ---- */
+@keyframes cp3shimmer { to { background-position: -200% 0; } }
+.cp3-skel .cp3-out-media { background: linear-gradient(90deg, #f1efe9 25%, #faf8f3 50%, #f1efe9 75%); background-size: 200% 100%; animation: cp3shimmer 1.3s linear infinite; }
+.cp3-skel-line { display: block; height: 10px; border-radius: 6px; margin-bottom: 8px; background: linear-gradient(90deg, #f1efe9 25%, #faf8f3 50%, #f1efe9 75%); background-size: 200% 100%; animation: cp3shimmer 1.3s linear infinite; }
+.cp3-skel-line.w60 { width: 60%; height: 12px; }
+.cp3-skel-line.w80 { width: 80%; }
+.cp3-watch { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 650; color: var(--slate); text-decoration: none; }
+.cp3-watch:hover { color: var(--cobalt); }
+.cp3-viral-foot { margin-top: 12px; font-size: 11px; color: #b8b2a7; }
+.cp3-retry { border: none; background: none; padding: 0; font-size: 12.5px; font-weight: 650; color: var(--cobalt); cursor: pointer; text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) { .cp3-skel .cp3-out-media, .cp3-skel-line { animation: none; } }
