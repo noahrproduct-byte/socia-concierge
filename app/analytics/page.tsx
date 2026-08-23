@@ -12,10 +12,13 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import LiveSync from "@/components/LiveSync";
-import DateRangeSelector from "@/components/DateRangeSelector";
 import AccountSwitcher from "@/components/AccountSwitcher";
 import { MetricCard } from "@/components/ui";
-import { GrowthChart, FormatBars, Reveal, type GrowthPoint } from "@/components/AnalyticsCharts";
+import { FormatBars, Reveal } from "@/components/AnalyticsCharts";
+import PerformanceOverTime, {
+  type PerfPost,
+  type FollowerSnap,
+} from "@/components/PerformanceOverTime";
 import RadarChart from "@/components/RadarChart";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { Kpi } from "@/lib/demoData";
@@ -67,31 +70,6 @@ function hourHistogram(media: IgMediaItem[]): { values: number[]; hot: number } 
   return { values, hot };
 }
 
-// Weekly engagement buckets (avg engagement of posts in each week that has posts).
-function weeklyEngagement(media: IgMediaItem[]): GrowthPoint[] {
-  const weeks = new Map<number, { xs: number[]; start: Date }>();
-  for (const m of media) {
-    if (!m.timestamp) continue;
-    const d = new Date(m.timestamp);
-    const start = new Date(d);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - start.getDay());
-    const key = start.getTime();
-    const cur = weeks.get(key) ?? { xs: [], start };
-    cur.xs.push(engOf(m));
-    weeks.set(key, cur);
-  }
-  const short = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return [...weeks.values()]
-    .sort((a, b) => a.start.getTime() - b.start.getTime())
-    .slice(-8)
-    .map((w) => {
-      const end = new Date(w.start);
-      end.setDate(end.getDate() + 6);
-      return { label: `${short(w.start)} – ${short(end)}`, value: avg(w.xs) };
-    });
-}
-
 // Real per-format engagement rates (% of followers), only for formats present.
 function formatRates(media: IgMediaItem[], followers: number) {
   const groups: [string, (m: IgMediaItem) => boolean][] = [
@@ -116,9 +94,6 @@ function formatRates(media: IgMediaItem[], followers: number) {
 const clamp = (v: number) => Math.max(8, Math.min(100, Math.round(v)));
 
 // ---- demo data (shown only before an account is connected) ----
-const DEMO_LABELS = ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8"];
-const DEMO_YOU = [10.9, 11.2, 11.4, 11.3, 11.8, 12.0, 12.3, 12.5];
-const DEMO_NICHE = [10.8, 10.9, 11.0, 11.1, 11.2, 11.3, 11.35, 11.4];
 const DEMO_FORMATS = [
   { label: "Reels", value: 7.2 },
   { label: "Carousels", value: 5.1 },
@@ -207,16 +182,31 @@ export default async function AnalyticsPage() {
         { key: "engagement", label: "Engagement rate", value: "5.8%", change: 0.6, up: true, compare: "demo data", spark: [] },
       ];
 
-  // --- big chart: weekly engagement (live) or demo follower growth ---
-  const weekly = live ? weeklyEngagement(media) : [];
-  const growthPoints: GrowthPoint[] = live
-    ? weekly
-    : DEMO_LABELS.map((l, i) => ({ label: l, value: DEMO_YOU[i] }));
-  const growthBaseline = live
-    ? weekly.length
-      ? weekly.map(() => overallAvg)
-      : null
-    : DEMO_NICHE;
+  // --- performance-over-time module: real posts + real follower snapshots ---
+  const perfPosts: PerfPost[] = media
+    .filter((m) => m.timestamp)
+    .map((m) => ({
+      t: m.timestamp!,
+      likes: m.like_count ?? 0,
+      comments: m.comments_count ?? 0,
+      type: m.media_type ?? "IMAGE",
+      caption: m.caption ?? "",
+      thumb: m.thumbnail_url || m.media_url || null,
+      permalink: m.permalink ?? null,
+    }));
+  let snapsHist: FollowerSnap[] = [];
+  try {
+    const { data } = await supabase
+      .from("account_snapshots")
+      .select("day, followers")
+      .eq("user_id", user.id)
+      .order("day", { ascending: true })
+      .limit(400);
+    snapsHist = ((data ?? []) as { day: string; followers: number | null }[])
+      .filter((r): r is FollowerSnap => r.followers != null);
+  } catch {
+    // snapshots table may not exist yet — follower history shows its empty state
+  }
 
   // --- formats ---
   const formats = live && followers > 0 ? formatRates(media, followers) : DEMO_FORMATS;
@@ -329,7 +319,6 @@ export default async function AnalyticsPage() {
         </div>
         <div className="dash-controls">
           {live && <LiveSync syncedAt={snap!.last_synced_at} />}
-          <DateRangeSelector />
           <AccountSwitcher />
           <Link href="/chat" className="btn-primary db2-ask">
             <Sparkles size={15} /> Ask AI Strategist
@@ -361,31 +350,61 @@ export default async function AnalyticsPage() {
         </section>
       </div>
 
-      {/* Growth + formats */}
+      {/* Performance over time — the analytics centerpiece */}
+      <PerformanceOverTime
+        posts={live ? perfPosts : []}
+        followers={live ? followers : null}
+        snaps={snapsHist}
+      />
+
+      {/* Benchmark/insight + formats */}
       <div className="panel-grid an2-main">
-        <section className="chart-card wide db2-rise" style={{ animationDelay: "360ms" }}>
+        <section className="chart-card db2-rise" style={{ animationDelay: "430ms" }}>
           <div className="chart-head">
-            <h3>{live ? "Engagement over time" : "Follower growth"}</h3>
-            <div className="legend">
-              <span className="legend-item"><span className="swatch you" /> You</span>
-              <span className="legend-item">
-                <span className="swatch niche" /> {live ? "Your average" : "Niche avg"}
-              </span>
-            </div>
+            <h3>{live ? "Recent posts vs your baseline" : "Benchmarked vs your niche"}</h3>
           </div>
-          {growthPoints.length >= 2 ? (
-            <GrowthChart
-              points={growthPoints}
-              baseline={growthBaseline}
-              baselineName={live ? "Your avg" : "Niche avg"}
-              ariaLabel={live ? "Average engagement per week" : "Follower growth vs niche average"}
-            />
-          ) : (
-            <p className="page-sub">Not enough posting history yet. Keep posting and this chart fills in.</p>
-          )}
+          <div className="an2-bench-grid">
+            <Reveal className="bench an2-bench">
+              {bench.map((b) => {
+                const max = Math.max(b.a, b.b) || 1;
+                return (
+                  <div className="bench-row" key={b.label}>
+                    <div className="bench-label">{b.label}</div>
+                    <div className="bench-bars">
+                      <span className="bench-track">
+                        <span className="bench-fill you" style={{ ["--w" as string]: `${(b.a / max) * 100}%` }} />
+                      </span>
+                      <span className="bench-num">
+                        {b.a}{b.unit} <em>{benchNames[0]}</em>
+                      </span>
+                    </div>
+                    <div className="bench-bars">
+                      <span className="bench-track">
+                        <span className="bench-fill niche" style={{ ["--w" as string]: `${(b.b / max) * 100}%` }} />
+                      </span>
+                      <span className="bench-num muted">
+                        {b.b}{b.unit} <em>{benchNames[1]}</em>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </Reveal>
+
+            <Reveal className="an2-insight" delay={120}>
+              <h4>
+                {insightHead.a} <b>{insightHead.b}</b> {insightHead.c}
+              </h4>
+              <RadarChart values={radar} axes={radarAxes} />
+              <p className="an2-insight-sub">{insightSub}</p>
+              <Link href="/competitors" className="an2-insight-cta">
+                See how you compare <ArrowRight size={13} />
+              </Link>
+            </Reveal>
+          </div>
         </section>
 
-        <section className="chart-card db2-rise" style={{ animationDelay: "430ms" }}>
+        <section className="chart-card db2-rise" style={{ animationDelay: "500ms" }}>
           <div className="chart-head">
             <h3>Engagement by format</h3>
           </div>
@@ -396,9 +415,9 @@ export default async function AnalyticsPage() {
         </section>
       </div>
 
-      {/* Top posts + benchmark/insight */}
-      <div className="panel-grid an2-bottom">
-        <section className="chart-card db2-rise" style={{ animationDelay: "500ms" }}>
+      {/* Top posts */}
+      <div className="an2-bottom">
+        <section className="chart-card db2-rise" style={{ animationDelay: "560ms" }}>
           <div className="chart-head">
             <h3>Top performing posts</h3>
             {live && snap?.username && (
@@ -446,50 +465,6 @@ export default async function AnalyticsPage() {
           </ul>
         </section>
 
-        <section className="chart-card db2-rise" style={{ animationDelay: "570ms" }}>
-          <div className="chart-head">
-            <h3>{live ? "Recent posts vs your baseline" : "Benchmarked vs your niche"}</h3>
-          </div>
-          <div className="an2-bench-grid">
-            <Reveal className="bench an2-bench">
-              {bench.map((b) => {
-                const max = Math.max(b.a, b.b) || 1;
-                return (
-                  <div className="bench-row" key={b.label}>
-                    <div className="bench-label">{b.label}</div>
-                    <div className="bench-bars">
-                      <span className="bench-track">
-                        <span className="bench-fill you" style={{ ["--w" as string]: `${(b.a / max) * 100}%` }} />
-                      </span>
-                      <span className="bench-num">
-                        {b.a}{b.unit} <em>{benchNames[0]}</em>
-                      </span>
-                    </div>
-                    <div className="bench-bars">
-                      <span className="bench-track">
-                        <span className="bench-fill niche" style={{ ["--w" as string]: `${(b.b / max) * 100}%` }} />
-                      </span>
-                      <span className="bench-num muted">
-                        {b.b}{b.unit} <em>{benchNames[1]}</em>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </Reveal>
-
-            <Reveal className="an2-insight" delay={120}>
-              <h4>
-                {insightHead.a} <b>{insightHead.b}</b> {insightHead.c}
-              </h4>
-              <RadarChart values={radar} axes={radarAxes} />
-              <p className="an2-insight-sub">{insightSub}</p>
-              <Link href="/competitors" className="an2-insight-cta">
-                See how you compare <ArrowRight size={13} />
-              </Link>
-            </Reveal>
-          </div>
-        </section>
       </div>
     </AppShell>
   );

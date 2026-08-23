@@ -141,3 +141,23 @@ alter table public.profiles add column if not exists niche_analyzed_at timestamp
 
 -- Brand & strategist settings (additive; the app degrades gracefully without it)
 alter table public.profiles add column if not exists brand_detail jsonb;
+
+-- Daily follower snapshots — real history for the analytics follower trend.
+-- One row per user per day, written best-effort whenever data is served.
+create table if not exists public.account_snapshots (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  day date not null,
+  followers integer,
+  primary key (user_id, day)
+);
+
+alter table public.account_snapshots enable row level security;
+
+create policy "Users can read their own snapshots"
+  on public.account_snapshots for select using (auth.uid() = user_id);
+
+create policy "Users can add their own snapshots"
+  on public.account_snapshots for insert with check (auth.uid() = user_id);
+
+create policy "Users can update their own snapshots"
+  on public.account_snapshots for update using (auth.uid() = user_id);

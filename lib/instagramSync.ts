@@ -32,6 +32,23 @@ export type IgSnapshot = {
 
 const STALE_MS = 6 * 60 * 60 * 1000; // re-sync after 6 hours
 
+/** Record today's follower count (one row per day) so follower history is
+ *  real observations, never reconstructed. Best-effort: the table may not
+ *  exist yet. */
+async function recordSnapshot(supabase: Supa, userId: string, followers: number | null) {
+  if (followers == null) return;
+  try {
+    await supabase
+      .from("account_snapshots")
+      .upsert(
+        { user_id: userId, day: new Date().toISOString().slice(0, 10), followers },
+        { onConflict: "user_id,day" },
+      );
+  } catch {
+    // history simply starts once the table exists
+  }
+}
+
 async function fetchFromInstagram(token: string): Promise<{
   profile: Record<string, unknown>;
   media: IgMediaItem[];
@@ -116,6 +133,8 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     // cache columns may not exist yet; the in-memory snapshot still serves
   }
 
+  await recordSnapshot(supabase, userId, snap.followers_count);
+
   return snap;
 }
 
@@ -149,6 +168,8 @@ export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgS
   }
 
   if (!row.profile && row.followers_count == null) return null; // never synced successfully
+
+  await recordSnapshot(supabase, userId, row.followers_count ?? null);
 
   return {
     username: row.username ?? null,
