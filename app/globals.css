@@ -9968,3 +9968,38 @@ html { scroll-behavior: smooth; }
 @media (max-width: 1100px) { .an3-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .an3-insights { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .an3-kpis { grid-template-columns: 1fr; } .an3 { padding: 16px; } .an3-tabs { overflow-x: auto; } .an3-legend { display: none; } }
 @media (prefers-reduced-motion: reduce) { .an3-draw { animation: none; stroke-dashoffset: 0; } .an3-skelbar { animation: none; } }
+
+/* ---- Performance over time v2: one metric at a time ---- */
+.an3-kpi { text-align: left; cursor: pointer; transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.18s, box-shadow 0.18s; }
+.an3-kpi:hover { transform: translateY(-1px); border-color: #cbd0d9; }
+.an3-kpi.on { background: #fff; }
+.an3-kpi.on.blue { border-color: rgba(37, 99, 255, 0.55); box-shadow: 0 0 0 3px rgba(37, 99, 255, 0.1); }
+.an3-kpi.on.purple { border-color: rgba(139, 92, 246, 0.55); box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1); }
+.an3-kpi.on.green { border-color: rgba(16, 185, 129, 0.5); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.09); }
+.an3-kpi.on.amber { border-color: rgba(217, 119, 6, 0.5); box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.09); }
+.an3-kpi-ico.green { background: rgba(16, 185, 129, 0.1); color: #059669; }
+.an3-kpi > b.na { color: #c3beb4; }
+.an3-kpi-na { display: block; margin-top: 3px; font-size: 10.5px; line-height: 1.45; color: #b8b2a7; }
+.an3-tabs button.on.purple { color: #7c3aed; border-bottom-color: #8b5cf6; }
+.an3-tabs button.on.green { color: #059669; border-bottom-color: #10b981; }
+.an3-tabs button.on.amber { color: #b45309; border-bottom-color: #f5b04c; }
+.an3-chips { margin-left: auto; display: inline-flex; background: #f4f2ee; border-radius: 9px; padding: 3px; margin-bottom: 4px; }
+.an3-chips button { border: none; background: none; font-size: 11px; font-weight: 700; color: var(--slate); border-radius: 7px; padding: 4px 10px; cursor: pointer; transition: background 0.15s, color 0.15s; font-variant-numeric: tabular-nums; }
+.an3-chips button.on { background: #fff; color: var(--charcoal); box-shadow: 0 1px 3px rgba(15, 17, 21, 0.1); }
+.an3-hero { display: flex; gap: 28px; flex-wrap: wrap; padding: 12px 4px 2px; }
+.an3-hero b { display: block; font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: var(--charcoal); font-variant-numeric: tabular-nums; }
+.an3-hero b.up { color: #067647; }
+.an3-hero b.down { color: #dc2626; }
+.an3-hero small { font-size: 10.5px; color: var(--slate); }
+.an3-unavailable { padding: 44px 24px; text-align: center; max-width: 520px; margin: 0 auto; }
+.an3-unavailable b { display: block; font-size: 14px; font-weight: 750; color: var(--charcoal); margin-bottom: 6px; }
+.an3-unavailable p { font-size: 12.5px; line-height: 1.65; color: var(--slate); }
+.an3-dot.blue { fill: #2563ff; }
+.an3-dot.purple { fill: #8b5cf6; }
+.an3-mark-line { stroke: rgba(139, 92, 246, 0.35); stroke-width: 1; stroke-dasharray: 3 3; }
+.an3-mark image { transition: transform 0.18s; transform-origin: center; transform-box: fill-box; }
+.an3-mark:hover image { transform: scale(1.12); }
+.an3-rows li.hot span, .an3-rows li.hot em { color: var(--charcoal); font-weight: 700; }
+.an3-rows li span { display: inline-flex; align-items: center; gap: 5px; }
+.an3-rows li span svg { color: #b0aba1; }
+@media (max-width: 640px) { .an3-chips { margin-left: 0; } .an3-hero { gap: 18px; } }

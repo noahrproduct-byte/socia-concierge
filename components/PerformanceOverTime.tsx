@@ -1,13 +1,17 @@
 "use client";
 
-// Performance over time — the analytics centerpiece. Every number is computed
-// client-side (in the viewer's own time zone) from real synced posts and real
-// daily follower snapshots. Honesty rules:
-// - views/saves aren't provided by the Instagram Login API → never shown
-// - follower change appears only once real snapshots span the period
+// Performance over time — the analytics centerpiece. One metric at a time:
+// click a KPI card (or tab) and the chart tells that metric's story.
+// Every number is computed client-side (viewer's time zone) from real synced
+// posts and real daily follower snapshots. Honesty rules:
+// - views/saves aren't provided by the Instagram Login API → the cards and
+//   tabs exist, but they show proper unavailable states, never numbers
+// - follower history is real snapshots only; until it accrues, the chart
+//   says so instead of drawing fake history
 // - a day's "engagement" is the lifetime likes+comments of content POSTED
-//   that day (the API has no per-day breakdown) — tooltips say so
+//   that day (the API has no per-day breakdown) — labeled as such
 // - period comparisons always use the equivalent preceding window
+// - spike markers say "published near this spike" — never false attribution
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -15,9 +19,10 @@ import {
   Activity,
   Heart,
   MessageCircle,
+  Play,
+  Bookmark,
   ExternalLink,
   ArrowRight,
-  Flame,
   Info,
 } from "lucide-react";
 import { median, pctChange, fmtMult } from "@/lib/metrics";
@@ -33,12 +38,22 @@ export type PerfPost = {
 };
 export type FollowerSnap = { day: string; followers: number };
 
+type Metric = "followers" | "views" | "eng" | "saves";
+
 const DAY_MS = 86400000;
-const RANGES = [
-  { id: "7", label: "Last 7 days", days: 7 },
-  { id: "30", label: "Last 30 days", days: 30 },
-  { id: "90", label: "Last 90 days", days: 90 },
+const CHIPS = [
+  { id: "1", label: "1D", days: 1 },
+  { id: "7", label: "7D", days: 7 },
+  { id: "30", label: "30D", days: 30 },
+  { id: "90", label: "90D", days: 90 },
 ] as const;
+
+const METRICS: { id: Metric; label: string; color: string }[] = [
+  { id: "followers", label: "Followers", color: "blue" },
+  { id: "views", label: "Views", color: "green" },
+  { id: "eng", label: "Engagement", color: "purple" },
+  { id: "saves", label: "Saves", color: "amber" },
+];
 
 const fmtNum = (n: number): string =>
   n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"
@@ -56,13 +71,7 @@ function niceCeil(v: number): number {
   return 10 * p;
 }
 
-type Day = {
-  date: Date;
-  eng: number;
-  likes: number;
-  comments: number;
-  posts: PerfPost[];
-};
+type Day = { date: Date; eng: number; likes: number; comments: number; posts: PerfPost[] };
 
 function Delta({ pct, note }: { pct: number | null; note: string }) {
   const cls = pct == null ? "flat" : Math.abs(pct) < 2 ? "flat" : pct > 0 ? "up" : "down";
@@ -81,8 +90,10 @@ function Spark({ data, color }: { data: number[]; color: string }) {
   const W = 72;
   const H = 22;
   const mx = Math.max(...data);
+  const mn = Math.min(...data);
+  const span = mx - mn || 1;
   const pts = data
-    .map((v, i) => `${(i / (data.length - 1)) * W},${H - 2 - (v / mx) * (H - 5)}`)
+    .map((v, i) => `${(i / (data.length - 1)) * W},${H - 2 - ((v - mn) / span) * (H - 5)}`)
     .join(" ");
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="an3-spark" preserveAspectRatio="none" aria-hidden>
@@ -107,13 +118,15 @@ export default function PerformanceOverTime({
   const [rangeId, setRangeId] = useState<string>("30");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  const [metric, setMetric] = useState<"eng" | "lc" | "followers">("eng");
+  // One metric at a time. Followers is the reference default, but until real
+  // snapshot history exists the engagement story is the useful first view.
+  const [metric, setMetric] = useState<Metric>(snaps.length >= 2 ? "followers" : "eng");
   const [hover, setHover] = useState<number | null>(null);
 
   const model = useMemo(() => {
     if (!now) return null;
     let end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1); // exclusive
-    let days: number = RANGES.find((r) => r.id === rangeId)?.days ?? 30;
+    let days: number = CHIPS.find((r) => r.id === rangeId)?.days ?? 30;
     if (rangeId === "custom" && customStart && customEnd) {
       const s = new Date(customStart + "T00:00:00");
       const e = new Date(customEnd + "T00:00:00");
@@ -151,47 +164,42 @@ export default function PerformanceOverTime({
     const sum = (xs: PerfPost[], f: (p: PerfPost) => number) => xs.reduce((a, p) => a + f(p), 0);
     const engCur = sum(cur, (p) => p.likes + p.comments);
     const engPrev = prev.length ? sum(prev, (p) => p.likes + p.comments) : null;
-    const likesCur = sum(cur, (p) => p.likes);
-    const likesPrev = prev.length ? sum(prev, (p) => p.likes) : null;
-    const comCur = sum(cur, (p) => p.comments);
-    const comPrev = prev.length ? sum(prev, (p) => p.comments) : null;
 
     // Spike days: ≥2× the median of active days, with at least one post.
     const active = dayList.filter((d) => d.eng > 0).map((d) => d.eng);
     const dayMed = median(active);
-    const spikes = new Set<number>();
+    const spikes: number[] = [];
     if (dayMed != null && active.length >= 3) {
       dayList.forEach((d, i) => {
-        if (d.posts.length && d.eng >= dayMed * 2) spikes.add(i);
+        if (d.posts.length && d.eng >= dayMed * 2) spikes.push(i);
       });
     }
 
-    // Follower baseline: last snapshot on/before the window start.
+    // Follower series inside the window + baseline just before it.
     const startStr = start.toISOString().slice(0, 10);
     const before = snaps.filter((s) => s.day <= startStr);
     const baseline = before.length ? before[before.length - 1].followers : null;
+    const folSeries = snaps.filter((s) => s.day > startStr);
+    const folNet =
+      folSeries.length >= 2
+        ? folSeries[folSeries.length - 1].followers - folSeries[0].followers
+        : null;
     const folDelta = followers != null && baseline != null ? pctChange(followers, baseline) : null;
-    const folSeries = snaps
-      .filter((s) => s.day > startStr)
-      .map((s) => ({ day: s.day, v: s.followers }));
 
-    // Top post of the window vs the window's per-post median.
     const postMed = median(cur.map((p) => p.likes + p.comments));
     const top = cur.length
       ? [...cur].sort((a, b) => b.likes + b.comments - (a.likes + a.comments))[0]
       : null;
-    const topMult =
-      top && postMed && postMed > 0 ? (top.likes + top.comments) / postMed : null;
+    const topMult = top && postMed && postMed > 0 ? (top.likes + top.comments) / postMed : null;
     const topShare = top && engCur > 0 ? Math.round(((top.likes + top.comments) / engCur) * 100) : null;
 
     return {
-      start, end, days, dayList, spikes,
-      engCur, likesCur, comCur, postCount: cur.length, prevCount: prev.length,
+      days, dayList, spikes,
+      engCur, likesCur: sum(cur, (p) => p.likes), comCur: sum(cur, (p) => p.comments),
+      postCount: cur.length, prevCount: prev.length,
       engDelta: pctChange(engCur, engPrev),
-      likesDelta: pctChange(likesCur, likesPrev),
-      comDelta: pctChange(comCur, comPrev),
-      folDelta, folSeries, baseline,
-      top, topMult, topShare, dayMed,
+      folSeries, folNet, folDelta,
+      top, topMult, topShare,
     };
   }, [now, rangeId, customStart, customEnd, posts, snaps, followers]);
 
@@ -206,31 +214,23 @@ export default function PerformanceOverTime({
 
   const m = model;
   const compareNote = m.prevCount ? `vs previous ${m.days} days` : "no earlier period to compare";
+  const pick = (id: Metric) => { setMetric(id); setHover(null); };
 
   // ---- chart geometry ----
-  const W = 920, H = 250, padL = 46, padR = metric === "lc" ? 46 : 14, padT = 14, padB = 26;
+  const W = 920, H = 250, padL = 46, padR = 14, padT = 40, padB = 26;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const n = m.dayList.length;
   const x = (i: number) => padL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
-
-  const primary = m.dayList.map((d) => (metric === "lc" ? d.likes : d.eng));
-  const secondary = metric === "lc" ? m.dayList.map((d) => d.comments) : null;
-  const maxP = niceCeil(Math.max(...primary, 1));
-  const maxS = secondary ? niceCeil(Math.max(...secondary, 1)) : null;
-  const yP = (v: number) => padT + (1 - v / maxP) * plotH;
-  const yS = (v: number) => padT + (1 - v / (maxS ?? 1)) * plotH;
-  const line = (vals: number[], y: (v: number) => number) =>
-    vals.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-  const area = (vals: number[], y: (v: number) => number) =>
-    `M${x(0)},${padT + plotH} ${vals.map((v, i) => `L${x(i)},${y(v)}`).join(" ")} L${x(n - 1)},${padT + plotH} Z`;
+  const engVals = m.dayList.map((d) => d.eng);
+  const maxE = niceCeil(Math.max(...engVals, 1));
+  const yE = (v: number) => padT + (1 - v / maxE) * plotH;
   const xTicks = Array.from({ length: Math.min(6, n) }, (_, k) =>
     Math.round((k / Math.max(1, Math.min(6, n) - 1)) * (n - 1))
   );
 
-  // Followers view uses real snapshots inside the window.
   const fol = m.folSeries;
-  const folVals = fol.map((f) => f.v);
+  const folVals = fol.map((f) => f.followers);
   const folMin = folVals.length ? Math.min(...folVals) : 0;
   const folMax = folVals.length ? Math.max(...folVals) : 1;
   const folPad = Math.max(1, Math.round((folMax - folMin) * 0.25));
@@ -238,18 +238,46 @@ export default function PerformanceOverTime({
     padT + (1 - (v - (folMin - folPad)) / (folMax + folPad - (folMin - folPad))) * plotH;
   const xF = (i: number) => padL + (fol.length > 1 ? (i / (fol.length - 1)) * plotW : plotW / 2);
 
-  const hoverDay = hover != null ? m.dayList[hover] : null;
-  const hoverSpikePost = hover != null && m.spikes.has(hover) ? m.dayList[hover].posts[0] : null;
+  const hoverDay = metric === "eng" && hover != null ? m.dayList[hover] : null;
+  const hoverSnap = metric === "followers" && hover != null ? fol[hover] : null;
+  const hoverSpikePost =
+    hoverDay && m.spikes.includes(hover!) ? hoverDay.posts[0] : null;
 
-  function onMove(e: React.PointerEvent<SVGSVGElement>) {
-    if (metric === "followers") return;
+  function onMoveEng(e: React.PointerEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = ((e.clientX - rect.left) / rect.width) * W;
-    const i = Math.round(((px - padL) / plotW) * (n - 1));
-    setHover(Math.max(0, Math.min(n - 1, i)));
+    setHover(Math.max(0, Math.min(n - 1, Math.round(((px - padL) / plotW) * (n - 1)))));
+  }
+  function onMoveFol(e: React.PointerEvent<SVGSVGElement>) {
+    if (fol.length < 2) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = ((e.clientX - rect.left) / rect.width) * W;
+    setHover(Math.max(0, Math.min(fol.length - 1, Math.round(((px - padL) / plotW) * (fol.length - 1)))));
   }
 
   const empty = m.postCount === 0;
+  const unavailable = metric === "views" || metric === "saves";
+  const metricLabel = METRICS.find((mm) => mm.id === metric)!.label;
+
+  const kpis: {
+    id: Metric; label: string; color: string; Ico: typeof Users;
+    value: string | null; delta: number | null; note: string; spark?: { data: number[]; color: string };
+  }[] = [
+    {
+      id: "followers", label: "Followers", color: "blue", Ico: Users,
+      value: followers != null ? followers.toLocaleString("en-US") : null,
+      delta: m.folDelta,
+      note: m.folDelta != null ? compareNote : "history builds from today",
+      spark: { data: folVals, color: "#2563ff" },
+    },
+    { id: "views", label: "Views", color: "green", Ico: Play, value: null, delta: null, note: "" },
+    {
+      id: "eng", label: "Engagement", color: "purple", Ico: Activity,
+      value: fmtNum(m.engCur), delta: m.engDelta, note: compareNote,
+      spark: { data: engVals, color: "#8b5cf6" },
+    },
+    { id: "saves", label: "Saves", color: "amber", Ico: Bookmark, value: null, delta: null, note: "" },
+  ];
 
   return (
     <section className="an3 db2-rise" style={{ animationDelay: "360ms" }}>
@@ -257,18 +285,19 @@ export default function PerformanceOverTime({
       <div className="an3-head">
         <div>
           <h3>Performance over time</h3>
-          <p>See how your audience and content are growing.</p>
+          <p>Track how your audience and content are growing.</p>
         </div>
         <div className="an3-controls">
           <select
             className="an3-select"
-            value={rangeId}
+            value={["1", "7", "30", "90"].includes(rangeId) ? rangeId : "custom"}
             onChange={(e) => setRangeId(e.target.value)}
             aria-label="Date range"
           >
-            {RANGES.map((r) => (
-              <option key={r.id} value={r.id}>{r.label}</option>
-            ))}
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="1">Today</option>
             <option value="custom">Custom range</option>
           </select>
           {rangeId === "custom" && (
@@ -281,162 +310,220 @@ export default function PerformanceOverTime({
         </div>
       </div>
 
-      {/* KPI cards */}
+      {/* KPI cards — clicking one selects its metric */}
       <div className="an3-kpis">
-        <div className="an3-kpi">
-          <span className="an3-kpi-ico blue"><Users size={15} /></span>
-          <span className="an3-kpi-label">Followers</span>
-          <b>{followers != null ? followers.toLocaleString("en-US") : "–"}</b>
-          <Delta
-            pct={m.folDelta}
-            note={m.folDelta != null ? compareNote : "history builds from today"}
-          />
-          <Spark data={folVals} color="#2563ff" />
-        </div>
-        <div className="an3-kpi">
-          <span className="an3-kpi-ico purple"><Activity size={15} /></span>
-          <span className="an3-kpi-label">
-            Engagement{" "}
-            <i className="an3-info" title="Likes + comments on content posted in this period (lifetime totals — Instagram's API has no per-day breakdown).">
-              <Info size={11} />
-            </i>
-          </span>
-          <b>{fmtNum(m.engCur)}</b>
-          <Delta pct={m.engDelta} note={compareNote} />
-          <Spark data={m.dayList.map((d) => d.eng)} color="#8b5cf6" />
-        </div>
-        <div className="an3-kpi">
-          <span className="an3-kpi-ico rose"><Heart size={15} /></span>
-          <span className="an3-kpi-label">Likes</span>
-          <b>{fmtNum(m.likesCur)}</b>
-          <Delta pct={m.likesDelta} note={compareNote} />
-          <Spark data={m.dayList.map((d) => d.likes)} color="#f43f5e" />
-        </div>
-        <div className="an3-kpi">
-          <span className="an3-kpi-ico amber"><MessageCircle size={15} /></span>
-          <span className="an3-kpi-label">Comments</span>
-          <b>{fmtNum(m.comCur)}</b>
-          <Delta pct={m.comDelta} note={compareNote} />
-          <Spark data={m.dayList.map((d) => d.comments)} color="#f5b04c" />
-        </div>
+        {kpis.map(({ id, label, color, Ico, value, delta, note, spark }) => (
+          <button
+            key={id}
+            type="button"
+            className={`an3-kpi${metric === id ? ` on ${color}` : ""}${value == null ? " na" : ""}`}
+            onClick={() => pick(id)}
+            aria-pressed={metric === id}
+          >
+            <span className={`an3-kpi-ico ${color}`}><Ico size={15} /></span>
+            <span className="an3-kpi-label">
+              {label}
+              {id === "eng" && (
+                <i className="an3-info" title="Likes + comments on content posted in this period (lifetime totals — Instagram's API has no per-day breakdown).">
+                  <Info size={11} />
+                </i>
+              )}
+            </span>
+            {value != null ? (
+              <>
+                <b>{value}</b>
+                <Delta pct={delta} note={note} />
+                {spark && <Spark data={spark.data} color={spark.color} />}
+              </>
+            ) : (
+              <>
+                <b className="na">—</b>
+                <span className="an3-kpi-na">Not provided by the connected account</span>
+              </>
+            )}
+          </button>
+        ))}
       </div>
-      <p className="an3-unavail">
-        Views and saves aren&apos;t provided by Instagram&apos;s Login API — SOCIA never estimates
-        them.
-      </p>
 
-      {/* metric tabs */}
+      {/* metric tabs + time chips */}
       <div className="an3-tabs" role="tablist">
-        {(
-          [
-            ["eng", "Engagement"],
-            ["lc", "Likes vs Comments"],
-            ["followers", "Followers"],
-          ] as const
-        ).map(([id, label]) => (
+        {METRICS.map(({ id, label, color }) => (
           <button
             key={id}
             type="button"
             role="tab"
             aria-selected={metric === id}
-            className={metric === id ? "on" : ""}
-            onClick={() => { setMetric(id); setHover(null); }}
+            className={metric === id ? `on ${color}` : ""}
+            onClick={() => pick(id)}
           >
             {label}
           </button>
         ))}
-        {metric === "lc" && (
-          <span className="an3-legend">
-            <i className="likes" /> Likes <i className="comments" /> Comments
-          </span>
-        )}
+        <span className="an3-chips">
+          {CHIPS.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={rangeId === c.id ? "on" : ""}
+              onClick={() => setRangeId(c.id)}
+            >
+              {c.label}
+            </button>
+          ))}
+        </span>
       </div>
 
-      {/* chart */}
+      {/* one metric → one chart → one story */}
       <div className="an3-chartwrap">
-        {metric === "followers" ? (
-          fol.length >= 2 ? (
-            <svg viewBox={`0 0 ${W} ${H}`} className="an3-chart" role="img" aria-label="Follower count over time">
-              {[0.25, 0.5, 0.75, 1].map((t) => (
-                <line key={t} x1={padL} y1={padT + t * plotH} x2={W - padR} y2={padT + t * plotH} className="an3-grid" />
-              ))}
-              <text x={padL - 8} y={yF(folMax) + 3} className="an3-axis" textAnchor="end">{fmtNum(folMax)}</text>
-              <text x={padL - 8} y={yF(folMin) + 3} className="an3-axis" textAnchor="end">{fmtNum(folMin)}</text>
-              <path d={`M${xF(0)},${padT + plotH} ${fol.map((f, i) => `L${xF(i)},${yF(f.v)}`).join(" ")} L${xF(fol.length - 1)},${padT + plotH} Z`} fill="rgba(37,99,255,0.08)" />
-              <polyline points={fol.map((f, i) => `${xF(i)},${yF(f.v)}`).join(" ")} className="an3-line blue an3-draw" fill="none" />
-              {fol.map((f, i) => (
-                <circle key={f.day} cx={xF(i)} cy={yF(f.v)} r="3" className="an3-dot">
-                  <title>{`${f.day}: ${f.v.toLocaleString("en-US")} followers`}</title>
-                </circle>
-              ))}
-            </svg>
-          ) : (
-            <p className="an3-empty">
-              Follower history starts now — SOCIA records a real snapshot each day your data syncs.
-              No history is ever reconstructed, so this chart fills in over the coming days.
-              {followers != null && <> Today: <b>{followers.toLocaleString("en-US")}</b> followers.</>}
+        {unavailable ? (
+          <div className="an3-unavailable">
+            <b>{metricLabel} aren&apos;t provided by your connected account.</b>
+            <p>
+              Instagram&apos;s Login API doesn&apos;t expose {metricLabel.toLowerCase()} for this
+              account type, and SOCIA never estimates numbers it can&apos;t verify. If Instagram
+              grants access later, this chart lights up automatically.
             </p>
+          </div>
+        ) : metric === "followers" ? (
+          fol.length >= 2 ? (
+            <>
+              <div className="an3-hero">
+                <div><b>{followers != null ? followers.toLocaleString("en-US") : "–"}</b><small>Total followers</small></div>
+                {m.folNet != null && (
+                  <div><b>{m.folNet >= 0 ? "+" : ""}{m.folNet.toLocaleString("en-US")}</b><small>Net change</small></div>
+                )}
+                {m.folDelta != null && (
+                  <div><b className={m.folDelta >= 0 ? "up" : "down"}>{m.folDelta >= 0 ? "↑" : "↓"} {Math.abs(m.folDelta).toFixed(1)}%</b><small>{compareNote}</small></div>
+                )}
+              </div>
+              <svg
+                viewBox={`0 0 ${W} ${H}`}
+                className="an3-chart"
+                role="img"
+                aria-label="Total followers over time"
+                onPointerMove={onMoveFol}
+                onPointerLeave={() => setHover(null)}
+              >
+                {[0.25, 0.5, 0.75, 1].map((t) => (
+                  <line key={t} x1={padL} y1={padT + t * plotH} x2={W - padR} y2={padT + t * plotH} className="an3-grid" />
+                ))}
+                <text x={padL - 8} y={yF(folMax) + 3} className="an3-axis" textAnchor="end">{fmtNum(folMax)}</text>
+                <text x={padL - 8} y={yF(folMin) + 3} className="an3-axis" textAnchor="end">{fmtNum(folMin)}</text>
+                {fol.length > 1 && [0, Math.floor((fol.length - 1) / 2), fol.length - 1].map((i) => (
+                  <text key={i} x={xF(i)} y={H - 6} className="an3-axis" textAnchor="middle">
+                    {shortDate(new Date(fol[i].day + "T00:00:00"))}
+                  </text>
+                ))}
+                <path d={`M${xF(0)},${padT + plotH} ${fol.map((f, i) => `L${xF(i)},${yF(f.followers)}`).join(" ")} L${xF(fol.length - 1)},${padT + plotH} Z`} fill="rgba(37,99,255,0.08)" />
+                <polyline points={fol.map((f, i) => `${xF(i)},${yF(f.followers)}`).join(" ")} className="an3-line blue an3-draw" fill="none" />
+                {fol.map((f, i) => (
+                  <circle key={f.day} cx={xF(i)} cy={yF(f.followers)} r="3" className="an3-dot blue" />
+                ))}
+                {hover != null && hoverSnap && (
+                  <line x1={xF(hover)} y1={padT} x2={xF(hover)} y2={padT + plotH} className="an3-cross" />
+                )}
+              </svg>
+              {hoverSnap && (
+                <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, (xF(hover!) / W) * 100))}%` }}>
+                  <b>{new Date(hoverSnap.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
+                  <div><span>Followers</span><em>{hoverSnap.followers.toLocaleString("en-US")}</em></div>
+                  {hover! > 0 && (
+                    <>
+                      <div><span>Net change</span><em>{(hoverSnap.followers - fol[hover! - 1].followers >= 0 ? "+" : "") + (hoverSnap.followers - fol[hover! - 1].followers).toLocaleString("en-US")}</em></div>
+                      {fol[hover! - 1].followers > 0 && (
+                        <div><span>vs previous day</span><em>{(((hoverSnap.followers - fol[hover! - 1].followers) / fol[hover! - 1].followers) * 100).toFixed(2)}%</em></div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="an3-unavailable">
+              <b>
+                {followers != null ? `${followers.toLocaleString("en-US")} followers · ` : ""}history
+                started today
+              </b>
+              <p>
+                Follower history will appear here as SOCIA collects real daily snapshots — it never
+                draws history it didn&apos;t observe. Check back in a few days.
+              </p>
+            </div>
           )
         ) : empty ? (
           <p className="an3-empty">No posts in this period — pick a longer range or keep posting.</p>
         ) : (
           <>
+            <div className="an3-hero">
+              <div><b>{fmtNum(m.engCur)}</b><small>Total engagement</small></div>
+              <div><b>{m.postCount}</b><small>Posts published</small></div>
+              {m.engDelta != null && (
+                <div><b className={m.engDelta >= 0 ? "up" : "down"}>{m.engDelta >= 0 ? "↑" : "↓"} {Math.abs(m.engDelta).toFixed(1)}%</b><small>{compareNote}</small></div>
+              )}
+            </div>
             <svg
               viewBox={`0 0 ${W} ${H}`}
               className="an3-chart"
               role="img"
               aria-label="Engagement on content posted, by day"
-              onPointerMove={onMove}
+              onPointerMove={onMoveEng}
               onPointerLeave={() => setHover(null)}
             >
+              <defs>
+                {m.spikes.map((i) => (
+                  <clipPath id={`an3clip${i}`} key={i}>
+                    <rect x={x(i) - 14} y={4} width={28} height={28} rx={7} />
+                  </clipPath>
+                ))}
+              </defs>
               {[0.25, 0.5, 0.75, 1].map((t) => (
                 <line key={t} x1={padL} y1={padT + t * plotH} x2={W - padR} y2={padT + t * plotH} className="an3-grid" />
               ))}
-              {[maxP, maxP / 2].map((v) => (
-                <text key={v} x={padL - 8} y={yP(v) + 3} className="an3-axis" textAnchor="end">{fmtNum(v)}</text>
-              ))}
-              {secondary && [maxS!, maxS! / 2].map((v) => (
-                <text key={v} x={W - padR + 8} y={yS(v) + 3} className="an3-axis purple" textAnchor="start">{fmtNum(v)}</text>
+              {[maxE, maxE / 2].map((v) => (
+                <text key={v} x={padL - 8} y={yE(v) + 3} className="an3-axis" textAnchor="end">{fmtNum(v)}</text>
               ))}
               {xTicks.map((i) => (
                 <text key={i} x={x(i)} y={H - 6} className="an3-axis" textAnchor="middle">
                   {shortDate(m.dayList[i].date)}
                 </text>
               ))}
-              <path d={area(primary, yP)} fill={metric === "lc" ? "rgba(244,63,94,0.06)" : "rgba(37,99,255,0.07)"} />
-              <polyline points={line(primary, yP)} className={`an3-line ${metric === "lc" ? "rose" : "blue"} an3-draw`} fill="none" />
-              {secondary && (
-                <polyline points={line(secondary, yS)} className="an3-line purple an3-draw d2" fill="none" />
-              )}
-              {[...m.spikes].map((i) => {
+              <path d={`M${x(0)},${padT + plotH} ${engVals.map((v, i) => `L${x(i)},${yE(v)}`).join(" ")} L${x(n - 1)},${padT + plotH} Z`} fill="rgba(139,92,246,0.07)" />
+              <polyline points={engVals.map((v, i) => `${x(i)},${yE(v)}`).join(" ")} className="an3-line purple an3-draw" fill="none" />
+              {/* content markers: thumbnail above, dotted guide down to the point */}
+              {m.spikes.map((i) => {
                 const d = m.dayList[i];
                 const post = d.posts[0];
-                const marker = (
-                  <g key={i} className="an3-spike">
-                    <circle cx={x(i)} cy={yP(metric === "lc" ? d.likes : d.eng)} r="4.5" />
-                    <circle cx={x(i)} cy={yP(metric === "lc" ? d.likes : d.eng)} r="8" className="ring" />
+                const g = (
+                  <g key={i} className="an3-mark">
+                    <line x1={x(i)} y1={34} x2={x(i)} y2={yE(d.eng)} className="an3-mark-line" />
+                    <circle cx={x(i)} cy={yE(d.eng)} r="4" className="an3-dot purple" />
+                    {post?.thumb && (
+                      <image
+                        href={post.thumb}
+                        x={x(i) - 14}
+                        y={4}
+                        width={28}
+                        height={28}
+                        clipPath={`url(#an3clip${i})`}
+                        preserveAspectRatio="xMidYMid slice"
+                      />
+                    )}
                   </g>
                 );
                 return post?.permalink ? (
-                  <a key={i} href={post.permalink} target="_blank" rel="noreferrer" aria-label="Open the post behind this spike">
-                    {marker}
+                  <a key={i} href={post.permalink} target="_blank" rel="noreferrer" aria-label="Open the post published near this spike">
+                    {g}
                   </a>
                 ) : (
-                  marker
+                  g
                 );
               })}
               {hover != null && (
                 <line x1={x(hover)} y1={padT} x2={x(hover)} y2={padT + plotH} className="an3-cross" />
               )}
             </svg>
-
             {hoverDay && (
-              <div
-                className="an3-tip"
-                style={{
-                  left: `${Math.min(84, Math.max(4, (x(hover!) / W) * 100))}%`,
-                }}
-              >
+              <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, (x(hover!) / W) * 100))}%` }}>
                 <b>{hoverDay.date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
                 <div><span>Engagement</span><em>{hoverDay.eng.toLocaleString("en-US")}</em></div>
                 <div><span>Likes</span><em>{hoverDay.likes.toLocaleString("en-US")}</em></div>
@@ -449,7 +536,7 @@ export default function PerformanceOverTime({
                       <img src={hoverSpikePost.thumb} alt="" width={34} height={34} />
                     )}
                     <span>
-                      <small><Flame size={10} /> Performance spike</small>
+                      <small>Published near this spike</small>
                       <p>{hoverSpikePost.caption.split("\n")[0].slice(0, 44) || "(no caption)"}</p>
                     </span>
                   </div>
@@ -460,7 +547,7 @@ export default function PerformanceOverTime({
         )}
       </div>
 
-      {/* insights */}
+      {/* bottom cards */}
       <div className="an3-insights">
         <div className="an3-card">
           <small className="an3-card-label">Top performing content</small>
@@ -475,6 +562,11 @@ export default function PerformanceOverTime({
                 )}
                 <span className="an3-top-meta">
                   <b>{m.top.caption.split("\n")[0].slice(0, 48) || "(no caption)"}</b>
+                  <small>
+                    {new Date(m.top.t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {" · "}
+                    {new Date(m.top.t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                  </small>
                   <small>
                     {fmtNum(m.top.likes)} likes · {fmtNum(m.top.comments)} comments
                     {m.topMult != null && m.topMult >= 1.2 && (
@@ -497,30 +589,35 @@ export default function PerformanceOverTime({
         </div>
 
         <div className="an3-card">
-          <small className="an3-card-label">Changes vs previous {m.days} days</small>
+          <small className="an3-card-label">Growth insights · vs previous {m.days} days</small>
           <ul className="an3-rows">
-            {(
-              [
-                ["Engagement", m.engDelta],
-                ["Likes", m.likesDelta],
-                ["Comments", m.comDelta],
-                ["Followers", m.folDelta],
-              ] as const
-            ).map(([label, pct]) => (
-              <li key={label}>
-                <span>{label}</span>
-                <em className={pct == null ? "flat" : Math.abs(pct) < 2 ? "flat" : pct > 0 ? "up" : "down"}>
-                  {pct == null
-                    ? label === "Followers"
-                      ? "history builds from today"
-                      : "no earlier period"
-                    : `${pct > 0 ? "↑" : pct < 0 ? "↓" : ""} ${Math.abs(pct).toFixed(1)}%`}
-                </em>
-              </li>
-            ))}
+            <li className={metric === "followers" ? "hot" : ""}>
+              <span><Users size={12} /> Followers</span>
+              <em className={m.folDelta == null ? "flat" : m.folDelta >= 0 ? "up" : "down"}>
+                {m.folDelta == null
+                  ? "history builds from today"
+                  : `${m.folNet != null ? `${m.folNet >= 0 ? "+" : ""}${m.folNet.toLocaleString("en-US")} · ` : ""}${m.folDelta >= 0 ? "↑" : "↓"} ${Math.abs(m.folDelta).toFixed(1)}%`}
+              </em>
+            </li>
+            <li className={metric === "views" ? "hot" : ""}>
+              <span><Play size={12} /> Views</span>
+              <em className="flat">not provided</em>
+            </li>
+            <li className={metric === "eng" ? "hot" : ""}>
+              <span><Activity size={12} /> Engagement</span>
+              <em className={m.engDelta == null ? "flat" : m.engDelta >= 0 ? "up" : "down"}>
+                {m.engDelta == null
+                  ? "no earlier period"
+                  : `+${fmtNum(m.engCur)} · ${m.engDelta >= 0 ? "↑" : "↓"} ${Math.abs(m.engDelta).toFixed(1)}%`}
+              </em>
+            </li>
+            <li className={metric === "saves" ? "hot" : ""}>
+              <span><Bookmark size={12} /> Saves</span>
+              <em className="flat">not provided</em>
+            </li>
             <li>
-              <span>Posts published</span>
-              <em className="flat">{m.postCount} vs {m.prevCount}</em>
+              <span><Heart size={12} /> Likes / <MessageCircle size={12} /> Comments</span>
+              <em className="flat">{fmtNum(m.likesCur)} / {fmtNum(m.comCur)}</em>
             </li>
           </ul>
         </div>
@@ -528,6 +625,9 @@ export default function PerformanceOverTime({
         <div className="an3-card">
           <small className="an3-card-label">Performance summary</small>
           <Summary m={m} />
+          <a className="an3-card-cta" href="/tool">
+            See content ideas <ArrowRight size={12} />
+          </a>
         </div>
       </div>
 
@@ -540,9 +640,9 @@ export default function PerformanceOverTime({
 }
 
 // Templated strictly from the computed numbers above — no freeform claims.
-function Summary({ m }: { m: { engDelta: number | null; postCount: number; prevCount: number; days: number; topShare: number | null; top: PerfPost | null } }) {
-  if (!m.postCount) {
-    return <p className="an3-card-empty">Nothing to summarize — no posts in this period.</p>;
+function Summary({ m }: { m: { engDelta: number | null; postCount: number; prevCount: number; days: number; topShare: number | null; top: PerfPost | null; folNet: number | null; folDelta: number | null } }) {
+  if (!m.postCount && m.folNet == null) {
+    return <p className="an3-card-empty">Nothing to summarize — no posts or follower history in this period yet.</p>;
   }
   const head =
     m.engDelta == null ? "First measurable period"
@@ -550,15 +650,20 @@ function Summary({ m }: { m: { engDelta: number | null; postCount: number; prevC
     : m.engDelta <= -15 ? "Cooling off"
     : "Steady";
   const bits: string[] = [];
+  if (m.folNet != null && m.folDelta != null) {
+    bits.push(
+      `You ${m.folNet >= 0 ? "gained" : "lost"} ${Math.abs(m.folNet).toLocaleString("en-US")} followers (${m.folDelta >= 0 ? "+" : ""}${m.folDelta.toFixed(1)}%).`
+    );
+  }
   if (m.engDelta != null) {
     bits.push(
       `Engagement on new content is ${m.engDelta >= 0 ? "up" : "down"} ${Math.abs(m.engDelta).toFixed(0)}% vs the previous ${m.days} days (${m.postCount} vs ${m.prevCount} posts).`
     );
-  } else {
+  } else if (m.postCount) {
     bits.push(`${m.postCount} post${m.postCount === 1 ? "" : "s"} in this period, with no earlier period to compare yet.`);
   }
   if (m.top && m.topShare != null && m.topShare >= 40) {
-    bits.push(`“${m.top.caption.split("\n")[0].slice(0, 36)}” drove ${m.topShare}% of it.`);
+    bits.push(`“${m.top.caption.split("\n")[0].slice(0, 36)}” drove ${m.topShare}% of the engagement.`);
   }
   return (
     <>
