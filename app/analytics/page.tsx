@@ -17,7 +17,7 @@ import { MetricCard } from "@/components/ui";
 import { FormatBars, Reveal } from "@/components/AnalyticsCharts";
 import PerformanceOverTime, {
   type PerfPost,
-  type FollowerSnap,
+  type DailyRow,
 } from "@/components/PerformanceOverTime";
 import RadarChart from "@/components/RadarChart";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
@@ -191,23 +191,43 @@ export default async function AnalyticsPage() {
       comments: m.comments_count ?? 0,
       views: m.insights?.views ?? null,
       saved: m.insights?.saved ?? null,
+      shares: m.insights?.shares ?? null,
       type: m.media_type ?? "IMAGE",
       caption: m.caption ?? "",
       thumb: m.thumbnail_url || m.media_url || null,
       permalink: m.permalink ?? null,
     }));
-  let snapsHist: FollowerSnap[] = [];
+  let dailyRows: DailyRow[] = [];
   try {
-    const { data } = await supabase
+    const full = await supabase
       .from("account_snapshots")
-      .select("day, followers")
+      .select("day, followers, views, likes, comments, total_interactions, saves, shares")
       .eq("user_id", user.id)
       .order("day", { ascending: true })
       .limit(400);
-    snapsHist = ((data ?? []) as { day: string; followers: number | null }[])
-      .filter((r): r is FollowerSnap => r.followers != null);
+    if (!full.error) {
+      dailyRows = (full.data ?? []) as DailyRow[];
+    } else {
+      // extended columns may not exist yet — base shape still gives followers
+      const base = await supabase
+        .from("account_snapshots")
+        .select("day, followers")
+        .eq("user_id", user.id)
+        .order("day", { ascending: true })
+        .limit(400);
+      dailyRows = ((base.data ?? []) as { day: string; followers: number | null }[]).map((r) => ({
+        day: r.day,
+        followers: r.followers,
+        views: null,
+        likes: null,
+        comments: null,
+        total_interactions: null,
+        saves: null,
+        shares: null,
+      }));
+    }
   } catch {
-    // snapshots table may not exist yet — follower history shows its empty state
+    // snapshots table may not exist yet — history shows its empty state
   }
 
   // --- formats ---
@@ -356,7 +376,7 @@ export default async function AnalyticsPage() {
       <PerformanceOverTime
         posts={live ? perfPosts : []}
         followers={live ? followers : null}
-        snaps={snapsHist}
+        daily={dailyRows}
         insightsOk={snap?.insights_ok ?? null}
       />
 

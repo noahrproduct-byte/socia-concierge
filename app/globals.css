@@ -10009,3 +10009,17 @@ html { scroll-behavior: smooth; }
 .an3-dot.green { fill: #10b981; }
 .an3-dot.amber { fill: #f5b04c; }
 .an3-unavailable a { color: var(--cobalt); font-weight: 650; }
+
+/* ---- Analytics metric-model fix: bars, quality chips, breakdown ---- */
+.an3-bar { transition: opacity 0.15s; }
+.an3-bar.green { fill: #10b981; opacity: 0.85; }
+.an3-bar.purple { fill: #8b5cf6; opacity: 0.85; }
+.an3-bar.amber { fill: #f5b04c; opacity: 0.9; }
+.an3-barg:hover .an3-bar { opacity: 1; }
+.an3-quality { display: inline-flex; align-items: center; gap: 4px; align-self: center; margin-left: auto; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--slate); background: #f4f2ee; border: 1px solid var(--line); border-radius: 99px; padding: 3px 9px; cursor: help; }
+.an3-breakdown { display: flex; gap: 22px; flex-wrap: wrap; padding: 8px 4px 2px; }
+.an3-breakdown small { display: block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--slate); }
+.an3-breakdown b { display: block; margin-top: 1px; font-size: 14px; font-weight: 750; color: var(--charcoal); font-variant-numeric: tabular-nums; }
+.an3-breakdown b i { font-style: normal; font-size: 11px; font-weight: 600; color: #b8b2a7; cursor: help; }
+.an3-chart-note { margin-top: 8px; font-size: 10.5px; line-height: 1.5; color: #b8b2a7; }
+.an3-hero { align-items: flex-start; }
