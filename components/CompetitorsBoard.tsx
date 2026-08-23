@@ -11,7 +11,16 @@ import {
   Download,
   Eye,
   Bookmark,
+  Info,
 } from "lucide-react";
+
+const IgGlyph = (
+  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#d92e7f" strokeWidth="2.4" className="cp3-acct-ig" aria-hidden>
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <circle cx="12" cy="12" r="4" />
+    <circle cx="17.5" cy="6.5" r="1.4" fill="#d92e7f" stroke="none" />
+  </svg>
+);
 
 // Interactive competitor strip + outlier grid (preview dataset).
 // Selecting a competitor highlights their outlier posts below.
@@ -116,7 +125,9 @@ export default function CompetitorsBoard({
                 <span className="cp3-avatar ph">{c.handle.replace("@", "")[0].toUpperCase()}</span>
               )}
               <span className="cp3-acct-meta">
-                <b>{c.handle}</b>
+                <b>
+                  {IgGlyph} {c.handle}
+                </b>
                 <small>{c.followers} followers</small>
                 <small className="cp3-eng">
                   Eng. {c.eng} <em>▲ {c.momentum}%</em>
@@ -136,7 +147,15 @@ export default function CompetitorsBoard({
         {/* outliers hero */}
         <section className="cp3-outcard">
           <div className="cp3-card-head">
-            <h3>Top outliers this week</h3>
+            <h3>
+              Top outliers this week{" "}
+              <span
+                className="cp3-info"
+                title="Posts performing at least 2× that account's median engagement. Preview data."
+              >
+                <Info size={12} />
+              </span>
+            </h3>
             <span className="cp3-filter">
               {selected && selCount != null
                 ? `${selCount} from ${selected} · tap again to clear`
@@ -163,7 +182,7 @@ export default function CompetitorsBoard({
                     <b>{o.handle}</b>
                     <span className="cp3-fmt">{o.format}</span>
                   </div>
-                  <p className="cp3-why">
+                  <p className="cp3-why" title={o.why}>
                     <span>Why it won:</span> {o.why}
                   </p>
                   <div className="cp3-out-metrics">

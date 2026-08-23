@@ -13,7 +13,9 @@ import {
   Zap,
   Volume2,
   Bookmark,
+  Info,
 } from "lucide-react";
+import CountUp from "@/components/CountUp";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import DateRangeSelector from "@/components/DateRangeSelector";
@@ -124,7 +126,7 @@ const GAPS = [
   {
     Ico: Clock,
     title: "Open strong in the first 0.5s",
-    body: "Top accounts open on a face or motion. Your posts open on the logo.",
+    body: "Top competitors open on a face, movement, or immediate payoff. Your posts often begin with branding.",
     impact: "High impact",
     tone: "hi" as const,
     cta: "Turn this into a post",
@@ -133,7 +135,7 @@ const GAPS = [
   {
     Ico: CalendarDays,
     title: "Post 4–5× per week",
-    body: "You post 2× per week; top accounts post 4–6×.",
+    body: "You currently average 2× per week while top competitors average 4–6×.",
     impact: "Medium impact",
     tone: "med" as const,
     cta: "Plan more content",
@@ -142,7 +144,7 @@ const GAPS = [
   {
     Ico: Type,
     title: "On-screen text in every Reel",
-    body: "Top accounts use text in 92% of Reels. You use it in 37%.",
+    body: "92% of high-performing competitor Reels use on-screen text in the opening seconds, versus 37% of yours.",
     impact: "Medium impact",
     tone: "med" as const,
     cta: "Get text ideas",
@@ -163,14 +165,14 @@ const STRENGTHS = [
     tone: "blue",
     title: "Audio trend adoption",
     body: "You use trending audio 32% more often than the niche average.",
-    pct: 66,
+    pct: 68,
   },
   {
     Ico: Bookmark,
     tone: "green",
     title: "Saves per view",
     body: "Your save rate is 18% higher than the top 5 accounts.",
-    pct: 59,
+    pct: 82,
   },
 ];
 
@@ -223,7 +225,12 @@ export default async function CompetitorsPage() {
           <div className="cp3-center">
             <Reveal className="cp3-panel">
               <div className="cp3-card-head">
-                <h3>Trending formats</h3>
+                <h3>
+                  Trending formats{" "}
+                  <span className="cp3-info" title="How each format is trending across tracked accounts. Preview estimates.">
+                    <Info size={12} />
+                  </span>
+                </h3>
                 <Link href="/niche" className="link-mini">View all</Link>
               </div>
               <ul className="cp3-trends">
@@ -293,7 +300,12 @@ export default async function CompetitorsPage() {
           <aside className="cp3-right">
             <Reveal className="cp3-panel" delay={60}>
               <div className="cp3-card-head">
-                <h3>Strengths you can leverage</h3>
+                <h3>
+                  Strengths you can leverage{" "}
+                  <span className="cp3-info" title="Your percentile vs tracked accounts. Preview estimates.">
+                    <Info size={12} />
+                  </span>
+                </h3>
               </div>
               <ul className="cp3-strengths">
                 {STRENGTHS.map(({ Ico, tone, title, body, pct }) => (
@@ -302,8 +314,11 @@ export default async function CompetitorsPage() {
                     <span className="cp3-str-meta">
                       <b>{title}</b>
                       <small>{body}</small>
-                      <span className="cp3-str-bar">
-                        <i className={tone} style={{ width: `${pct}%` }} />
+                      <span className="cp3-str-barrow" title={`${pct}th percentile vs tracked accounts (preview)`}>
+                        <span className="cp3-str-bar">
+                          <i className={tone} style={{ width: `${pct}%` }} />
+                        </span>
+                        <em className="cp3-str-pct">{pct}%</em>
                       </span>
                     </span>
                   </li>
@@ -316,7 +331,12 @@ export default async function CompetitorsPage() {
 
             <Reveal className="cp3-panel cp3-niche" delay={130}>
               <div className="cp3-card-head">
-                <h3>Niche performance</h3>
+                <h3>
+                  Niche performance{" "}
+                  <span className="cp3-info" title="Niche-wide benchmark estimates. Preview data.">
+                    <Info size={12} />
+                  </span>
+                </h3>
               </div>
               <div className="cp3-gauge">
                 <svg viewBox="0 0 148 84" aria-hidden>
@@ -345,7 +365,7 @@ export default async function CompetitorsPage() {
                   </defs>
                 </svg>
                 <div className="cp3-gauge-val">
-                  <b>{NICHE.avgEng}%</b>
+                  <b><CountUp value={`${NICHE.avgEng}%`} /></b>
                   <small>Avg. engagement rate</small>
                 </div>
                 <span className="cp3-gauge-min">0%</span>
@@ -354,13 +374,13 @@ export default async function CompetitorsPage() {
               <p className="cp3-gauge-delta">{NICHE.delta}</p>
               <div className="cp3-niche-kpis">
                 <div className="cp3-nkpi">
-                  <b>{NICHE.views}</b>
-                  <small>Total views (niche)</small>
+                  <b><CountUp value={NICHE.views} /></b>
+                  <small>Niche views</small>
                   <em>{NICHE.viewsDelta}</em>
                 </div>
                 <div className="cp3-nkpi">
-                  <b>{NICHE.saves}</b>
-                  <small>Total saves (niche)</small>
+                  <b><CountUp value={NICHE.saves} /></b>
+                  <small>Niche saves</small>
                   <em>{NICHE.savesDelta}</em>
                 </div>
               </div>
@@ -378,10 +398,25 @@ export default async function CompetitorsPage() {
             <small>Smart takeaway</small>
             <p>
               POV clips and strong first frames are driving the biggest lifts this week. Lean into
-              short, in-your-face openers.
+              short, immediate, in-your-face openers rather than polished intros.
             </p>
           </div>
-          <Link href="/tool" className="cp3-take-cta">
+          <svg className="cp3-take-viz" viewBox="0 0 150 56" aria-hidden>
+            <rect x="8" y="36" width="15" height="16" rx="3" fill="rgba(139,92,246,0.25)" />
+            <rect x="33" y="28" width="15" height="24" rx="3" fill="rgba(76,134,255,0.3)" />
+            <rect x="58" y="18" width="15" height="34" rx="3" fill="rgba(139,92,246,0.4)" />
+            <rect x="83" y="8" width="15" height="44" rx="3" fill="rgba(76,134,255,0.5)" />
+            <polyline
+              points="12,30 40,22 66,13 104,4"
+              fill="none"
+              stroke="#8b5cf6"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              opacity="0.6"
+            />
+            <path d="M104 4 l-6 -1 4 5 z" fill="#8b5cf6" opacity="0.6" />
+          </svg>
+          <Link href="/tool" className="cp3-take-cta solid">
             <Sparkles size={13} /> See content ideas <ArrowRight size={13} />
           </Link>
         </Reveal>

@@ -9691,3 +9691,25 @@ a.hub-card:hover {
   .cp3-str-bar i { transform: scaleX(1); }
   .cp3-gauge-fill { stroke-dashoffset: var(--target); }
 }
+
+/* ---- Competitors v3.1 refinements: hierarchy + tooltips + takeaway viz ---- */
+.cp3-info { display: inline-flex; vertical-align: -1px; color: #c3beb4; cursor: help; transition: color 0.15s; }
+.cp3-info:hover { color: var(--slate); }
+.cp3-acct-ig { color: #d92e7f; vertical-align: -1.5px; margin-right: 2px; }
+.cp3-mult { font-size: 11.5px; padding: 4px 10px; }
+.cp3-trend-mult b { font-size: 15px; }
+.cp3-why { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cp3-out-cta { padding: 6px 10px; margin: 6px -10px -6px; border-radius: 8px; transition: background 0.18s; }
+.cp3-out:hover .cp3-out-cta { background: rgba(37, 99, 255, 0.07); }
+.cp3-str-barrow { display: flex; align-items: center; gap: 8px; cursor: help; }
+.cp3-str-barrow .cp3-str-bar { flex: 1; }
+.cp3-str-pct { flex: none; font-style: normal; font-size: 10.5px; font-weight: 750; color: var(--charcoal); font-variant-numeric: tabular-nums; }
+.cp3-take-viz { flex: none; width: 132px; height: 50px; }
+.cp3-take-cta.solid {
+  background: linear-gradient(135deg, #8b5cf6, #4c86ff);
+  border: none; color: #fff;
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.28);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+.cp3-take-cta.solid:hover { background: linear-gradient(135deg, #8b5cf6, #4c86ff); transform: translateY(-1px); box-shadow: 0 9px 22px rgba(139, 92, 246, 0.36); }
+@media (max-width: 1100px) { .cp3-take-viz { display: none; } }
