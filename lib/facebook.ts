@@ -3,14 +3,17 @@
 // Requires the "Facebook Login" product on the Meta app, with the callback
 // registered under Valid OAuth Redirect URIs. Permissions used:
 //   pages_show_list       -> list the Pages the user manages
-//   pages_read_engagement -> Page posts + engagement fields
-//   read_insights         -> Page/post insights (where Meta provides them)
+//   pages_read_engagement -> Page profile, posts, reactions/comments/shares
+// read_insights (Page insights time series) is an advanced permission that
+// requires App Review and isn't selectable on user-token login
+// configurations, so SOCIA doesn't request it — the capability map reports
+// those metrics as unavailable rather than guessing.
 // In Development Mode these work for app admins/developers/testers without
 // App Review — public users need the app reviewed by Meta.
 
 export const FB_GRAPH_V = "v23.0";
 
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "read_insights"].join(",");
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;
