@@ -512,12 +512,25 @@ export default function VideoScorer({ niche }: { niche?: string }) {
   );
 }
 
+// Example breakdown for the labeled demo card. The tooltips describe what each
+// category measures — product facts, not results.
+const EX_DIMS = [
+  { k: "Hook", v: 88, tip: "Whether the first seconds create enough curiosity to keep watching." },
+  { k: "Script", v: 82, tip: "Pacing, clarity and payoff of what's said and shown." },
+  { k: "Visual", v: 81, tip: "Framing, lighting and visual variety across the video." },
+  { k: "Audio", v: 85, tip: "Voice clarity and how well sound supports the content." },
+];
+
+const band = (v: number) => (v >= 85 ? "Strong" : v >= 70 ? "Good" : v >= 55 ? "Fair" : "Weak");
+
 /**
  * Shown before anything is uploaded. Explains what the tool returns using small
  * animated demos. Every panel is explicitly labelled as an example — this must never
  * be mistaken for a real result, which is exactly what the old mockup got wrong.
  */
 function EmptyState() {
+  const shown = useCountUp(84, 650);
+  const low = EX_DIMS.reduce((a, b) => (b.v < a.v ? b : a));
   return (
     <div className="vs2-empty vs-in" id="vs2-example">
       <div className="vs2-empty-head">
@@ -528,44 +541,45 @@ function EmptyState() {
       <div className="vs2-egrid">
         <div className="vs2-ecard" style={{ animationDelay: "60ms" }}>
           <span className="vs2-elabel">Overall score</span>
-          <div className="vs2-ering-row">
-            <div className="vs2-ering">
-              <svg viewBox="0 0 80 80" width="80" height="80">
-                <circle cx="40" cy="40" r="33" className="vs2-ering-track" />
-                <circle
-                  cx="40"
-                  cy="40"
-                  r="33"
-                  className="vs2-ering-fill"
-                  transform="rotate(-90 40 40)"
-                />
+          <div className="vs3-top">
+            <div className="vs3-ring" aria-hidden>
+              <svg viewBox="0 0 118 118" width="118" height="118">
+                <circle cx="59" cy="59" r="52" className="vs3-track" />
+                <circle cx="59" cy="59" r="52" className="vs3-fill" transform="rotate(-90 59 59)" />
               </svg>
-              <b>
-                84<em>/100</em>
-              </b>
+              <span className="vs3-center">
+                <b>{shown}</b>
+                <small>/100</small>
+                <em>{band(84)}</em>
+              </span>
             </div>
-            <div>
-              <h4>A score you can argue with</h4>
-              <p>Hook, script, visual and audio rated separately — each with the reason.</p>
+            <div className="vs3-exp">
+              <h4>Strong overall. Your hook is doing most of the work.</h4>
+              <p>
+                Hook, script, visual and audio are scored separately so you know exactly what to
+                improve.
+              </p>
             </div>
           </div>
-          <div className="vs2-esubs">
-            <span className="c0">
-              <b>88</b>
-              <small>Hook</small>
-            </span>
-            <span className="c1">
-              <b>82</b>
-              <small>Script</small>
-            </span>
-            <span className="c2">
-              <b>81</b>
-              <small>Visual</small>
-            </span>
-            <span className="c3">
-              <b>85</b>
-              <small>Audio</small>
-            </span>
+          <div className="vs3-break">
+            {EX_DIMS.map((d, i) => (
+              <div
+                className={`vs3-m c${i}`}
+                key={d.k}
+                title={`${d.k} — ${d.tip}`}
+                style={{ animationDelay: `${250 + i * 80}ms` }}
+              >
+                <small>{d.k}</small>
+                <b>{d.v}</b>
+                <em>
+                  {band(d.v)}
+                  {d === low ? " · lowest" : ""}
+                </em>
+                <span className="vs3-bar">
+                  <i style={{ width: `${d.v}%`, animationDelay: `${320 + i * 80}ms` }} />
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -770,7 +784,6 @@ function ScorerStyles() {
       @keyframes vsRing { from { stroke-dashoffset: var(--ring-c) } }
       @keyframes vsPulse { 0%,100% { r:4.5; opacity:1 } 50% { r:7; opacity:.6 } }
       @keyframes vsShine { to { background-position: 200% 0 } }
-      @keyframes vsRingDemo { from { stroke-dashoffset: 207 } to { stroke-dashoffset: 33 } }
       @keyframes vsCurveDemo { from { stroke-dashoffset: 420 } to { stroke-dashoffset: 0 } }
 
       .vs-in { animation: vsIn .45s cubic-bezier(.22,1,.36,1) both; }
@@ -903,28 +916,53 @@ function ScorerStyles() {
       .vs2-ecard h4 { margin: 12px 0 4px; font-size: 14px; font-weight: 700; color: #fff; }
       .vs2-ecard p { margin: 0; font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,.5); }
 
-      .vs2-ering-row { display: flex; align-items: center; gap: 16px; }
-      .vs2-ering-row h4 { margin-top: 0; }
-      .vs2-ering { position: relative; width: 80px; height: 80px; flex: none; }
-      .vs2-ering b { position: absolute; inset: 0; display: grid; place-items: center;
-        font-size: 21px; font-weight: 780; letter-spacing: -.5px; color: #fff; }
-      .vs2-ering b em { font-style: normal; font-size: 9px; font-weight: 650;
-        color: rgba(255,255,255,.4); margin-left: 2px; }
-      .vs2-ering-track { fill: none; stroke: rgba(255,255,255,.09); stroke-width: 7; }
-      .vs2-ering-fill { fill: none; stroke: #2563FF; stroke-width: 7; stroke-linecap: round;
-        stroke-dasharray: 207; animation: vsRingDemo 1.6s cubic-bezier(.22,1,.36,1) both;
-        animation-delay: .3s; }
-      .vs2-esubs { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px;
-        margin-top: 16px; }
-      .vs2-esubs span { text-align: center; border-radius: 10px; padding: 8px 4px; }
-      .vs2-esubs b { display: block; font-size: 15px; font-weight: 750;
+      /* refined overall-score card: hero ring, quiet copy, one breakdown row */
+      .vs3-top { display: flex; align-items: center; gap: 20px; }
+      .vs3-ring { position: relative; width: 118px; height: 118px; flex: none; }
+      .vs3-track { fill: none; stroke: rgba(255,255,255,.07); stroke-width: 5; }
+      .vs3-fill { fill: none; stroke: #3b76ff; stroke-width: 5; stroke-linecap: round;
+        stroke-dasharray: 327; stroke-dashoffset: 52.3;
+        filter: drop-shadow(0 0 5px rgba(37,99,255,.4));
+        animation: vs3Ring .7s cubic-bezier(.22,1,.36,1) both; animation-delay: .15s; }
+      @keyframes vs3Ring { from { stroke-dashoffset: 327 } }
+      .vs3-center { position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; line-height: 1.1; }
+      .vs3-center b { font-size: 27px; font-weight: 800; letter-spacing: -1px; color: #fff;
         font-variant-numeric: tabular-nums; }
-      .vs2-esubs small { display: block; margin-top: 1px; font-size: 10px;
-        color: rgba(255,255,255,.5); }
-      .vs2-esubs .c0 { background: rgba(139,92,246,.12); } .vs2-esubs .c0 b { color: #c4b5fd; }
-      .vs2-esubs .c1 { background: rgba(37,99,255,.14); }  .vs2-esubs .c1 b { color: #8ab4ff; }
-      .vs2-esubs .c2 { background: rgba(52,211,153,.1); }  .vs2-esubs .c2 b { color: #34d399; }
-      .vs2-esubs .c3 { background: rgba(217,119,6,.12); }  .vs2-esubs .c3 b { color: #f5b04c; }
+      .vs3-center small { font-size: 10px; color: rgba(255,255,255,.4); margin-top: 1px; }
+      .vs3-center em { font-style: normal; font-size: 8.5px; font-weight: 750;
+        letter-spacing: .1em; text-transform: uppercase; color: #34d399; margin-top: 4px; }
+      .vs3-exp h4 { margin: 0 0 5px; font-size: 13.5px; font-weight: 700; color: #fff;
+        line-height: 1.45; }
+      .vs3-exp p { margin: 0; font-size: 12px; line-height: 1.55; color: rgba(255,255,255,.5); }
+
+      .vs3-break { display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+        margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.06); }
+      .vs3-m { padding: 2px 12px 0; animation: vsIn .4s cubic-bezier(.22,1,.36,1) both; }
+      .vs3-m:first-child { padding-left: 0; }
+      .vs3-m + .vs3-m { border-left: 1px solid rgba(255,255,255,.06); }
+      .vs3-m small { display: block; font-size: 9px; font-weight: 750; letter-spacing: .1em;
+        text-transform: uppercase; color: rgba(255,255,255,.4); }
+      .vs3-m b { display: block; margin-top: 4px; font-size: 18px; font-weight: 780;
+        letter-spacing: -.4px; font-variant-numeric: tabular-nums; transition: filter .18s; }
+      .vs3-m em { display: block; font-style: normal; margin-top: 1px; font-size: 10px;
+        color: rgba(255,255,255,.45); white-space: nowrap; }
+      .vs3-bar { display: block; height: 2px; border-radius: 99px;
+        background: rgba(255,255,255,.07); margin-top: 9px; overflow: hidden; }
+      .vs3-bar i { display: block; height: 100%; border-radius: 99px; opacity: .65;
+        transition: opacity .18s; animation: vsGrow .5s cubic-bezier(.22,1,.36,1) both; }
+      .vs3-m.c0 b { color: #c4b5fd; } .vs3-m.c0 .vs3-bar i { background: #c4b5fd; }
+      .vs3-m.c1 b { color: #8ab4ff; } .vs3-m.c1 .vs3-bar i { background: #8ab4ff; }
+      .vs3-m.c2 b { color: #34d399; } .vs3-m.c2 .vs3-bar i { background: #34d399; }
+      .vs3-m.c3 b { color: #f5b04c; } .vs3-m.c3 .vs3-bar i { background: #f5b04c; }
+      .vs3-m:hover b { filter: brightness(1.25); }
+      .vs3-m:hover .vs3-bar i { opacity: 1; }
+      @media (max-width: 560px) {
+        .vs3-top { flex-direction: column; text-align: center; gap: 12px; }
+        .vs3-break { grid-template-columns: repeat(2, minmax(0,1fr)); row-gap: 14px; }
+        .vs3-m { padding-left: 12px; }
+        .vs3-m:nth-child(odd) { border-left: none; padding-left: 0; }
+      }
 
       .vs2-ecurve { width: 100%; height: auto; }
       .vs2-ecurve .eg { stroke: rgba(255,255,255,.06); stroke-width: 1; }
@@ -1052,11 +1090,10 @@ function ScorerStyles() {
 
       @media (prefers-reduced-motion: reduce) {
         .vs-in, .vs-fill, .vs-ring-fill, .vs-line, .vs-area, .vs2-thumb, .vs2-fix,
-        .vs-pulse, .vs2-drop, .vs2-context, .vs2-empty, .vs2-ecard, .vs2-ering-fill,
-        .vs2-ecurve .el, .vs2-ecurve .ed, .vs2-efixes li,
+        .vs-pulse, .vs2-drop, .vs2-context, .vs2-empty, .vs2-ecard, .vs3-fill,
+        .vs3-m, .vs3-bar i, .vs2-ecurve .el, .vs2-ecurve .ed, .vs2-efixes li,
         .vs2-step.active .vs2-dot { animation: none !important; }
         .vs2-drop:hover, .vs2-ecard:hover, .vs2-browse:hover { transform: none; }
-        .vs2-ering-fill { stroke-dashoffset: 33; }
         .vs2-ecurve .el { stroke-dashoffset: 0; }
       }
     `}</style>
