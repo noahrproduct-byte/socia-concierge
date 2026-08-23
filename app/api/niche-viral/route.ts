@@ -31,11 +31,23 @@ export type ViralItem = {
 export type ViralDoc = { v: 1; niche: string; items: ViralItem[]; found_at: string };
 
 function parseArray(text: string): unknown[] | null {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
+  // The model may wrap the array in prose or code fences, and search
+  // citations add stray brackets — target an array of objects specifically.
+  const cleaned = text.replace(/```(?:json)?/gi, "");
+  const m = /\[\s*\{[\s\S]*\}\s*\]/.exec(cleaned);
+  if (m) {
+    try {
+      const parsed = JSON.parse(m[0]);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // fall through
+    }
+  }
+  const start = cleaned.indexOf("[");
+  const end = cleaned.lastIndexOf("]");
   if (start === -1 || end <= start) return null;
   try {
-    const parsed = JSON.parse(text.slice(start, end + 1));
+    const parsed = JSON.parse(cleaned.slice(start, end + 1));
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
@@ -195,7 +207,10 @@ Output ONLY a JSON array, no other text:
     const rawItems = parseArray(text);
     if (!rawItems) {
       return NextResponse.json(
-        { error: "Couldn't extract results from the search — try again." },
+        {
+          error: "Couldn't extract results from the search — try again.",
+          error_hint: text.slice(-400) || "(empty model text)",
+        },
         { status: 502 },
       );
     }
