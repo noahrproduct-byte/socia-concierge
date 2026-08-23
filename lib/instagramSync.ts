@@ -62,7 +62,11 @@ async function recordSnapshot(
     day: new Date().toISOString().slice(0, 10),
     retrieved_at: new Date().toISOString(),
   };
-  if (followers != null) row.followers = followers;
+  // An exact follower total observed right now — the highest-quality source.
+  if (followers != null) {
+    row.followers = followers;
+    row.source = "socia_snapshot";
+  }
   const COLS = [
     "views",
     "reach",
@@ -154,7 +158,10 @@ export async function fetchDailySeries(
   days = 90,
 ): Promise<Map<string, Record<string, number>>> {
   const out = new Map<string, Record<string, number>>();
-  const METRICS = ["views", "reach"]; // metrics that support a period=day series
+  // Metrics Meta serves as a genuine period=day series. NOTE: `follower_count`
+  // is NEW FOLLOWERS PER DAY (gains), not a running total — it is stored as
+  // followers_gained and never treated as a follower-count snapshot.
+  const METRICS = ["views", "reach", "follower_count"];
   const now = Math.floor(Date.now() / 1000);
   const CHUNK = 30 * 86400;
 
@@ -185,7 +192,7 @@ export async function fetchDailySeries(
             .toISOString()
             .slice(0, 10);
           const row = out.get(day) ?? {};
-          row[name] = v.value;
+          row[name === "follower_count" ? "followers_gained" : name] = v.value;
           out.set(day, row);
         }
       }
@@ -317,9 +324,8 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     // cache columns may not exist yet; the in-memory snapshot still serves
   }
 
-  await recordSnapshot(supabase, userId, snap.followers_count, acct.values);
-
-  // Backfill Meta's own daily series (real per-day activity, not post totals).
+  // Backfill Meta's own daily series first, then today's exact snapshot, so
+  // the observed follower total (socia_snapshot) always wins for today.
   try {
     const series = await fetchDailySeries(conn.access_token, 90);
     if (series.size) {
@@ -327,6 +333,7 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
         user_id: userId,
         day,
         ...vals,
+        source: "instagram_api",
         retrieved_at: now,
       }));
       const { error } = await supabase
@@ -345,6 +352,8 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
   } catch {
     // history simply stays as far back as previous syncs recorded
   }
+
+  await recordSnapshot(supabase, userId, snap.followers_count, acct.values);
 
   return snap;
 }

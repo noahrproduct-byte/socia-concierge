@@ -201,7 +201,7 @@ export default async function AnalyticsPage() {
   try {
     const full = await supabase
       .from("account_snapshots")
-      .select("day, followers, views, reach, likes, comments, total_interactions, saves, shares")
+      .select("day, followers, views, reach, followers_gained, likes, comments, total_interactions, saves, shares")
       .eq("user_id", user.id)
       .order("day", { ascending: true })
       .limit(400);
@@ -220,6 +220,7 @@ export default async function AnalyticsPage() {
         followers: r.followers,
         views: null,
         reach: null,
+        followers_gained: null,
         likes: null,
         comments: null,
         total_interactions: null,

@@ -50,6 +50,9 @@ export type DailyRow = {
   views: number | null;
   /** Unique accounts reached that day — Meta's real daily series. */
   reach: number | null;
+  /** New followers gained that day (Instagram's follower_count metric).
+   *  Gains only — unfollows aren't provided, so totals can't be rebuilt. */
+  followers_gained: number | null;
   likes: number | null;
   comments: number | null;
   total_interactions: number | null;
@@ -58,7 +61,13 @@ export type DailyRow = {
 };
 
 type Metric = "followers" | "reach" | "views" | "eng" | "posts";
-type Mode = "snapshot_history" | "history_unavailable" | "daily_history" | "post_totals" | "publish_history";
+type Mode =
+  | "snapshot_history"
+  | "gains_history"
+  | "history_unavailable"
+  | "daily_history"
+  | "post_totals"
+  | "publish_history";
 
 const DAY_MS = 86400000;
 const CHIPS = [
@@ -380,6 +389,17 @@ export default function PerformanceOverTime({
     const viewsRows = inRows.filter((r) => r.views != null);
     // Reach is the one metric Meta serves as a genuine daily series.
     const reachRows = inRows.filter((r) => r.reach != null);
+    const gainRows = inRows.filter((r) => r.followers_gained != null);
+    const gainsCur = gainRows.reduce((a, r) => a + (r.followers_gained ?? 0), 0);
+    const gainPrevRows = daily.filter(
+      (r) =>
+        r.day >= prevStart.toISOString().slice(0, 10) &&
+        r.day < startStr &&
+        r.followers_gained != null,
+    );
+    const gainsPrev = gainPrevRows.length
+      ? gainPrevRows.reduce((a, r) => a + (r.followers_gained ?? 0), 0)
+      : null;
     const reachCur = reachRows.reduce((a, r) => a + (r.reach ?? 0), 0);
     const prevRows = daily.filter(
       (r) => r.day >= prevStart.toISOString().slice(0, 10) && r.day < startStr && r.reach != null,
@@ -399,7 +419,11 @@ export default function PerformanceOverTime({
 
     // Modes — the whole point.
     const modes: Record<Metric, Mode> = {
-      followers: folRows.length >= 2 ? "snapshot_history" : "history_unavailable",
+      // Exact totals beat gains-only activity, which beats nothing.
+      followers:
+        folRows.length >= 2 ? "snapshot_history"
+        : gainRows.length >= 3 ? "gains_history"
+        : "history_unavailable",
       reach: reachRows.length >= 3 ? "daily_history" : "history_unavailable",
       views: viewsRows.length >= 3 ? "daily_history" : "post_totals",
       eng: engRows.length >= 3 ? "daily_history" : "post_totals",
@@ -438,6 +462,7 @@ export default function PerformanceOverTime({
       sharesAvail, sharesCur: sharesAvail ? sum(cur, (p) => p.shares ?? 0) : null,
       folRows, folNet, folDelta, firstSnapDay,
       reachRows, reachCur, reachDelta: deltaOf(reachCur, reachPrev),
+      gainRows, gainsCur, gainsDelta: deltaOf(gainsCur, gainsPrev),
       viewsRows, engRows, engOfRow, engOf,
       buckets, weekly, freq, topFmt,
       engMedAll, viewsMedAll, topEng, topViews,
@@ -491,7 +516,13 @@ export default function PerformanceOverTime({
       value: followers != null ? followers.toLocaleString("en-US") : null,
       naText: "not synced yet",
       d: m.folDelta,
-      note: m.folDelta ? `vs previous ${m.days} days` : m.firstSnapDay ? `history started ${shortDate(new Date(m.firstSnapDay + "T00:00:00"))}` : "history starts today",
+      note: m.folDelta
+        ? `vs previous ${m.days} days`
+        : m.gainRows.length
+          ? `+${m.gainsCur.toLocaleString("en-US")} new followers · last ${m.days} days`
+          : m.firstSnapDay
+            ? `history started ${shortDate(new Date(m.firstSnapDay + "T00:00:00"))}`
+            : "history starts today",
       spark: { data: folVals, color: "#2563ff" },
     },
     {
@@ -649,6 +680,35 @@ export default function PerformanceOverTime({
                   )}
                 </div>
               )}
+            </>
+          ) : mode === "gains_history" ? (
+            <>
+              <div className="an3-hero">
+                <div><b>{followers != null ? followers.toLocaleString("en-US") : "–"}</b><small>Followers today</small></div>
+                <div><b>+{m.gainsCur.toLocaleString("en-US")}</b><small>New followers · last {m.days} days</small></div>
+                {m.gainsDelta?.kind === "pct" && (
+                  <div><b className={m.gainsDelta.pct >= 0 ? "up" : "down"}>{m.gainsDelta.pct >= 0 ? "↑" : "↓"} {Math.abs(m.gainsDelta.pct).toFixed(1)}%</b><small>vs previous {m.days} days</small></div>
+                )}
+                {qualityChip("Instagram historical insights", "New followers per day, straight from Instagram's insights (up to 90 days). Instagram doesn't report unfollows for this account, so exact past totals can't be reconstructed — SOCIA records the exact count daily from now on.")}
+              </div>
+              <TimeSeries
+                type={chartType}
+                cls="blue"
+                fill="rgba(37,99,255,0.08)"
+                ariaLabel="New followers per day"
+                hover={hover}
+                onHover={setHover}
+                items={m.gainRows.map((r) => ({
+                  label: shortDate(new Date(r.day + "T00:00:00")),
+                  v: r.followers_gained!,
+                  title: `${shortDate(new Date(r.day + "T00:00:00"))} — +${r.followers_gained!.toLocaleString("en-US")} new followers`,
+                }))}
+              />
+              <p className="an3-chart-note">
+                Instagram provides new followers per day for this period, but not unfollows — so this
+                is follower <em>activity</em>, not an exact follower-count line. SOCIA is recording exact
+                daily counts going forward and will switch to the true growth curve automatically.
+              </p>
             </>
           ) : (
             <div className="an3-unavailable">
@@ -906,8 +966,10 @@ export default function PerformanceOverTime({
           <ul className="an3-rows">
             {metric === "followers" && (
               <>
-                <li><span>Net growth</span><em className="flat">{m.folNet != null ? `${m.folNet >= 0 ? "+" : ""}${m.folNet.toLocaleString("en-US")}` : "history building"}</em></li>
-                <li><span>Snapshot days recorded</span><em className="flat">{fol.length}</em></li>
+                <li><span>Net growth (exact)</span><em className="flat">{m.folNet != null ? `${m.folNet >= 0 ? "+" : ""}${m.folNet.toLocaleString("en-US")}` : "recording daily"}</em></li>
+                <li><span>New followers ({m.days}d)</span><em className="flat">{m.gainRows.length ? `+${m.gainsCur.toLocaleString("en-US")}` : "—"}</em></li>
+                <li><span>Best day</span><em className="flat">{m.gainRows.length ? `+${Math.max(...m.gainRows.map((r) => r.followers_gained!))}` : "—"}</em></li>
+                <li><span>Exact snapshot days</span><em className="flat">{fol.length}</em></li>
                 <li><span>Current followers</span><em className="flat">{followers != null ? followers.toLocaleString("en-US") : "—"}</em></li>
               </>
             )}

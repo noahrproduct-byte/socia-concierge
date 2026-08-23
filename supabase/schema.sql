@@ -203,3 +203,9 @@ create policy "Users can update their own facebook connection"
   on public.facebook_connections for update using (auth.uid() = user_id);
 create policy "Users can delete their own facebook connection"
   on public.facebook_connections for delete using (auth.uid() = user_id);
+
+-- Daily new followers from Instagram insights (gains only; unfollows are not
+-- provided, so exact historical totals cannot be reconstructed) + provenance.
+alter table public.account_snapshots
+  add column if not exists followers_gained integer,
+  add column if not exists source text;
