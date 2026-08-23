@@ -189,6 +189,8 @@ export default async function AnalyticsPage() {
       t: m.timestamp!,
       likes: m.like_count ?? 0,
       comments: m.comments_count ?? 0,
+      views: m.insights?.views ?? null,
+      saved: m.insights?.saved ?? null,
       type: m.media_type ?? "IMAGE",
       caption: m.caption ?? "",
       thumb: m.thumbnail_url || m.media_url || null,
@@ -355,6 +357,7 @@ export default async function AnalyticsPage() {
         posts={live ? perfPosts : []}
         followers={live ? followers : null}
         snaps={snapsHist}
+        insightsOk={snap?.insights_ok ?? null}
       />
 
       {/* Benchmark/insight + formats */}

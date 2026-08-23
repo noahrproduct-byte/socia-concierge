@@ -31,6 +31,9 @@ export type PerfPost = {
   t: string;
   likes: number;
   comments: number;
+  /** From media insights; null = Meta did not provide it (never zero). */
+  views: number | null;
+  saved: number | null;
   type: string;
   caption: string;
   thumb: string | null;
@@ -71,7 +74,15 @@ function niceCeil(v: number): number {
   return 10 * p;
 }
 
-type Day = { date: Date; eng: number; likes: number; comments: number; posts: PerfPost[] };
+type Day = {
+  date: Date;
+  eng: number;
+  likes: number;
+  comments: number;
+  views: number;
+  saves: number;
+  posts: PerfPost[];
+};
 
 function Delta({ pct, note }: { pct: number | null; note: string }) {
   const cls = pct == null ? "flat" : Math.abs(pct) < 2 ? "flat" : pct > 0 ? "up" : "down";
@@ -106,10 +117,13 @@ export default function PerformanceOverTime({
   posts,
   followers,
   snaps,
+  insightsOk = null,
 }: {
   posts: PerfPost[];
   followers: number | null;
   snaps: FollowerSnap[];
+  /** false = the stored token lacks the insights permission. */
+  insightsOk?: boolean | null;
 }) {
   // Date math waits for mount so SSR (UTC) and the browser never disagree.
   const [now, setNow] = useState<Date | null>(null);
@@ -150,7 +164,7 @@ export default function PerformanceOverTime({
     for (let i = 0; i < days; i++) {
       const date = new Date(start.getTime() + i * DAY_MS);
       idx.set(dayKey(date), i);
-      dayList.push({ date, eng: 0, likes: 0, comments: 0, posts: [] });
+      dayList.push({ date, eng: 0, likes: 0, comments: 0, views: 0, saves: 0, posts: [] });
     }
     for (const p of cur) {
       const i = idx.get(dayKey(new Date(p.t)));
@@ -158,12 +172,22 @@ export default function PerformanceOverTime({
       dayList[i].eng += p.likes + p.comments;
       dayList[i].likes += p.likes;
       dayList[i].comments += p.comments;
+      dayList[i].views += p.views ?? 0;
+      dayList[i].saves += p.saved ?? 0;
       dayList[i].posts.push(p);
     }
 
     const sum = (xs: PerfPost[], f: (p: PerfPost) => number) => xs.reduce((a, p) => a + f(p), 0);
     const engCur = sum(cur, (p) => p.likes + p.comments);
     const engPrev = prev.length ? sum(prev, (p) => p.likes + p.comments) : null;
+
+    // Views/saves exist only when Meta actually provided media insights.
+    const viewsAvail = cur.some((p) => p.views != null);
+    const savesAvail = cur.some((p) => p.saved != null);
+    const viewsCur = sum(cur, (p) => p.views ?? 0);
+    const savesCur = sum(cur, (p) => p.saved ?? 0);
+    const viewsPrev = prev.some((p) => p.views != null) ? sum(prev, (p) => p.views ?? 0) : null;
+    const savesPrev = prev.some((p) => p.saved != null) ? sum(prev, (p) => p.saved ?? 0) : null;
 
     // Spike days: ≥2× the median of active days, with at least one post.
     const active = dayList.filter((d) => d.eng > 0).map((d) => d.eng);
@@ -198,6 +222,9 @@ export default function PerformanceOverTime({
       engCur, likesCur: sum(cur, (p) => p.likes), comCur: sum(cur, (p) => p.comments),
       postCount: cur.length, prevCount: prev.length,
       engDelta: pctChange(engCur, engPrev),
+      viewsAvail, savesAvail, viewsCur, savesCur,
+      viewsDelta: pctChange(viewsCur, viewsPrev),
+      savesDelta: pctChange(savesCur, savesPrev),
       folSeries, folNet, folDelta,
       top, topMult, topShare,
     };
@@ -238,10 +265,9 @@ export default function PerformanceOverTime({
     padT + (1 - (v - (folMin - folPad)) / (folMax + folPad - (folMin - folPad))) * plotH;
   const xF = (i: number) => padL + (fol.length > 1 ? (i / (fol.length - 1)) * plotW : plotW / 2);
 
-  const hoverDay = metric === "eng" && hover != null ? m.dayList[hover] : null;
+  const hoverDay =
+    metric !== "followers" && hover != null ? m.dayList[hover] : null;
   const hoverSnap = metric === "followers" && hover != null ? fol[hover] : null;
-  const hoverSpikePost =
-    hoverDay && m.spikes.includes(hover!) ? hoverDay.posts[0] : null;
 
   function onMoveEng(e: React.PointerEvent<SVGSVGElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -256,8 +282,25 @@ export default function PerformanceOverTime({
   }
 
   const empty = m.postCount === 0;
-  const unavailable = metric === "views" || metric === "saves";
   const metricLabel = METRICS.find((mm) => mm.id === metric)!.label;
+
+  // The active post-metric series (one metric → one chart → one story).
+  const S =
+    metric === "views"
+      ? { label: "Views", cls: "green", fill: "rgba(16,185,129,0.07)", get: (d: Day) => d.views, avail: m.viewsAvail, total: m.viewsCur, delta: m.viewsDelta }
+      : metric === "saves"
+        ? { label: "Saves", cls: "amber", fill: "rgba(217,119,6,0.08)", get: (d: Day) => d.saves, avail: m.savesAvail, total: m.savesCur, delta: m.savesDelta }
+        : { label: "Engagement", cls: "purple", fill: "rgba(139,92,246,0.07)", get: (d: Day) => d.eng, avail: true, total: m.engCur, delta: m.engDelta };
+  const sVals = m.dayList.map(S.get);
+  const maxV = niceCeil(Math.max(...sVals, 1));
+  const yV = (v: number) => padT + (1 - v / maxV) * plotH;
+  const sActive = sVals.filter((v) => v > 0);
+  const sMed = median(sActive);
+  const sSpikes =
+    sMed != null && sActive.length >= 3
+      ? m.dayList.map((d, i) => (d.posts.length && S.get(d) >= sMed * 2 ? i : -1)).filter((i) => i >= 0)
+      : [];
+  const hoverSpikePost = hoverDay && hover != null && sSpikes.includes(hover) ? hoverDay.posts[0] : null;
 
   const kpis: {
     id: Metric; label: string; color: string; Ico: typeof Users;
@@ -270,13 +313,23 @@ export default function PerformanceOverTime({
       note: m.folDelta != null ? compareNote : "history builds from today",
       spark: { data: folVals, color: "#2563ff" },
     },
-    { id: "views", label: "Views", color: "green", Ico: Play, value: null, delta: null, note: "" },
+    {
+      id: "views", label: "Views", color: "green", Ico: Play,
+      value: m.viewsAvail ? fmtNum(m.viewsCur) : null,
+      delta: m.viewsDelta, note: compareNote,
+      spark: { data: m.dayList.map((d) => d.views), color: "#10b981" },
+    },
     {
       id: "eng", label: "Engagement", color: "purple", Ico: Activity,
       value: fmtNum(m.engCur), delta: m.engDelta, note: compareNote,
       spark: { data: engVals, color: "#8b5cf6" },
     },
-    { id: "saves", label: "Saves", color: "amber", Ico: Bookmark, value: null, delta: null, note: "" },
+    {
+      id: "saves", label: "Saves", color: "amber", Ico: Bookmark,
+      value: m.savesAvail ? fmtNum(m.savesCur) : null,
+      delta: m.savesDelta, note: compareNote,
+      spark: { data: m.dayList.map((d) => d.saves), color: "#f5b04c" },
+    },
   ];
 
   return (
@@ -375,14 +428,26 @@ export default function PerformanceOverTime({
 
       {/* one metric → one chart → one story */}
       <div className="an3-chartwrap">
-        {unavailable ? (
+        {metric !== "followers" && !S.avail ? (
           <div className="an3-unavailable">
-            <b>{metricLabel} aren&apos;t provided by your connected account.</b>
-            <p>
-              Instagram&apos;s Login API doesn&apos;t expose {metricLabel.toLowerCase()} for this
-              account type, and SOCIA never estimates numbers it can&apos;t verify. If Instagram
-              grants access later, this chart lights up automatically.
-            </p>
+            {insightsOk === false ? (
+              <>
+                <b>Reconnect Instagram to enable {metricLabel.toLowerCase()}.</b>
+                <p>
+                  Your stored connection predates full analytics permissions.{" "}
+                  <a href="/settings#accounts">Reconnect in Settings</a> and this chart lights up
+                  on the next sync.
+                </p>
+              </>
+            ) : (
+              <>
+                <b>Instagram didn&apos;t provide {metricLabel.toLowerCase()} for these posts.</b>
+                <p>
+                  SOCIA shows only verified numbers. If {metricLabel.toLowerCase()} arrive with a
+                  future sync, this chart fills in automatically — try Sync now in Settings.
+                </p>
+              </>
+            )}
           </div>
         ) : metric === "followers" ? (
           fol.length >= 2 ? (
@@ -455,22 +520,22 @@ export default function PerformanceOverTime({
         ) : (
           <>
             <div className="an3-hero">
-              <div><b>{fmtNum(m.engCur)}</b><small>Total engagement</small></div>
+              <div><b>{fmtNum(S.total)}</b><small>Total {S.label.toLowerCase()}</small></div>
               <div><b>{m.postCount}</b><small>Posts published</small></div>
-              {m.engDelta != null && (
-                <div><b className={m.engDelta >= 0 ? "up" : "down"}>{m.engDelta >= 0 ? "↑" : "↓"} {Math.abs(m.engDelta).toFixed(1)}%</b><small>{compareNote}</small></div>
+              {S.delta != null && (
+                <div><b className={S.delta >= 0 ? "up" : "down"}>{S.delta >= 0 ? "↑" : "↓"} {Math.abs(S.delta).toFixed(1)}%</b><small>{compareNote}</small></div>
               )}
             </div>
             <svg
               viewBox={`0 0 ${W} ${H}`}
               className="an3-chart"
               role="img"
-              aria-label="Engagement on content posted, by day"
+              aria-label={`${S.label} on content posted, by day`}
               onPointerMove={onMoveEng}
               onPointerLeave={() => setHover(null)}
             >
               <defs>
-                {m.spikes.map((i) => (
+                {sSpikes.map((i) => (
                   <clipPath id={`an3clip${i}`} key={i}>
                     <rect x={x(i) - 14} y={4} width={28} height={28} rx={7} />
                   </clipPath>
@@ -479,24 +544,24 @@ export default function PerformanceOverTime({
               {[0.25, 0.5, 0.75, 1].map((t) => (
                 <line key={t} x1={padL} y1={padT + t * plotH} x2={W - padR} y2={padT + t * plotH} className="an3-grid" />
               ))}
-              {[maxE, maxE / 2].map((v) => (
-                <text key={v} x={padL - 8} y={yE(v) + 3} className="an3-axis" textAnchor="end">{fmtNum(v)}</text>
+              {[maxV, maxV / 2].map((v) => (
+                <text key={v} x={padL - 8} y={yV(v) + 3} className="an3-axis" textAnchor="end">{fmtNum(v)}</text>
               ))}
               {xTicks.map((i) => (
                 <text key={i} x={x(i)} y={H - 6} className="an3-axis" textAnchor="middle">
                   {shortDate(m.dayList[i].date)}
                 </text>
               ))}
-              <path d={`M${x(0)},${padT + plotH} ${engVals.map((v, i) => `L${x(i)},${yE(v)}`).join(" ")} L${x(n - 1)},${padT + plotH} Z`} fill="rgba(139,92,246,0.07)" />
-              <polyline points={engVals.map((v, i) => `${x(i)},${yE(v)}`).join(" ")} className="an3-line purple an3-draw" fill="none" />
+              <path d={`M${x(0)},${padT + plotH} ${sVals.map((v, i) => `L${x(i)},${yV(v)}`).join(" ")} L${x(n - 1)},${padT + plotH} Z`} fill={S.fill} />
+              <polyline points={sVals.map((v, i) => `${x(i)},${yV(v)}`).join(" ")} className={`an3-line ${S.cls} an3-draw`} fill="none" />
               {/* content markers: thumbnail above, dotted guide down to the point */}
-              {m.spikes.map((i) => {
+              {sSpikes.map((i) => {
                 const d = m.dayList[i];
                 const post = d.posts[0];
                 const g = (
                   <g key={i} className="an3-mark">
-                    <line x1={x(i)} y1={34} x2={x(i)} y2={yE(d.eng)} className="an3-mark-line" />
-                    <circle cx={x(i)} cy={yE(d.eng)} r="4" className="an3-dot purple" />
+                    <line x1={x(i)} y1={34} x2={x(i)} y2={yV(S.get(d))} className="an3-mark-line" />
+                    <circle cx={x(i)} cy={yV(S.get(d))} r="4" className={`an3-dot ${S.cls}`} />
                     {post?.thumb && (
                       <image
                         href={post.thumb}
@@ -528,6 +593,12 @@ export default function PerformanceOverTime({
                 <div><span>Engagement</span><em>{hoverDay.eng.toLocaleString("en-US")}</em></div>
                 <div><span>Likes</span><em>{hoverDay.likes.toLocaleString("en-US")}</em></div>
                 <div><span>Comments</span><em>{hoverDay.comments.toLocaleString("en-US")}</em></div>
+                {m.viewsAvail && (
+                  <div><span>Views</span><em>{hoverDay.views.toLocaleString("en-US")}</em></div>
+                )}
+                {m.savesAvail && (
+                  <div><span>Saves</span><em>{hoverDay.saves.toLocaleString("en-US")}</em></div>
+                )}
                 <div><span>Posts published</span><em>{hoverDay.posts.length}</em></div>
                 {hoverSpikePost && (
                   <div className="an3-tip-spike">
@@ -568,7 +639,9 @@ export default function PerformanceOverTime({
                     {new Date(m.top.t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                   </small>
                   <small>
+                    {m.top.views != null && <>{fmtNum(m.top.views)} views · </>}
                     {fmtNum(m.top.likes)} likes · {fmtNum(m.top.comments)} comments
+                    {m.top.saved != null && <> · {fmtNum(m.top.saved)} saves</>}
                     {m.topMult != null && m.topMult >= 1.2 && (
                       <em title={`vs the median post of this period (${m.postCount} posts)`}>
                         {" "}· {fmtMult(m.topMult)} your median
@@ -601,7 +674,13 @@ export default function PerformanceOverTime({
             </li>
             <li className={metric === "views" ? "hot" : ""}>
               <span><Play size={12} /> Views</span>
-              <em className="flat">not provided</em>
+              <em className={m.viewsDelta == null ? "flat" : m.viewsDelta >= 0 ? "up" : "down"}>
+                {!m.viewsAvail
+                  ? "not provided"
+                  : m.viewsDelta == null
+                    ? `+${fmtNum(m.viewsCur)}`
+                    : `+${fmtNum(m.viewsCur)} · ${m.viewsDelta >= 0 ? "↑" : "↓"} ${Math.abs(m.viewsDelta).toFixed(1)}%`}
+              </em>
             </li>
             <li className={metric === "eng" ? "hot" : ""}>
               <span><Activity size={12} /> Engagement</span>
@@ -613,7 +692,13 @@ export default function PerformanceOverTime({
             </li>
             <li className={metric === "saves" ? "hot" : ""}>
               <span><Bookmark size={12} /> Saves</span>
-              <em className="flat">not provided</em>
+              <em className={m.savesDelta == null ? "flat" : m.savesDelta >= 0 ? "up" : "down"}>
+                {!m.savesAvail
+                  ? "not provided"
+                  : m.savesDelta == null
+                    ? `+${fmtNum(m.savesCur)}`
+                    : `+${fmtNum(m.savesCur)} · ${m.savesDelta >= 0 ? "↑" : "↓"} ${Math.abs(m.savesDelta).toFixed(1)}%`}
+              </em>
             </li>
             <li>
               <span><Heart size={12} /> Likes / <MessageCircle size={12} /> Comments</span>
@@ -632,8 +717,8 @@ export default function PerformanceOverTime({
       </div>
 
       <p className="an3-foot">
-        <Info size={11} /> Engagement is attributed to the day content was posted (lifetime likes +
-        comments). Times shown in your device&apos;s time zone.
+        <Info size={11} /> Engagement, views and saves are attributed to the day content was posted
+        (lifetime totals from Instagram Insights). Times shown in your device&apos;s time zone.
       </p>
     </section>
   );
