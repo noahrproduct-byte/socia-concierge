@@ -10063,3 +10063,10 @@ html { scroll-behavior: smooth; }
 .an3-typetoggle { margin-left: 6px; }
 .an3-typetoggle button { display: inline-grid; place-items: center; padding: 5px 9px; }
 .an3-typetoggle button.on { color: var(--cobalt); }
+.an3-kpis { grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); }
+.an3-kpi-ico.teal { background: rgba(13,148,136,0.12); color: #0d9488; }
+.an3-kpi.on.teal { border-color: rgba(13,148,136,0.5); box-shadow: 0 0 0 3px rgba(13,148,136,0.1); }
+.an3-tabs button.on.teal { color: #0d9488; border-bottom-color: #0d9488; }
+.an3-line.teal { stroke: #0d9488; }
+.an3-dot.teal { fill: #0d9488; }
+.an3-bar.teal { fill: #0d9488; opacity: 0.85; }

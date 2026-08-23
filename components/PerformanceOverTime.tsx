@@ -27,6 +27,7 @@ import {
   Info,
   TrendingUp,
   BarChart3,
+  Radar,
 } from "lucide-react";
 import { median, pctChange, fmtMult } from "@/lib/metrics";
 
@@ -47,6 +48,8 @@ export type DailyRow = {
   day: string;
   followers: number | null;
   views: number | null;
+  /** Unique accounts reached that day — Meta's real daily series. */
+  reach: number | null;
   likes: number | null;
   comments: number | null;
   total_interactions: number | null;
@@ -54,7 +57,7 @@ export type DailyRow = {
   shares: number | null;
 };
 
-type Metric = "followers" | "views" | "eng" | "posts";
+type Metric = "followers" | "reach" | "views" | "eng" | "posts";
 type Mode = "snapshot_history" | "history_unavailable" | "daily_history" | "post_totals" | "publish_history";
 
 const DAY_MS = 86400000;
@@ -71,6 +74,7 @@ type ChartType = "line" | "bar";
 
 const METRICS: { id: Metric; label: string; color: string }[] = [
   { id: "followers", label: "Followers", color: "blue" },
+  { id: "reach", label: "Reach", color: "teal" },
   { id: "views", label: "Views", color: "green" },
   { id: "eng", label: "Engagement", color: "purple" },
   { id: "posts", label: "Posts", color: "amber" },
@@ -315,7 +319,11 @@ export default function PerformanceOverTime({
   const [rangeId, setRangeId] = useState<string>("30");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
-  const [metric, setMetric] = useState<Metric>("eng");
+  // Reach is the one metric with a genuine daily series from Meta, so it
+  // opens the section when history exists.
+  const [metric, setMetric] = useState<Metric>(
+    daily.some((r) => r.reach != null) ? "reach" : "eng",
+  );
   const [chartType, setChartType] = useState<ChartType>("line");
   const [hover, setHover] = useState<number | null>(null);
 
@@ -370,6 +378,13 @@ export default function PerformanceOverTime({
     const inRows = daily.filter((r) => r.day >= startStr && r.day < endStr);
     const folRows = inRows.filter((r) => r.followers != null);
     const viewsRows = inRows.filter((r) => r.views != null);
+    // Reach is the one metric Meta serves as a genuine daily series.
+    const reachRows = inRows.filter((r) => r.reach != null);
+    const reachCur = reachRows.reduce((a, r) => a + (r.reach ?? 0), 0);
+    const prevRows = daily.filter(
+      (r) => r.day >= prevStart.toISOString().slice(0, 10) && r.day < startStr && r.reach != null,
+    );
+    const reachPrev = prevRows.length ? prevRows.reduce((a, r) => a + (r.reach ?? 0), 0) : null;
     const engRows = inRows.filter((r) => r.total_interactions != null || (r.likes != null && r.comments != null));
     const engOfRow = (r: DailyRow) => r.total_interactions ?? (r.likes ?? 0) + (r.comments ?? 0);
 
@@ -385,6 +400,7 @@ export default function PerformanceOverTime({
     // Modes — the whole point.
     const modes: Record<Metric, Mode> = {
       followers: folRows.length >= 2 ? "snapshot_history" : "history_unavailable",
+      reach: reachRows.length >= 3 ? "daily_history" : "history_unavailable",
       views: viewsRows.length >= 3 ? "daily_history" : "post_totals",
       eng: engRows.length >= 3 ? "daily_history" : "post_totals",
       posts: "publish_history",
@@ -421,6 +437,7 @@ export default function PerformanceOverTime({
       savesAvail, savesCur: savesAvail ? sum(cur, (p) => p.saved ?? 0) : null,
       sharesAvail, sharesCur: sharesAvail ? sum(cur, (p) => p.shares ?? 0) : null,
       folRows, folNet, folDelta, firstSnapDay,
+      reachRows, reachCur, reachDelta: deltaOf(reachCur, reachPrev),
       viewsRows, engRows, engOfRow, engOf,
       buckets, weekly, freq, topFmt,
       engMedAll, viewsMedAll, topEng, topViews,
@@ -450,14 +467,20 @@ export default function PerformanceOverTime({
   // Series the charts read from (geometry lives in TimeSeries).
   const fol = m.folRows;
   const folVals = fol.map((f) => f.followers!);
-  const lineRows = metric === "views" ? m.viewsRows : metric === "eng" ? m.engRows : [];
-  const lineVal = (r: DailyRow) => (metric === "views" ? r.views! : m.engOfRow(r));
+  const lineRows =
+    metric === "views" ? m.viewsRows
+    : metric === "reach" ? m.reachRows
+    : metric === "eng" ? m.engRows
+    : [];
+  const lineVal = (r: DailyRow) =>
+    metric === "views" ? r.views! : metric === "reach" ? r.reach! : m.engOfRow(r);
 
   const hoverRow =
     hover == null ? null
     : metric === "followers" ? fol[hover] ?? null
     : mode === "daily_history" ? lineRows[hover] ?? null
     : null;
+  const isReach = metric === "reach";
 
   const kpis: {
     id: Metric; label: string; color: string; Ico: typeof Users;
@@ -470,6 +493,13 @@ export default function PerformanceOverTime({
       d: m.folDelta,
       note: m.folDelta ? `vs previous ${m.days} days` : m.firstSnapDay ? `history started ${shortDate(new Date(m.firstSnapDay + "T00:00:00"))}` : "history starts today",
       spark: { data: folVals, color: "#2563ff" },
+    },
+    {
+      id: "reach", label: "Reach", color: "teal", Ico: Radar,
+      value: m.reachRows.length ? fmtNum(m.reachCur) : null,
+      naText: "daily reach history is building",
+      d: m.reachDelta, note: m.reachDelta ? `accounts reached · vs previous ${m.days} days` : "accounts reached daily",
+      spark: { data: m.reachRows.map((r) => r.reach!), color: "#0d9488" },
     },
     {
       id: "views", label: "Views", color: "green", Ico: Play,
@@ -658,6 +688,62 @@ export default function PerformanceOverTime({
               />
             </>
           )
+        ) : isReach ? (
+          /* ---------- REACH: Meta's real daily series ---------- */
+          mode === "daily_history" ? (
+            <>
+              <div className="an3-hero">
+                <div><b>{fmtNum(m.reachCur)}</b><small>Accounts reached · {m.days}-day total</small></div>
+                <div><b>{fmtNum(Math.round(m.reachCur / Math.max(1, m.reachRows.length)))}</b><small>Average per day</small></div>
+                {m.reachDelta && (
+                  <div>
+                    <b className={m.reachDelta.kind === "new" || m.reachDelta.pct >= 0 ? "up" : "down"}>
+                      {m.reachDelta.kind === "new" ? "up from 0" : `${m.reachDelta.pct >= 0 ? "↑" : "↓"} ${Math.abs(m.reachDelta.pct).toFixed(1)}%`}
+                    </b>
+                    <small>vs previous {m.days} days</small>
+                  </div>
+                )}
+                {qualityChip("Real daily data", "Instagram reports reach as a genuine per-day series — this chart is actual daily activity, not post totals.")}
+              </div>
+              <TimeSeries
+                type={chartType}
+                cls="teal"
+                fill="rgba(13,148,136,0.08)"
+                ariaLabel="Accounts reached per day"
+                hover={hover}
+                onHover={setHover}
+                items={m.reachRows.map((r) => ({
+                  label: shortDate(new Date(r.day + "T00:00:00")),
+                  v: r.reach!,
+                  title: `${shortDate(new Date(r.day + "T00:00:00"))} — ${r.reach!.toLocaleString("en-US")} accounts reached`,
+                }))}
+              />
+              {hoverRow && (
+                <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, ((hover! + 0.5) / Math.max(1, lineRows.length)) * 100))}%` }}>
+                  <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
+                  <div><span>Accounts reached</span><em>{hoverRow.reach!.toLocaleString("en-US")}</em></div>
+                  {hover! > 0 && lineRows[hover! - 1]?.reach != null && (
+                    <div>
+                      <span>vs previous day</span>
+                      <em>{(((hoverRow.reach! - lineRows[hover! - 1].reach!) / Math.max(1, lineRows[hover! - 1].reach!)) * 100).toFixed(1)}%</em>
+                    </div>
+                  )}
+                </div>
+              )}
+              <p className="an3-chart-note">
+                Reach is the number of unique accounts that saw your content each day, straight from
+                Instagram&apos;s daily insights.
+              </p>
+            </>
+          ) : (
+            <div className="an3-unavailable">
+              <b>Daily reach history is building.</b>
+              <p>
+                SOCIA pulls Instagram&apos;s daily reach series on every sync. Hit Sync now in
+                Settings, or check back after the next automatic refresh.
+              </p>
+            </div>
+          )
         ) : (
           /* ---------- VIEWS / ENGAGEMENT ---------- */
           (() => {
@@ -772,7 +858,7 @@ export default function PerformanceOverTime({
       <div className="an3-insights">
         <div className="an3-card">
           <small className="an3-card-label">
-            {metric === "views" ? "Top viewed post" : metric === "posts" ? "Most recent post" : "Top performing content"}
+            {metric === "views" ? "Top viewed post" : metric === "posts" ? "Most recent post" : metric === "reach" ? "Recent top post" : "Top performing content"}
           </small>
           {(() => {
             const p =
@@ -815,7 +901,7 @@ export default function PerformanceOverTime({
 
         <div className="an3-card">
           <small className="an3-card-label">
-            {metric === "followers" ? "Follower insights" : metric === "views" ? "View insights" : metric === "posts" ? "Publishing insights" : "Engagement breakdown"}
+            {metric === "followers" ? "Follower insights" : metric === "reach" ? "Reach insights" : metric === "views" ? "View insights" : metric === "posts" ? "Publishing insights" : "Engagement breakdown"}
           </small>
           <ul className="an3-rows">
             {metric === "followers" && (
@@ -823,6 +909,14 @@ export default function PerformanceOverTime({
                 <li><span>Net growth</span><em className="flat">{m.folNet != null ? `${m.folNet >= 0 ? "+" : ""}${m.folNet.toLocaleString("en-US")}` : "history building"}</em></li>
                 <li><span>Snapshot days recorded</span><em className="flat">{fol.length}</em></li>
                 <li><span>Current followers</span><em className="flat">{followers != null ? followers.toLocaleString("en-US") : "—"}</em></li>
+              </>
+            )}
+            {metric === "reach" && (
+              <>
+                <li><span>Accounts reached ({m.days}d)</span><em className="flat">{m.reachRows.length ? fmtNum(m.reachCur) : "—"}</em></li>
+                <li><span>Average per day</span><em className="flat">{m.reachRows.length ? fmtNum(Math.round(m.reachCur / m.reachRows.length)) : "—"}</em></li>
+                <li><span>Best day</span><em className="flat">{m.reachRows.length ? fmtNum(Math.max(...m.reachRows.map((r) => r.reach!))) : "—"}</em></li>
+                <li><span>Days recorded</span><em className="flat">{m.reachRows.length}</em></li>
               </>
             )}
             {metric === "views" && (
