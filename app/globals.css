@@ -10034,3 +10034,29 @@ html { scroll-behavior: smooth; }
 .st3-fbpage-meta { flex: 1; min-width: 0; }
 .st3-fbpage-meta b { display: block; font-size: 13px; font-weight: 650; color: var(--charcoal); }
 .st3-fbpage-meta small { display: block; font-size: 11px; color: var(--slate); margin-top: 1px; }
+
+/* ---- Ranked posts (post-totals mode) ---- */
+.an3-ranked-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 10px 4px 8px; }
+.an3-ranked-head b { font-size: 13px; font-weight: 750; color: var(--charcoal); }
+.an3-ranked-head small { font-size: 11px; color: var(--slate); }
+.an3-ranked { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.an3-rank { animation: cp3in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.an3-rank a, .an3-rank-inner { display: grid; grid-template-columns: 38px minmax(0, 1.15fr) minmax(0, 1.6fr) 78px; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 11px; text-decoration: none; color: inherit; transition: background 0.15s; }
+.an3-rank a:hover { background: #faf9f7; }
+.an3-rank-thumb { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; background: #eceae4; }
+.an3-rank-thumb.ph { display: block; }
+.an3-rank-meta { min-width: 0; }
+.an3-rank-meta b { display: block; font-size: 12.5px; font-weight: 650; color: var(--charcoal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.an3-rank-meta small { display: block; margin-top: 1px; font-size: 10.5px; color: var(--slate); }
+.an3-rank-barwrap { height: 9px; border-radius: 99px; background: #f1efe9; overflow: hidden; }
+.an3-rank-bar { display: block; height: 100%; border-radius: 99px; transform-origin: left; animation: an3grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes an3grow { from { transform: scaleX(0); } }
+.an3-rank-bar.green { background: linear-gradient(90deg, #10b981, #34d399); }
+.an3-rank-bar.purple { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+.an3-rank-val { text-align: right; }
+.an3-rank-val b { display: block; font-size: 13px; font-weight: 750; color: var(--charcoal); font-variant-numeric: tabular-nums; }
+.an3-rank-val em { display: block; font-style: normal; font-size: 10px; font-weight: 700; color: #b45309; }
+@media (max-width: 720px) {
+  .an3-rank a, .an3-rank-inner { grid-template-columns: 34px minmax(0, 1fr) 64px; }
+  .an3-rank-barwrap { display: none; }
+}
