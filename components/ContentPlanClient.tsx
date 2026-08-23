@@ -199,6 +199,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
           </label>
           <select value={form.platform} onChange={(e) => set("platform", e.target.value)}>
             <option>Instagram</option>
+            <option>Facebook</option>
             <option>TikTok</option>
             <option>YouTube Shorts</option>
             <option>LinkedIn</option>

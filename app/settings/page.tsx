@@ -24,6 +24,7 @@ import SecurityCard from "@/components/SecurityCard";
 import SettingsNav from "@/components/SettingsNav";
 import ConnectionsManager from "@/components/ConnectionsManager";
 import InstagramConnect from "@/components/InstagramConnect";
+import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import type { BrandDetail } from "@/lib/profile";
 
@@ -48,7 +49,7 @@ const PREVIEW_COMPETITORS = [
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig?: string }>;
+  searchParams: Promise<{ ig?: string; fb?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -56,7 +57,40 @@ export default async function SettingsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { ig } = await searchParams;
+  const { ig, fb } = await searchParams;
+
+  // Facebook connection state (tokens never leave the server).
+  let fbConn: {
+    page_name: string | null;
+    username: string | null;
+    followers_count: number | null;
+    picture_url: string | null;
+    connection_status: string | null;
+    last_synced_at: string | null;
+    pending_pages: unknown;
+  } | null = null;
+  try {
+    const { data } = await supabase
+      .from("facebook_connections")
+      .select("page_name, username, followers_count, picture_url, connection_status, last_synced_at, pending_pages")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    fbConn = data;
+  } catch {
+    // table may not exist yet — the card shows the disconnected state
+  }
+  type PendingPage = {
+    id: string; name?: string; followers_count?: number; fan_count?: number;
+    picture?: { data?: { url?: string } };
+  };
+  const fbPages: FbPageOption[] = Array.isArray(fbConn?.pending_pages)
+    ? (fbConn!.pending_pages as PendingPage[]).map((p) => ({
+        id: p.id,
+        name: p.name ?? "Untitled Page",
+        followers: p.followers_count ?? p.fan_count ?? null,
+        picture: p.picture?.data?.url ?? null,
+      }))
+    : [];
 
   // Live account snapshot (avatar, followers, sync state) — best-effort.
   const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
@@ -170,6 +204,17 @@ export default async function SettingsPage({
                 followers={snap?.followers_count ?? null}
                 avatar={snap?.profile_picture_url ?? null}
                 needsReconnect={snap?.insights_ok === false}
+              />
+              <div className="st2-divider"><span>Facebook</span></div>
+              <FacebookConnect
+                status={fb}
+                connectionStatus={fbConn?.connection_status ?? null}
+                pageName={fbConn?.page_name ?? null}
+                username={fbConn?.username ?? null}
+                followers={fbConn?.followers_count ?? null}
+                picture={fbConn?.picture_url ?? null}
+                syncedAt={fbConn?.last_synced_at ?? null}
+                pendingPages={fbPages}
               />
               <div className="st2-divider"><span>Other platforms</span></div>
               <ConnectionsManager />

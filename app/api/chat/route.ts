@@ -9,8 +9,8 @@ export const maxDuration = 60;
 
 // Build the strategist's system prompt from the user's real profile, so the
 // chat answers for *their* account and niche — not a hardcoded demo.
-function buildSystem(p: Profile | null): string {
-  const ctx =
+function buildSystem(p: Profile | null, fbPage: string | null): string {
+  let ctx =
     p && p.niche
       ? `The user's account:
 - Niche: ${p.niche}
@@ -18,6 +18,9 @@ function buildSystem(p: Profile | null): string {
 - Main goal: ${p.goals || "(not set)"}
 - Platforms: ${(p.platforms || []).join(", ") || "(not set)"}`
       : `The user hasn't set their niche yet. Give the best general advice you can, and when it would help, suggest they set their niche in Settings so you can tailor answers.`;
+  if (fbPage) {
+    ctx += `\n- Facebook Page connected: "${fbPage}". When advice concerns Facebook, use Facebook-native formats and terminology (Page posts, Reels on Facebook, Stories, link posts) rather than Instagram-only concepts.`;
+  }
 
   return `You are SOCIA, an AI social media strategist embedded in the user's dashboard. Answer like a sharp, concise strategist: specific, actionable, and tailored to their niche and goals. Keep replies short — 2 to 5 sentences or a tight list. Never generic.
 
@@ -47,14 +50,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No message to send." }, { status: 400 });
   }
 
-  // Pull the user's profile to personalize the system prompt.
+  // Pull the user's profile (+ connected Facebook Page) to personalize the system prompt.
   let profile: Profile | null = null;
+  let fbPage: string | null = null;
   try {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (user) profile = await getProfile(supabase, user.id);
+    if (user) {
+      profile = await getProfile(supabase, user.id);
+      try {
+        const { data: fb } = await supabase
+          .from("facebook_connections")
+          .select("page_name, connection_status")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (fb?.connection_status === "connected") fbPage = fb.page_name ?? null;
+      } catch {
+        // no facebook table yet — fine
+      }
+    }
   } catch {
     // fall back to the generic system prompt
   }
@@ -63,7 +79,7 @@ export async function POST(req: Request) {
     const res = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 1024,
-      system: buildSystem(profile),
+      system: buildSystem(profile, fbPage),
       messages,
     });
     if (res.stop_reason === "refusal") {

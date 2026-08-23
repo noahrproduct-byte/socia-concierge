@@ -174,3 +174,32 @@ alter table public.account_snapshots
   add column if not exists saves integer,
   add column if not exists shares integer,
   add column if not exists retrieved_at timestamptz;
+
+-- Facebook Page connections (Facebook Login OAuth; one Page per user for now).
+-- pending_pages holds the manager's Page list between OAuth and Page selection.
+create table if not exists public.facebook_connections (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  page_id text,
+  page_name text,
+  username text,
+  access_token text,
+  picture_url text,
+  followers_count integer,
+  profile jsonb,
+  media jsonb,
+  connection_status text default 'connected',
+  pending_pages jsonb,
+  last_synced_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.facebook_connections enable row level security;
+
+create policy "Users can read their own facebook connection"
+  on public.facebook_connections for select using (auth.uid() = user_id);
+create policy "Users can add their own facebook connection"
+  on public.facebook_connections for insert with check (auth.uid() = user_id);
+create policy "Users can update their own facebook connection"
+  on public.facebook_connections for update using (auth.uid() = user_id);
+create policy "Users can delete their own facebook connection"
+  on public.facebook_connections for delete using (auth.uid() = user_id);
