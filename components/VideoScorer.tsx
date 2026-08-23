@@ -521,7 +521,7 @@ const EX_DIMS = [
   { k: "Audio", v: 85, tip: "Voice clarity and how well sound supports the content." },
 ];
 
-const band = (v: number) => (v >= 85 ? "Strong" : v >= 70 ? "Good" : v >= 55 ? "Fair" : "Weak");
+const band = (v: number) => (v >= 84 ? "Strong" : v >= 70 ? "Good" : v >= 55 ? "Fair" : "Weak");
 
 /**
  * Shown before anything is uploaded. Explains what the tool returns using small
