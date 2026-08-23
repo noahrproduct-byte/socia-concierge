@@ -10,7 +10,7 @@ import { Check } from "lucide-react";
 type Mark = (color: string, size?: number) => React.ReactNode;
 type Account = { id: string; name: string; cta: string; color: string; mark: Mark };
 
-const ACCOUNTS: Account[] = [
+export const ACCOUNTS: Account[] = [
   {
     id: "Instagram",
     name: "Instagram",

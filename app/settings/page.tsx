@@ -1,4 +1,13 @@
 import { redirect } from "next/navigation";
+import {
+  Settings as SettingsIcon,
+  UserRound,
+  Share2,
+  CreditCard,
+  Lock,
+  LogOut,
+  Sparkles,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import ProfileForm from "@/components/ProfileForm";
@@ -41,29 +50,36 @@ export default async function SettingsPage({
 
   return (
     <AppShell active="settings" userEmail={user.email}>
-      <div className="page-head">
-        <div>
-          <div className="eyebrow">Account</div>
-          <h1>Settings</h1>
-          <p className="page-sub">Manage your profile, connections, and plan.</p>
-        </div>
-      </div>
-
-      <div className="settings">
-        <section className="chart-card">
-          <div className="chart-head">
-            <h3>Your profile</h3>
-            <span className="head-note">Powers your recommendations and niche trends</span>
+      <div className="st2">
+        <div className="st2-head">
+          <div>
+            <small className="st2-eyebrow">Account</small>
+            <h1>Settings</h1>
+            <p>Manage your profile, connections, and plan.</p>
           </div>
-          <label>Email</label>
-          <input type="email" value={user.email ?? ""} readOnly />
-          <ProfileForm mode="settings" />
+          <div className="st2-deco" aria-hidden>
+            <SettingsIcon size={28} />
+          </div>
+        </div>
+
+        <section className="st2-card">
+          <div className="st2-card-head">
+            <span className="st2-card-ico">
+              <UserRound size={15} />
+            </span>
+            <h3>Your profile</h3>
+            <span className="st2-card-note">Powers your recommendations and niche trends</span>
+          </div>
+          <ProfileForm mode="settings" email={user.email ?? ""} />
         </section>
 
-        <section className="chart-card">
-          <div className="chart-head">
+        <section className="st2-card">
+          <div className="st2-card-head">
+            <span className="st2-card-ico">
+              <Share2 size={15} />
+            </span>
             <h3>Connected accounts</h3>
-            <span className="head-note">Connect a platform to pull analytics</span>
+            <span className="st2-card-note">Connect a platform to pull analytics</span>
           </div>
           <InstagramConnect
             username={igConn?.username ?? null}
@@ -71,39 +87,51 @@ export default async function SettingsPage({
             syncedAt={igConn?.last_synced_at ?? null}
             followers={igConn?.followers_count ?? null}
           />
-          <div className="ig-connect-divider">
-            <span>Other platforms — coming soon</span>
+          <div className="st2-divider">
+            <span>Other platforms</span>
           </div>
           <ConnectionsManager />
         </section>
 
-        <section className="chart-card plan-card">
-          <div className="chart-head">
+        <section className="st2-card">
+          <div className="st2-card-head">
+            <span className="st2-card-ico">
+              <CreditCard size={15} />
+            </span>
             <h3>Plan &amp; billing</h3>
+            <span className="st2-card-note">Manage your subscription and usage</span>
           </div>
-          <div className="plan-row">
+          <div className="st2-plan">
             <div>
-              <div className="plan-name">
-                Free plan <span className="plan-badge">Current</span>
+              <div className="st2-plan-name">
+                Free plan <span className="st2-badge">Current</span>
               </div>
-              <p className="plan-sub">1 account · monthly audit · 5 recommendations</p>
+              <p>1 account · monthly audit · 5 recommendations</p>
             </div>
-            <button className="head-btn">Upgrade to Pro</button>
+            <button className="st2-upgrade" type="button">
+              <Sparkles size={14} /> Upgrade to Pro
+            </button>
           </div>
         </section>
 
-        <section className="chart-card">
-          <div className="chart-head">
+        <section className="st2-card">
+          <div className="st2-card-head">
+            <span className="st2-card-ico">
+              <Lock size={15} />
+            </span>
             <h3>Session</h3>
+            <span className="st2-card-note">Manage your account session</span>
           </div>
-          <p className="page-sub" style={{ marginBottom: 14 }}>
-            Signed in as <b>{user.email}</b>
-          </p>
-          <form action="/auth/signout" method="post">
-            <button className="side-signout" style={{ maxWidth: 160 }} type="submit">
-              Log out
-            </button>
-          </form>
+          <div className="st2-session">
+            <p>
+              Signed in as <b>{user.email}</b>
+            </p>
+            <form action="/auth/signout" method="post">
+              <button className="st2-logout" type="submit">
+                <LogOut size={14} /> Log out
+              </button>
+            </form>
+          </div>
         </section>
       </div>
     </AppShell>

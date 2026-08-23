@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import ConnectAccounts from "./ConnectAccounts";
+import { ShieldCheck } from "lucide-react";
+import PlatformRows from "./PlatformRows";
 
 export default function ConnectionsManager() {
   const [connected, setConnected] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -19,8 +20,8 @@ export default function ConnectionsManager() {
       .finally(() => setLoaded(true));
   }, []);
 
-  async function persist(next: string[]) {
-    setSaving(true);
+  async function persist(next: string[], id: string) {
+    setPending(id);
     setSaved(false);
     try {
       await fetch("/api/profile", {
@@ -30,27 +31,28 @@ export default function ConnectionsManager() {
       });
       setSaved(true);
     } finally {
-      setSaving(false);
+      setPending(null);
     }
   }
 
   function toggle(id: string) {
     const next = connected.includes(id) ? connected.filter((x) => x !== id) : [...connected, id];
     setConnected(next);
-    persist(next);
+    persist(next, id);
   }
 
-  if (!loaded) return <p className="page-sub">Loading connections…</p>;
+  if (!loaded) return <p className="st2-loading">Loading connections…</p>;
 
   return (
     <div>
-      <ConnectAccounts connected={connected} onToggle={toggle} exclude={["Instagram"]} />
-      <p className="onb-connect-note">
-        {saving
-          ? "Saving…"
-          : saved
-            ? "Saved ✓ — live data sync switches on as each platform approves our API access."
+      <PlatformRows connected={connected} pending={pending} onToggle={toggle} exclude={["Instagram"]} />
+      <p className="st2-privacy">
+        <ShieldCheck size={14} />
+        <span>
+          {saved
+            ? "Saved — live data sync switches on as each platform approves our API access."
             : "Connecting registers the account so your dashboard reflects it. Live data sync arrives as each platform approves our API access."}
+        </span>
       </p>
     </div>
   );

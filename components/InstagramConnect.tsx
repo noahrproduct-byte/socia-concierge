@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, RefreshCw } from "lucide-react";
+import { ArrowRight, Loader2, RefreshCw } from "lucide-react";
 
 const IG_LOGO = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" strokeWidth="2">
@@ -69,37 +69,51 @@ export default function InstagramConnect({
   const synced = ago(syncedAt);
 
   return (
-    <div className="ig-connect">
-      <div className="ig-connect-row">
-        <span className="ig-connect-logo">{IG_LOGO}</span>
-        <div className="ig-connect-meta">
+    <div className="st2-ig">
+      <div className="st2-ig-row">
+        <span className="st2-ig-logo" aria-hidden>
+          {IG_LOGO}
+        </span>
+        <div className="st2-ig-meta">
           <b>Instagram</b>
           {username ? (
-            <small className="ig-connect-live">
-              <Check size={13} /> Connected as @{username}
-              {followers != null && <> · {followers.toLocaleString()} followers</>}
-              {synced && <> · synced {synced}</>}
-            </small>
+            <>
+              <small className="st2-ig-live">
+                <i className="st2-live-dot" /> Connected as @{username}
+                {followers != null && <> · {followers.toLocaleString()} followers</>}
+              </small>
+              {synced && <small className="st2-ig-sync">Synced {synced}</small>}
+            </>
           ) : (
-            <small>Connect a professional account to pull your real insights.</small>
+            <small className="st2-ig-off">
+              Not connected — connect a professional account to pull your real insights.
+            </small>
           )}
         </div>
-        {username ? (
-          <>
-            <button className="btn-secondary" onClick={syncNow} disabled={syncing || busy}>
-              {syncing ? <Loader2 size={15} className="spin" /> : <><RefreshCw size={14} /> Sync now</>}
-            </button>
-            <button className="btn-secondary" onClick={disconnect} disabled={busy || syncing}>
-              {busy ? <Loader2 size={15} className="spin" /> : "Disconnect"}
-            </button>
-          </>
-        ) : (
-          <a className="btn-primary" href="/api/auth/instagram/start">
-            Connect
-          </a>
-        )}
+        <div className="st2-ig-actions">
+          {username ? (
+            <>
+              <button className="st2-btn" onClick={syncNow} disabled={syncing || busy} type="button">
+                <RefreshCw size={14} className={syncing ? "spin" : undefined} />
+                {syncing ? "Syncing…" : "Sync now"}
+              </button>
+              <button
+                className="st2-btn danger"
+                onClick={disconnect}
+                disabled={busy || syncing}
+                type="button"
+              >
+                {busy ? <Loader2 size={14} className="spin" /> : "Disconnect"}
+              </button>
+            </>
+          ) : (
+            <a className="st2-connect" href="/api/auth/instagram/start">
+              Connect <ArrowRight size={13} />
+            </a>
+          )}
+        </div>
       </div>
-      {note && <p className="ig-connect-note">{note}</p>}
+      {note && <p className="st2-ig-note">{note}</p>}
     </div>
   );
 }
