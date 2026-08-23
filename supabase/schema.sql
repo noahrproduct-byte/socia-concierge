@@ -161,3 +161,16 @@ create policy "Users can add their own snapshots"
 
 create policy "Users can update their own snapshots"
   on public.account_snapshots for update using (auth.uid() = user_id);
+
+-- Extended daily account metrics (only values Meta actually provides are written)
+alter table public.account_snapshots
+  add column if not exists views integer,
+  add column if not exists reach integer,
+  add column if not exists profile_views integer,
+  add column if not exists accounts_engaged integer,
+  add column if not exists total_interactions integer,
+  add column if not exists likes integer,
+  add column if not exists comments integer,
+  add column if not exists saves integer,
+  add column if not exists shares integer,
+  add column if not exists retrieved_at timestamptz;

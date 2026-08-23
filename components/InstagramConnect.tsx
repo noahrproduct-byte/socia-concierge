@@ -28,6 +28,7 @@ export default function InstagramConnect({
   syncedAt = null,
   followers = null,
   avatar = null,
+  needsReconnect = false,
 }: {
   username: string | null;
   status?: string;
@@ -35,6 +36,8 @@ export default function InstagramConnect({
   followers?: number | null;
   /** Real profile picture from the connected account, when synced. */
   avatar?: string | null;
+  /** True when the stored token lacks the insights permission. */
+  needsReconnect?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -122,6 +125,14 @@ export default function InstagramConnect({
         </div>
       </div>
       {note && <p className="st2-ig-note">{note}</p>}
+      {username && needsReconnect && (
+        <p className="st2-ig-note">
+          Your Instagram connection predates full analytics permissions.{" "}
+          <a href="/api/auth/instagram/start" className="st2-ig-reconnect">
+            Reconnect to enable full analytics <ArrowRight size={12} />
+          </a>
+        </p>
+      )}
     </div>
   );
 }

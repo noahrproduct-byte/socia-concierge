@@ -7,6 +7,17 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
+// Media-level insights (Instagram Insights API; professional accounts).
+// A key is present ONLY when Meta actually returned it — absence means
+// "not provided", never zero.
+export type IgMediaInsights = {
+  views?: number;
+  reach?: number;
+  saved?: number; // media insight name is `saved` (account-level uses `saves`)
+  shares?: number;
+  total_interactions?: number;
+};
+
 export type IgMediaItem = {
   id?: string;
   caption?: string;
@@ -17,6 +28,7 @@ export type IgMediaItem = {
   permalink?: string;
   media_url?: string;
   thumbnail_url?: string; // video poster frame
+  insights?: IgMediaInsights;
 };
 
 export type IgSnapshot = {
@@ -28,25 +40,109 @@ export type IgSnapshot = {
   profile_picture_url: string | null;
   media: IgMediaItem[];
   last_synced_at: string | null;
+  /** false = the token lacks insights permission (reconnect needed);
+   *  null = not checked yet. */
+  insights_ok: boolean | null;
 };
 
 const STALE_MS = 6 * 60 * 60 * 1000; // re-sync after 6 hours
 
-/** Record today's follower count (one row per day) so follower history is
- *  real observations, never reconstructed. Best-effort: the table may not
- *  exist yet. */
-async function recordSnapshot(supabase: Supa, userId: string, followers: number | null) {
-  if (followers == null) return;
+/** Record today's account metrics (one row per day) so history is real
+ *  observations, never reconstructed. Only columns Meta actually provided
+ *  are written. Best-effort: the table/columns may not exist yet. */
+async function recordSnapshot(
+  supabase: Supa,
+  userId: string,
+  followers: number | null,
+  daily?: Record<string, number>,
+) {
+  if (followers == null && !daily) return;
+  const row: Record<string, unknown> = {
+    user_id: userId,
+    day: new Date().toISOString().slice(0, 10),
+    retrieved_at: new Date().toISOString(),
+  };
+  if (followers != null) row.followers = followers;
+  const COLS = [
+    "views",
+    "reach",
+    "profile_views",
+    "accounts_engaged",
+    "total_interactions",
+    "likes",
+    "comments",
+    "saves",
+    "shares",
+  ];
+  for (const c of COLS) if (daily && typeof daily[c] === "number") row[c] = daily[c];
   try {
-    await supabase
+    const { error } = await supabase
       .from("account_snapshots")
-      .upsert(
-        { user_id: userId, day: new Date().toISOString().slice(0, 10), followers },
-        { onConflict: "user_id,day" },
-      );
+      .upsert(row, { onConflict: "user_id,day" });
+    if (error && followers != null) {
+      // Extended columns may not exist yet — fall back to the base shape.
+      await supabase
+        .from("account_snapshots")
+        .upsert(
+          { user_id: userId, day: row.day, followers },
+          { onConflict: "user_id,day" },
+        );
+    }
   } catch {
     // history simply starts once the table exists
   }
+}
+
+const IG_V = "v23.0"; // keep on a currently supported Graph version
+
+/** Insights, requested tolerantly: try the metric bundle; when Meta rejects a
+ *  metric for this account/media type, drop the offending metric and retry.
+ *  Returns only the values Meta actually provided (empty data ≠ zero), plus
+ *  the last permission-style error, if any. */
+async function fetchInsights(
+  path: string,
+  metrics: string[],
+  extra: Record<string, string>,
+  token: string,
+): Promise<{ values: Record<string, number>; permissionError: string | null }> {
+  let remaining = [...metrics];
+  let permissionError: string | null = null;
+  for (let attempt = 0; attempt < 4 && remaining.length; attempt++) {
+    const u = new URL(`https://graph.instagram.com/${IG_V}${path}`);
+    u.searchParams.set("metric", remaining.join(","));
+    for (const [k, v] of Object.entries(extra)) u.searchParams.set(k, v);
+    u.searchParams.set("access_token", token);
+    let json: {
+      data?: { name?: string; total_value?: { value?: number }; values?: { value?: number }[] }[];
+      error?: { message?: string; code?: number };
+    } | null = null;
+    try {
+      const res = await fetch(u, { signal: AbortSignal.timeout(10000) });
+      json = await res.json();
+    } catch {
+      return { values: {}, permissionError };
+    }
+    if (json?.error) {
+      const msg = json.error.message ?? "";
+      if (json.error.code === 10 || /permission|scope/i.test(msg)) {
+        permissionError = msg.slice(0, 200);
+        return { values: {}, permissionError };
+      }
+      // "metric[N] must be one of ..." style rejection — drop named metrics.
+      const bad = remaining.filter((m) => msg.includes(m));
+      const next = bad.length ? remaining.filter((m) => !bad.includes(m)) : remaining.slice(0, -1);
+      if (next.length === remaining.length) return { values: {}, permissionError };
+      remaining = next;
+      continue;
+    }
+    const values: Record<string, number> = {};
+    for (const d of json?.data ?? []) {
+      const v = d.total_value?.value ?? d.values?.[d.values.length - 1]?.value;
+      if (d.name && typeof v === "number") values[d.name] = v;
+    }
+    return { values, permissionError };
+  }
+  return { values: {}, permissionError };
 }
 
 async function fetchFromInstagram(token: string): Promise<{
@@ -54,14 +150,14 @@ async function fetchFromInstagram(token: string): Promise<{
   media: IgMediaItem[];
 } | null> {
   try {
-    const profUrl = new URL("https://graph.instagram.com/v21.0/me");
+    const profUrl = new URL(`https://graph.instagram.com/${IG_V}/me`);
     profUrl.searchParams.set(
       "fields",
       "username,name,biography,account_type,media_count,followers_count,follows_count,profile_picture_url",
     );
     profUrl.searchParams.set("access_token", token);
 
-    const mediaUrl = new URL("https://graph.instagram.com/v21.0/me/media");
+    const mediaUrl = new URL(`https://graph.instagram.com/${IG_V}/me/media`);
     mediaUrl.searchParams.set(
       "fields",
       "id,caption,media_type,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url",
@@ -88,7 +184,9 @@ function toSnapshot(
   media: IgMediaItem[],
   syncedAt: string,
 ): IgSnapshot {
+  const status = profile.insights_status as { ok?: boolean } | undefined;
   return {
+    insights_ok: typeof status?.ok === "boolean" ? status.ok : null,
     username: (profile.username as string) ?? null,
     name: (profile.name as string) ?? null,
     followers_count: (profile.followers_count as number) ?? null,
@@ -114,6 +212,41 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
   if (!fresh) return null;
 
   const now = new Date().toISOString();
+
+  // Per-media insights (views/reach/saved/shares) — tolerant per metric, and
+  // a key exists only when Meta returned it (absence ≠ zero).
+  let permissionError: string | null = null;
+  await Promise.all(
+    fresh.media.map(async (m) => {
+      if (!m.id) return;
+      const r = await fetchInsights(
+        `/${m.id}/insights`,
+        ["views", "reach", "saved", "shares", "total_interactions"],
+        {},
+        conn.access_token,
+      );
+      if (r.permissionError) permissionError = r.permissionError;
+      if (Object.keys(r.values).length) m.insights = r.values as IgMediaInsights;
+    }),
+  );
+
+  // Account-level daily metrics for today's history snapshot.
+  const acct = await fetchInsights(
+    "/me/insights",
+    ["views", "reach", "total_interactions", "likes", "comments", "saves", "shares", "profile_views", "accounts_engaged"],
+    { period: "day", metric_type: "total_value" },
+    conn.access_token,
+  );
+  if (acct.permissionError) permissionError = acct.permissionError;
+
+  // Stored with the cached profile so the UI can distinguish "token lacks the
+  // insights permission — reconnect" from "metric not provided".
+  (fresh.profile as Record<string, unknown>).insights_status = {
+    ok: permissionError == null,
+    error: permissionError,
+    checked_at: now,
+  };
+
   const snap = toSnapshot(fresh.profile, fresh.media, now);
 
   // Persist (best-effort — works once the cache columns exist).
@@ -133,7 +266,7 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     // cache columns may not exist yet; the in-memory snapshot still serves
   }
 
-  await recordSnapshot(supabase, userId, snap.followers_count);
+  await recordSnapshot(supabase, userId, snap.followers_count, acct.values);
 
   return snap;
 }
@@ -171,7 +304,12 @@ export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgS
 
   await recordSnapshot(supabase, userId, row.followers_count ?? null);
 
+  const cachedStatus = (row.profile as Record<string, unknown> | null)?.insights_status as
+    | { ok?: boolean }
+    | undefined;
+
   return {
+    insights_ok: typeof cachedStatus?.ok === "boolean" ? cachedStatus.ok : null,
     username: row.username ?? null,
     name: (row.profile as Record<string, unknown> | null)?.name as string | null ?? null,
     followers_count: row.followers_count ?? null,

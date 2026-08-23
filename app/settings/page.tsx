@@ -169,6 +169,7 @@ export default async function SettingsPage({
                 syncedAt={snap?.last_synced_at ?? null}
                 followers={snap?.followers_count ?? null}
                 avatar={snap?.profile_picture_url ?? null}
+                needsReconnect={snap?.insights_ok === false}
               />
               <div className="st2-divider"><span>Other platforms</span></div>
               <ConnectionsManager />

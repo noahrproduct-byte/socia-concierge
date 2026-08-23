@@ -10003,3 +10003,4 @@ html { scroll-behavior: smooth; }
 .an3-rows li span { display: inline-flex; align-items: center; gap: 5px; }
 .an3-rows li span svg { color: #b0aba1; }
 @media (max-width: 640px) { .an3-chips { margin-left: 0; } .an3-hero { gap: 18px; } }
+.st2-ig-reconnect { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: #b45309; text-decoration: underline; }
