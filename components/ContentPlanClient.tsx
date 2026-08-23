@@ -39,7 +39,7 @@ export type PlanContext = {
 
 // Soft guidance limits — counters only, never truncation.
 const MAX: Partial<Record<keyof GenerateInput, number>> = {
-  goal: 120,
+  goal: 240,
   brandVoice: 200,
   recentPosts: 500,
   competitors: 500,
