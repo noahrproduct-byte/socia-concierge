@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { SYSTEM, buildUserPrompt } from "@/lib/prompt";
+import { getProfile } from "@/lib/profile";
 import { deliverableSchema, type GenerateInput } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,6 +54,18 @@ export async function POST(req: Request) {
     );
   }
 
+  // The user's saved brand & strategist settings sharpen the plan (best-effort).
+  let brand = null;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) brand = (await getProfile(supabase, user.id))?.brand_detail ?? null;
+  } catch {
+    // generation still works without settings
+  }
+
   try {
     // Params are cast loosely: `output_config` (structured outputs) is a
     // newer field, and casting keeps the build green across SDK versions
@@ -65,7 +78,7 @@ export async function POST(req: Request) {
       output_config: {
         format: { type: "json_schema", schema: deliverableSchema },
       },
-      messages: [{ role: "user", content: buildUserPrompt(input) }],
+      messages: [{ role: "user", content: buildUserPrompt(input, brand) }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);

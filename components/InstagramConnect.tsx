@@ -27,11 +27,14 @@ export default function InstagramConnect({
   status,
   syncedAt = null,
   followers = null,
+  avatar = null,
 }: {
   username: string | null;
   status?: string;
   syncedAt?: string | null;
   followers?: number | null;
+  /** Real profile picture from the connected account, when synced. */
+  avatar?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -71,9 +74,14 @@ export default function InstagramConnect({
   return (
     <div className="st2-ig">
       <div className="st2-ig-row">
-        <span className="st2-ig-logo" aria-hidden>
-          {IG_LOGO}
-        </span>
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="st2-ig-avatar" src={avatar} alt="" width={44} height={44} />
+        ) : (
+          <span className="st2-ig-logo" aria-hidden>
+            {IG_LOGO}
+          </span>
+        )}
         <div className="st2-ig-meta">
           <b>Instagram</b>
           {username ? (

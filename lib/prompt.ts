@@ -1,4 +1,27 @@
 import type { GenerateInput } from "./schema";
+import type { BrandDetail } from "./profile";
+
+/** Renders the user's saved brand & strategist settings as prompt context.
+ *  Returns "" when nothing is set, so callers can append unconditionally. */
+export function brandContext(brand?: BrandDetail | null): string {
+  if (!brand) return "";
+  const s = brand.strategist ?? {};
+  const lines = [
+    brand.voice ? `Brand voice: ${brand.voice}` : null,
+    brand.location ? `Location / market: ${brand.location}` : null,
+    brand.website ? `Website: ${brand.website}` : null,
+    brand.description ? `About the brand: ${brand.description}` : null,
+    brand.avoid ? `Words/topics to AVOID (hard rule): ${brand.avoid}` : null,
+    s.aggressiveness
+      ? `Recommendation appetite: ${s.aggressiveness} (safe = proven plays only; balanced = mostly proven with light experiments; experimental = push bolder, higher-variance ideas)`
+      : null,
+    s.formats?.length ? `Preferred formats: ${s.formats.join(", ")}` : null,
+    s.frequency ? `Posting cadence target: ${s.frequency}` : null,
+    s.prioritize ? `Topics to prioritize: ${s.prioritize}` : null,
+  ].filter(Boolean);
+  if (!lines.length) return "";
+  return `\n# Brand & strategist settings (saved by the user in SOCIA — follow them)\n${lines.join("\n")}`;
+}
 
 // The strategist persona. This is the "insight" the whole business is testing —
 // keep it opinionated and specific, not generic social-media advice.
@@ -13,7 +36,7 @@ Rules:
 - weeklyPlan has 5-7 posts, balancing proven formats with one or two controlled experiments.
 - Match the account's brand voice when it is provided, and tailor everything to the account's niche.`;
 
-export function buildUserPrompt(input: GenerateInput): string {
+export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null): string {
   const parts: string[] = [];
   parts.push(`# My account`);
   parts.push(`Account / handle: ${input.clientHandle || "(not given)"}`);
@@ -22,6 +45,9 @@ export function buildUserPrompt(input: GenerateInput): string {
   if (input.goal.trim()) parts.push(`My goal: ${input.goal.trim()}`);
   if (input.brandVoice.trim())
     parts.push(`Brand voice / notes: ${input.brandVoice.trim()}`);
+
+  const brandBlock = brandContext(brand);
+  if (brandBlock) parts.push(brandBlock);
 
   parts.push(`\n# The account's recent posts and how they performed`);
   parts.push(

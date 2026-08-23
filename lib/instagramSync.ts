@@ -25,6 +25,7 @@ export type IgSnapshot = {
   followers_count: number | null;
   media_count: number | null;
   biography: string | null;
+  profile_picture_url: string | null;
   media: IgMediaItem[];
   last_synced_at: string | null;
 };
@@ -39,7 +40,7 @@ async function fetchFromInstagram(token: string): Promise<{
     const profUrl = new URL("https://graph.instagram.com/v21.0/me");
     profUrl.searchParams.set(
       "fields",
-      "username,name,biography,account_type,media_count,followers_count,follows_count",
+      "username,name,biography,account_type,media_count,followers_count,follows_count,profile_picture_url",
     );
     profUrl.searchParams.set("access_token", token);
 
@@ -76,6 +77,7 @@ function toSnapshot(
     followers_count: (profile.followers_count as number) ?? null,
     media_count: (profile.media_count as number) ?? null,
     biography: (profile.biography as string) ?? null,
+    profile_picture_url: (profile.profile_picture_url as string) ?? null,
     media,
     last_synced_at: syncedAt,
   };
@@ -154,6 +156,9 @@ export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgS
     followers_count: row.followers_count ?? null,
     media_count: row.media_count ?? null,
     biography: (row.profile as Record<string, unknown> | null)?.biography as string | null ?? null,
+    profile_picture_url:
+      ((row.profile as Record<string, unknown> | null)?.profile_picture_url as string | null) ??
+      null,
     media: Array.isArray(row.media) ? (row.media as IgMediaItem[]) : [],
     last_synced_at: row.last_synced_at ?? null,
   };

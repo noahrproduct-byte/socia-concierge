@@ -81,11 +81,21 @@ export async function GET(req: Request) {
   // Account context for honest personalization (best-effort).
   let context = "";
   try {
-    const { data: prof } = await supabase
+    let { data: prof } = await supabase
       .from("profiles")
-      .select("brand_name, goals, niche_detail")
+      .select("brand_name, goals, niche_detail, brand_detail")
       .eq("user_id", user.id)
       .maybeSingle();
+    if (!prof) {
+      // brand_detail column may not exist yet
+      ({ data: prof } = await supabase
+        .from("profiles")
+        .select("brand_name, goals, niche_detail")
+        .eq("user_id", user.id)
+        .maybeSingle());
+    }
+    const b = (prof as { brand_detail?: import("@/lib/profile").BrandDetail } | null)
+      ?.brand_detail;
     const d = (prof?.niche_detail ?? null) as {
       sub_niche?: string;
       content_style?: string;
@@ -99,6 +109,10 @@ export async function GET(req: Request) {
       d?.audience ? `Audience: ${d.audience}` : null,
       d?.signals?.length ? `Recurring content signals: ${d.signals.join("; ")}` : null,
       prof?.goals ? `Goal: ${prof.goals}` : null,
+      b?.location ? `Location / market: ${b.location}` : null,
+      b?.voice ? `Brand voice: ${b.voice}` : null,
+      b?.strategist?.prioritize ? `Topics they want to prioritize: ${b.strategist.prioritize}` : null,
+      b?.avoid ? `Topics/words to avoid: ${b.avoid}` : null,
     ].filter(Boolean);
     if (bits.length) context = `\n\nCreator's account context (from analyzing their real posts):\n${bits.join("\n")}`;
   } catch {

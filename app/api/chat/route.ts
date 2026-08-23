@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, type Profile } from "@/lib/profile";
+import { brandContext } from "@/lib/prompt";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,7 +21,7 @@ function buildSystem(p: Profile | null): string {
 
   return `You are SOCIA, an AI social media strategist embedded in the user's dashboard. Answer like a sharp, concise strategist: specific, actionable, and tailored to their niche and goals. Keep replies short — 2 to 5 sentences or a tight list. Never generic.
 
-${ctx}`;
+${ctx}${brandContext(p?.brand_detail)}`;
 }
 
 type Msg = { role: "user" | "assistant"; content: string };

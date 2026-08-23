@@ -138,3 +138,6 @@ alter table public.instagram_connections
 -- Niche detection hierarchy (additive; the app degrades gracefully without these)
 alter table public.profiles add column if not exists niche_detail jsonb;
 alter table public.profiles add column if not exists niche_analyzed_at timestamptz;
+
+-- Brand & strategist settings (additive; the app degrades gracefully without it)
+alter table public.profiles add column if not exists brand_detail jsonb;
