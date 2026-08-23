@@ -311,10 +311,10 @@ export default async function CompetitorsPage() {
   const chrono = [...posts].sort(
     (a, b) => new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime()
   );
-  const olderAvg = half >= 2 ? chrono.slice(0, half).reduce((a, p) => a + engagementOf(p), 0) / half : null;
-  const recentAvg =
-    N - half >= 2 ? chrono.slice(half).reduce((a, p) => a + engagementOf(p), 0) / (N - half) : null;
-  const engDelta = recentAvg != null && olderAvg != null ? pctChange(recentAvg, olderAvg) : null;
+  // Median-based so a single viral post can't distort the trend.
+  const olderMed = half >= 2 ? median(chrono.slice(0, half).map(engagementOf)) : null;
+  const recentMed = N - half >= 2 ? median(chrono.slice(half).map(engagementOf)) : null;
+  const engDelta = recentMed != null && olderMed != null ? pctChange(recentMed, olderMed) : null;
 
   const gaugeHalf = Math.PI * 62;
   const gaugeFrac = rate != null ? Math.max(0, Math.min(1, rate / 10)) : 0;
@@ -531,7 +531,10 @@ export default async function CompetitorsPage() {
                     <span className="cp3-gauge-max">10%</span>
                   </div>
                   {engDelta != null && (
-                    <p className={`cp3-gauge-delta${engDelta < 0 ? " down" : ""}`}>
+                    <p
+                      className={`cp3-gauge-delta${engDelta < 0 ? " down" : ""}`}
+                      title="Median engagement of the newer half of your posts vs the older half — medians so one viral post can't distort it."
+                    >
                       {engDelta >= 0 ? "▲" : "▼"} {Math.abs(engDelta).toFixed(0)}% vs your earlier posts
                     </p>
                   )}
