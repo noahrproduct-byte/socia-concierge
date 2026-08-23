@@ -1,349 +1,135 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import AppShell from "@/components/AppShell";
+import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanClient";
+import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import type { GenerateInput } from "@/lib/schema";
 
-import { useState, useEffect } from "react";
-import type { Deliverable, GenerateInput, SavedPlan } from "@/lib/schema";
+export const metadata = { title: "Content Plan — SOCIA" };
 
-const EMPTY: GenerateInput = {
-  clientHandle: "",
-  niche: "",
-  platform: "Instagram",
-  brandVoice: "",
-  recentPosts: "",
-  competitors: "",
-  goal: "",
-};
+const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
+const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-export default function Home() {
-  const [form, setForm] = useState<GenerateInput>(EMPTY);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Deliverable | null>(null);
-  const [history, setHistory] = useState<SavedPlan[]>([]);
-  const [hasNiche, setHasNiche] = useState(true);
-
-  // Prefill from the user's profile + load their saved plans on mount.
-  useEffect(() => {
-    fetch("/api/profile")
-      .then((r) => (r.ok ? r.json() : { profile: null }))
-      .then((j) => {
-        const p = j.profile;
-        if (p) {
-          setForm((f) => ({
-            ...f,
-            clientHandle: p.brand_name || f.clientHandle,
-            niche: p.niche || f.niche,
-            goal: p.goals || f.goal,
-            platform: (Array.isArray(p.platforms) && p.platforms[0]) || f.platform,
-          }));
-          setHasNiche(!!p.niche);
-        } else {
-          setHasNiche(false);
-        }
-      })
-      .catch(() => {});
-    fetch("/api/plans")
-      .then((r) => (r.ok ? r.json() : { plans: [] }))
-      .then((j) => setHistory(j.plans ?? []))
-      .catch(() => {});
-  }, []);
-
-  function set<K extends keyof GenerateInput>(key: K, value: GenerateInput[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+function bestTime(media: IgMediaItem[]): string | null {
+  const buckets = new Map<string, { score: number; label: string }>();
+  for (const m of media) {
+    if (!m.timestamp) continue;
+    const d = new Date(m.timestamp);
+    const day = d.toLocaleDateString("en-US", { weekday: "short" });
+    const hour = d.getHours();
+    const ampm = hour === 0 ? "12AM" : hour < 12 ? `${hour}AM` : hour === 12 ? "12PM" : `${hour - 12}PM`;
+    const key = `${day}-${hour}`;
+    const cur = buckets.get(key) ?? { score: 0, label: `${day} ${ampm}` };
+    cur.score += engOf(m);
+    buckets.set(key, cur);
   }
-
-  async function generate() {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Something went wrong.");
-      setResult(json.data as Deliverable);
-      if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <header className="top">
-        <div className="topin">
-          <div className="logo">S</div>
-          <div className="brand">
-            SOCIA<span>Content Plan</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="wrap">
-        <div className="split-grid">
-          <div className="panel">
-            <h2>Your content plan</h2>
-            <p className="hint">
-              SOCIA builds a weekly plan for your account. Add anything recent to
-              sharpen it, or just hit generate.
-            </p>
-
-            {!hasNiche && (
-              <div className="tool-tip">
-                Tip: <a href="/onboarding">set your niche</a> for sharper plans.
-              </div>
-            )}
-
-            <label>Your account / handle</label>
-            <input
-              placeholder="@yourhandle or your brand name"
-              value={form.clientHandle}
-              onChange={(e) => set("clientHandle", e.target.value)}
-            />
-
-            <label>Your niche</label>
-            <input
-              placeholder="e.g. Fitness &amp; health"
-              value={form.niche}
-              onChange={(e) => set("niche", e.target.value)}
-            />
-
-            <label>Platform</label>
-            <select
-              value={form.platform}
-              onChange={(e) => set("platform", e.target.value)}
-            >
-              <option>Instagram</option>
-              <option>TikTok</option>
-              <option>YouTube Shorts</option>
-              <option>LinkedIn</option>
-            </select>
-
-            <label>
-              Your goal <span className="opt">— optional</span>
-            </label>
-            <input
-              placeholder="e.g. grow to 50k, drive bookings, sell a course"
-              value={form.goal}
-              onChange={(e) => set("goal", e.target.value)}
-            />
-
-            <label>
-              Brand voice / notes <span className="opt">— optional</span>
-            </label>
-            <textarea
-              placeholder="Playful, family-run, a bit cheeky. Avoid corporate tone."
-              value={form.brandVoice}
-              onChange={(e) => set("brandVoice", e.target.value)}
-            />
-
-            <label>
-              Recent posts &amp; how they did{" "}
-              <span className="opt">— one per line</span>
-            </label>
-            <textarea
-              placeholder={
-                "Reel: pizza pull, 12k views, 340 saves\nCarousel: menu update, 900 views\nStatic: staff photo, 400 views, low reach"
-              }
-              value={form.recentPosts}
-              onChange={(e) => set("recentPosts", e.target.value)}
-            />
-
-            <label>
-              Competitors you watch{" "}
-              <span className="opt">— optional, one per line</span>
-            </label>
-            <textarea
-              placeholder={
-                "@rivalpizza — behind-the-scenes dough Reels doing 50k+\n@trendyslice — POV first-person eating clips, big saves"
-              }
-              value={form.competitors}
-              onChange={(e) => set("competitors", e.target.value)}
-            />
-
-            <button className="btn" onClick={generate} disabled={loading}>
-              {loading ? "Analyzing…" : "Generate my plan"}
-            </button>
-
-            {error && <div className="err">{error}</div>}
-
-            {history.length > 0 && (
-              <div className="recent">
-                <div className="recent-head">Recent plans</div>
-                {history.map((h) => (
-                  <button
-                    key={h.id}
-                    className="recent-item"
-                    onClick={() => {
-                      setResult(h.data);
-                      setError(null);
-                    }}
-                  >
-                    <b>{h.client_handle || h.niche || "Untitled plan"}</b>
-                    <small>{new Date(h.created_at).toLocaleDateString()}</small>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="report">
-            {loading ? (
-              <div className="loading">
-                <div>
-                  <div className="spinner" />
-                  Auditing the account and building the week&apos;s plan…
-                  <br />
-                  <span style={{ fontSize: 12 }}>
-                    Opus 5 is thinking — this takes ~20–40s.
-                  </span>
-                </div>
-              </div>
-            ) : result ? (
-              <Report data={result} />
-            ) : (
-              <div className="empty">
-                <div>
-                  <div className="big">Your plan appears here.</div>
-                  Hit Generate and you&apos;ll get a health score, an honest
-                  audit, competitor gaps, and a 5–7 post plan for your account.
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  );
+  let best: { score: number; label: string } | null = null;
+  for (const b of buckets.values()) if (!best || b.score > best.score) best = b;
+  return best?.label ?? null;
 }
 
-function Report({ data }: { data: Deliverable }) {
+function ago(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+const FMT: Record<string, string> = {
+  VIDEO: "Reel",
+  CAROUSEL_ALBUM: "Carousel",
+  IMAGE: "Static",
+};
+
+// Summarize the account's real recent posts as "one per line" form input,
+// kept under the field's soft 500-char guide.
+function recentLines(media: IgMediaItem[]): string {
+  const lines: string[] = [];
+  for (const m of media) {
+    if (!m.caption) continue;
+    const first = m.caption.split("\n")[0].trim().slice(0, 48);
+    const fmt = FMT[m.media_type ?? ""] ?? "Post";
+    const eng: string[] = [];
+    if (typeof m.like_count === "number") eng.push(`${m.like_count.toLocaleString("en-US")} likes`);
+    if (typeof m.comments_count === "number")
+      eng.push(`${m.comments_count.toLocaleString("en-US")} comments`);
+    const line = `${fmt}: ${first}${eng.length ? ` — ${eng.join(" · ")}` : ""}`;
+    if (lines.join("\n").length + line.length + 1 > 500) break;
+    lines.push(line);
+    if (lines.length >= 4) break;
+  }
+  return lines.join("\n");
+}
+
+export default async function ContentPlanPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  // Prefill everything SOCIA already knows (all best-effort).
+  let brandName: string | null = null;
+  let niche: string | null = null;
+  let nicheDetected = false;
+  let goal: string | null = null;
+  let platform: string | null = null;
+  try {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("brand_name, niche, niche_detail, goals, platforms")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    brandName = prof?.brand_name ?? null;
+    niche = prof?.niche ?? null;
+    nicheDetected = Boolean(prof?.niche_detail);
+    goal = prof?.goals ?? null;
+    platform = (Array.isArray(prof?.platforms) && prof.platforms[0]) || null;
+  } catch {
+    // profile columns may be mid-migration; the form still works blank
+  }
+
+  const snap = await getIgSnapshot(supabase, user.id);
+  const media = snap?.media ?? [];
+  const engRate =
+    snap?.followers_count && media.length
+      ? ((avg(media.map(engOf)) / snap.followers_count) * 100).toFixed(1) + "%"
+      : null;
+
+  const prefill: GenerateInput = {
+    clientHandle: brandName || snap?.name || (snap?.username ? `@${snap.username}` : ""),
+    niche: niche ?? "",
+    platform: platform || "Instagram",
+    brandVoice: "",
+    recentPosts: recentLines(media),
+    competitors: "",
+    goal: goal ?? "",
+  };
+
+  const autoNotes: PlanContext["autoNotes"] = {};
+  if (prefill.clientHandle)
+    autoNotes.clientHandle = brandName ? "From your profile" : "From your connected account";
+  if (prefill.niche)
+    autoNotes.niche = nicheDetected ? "Detected from your content" : "From your profile";
+  if (prefill.goal) autoNotes.goal = "From your profile";
+  if (prefill.recentPosts) autoNotes.recentPosts = "From your connected account";
+
+  const context: PlanContext = {
+    prefill,
+    autoNotes,
+    connected: Boolean(snap),
+    username: snap?.username ?? null,
+    syncedAgo: snap?.last_synced_at ? ago(snap.last_synced_at) : null,
+    postsAnalyzed: snap ? media.length : null,
+    engRate,
+    bestTime: media.length ? bestTime(media) : null,
+  };
+
   return (
-    <>
-      <div className="rhead">
-        <div className="rmeta">
-          <div className="eyebrow">Content Audit &amp; Weekly Plan</div>
-          <h1>{data.clientHandle}</h1>
-          <div className="sub">
-            {data.niche} · {data.platform}
-          </div>
-        </div>
-        <div className="score">
-          <div className="num">{data.healthScore}</div>
-          <div className="den">/ 100 health</div>
-        </div>
-      </div>
-
-      <section className="block">
-        <h3>The diagnosis</h3>
-        <p className="lede">
-          <strong>{data.headline}</strong>
-        </p>
-        <p style={{ marginTop: 8, color: "var(--slate)" }}>{data.auditSummary}</p>
-      </section>
-
-      {data.strengths?.length > 0 && (
-        <section className="block">
-          <h3>What&apos;s working</h3>
-          <div className="pills">
-            {data.strengths.map((s, i) => (
-              <span className="pill" key={i}>
-                {s}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {data.problems?.length > 0 && (
-        <section className="block">
-          <h3>What&apos;s holding it back</h3>
-          {data.problems.map((p, i) => (
-            <div className="item" key={i}>
-              <h4>{p.issue}</h4>
-              <div className="meta">
-                <b>Evidence:</b> {p.evidence}
-                <br />
-                <b>Impact:</b> {p.impact}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {data.topFixes?.length > 0 && (
-        <section className="block">
-          <h3>Top fixes, ranked by impact</h3>
-          {data.topFixes.map((f, i) => (
-            <div className="item fix" key={i}>
-              <h4>
-                <span className="rank">{i + 1}</span>
-                {f.fix}
-              </h4>
-              <div className="meta">
-                <b>Why:</b> {f.why}
-                <br />
-                <b>Expected impact:</b> {f.expectedImpact}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {data.competitorInsights?.length > 0 && (
-        <section className="block">
-          <h3>Competitor gaps to close</h3>
-          {data.competitorInsights.map((c, i) => (
-            <div className="item" key={i}>
-              <h4>{c.competitor}</h4>
-              <div className="meta">
-                <b>What&apos;s working:</b> {c.whatsWorking} ({c.format})
-                <br />
-                <b>Why it wins:</b> {c.whyItWins}
-                <br />
-                <b>The gap for you:</b> {c.gap}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {data.weeklyPlan?.length > 0 && (
-        <section className="block">
-          <h3>This week&apos;s plan</h3>
-          <div className="plan">
-            {data.weeklyPlan.map((post, i) => (
-              <div className="post" key={i}>
-                <div className="row1">
-                  <span className="tag">{post.day}</span>
-                  <span className="tag fmt">{post.format}</span>
-                  <span className="tag perf">{post.predictedPerformance}</span>
-                </div>
-                <div className="concept">{post.concept}</div>
-                <div className="hook">
-                  <b>Hook</b>
-                  {post.hook}
-                </div>
-                <div className="why">
-                  <b>Why this:</b> {post.rationale}
-                  <br />
-                  <b>Based on:</b> {post.evidence}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div className="actions">
-        <button className="btn" onClick={() => window.print()}>
-          Export as PDF
-        </button>
-      </div>
-    </>
+    <AppShell active="tool" userEmail={user.email} dark>
+      <ContentPlanClient context={context} />
+    </AppShell>
   );
 }
