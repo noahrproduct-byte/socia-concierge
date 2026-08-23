@@ -4,33 +4,46 @@ import {
   Sparkles,
   ArrowRight,
   Play,
-  Quote,
+  Layers,
   Image as ImageIcon,
-  List,
   Clock,
   CalendarDays,
   Type,
   Zap,
-  Volume2,
-  Bookmark,
+  Activity,
+  AlignLeft,
   Info,
+  type LucideIcon,
 } from "lucide-react";
-import CountUp from "@/components/CountUp";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
-import DateRangeSelector from "@/components/DateRangeSelector";
 import CompetitorsBoard, {
   ExportButton,
   type Tracked,
   type Outlier,
 } from "@/components/CompetitorsBoard";
 import { Reveal } from "@/components/AnalyticsCharts";
+import CountUp from "@/components/CountUp";
+import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import {
+  engagementOf,
+  median,
+  outlierMultiplier,
+  pctChange,
+  postsPerWeek,
+  trendDirection,
+  engagementRate,
+  fmtMult,
+} from "@/lib/metrics";
+import type { BrandDetail } from "@/lib/profile";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
 // ------------------------------------------------------------------
-// Preview dataset. Competitor tracking has no live backend yet; this
-// page renders an internally consistent niche preview, labeled as such.
+// The competitor strip is ILLUSTRATIVE (labeled "Examples" in the UI):
+// SOCIA's Instagram integration cannot read other accounts, so no real
+// competitor records exist yet. Everything else on this page is computed
+// from the user's own synced posts via lib/metrics.
 // ------------------------------------------------------------------
 const TRACKED: Tracked[] = [
   { handle: "@cheese.pull.daily", followers: "89K", eng: "4.7%", momentum: 6, spark: [3, 4, 3, 5, 6, 6, 8], avatar: "/brand/comp/a1.jpg" },
@@ -40,150 +53,27 @@ const TRACKED: Tracked[] = [
   { handle: "@dough.diaries", followers: "27.5K", eng: "2.9%", momentum: 2, spark: [3, 2, 3, 3, 3, 4, 4], avatar: "/brand/comp/a5.jpg" },
 ];
 
-const OUTLIERS: Outlier[] = [
-  {
-    handle: "@cheese.pull.daily",
-    format: "REEL",
-    mult: "4.1×",
-    why: "Trending audio + a fast 6-cut sequence, all under 8 seconds. Hook is the cheese pull in the very first frame.",
-    views: "410K",
-    saves: "12K",
-    img: "/brand/comp/c1.jpg",
-    tone: "amber",
-  },
-  {
-    handle: "@trendy.slice",
-    format: "REEL",
-    mult: "3.2×",
-    why: "First-person POV eating clip. No intro, it opens mid-bite, which kills the scroll.",
-    views: "220K",
-    saves: "8.4K",
-    img: "/brand/comp/c2.jpg",
-    tone: "blue",
-  },
-  {
-    handle: "@rival.pizza",
-    format: "CAROUSEL",
-    mult: "2.8×",
-    why: "“5 mistakes people make with pizza.” Slide 1 is a bold claim that forces a swipe.",
-    views: "96K",
-    saves: "5.1K",
-    img: "/brand/comp/c3.jpg",
-    tone: "green",
-  },
-  {
-    handle: "@nyc.pizza.tour",
-    format: "REEL",
-    mult: "2.5×",
-    why: "Location tag + “hidden gem” framing drives shares and saves from locals.",
-    views: "180K",
-    saves: "3.9K",
-    img: "/brand/comp/c4.jpg",
-    tone: "purple",
-  },
-];
-
-const TRENDS = [
-  {
-    Ico: Play,
-    label: "POV eating clips",
-    note: "Spreading across 4 tracked accounts",
-    mult: "2.6×",
-    dir: "up" as const,
-    status: "Rising",
-    spark: [3, 4, 4, 5, 5, 7, 8],
-  },
-  {
-    Ico: Quote,
-    label: "“3 mistakes” hooks",
-    note: "2.6× median on average",
-    mult: "1.9×",
-    dir: "up" as const,
-    status: "Rising",
-    spark: [3, 3, 4, 4, 5, 5, 6],
-  },
-  {
-    Ico: ImageIcon,
-    label: "Static menu photos",
-    note: "Declining reach niche-wide",
-    mult: "0.6×",
-    dir: "down" as const,
-    status: "Declining",
-    spark: [7, 6, 6, 5, 4, 4, 3],
-  },
-  {
-    Ico: List,
-    label: "List-style carousels",
-    note: "Consistent performance",
-    mult: "1.1×",
-    dir: "flat" as const,
-    status: "Stable",
-    spark: [5, 5, 6, 5, 5, 6, 5],
-  },
-];
-
-const GAPS = [
-  {
-    Ico: Clock,
-    title: "Open strong in the first 0.5s",
-    body: "Top competitors open on a face, movement, or immediate payoff. Your posts often begin with branding.",
-    impact: "High impact",
-    tone: "hi" as const,
-    cta: "Turn this into a post",
-    href: "/tool",
-  },
-  {
-    Ico: CalendarDays,
-    title: "Post 4–5× per week",
-    body: "You currently average 2× per week while top competitors average 4–6×.",
-    impact: "Medium impact",
-    tone: "med" as const,
-    cta: "Plan more content",
-    href: "/tool",
-  },
-  {
-    Ico: Type,
-    title: "On-screen text in every Reel",
-    body: "92% of high-performing competitor Reels use on-screen text in the opening seconds, versus 37% of yours.",
-    impact: "Medium impact",
-    tone: "med" as const,
-    cta: "Get text ideas",
-    href: "/chat",
-  },
-];
-
-const STRENGTHS = [
-  {
-    Ico: Zap,
-    tone: "purple",
-    title: "Strong short-form hooks",
-    body: "Your hooks beat 76% of competitors in the first 1.5s.",
-    pct: 76,
-  },
-  {
-    Ico: Volume2,
-    tone: "blue",
-    title: "Audio trend adoption",
-    body: "You use trending audio 32% more often than the niche average.",
-    pct: 68,
-  },
-  {
-    Ico: Bookmark,
-    tone: "green",
-    title: "Saves per view",
-    body: "Your save rate is 18% higher than the top 5 accounts.",
-    pct: 82,
-  },
-];
-
-const NICHE = {
-  avgEng: 5.2, // % — gauge runs 0–10%
-  delta: "▲ 0.8% vs last 7 days",
-  views: "2.1M",
-  viewsDelta: "▲ 12%",
-  saves: "256K",
-  savesDelta: "▲ 14%",
+const FMT: Record<string, { label: string; singular: string; chip: string }> = {
+  VIDEO: { label: "Reels", singular: "Reel", chip: "REEL" },
+  CAROUSEL_ALBUM: { label: "Carousels", singular: "Carousel", chip: "CAROUSEL" },
+  IMAGE: { label: "Static posts", singular: "Static post", chip: "STATIC" },
 };
+const FMT_ICON: Record<string, LucideIcon> = {
+  VIDEO: Play,
+  CAROUSEL_ALBUM: Layers,
+  IMAGE: ImageIcon,
+};
+
+function ago(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+const TONES = ["amber", "blue", "green", "purple"] as const;
 
 export default async function CompetitorsPage() {
   const supabase = await createClient();
@@ -192,9 +82,259 @@ export default async function CompetitorsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Semicircle gauge geometry: radius 62, half-circumference ≈ 194.8.
-  const half = Math.PI * 62;
-  const frac = Math.max(0, Math.min(1, NICHE.avgEng / 10));
+  const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+  const posts: IgMediaItem[] = snap?.media ?? [];
+  const N = posts.length;
+  const enough = N >= 5;
+  const synced = snap?.last_synced_at ? ago(snap.last_synced_at) : null;
+
+  let strategist: BrandDetail["strategist"] | undefined;
+  try {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("brand_detail")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    strategist = (prof?.brand_detail as BrandDetail | null)?.strategist;
+  } catch {
+    // fine — frequency gap falls back to general guidance
+  }
+
+  // ---- central calculations (lib/metrics) --------------------------------
+  const engs = posts.map(engagementOf);
+  const overallMedian = median(engs);
+  const byType = new Map<string, IgMediaItem[]>();
+  for (const p of posts) {
+    const t = p.media_type ?? "IMAGE";
+    byType.set(t, [...(byType.get(t) ?? []), p]);
+  }
+  const typeMedian = (t: string) => median((byType.get(t) ?? []).map(engagementOf));
+
+  // Account-level comment share, for outlier evidence.
+  const totalLikes = posts.reduce((a, p) => a + (p.like_count ?? 0), 0);
+  const totalComments = posts.reduce((a, p) => a + (p.comments_count ?? 0), 0);
+  const totalEng = totalLikes + totalComments;
+  const commentShare = totalEng > 0 ? totalComments / totalEng : null;
+
+  // ---- outliers: the user's posts ≥1.5× their comparable median ----------
+  const outliers: Outlier[] = [];
+  if (enough) {
+    const scored = posts
+      .map((p) => {
+        const t = p.media_type ?? "IMAGE";
+        const sameType = byType.get(t) ?? [];
+        const useType = sameType.length >= 3;
+        const baseline = useType ? typeMedian(t) : overallMedian;
+        const mult = outlierMultiplier(engagementOf(p), baseline);
+        const basis = useType
+          ? `Compared with the median of your ${sameType.length} ${FMT[t]?.label.toLowerCase() ?? "posts"}.`
+          : `Compared with your overall median across ${N} posts.`;
+        const basisShort = useType
+          ? `the median of your ${sameType.length} ${FMT[t]?.label.toLowerCase() ?? "posts"}`
+          : `your overall median (${N} posts)`;
+        return { p, mult, basis, basisShort };
+      })
+      .filter((s): s is typeof s & { mult: number } => s.mult != null && s.mult >= 1.5)
+      .sort((a, b) => b.mult - a.mult)
+      .slice(0, 4);
+
+    scored.forEach(({ p, mult, basis, basisShort }, i) => {
+      const t = p.media_type ?? "IMAGE";
+      const eng = engagementOf(p);
+      const postCommentShare = eng > 0 ? (p.comments_count ?? 0) / eng : 0;
+      const bits = [`${fmtMult(mult)} ${basisShort}`];
+      if (commentShare != null && postCommentShare > commentShare * 2 && (p.comments_count ?? 0) >= 5) {
+        bits.push("unusually strong comment pull");
+      }
+      outliers.push({
+        title: (p.caption?.split("\n")[0].trim().slice(0, 64) || `${FMT[t]?.singular ?? "Post"}`),
+        img: p.media_type === "VIDEO" ? p.thumbnail_url ?? p.media_url ?? null : p.media_url ?? null,
+        permalink: p.permalink ?? null,
+        format: FMT[t]?.chip ?? "POST",
+        isVideo: t === "VIDEO",
+        mult: fmtMult(mult),
+        basis,
+        evidence: bits.join(" · ") + ".",
+        likes: p.like_count ?? null,
+        comments: p.comments_count ?? null,
+        tone: TONES[i % TONES.length],
+      });
+    });
+  }
+
+  const filterNote = enough
+    ? `Posts at 1.5×+ your median · last ${N} posts${synced ? ` · synced ${synced}` : ""}`
+    : "Needs at least 5 synced posts";
+  const emptyNote = !snap
+    ? "Connect your Instagram and your real outliers appear here."
+    : !enough
+      ? `Not enough history yet — SOCIA has ${N} synced post${N === 1 ? "" : "s"} and needs 5.`
+      : "No outliers right now — nothing in your recent posts is beating 1.5× your median.";
+
+  // ---- format performance rows -------------------------------------------
+  type TrendRow = {
+    t: string;
+    label: string;
+    note: string;
+    mult: string;
+    dir: "up" | "down" | "flat";
+    status: string;
+    spark: number[] | null;
+  };
+  const trendRows: TrendRow[] = [];
+  if (enough && overallMedian && overallMedian > 0) {
+    for (const [t, group] of byType) {
+      if (!FMT[t]) continue;
+      const m = typeMedian(t);
+      if (m == null) continue;
+      const sorted = [...group].sort(
+        (a, b) => new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime()
+      );
+      const series = sorted.map(engagementOf);
+      const half = Math.floor(series.length / 2);
+      const dir =
+        series.length >= 4 ? trendDirection(series.slice(half), series.slice(0, half)) : null;
+      trendRows.push({
+        t,
+        label: FMT[t].label,
+        note: `Median of your ${group.length} ${FMT[t].label.toLowerCase()}`,
+        mult: fmtMult(m / overallMedian),
+        dir: dir ?? "flat",
+        status: dir === "up" ? "Rising" : dir === "down" ? "Declining" : dir === "flat" ? "Stable" : "Low sample",
+        spark: series.length >= 3 ? series.slice(-7) : null,
+      });
+    }
+    trendRows.sort((a, b) => parseFloat(b.mult) - parseFloat(a.mult));
+  }
+
+  // ---- strengths (all defined shares of the user's own data) -------------
+  type Strength = { Ico: LucideIcon; tone: string; title: string; body: string; pct: number; basis: string };
+  const strengths: Strength[] = [];
+  if (enough && overallMedian != null && overallMedian > 0) {
+    const topQ = [...posts]
+      .sort((a, b) => engagementOf(b) - engagementOf(a))
+      .slice(0, Math.max(3, Math.ceil(N / 4)));
+    const counts = new Map<string, number>();
+    for (const p of topQ) {
+      const t = p.media_type ?? "IMAGE";
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    const [topFmt, topCount] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    const topShare = Math.round((topCount / topQ.length) * 100);
+    const topRatio = (typeMedian(topFmt) ?? 0) / overallMedian;
+    if (FMT[topFmt]) {
+      strengths.push({
+        Ico: Zap,
+        tone: "purple",
+        title: `${FMT[topFmt].label} drive your wins`,
+        body: `${topShare}% of your top posts are ${FMT[topFmt].label.toLowerCase()}${topRatio > 1 ? ` — they run ${fmtMult(topRatio)} your overall median` : ""}.`,
+        pct: topShare,
+        basis: `Top posts = your top quartile by engagement, from your last ${N} posts.`,
+      });
+    }
+    const stable = engs.filter((e) => e >= overallMedian * 0.5 && e <= overallMedian * 1.5).length;
+    const stableShare = Math.round((stable / N) * 100);
+    strengths.push({
+      Ico: Activity,
+      tone: "blue",
+      title: "Consistent baseline",
+      body: `${stableShare}% of your posts land within ±50% of your median — a stable base to build on.`,
+      pct: stableShare,
+      basis: `Share of your last ${N} posts with engagement between 0.5× and 1.5× your median.`,
+    });
+    const captioned = posts.filter((p) => (p.caption ?? "").trim().length > 0).length;
+    const capShare = Math.round((captioned / N) * 100);
+    strengths.push({
+      Ico: AlignLeft,
+      tone: "green",
+      title: "Caption coverage",
+      body: `${capShare}% of your posts carry captions SOCIA and the algorithm can learn from.`,
+      pct: capShare,
+      basis: `Share of your last ${N} posts with a non-empty caption.`,
+    });
+  }
+
+  // ---- gaps (measurable differences only) --------------------------------
+  type Gap = { Ico: LucideIcon; title: string; body: string; impact: string; tone: "hi" | "med"; cta: string; href: string };
+  const gaps: Gap[] = [];
+  if (enough) {
+    const freq = postsPerWeek(posts.map((p) => p.timestamp), 30);
+    if (freq != null) {
+      const target = strategist?.frequency;
+      gaps.push({
+        Ico: CalendarDays,
+        title: "Posting cadence",
+        body: `You averaged ${freq.toFixed(1)} post${freq >= 1.05 ? "s" : ""}/week over the last 30 days.${
+          target ? ` Your target: ${target}.` : " A 4–5×/week cadence is common guidance for growth accounts (general benchmark, not competitor data)."
+        }`,
+        impact: freq < 2 ? "High impact" : "Medium impact",
+        tone: freq < 2 ? "hi" : "med",
+        cta: "Plan more content",
+        href: "/tool",
+      });
+    }
+    if (overallMedian && overallMedian > 0) {
+      const best = trendRows[0];
+      if (best) {
+        const share = Math.round(((byType.get(best.t)?.length ?? 0) / N) * 100);
+        const ratio = (typeMedian(best.t) ?? 0) / overallMedian;
+        if (ratio > 1.2 && share < 50) {
+          gaps.push({
+            Ico: Clock,
+            title: `Lean into ${best.label.toLowerCase()}`,
+            body: `${best.label} run ${fmtMult(ratio)} your median but are only ${share}% of your last ${N} posts.`,
+            impact: "High impact",
+            tone: "hi",
+            cta: "Turn this into a post",
+            href: "/tool",
+          });
+        }
+      }
+    }
+    const uncaptioned = posts.filter((p) => !(p.caption ?? "").trim()).length;
+    if (uncaptioned > 0) {
+      gaps.push({
+        Ico: Type,
+        title: "Caption every post",
+        body: `${uncaptioned} of your last ${N} posts have no caption — SOCIA (and search) can't index them.`,
+        impact: "Medium impact",
+        tone: "med",
+        cta: "Get caption ideas",
+        href: "/chat",
+      });
+    }
+  }
+
+  // ---- your performance ---------------------------------------------------
+  const rate = engagementRate(posts, snap?.followers_count ?? null);
+  const half = Math.floor(N / 2);
+  const chrono = [...posts].sort(
+    (a, b) => new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime()
+  );
+  const olderAvg = half >= 2 ? chrono.slice(0, half).reduce((a, p) => a + engagementOf(p), 0) / half : null;
+  const recentAvg =
+    N - half >= 2 ? chrono.slice(half).reduce((a, p) => a + engagementOf(p), 0) / (N - half) : null;
+  const engDelta = recentAvg != null && olderAvg != null ? pctChange(recentAvg, olderAvg) : null;
+
+  const gaugeHalf = Math.PI * 62;
+  const gaugeFrac = rate != null ? Math.max(0, Math.min(1, rate / 10)) : 0;
+
+  // ---- smart takeaway (templated from the calculations above) ------------
+  let takeaway: string;
+  if (!snap) {
+    takeaway = "Connect your Instagram and SOCIA turns your real numbers into a weekly takeaway.";
+  } else if (!enough) {
+    takeaway = `SOCIA has ${N} synced post${N === 1 ? "" : "s"} so far — it needs 5 to start calculating honest takeaways.`;
+  } else {
+    const best = trendRows[0];
+    const bestRatio = best && overallMedian ? (typeMedian(best.t) ?? 0) / overallMedian : null;
+    takeaway =
+      best && bestRatio && bestRatio > 1.1
+        ? `${best.label} are doing the heavy lifting — ${fmtMult(bestRatio)} your overall median across your last ${N} posts. ${
+            outliers[0] ? `Turn “${outliers[0].title}” into a repeatable series.` : "Double down there this week."
+          }`
+        : `Your formats perform evenly across your last ${N} posts — your biggest lever is cadence and stronger openers.`;
+  }
 
   return (
     <AppShell active="competitors" userEmail={user.email}>
@@ -209,87 +349,101 @@ export default async function CompetitorsPage() {
             <p>Track what&apos;s working for your competitors and find your edge.</p>
           </div>
           <div className="cp3-controls">
-            <span
-              className="cp2-preview"
-              title="Competitor tracking preview. Live tracking of real accounts arrives with the Growth plan."
-            >
-              <i /> Preview
-            </span>
-            <DateRangeSelector />
             <ExportButton />
           </div>
         </div>
 
-        <CompetitorsBoard tracked={TRACKED} outliers={OUTLIERS}>
+        <CompetitorsBoard tracked={TRACKED} outliers={outliers} filterNote={filterNote} emptyNote={emptyNote}>
           {/* center intelligence column */}
           <div className="cp3-center">
             <Reveal className="cp3-panel">
               <div className="cp3-card-head">
                 <h3>
-                  Trending formats{" "}
-                  <span className="cp3-info" title="How each format is trending across tracked accounts. Preview estimates.">
+                  Your format performance{" "}
+                  <span
+                    className="cp3-info"
+                    title="Each format's median engagement vs your overall median, from your synced posts. Trend compares the newer half of that format with the older half."
+                  >
                     <Info size={12} />
                   </span>
                 </h3>
-                <Link href="/niche" className="link-mini">View all</Link>
+                <Link href="/analytics" className="link-mini">View all</Link>
               </div>
-              <ul className="cp3-trends">
-                {TRENDS.map(({ Ico, label, note, mult, dir, status, spark }) => {
-                  const W = 74;
-                  const H = 22;
-                  const mx = Math.max(...spark);
-                  const mn = Math.min(...spark);
-                  const pts = spark
-                    .map((v, i) => `${(i / (spark.length - 1)) * W},${H - 3 - ((v - mn) / (mx - mn || 1)) * (H - 6)}`)
-                    .join(" ");
-                  return (
-                    <li className="cp3-trend" key={label}>
-                      <span className={`cp3-trend-ico ${dir}`}><Ico size={14} /></span>
-                      <span className="cp3-trend-meta">
-                        <b>{label}</b>
-                        <small>{note}</small>
-                      </span>
-                      <span className="cp3-trend-mult">
-                        <b>{mult}</b>
-                        <small>vs last 7 days</small>
-                      </span>
-                      <svg viewBox={`0 0 ${W} ${H}`} className="cp3-trend-spark" preserveAspectRatio="none" aria-hidden>
-                        <polyline
-                          className={`cp3-tline ${dir}`}
-                          points={pts}
-                          fill="none"
-                          strokeWidth="1.6"
-                          strokeLinejoin="round"
-                          pathLength={100}
-                        />
-                      </svg>
-                      <span className={`cp3-status ${dir}`}>{status}</span>
-                    </li>
-                  );
-                })}
-              </ul>
+              {trendRows.length > 0 ? (
+                <ul className="cp3-trends">
+                  {trendRows.map(({ t, label, note, mult, dir, status, spark }) => {
+                    const Ico = FMT_ICON[t] ?? Play;
+                    const W = 74;
+                    const H = 22;
+                    let pts = "";
+                    if (spark) {
+                      const mx = Math.max(...spark);
+                      const mn = Math.min(...spark);
+                      pts = spark
+                        .map((v, i) => `${(i / (spark.length - 1)) * W},${H - 3 - ((v - mn) / (mx - mn || 1)) * (H - 6)}`)
+                        .join(" ");
+                    }
+                    return (
+                      <li className="cp3-trend" key={t}>
+                        <span className={`cp3-trend-ico ${dir}`}><Ico size={14} /></span>
+                        <span className="cp3-trend-meta">
+                          <b>{label}</b>
+                          <small>{note}</small>
+                        </span>
+                        <span className="cp3-trend-mult" title="This format's median engagement ÷ your overall median">
+                          <b>{mult}</b>
+                          <small>vs your median</small>
+                        </span>
+                        {spark ? (
+                          <svg viewBox={`0 0 ${W} ${H}`} className="cp3-trend-spark" preserveAspectRatio="none" aria-hidden>
+                            <polyline className={`cp3-tline ${dir}`} points={pts} fill="none" strokeWidth="1.6" strokeLinejoin="round" pathLength={100} />
+                          </svg>
+                        ) : (
+                          <span className="cp3-trend-spark" aria-hidden />
+                        )}
+                        <span className={`cp3-status ${dir}`}>{status}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="cp3-nodata">
+                  {snap ? "Not enough history yet — needs at least 5 synced posts." : "Connect your Instagram to see which formats work for you."}
+                </p>
+              )}
             </Reveal>
 
             <Reveal className="cp3-panel" delay={90}>
               <div className="cp3-card-head">
-                <h3>Gaps to close</h3>
+                <h3>
+                  Gaps to close{" "}
+                  <span className="cp3-info" title="Measured from your own posts. Competitor comparisons arrive with live tracking.">
+                    <Info size={12} />
+                  </span>
+                </h3>
                 <span className="cp3-filter">High impact first</span>
               </div>
-              <ul className="cp3-gaps">
-                {GAPS.map(({ Ico, title, body, impact, tone, cta, href }, i) => (
-                  <li className="cp3-gap" key={title}>
-                    <span className="cp3-gap-num">{String(i + 1).padStart(2, "0")}</span>
-                    <span className="cp3-gap-meta">
-                      <b><Ico size={13} /> {title}</b>
-                      <small>{body}</small>
-                      <em className={`cp3-impact ${tone}`}><i /> {impact}</em>
-                    </span>
-                    <Link href={href} className="cp3-gap-cta">
-                      {cta} <ArrowRight size={12} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              {gaps.length > 0 ? (
+                <ul className="cp3-gaps">
+                  {gaps.map(({ Ico, title, body, impact, tone, cta, href }, i) => (
+                    <li className="cp3-gap" key={title}>
+                      <span className="cp3-gap-num">{String(i + 1).padStart(2, "0")}</span>
+                      <span className="cp3-gap-meta">
+                        <b><Ico size={13} /> {title}</b>
+                        <small>{body}</small>
+                        <em className={`cp3-impact ${tone}`}><i /> {impact}</em>
+                      </span>
+                      <Link href={href} className="cp3-gap-cta">
+                        {cta} <ArrowRight size={12} />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="cp3-nodata">
+                  {snap ? "No measurable gaps in your recent posts." : "Connect your Instagram to get measured gaps."}
+                </p>
+              )}
               <Link href="/niche" className="cp3-viewmore">
                 View all opportunities <ArrowRight size={13} />
               </Link>
@@ -302,28 +456,34 @@ export default async function CompetitorsPage() {
               <div className="cp3-card-head">
                 <h3>
                   Strengths you can leverage{" "}
-                  <span className="cp3-info" title="Your percentile vs tracked accounts. Preview estimates.">
+                  <span className="cp3-info" title="Defined shares of your own recent posts — hover each bar for the exact formula.">
                     <Info size={12} />
                   </span>
                 </h3>
               </div>
-              <ul className="cp3-strengths">
-                {STRENGTHS.map(({ Ico, tone, title, body, pct }) => (
-                  <li className="cp3-str" key={title}>
-                    <span className={`cp3-str-ico ${tone}`}><Ico size={14} /></span>
-                    <span className="cp3-str-meta">
-                      <b>{title}</b>
-                      <small>{body}</small>
-                      <span className="cp3-str-barrow" title={`${pct}th percentile vs tracked accounts (preview)`}>
-                        <span className="cp3-str-bar">
-                          <i className={tone} style={{ width: `${pct}%` }} />
+              {strengths.length > 0 ? (
+                <ul className="cp3-strengths">
+                  {strengths.map(({ Ico, tone, title, body, pct, basis }) => (
+                    <li className="cp3-str" key={title}>
+                      <span className={`cp3-str-ico ${tone}`}><Ico size={14} /></span>
+                      <span className="cp3-str-meta">
+                        <b>{title}</b>
+                        <small>{body}</small>
+                        <span className="cp3-str-barrow" title={basis}>
+                          <span className="cp3-str-bar">
+                            <i className={tone} style={{ width: `${pct}%` }} />
+                          </span>
+                          <em className="cp3-str-pct">{pct}%</em>
                         </span>
-                        <em className="cp3-str-pct">{pct}%</em>
                       </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="cp3-nodata">
+                  {snap ? "Not enough history yet — needs at least 5 synced posts." : "Connect your Instagram to see your strengths."}
+                </p>
+              )}
               <Link href="/analytics" className="cp3-viewmore">
                 See full benchmark <ArrowRight size={13} />
               </Link>
@@ -332,58 +492,65 @@ export default async function CompetitorsPage() {
             <Reveal className="cp3-panel cp3-niche" delay={130}>
               <div className="cp3-card-head">
                 <h3>
-                  Niche performance{" "}
-                  <span className="cp3-info" title="Niche-wide benchmark estimates. Preview data.">
+                  Your performance{" "}
+                  <span
+                    className="cp3-info"
+                    title={`Average per-post engagement (likes + comments) ÷ your followers, from your last ${N} posts. Competitor benchmarks arrive with live tracking.`}
+                  >
                     <Info size={12} />
                   </span>
                 </h3>
               </div>
-              <div className="cp3-gauge">
-                <svg viewBox="0 0 148 84" aria-hidden>
-                  <path
-                    d="M 12 78 A 62 62 0 0 1 136 78"
-                    fill="none"
-                    stroke="#ede9fe"
-                    strokeWidth="11"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    className="cp3-gauge-fill"
-                    d="M 12 78 A 62 62 0 0 1 136 78"
-                    fill="none"
-                    stroke="url(#cp3g)"
-                    strokeWidth="11"
-                    strokeLinecap="round"
-                    strokeDasharray={half}
-                    style={{ ["--target" as string]: half * (1 - frac) }}
-                  />
-                  <defs>
-                    <linearGradient id="cp3g" x1="0" y1="1" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#8b5cf6" />
-                      <stop offset="100%" stopColor="#4c86ff" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="cp3-gauge-val">
-                  <b><CountUp value={`${NICHE.avgEng}%`} /></b>
-                  <small>Avg. engagement rate</small>
-                </div>
-                <span className="cp3-gauge-min">0%</span>
-                <span className="cp3-gauge-max">10%</span>
-              </div>
-              <p className="cp3-gauge-delta">{NICHE.delta}</p>
-              <div className="cp3-niche-kpis">
-                <div className="cp3-nkpi">
-                  <b><CountUp value={NICHE.views} /></b>
-                  <small>Niche views</small>
-                  <em>{NICHE.viewsDelta}</em>
-                </div>
-                <div className="cp3-nkpi">
-                  <b><CountUp value={NICHE.saves} /></b>
-                  <small>Niche saves</small>
-                  <em>{NICHE.savesDelta}</em>
-                </div>
-              </div>
+              {rate != null ? (
+                <>
+                  <div className="cp3-gauge">
+                    <svg viewBox="0 0 148 84" aria-hidden>
+                      <path d="M 12 78 A 62 62 0 0 1 136 78" fill="none" stroke="#ede9fe" strokeWidth="11" strokeLinecap="round" />
+                      <path
+                        className="cp3-gauge-fill"
+                        d="M 12 78 A 62 62 0 0 1 136 78"
+                        fill="none"
+                        stroke="url(#cp3g)"
+                        strokeWidth="11"
+                        strokeLinecap="round"
+                        strokeDasharray={gaugeHalf}
+                        style={{ ["--target" as string]: gaugeHalf * (1 - gaugeFrac) }}
+                      />
+                      <defs>
+                        <linearGradient id="cp3g" x1="0" y1="1" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#8b5cf6" />
+                          <stop offset="100%" stopColor="#4c86ff" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <div className="cp3-gauge-val">
+                      <b><CountUp value={`${rate.toFixed(1)}%`} /></b>
+                      <small>Avg. engagement rate</small>
+                    </div>
+                    <span className="cp3-gauge-min">0%</span>
+                    <span className="cp3-gauge-max">10%</span>
+                  </div>
+                  {engDelta != null && (
+                    <p className={`cp3-gauge-delta${engDelta < 0 ? " down" : ""}`}>
+                      {engDelta >= 0 ? "▲" : "▼"} {Math.abs(engDelta).toFixed(0)}% vs your earlier posts
+                    </p>
+                  )}
+                  <div className="cp3-niche-kpis">
+                    <div className="cp3-nkpi" title={`Sum of likes + comments across your last ${N} posts`}>
+                      <b><CountUp value={totalEng.toLocaleString("en-US")} /></b>
+                      <small>Engagements (last {N} posts)</small>
+                    </div>
+                    <div className="cp3-nkpi" title="Current follower count from your last sync">
+                      <b><CountUp value={(snap?.followers_count ?? 0).toLocaleString("en-US")} /></b>
+                      <small>Followers</small>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="cp3-nodata">
+                  {snap ? "Not enough data for an engagement rate yet." : "Connect your Instagram to benchmark your performance."}
+                </p>
+              )}
               <Link href="/niche" className="cp3-viewmore">
                 View niche trends <ArrowRight size={13} />
               </Link>
@@ -391,29 +558,19 @@ export default async function CompetitorsPage() {
           </aside>
         </CompetitorsBoard>
 
-        {/* smart takeaway */}
+        {/* smart takeaway — templated from the real calculations above */}
         <Reveal className="cp3-takeaway" delay={150}>
           <span className="cp3-take-ico"><Sparkles size={17} /></span>
-          <div className="cp3-take-meta">
+          <div className="cp3-take-meta" title="Generated from your account's calculated metrics — no invented numbers.">
             <small>Smart takeaway</small>
-            <p>
-              POV clips and strong first frames are driving the biggest lifts this week. Lean into
-              short, immediate, in-your-face openers rather than polished intros.
-            </p>
+            <p>{takeaway}</p>
           </div>
           <svg className="cp3-take-viz" viewBox="0 0 150 56" aria-hidden>
             <rect x="8" y="36" width="15" height="16" rx="3" fill="rgba(139,92,246,0.25)" />
             <rect x="33" y="28" width="15" height="24" rx="3" fill="rgba(76,134,255,0.3)" />
             <rect x="58" y="18" width="15" height="34" rx="3" fill="rgba(139,92,246,0.4)" />
             <rect x="83" y="8" width="15" height="44" rx="3" fill="rgba(76,134,255,0.5)" />
-            <polyline
-              points="12,30 40,22 66,13 104,4"
-              fill="none"
-              stroke="#8b5cf6"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              opacity="0.6"
-            />
+            <polyline points="12,30 40,22 66,13 104,4" fill="none" stroke="#8b5cf6" strokeWidth="1.6" strokeLinecap="round" opacity="0.6" />
             <path d="M104 4 l-6 -1 4 5 z" fill="#8b5cf6" opacity="0.6" />
           </svg>
           <Link href="/tool" className="cp3-take-cta solid">

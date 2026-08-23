@@ -9,10 +9,14 @@ import {
   Layers,
   ArrowRight,
   Download,
-  Eye,
-  Bookmark,
+  Heart,
+  MessageCircle,
+  Image as ImageIcon,
   Info,
 } from "lucide-react";
+
+// Competitor strip (labeled examples — SOCIA has no competitor data access
+// yet) + the user's REAL outlier posts, computed from their synced media.
 
 const IgGlyph = (
   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="#d92e7f" strokeWidth="2.4" className="cp3-acct-ig" aria-hidden>
@@ -21,9 +25,6 @@ const IgGlyph = (
     <circle cx="17.5" cy="6.5" r="1.4" fill="#d92e7f" stroke="none" />
   </svg>
 );
-
-// Interactive competitor strip + outlier grid (preview dataset).
-// Selecting a competitor highlights their outlier posts below.
 
 export type Tracked = {
   handle: string;
@@ -34,14 +35,18 @@ export type Tracked = {
   avatar?: string | null;
 };
 
+// A real post from the user's own account, with its computed outlier math.
 export type Outlier = {
-  handle: string;
-  format: string;
-  mult: string;
-  why: string;
-  views: string;
-  saves: string;
-  img: string;
+  title: string; // first caption line (or format label)
+  img: string | null;
+  permalink: string | null;
+  format: string; // REEL / CAROUSEL / STATIC
+  isVideo: boolean;
+  mult: string; // e.g. "4.1×" — engagement vs same-format median
+  basis: string; // tooltip: what the multiplier was compared against
+  evidence: string; // factual, calculated line — no invented claims
+  likes: number | null;
+  comments: number | null;
   tone: "amber" | "blue" | "green" | "purple";
 };
 
@@ -54,7 +59,7 @@ export function ExportButton() {
   );
 }
 
-function MiniSpark({ data, up }: { data: number[]; up: boolean }) {
+function MiniSpark({ data }: { data: number[] }) {
   const W = 58;
   const H = 20;
   const max = Math.max(...data);
@@ -68,7 +73,7 @@ function MiniSpark({ data, up }: { data: number[]; up: boolean }) {
       <polyline
         points={pts}
         fill="none"
-        stroke={up ? "var(--cobalt)" : "#dc2626"}
+        stroke="var(--cobalt)"
         strokeWidth="1.6"
         strokeLinejoin="round"
         pathLength={100}
@@ -78,45 +83,78 @@ function MiniSpark({ data, up }: { data: number[]; up: boolean }) {
   );
 }
 
+function OutlierMedia({ o }: { o: Outlier }) {
+  const [broken, setBroken] = useState(false);
+  const body = (
+    <div className={`cp3-out-media${!o.img || broken ? " ph" : ""}`}>
+      {o.img && !broken ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={o.img} alt="" loading="lazy" onError={() => setBroken(true)} />
+      ) : (
+        <span className="cp3-media-ph" aria-hidden>
+          <ImageIcon size={26} />
+        </span>
+      )}
+      <span className={`cp3-mult ${o.tone}`} title={o.basis}>
+        {o.mult} median
+      </span>
+      <span className="cp3-play" aria-hidden>
+        {o.isVideo ? <Play size={14} fill="currentColor" /> : <Layers size={14} />}
+      </span>
+    </div>
+  );
+  // Clicking opens the real post on Instagram when we have its permalink.
+  return o.permalink ? (
+    <a href={o.permalink} target="_blank" rel="noreferrer" aria-label="Open this post on Instagram">
+      {body}
+    </a>
+  ) : (
+    body
+  );
+}
+
 export default function CompetitorsBoard({
   tracked,
   outliers,
+  filterNote,
+  emptyNote,
   children,
 }: {
   tracked: Tracked[];
   outliers: Outlier[];
+  /** Honest description of the outlier calculation + data freshness. */
+  filterNote: string;
+  /** Shown when there are no qualifying outliers (or no data). */
+  emptyNote?: string | null;
   /** Center + right intelligence columns, rendered by the page. */
   children?: React.ReactNode;
 }) {
-  const [selected, setSelected] = useState<string | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
   function scrollRail(dir: 1 | -1) {
     railRef.current?.scrollBy({ left: dir * 280, behavior: "smooth" });
   }
-  function pick(handle: string) {
-    setSelected((s) => (s === handle ? null : handle));
-  }
-
-  const selCount = selected ? outliers.filter((o) => o.handle === selected).length : null;
 
   return (
     <>
-      {/* competitor strip */}
+      {/* competitor strip — illustrative examples until live tracking ships */}
       <div className="cp3-stripwrap">
+        <span
+          className="cp3-demo-chip"
+          title="Illustrative example accounts. SOCIA can't read competitor accounts until live tracking ships with the Growth plan."
+        >
+          Examples
+        </span>
         <button className="cp3-railbtn l" onClick={() => scrollRail(-1)} aria-label="Scroll competitors left" type="button">
           <ChevronLeft size={15} />
         </button>
-        <div className="cp3-strip" ref={railRef} role="listbox" aria-label="Tracked competitors">
+        <div className="cp3-strip" ref={railRef}>
           {tracked.map((c, i) => (
-            <button
+            <div
               key={c.handle}
-              className={`cp3-acct ${selected === c.handle ? "on" : ""}`}
-              onClick={() => pick(c.handle)}
-              role="option"
-              aria-selected={selected === c.handle}
+              className="cp3-acct"
               style={{ animationDelay: `${i * 60}ms` }}
-              type="button"
+              title="Example account — not real competitor data"
             >
               {c.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -133,8 +171,8 @@ export default function CompetitorsBoard({
                   Eng. {c.eng} <em>▲ {c.momentum}%</em>
                 </small>
               </span>
-              <MiniSpark data={c.spark} up />
-            </button>
+              <MiniSpark data={c.spark} />
+            </div>
           ))}
         </div>
         <button className="cp3-railbtn r" onClick={() => scrollRail(1)} aria-label="Scroll competitors right" type="button">
@@ -144,60 +182,57 @@ export default function CompetitorsBoard({
 
       {/* intelligence columns */}
       <div className="cp3-cols">
-        {/* outliers hero */}
+        {/* the user's real outliers */}
         <section className="cp3-outcard">
           <div className="cp3-card-head">
             <h3>
-              Top outliers this week{" "}
+              Your top outliers{" "}
               <span
                 className="cp3-info"
-                title="Posts performing at least 2× that account's median engagement. Preview data."
+                title="Your own posts whose engagement (likes + comments) runs at least 1.5× the median of your comparable posts. Competitor posts aren't available yet."
               >
                 <Info size={12} />
               </span>
             </h3>
-            <span className="cp3-filter">
-              {selected && selCount != null
-                ? `${selCount} from ${selected} · tap again to clear`
-                : "Posts doing 2×+ their account's median"}
-            </span>
+            <span className="cp3-filter">{filterNote}</span>
           </div>
-          <div className="cp3-outgrid">
-            {outliers.map((o, i) => (
-              <article
-                key={o.handle + o.mult}
-                className={`cp3-out ${selected ? (selected === o.handle ? "hi" : "dim") : ""}`}
-                style={{ animationDelay: `${i * 70}ms` }}
-              >
-                <div className="cp3-out-media">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={o.img} alt="" loading="lazy" />
-                  <span className={`cp3-mult ${o.tone}`}>{o.mult} median</span>
-                  <span className="cp3-play" aria-hidden>
-                    {o.format === "CAROUSEL" ? <Layers size={14} /> : <Play size={14} fill="currentColor" />}
-                  </span>
-                </div>
-                <div className="cp3-out-body">
-                  <div className="cp3-out-top">
-                    <b>{o.handle}</b>
-                    <span className="cp3-fmt">{o.format}</span>
+          {outliers.length > 0 ? (
+            <div className="cp3-outgrid">
+              {outliers.map((o, i) => (
+                <article className="cp3-out" key={o.title + i} style={{ animationDelay: `${i * 70}ms` }}>
+                  <OutlierMedia o={o} />
+                  <div className="cp3-out-body">
+                    <div className="cp3-out-top">
+                      <b title={o.title}>{o.title}</b>
+                      <span className="cp3-fmt">{o.format}</span>
+                    </div>
+                    <p className="cp3-why" title={o.evidence}>
+                      <span>Evidence:</span> {o.evidence}
+                    </p>
+                    <div className="cp3-out-metrics">
+                      {o.likes != null && (
+                        <span>
+                          <Heart size={12} /> <b>{o.likes.toLocaleString("en-US")}</b> likes
+                        </span>
+                      )}
+                      {o.comments != null && (
+                        <span>
+                          <MessageCircle size={12} /> <b>{o.comments.toLocaleString("en-US")}</b> comments
+                        </span>
+                      )}
+                    </div>
+                    <Link href="/tool" className="cp3-out-cta">
+                      Turn this into a post <ArrowRight size={12} />
+                    </Link>
                   </div>
-                  <p className="cp3-why" title={o.why}>
-                    <span>Why it won:</span> {o.why}
-                  </p>
-                  <div className="cp3-out-metrics">
-                    <span><Eye size={12} /> <b>{o.views}</b> views</span>
-                    <span><Bookmark size={12} /> <b>{o.saves}</b> saves</span>
-                  </div>
-                  <Link href="/tool" className="cp3-out-cta">
-                    Turn this into a post <ArrowRight size={12} />
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-          <Link href="/niche" className="cp3-viewmore">
-            View more outliers <ArrowRight size={13} />
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="cp3-nodata">{emptyNote ?? "Not enough history yet."}</p>
+          )}
+          <Link href="/analytics" className="cp3-viewmore">
+            View all your posts <ArrowRight size={13} />
           </Link>
         </section>
 
