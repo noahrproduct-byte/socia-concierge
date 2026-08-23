@@ -20,6 +20,13 @@ export function fbAppSecret() {
   return process.env.FACEBOOK_APP_SECRET;
 }
 
+/** Facebook Login for Business apps authorize via a login configuration
+ *  (created under Facebook Login for Business → Configurations) instead of
+ *  raw scopes. When set, the OAuth dialog uses config_id. */
+export function fbConfigId() {
+  return process.env.FACEBOOK_LOGIN_CONFIG_ID;
+}
+
 export function fbRedirectUri(reqOrigin: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || reqOrigin;
   return `${base}/api/auth/facebook/callback`;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { FB_GRAPH_V, FB_SCOPES, fbAppId, fbConfigured, fbRedirectUri } from "@/lib/facebook";
+import { FB_GRAPH_V, FB_SCOPES, fbAppId, fbConfigId, fbConfigured, fbRedirectUri } from "@/lib/facebook";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,13 @@ export async function GET(req: Request) {
   authorize.searchParams.set("client_id", fbAppId()!);
   authorize.searchParams.set("redirect_uri", fbRedirectUri(origin));
   authorize.searchParams.set("response_type", "code");
-  authorize.searchParams.set("scope", FB_SCOPES);
+  const configId = fbConfigId();
+  if (configId) {
+    // Facebook Login for Business: permissions come from the configuration.
+    authorize.searchParams.set("config_id", configId);
+  } else {
+    authorize.searchParams.set("scope", FB_SCOPES);
+  }
   authorize.searchParams.set("state", "settings");
 
   return NextResponse.redirect(authorize.toString());
