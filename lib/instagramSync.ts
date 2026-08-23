@@ -145,6 +145,57 @@ async function fetchInsights(
   return { values: {}, permissionError };
 }
 
+/** Meta returns a REAL daily time series for account-level metrics when you
+ *  pass since/until (max ~30 days per request, ~2 years of retention). This
+ *  is genuine per-day activity — not post totals — so it can be charted as a
+ *  time series. Returns one entry per day, only for metrics Meta provided. */
+export async function fetchDailySeries(
+  token: string,
+  days = 90,
+): Promise<Map<string, Record<string, number>>> {
+  const out = new Map<string, Record<string, number>>();
+  const METRICS = ["views", "reach"]; // metrics that support a period=day series
+  const now = Math.floor(Date.now() / 1000);
+  const CHUNK = 30 * 86400;
+
+  for (let back = 0; back < days * 86400; back += CHUNK) {
+    const until = now - back;
+    const since = Math.max(until - CHUNK, now - days * 86400);
+    if (since >= until) break;
+    const u = new URL(`https://graph.instagram.com/${IG_V}/me/insights`);
+    u.searchParams.set("metric", METRICS.join(","));
+    u.searchParams.set("period", "day");
+    u.searchParams.set("since", String(since));
+    u.searchParams.set("until", String(until));
+    u.searchParams.set("access_token", token);
+    try {
+      const res = await fetch(u, { signal: AbortSignal.timeout(12000) });
+      const json = (await res.json()) as {
+        data?: { name?: string; values?: { value?: number; end_time?: string }[] }[];
+        error?: { message?: string };
+      };
+      if (json?.error || !json?.data) continue;
+      for (const metric of json.data) {
+        const name = metric.name;
+        if (!name) continue;
+        for (const v of metric.values ?? []) {
+          if (typeof v.value !== "number" || !v.end_time) continue;
+          // end_time is the boundary at the START of the following day (UTC).
+          const day = new Date(new Date(v.end_time).getTime() - 43200000)
+            .toISOString()
+            .slice(0, 10);
+          const row = out.get(day) ?? {};
+          row[name] = v.value;
+          out.set(day, row);
+        }
+      }
+    } catch {
+      // partial history is fine — we store whatever Meta returned
+    }
+  }
+  return out;
+}
+
 async function fetchFromInstagram(token: string): Promise<{
   profile: Record<string, unknown>;
   media: IgMediaItem[];
@@ -267,6 +318,33 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
   }
 
   await recordSnapshot(supabase, userId, snap.followers_count, acct.values);
+
+  // Backfill Meta's own daily series (real per-day activity, not post totals).
+  try {
+    const series = await fetchDailySeries(conn.access_token, 90);
+    if (series.size) {
+      const rows = [...series.entries()].map(([day, vals]) => ({
+        user_id: userId,
+        day,
+        ...vals,
+        retrieved_at: now,
+      }));
+      const { error } = await supabase
+        .from("account_snapshots")
+        .upsert(rows, { onConflict: "user_id,day" });
+      if (error) {
+        // extended columns may be missing — try views only
+        await supabase
+          .from("account_snapshots")
+          .upsert(
+            rows.map((r) => ({ user_id: r.user_id, day: r.day })),
+            { onConflict: "user_id,day" },
+          );
+      }
+    }
+  } catch {
+    // history simply stays as far back as previous syncs recorded
+  }
 
   return snap;
 }
