@@ -10060,3 +10060,6 @@ html { scroll-behavior: smooth; }
   .an3-rank a, .an3-rank-inner { grid-template-columns: 34px minmax(0, 1fr) 64px; }
   .an3-rank-barwrap { display: none; }
 }
+.an3-typetoggle { margin-left: 6px; }
+.an3-typetoggle button { display: inline-grid; place-items: center; padding: 5px 9px; }
+.an3-typetoggle button.on { color: var(--cobalt); }

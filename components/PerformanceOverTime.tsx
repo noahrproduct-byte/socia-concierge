@@ -17,7 +17,17 @@
 // platform didn't provide it.
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, Activity, Play, FileText, ExternalLink, ArrowRight, Info } from "lucide-react";
+import {
+  Users,
+  Activity,
+  Play,
+  FileText,
+  ExternalLink,
+  ArrowRight,
+  Info,
+  TrendingUp,
+  BarChart3,
+} from "lucide-react";
 import { median, pctChange, fmtMult } from "@/lib/metrics";
 
 export type PerfPost = {
@@ -52,7 +62,12 @@ const CHIPS = [
   { id: "7", label: "7D", days: 7 },
   { id: "30", label: "30D", days: 30 },
   { id: "90", label: "90D", days: 90 },
+  { id: "180", label: "6M", days: 180 },
+  { id: "365", label: "1Y", days: 365 },
+  { id: "all", label: "All", days: 0 }, // resolved from the oldest known data
 ] as const;
+
+type ChartType = "line" | "bar";
 
 const METRICS: { id: Metric; label: string; color: string }[] = [
   { id: "followers", label: "Followers", color: "blue" },
@@ -180,33 +195,105 @@ function RankedPosts({
   );
 }
 
-/** Vertical bars over real time — used only for posts published. */
-function TimeBars({ items, cls, ariaLabel }: { items: { label: string; v: number; title: string }[]; cls: string; ariaLabel: string }) {
+/** One renderer for every true time series — line or bars, the user's choice.
+ *  `zeroBased: false` keeps follower counts readable (no forced 0 baseline). */
+function TimeSeries({
+  items,
+  type,
+  cls,
+  fill,
+  ariaLabel,
+  zeroBased = true,
+  hover,
+  onHover,
+}: {
+  items: { label: string; v: number; title: string }[];
+  type: ChartType;
+  cls: string;
+  fill: string;
+  ariaLabel: string;
+  zeroBased?: boolean;
+  hover?: number | null;
+  onHover?: (i: number | null) => void;
+}) {
   const n = items.length;
-  const maxV = niceCeil(Math.max(...items.map((i) => i.v), 1));
-  const y = (v: number) => padT + (1 - v / maxV) * plotH;
+  const vals = items.map((i) => i.v);
+  const rawMax = Math.max(...vals, 1);
+  const rawMin = Math.min(...vals, 0);
+  const max = zeroBased ? niceCeil(rawMax) : rawMax + Math.max(1, Math.round((rawMax - rawMin) * 0.25));
+  const min = zeroBased ? 0 : rawMin - Math.max(1, Math.round((rawMax - rawMin) * 0.25));
+  const y = (v: number) => padT + (1 - (v - min) / Math.max(1, max - min)) * plotH;
+  const x = (i: number) => padL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
   const step = plotW / Math.max(1, n);
   const bw = Math.min(44, step * 0.62);
-  const labelEvery = Math.ceil(n / 8);
+  const labelEvery = Math.max(1, Math.ceil(n / 7));
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="an3-chart" role="img" aria-label={ariaLabel}>
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="an3-chart"
+      role="img"
+      aria-label={ariaLabel}
+      onPointerMove={
+        onHover
+          ? (e) => {
+              if (n < 2) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const px = ((e.clientX - rect.left) / rect.width) * W;
+              const i = type === "bar"
+                ? Math.floor((px - padL) / step)
+                : Math.round(((px - padL) / plotW) * (n - 1));
+              onHover(Math.max(0, Math.min(n - 1, i)));
+            }
+          : undefined
+      }
+      onPointerLeave={onHover ? () => onHover(null) : undefined}
+    >
       {[0.25, 0.5, 0.75, 1].map((t) => (
         <line key={t} x1={padL} y1={padT + t * plotH} x2={W - padR} y2={padT + t * plotH} className="an3-grid" />
       ))}
-      {[maxV, maxV / 2].map((v) => (
-        <text key={v} x={padL - 8} y={y(v) + 3} className="an3-axis" textAnchor="end">{fmtNum(v)}</text>
+      {(zeroBased ? [max, max / 2] : [rawMax, rawMin]).map((v, k) => (
+        <text key={k} x={padL - 8} y={y(v) + 3} className="an3-axis" textAnchor="end">{fmtNum(Math.round(v))}</text>
       ))}
-      {items.map((it, i) => {
-        const cx = padL + step * i + step / 2;
-        return (
-          <g key={i} className="an3-barg">
-            <rect x={cx - bw / 2} y={y(it.v)} width={bw} height={Math.max(2, padT + plotH - y(it.v))} rx={4} className={`an3-bar ${cls}`}>
-              <title>{it.title}</title>
-            </rect>
-            {i % labelEvery === 0 && <text x={cx} y={H - 6} className="an3-axis" textAnchor="middle">{it.label}</text>}
-          </g>
-        );
-      })}
+      {items.map((it, i) =>
+        i % labelEvery === 0 || i === n - 1 ? (
+          <text key={`l${i}`} x={type === "bar" ? padL + step * i + step / 2 : x(i)} y={H - 6} className="an3-axis" textAnchor="middle">
+            {it.label}
+          </text>
+        ) : null,
+      )}
+
+      {type === "line" ? (
+        <>
+          <path d={`M${x(0)},${padT + plotH} ${vals.map((v, i) => `L${x(i)},${y(v)}`).join(" ")} L${x(n - 1)},${padT + plotH} Z`} fill={fill} />
+          <polyline points={vals.map((v, i) => `${x(i)},${y(v)}`).join(" ")} className={`an3-line ${cls} an3-draw`} fill="none" />
+          {n <= 60 && vals.map((v, i) => (
+            <circle key={i} cx={x(i)} cy={y(v)} r="3" className={`an3-dot ${cls}`}>
+              <title>{items[i].title}</title>
+            </circle>
+          ))}
+        </>
+      ) : (
+        items.map((it, i) => {
+          const cx = padL + step * i + step / 2;
+          return (
+            <g key={i} className="an3-barg">
+              <rect x={cx - bw / 2} y={y(it.v)} width={bw} height={Math.max(2, padT + plotH - y(it.v))} rx={4} className={`an3-bar ${cls}`}>
+                <title>{it.title}</title>
+              </rect>
+            </g>
+          );
+        })
+      )}
+      {hover != null && hover >= 0 && hover < n && (
+        <line
+          x1={type === "bar" ? padL + step * hover + step / 2 : x(hover)}
+          y1={padT}
+          x2={type === "bar" ? padL + step * hover + step / 2 : x(hover)}
+          y2={padT + plotH}
+          className="an3-cross"
+        />
+      )}
     </svg>
   );
 }
@@ -229,12 +316,22 @@ export default function PerformanceOverTime({
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [metric, setMetric] = useState<Metric>("eng");
+  const [chartType, setChartType] = useState<ChartType>("line");
   const [hover, setHover] = useState<number | null>(null);
 
   const model = useMemo(() => {
     if (!now) return null;
     let end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     let days: number = CHIPS.find((r) => r.id === rangeId)?.days ?? 30;
+    if (rangeId === "all") {
+      // Everything SOCIA actually knows about: oldest post or snapshot.
+      const oldestPost = posts.length ? Math.min(...posts.map((p) => new Date(p.t).getTime())) : null;
+      const oldestSnap = daily.length ? new Date(daily[0].day + "T00:00:00").getTime() : null;
+      const oldest = Math.min(oldestPost ?? Infinity, oldestSnap ?? Infinity);
+      days = Number.isFinite(oldest)
+        ? Math.max(7, Math.ceil((end.getTime() - oldest) / DAY_MS))
+        : 30;
+    }
     if (rangeId === "custom" && customStart && customEnd) {
       const s = new Date(customStart + "T00:00:00");
       const e = new Date(customEnd + "T00:00:00");
@@ -293,7 +390,7 @@ export default function PerformanceOverTime({
       posts: "publish_history",
     };
 
-    // Posts buckets (always real time).
+    // Posts buckets (always real time); weekly past a month, monthly past a year.
     const weekly = days > 31;
     const bucketCount = weekly ? Math.ceil(days / 7) : days;
     const buckets = Array.from({ length: bucketCount }, (_, i) => ({
@@ -346,36 +443,21 @@ export default function PerformanceOverTime({
   const prevNote = `vs posts published previous ${m.days} days`;
   const pick = (id: Metric) => { setMetric(id); setHover(null); };
   const empty = m.cur.length === 0;
+  // The line/bar toggle only appears where a real time series is drawn.
+  const isTimeSeries =
+    mode === "snapshot_history" || mode === "daily_history" || mode === "publish_history";
 
-  // Followers line geometry.
+  // Series the charts read from (geometry lives in TimeSeries).
   const fol = m.folRows;
   const folVals = fol.map((f) => f.followers!);
-  const folMin = folVals.length ? Math.min(...folVals) : 0;
-  const folMax = folVals.length ? Math.max(...folVals) : 1;
-  const folPad = Math.max(1, Math.round((folMax - folMin) * 0.25));
-  const yF = (v: number) => padT + (1 - (v - (folMin - folPad)) / (folMax + folPad - (folMin - folPad))) * plotH;
-  const xF = (i: number) => padL + (fol.length > 1 ? (i / (fol.length - 1)) * plotW : plotW / 2);
-
-  // Daily line geometry (views/engagement when real history exists).
   const lineRows = metric === "views" ? m.viewsRows : metric === "eng" ? m.engRows : [];
   const lineVal = (r: DailyRow) => (metric === "views" ? r.views! : m.engOfRow(r));
-  const lineVals = lineRows.map(lineVal);
-  const lineMax = niceCeil(Math.max(...lineVals, 1));
-  const yL = (v: number) => padT + (1 - v / lineMax) * plotH;
-  const xL = (i: number) => padL + (lineRows.length > 1 ? (i / (lineRows.length - 1)) * plotW : plotW / 2);
 
   const hoverRow =
     hover == null ? null
     : metric === "followers" ? fol[hover] ?? null
     : mode === "daily_history" ? lineRows[hover] ?? null
     : null;
-
-  function onMoveLine(e: React.PointerEvent<SVGSVGElement>, count: number) {
-    if (count < 2) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const px = ((e.clientX - rect.left) / rect.width) * W;
-    setHover(Math.max(0, Math.min(count - 1, Math.round(((px - padL) / plotW) * (count - 1)))));
-  }
 
   const kpis: {
     id: Metric; label: string; color: string; Ico: typeof Users;
@@ -429,13 +511,16 @@ export default function PerformanceOverTime({
         <div className="an3-controls">
           <select
             className="an3-select"
-            value={["7", "30", "90"].includes(rangeId) ? rangeId : "custom"}
+            value={CHIPS.some((c) => c.id === rangeId) ? rangeId : "custom"}
             onChange={(e) => setRangeId(e.target.value)}
             aria-label="Date range"
           >
             <option value="7">Last 7 days</option>
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
+            <option value="180">Last 6 months</option>
+            <option value="365">Last 12 months</option>
+            <option value="all">All time</option>
             <option value="custom">Custom range</option>
           </select>
           {rangeId === "custom" && (
@@ -486,6 +571,16 @@ export default function PerformanceOverTime({
             <button key={c.id} type="button" className={rangeId === c.id ? "on" : ""} onClick={() => setRangeId(c.id)}>{c.label}</button>
           ))}
         </span>
+        {isTimeSeries && (
+          <span className="an3-chips an3-typetoggle" role="group" aria-label="Chart type">
+            <button type="button" className={chartType === "line" ? "on" : ""} onClick={() => setChartType("line")} aria-label="Line chart" title="Line chart">
+              <TrendingUp size={13} />
+            </button>
+            <button type="button" className={chartType === "bar" ? "on" : ""} onClick={() => setChartType("bar")} aria-label="Bar chart" title="Bar chart">
+              <BarChart3 size={13} />
+            </button>
+          </span>
+        )}
       </div>
 
       <div className="an3-chartwrap">
@@ -501,23 +596,22 @@ export default function PerformanceOverTime({
                 )}
                 {qualityChip("Daily snapshots", "Real daily follower counts recorded by SOCIA — never reconstructed.")}
               </div>
-              <svg viewBox={`0 0 ${W} ${H}`} className="an3-chart" role="img" aria-label="Total followers over time"
-                onPointerMove={(e) => onMoveLine(e, fol.length)} onPointerLeave={() => setHover(null)}>
-                {[0.25, 0.5, 0.75, 1].map((t) => (
-                  <line key={t} x1={padL} y1={padT + t * plotH} x2={W - padR} y2={padT + t * plotH} className="an3-grid" />
-                ))}
-                <text x={padL - 8} y={yF(folMax) + 3} className="an3-axis" textAnchor="end">{fmtNum(folMax)}</text>
-                <text x={padL - 8} y={yF(folMin) + 3} className="an3-axis" textAnchor="end">{fmtNum(folMin)}</text>
-                {[0, Math.floor((fol.length - 1) / 2), fol.length - 1].map((i) => (
-                  <text key={i} x={xF(i)} y={H - 6} className="an3-axis" textAnchor="middle">{shortDate(new Date(fol[i].day + "T00:00:00"))}</text>
-                ))}
-                <path d={`M${xF(0)},${padT + plotH} ${fol.map((f, i) => `L${xF(i)},${yF(f.followers!)}`).join(" ")} L${xF(fol.length - 1)},${padT + plotH} Z`} fill="rgba(37,99,255,0.08)" />
-                <polyline points={fol.map((f, i) => `${xF(i)},${yF(f.followers!)}`).join(" ")} className="an3-line blue an3-draw" fill="none" />
-                {fol.map((f, i) => <circle key={f.day} cx={xF(i)} cy={yF(f.followers!)} r="3" className="an3-dot blue" />)}
-                {hover != null && hoverRow && <line x1={xF(hover)} y1={padT} x2={xF(hover)} y2={padT + plotH} className="an3-cross" />}
-              </svg>
+              <TimeSeries
+                type={chartType}
+                cls="blue"
+                fill="rgba(37,99,255,0.08)"
+                zeroBased={false}
+                ariaLabel="Total followers over time"
+                hover={hover}
+                onHover={setHover}
+                items={fol.map((f) => ({
+                  label: shortDate(new Date(f.day + "T00:00:00")),
+                  v: f.followers!,
+                  title: `${shortDate(new Date(f.day + "T00:00:00"))} — ${f.followers!.toLocaleString("en-US")} followers`,
+                }))}
+              />
               {hoverRow && (
-                <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, (xF(hover!) / W) * 100))}%` }}>
+                <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, ((hover! + 0.5) / Math.max(1, fol.length)) * 100))}%` }}>
                   <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
                   <div><span>Followers</span><em>{hoverRow.followers!.toLocaleString("en-US")}</em></div>
                   {hover! > 0 && fol[hover! - 1].followers != null && (
@@ -547,8 +641,10 @@ export default function PerformanceOverTime({
                 {m.topFmt && <div><b>{FMT_LABEL[m.topFmt] ?? m.topFmt}</b><small>Most-used format</small></div>}
                 {qualityChip("Real publish dates", "Publish timestamps are exact, so this is a true time series.")}
               </div>
-              <TimeBars
+              <TimeSeries
+                type={chartType}
                 cls="amber"
+                fill="rgba(245,176,76,0.10)"
                 ariaLabel={`Posts published per ${m.weekly ? "week" : "day"}`}
                 items={m.buckets.map((b) => {
                   const fmts = [...b.posts.reduce((acc, p) => acc.set(p.type, (acc.get(p.type) ?? 0) + 1), new Map<string, number>())]
@@ -619,25 +715,21 @@ export default function PerformanceOverTime({
 
                 {mode === "daily_history" ? (
                   <>
-                    <svg viewBox={`0 0 ${W} ${H}`} className="an3-chart" role="img"
-                      aria-label={`Daily ${isViews ? "views" : "engagement"}`}
-                      onPointerMove={(e) => onMoveLine(e, lineRows.length)} onPointerLeave={() => setHover(null)}>
-                      {[0.25, 0.5, 0.75, 1].map((t) => (
-                        <line key={t} x1={padL} y1={padT + t * plotH} x2={W - padR} y2={padT + t * plotH} className="an3-grid" />
-                      ))}
-                      {[lineMax, lineMax / 2].map((v) => (
-                        <text key={v} x={padL - 8} y={yL(v) + 3} className="an3-axis" textAnchor="end">{fmtNum(v)}</text>
-                      ))}
-                      {[0, Math.floor((lineRows.length - 1) / 2), lineRows.length - 1].map((i) => (
-                        <text key={i} x={xL(i)} y={H - 6} className="an3-axis" textAnchor="middle">{shortDate(new Date(lineRows[i].day + "T00:00:00"))}</text>
-                      ))}
-                      <path d={`M${xL(0)},${padT + plotH} ${lineRows.map((r, i) => `L${xL(i)},${yL(lineVal(r))}`).join(" ")} L${xL(lineRows.length - 1)},${padT + plotH} Z`} fill={isViews ? "rgba(16,185,129,0.07)" : "rgba(139,92,246,0.07)"} />
-                      <polyline points={lineRows.map((r, i) => `${xL(i)},${yL(lineVal(r))}`).join(" ")} className={`an3-line ${cls} an3-draw`} fill="none" />
-                      {lineRows.map((r, i) => <circle key={r.day} cx={xL(i)} cy={yL(lineVal(r))} r="3" className={`an3-dot ${cls}`} />)}
-                      {hover != null && hoverRow && <line x1={xL(hover)} y1={padT} x2={xL(hover)} y2={padT + plotH} className="an3-cross" />}
-                    </svg>
+                    <TimeSeries
+                      type={chartType}
+                      cls={cls}
+                      fill={isViews ? "rgba(16,185,129,0.07)" : "rgba(139,92,246,0.07)"}
+                      ariaLabel={`Daily ${isViews ? "views" : "engagement"}`}
+                      hover={hover}
+                      onHover={setHover}
+                      items={lineRows.map((r) => ({
+                        label: shortDate(new Date(r.day + "T00:00:00")),
+                        v: lineVal(r),
+                        title: `${shortDate(new Date(r.day + "T00:00:00"))} — ${lineVal(r).toLocaleString("en-US")} ${isViews ? "views" : "engagements"}`,
+                      }))}
+                    />
                     {hoverRow && (
-                      <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, (xL(hover!) / W) * 100))}%` }}>
+                      <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, ((hover! + 0.5) / Math.max(1, lineRows.length)) * 100))}%` }}>
                         <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
                         {isViews ? (
                           <div><span>Views</span><em>{hoverRow.views!.toLocaleString("en-US")}</em></div>
