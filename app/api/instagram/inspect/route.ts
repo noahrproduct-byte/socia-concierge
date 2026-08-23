@@ -94,18 +94,18 @@ export async function GET() {
     "saves",
     "shares",
   ];
-  const account: Probe[] = [];
-  for (const metric of accountMetrics) {
-    // Most interaction metrics require metric_type=total_value; try that first,
-    // then fall back to a plain period=day series so we see both behaviors.
-    let p = await probe("/me/insights", metric, { period: "day", metric_type: "total_value" }, token);
-    if (!p.ok) {
+  const account: Probe[] = await Promise.all(
+    accountMetrics.map(async (metric) => {
+      // Most interaction metrics require metric_type=total_value; try that
+      // first, then fall back to a plain period=day series.
+      const p = await probe("/me/insights", metric, { period: "day", metric_type: "total_value" }, token);
+      if (p.ok) return p;
       const fallback = await probe("/me/insights", metric, { period: "day" }, token);
-      if (fallback.ok) p = fallback;
-      else p.error = `${p.error} || plain: ${fallback.error?.slice(0, 120)}`;
-    }
-    account.push(p);
-  }
+      if (fallback.ok) return fallback;
+      p.error = `${p.error} || plain: ${fallback.error?.slice(0, 120)}`;
+      return p;
+    }),
+  );
 
   // ---- media-level insights on one reel and one non-reel ----
   const media = Array.isArray(conn.media) ? (conn.media as { id?: string; media_type?: string }[]) : [];
@@ -115,11 +115,9 @@ export async function GET() {
   const mediaProbes: Record<string, Probe[]> = {};
   for (const [label, item] of [["reel", reel], ["other", other]] as const) {
     if (!item?.id) continue;
-    const list: Probe[] = [];
-    for (const metric of mediaMetrics) {
-      list.push(await probe(`/${item.id}/insights`, metric, {}, token));
-    }
-    mediaProbes[`${label} (${item.media_type})`] = list;
+    mediaProbes[`${label} (${item.media_type})`] = await Promise.all(
+      mediaMetrics.map((metric) => probe(`/${item.id}/insights`, metric, {}, token)),
+    );
   }
 
   return NextResponse.json({
