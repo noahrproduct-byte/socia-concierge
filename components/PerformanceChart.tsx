@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { PERF } from "@/lib/demoData";
 
-const METRICS = ["Reach", "Engagement", "Followers", "Views"] as const;
-const RANGES: Record<string, number> = { "7D": 7, "14D": 14, "28D": 28, "90D": 28 };
+// Renders a real daily series supplied by the server. There is no built-in
+// data: if the caller has nothing real to pass, it doesn't render.
+export type SeriesPoint = { day: string; v: number };
 
 function fmt(v: number): string {
   if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
@@ -12,21 +12,18 @@ function fmt(v: number): string {
   return String(v);
 }
 
-const END = new Date(2026, 4, 16); // May 16, 2026
-function dateLabel(daysAgo: number): string {
-  const d = new Date(END);
-  d.setDate(d.getDate() - daysAgo);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-export default function PerformanceChart() {
-  const [metric, setMetric] = useState<(typeof METRICS)[number]>("Reach");
-  const [range, setRange] = useState("28D");
+export default function PerformanceChart({
+  series,
+  label,
+  note,
+}: {
+  series: SeriesPoint[];
+  label: string;
+  note: string;
+}) {
   const [hover, setHover] = useState<number | null>(null);
 
-  const full = PERF[metric];
-  const rangeDays = RANGES[range];
-  const data = full.slice(Math.max(0, full.length - rangeDays));
+  const data = series.map((p) => p.v);
   const n = data.length;
 
   const W = 720,
@@ -57,20 +54,8 @@ export default function PerformanceChart() {
   return (
     <div className="perf">
       <div className="perf-toolbar">
-        <div className="seg">
-          {METRICS.map((m) => (
-            <button key={m} className={metric === m ? "on" : ""} onClick={() => setMetric(m)}>
-              {m}
-            </button>
-          ))}
-        </div>
-        <div className="seg small">
-          {Object.keys(RANGES).map((r) => (
-            <button key={r} className={range === r ? "on" : ""} onClick={() => setRange(r)}>
-              {r}
-            </button>
-          ))}
-        </div>
+        <div className="seg"><button className="on">{label}</button></div>
+        <span className="perf-note">{note}</span>
       </div>
 
       <div className="perf-plot">
@@ -80,7 +65,7 @@ export default function PerformanceChart() {
           onMouseMove={onMove}
           onMouseLeave={() => setHover(null)}
           role="img"
-          aria-label={`${metric} over ${range}`}
+          aria-label={label}
         >
           <defs>
             <linearGradient id="perfArea" x1="0" y1="0" x2="0" y2="1">
@@ -102,7 +87,7 @@ export default function PerformanceChart() {
           })}
           {xTicks.map((i) => (
             <text key={i} x={x(i)} y={H - 10} className="paxis" textAnchor="middle">
-              {dateLabel(Math.round((1 - i / (n - 1)) * (rangeDays - 1)))}
+              {new Date(series[i].day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </text>
           ))}
           <path d={area} fill="url(#perfArea)" />
@@ -125,7 +110,7 @@ export default function PerformanceChart() {
           >
             <b>{fmt(data[hover])}</b>
             <span>
-              {metric} · {dateLabel(Math.round((1 - hover / (n - 1)) * (rangeDays - 1)))}
+              {new Date(series[hover].day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </span>
           </div>
         )}

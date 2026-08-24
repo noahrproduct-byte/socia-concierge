@@ -10070,3 +10070,5 @@ html { scroll-behavior: smooth; }
 .an3-line.teal { stroke: #0d9488; }
 .an3-dot.teal { fill: #0d9488; }
 .an3-bar.teal { fill: #0d9488; opacity: 0.85; }
+.dash-empty { font-size: 12.5px; line-height: 1.6; color: var(--slate); padding: 10px 2px 6px; }
+.perf-note { font-size: 11px; color: var(--slate); }

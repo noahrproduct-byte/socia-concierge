@@ -1,25 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sparkles, Info, Zap, Repeat2, Target, Clock } from "lucide-react";
+import { Sparkles, Info, Zap, Repeat2, Target, Clock, AlignLeft } from "lucide-react";
 import CountUp from "@/components/CountUp";
+import type { ContentScore } from "@/lib/contentScore";
 
-// The dashboard's visual hero: a dark intelligence panel showing the overall
-// content score with the five sub-scores the AI grades every post on.
-// Bars animate in when the panel becomes visible; on pointer-fine devices a
-// very faint blue light follows the cursor across the surface.
-const SCORE = 87;
-const VERDICT = "Great";
-const TREND = [68, 71, 70, 74, 77, 79, 78, 82, 85, 87];
-const BARS = [
-  { label: "Hook", value: 92, Ico: Zap },
-  { label: "Retention", value: 85, Ico: Repeat2 },
-  { label: "Relevance", value: 88, Ico: Target },
-  { label: "Originality", value: 78, Ico: Sparkles },
-  { label: "Timing", value: 90, Ico: Clock },
-];
+// The dashboard's visual hero. Every value is CALCULATED from the connected
+// account (see lib/contentScore) — no hardcoded scores, and dimensions that
+// Instagram's data can't support simply don't appear.
+const DIM_ICON: Record<string, typeof Zap> = {
+  Engagement: Zap,
+  Consistency: Repeat2,
+  Reach: Target,
+  Timing: Clock,
+  Captions: AlignLeft,
+};
 
-export default function ContentScoreCard() {
+export default function ContentScoreCard({
+  score,
+  trend,
+}: {
+  score: ContentScore | null;
+  /** Real score history from daily snapshots; omitted when not yet available. */
+  trend?: number[];
+}) {
   const ref = useRef<HTMLElement>(null);
   const [inView, setInView] = useState(false);
   const [lit, setLit] = useState(false);
@@ -52,15 +56,39 @@ export default function ContentScoreCard() {
     if (!lit) setLit(true);
   }
 
-  // Trend area path (drawn when the panel enters).
+  // Trend line only when real score history exists (never a drawn-in curve).
   const W = 220;
   const H = 44;
-  const max = Math.max(...TREND);
-  const min = Math.min(...TREND);
-  const span = max - min || 1;
-  const pts = TREND.map(
-    (v, i) => `${(i / (TREND.length - 1)) * W},${H - 4 - ((v - min) / span) * (H - 10)}`,
-  );
+  const series = trend && trend.length >= 3 ? trend : null;
+  const pts = series
+    ? series.map((v, i) => {
+        const max = Math.max(...series);
+        const min = Math.min(...series);
+        const span = max - min || 1;
+        return `${(i / (series.length - 1)) * W},${H - 4 - ((v - min) / span) * (H - 10)}`;
+      })
+    : null;
+
+  if (!score) {
+    return (
+      <section ref={ref} className="db2-score in" aria-label="Content score">
+        <div className="db2-score-glow" aria-hidden />
+        <div className="db2-score-left">
+          <div className="db2-score-title">
+            Content Score
+            <span title="Calculated from your synced posts once there are at least 5.">
+              <Info size={13} />
+            </span>
+          </div>
+          <div className="db2-score-big"><b>—</b></div>
+          <p className="db2-score-sub">
+            Connect Instagram and publish at least 5 posts — SOCIA scores what it can measure, and
+            shows nothing before that.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -75,14 +103,19 @@ export default function ContentScoreCard() {
       <div className="db2-score-left">
         <div className="db2-score-title">
           Content Score
-          <span title="The AI grades every post before it goes out."><Info size={13} /></span>
+          <span title={`Calculated: ${score.method}. Based on your last ${score.sampleSize} synced posts.`}>
+            <Info size={13} />
+          </span>
         </div>
         <div className="db2-score-big">
-          <b>{inView ? <CountUp value={String(SCORE)} duration={1100} /> : "0"}</b>
+          <b>{inView ? <CountUp value={String(score.score)} duration={1100} /> : "0"}</b>
           <span>/100</span>
         </div>
-        <div className="db2-score-verdict">{VERDICT}</div>
-        <p className="db2-score-sub">Your last 30 posts, graded by the AI before they went out.</p>
+        <div className="db2-score-verdict">{score.verdict}</div>
+        <p className="db2-score-sub">
+          Calculated from your last {score.sampleSize} synced posts — hover each bar for the formula.
+        </p>
+        {pts && (
         <svg
           className="db2-score-trend"
           viewBox={`0 0 ${W} ${H}`}
@@ -106,12 +139,14 @@ export default function ContentScoreCard() {
             pathLength={100}
           />
         </svg>
-        <span className="db2-score-delta">↗ 14 pts vs prev 30 posts</span>
+        )}
       </div>
 
       <div className="db2-score-bars">
-        {BARS.map(({ label, value, Ico }, i) => (
-          <div className="db2-sbar" key={label}>
+        {score.dims.map(({ label, value, method }, i) => {
+          const Ico = DIM_ICON[label] ?? Zap;
+          return (
+          <div className="db2-sbar" key={label} title={`${label}: ${method}`}>
             <span className="db2-sbar-ico"><Ico size={13} /></span>
             <span className="db2-sbar-label">{label}</span>
             <span className="db2-sbar-track">
@@ -124,11 +159,12 @@ export default function ContentScoreCard() {
             </span>
             <b className="db2-sbar-val">{value}</b>
           </div>
-        ))}
+          );
+        })}
       </div>
 
-      <span className="db2-score-chip">
-        <Sparkles size={12} /> AI graded
+      <span className="db2-score-chip" title="Computed by SOCIA from your real posts — not a metric returned by Instagram.">
+        <Sparkles size={12} /> SOCIA calculated
       </span>
     </section>
   );

@@ -20,6 +20,20 @@ import type { TimedPost } from "@/lib/bestTime";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import {
+  getFollowers,
+  getEngagementRate,
+  getAverageLikes,
+  getPostsPublished,
+  getFollowerGrowth,
+  getFollowersGained,
+  getTopPosts,
+  getBestPostingWindow,
+  getLifetimePosts,
+  ENGAGEMENT_RATE_FORMULA,
+  type AccountInput,
+  type DailySnapshot,
+} from "@/lib/dashboardMetrics";
 import type { Kpi } from "@/lib/demoData";
 import AppShell from "@/components/AppShell";
 import { MetricCard, PlatformBadge } from "@/components/ui";
@@ -27,16 +41,10 @@ import PerformanceChart from "@/components/PerformanceChart";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import AccountSwitcher from "@/components/AccountSwitcher";
 import ContentScoreCard from "@/components/ContentScoreCard";
+import { computeContentScore } from "@/lib/contentScore";
 import SyncCinematic from "@/components/SyncCinematic";
 import LiveSync from "@/components/LiveSync";
-import {
-  KPIS,
-  AI_BRIEF,
-  ACTIONS,
-  TOP_CONTENT,
-  COMPETITOR_INTEL,
-  UPCOMING,
-} from "@/lib/demoData";
+
 
 export const metadata = { title: "Dashboard — SOCIA" };
 
@@ -69,6 +77,13 @@ function fmtNum(n: number | null | undefined): string {
   if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
   return String(n);
 }
+const engOfPost = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
+function medianOf(xs: number[]): number | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
 function avg(xs: number[]): number {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 }
@@ -92,98 +107,93 @@ type ContentRow = {
   bVal: string;
   bLabel: string;
   mult: string | null;
+  engagement?: number;
 };
 
-function buildLiveData(followers: number | null, mediaCount: number | null, media: IgMediaItem[]) {
-  const eng = media.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
-  const chronological = [...media].reverse(); // API returns newest first
+function buildLiveData(acct: AccountInput, days: number) {
+  const chronological = [...acct.posts].reverse(); // API returns newest first
   const engSpark = chronological.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
   const likesSpark = chronological.map((m) => m.like_count ?? 0);
   const dateLabels = chronological.map((m) => fmtDate(m.timestamp));
-  const weekMs = 7 * 24 * 3600 * 1000;
-  const postsThisWeek = media.filter(
-    (m) => m.timestamp && Date.now() - new Date(m.timestamp).getTime() < weekMs,
-  ).length;
-  const engRate =
-    followers && followers > 0 && media.length ? (avg(eng) / followers) * 100 : null;
-  const recent = eng.slice(0, 5);
-  const prev = eng.slice(5, 10);
-  let engChange =
-    recent.length && prev.length && avg(prev) > 0
-      ? Math.round(((avg(recent) - avg(prev)) / avg(prev)) * 1000) / 10
-      : null;
-  // A four-digit swing is real math but reads like a bug — hide extremes.
-  if (engChange !== null && Math.abs(engChange) > 300) engChange = null;
-  const avgLikes = media.length ? Math.round(avg(media.map((m) => m.like_count ?? 0))) : null;
+
+  const followers = getFollowers(acct);
+  const engRate = getEngagementRate(acct);
+  const avgLikes = getAverageLikes(acct);
+  const published = getPostsPublished(acct, days);
+  const growth = getFollowerGrowth(acct, days);
+  const gained = getFollowersGained(acct, days);
+
+  // Follower change: exact snapshots when they exist, otherwise Instagram's
+  // real gains series, otherwise nothing at all (never invented).
+  const followerNote =
+    growth.value != null
+      ? `${growth.value >= 0 ? "+" : ""}${growth.value.toLocaleString("en-US")} vs ${days}d ago`
+      : gained.value != null
+        ? `+${gained.value.toLocaleString("en-US")} new · last ${days}d`
+        : "history collecting";
 
   const kpis: Kpi[] = [
     {
       key: "followers",
       label: "Total Followers",
-      value: fmtNum(followers),
+      value: followers.value != null ? fmtNum(followers.value) : "–",
       change: null,
       up: true,
-      compare: "Live from Instagram",
+      compare: followerNote,
       spark: [],
     },
     {
       key: "engagement",
       label: "Engagement Rate",
-      value: engRate != null ? engRate.toFixed(1) + "%" : "–",
-      change: engChange,
-      up: (engChange ?? 0) >= 0,
-      compare: "last 5 vs prev 5 posts",
+      value: engRate.value != null ? engRate.value.toFixed(1) + "%" : "–",
+      change: null,
+      up: true,
+      compare: engRate.value != null ? `${ENGAGEMENT_RATE_FORMULA}` : "unavailable",
       spark: engSpark,
       sparkLabels: dateLabels,
     },
     {
       key: "reach",
       label: "Avg Likes / Post",
-      value: fmtNum(avgLikes),
+      value: avgLikes.value != null ? fmtNum(avgLikes.value) : "–",
       change: null,
       up: true,
-      compare: `across ${media.length} recent posts`,
+      compare: avgLikes.period,
       spark: likesSpark,
       sparkLabels: dateLabels,
     },
     {
       key: "posts",
       label: "Posts Published",
-      value: String(mediaCount ?? media.length),
+      value: String(published.value ?? 0),
       change: null,
       up: true,
-      compare: postsThisWeek > 0 ? `+${postsThisWeek} this week` : "on your profile",
+      compare: `last ${days} days`,
       spark: engSpark,
       sparkLabels: dateLabels,
       variant: "bar",
     },
   ];
 
-  const avgEng = avg(eng);
-  const topRows: ContentRow[] = [...media]
-    .sort(
-      (x, y) =>
-        (y.like_count ?? 0) + (y.comments_count ?? 0) - ((x.like_count ?? 0) + (x.comments_count ?? 0)),
-    )
-    .slice(0, 4)
-    .map((m) => {
-      const e = (m.like_count ?? 0) + (m.comments_count ?? 0);
-      const mult = avgEng > 0 ? e / avgEng : null;
-      const firstLine = (m.caption || "").split("\n")[0].trim();
-      return {
-        title: firstLine ? firstLine.slice(0, 46) : "(no caption)",
-        date: fmtDate(m.timestamp),
-        format: formatLabel(m.media_type),
-        platform: "ig" as const,
-        aVal: fmtNum(m.like_count ?? 0),
-        aLabel: "Likes",
-        bVal: fmtNum(m.comments_count ?? 0),
-        bLabel: "Com.",
-        mult: mult ? mult.toFixed(1) + "×" : null,
-      };
-    });
+  // Top content — one ranking metric (engagement), one baseline (median).
+  const { rows, baseline } = getTopPosts(acct, 4);
+  const topRows: ContentRow[] = rows.map(({ post, engagement, multiplier }) => {
+    const firstLine = (post.caption || "").split("\n")[0].trim();
+    return {
+      title: firstLine ? firstLine.slice(0, 46) : "(no caption)",
+      date: fmtDate(post.timestamp),
+      format: formatLabel(post.media_type),
+      platform: "ig" as const,
+      aVal: fmtNum(post.like_count ?? 0),
+      aLabel: "Likes",
+      bVal: fmtNum(post.comments_count ?? 0),
+      bLabel: "Com.",
+      mult: multiplier && multiplier >= 1.05 ? multiplier.toFixed(1) + "×" : null,
+      engagement,
+    };
+  });
 
-  return { kpis, topRows };
+  return { kpis, topRows, baseline, followers, engRate, avgLikes, published, growth, gained };
 }
 
 // Derive an honest strategy brief from the synced media. Returns null when
@@ -226,7 +236,7 @@ function buildLiveBrief(media: IgMediaItem[]) {
             ? `Reels drive ${reelMult.toFixed(1)}× more engagement than your average post.`
             : `You average ${Math.round(overall).toLocaleString("en-US")} engagements per post right now.`,
       },
-      { icon: "clock", text: "", bestTime: true },
+      { icon: "clock", text: "", bestTime: true as const },
       {
         icon: "target",
         text: `Computed from your last ${media.length} posts, synced from Instagram.`,
@@ -238,14 +248,14 @@ function buildLiveBrief(media: IgMediaItem[]) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig?: string }>;
+  searchParams: Promise<{ ig?: string; range?: string }>;
 }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { ig } = await searchParams;
+  const { ig, range: rangeParam } = await searchParams;
   const justConnected = ig === "connected";
 
   const hour = new Date().getHours();
@@ -341,28 +351,94 @@ export default async function DashboardPage({
   const snap = await getIgSnapshot(supabase, user.id);
   const media = snap?.media ?? [];
   const live = Boolean(snap && snap.followers_count != null);
-  const { kpis, topRows } = live
-    ? buildLiveData(snap!.followers_count, snap!.media_count, media)
-    : {
-        kpis: KPIS,
-        topRows: TOP_CONTENT.map((c) => ({
-          title: c.title,
-          date: c.date,
-          format: c.format,
-          platform: c.platform,
-          aVal: c.reach,
-          aLabel: "Reach",
-          bVal: c.eng,
-          bLabel: "Eng.",
-          mult: String(c.mult),
-        })) as ContentRow[],
-      };
+  // Date range drives every period metric on the page (?range=7|30|90).
+  const rangeDays = rangeParam === "7" ? 7 : rangeParam === "90" ? 90 : 30;
+
+  let dailyRows: DailySnapshot[] = [];
+  try {
+    const { data } = await supabase
+      .from("account_snapshots")
+      .select("day, followers, reach, views, followers_gained")
+      .eq("user_id", user.id)
+      .order("day", { ascending: true })
+      .limit(400);
+    dailyRows = (data ?? []) as DailySnapshot[];
+  } catch {
+    // snapshots table may not exist yet — period metrics degrade to unavailable
+  }
+
+  const acct: AccountInput = {
+    followers: snap?.followers_count ?? null,
+    lifetimePosts: snap?.media_count ?? null,
+    posts: media,
+    daily: dailyRows,
+    syncedAt: snap?.last_synced_at ?? null,
+    platform: "instagram",
+    handle: snap?.username ?? null,
+  };
+  const built = live ? buildLiveData(acct, rangeDays) : null;
+  const kpis = built?.kpis ?? [];
+  const topRows = built?.topRows ?? [];
+  const lifetime = getLifetimePosts(acct);
+  const bestWin = getBestPostingWindow(acct);
+  const reachSeries = dailyRows
+    .filter((d) => d.reach != null)
+    .slice(-rangeDays)
+    .map((d) => ({ day: d.day, v: d.reach! }));
+  const contentScore = live
+    ? computeContentScore(
+        media,
+        snap!.followers_count,
+        dailyRows.filter((d) => d.reach != null).map((d) => d.reach!),
+      )
+    : null;
+
+  // Recommendations are only emitted when the evidence behind them exists.
+  type LiveAction = { tone: "impact" | "opportunity" | "consistency"; tag: string; title: string; body: string; href: string };
+  const liveActions: LiveAction[] = [];
+  if (built) {
+    const base = built.baseline.value;
+    const reels = media.filter((m) => m.media_type === "VIDEO");
+    const reelMed = reels.length >= 3 ? medianOf(reels.map(engOfPost)) : null;
+    if (base && base > 0 && reelMed && reelMed / base >= 1.2) {
+      liveActions.push({
+        tone: "impact",
+        tag: "High impact",
+        title: `Reels run ${(reelMed / base).toFixed(1)}× your median`,
+        body: `Median engagement across your ${reels.length} Reels vs your ${media.length}-post median. Publish another this week.`,
+        href: "/tool",
+      });
+    }
+    const perWeek = built.published.value != null ? (built.published.value / rangeDays) * 7 : null;
+    if (perWeek != null && perWeek < 3) {
+      liveActions.push({
+        tone: "consistency",
+        tag: "Consistency",
+        title: `You're posting ${perWeek.toFixed(1)}× per week`,
+        body: `${built.published.value} post${built.published.value === 1 ? "" : "s"} in the last ${rangeDays} days. More frequent publishing gives SOCIA more signal to work with.`,
+        href: "/calendar",
+      });
+    }
+    if (bestWin.value) {
+      liveActions.push({
+        tone: "opportunity",
+        tag: "Opportunity",
+        title: bestWin.value.confident
+          ? `Post around ${bestWin.value.short}`
+          : `Early signal: ${bestWin.value.short}`,
+        body: bestWin.value.confident
+          ? `Your highest-engagement window across ${bestWin.sampleSize} dated posts.`
+          : `Based on limited history (${bestWin.sampleSize} posts) — treat as a hint, not a rule.`,
+        href: "/calendar",
+      });
+    }
+  }
   const timedPosts: TimedPost[] = live
     ? media
         .filter((m) => m.timestamp)
         .map((m) => ({ t: m.timestamp!, e: (m.like_count ?? 0) + (m.comments_count ?? 0) }))
     : [];
-  const brief = (live ? buildLiveBrief(media) : null) ?? AI_BRIEF;
+  const brief = live ? buildLiveBrief(media) : null;
 
   return (
     <AppShell active="dashboard" userEmail={user.email}>
@@ -399,7 +475,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Content Score (brand signature) */}
-      <ContentScoreCard />
+      <ContentScoreCard score={contentScore} />
 
       {/* AI Strategy Brief + Recommended Actions */}
       <div className="dash-2col brief">
@@ -416,27 +492,43 @@ export default async function DashboardPage({
           <div className="ai-brief-badge">
             <Sparkles size={14} /> AI Strategy Brief
           </div>
-          <h2 className="ai-brief-head">
-            {brief.lead} <span className="accent-text">{brief.highlight}</span> {brief.tail}
-          </h2>
-          <p className="ai-brief-body">{brief.body}</p>
-          <div className="ai-brief-insights">
-            {brief.insights.map((ins, i) => (
-              <div className="ai-insight" key={i}>
-                <span className="ai-insight-ico">{INSIGHT_ICON[ins.icon]}</span>
-                <span>
-                  {"bestTime" in ins && ins.bestTime && timedPosts.length >= 3 ? (
-                    <>
-                      Your audience responds best on{" "}
-                      <BestTime posts={timedPosts} variant="long" fallback="your strongest window" />.
-                    </>
-                  ) : (
-                    ins.text || "Post more inside your strongest engagement windows."
-                  )}
-                </span>
+          {brief ? (
+            <>
+              <h2 className="ai-brief-head">
+                {brief.lead} <span className="accent-text">{brief.highlight}</span> {brief.tail}
+              </h2>
+              <p className="ai-brief-body">{brief.body}</p>
+              <div className="ai-brief-insights">
+                {brief.insights.map((ins, i) => (
+                  <div className="ai-insight" key={i}>
+                    <span className="ai-insight-ico">{INSIGHT_ICON[ins.icon]}</span>
+                    <span>
+                      {"bestTime" in ins && ins.bestTime && bestWin.value ? (
+                        <>
+                          {bestWin.value.confident ? "Your audience responds best on " : "Early signal: your best window looks like "}
+                          <BestTime posts={timedPosts} variant="long" fallback={bestWin.value.long} />.
+                          {!bestWin.value.confident && ` Based on ${bestWin.sampleSize} dated posts.`}
+                        </>
+                      ) : (
+                        ins.text
+                      )}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <>
+              <h2 className="ai-brief-head">
+                Connect your account and SOCIA writes this brief from{" "}
+                <span className="accent-text">your real numbers</span>.
+              </h2>
+              <p className="ai-brief-body">
+                Every sentence here is generated from your synced posts — nothing is shown until
+                there is data behind it.
+              </p>
+            </>
+          )}
           <div className="ai-brief-actions">
             <Link href="/chat" className="btn-primary db2-ask">
               <Sparkles size={15} /> Ask AI Strategist
@@ -455,19 +547,26 @@ export default async function DashboardPage({
             </Link>
           </div>
           <div className="actions">
-            {ACTIONS.map((a, i) => (
-              <div className="action" key={i}>
-                <span className={`action-ico ${a.tone}`}>{ACTION_ICON[a.tone]}</span>
-                <div className="action-body">
-                  <span className={`action-tag ${a.tone}`}>{a.tag}</span>
-                  <b>{a.title}</b>
-                  <small>{a.body}</small>
+            {liveActions.length > 0 ? (
+              liveActions.map((a, i) => (
+                <div className="action" key={i}>
+                  <span className={`action-ico ${a.tone}`}>{ACTION_ICON[a.tone]}</span>
+                  <div className="action-body">
+                    <span className={`action-tag ${a.tone}`}>{a.tag}</span>
+                    <b>{a.title}</b>
+                    <small>{a.body}</small>
+                  </div>
+                  <Link href={a.href} className="action-cta" aria-label={a.title}>
+                    <ArrowRight size={16} />
+                  </Link>
                 </div>
-                <Link href={a.href} className="action-cta" aria-label={a.cta}>
-                  <ArrowRight size={16} />
-                </Link>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="dash-empty">
+                Connect your account and publish a few posts — recommendations appear once SOCIA can
+                measure something real.
+              </p>
+            )}
           </div>
         </section>
       </div>
@@ -477,8 +576,20 @@ export default async function DashboardPage({
         <section className="card">
           <div className="card-head">
             <h3>Performance Over Time</h3>
+            <Link href="/analytics" className="link-mini">Full analytics</Link>
           </div>
-          <PerformanceChart />
+          {reachSeries.length >= 3 ? (
+            <PerformanceChart
+              series={reachSeries}
+              label="Accounts reached per day"
+              note={`Real daily reach from Instagram · last ${reachSeries.length} days`}
+            />
+          ) : (
+            <p className="dash-empty">
+              Daily performance history is still building. SOCIA records Instagram&apos;s real daily
+              series on every sync — nothing is drawn until it exists.
+            </p>
+          )}
         </section>
 
         <section className="card">
@@ -530,12 +641,13 @@ export default async function DashboardPage({
             </Link>
           </div>
           <div className="intel-list">
-            {COMPETITOR_INTEL.map((it, i) => (
-              <div className="intel-row" key={i}>
-                <span className="intel-ico">{INTEL_ICON[it.icon]}</span>
-                <span>{it.text}</span>
-              </div>
-            ))}
+            <p className="dash-empty">
+              Not enough competitor data yet. Instagram&apos;s API can&apos;t read other accounts, so
+              SOCIA shows real viral posts from your niche instead of invented competitor stats.
+            </p>
+            <Link href="/competitors" className="link-mini">
+              See what&apos;s viral in your niche <ArrowRight size={12} />
+            </Link>
           </div>
         </section>
 
@@ -547,18 +659,13 @@ export default async function DashboardPage({
             </Link>
           </div>
           <div className="upcoming-list">
-            {UPCOMING.map((u, i) => (
-              <div className="upcoming-row" key={i}>
-                <PlatformBadge platform={u.platform} />
-                <div className="upcoming-meta">
-                  <b>{u.title}</b>
-                  <small>
-                    {u.date} · {u.time}
-                  </small>
-                </div>
-                <span className="upcoming-status">{u.status}</span>
-              </div>
-            ))}
+            <p className="dash-empty">
+              Nothing scheduled yet. SOCIA shows only real scheduled posts here — plan your week and
+              they&apos;ll appear.
+            </p>
+            <Link href="/tool" className="link-mini">
+              Build a content plan <ArrowRight size={12} />
+            </Link>
           </div>
         </section>
       </div>
