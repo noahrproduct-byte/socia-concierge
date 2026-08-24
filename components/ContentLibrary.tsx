@@ -31,6 +31,12 @@ const fmt = (n: number | null): string =>
   : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K"
   : String(n);
 
+function displayTitle(caption: string): string {
+  const firstLine = caption.split("\n")[0].trim();
+  const withoutTags = firstLine.replace(/(\s*#[\p{L}\p{N}_]+)+\s*$/u, "").trim();
+  return withoutTags || firstLine || "(no caption)";
+}
+
 const COLS: { key: keyof LibraryPost; label: string; num?: boolean }[] = [
   { key: "caption", label: "Content" },
   { key: "published", label: "Published" },
@@ -126,7 +132,7 @@ export default function ContentLibrary({ posts }: { posts: LibraryPost[] }) {
                     ) : (
                       <span className="dsh-top-thumb ph" aria-hidden />
                     )}
-                    <b>{p.caption.slice(0, 44) || "(no caption)"}</b>
+                    <b title={p.caption}>{displayTitle(p.caption)}</b>
                   </span>
                 </td>
                 <td className="muted">

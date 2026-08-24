@@ -90,6 +90,15 @@ const fmtNum = (n: number): string =>
   : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K"
   : String(Math.round(n));
 
+/** Display title: the caption's actual words, with trailing hashtag runs
+ *  dropped so rows read "Perfection." instead of a wall of tags. The full
+ *  caption stays available on hover. */
+function displayTitle(caption: string): string {
+  const firstLine = caption.split("\n")[0].trim();
+  const withoutTags = firstLine.replace(/(\s*#[\p{L}\p{N}_]+)+\s*$/u, "").trim();
+  return withoutTags || firstLine || "(no caption)";
+}
+
 const shortDate = (iso: string) =>
   new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString("en-US", {
     month: "short",
@@ -500,7 +509,7 @@ export default function DashboardClient({
                       <span className="dsh-top-thumb ph" aria-hidden />
                     )}
                     <span className="dsh-top-body">
-                      <b className="dsh-top-title">{p.caption || "(no caption)"}</b>
+                      <b className="dsh-top-title" title={p.caption}>{displayTitle(p.caption)}</b>
                       <small className="dsh-top-sub">
                         {p.format} · {shortDate(p.published)}
                       </small>
@@ -600,7 +609,7 @@ export default function DashboardClient({
                         ) : (
                           <span className="dsh-top-thumb ph" aria-hidden />
                         )}
-                        <b>{p.caption.slice(0, 40) || "(no caption)"}</b>
+                        <b title={p.caption}>{displayTitle(p.caption)}</b>
                       </span>
                     </td>
                     <td className="muted">
