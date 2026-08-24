@@ -209,7 +209,7 @@ export default function DashboardClient({
     { key: "views", label: "Views", num: true },
     { key: "reach", label: "Reach", num: true },
     { key: "engagements", label: "Engagements", num: true },
-    { key: "engRate", label: "Eng. rate", num: true },
+    { key: "engRate", label: "Eng. / reach", num: true },
     { key: "multiplier", label: "vs baseline", num: true },
   ];
 
@@ -485,6 +485,13 @@ export default function DashboardClient({
                   {COLS.map((c) => (
                     <th
                       key={String(c.key)}
+                      title={
+                        c.key === "engRate"
+                          ? "Engagements ÷ that post's reach × 100 (the strip's account rate divides by followers instead)"
+                          : c.key === "multiplier"
+                            ? "This post's engagement ÷ your median post engagement"
+                            : undefined
+                      }
                       className={c.num ? "num" : ""}
                       onClick={() => toggleSort(c.key)}
                       aria-sort={sort.col === c.key ? (sort.dir === -1 ? "descending" : "ascending") : "none"}
