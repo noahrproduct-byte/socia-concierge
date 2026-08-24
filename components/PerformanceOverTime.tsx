@@ -508,6 +508,23 @@ export default function PerformanceOverTime({
       : mode === "daily_history" ? lineRows
       : [];
   const hoverRow = hover == null ? null : activeRows[hover] ?? null;
+
+  // Estimated follower total per day, walked backwards from today's exact
+  // count through Instagram's daily gains. Unfollows aren't published, so
+  // this is an approximation (a lower bound on past counts) — computed on the
+  // fly and labeled as an estimate, never stored as if it were a snapshot.
+  const estTotals: (number | null)[] = (() => {
+    if (metric !== "followers" || mode !== "gains_history" || followers == null) return [];
+    const out: (number | null)[] = new Array(m.gainRows.length).fill(null);
+    if (!m.gainRows.length) return out;
+    out[m.gainRows.length - 1] = followers;
+    for (let i = m.gainRows.length - 2; i >= 0; i--) {
+      const next = out[i + 1];
+      const gainNext = m.gainRows[i + 1].followers_gained ?? 0;
+      out[i] = next == null ? null : next - gainNext;
+    }
+    return out;
+  })();
   const tipLeft = `${Math.min(84, Math.max(6, ((hover ?? 0) + 0.5) / Math.max(1, activeRows.length) * 100))}%`;
   const isReach = metric === "reach";
 
@@ -711,6 +728,12 @@ export default function PerformanceOverTime({
               {hoverRow && (
                 <div className="an3-tip" style={{ left: tipLeft }}>
                   <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
+                  {estTotals[hover!] != null && (
+                    <div title="Estimated by subtracting Instagram's daily new-follower counts back from today's exact total. Instagram doesn't publish unfollows, so treat this as an approximation.">
+                      <span>Est. total</span>
+                      <em>≈ {estTotals[hover!]!.toLocaleString("en-US")}</em>
+                    </div>
+                  )}
                   <div><span>New followers</span><em>+{hoverRow.followers_gained!.toLocaleString("en-US")}</em></div>
                   {hover! > 0 && activeRows[hover! - 1]?.followers_gained != null && (
                     <div>
