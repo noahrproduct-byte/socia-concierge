@@ -100,6 +100,7 @@ export default function DashboardClient({
   metrics,
   daily,
   posts,
+  topPosts,
   insight,
   range,
   rangeDays,
@@ -109,7 +110,10 @@ export default function DashboardClient({
 }: {
   metrics: DashMetric[];
   daily: DashDaily[];
+  /** Most recent posts — the table (max 5). */
   posts: DashPost[];
+  /** Highest-engagement posts of the period — the right rail (max 4). */
+  topPosts: DashPost[];
   insight: DashInsight | null;
   range: string;
   /** Length of the selected window in days. */
@@ -183,7 +187,7 @@ export default function DashboardClient({
   }
 
   // Chart geometry
-  const W = 860, H = 260, padL = 52, padR = 18, padT = 16, padB = 30;
+  const W = 900, H = 430, padL = 54, padR = 18, padT = 14, padB = 34;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const rows = series.rows;
@@ -484,44 +488,44 @@ export default function DashboardClient({
               <h2>Top performing content</h2>
               <Link href="/analytics" className="dsh-link">View all</Link>
             </div>
-            {posts.length ? (
+            {topPosts.length ? (
               <ol className="dsh-top">
-                {[...posts]
-                  .sort((a, b) => b.engagements - a.engagements)
-                  .slice(0, 4)
-                  .map((p, i) => (
-                    <li key={p.id}>
-                      <span className="dsh-top-rank">{String(i + 1).padStart(2, "0")}</span>
-                      {p.thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img className="dsh-top-thumb" src={p.thumb} alt="" width={44} height={44} loading="lazy" />
-                      ) : (
-                        <span className="dsh-top-thumb ph" aria-hidden />
-                      )}
-                      <span className="dsh-top-meta">
-                        <b>{p.caption.slice(0, 30) || "(no caption)"}</b>
-                        <small>{p.format} · {shortDate(p.published)}</small>
+                {topPosts.map((p, i) => (
+                  <li key={p.id}>
+                    <span className="dsh-top-rank">{String(i + 1).padStart(2, "0")}</span>
+                    {p.thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="dsh-top-thumb" src={p.thumb} alt="" width={52} height={52} loading="lazy" />
+                    ) : (
+                      <span className="dsh-top-thumb ph" aria-hidden />
+                    )}
+                    <span className="dsh-top-body">
+                      <b className="dsh-top-title">{p.caption || "(no caption)"}</b>
+                      <small className="dsh-top-sub">
+                        {p.format} · {shortDate(p.published)}
+                      </small>
+                      <small className="dsh-top-stats">
+                        {p.views != null && <>{fmtNum(p.views)} views · </>}
+                        {p.engagements.toLocaleString("en-US")} engagements
+                      </small>
+                    </span>
+                    {p.multiplier != null && (
+                      <span className={`dsh-top-badge ${p.multiplier >= 1 ? "up" : "down"}`} title="This post's engagement ÷ your average post engagement">
+                        {p.multiplier >= 1 ? "↑" : "↓"} {p.multiplier.toFixed(1)}×
+                        <small>vs baseline</small>
                       </span>
-                      <span className="dsh-top-nums">
-                        {p.views != null && (
-                          <span className="dsh-top-stat"><b>{fmtNum(p.views)}</b><small>Views</small></span>
-                        )}
-                        <span className="dsh-top-stat">
-                          <b>{p.engagements.toLocaleString("en-US")}</b>
-                          <small>Engagements</small>
-                        </span>
-                        {p.multiplier != null && (
-                          <em
-                            className={p.multiplier >= 1 ? "up" : "down"}
-                            title="This post's engagement ÷ your average post engagement"
-                          >
-                            {p.multiplier >= 1 ? "↑" : "↓"} {p.multiplier.toFixed(1)}×
-                            <small>vs baseline</small>
-                          </em>
-                        )}
-                      </span>
-                    </li>
-                  ))}
+                    )}
+                    {p.permalink && (
+                      <a
+                        className="dsh-top-open"
+                        href={p.permalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Open ${p.caption || "post"}`}
+                      />
+                    )}
+                  </li>
+                ))}
               </ol>
             ) : (
               <p className="dsh-empty">No posts synced yet.</p>
@@ -551,20 +555,6 @@ export default function DashboardClient({
             </section>
           )}
 
-          <section className="dsh-panel">
-            <div className="dsh-panel-head">
-              <h2>Upcoming content</h2>
-              <Link href="/calendar" className="dsh-link">View calendar</Link>
-            </div>
-            <div className="dsh-upcoming-empty">
-              <span className="dsh-upcoming-ico"><Calendar size={18} /></span>
-              <b>Nothing scheduled.</b>
-              <small>SOCIA lists only real scheduled posts here.</small>
-              <Link href="/tool" className="dsh-cta">
-                Create content <ArrowRight size={12} />
-              </Link>
-            </div>
-          </section>
         </div>
       </div>
 
@@ -572,7 +562,7 @@ export default function DashboardClient({
       <section className="dsh-panel dsh-tablewrap">
         <div className="dsh-panel-head">
           <h2>Recent content performance</h2>
-          <Link href="/analytics" className="dsh-link">View all content</Link>
+          <Link href="/content" className="dsh-link">View all content <ArrowRight size={12} /></Link>
         </div>
         {posts.length ? (
           <div className="dsh-tablescroll">
@@ -600,7 +590,7 @@ export default function DashboardClient({
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((p) => (
+                {sorted.slice(0, 5).map((p) => (
                   <tr key={p.id} onClick={() => p.permalink && window.open(p.permalink, "_blank")}>
                     <td>
                       <span className="dsh-cell-content">

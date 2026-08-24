@@ -329,10 +329,9 @@ export default async function DashboardPage({
 
   // --- per-post rows (real insights only) ---
   const base = baselineM.value;
-  const dashPosts: DashPost[] = media
+  const allDashPosts: DashPost[] = media
     .filter((m) => m.timestamp)
     .sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime())
-    .slice(0, 12)
     .map((m, i) => {
       const e = engOfPost(m);
       const reach = m.insights?.reach ?? null;
@@ -350,6 +349,10 @@ export default async function DashboardPage({
         permalink: m.permalink ?? null,
       };
     });
+  const dashPosts = allDashPosts.slice(0, 5); // executive view — full list lives on /content
+  const topDashPosts = [...allDashPosts]
+    .sort((a, b) => b.engagements - a.engagements)
+    .slice(0, 4);
 
   // --- daily series for the chart ---
   const dayCounts = new Map<string, number>();
@@ -449,6 +452,7 @@ export default async function DashboardPage({
           metrics={metricsStrip}
           daily={dashDaily}
           posts={dashPosts}
+          topPosts={topDashPosts}
           insight={insight}
           range={rangeId}
           rangeDays={rangeDays}
