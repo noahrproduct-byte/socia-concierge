@@ -5,6 +5,8 @@ import {
   Radar,
   Sparkles,
   FileText,
+  FileBarChart,
+  LayoutGrid,
   Video,
   CalendarDays,
   Settings,
@@ -33,12 +35,14 @@ type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
   { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
+  { href: "/content", label: "Content", Icon: LayoutGrid, key: "content" },
   { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
   { href: "/niche", label: "Niche Trends", Icon: Flame, key: "niche" },
   { href: "/chat", label: "AI Strategist", Icon: Sparkles, key: "chat" },
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
   { href: "/scorer", label: "Video Scorer", Icon: Video, key: "scorer" },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
+  { href: "/reports", label: "Reports", Icon: FileBarChart, key: "reports" },
   { href: "/settings", label: "Settings", Icon: Settings, key: "settings" },
 ];
 

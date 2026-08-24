@@ -10244,3 +10244,16 @@ html { scroll-behavior: smooth; }
 .dsh-line { animation: dshDraw 0.5s ease-out; }
 @keyframes dshDraw { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .dsh-line { animation: none; } .dsh-top-thumb, .dsh-cell-content img { transition: none; } }
+
+/* ---- Content library + Reports ---- */
+.lib-filters { display: inline-flex; background: #f4f5f7; border-radius: 8px; padding: 3px; }
+.lib-filters button { border: none; background: none; padding: 5px 12px; font-size: 12px; font-weight: 550; color: #6b7280; border-radius: 6px; cursor: pointer; }
+.lib-filters button.on { background: #fff; color: #0f1115; box-shadow: 0 1px 2px rgba(15,17,21,0.08); }
+.lib-totals { font-size: 11.5px; color: #9aa0aa; }
+.rep-table td { vertical-align: top; }
+.rep-method { max-width: 340px; font-size: 11px; line-height: 1.45; }
+.rep-status { display: inline-block; font-size: 9.5px; font-weight: 650; letter-spacing: 0.04em; border-radius: 4px; padding: 2px 6px; }
+.rep-status.verified { background: #ecfdf3; color: #15803d; }
+.rep-status.calculated { background: #eef3ff; color: #2563ff; }
+.rep-status.ai_derived { background: #f5f0ff; color: #7c3aed; }
+.rep-status.unavailable { background: #f4f5f7; color: #6b7280; }
