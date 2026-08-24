@@ -462,10 +462,6 @@ export default async function DashboardPage({
       )}
 
       <div className="dsh-foot">
-        <span>
-          All analytics come from your connected account. Values SOCIA can&apos;t verify show as
-          &quot;—&quot; rather than zero.
-        </span>
         <span>Times shown in your device&apos;s time zone</span>
       </div>
     </AppShell>

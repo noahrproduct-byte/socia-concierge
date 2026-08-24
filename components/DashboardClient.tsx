@@ -11,7 +11,28 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Calendar, Info, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Calendar,
+  Info,
+  ChevronUp,
+  ChevronDown,
+  Users,
+  Activity,
+  Heart,
+  Percent,
+  FileText,
+  ShieldCheck,
+} from "lucide-react";
+
+const METRIC_ICON: Record<string, typeof Users> = {
+  followers: Users,
+  reach: Activity,
+  engagements: Heart,
+  engrate: Percent,
+  posts: FileText,
+};
 
 export type DashPost = {
   id: string;
@@ -179,6 +200,22 @@ export default function DashboardClient({
       .filter((m) => m.items.length > 0);
   }, [rows, posts, n]);
 
+  // Previous equal-length period, drawn as a dashed comparison line when the
+  // history genuinely covers it (never extrapolated).
+  const compare = useMemo(() => {
+    if (!n || metric === "posts") return null;
+    const first = rows[0].day;
+    const idx = daily.findIndex((d) => d.day === first);
+    if (idx < n) return null; // not enough earlier history
+    const prev = daily.slice(idx - n, idx);
+    const pick = (d: DashDaily) =>
+      metric === "reach" ? d.reach : metric === "views" ? d.views
+      : metric === "followers" ? (d.followers ?? d.followersGained) : null;
+    const vs = prev.map(pick).filter((v) => v != null) as number[];
+    if (vs.length < n * 0.6) return null;
+    return { vals: vs, label: `${shortDate(prev[0].day)} – ${shortDate(prev[prev.length - 1].day)}` };
+  }, [rows, daily, metric, n]);
+
   const hoverRow = hover != null ? rows[hover] : null;
   const hoverPrev = hover != null && hover > 0 ? rows[hover - 1] : null;
   const hoverMarker = hover != null ? markers.find((m) => m.i === hover) : undefined;
@@ -217,11 +254,14 @@ export default function DashboardClient({
     <>
       {/* metrics strip */}
       <div className="dsh-strip">
-        {metrics.map((m) => (
+        {metrics.map((m) => {
+          const Ico = METRIC_ICON[m.key] ?? Users;
+          return (
           <div className="dsh-metric" key={m.key}>
             <div className="dsh-metric-label">
+              <span className={`dsh-metric-ico ${m.key}`}><Ico size={13} /></span>
               {m.label}
-              <span title={m.tooltip}><Info size={11} /></span>
+              <span className="dsh-metric-info" title={m.tooltip}><Info size={11} /></span>
             </div>
             <div className="dsh-metric-value">{m.value}</div>
             <div className="dsh-metric-delta">
@@ -237,7 +277,8 @@ export default function DashboardClient({
             </div>
             {m.spark.length >= 3 && <Spark data={m.spark} up={m.positive} />}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="dsh-main">
@@ -254,6 +295,11 @@ export default function DashboardClient({
             </div>
           </div>
 
+          {compare && (
+            <div className="dsh-compare-chip">
+              <span className="dsh-compare-dash" aria-hidden /> Compare: {compare.label}
+            </div>
+          )}
           <div className="dsh-tabs" role="tablist">
             {(
               [
@@ -309,6 +355,13 @@ export default function DashboardClient({
                   d={`M${x(0)},${padT + plotH} ${vals.map((v, i) => `L${x(i)},${y(v)}`).join(" ")} L${x(n - 1)},${padT + plotH} Z`}
                   className="dsh-area"
                 />
+                {compare && (
+                  <polyline
+                    points={compare.vals.map((v, i) => `${x(Math.round((i / Math.max(1, compare.vals.length - 1)) * (n - 1)))},${y(v)}`).join(" ")}
+                    className="dsh-line-compare"
+                    fill="none"
+                  />
+                )}
                 <polyline points={vals.map((v, i) => `${x(i)},${y(v)}`).join(" ")} className="dsh-line" fill="none" />
                 {n <= 60 && vals.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="2.5" className="dsh-dot" />)}
                 {markers.map((mk) => (
@@ -422,10 +475,17 @@ export default function DashboardClient({
                         <small>{p.format} · {shortDate(p.published)}</small>
                       </span>
                       <span className="dsh-top-nums">
-                        {p.views != null && <b>{fmtNum(p.views)} views</b>}
-                        <small>{p.engagements.toLocaleString("en-US")} eng.</small>
+                        {p.views != null && (
+                          <span className="dsh-top-stat"><b>{fmtNum(p.views)}</b><small>Views</small></span>
+                        )}
+                        <span className="dsh-top-stat">
+                          <b>{p.engagements.toLocaleString("en-US")}</b>
+                          <small>Engagements</small>
+                        </span>
                         {p.multiplier != null && p.multiplier >= 1.05 && (
-                          <em title="vs your median post">{p.multiplier.toFixed(1)}×</em>
+                          <em title="This post's engagement ÷ your median post engagement">
+                            {p.multiplier.toFixed(1)}×<small>vs baseline</small>
+                          </em>
                         )}
                       </span>
                     </li>
@@ -544,6 +604,11 @@ export default function DashboardClient({
           <p className="dsh-empty">Connect your account to see per-post performance.</p>
         )}
       </section>
+
+      <p className="dsh-trust">
+        <ShieldCheck size={13} /> All analytics come straight from your connected account. No
+        estimates — anything SOCIA can&apos;t verify shows as &quot;—&quot;.
+      </p>
     </>
   );
 }
