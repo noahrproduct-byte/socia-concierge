@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import BestTime from "@/components/BestTime";
 import {
   Plus,
   Sparkles,
@@ -26,7 +27,7 @@ export type StrategistContext = {
   username: string | null;
   mediaCount: number;
   engRate: string | null;
-  bestTime: string | null;
+  posts: { t: string; e: number }[];
   insights: { tone: "green" | "blue" | "amber"; text: string; sub: string }[];
 };
 
@@ -266,8 +267,8 @@ export default function ChatClient({ context }: { context: StrategistContext }) 
               {context.engRate && (
                 <div><span><Activity size={13} /> Engagement</span><b>{context.engRate}</b></div>
               )}
-              {context.bestTime && (
-                <div><span><Clock size={13} /> Best time</span><b>{context.bestTime}</b></div>
+              {context.posts.length >= 3 && (
+                <div><span><Clock size={13} /> Best time</span><b><BestTime posts={context.posts} /></b></div>
               )}
               {context.goal && (
                 <div><span><Target size={13} /> Goal</span><b>{context.goal}</b></div>

@@ -15,6 +15,8 @@ import LiveSync from "@/components/LiveSync";
 import AccountSwitcher from "@/components/AccountSwitcher";
 import { MetricCard } from "@/components/ui";
 import { FormatBars, Reveal } from "@/components/AnalyticsCharts";
+import BestTime from "@/components/BestTime";
+import type { TimedPost } from "@/lib/bestTime";
 import PerformanceOverTime, {
   type PerfPost,
   type DailyRow,
@@ -36,39 +38,6 @@ function avg(xs: number[]): number {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 }
 const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
-
-// Best time to post: the weekday+hour bucket whose posts earn the most engagement.
-function bestTime(media: IgMediaItem[]): string | null {
-  const buckets = new Map<string, { score: number; label: string }>();
-  for (const m of media) {
-    if (!m.timestamp) continue;
-    const d = new Date(m.timestamp);
-    const day = d.toLocaleDateString("en-US", { weekday: "short" });
-    const hour = d.getHours();
-    const key = `${day}-${hour}`;
-    const ampm = hour === 0 ? "12AM" : hour < 12 ? `${hour}AM` : hour === 12 ? "12PM" : `${hour - 12}PM`;
-    const cur = buckets.get(key) ?? { score: 0, label: `${day} ${ampm}` };
-    cur.score += engOf(m);
-    buckets.set(key, cur);
-  }
-  let best: { score: number; label: string } | null = null;
-  for (const b of buckets.values()) if (!best || b.score > best.score) best = b;
-  return best?.label ?? null;
-}
-
-// Two-hour engagement histogram across the day (12 buckets), for the best-time card.
-function hourHistogram(media: IgMediaItem[]): { values: number[]; hot: number } {
-  const values = Array(12).fill(0);
-  for (const m of media) {
-    if (!m.timestamp) continue;
-    values[Math.floor(new Date(m.timestamp).getHours() / 2)] += engOf(m);
-  }
-  let hot = 0;
-  values.forEach((v, i) => {
-    if (v > values[hot]) hot = i;
-  });
-  return { values, hot };
-}
 
 // Real per-format engagement rates (% of followers), only for formats present.
 function formatRates(media: IgMediaItem[], followers: number) {
@@ -131,7 +100,7 @@ export default async function AnalyticsPage() {
   const engRateNum =
     live && followers > 0 && media.length ? (overallAvg / followers) * 100 : null;
   const avgLikes = media.length ? Math.round(avg(media.map((m) => m.like_count ?? 0))) : null;
-  const best = live ? bestTime(media) : null;
+  
   const chronological = [...media].reverse();
   const dateLabels = chronological.map((m) =>
     m.timestamp ? new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "",
@@ -197,6 +166,10 @@ export default async function AnalyticsPage() {
       thumb: m.thumbnail_url || m.media_url || null,
       permalink: m.permalink ?? null,
     }));
+  const timedPosts: TimedPost[] = media
+    .filter((m) => m.timestamp)
+    .map((m) => ({ t: m.timestamp!, e: engOf(m) }));
+
   let dailyRows: DailyRow[] = [];
   try {
     const full = await supabase
@@ -366,11 +339,12 @@ export default async function AnalyticsPage() {
             <span className="db2-kpi-ico"><CalendarClock size={16} /></span>
             <span className="db2-kpi-label">Best time to post</span>
           </div>
-          <div className="db2-kpi-value an2-besttime-val">{live ? (best ?? "–") : "Tue 7PM"}</div>
+          <div className="db2-kpi-value an2-besttime-val">
+            {live ? <BestTime posts={timedPosts} withHistogram /> : "Tue 7PM"}
+          </div>
           <span className="db2-kpi-compare">
             {live ? "when your posts earn the most" : "demo data"}
           </span>
-          {live && media.length > 0 && <HourBars media={media} />}
         </section>
       </div>
 
@@ -497,25 +471,3 @@ export default async function AnalyticsPage() {
 
 // ---- server-rendered pieces ----
 
-// Real posting-hour histogram (12 two-hour buckets) for the best-time card.
-function HourBars({ media }: { media: IgMediaItem[] }) {
-  const { values, hot } = hourHistogram(media);
-  const max = Math.max(...values) || 1;
-  return (
-    <div className="an2-hours">
-      <div className="an2-hours-bars" aria-hidden>
-        {values.map((v, i) => (
-          <i
-            key={i}
-            className={i === hot ? "hot" : ""}
-            style={{ height: `${Math.max(10, (v / max) * 100)}%` }}
-            title={`${i * 2}:00 – ${i * 2 + 2}:00`}
-          />
-        ))}
-      </div>
-      <div className="an2-hours-axis" aria-hidden>
-        <span>12AM</span><span>6AM</span><span>12PM</span><span>6PM</span><span>12AM</span>
-      </div>
-    </div>
-  );
-}

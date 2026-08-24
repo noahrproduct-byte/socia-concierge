@@ -10,24 +10,6 @@ export const metadata = { title: "Content Plan — SOCIA" };
 const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-function bestTime(media: IgMediaItem[]): string | null {
-  const buckets = new Map<string, { score: number; label: string }>();
-  for (const m of media) {
-    if (!m.timestamp) continue;
-    const d = new Date(m.timestamp);
-    const day = d.toLocaleDateString("en-US", { weekday: "short" });
-    const hour = d.getHours();
-    const ampm = hour === 0 ? "12AM" : hour < 12 ? `${hour}AM` : hour === 12 ? "12PM" : `${hour - 12}PM`;
-    const key = `${day}-${hour}`;
-    const cur = buckets.get(key) ?? { score: 0, label: `${day} ${ampm}` };
-    cur.score += engOf(m);
-    buckets.set(key, cur);
-  }
-  let best: { score: number; label: string } | null = null;
-  for (const b of buckets.values()) if (!best || b.score > best.score) best = b;
-  return best?.label ?? null;
-}
-
 function ago(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 2) return "just now";
@@ -124,7 +106,7 @@ export default async function ContentPlanPage() {
     syncedAgo: snap?.last_synced_at ? ago(snap.last_synced_at) : null,
     postsAnalyzed: snap ? media.length : null,
     engRate,
-    bestTime: media.length ? bestTime(media) : null,
+    posts: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engOf(m) })),
   };
 
   return (

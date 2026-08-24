@@ -10,24 +10,6 @@ export const metadata = { title: "AI Strategist — SOCIA" };
 const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-function bestTime(media: IgMediaItem[]): string | null {
-  const buckets = new Map<string, { score: number; label: string }>();
-  for (const m of media) {
-    if (!m.timestamp) continue;
-    const d = new Date(m.timestamp);
-    const day = d.toLocaleDateString("en-US", { weekday: "short" });
-    const hour = d.getHours();
-    const ampm = hour === 0 ? "12AM" : hour < 12 ? `${hour}AM` : hour === 12 ? "12PM" : `${hour - 12}PM`;
-    const key = `${day}-${hour}`;
-    const cur = buckets.get(key) ?? { score: 0, label: `${day} ${ampm}` };
-    cur.score += engOf(m);
-    buckets.set(key, cur);
-  }
-  let best: { score: number; label: string } | null = null;
-  for (const b of buckets.values()) if (!best || b.score > best.score) best = b;
-  return best?.label ?? null;
-}
-
 export default async function ChatPage() {
   const supabase = await createClient();
   const {
@@ -102,7 +84,7 @@ export default async function ChatPage() {
     username: snap?.username ?? null,
     mediaCount: media.length,
     engRate,
-    bestTime: media.length ? bestTime(media) : null,
+    posts: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engOf(m) })),
     insights,
   };
 

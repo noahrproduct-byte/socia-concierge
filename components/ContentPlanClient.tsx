@@ -21,6 +21,7 @@ import {
   Plug,
 } from "lucide-react";
 import CountUp from "@/components/CountUp";
+import BestTime from "@/components/BestTime";
 import type { Deliverable, GenerateInput, SavedPlan } from "@/lib/schema";
 
 // Server-assembled context: real prefill from the connected account/profile,
@@ -34,7 +35,7 @@ export type PlanContext = {
   syncedAgo: string | null;
   postsAnalyzed: number | null;
   engRate: string | null;
-  bestTime: string | null;
+  posts: { t: string; e: number }[];
 };
 
 // Soft guidance limits — counters only, never truncation.
@@ -393,10 +394,10 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                         <small>Engagement rate</small>
                       </div>
                     )}
-                    {context.bestTime && (
+                    {context.posts.length >= 3 && (
                       <div className="cpl-stat">
                         <Clock size={13} />
-                        <b>{context.bestTime}</b>
+                        <b><BestTime posts={context.posts} /></b>
                         <small>Best time to post</small>
                       </div>
                     )}

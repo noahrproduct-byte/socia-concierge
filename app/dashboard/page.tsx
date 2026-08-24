@@ -15,6 +15,8 @@ import {
   Link2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import BestTime from "@/components/BestTime";
+import type { TimedPost } from "@/lib/bestTime";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
@@ -197,45 +199,8 @@ function buildLiveBrief(media: IgMediaItem[]) {
   const reelMult = reels.length >= 3 ? avg(reels.map(engOf)) / overall : null;
   const topMult = Math.max(...all) / overall;
 
-  // Strongest weekday + hour bucket by average engagement.
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const byDay = new Map<number, number[]>();
-  const byHour = new Map<number, number[]>();
-  for (const m of media) {
-    if (!m.timestamp) continue;
-    const d = new Date(m.timestamp);
-    byDay.set(d.getDay(), [...(byDay.get(d.getDay()) ?? []), engOf(m)]);
-    byHour.set(d.getHours(), [...(byHour.get(d.getHours()) ?? []), engOf(m)]);
-  }
-  const best = <K,>(m: Map<K, number[]>): K | null => {
-    let k: K | null = null;
-    let v = -1;
-    for (const [key, xs] of m) {
-      const a = avg(xs);
-      if (a > v) {
-        v = a;
-        k = key;
-      }
-    }
-    return k;
-  };
-  const bestDay = best(byDay);
-  const bestHour = best(byHour);
-  const hourLabel =
-    bestHour == null
-      ? null
-      : bestHour === 0
-        ? "12 AM"
-        : bestHour < 12
-          ? `${bestHour} AM`
-          : bestHour === 12
-            ? "12 PM"
-            : `${bestHour - 12} PM`;
-
-  const windowText =
-    bestDay != null && hourLabel
-      ? `Your audience responds best on ${days[bestDay]}s around ${hourLabel}.`
-      : "Post more inside your strongest engagement windows.";
+  // Weekday/hour must be bucketed in the viewer's time zone, so the text is
+  // completed on the client (see BestTime).
 
   const head =
     reelMult && reelMult >= 1.2
@@ -252,10 +217,7 @@ function buildLiveBrief(media: IgMediaItem[]) {
 
   return {
     ...head,
-    body:
-      bestDay != null && hourLabel
-        ? `Your strongest window is ${days[bestDay]} around ${hourLabel}. Posting more consistently inside it could increase reach.`
-        : "Posting more consistently between your strongest engagement windows could increase reach.",
+    body: "Posting more consistently inside your strongest engagement window could increase reach.",
     insights: [
       {
         icon: "trend",
@@ -264,7 +226,7 @@ function buildLiveBrief(media: IgMediaItem[]) {
             ? `Reels drive ${reelMult.toFixed(1)}× more engagement than your average post.`
             : `You average ${Math.round(overall).toLocaleString("en-US")} engagements per post right now.`,
       },
-      { icon: "clock", text: windowText },
+      { icon: "clock", text: "", bestTime: true },
       {
         icon: "target",
         text: `Computed from your last ${media.length} posts, synced from Instagram.`,
@@ -395,6 +357,11 @@ export default async function DashboardPage({
           mult: String(c.mult),
         })) as ContentRow[],
       };
+  const timedPosts: TimedPost[] = live
+    ? media
+        .filter((m) => m.timestamp)
+        .map((m) => ({ t: m.timestamp!, e: (m.like_count ?? 0) + (m.comments_count ?? 0) }))
+    : [];
   const brief = (live ? buildLiveBrief(media) : null) ?? AI_BRIEF;
 
   return (
@@ -457,7 +424,16 @@ export default async function DashboardPage({
             {brief.insights.map((ins, i) => (
               <div className="ai-insight" key={i}>
                 <span className="ai-insight-ico">{INSIGHT_ICON[ins.icon]}</span>
-                <span>{ins.text}</span>
+                <span>
+                  {"bestTime" in ins && ins.bestTime && timedPosts.length >= 3 ? (
+                    <>
+                      Your audience responds best on{" "}
+                      <BestTime posts={timedPosts} variant="long" fallback="your strongest window" />.
+                    </>
+                  ) : (
+                    ins.text || "Post more inside your strongest engagement windows."
+                  )}
+                </span>
               </div>
             ))}
           </div>

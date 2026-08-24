@@ -104,3 +104,40 @@ describe("engagementOf", () => {
     expect(engagementOf({})).toBe(0);
   });
 });
+
+// --- best-time bucketing (must be local-time, never UTC) ---
+import { bestWindow, hourHistogram, hourLabel } from "./bestTime";
+
+describe("bestWindow", () => {
+  const at = (iso: string, e: number) => ({ t: iso, e });
+  it("picks the highest-engagement weekday+hour bucket", () => {
+    const posts = [
+      at("2026-08-18T21:00:00Z", 100),
+      at("2026-08-11T21:00:00Z", 90),
+      at("2026-08-12T09:00:00Z", 5),
+      at("2026-08-13T09:00:00Z", 5),
+    ];
+    const w = bestWindow(posts);
+    expect(w).not.toBeNull();
+    // The winning bucket is whichever local hour those two big posts land in.
+    const d = new Date("2026-08-18T21:00:00Z");
+    expect(w!.day).toBe(d.getDay());
+    expect(w!.hour).toBe(d.getHours());
+    expect(w!.short).toContain(hourLabel(d.getHours()));
+  });
+  it("returns null below the minimum sample", () => {
+    expect(bestWindow([at("2026-08-18T21:00:00Z", 10)])).toBeNull();
+  });
+  it("ignores unparseable timestamps", () => {
+    expect(bestWindow([at("nope", 1), at("also-nope", 2), at("bad", 3)])).toBeNull();
+  });
+});
+
+describe("hourHistogram", () => {
+  it("buckets into 12 two-hour slots and finds the hot one", () => {
+    const d = new Date("2026-08-18T21:00:00Z");
+    const { values, hot } = hourHistogram([{ t: d.toISOString(), e: 50 }]);
+    expect(values).toHaveLength(12);
+    expect(hot).toBe(Math.floor(d.getHours() / 2));
+  });
+});
