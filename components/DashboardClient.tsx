@@ -483,7 +483,7 @@ export default function DashboardClient({
                           <small>Engagements</small>
                         </span>
                         {p.multiplier != null && p.multiplier >= 1.05 && (
-                          <em title="This post's engagement ÷ your median post engagement">
+                          <em title="This post's engagement ÷ your average post engagement">
                             {p.multiplier.toFixed(1)}×<small>vs baseline</small>
                           </em>
                         )}
@@ -549,7 +549,7 @@ export default function DashboardClient({
                         c.key === "engRate"
                           ? "Engagements ÷ that post's reach × 100 (the strip's account rate divides by followers instead)"
                           : c.key === "multiplier"
-                            ? "This post's engagement ÷ your median post engagement"
+                            ? "This post's engagement ÷ your average post engagement"
                             : undefined
                       }
                       className={c.num ? "num" : ""}

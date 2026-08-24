@@ -9,7 +9,7 @@
 //
 // null is never coerced to 0. "Unavailable" and "confirmed zero" are distinct.
 
-import { engagementOf, median, pctChange, type PostLike } from "./metrics";
+import { engagementOf, pctChange, type PostLike } from "./metrics";
 import { bestWindow, type TimedPost } from "./bestTime";
 
 export type Status = "VERIFIED" | "CALCULATED" | "AI_DERIVED" | "UNAVAILABLE";
@@ -176,16 +176,18 @@ export function getEngagementRate(a: AccountInput): Metric {
   );
 }
 
-/** The performance baseline every multiplier is measured against.
- *  MEDIAN, because social engagement is heavily skewed by outliers. */
+/** The performance baseline every multiplier is measured against: the MEAN
+ *  engagement of the synced posts ("your average"). Chosen deliberately —
+ *  the median on this account sits near the floor because most synced posts
+ *  are old and quiet, which made multipliers read as 90×+. */
 export function getPerformanceBaseline(a: AccountInput): Metric {
-  const med = median(a.posts.map(engagementOf));
-  if (med == null) return UNAVAILABLE("Instagram API: me/media", "no posts to compute a baseline");
+  if (!a.posts.length) return UNAVAILABLE("Instagram API: me/media", "no posts to compute a baseline");
+  const mean = a.posts.reduce((s, p) => s + engagementOf(p), 0) / a.posts.length;
   return M(
-    med,
+    Math.round(mean * 100) / 100,
     "CALCULATED",
     "Instagram API: me/media",
-    `median engagement (likes + comments) across ${a.posts.length} synced posts`,
+    `average engagement (likes + comments) across ${a.posts.length} synced posts`,
     `last ${a.posts.length} synced posts`,
     a.posts.length,
   );

@@ -71,7 +71,7 @@ describe("engagement rate", () => {
 });
 
 describe("baseline and multipliers", () => {
-  it("uses the MEDIAN as baseline, not the mean", () => {
+  it("uses the account average as the baseline", () => {
     const acct = base({
       posts: [
         { like_count: 2000, comments_count: 0, timestamp: daysAgo(1) },
@@ -79,9 +79,10 @@ describe("baseline and multipliers", () => {
         { like_count: 80, comments_count: 0, timestamp: daysAgo(3) },
       ],
     });
-    expect(getPerformanceBaseline(acct).value).toBe(100);
+    // (2000 + 100 + 80) / 3 = 726.67
+    expect(getPerformanceBaseline(acct).value).toBeCloseTo(726.67, 1);
     const { rows } = getTopPosts(acct, 1);
-    expect(rows[0].multiplier).toBeCloseTo(20); // 2000 / 100 median
+    expect(rows[0].multiplier).toBeCloseTo(2000 / 726.667, 2);
   });
 });
 
