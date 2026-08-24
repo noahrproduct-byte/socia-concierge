@@ -242,11 +242,13 @@ export default async function DashboardPage({
     (m) => m.timestamp && new Date(m.timestamp).getTime() >= prevSince && new Date(m.timestamp).getTime() < since,
   );
   const engIn = inRange.reduce((s2, m) => s2 + engOfPost(m), 0);
-  const engPrev = prevRange.length ? prevRange.reduce((s2, m) => s2 + engOfPost(m), 0) : null;
+  const historyCoversPrev = oldestPost != null && oldestPost <= prevSince;
+  const engPrev =
+    prevRange.length || historyCoversPrev
+      ? prevRange.reduce((s2, m) => s2 + engOfPost(m), 0)
+      : null;
   const engDelta = changeVsPrevious(engIn, engPrev);
-  const postsDelta = prevRange.length || oldestPost != null && oldestPost <= prevSince
-    ? inRange.length - prevRange.length
-    : null;
+  const postsDelta = prevRange.length || historyCoversPrev ? inRange.length - prevRange.length : null;
 
   const reachRows = dailyRows.filter((d) => d.reach != null);
   const reachPrev = dailyRows.filter(
@@ -357,9 +359,7 @@ export default async function DashboardPage({
     const key = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1);
   }
-  const cutoffDay = new Date(since).toISOString().slice(0, 10);
   const dashDaily: DashDaily[] = dailyRows
-    .filter((d) => d.day >= cutoffDay)
     .map((d) => ({
       day: d.day,
       followers: d.followers,
@@ -451,6 +451,7 @@ export default async function DashboardPage({
           posts={dashPosts}
           insight={insight}
           range={rangeId}
+          rangeDays={rangeDays}
           rangeBase="/dashboard"
           followersNow={snap?.followers_count ?? null}
           historyStart={historyStart}

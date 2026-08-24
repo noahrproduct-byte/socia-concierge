@@ -102,6 +102,7 @@ export default function DashboardClient({
   posts,
   insight,
   range,
+  rangeDays,
   rangeBase,
   followersNow,
   historyStart,
@@ -111,6 +112,8 @@ export default function DashboardClient({
   posts: DashPost[];
   insight: DashInsight | null;
   range: string;
+  /** Length of the selected window in days. */
+  rangeDays: number;
   /** Base path the range links point at, e.g. "/dashboard". */
   rangeBase: string;
   followersNow: number | null;
@@ -124,10 +127,16 @@ export default function DashboardClient({
     dir: -1,
   });
 
+  // The selected window, sliced from the full history the server supplies.
+  const windowRows = useMemo(() => {
+    const cutoff = new Date(Date.now() - rangeDays * 86400000).toISOString().slice(0, 10);
+    return daily.filter((d) => d.day >= cutoff);
+  }, [daily, rangeDays]);
+
   // Which series can honestly be drawn for the selected metric?
   const series = useMemo(() => {
     const pick = (f: (d: DashDaily) => number | null) =>
-      daily.map((d) => ({ day: d.day, v: f(d) })).filter((p) => p.v != null) as { day: string; v: number }[];
+      windowRows.map((d) => ({ day: d.day, v: f(d) })).filter((p) => p.v != null) as { day: string; v: number }[];
     switch (metric) {
       case "followers": {
         const exact = pick((d) => d.followers);
@@ -145,7 +154,7 @@ export default function DashboardClient({
       }
       case "posts":
         return {
-          rows: daily.map((d) => ({ day: d.day, v: d.posts })),
+          rows: windowRows.map((d) => ({ day: d.day, v: d.posts })),
           mode: "daily" as SeriesMode,
           label: "Posts published",
           exact: true,
@@ -155,7 +164,7 @@ export default function DashboardClient({
         return { rows: [], mode: "unavailable" as SeriesMode, label: "Engagement", exact: false };
       }
     }
-  }, [metric, daily]);
+  }, [metric, windowRows]);
 
   const sorted = useMemo(() => {
     const dir = sort.dir;
