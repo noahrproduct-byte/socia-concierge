@@ -500,11 +500,15 @@ export default function PerformanceOverTime({
   const lineVal = (r: DailyRow) =>
     metric === "views" ? r.views! : metric === "reach" ? r.reach! : m.engOfRow(r);
 
-  const hoverRow =
-    hover == null ? null
-    : metric === "followers" ? fol[hover] ?? null
-    : mode === "daily_history" ? lineRows[hover] ?? null
-    : null;
+  // Whichever series the active chart is actually drawing — the tooltip must
+  // index into the same array the points came from.
+  const activeRows: DailyRow[] =
+    metric === "followers"
+      ? mode === "snapshot_history" ? fol : mode === "gains_history" ? m.gainRows : []
+      : mode === "daily_history" ? lineRows
+      : [];
+  const hoverRow = hover == null ? null : activeRows[hover] ?? null;
+  const tipLeft = `${Math.min(84, Math.max(6, ((hover ?? 0) + 0.5) / Math.max(1, activeRows.length) * 100))}%`;
   const isReach = metric === "reach";
 
   const kpis: {
@@ -672,7 +676,7 @@ export default function PerformanceOverTime({
                 }))}
               />
               {hoverRow && (
-                <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, ((hover! + 0.5) / Math.max(1, fol.length)) * 100))}%` }}>
+                <div className="an3-tip" style={{ left: tipLeft }}>
                   <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
                   <div><span>Followers</span><em>{hoverRow.followers!.toLocaleString("en-US")}</em></div>
                   {hover! > 0 && fol[hover! - 1].followers != null && (
@@ -704,6 +708,24 @@ export default function PerformanceOverTime({
                   title: `${shortDate(new Date(r.day + "T00:00:00"))} — +${r.followers_gained!.toLocaleString("en-US")} new followers`,
                 }))}
               />
+              {hoverRow && (
+                <div className="an3-tip" style={{ left: tipLeft }}>
+                  <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
+                  <div><span>New followers</span><em>+{hoverRow.followers_gained!.toLocaleString("en-US")}</em></div>
+                  {hover! > 0 && activeRows[hover! - 1]?.followers_gained != null && (
+                    <div>
+                      <span>Previous day</span>
+                      <em>+{activeRows[hover! - 1].followers_gained!.toLocaleString("en-US")}</em>
+                    </div>
+                  )}
+                  {m.gainRows.length > 0 && (
+                    <div>
+                      <span>Period average</span>
+                      <em>+{(m.gainsCur / m.gainRows.length).toFixed(1)}</em>
+                    </div>
+                  )}
+                </div>
+              )}
               <p className="an3-chart-note">
                 Instagram provides new followers per day for this period, but not unfollows — so this
                 is follower <em>activity</em>, not an exact follower-count line. SOCIA is recording exact
@@ -779,7 +801,7 @@ export default function PerformanceOverTime({
                 }))}
               />
               {hoverRow && (
-                <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, ((hover! + 0.5) / Math.max(1, lineRows.length)) * 100))}%` }}>
+                <div className="an3-tip" style={{ left: tipLeft }}>
                   <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
                   <div><span>Accounts reached</span><em>{hoverRow.reach!.toLocaleString("en-US")}</em></div>
                   {hover! > 0 && lineRows[hover! - 1]?.reach != null && (
@@ -875,7 +897,7 @@ export default function PerformanceOverTime({
                       }))}
                     />
                     {hoverRow && (
-                      <div className="an3-tip" style={{ left: `${Math.min(84, Math.max(6, ((hover! + 0.5) / Math.max(1, lineRows.length)) * 100))}%` }}>
+                      <div className="an3-tip" style={{ left: tipLeft }}>
                         <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
                         {isViews ? (
                           <div><span>Views</span><em>{hoverRow.views!.toLocaleString("en-US")}</em></div>
