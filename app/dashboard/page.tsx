@@ -1,27 +1,21 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  Users,
-  Activity,
-  Eye,
-  FileText,
-  Sparkles,
-  TrendingUp,
-  Clock,
-  Target,
-  Zap,
-  Flame,
-  ArrowRight,
-  Link2,
-} from "lucide-react";
+import { Sparkles, Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import BestTime from "@/components/BestTime";
-import type { TimedPost } from "@/lib/bestTime";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import DashboardClient, {
+  type DashMetric,
+  type DashPost,
+  type DashDaily,
+  type DashInsight,
+} from "@/components/DashboardClient";
 import {
   getFollowers,
+  getReach,
+  getPerformanceBaseline,
+  changeVsPrevious,
   getEngagementRate,
   getAverageLikes,
   getPostsPublished,
@@ -34,41 +28,15 @@ import {
   type AccountInput,
   type DailySnapshot,
 } from "@/lib/dashboardMetrics";
-import type { Kpi } from "@/lib/demoData";
 import AppShell from "@/components/AppShell";
-import { MetricCard, PlatformBadge } from "@/components/ui";
-import PerformanceChart from "@/components/PerformanceChart";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import AccountSwitcher from "@/components/AccountSwitcher";
-import ContentScoreCard from "@/components/ContentScoreCard";
-import { computeContentScore } from "@/lib/contentScore";
 import SyncCinematic from "@/components/SyncCinematic";
 import LiveSync from "@/components/LiveSync";
 
 
 export const metadata = { title: "Dashboard — SOCIA" };
 
-const KPI_ICON: Record<string, React.ReactNode> = {
-  followers: <Users size={16} />,
-  engagement: <Activity size={16} />,
-  reach: <Eye size={16} />,
-  posts: <FileText size={16} />,
-};
-const INSIGHT_ICON: Record<string, React.ReactNode> = {
-  trend: <TrendingUp size={15} />,
-  clock: <Clock size={15} />,
-  target: <Target size={15} />,
-};
-const ACTION_ICON: Record<string, React.ReactNode> = {
-  impact: <TrendingUp size={17} />,
-  opportunity: <Zap size={17} />,
-  consistency: <Clock size={17} />,
-};
-const INTEL_ICON: Record<string, React.ReactNode> = {
-  activity: <Activity size={15} />,
-  flame: <Flame size={15} />,
-  trend: <TrendingUp size={15} />,
-};
 
 // ---- real-data helpers (synced Instagram snapshot) ----
 function fmtNum(n: number | null | undefined): string {
@@ -84,8 +52,13 @@ function medianOf(xs: number[]): number | null {
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
-function avg(xs: number[]): number {
-  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+function agoLabel(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
 }
 function fmtDate(ts?: string): string {
   if (!ts) return "";
@@ -109,141 +82,6 @@ type ContentRow = {
   mult: string | null;
   engagement?: number;
 };
-
-function buildLiveData(acct: AccountInput, days: number) {
-  const chronological = [...acct.posts].reverse(); // API returns newest first
-  const engSpark = chronological.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0));
-  const likesSpark = chronological.map((m) => m.like_count ?? 0);
-  const dateLabels = chronological.map((m) => fmtDate(m.timestamp));
-
-  const followers = getFollowers(acct);
-  const engRate = getEngagementRate(acct);
-  const avgLikes = getAverageLikes(acct);
-  const published = getPostsPublished(acct, days);
-  const growth = getFollowerGrowth(acct, days);
-  const gained = getFollowersGained(acct, days);
-
-  // Follower change: exact snapshots when they exist, otherwise Instagram's
-  // real gains series, otherwise nothing at all (never invented).
-  const followerNote =
-    growth.value != null
-      ? `${growth.value >= 0 ? "+" : ""}${growth.value.toLocaleString("en-US")} vs ${days}d ago`
-      : gained.value != null
-        ? `+${gained.value.toLocaleString("en-US")} new · last ${days}d`
-        : "history collecting";
-
-  const kpis: Kpi[] = [
-    {
-      key: "followers",
-      label: "Total Followers",
-      value: followers.value != null ? fmtNum(followers.value) : "–",
-      change: null,
-      up: true,
-      compare: followerNote,
-      spark: [],
-    },
-    {
-      key: "engagement",
-      label: "Engagement Rate",
-      value: engRate.value != null ? engRate.value.toFixed(1) + "%" : "–",
-      change: null,
-      up: true,
-      compare: engRate.value != null ? `${ENGAGEMENT_RATE_FORMULA}` : "unavailable",
-      spark: engSpark,
-      sparkLabels: dateLabels,
-    },
-    {
-      key: "reach",
-      label: "Avg Likes / Post",
-      value: avgLikes.value != null ? fmtNum(avgLikes.value) : "–",
-      change: null,
-      up: true,
-      compare: avgLikes.period,
-      spark: likesSpark,
-      sparkLabels: dateLabels,
-    },
-    {
-      key: "posts",
-      label: "Posts Published",
-      value: String(published.value ?? 0),
-      change: null,
-      up: true,
-      compare: `last ${days} days`,
-      spark: engSpark,
-      sparkLabels: dateLabels,
-      variant: "bar",
-    },
-  ];
-
-  // Top content — one ranking metric (engagement), one baseline (median).
-  const { rows, baseline } = getTopPosts(acct, 4);
-  const topRows: ContentRow[] = rows.map(({ post, engagement, multiplier }) => {
-    const firstLine = (post.caption || "").split("\n")[0].trim();
-    return {
-      title: firstLine ? firstLine.slice(0, 46) : "(no caption)",
-      date: fmtDate(post.timestamp),
-      format: formatLabel(post.media_type),
-      platform: "ig" as const,
-      aVal: fmtNum(post.like_count ?? 0),
-      aLabel: "Likes",
-      bVal: fmtNum(post.comments_count ?? 0),
-      bLabel: "Com.",
-      mult: multiplier && multiplier >= 1.05 ? multiplier.toFixed(1) + "×" : null,
-      engagement,
-    };
-  });
-
-  return { kpis, topRows, baseline, followers, engRate, avgLikes, published, growth, gained };
-}
-
-// Derive an honest strategy brief from the synced media. Returns null when
-// there isn't enough signal, in which case the demo copy is shown instead.
-function buildLiveBrief(media: IgMediaItem[]) {
-  if (media.length < 6) return null;
-  const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
-  const all = media.map(engOf);
-  const overall = avg(all);
-  if (!overall) return null;
-
-  const reels = media.filter((m) => m.media_type === "VIDEO");
-  const reelMult = reels.length >= 3 ? avg(reels.map(engOf)) / overall : null;
-  const topMult = Math.max(...all) / overall;
-
-  // Weekday/hour must be bucketed in the viewer's time zone, so the text is
-  // completed on the client (see BestTime).
-
-  const head =
-    reelMult && reelMult >= 1.2
-      ? {
-          lead: "Your Reels are",
-          highlight: "outperforming your average",
-          tail: `by ${Math.round((reelMult - 1) * 100)}% right now.`,
-        }
-      : {
-          lead: "Your top content is",
-          highlight: `${topMult.toFixed(1)}× above your average`,
-          tail: "this month.",
-        };
-
-  return {
-    ...head,
-    body: "Posting more consistently inside your strongest engagement window could increase reach.",
-    insights: [
-      {
-        icon: "trend",
-        text:
-          reelMult && reelMult >= 1.1
-            ? `Reels drive ${reelMult.toFixed(1)}× more engagement than your average post.`
-            : `You average ${Math.round(overall).toLocaleString("en-US")} engagements per post right now.`,
-      },
-      { icon: "clock", text: "", bestTime: true as const },
-      {
-        icon: "target",
-        text: `Computed from your last ${media.length} posts, synced from Instagram.`,
-      },
-    ],
-  };
-}
 
 export default async function DashboardPage({
   searchParams,
@@ -346,13 +184,13 @@ export default async function DashboardPage({
     );
   }
 
-  // Live synced Instagram data (auto-refreshes when stale). Falls back to the
-  // demo dataset when nothing has synced yet.
+  // Date range drives every period metric on the page (?range=7|30|90|...).
+  const RANGE_DAYS: Record<string, number> = { "7": 7, "30": 30, "90": 90, "180": 180, "365": 365 };
+  const rangeId = rangeParam && (RANGE_DAYS[rangeParam] || rangeParam === "all") ? rangeParam : "30";
+
   const snap = await getIgSnapshot(supabase, user.id);
   const media = snap?.media ?? [];
   const live = Boolean(snap && snap.followers_count != null);
-  // Date range drives every period metric on the page (?range=7|30|90).
-  const rangeDays = rangeParam === "7" ? 7 : rangeParam === "90" ? 90 : 30;
 
   let dailyRows: DailySnapshot[] = [];
   try {
@@ -364,8 +202,18 @@ export default async function DashboardPage({
       .limit(400);
     dailyRows = (data ?? []) as DailySnapshot[];
   } catch {
-    // snapshots table may not exist yet — period metrics degrade to unavailable
+    // snapshots table may not exist yet — series render their empty states
   }
+
+  const oldestPost = media.length
+    ? Math.min(...media.filter((m) => m.timestamp).map((m) => new Date(m.timestamp!).getTime()))
+    : null;
+  const oldestSnap = dailyRows.length ? new Date(dailyRows[0].day + "T00:00:00").getTime() : null;
+  const allDays = Math.max(
+    7,
+    Math.ceil((Date.now() - Math.min(oldestPost ?? Infinity, oldestSnap ?? Infinity)) / 86400000) || 30,
+  );
+  const rangeDays = rangeId === "all" ? allDays : RANGE_DAYS[rangeId];
 
   const acct: AccountInput = {
     followers: snap?.followers_count ?? null,
@@ -376,89 +224,215 @@ export default async function DashboardPage({
     platform: "instagram",
     handle: snap?.username ?? null,
   };
-  const built = live ? buildLiveData(acct, rangeDays) : null;
-  const kpis = built?.kpis ?? [];
-  const topRows = built?.topRows ?? [];
-  const lifetime = getLifetimePosts(acct);
-  const bestWin = getBestPostingWindow(acct);
-  const reachSeries = dailyRows
-    .filter((d) => d.reach != null)
-    .slice(-rangeDays)
-    .map((d) => ({ day: d.day, v: d.reach! }));
-  const contentScore = live
-    ? computeContentScore(
-        media,
-        snap!.followers_count,
-        dailyRows.filter((d) => d.reach != null).map((d) => d.reach!),
-      )
+
+  // --- metrics strip (every value from the central service) ---
+  const followersM = getFollowers(acct);
+  const growthM = getFollowerGrowth(acct, rangeDays);
+  const gainedM = getFollowersGained(acct, rangeDays);
+  const reachM = getReach(acct, rangeDays);
+  const engRateM = getEngagementRate(acct);
+  const publishedM = getPostsPublished(acct, rangeDays);
+  const baselineM = getPerformanceBaseline(acct);
+
+  const since = Date.now() - rangeDays * 86400000;
+  const prevSince = since - rangeDays * 86400000;
+  const inRange = media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since);
+  const prevRange = media.filter(
+    (m) => m.timestamp && new Date(m.timestamp).getTime() >= prevSince && new Date(m.timestamp).getTime() < since,
+  );
+  const engIn = inRange.reduce((s2, m) => s2 + engOfPost(m), 0);
+  const engPrev = prevRange.length ? prevRange.reduce((s2, m) => s2 + engOfPost(m), 0) : null;
+  const engDelta = changeVsPrevious(engIn, engPrev);
+  const postsDelta = prevRange.length || oldestPost != null && oldestPost <= prevSince
+    ? inRange.length - prevRange.length
     : null;
 
-  // Recommendations are only emitted when the evidence behind them exists.
-  type LiveAction = { tone: "impact" | "opportunity" | "consistency"; tag: string; title: string; body: string; href: string };
-  const liveActions: LiveAction[] = [];
-  if (built) {
-    const base = built.baseline.value;
-    const reels = media.filter((m) => m.media_type === "VIDEO");
-    const reelMed = reels.length >= 3 ? medianOf(reels.map(engOfPost)) : null;
-    if (base && base > 0 && reelMed && reelMed / base >= 1.2) {
-      liveActions.push({
-        tone: "impact",
-        tag: "High impact",
-        title: `Reels run ${(reelMed / base).toFixed(1)}× your median`,
-        body: `Median engagement across your ${reels.length} Reels vs your ${media.length}-post median. Publish another this week.`,
-        href: "/tool",
-      });
+  const reachRows = dailyRows.filter((d) => d.reach != null);
+  const reachPrev = dailyRows.filter(
+    (d) => d.reach != null && d.day < new Date(since).toISOString().slice(0, 10) &&
+      d.day >= new Date(prevSince).toISOString().slice(0, 10),
+  );
+  const reachPrevTotal = reachPrev.length ? reachPrev.reduce((s2, d) => s2 + (d.reach ?? 0), 0) : null;
+  const reachDelta = reachM.value != null ? changeVsPrevious(reachM.value, reachPrevTotal) : null;
+
+  const periodNote = `vs previous ${rangeDays} days`;
+  const metricsStrip: DashMetric[] = live
+    ? [
+        {
+          key: "followers",
+          label: "Followers",
+          value: followersM.value != null ? followersM.value.toLocaleString("en-US") : "—",
+          raw: followersM.value,
+          delta: growthM.value != null ? `${growthM.value >= 0 ? "+" : ""}${growthM.value.toLocaleString("en-US")}`
+            : gainedM.value != null ? `+${gainedM.value.toLocaleString("en-US")} new` : null,
+          deltaPct: null,
+          positive: (growthM.value ?? gainedM.value ?? 0) >= 0,
+          note: growthM.value != null ? periodNote : gainedM.value != null ? `Instagram gains · last ${rangeDays}d` : "history collecting",
+          spark: dailyRows.filter((d) => d.followers_gained != null).slice(-30).map((d) => d.followers_gained!),
+          tooltip: `${followersM.source} · ${followersM.method}`,
+        },
+        {
+          key: "reach",
+          label: "Reach",
+          value: reachM.value != null ? fmtNum(reachM.value) : "—",
+          raw: reachM.value,
+          delta: null,
+          deltaPct: reachDelta?.value != null ? `${reachDelta.value >= 0 ? "+" : ""}${reachDelta.value.toFixed(1)}%` : null,
+          positive: (reachDelta?.value ?? 0) >= 0,
+          note: reachM.value != null ? (reachDelta?.value != null ? periodNote : `last ${rangeDays} days`) : "collecting history",
+          spark: reachRows.slice(-30).map((d) => d.reach!),
+          tooltip: `${reachM.source} · ${reachM.method}`,
+        },
+        {
+          key: "engagements",
+          label: "Engagements",
+          value: engIn.toLocaleString("en-US"),
+          raw: engIn,
+          delta: engPrev != null ? `${engIn - engPrev >= 0 ? "+" : ""}${(engIn - engPrev).toLocaleString("en-US")}` : null,
+          deltaPct: engDelta.value != null ? `${engDelta.value >= 0 ? "+" : ""}${engDelta.value.toFixed(1)}%` : null,
+          positive: engPrev == null || engIn >= engPrev,
+          note: engPrev != null ? periodNote : "on posts published this period",
+          spark: [],
+          tooltip: "Likes + comments on posts published in the selected period (current totals from Instagram).",
+        },
+        {
+          key: "engrate",
+          label: "Engagement rate",
+          value: engRateM.value != null ? engRateM.value.toFixed(2) + "%" : "—",
+          raw: engRateM.value,
+          delta: null,
+          deltaPct: null,
+          positive: true,
+          note: engRateM.value != null ? engRateM.period : "unavailable",
+          spark: [],
+          tooltip: `${ENGAGEMENT_RATE_FORMULA} · ${engRateM.method}`,
+        },
+        {
+          key: "posts",
+          label: "Posts",
+          value: String(publishedM.value ?? 0),
+          raw: publishedM.value,
+          delta: postsDelta != null ? `${postsDelta >= 0 ? "+" : ""}${postsDelta}` : null,
+          deltaPct: null,
+          positive: (postsDelta ?? 0) >= 0,
+          note: postsDelta != null ? periodNote : `last ${rangeDays} days`,
+          spark: [],
+          tooltip: publishedM.method,
+        },
+      ]
+    : [];
+
+  // --- per-post rows (real insights only) ---
+  const base = baselineM.value;
+  const dashPosts: DashPost[] = media
+    .filter((m) => m.timestamp)
+    .sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime())
+    .slice(0, 12)
+    .map((m, i) => {
+      const e = engOfPost(m);
+      const reach = m.insights?.reach ?? null;
+      return {
+        id: m.id ?? String(i),
+        caption: (m.caption || "").split("\n")[0].trim(),
+        published: m.timestamp!,
+        format: formatLabel(m.media_type),
+        views: m.insights?.views ?? null,
+        reach,
+        engagements: e,
+        engRate: reach && reach > 0 ? (e / reach) * 100 : null,
+        multiplier: base && base > 0 ? e / base : null,
+        thumb: m.thumbnail_url || m.media_url || null,
+        permalink: m.permalink ?? null,
+      };
+    });
+
+  // --- daily series for the chart ---
+  const dayCounts = new Map<string, number>();
+  for (const m of media) {
+    if (!m.timestamp) continue;
+    const d = new Date(m.timestamp);
+    const key = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1);
+  }
+  const cutoffDay = new Date(since).toISOString().slice(0, 10);
+  const dashDaily: DashDaily[] = dailyRows
+    .filter((d) => d.day >= cutoffDay)
+    .map((d) => ({
+      day: d.day,
+      followers: d.followers,
+      followersGained: d.followers_gained,
+      reach: d.reach,
+      views: d.views,
+      posts: dayCounts.get(d.day) ?? 0,
+    }));
+
+  // --- insight: only when a format genuinely outperforms the baseline ---
+  let insight: DashInsight | null = null;
+  if (base && base > 0) {
+    const byFormat = new Map<string, number[]>();
+    for (const m of media) {
+      const t = m.media_type ?? "IMAGE";
+      byFormat.set(t, [...(byFormat.get(t) ?? []), engOfPost(m)]);
     }
-    const perWeek = built.published.value != null ? (built.published.value / rangeDays) * 7 : null;
-    if (perWeek != null && perWeek < 3) {
-      liveActions.push({
-        tone: "consistency",
-        tag: "Consistency",
-        title: `You're posting ${perWeek.toFixed(1)}× per week`,
-        body: `${built.published.value} post${built.published.value === 1 ? "" : "s"} in the last ${rangeDays} days. More frequent publishing gives SOCIA more signal to work with.`,
-        href: "/calendar",
-      });
+    let bestFmt: { type: string; ratio: number; n: number } | null = null;
+    for (const [t, xs] of byFormat) {
+      if (xs.length < 3) continue;
+      const med = medianOf(xs)!;
+      const ratio = med / base;
+      if (!bestFmt || ratio > bestFmt.ratio) bestFmt = { type: t, ratio, n: xs.length };
     }
-    if (bestWin.value) {
-      liveActions.push({
-        tone: "opportunity",
-        tag: "Opportunity",
-        title: bestWin.value.confident
-          ? `Post around ${bestWin.value.short}`
-          : `Early signal: ${bestWin.value.short}`,
-        body: bestWin.value.confident
-          ? `Your highest-engagement window across ${bestWin.sampleSize} dated posts.`
-          : `Based on limited history (${bestWin.sampleSize} posts) — treat as a hint, not a rule.`,
-        href: "/calendar",
-      });
+    if (bestFmt && bestFmt.ratio >= 1.15) {
+      const topOfFormat = media
+        .filter((m) => (m.media_type ?? "IMAGE") === bestFmt!.type)
+        .sort((a, b) => engOfPost(b) - engOfPost(a))[0];
+      insight = {
+        title: `${formatLabel(bestFmt.type)}s are your strongest format`,
+        body: `more engagement than your median post, measured across ${bestFmt.n} ${formatLabel(bestFmt.type).toLowerCase()}s.`,
+        multiplier: `${bestFmt.ratio.toFixed(1)}×`,
+        thumb: topOfFormat?.thumbnail_url || topOfFormat?.media_url || null,
+      };
     }
   }
-  const timedPosts: TimedPost[] = live
-    ? media
-        .filter((m) => m.timestamp)
-        .map((m) => ({ t: m.timestamp!, e: (m.like_count ?? 0) + (m.comments_count ?? 0) }))
-    : [];
-  const brief = live ? buildLiveBrief(media) : null;
+
+  const historyStart = dailyRows.length ? fmtDate(dailyRows[0].day + "T00:00:00") : null;
+  const syncedAgo = snap?.last_synced_at ? agoLabel(snap.last_synced_at) : null;
 
   return (
     <AppShell active="dashboard" userEmail={user.email}>
       {justConnected && (
         <SyncCinematic username={snap?.username} followers={snap?.followers_count} />
       )}
-      {/* Header */}
-      <div className="dash-header db2-rise">
+
+      <div className="dsh-head">
         <div>
-          <h1 className="dash-greeting">
+          <h1>
             {greeting}, {name} <span aria-hidden>👋</span>
           </h1>
-          <p className="dash-context">
-            {live
-              ? <>Live data for <b>@{snap!.username}</b>, synced from Instagram.</>
-              : <>Here&apos;s what&apos;s happening with your content.</>}
-          </p>
+          <p>Here&apos;s how your content is performing.</p>
+          {live && (
+            <div className="dsh-account">
+              {snap?.profile_picture_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={snap.profile_picture_url} alt="" width={40} height={40} />
+              ) : (
+                <span className="ph" aria-hidden />
+              )}
+              <div className="dsh-account-meta">
+                <b>@{snap!.username}</b>
+                <small>
+                  Instagram
+                  {syncedAgo && (
+                    <>
+                      <span className="live"><i /> Live</span>
+                      Last synced {syncedAgo}
+                    </>
+                  )}
+                </small>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="dash-controls">
-          {live && <LiveSync syncedAt={snap!.last_synced_at} />}
+        <div className="dsh-controls">
           <DateRangeSelector />
           <AccountSwitcher />
           <Link href="/chat" className="btn-primary db2-ask">
@@ -467,207 +441,32 @@ export default async function DashboardPage({
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="kpi-row">
-        {kpis.map((k, i) => (
-          <MetricCard key={k.key} kpi={k} icon={KPI_ICON[k.key]} index={i} />
-        ))}
-      </div>
+      {live ? (
+        <DashboardClient
+          metrics={metricsStrip}
+          daily={dashDaily}
+          posts={dashPosts}
+          insight={insight}
+          range={rangeId}
+          rangeBase="/dashboard"
+          followersNow={snap?.followers_count ?? null}
+          historyStart={historyStart}
+        />
+      ) : (
+        <div className="dsh-panel">
+          <p className="dsh-empty">
+            Your account is registered but hasn&apos;t synced yet. Open Settings and hit Sync now to
+            pull your real numbers.
+          </p>
+        </div>
+      )}
 
-      {/* Content Score (brand signature) */}
-      <ContentScoreCard score={contentScore} />
-
-      {/* AI Strategy Brief + Recommended Actions */}
-      <div className="dash-2col brief">
-        <section className="card ai-brief db2-rise" style={{ animationDelay: "420ms" }}>
-          <div className="db2-orbit" aria-hidden>
-            <i className="o1" />
-            <i className="o2" />
-            <span className="orbits">
-              <span className="ob b1"><PlatformBadge platform="ig" /></span>
-              <span className="ob b2"><PlatformBadge platform="yt" /></span>
-              <span className="ob b3"><PlatformBadge platform="tt" /></span>
-            </span>
-          </div>
-          <div className="ai-brief-badge">
-            <Sparkles size={14} /> AI Strategy Brief
-          </div>
-          {brief ? (
-            <>
-              <h2 className="ai-brief-head">
-                {brief.lead} <span className="accent-text">{brief.highlight}</span> {brief.tail}
-              </h2>
-              <p className="ai-brief-body">{brief.body}</p>
-              <div className="ai-brief-insights">
-                {brief.insights.map((ins, i) => (
-                  <div className="ai-insight" key={i}>
-                    <span className="ai-insight-ico">{INSIGHT_ICON[ins.icon]}</span>
-                    <span>
-                      {"bestTime" in ins && ins.bestTime && bestWin.value ? (
-                        <>
-                          {bestWin.value.confident ? "Your audience responds best on " : "Early signal: your best window looks like "}
-                          <BestTime posts={timedPosts} variant="long" fallback={bestWin.value.long} />.
-                          {!bestWin.value.confident && ` Based on ${bestWin.sampleSize} dated posts.`}
-                        </>
-                      ) : (
-                        ins.text
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="ai-brief-head">
-                Connect your account and SOCIA writes this brief from{" "}
-                <span className="accent-text">your real numbers</span>.
-              </h2>
-              <p className="ai-brief-body">
-                Every sentence here is generated from your synced posts — nothing is shown until
-                there is data behind it.
-              </p>
-            </>
-          )}
-          <div className="ai-brief-actions">
-            <Link href="/chat" className="btn-primary db2-ask">
-              <Sparkles size={15} /> Ask AI Strategist
-            </Link>
-            <Link href="/analytics" className="btn-secondary db2-more">
-              View full strategy <ArrowRight size={14} />
-            </Link>
-          </div>
-        </section>
-
-        <section className="card db2-rise" style={{ animationDelay: "500ms" }}>
-          <div className="card-head">
-            <h3>Recommended Actions</h3>
-            <Link href="/analytics" className="link-mini">
-              View all
-            </Link>
-          </div>
-          <div className="actions">
-            {liveActions.length > 0 ? (
-              liveActions.map((a, i) => (
-                <div className="action" key={i}>
-                  <span className={`action-ico ${a.tone}`}>{ACTION_ICON[a.tone]}</span>
-                  <div className="action-body">
-                    <span className={`action-tag ${a.tone}`}>{a.tag}</span>
-                    <b>{a.title}</b>
-                    <small>{a.body}</small>
-                  </div>
-                  <Link href={a.href} className="action-cta" aria-label={a.title}>
-                    <ArrowRight size={16} />
-                  </Link>
-                </div>
-              ))
-            ) : (
-              <p className="dash-empty">
-                Connect your account and publish a few posts — recommendations appear once SOCIA can
-                measure something real.
-              </p>
-            )}
-          </div>
-        </section>
-      </div>
-
-      {/* Performance + Top Content */}
-      <div className="dash-2col perf-row">
-        <section className="card">
-          <div className="card-head">
-            <h3>Performance Over Time</h3>
-            <Link href="/analytics" className="link-mini">Full analytics</Link>
-          </div>
-          {reachSeries.length >= 3 ? (
-            <PerformanceChart
-              series={reachSeries}
-              label="Accounts reached per day"
-              note={`Real daily reach from Instagram · last ${reachSeries.length} days`}
-            />
-          ) : (
-            <p className="dash-empty">
-              Daily performance history is still building. SOCIA records Instagram&apos;s real daily
-              series on every sync — nothing is drawn until it exists.
-            </p>
-          )}
-        </section>
-
-        <section className="card">
-          <div className="card-head">
-            <h3>Top Performing Content</h3>
-            <Link href="/analytics" className="link-mini">
-              View all
-            </Link>
-          </div>
-          <div className="content-list">
-            {topRows.length === 0 && (
-              <p className="page-sub">No posts synced yet — they&apos;ll appear after your next post.</p>
-            )}
-            {topRows.map((c, i) => (
-              <div className="content-row" key={i}>
-                <span className="content-thumb" aria-hidden>
-                  {i + 1}
-                </span>
-                <div className="content-meta">
-                  <b>{c.title}</b>
-                  <small>
-                    {c.date} · {c.format} <PlatformBadge platform={c.platform} />
-                  </small>
-                </div>
-                <div className="content-stats">
-                  <span>
-                    <b>{c.aVal}</b>
-                    <small>{c.aLabel}</small>
-                  </span>
-                  <span>
-                    <b>{c.bVal}</b>
-                    <small>{c.bLabel}</small>
-                  </span>
-                  {c.mult && <span className="content-mult">▲ {c.mult}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Competitor Intelligence + Upcoming */}
-      <div className="dash-2col">
-        <section className="card">
-          <div className="card-head">
-            <h3>Competitor Intelligence</h3>
-            <Link href="/competitors" className="link-mini">
-              View all
-            </Link>
-          </div>
-          <div className="intel-list">
-            <p className="dash-empty">
-              Not enough competitor data yet. Instagram&apos;s API can&apos;t read other accounts, so
-              SOCIA shows real viral posts from your niche instead of invented competitor stats.
-            </p>
-            <Link href="/competitors" className="link-mini">
-              See what&apos;s viral in your niche <ArrowRight size={12} />
-            </Link>
-          </div>
-        </section>
-
-        <section className="card">
-          <div className="card-head">
-            <h3>Upcoming Content</h3>
-            <Link href="/calendar" className="link-mini">
-              View calendar
-            </Link>
-          </div>
-          <div className="upcoming-list">
-            <p className="dash-empty">
-              Nothing scheduled yet. SOCIA shows only real scheduled posts here — plan your week and
-              they&apos;ll appear.
-            </p>
-            <Link href="/tool" className="link-mini">
-              Build a content plan <ArrowRight size={12} />
-            </Link>
-          </div>
-        </section>
+      <div className="dsh-foot">
+        <span>
+          All analytics come from your connected account. Values SOCIA can&apos;t verify show as
+          &quot;—&quot; rather than zero.
+        </span>
+        <span>Times shown in your device&apos;s time zone</span>
       </div>
     </AppShell>
   );
