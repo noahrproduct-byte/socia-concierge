@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import TimeZoneNote from "@/components/TimeZoneNote";
 import DashboardClient, {
   type DashMetric,
   type DashPost,
@@ -255,7 +256,9 @@ export default async function DashboardPage({
   const reachPrevTotal = reachPrev.length ? reachPrev.reduce((s2, d) => s2 + (d.reach ?? 0), 0) : null;
   const reachDelta = reachM.value != null ? changeVsPrevious(reachM.value, reachPrevTotal) : null;
 
-  const periodNote = `vs previous ${rangeDays} days`;
+  const fmtShort = (ms: number) =>
+    new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const periodNote = `vs ${fmtShort(prevSince)} – ${fmtShort(since - 86400000)}`;
   const metricsStrip: DashMetric[] = live
     ? [
         {
@@ -267,7 +270,7 @@ export default async function DashboardPage({
             : gainedM.value != null ? `+${gainedM.value.toLocaleString("en-US")} new` : null,
           deltaPct: null,
           positive: (growthM.value ?? gainedM.value ?? 0) >= 0,
-          note: growthM.value != null ? periodNote : gainedM.value != null ? `Instagram gains · last ${rangeDays}d` : "history collecting",
+          note: growthM.value != null ? periodNote : gainedM.value != null ? `new followers · ${periodNote}` : "history collecting",
           spark: dailyRows.filter((d) => d.followers_gained != null).slice(-30).map((d) => d.followers_gained!),
           tooltip: `${followersM.source} · ${followersM.method}`,
         },
@@ -462,7 +465,8 @@ export default async function DashboardPage({
       )}
 
       <div className="dsh-foot">
-        <span>Times shown in your device&apos;s time zone</span>
+        <span />
+        <TimeZoneNote />
       </div>
     </AppShell>
   );

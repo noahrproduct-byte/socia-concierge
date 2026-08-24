@@ -118,6 +118,7 @@ export default function DashboardClient({
 }) {
   const [metric, setMetric] = useState<MetricKey>("reach");
   const [hover, setHover] = useState<number | null>(null);
+  const [showCompare, setShowCompare] = useState(true);
   const [sort, setSort] = useState<{ col: keyof DashPost; dir: 1 | -1 }>({
     col: "engagements",
     dir: -1,
@@ -265,16 +266,18 @@ export default function DashboardClient({
             </div>
             <div className="dsh-metric-value">{m.value}</div>
             <div className="dsh-metric-delta">
-              {m.delta ? (
+              {m.delta || m.deltaPct ? (
                 <>
-                  <em className={m.positive ? "up" : "down"}>{m.delta}</em>
+                  {m.delta && (
+                    <em className={m.positive ? "up" : "down"}>
+                      {m.positive ? "↑" : "↓"} {m.delta.replace(/^[+-]/, "")}
+                    </em>
+                  )}
                   {m.deltaPct && <em className={m.positive ? "up" : "down"}>{m.deltaPct}</em>}
-                  <small>{m.note}</small>
                 </>
-              ) : (
-                <small>{m.note}</small>
-              )}
+              ) : null}
             </div>
+            <div className="dsh-metric-note">{m.note}</div>
             {m.spark.length >= 3 && <Spark data={m.spark} up={m.positive} />}
           </div>
           );
@@ -295,12 +298,8 @@ export default function DashboardClient({
             </div>
           </div>
 
-          {compare && (
-            <div className="dsh-compare-chip">
-              <span className="dsh-compare-dash" aria-hidden /> Compare: {compare.label}
-            </div>
-          )}
-          <div className="dsh-tabs" role="tablist">
+          <div className="dsh-tabrow">
+            <div className="dsh-tabs" role="tablist">
             {(
               [
                 ["followers", "Followers"],
@@ -319,7 +318,19 @@ export default function DashboardClient({
               >
                 {label}
               </button>
-            ))}
+              ))}
+            </div>
+            {compare && (
+              <select
+                className="dsh-compare"
+                value={showCompare ? "prev" : "none"}
+                onChange={(e) => setShowCompare(e.target.value === "prev")}
+                aria-label="Comparison period"
+              >
+                <option value="prev">Compare: {compare.label}</option>
+                <option value="none">No comparison</option>
+              </select>
+            )}
           </div>
 
           {series.mode === "daily" && n >= 3 ? (
@@ -355,7 +366,7 @@ export default function DashboardClient({
                   d={`M${x(0)},${padT + plotH} ${vals.map((v, i) => `L${x(i)},${y(v)}`).join(" ")} L${x(n - 1)},${padT + plotH} Z`}
                   className="dsh-area"
                 />
-                {compare && (
+                {compare && showCompare && (
                   <polyline
                     points={compare.vals.map((v, i) => `${x(Math.round((i / Math.max(1, compare.vals.length - 1)) * (n - 1)))},${y(v)}`).join(" ")}
                     className="dsh-line-compare"
@@ -409,6 +420,10 @@ export default function DashboardClient({
                   )}
                 </div>
               )}
+              <div className="dsh-legend">
+                <span><i className="solid" /> {shortDate(rows[0].day)} – {shortDate(rows[n - 1].day)}</span>
+                {compare && showCompare && <span><i className="dashed" /> {compare.label}</span>}
+              </div>
             </div>
           ) : (
             <div className="dsh-nodata">
@@ -443,9 +458,13 @@ export default function DashboardClient({
           )}
 
           {summary && (
-            <p className="dsh-summary">
-              <ArrowUpRight size={13} /> {summary}
-            </p>
+            <div className="dsh-summary">
+              <span className="dsh-summary-ico"><ArrowUpRight size={14} /></span>
+              <p>{summary}</p>
+              <Link href="/analytics" className="dsh-link">
+                View full breakdown <ArrowRight size={12} />
+              </Link>
+            </div>
           )}
         </section>
 
@@ -482,9 +501,13 @@ export default function DashboardClient({
                           <b>{p.engagements.toLocaleString("en-US")}</b>
                           <small>Engagements</small>
                         </span>
-                        {p.multiplier != null && p.multiplier >= 1.05 && (
-                          <em title="This post's engagement ÷ your average post engagement">
-                            {p.multiplier.toFixed(1)}×<small>vs baseline</small>
+                        {p.multiplier != null && (
+                          <em
+                            className={p.multiplier >= 1 ? "up" : "down"}
+                            title="This post's engagement ÷ your average post engagement"
+                          >
+                            {p.multiplier >= 1 ? "↑" : "↓"} {p.multiplier.toFixed(1)}×
+                            <small>vs baseline</small>
                           </em>
                         )}
                       </span>
@@ -524,9 +547,14 @@ export default function DashboardClient({
               <h2>Upcoming content</h2>
               <Link href="/calendar" className="dsh-link">View calendar</Link>
             </div>
-            <p className="dsh-empty">
-              <Calendar size={13} /> Nothing scheduled. SOCIA lists only real scheduled posts here.
-            </p>
+            <div className="dsh-upcoming-empty">
+              <span className="dsh-upcoming-ico"><Calendar size={18} /></span>
+              <b>Nothing scheduled.</b>
+              <small>SOCIA lists only real scheduled posts here.</small>
+              <Link href="/tool" className="dsh-cta">
+                Create content <ArrowRight size={12} />
+              </Link>
+            </div>
           </section>
         </div>
       </div>
