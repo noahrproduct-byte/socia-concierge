@@ -68,6 +68,17 @@ export default function ChatClient({ context }: { context: StrategistContext }) 
 
   const [messages, setMessages] = useState<Msg[]>([welcome]);
   const [input, setInput] = useState("");
+
+  // Deep links from other pages (e.g. Competitors' "Use this pattern") land
+  // here with ?q= — prefill only, the user always reviews before sending.
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setInput(q);
+    } catch {
+      /* no-op */
+    }
+  }, []);
   const [loading, setLoading] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);

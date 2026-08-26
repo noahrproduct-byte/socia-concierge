@@ -271,3 +271,23 @@ begin
     alter table public.account_snapshots add primary key (user_id, ig_user_id, day);
   end if;
 end $$;
+
+-- Tracked competitors: accounts the user chooses to watch. SOCIA stores the
+-- handle only — platforms expose no analytics for other accounts, so every
+-- metric column renders "—" until a platform provides verifiable public data.
+create table if not exists public.tracked_competitors (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  platform text not null default 'instagram',
+  handle text not null,
+  added_at timestamptz not null default now(),
+  primary key (user_id, platform, handle)
+);
+
+alter table public.tracked_competitors enable row level security;
+
+create policy "Users can read their own competitors"
+  on public.tracked_competitors for select using (auth.uid() = user_id);
+create policy "Users can add their own competitors"
+  on public.tracked_competitors for insert with check (auth.uid() = user_id);
+create policy "Users can delete their own competitors"
+  on public.tracked_competitors for delete using (auth.uid() = user_id);
