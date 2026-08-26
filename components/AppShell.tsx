@@ -23,6 +23,8 @@ import BrandMark from "@/components/BrandMark";
 import { createClient } from "@/lib/supabase/server";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
+import { getActiveConnection } from "@/lib/instagramSync";
+import { getPlan, type Plan } from "@/lib/plan";
 
 const FB_MARK = (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden>
@@ -62,29 +64,29 @@ export default async function AppShell({
   let igUsername: string | null = null;
   let fbPageName: string | null = null;
   let platforms: string[] = [];
+  let plan: Plan = "free";
   try {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      const [connRes, fbRes, profRes] = await Promise.all([
-        supabase
-          .from("instagram_connections")
-          .select("username")
-          .eq("user_id", user.id)
-          .maybeSingle(),
+      // The ACTIVE connection — with multi-account there can be several rows.
+      const [conn, fbRes, profRes, planRes] = await Promise.all([
+        getActiveConnection(supabase, user.id, "username"),
         supabase
           .from("facebook_connections")
           .select("page_name, connection_status")
           .eq("user_id", user.id)
           .maybeSingle(),
         supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle(),
+        getPlan(supabase, user.id),
       ]);
-      igUsername = connRes.data?.username ?? null;
+      igUsername = (conn as { username?: string } | null)?.username ?? null;
       fbPageName =
         fbRes.data?.connection_status === "connected" ? (fbRes.data.page_name ?? "Facebook") : null;
       platforms = profRes.data?.platforms ?? [];
+      plan = planRes;
     }
   } catch {
     // sidebar still renders with default channel rows
@@ -152,10 +154,12 @@ export default async function AppShell({
         </nav>
 
         <div className="side-foot">
-          <Link href="/settings" className="side-upgrade">
-            <Gem size={14} /> Upgrade to Pro
-          </Link>
-          <AccountMenu email={userEmail} />
+          {plan !== "pro" && (
+            <Link href="/settings#plan" className="side-upgrade">
+              <Gem size={14} /> Upgrade to Pro
+            </Link>
+          )}
+          <AccountMenu email={userEmail} plan={plan} />
         </div>
       </aside>
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/instagram";
 import { syncInstagram } from "@/lib/instagramSync";
+import { accountLimit, getPlan } from "@/lib/plan";
 
 export const runtime = "nodejs";
 
@@ -69,19 +70,48 @@ export async function GET(req: Request) {
     const meRes = await fetch(meUrl.toString());
     const me = await meRes.json();
 
-    // 4) Save the connection (one per user) and reflect it on the profile.
-    await supabase.from("instagram_connections").upsert(
-      {
-        user_id: user.id,
-        ig_user_id: me.user_id?.toString() ?? shortJson.user_id?.toString() ?? null,
-        username: me.username ?? null,
-        account_type: me.account_type ?? null,
-        access_token: longToken,
-        token_expires_at: expiresAt,
-        connected_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
+    // 4) Save the connection and reflect it on the profile. Reconnecting an
+    // already-connected account is always allowed; a NEW account beyond the
+    // plan's limit is the Pro gate (free: 1, pro: 3).
+    const igId: string | null = me.user_id?.toString() ?? shortJson.user_id?.toString() ?? null;
+    const { data: existingRows } = await supabase
+      .from("instagram_connections")
+      .select("ig_user_id, username")
+      .eq("user_id", user.id);
+    const existing = (existingRows ?? []) as { ig_user_id: string | null; username: string | null }[];
+    const already = existing.some(
+      (r) => (igId != null && r.ig_user_id === igId) || (me.username && r.username === me.username),
     );
+    if (!already && existing.length >= accountLimit(await getPlan(supabase, user.id))) {
+      return NextResponse.redirect(`${origin}/settings?ig=limit`);
+    }
+
+    const connRow = {
+      user_id: user.id,
+      ig_user_id: igId,
+      username: me.username ?? null,
+      account_type: me.account_type ?? null,
+      access_token: longToken,
+      token_expires_at: expiresAt,
+      connected_at: new Date().toISOString(),
+    };
+    // The freshly connected account becomes the one every page reads.
+    // Deactivate the others FIRST: a partial unique index enforces one active
+    // row per user, so activating before deactivating would violate it.
+    // (Errors ignored pre-migration, where is_active doesn't exist.)
+    await supabase
+      .from("instagram_connections")
+      .update({ is_active: false })
+      .eq("user_id", user.id)
+      .then(() => undefined, () => undefined);
+    // Post-migration identity is (user_id, ig_user_id); pre-migration it is
+    // user_id alone, so fall back when the composite constraint isn't there.
+    const { error: upsertErr } = await supabase
+      .from("instagram_connections")
+      .upsert({ ...connRow, is_active: true }, { onConflict: "user_id,ig_user_id" });
+    if (upsertErr) {
+      await supabase.from("instagram_connections").upsert(connRow, { onConflict: "user_id" });
+    }
 
     await supabase
       .from("profiles")

@@ -22,7 +22,7 @@ import PerformanceOverTime, {
   type DailyRow,
 } from "@/components/PerformanceOverTime";
 import RadarChart from "@/components/RadarChart";
-import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import type { Kpi } from "@/lib/demoData";
 
 export const metadata = { title: "Analytics — SOCIA" };
@@ -178,23 +178,22 @@ export default async function AnalyticsPage() {
   // a comparable daily series and must never be charted as one.
   let dailyRows: DailyRow[] = [];
   try {
-    const full = await supabase
-      .from("account_snapshots")
-      .select("day, followers, views, reach, followers_gained, source")
-      .eq("user_id", user.id)
-      .order("day", { ascending: true })
-      .limit(400);
-    if (!full.error) {
-      dailyRows = (full.data ?? []) as DailyRow[];
-    } else {
-      // extended columns may not exist yet — base shape still gives followers
-      const base = await supabase
-        .from("account_snapshots")
-        .select("day, followers")
-        .eq("user_id", user.id)
-        .order("day", { ascending: true })
-        .limit(400);
-      dailyRows = ((base.data ?? []) as { day: string; followers: number | null }[]).map((r) => ({
+    dailyRows = await readDailySnapshots<DailyRow>(
+      supabase,
+      user.id,
+      snap?.ig_user_id ?? null,
+      "day, followers, views, reach, followers_gained, source",
+    );
+  } catch {
+    // extended columns may not exist yet — base shape still gives followers
+    try {
+      const base = await readDailySnapshots<{ day: string; followers: number | null }>(
+        supabase,
+        user.id,
+        snap?.ig_user_id ?? null,
+        "day, followers",
+      );
+      dailyRows = base.map((r) => ({
         day: r.day,
         followers: r.followers,
         views: null,
@@ -202,9 +201,9 @@ export default async function AnalyticsPage() {
         followers_gained: null,
         source: null,
       }));
+    } catch {
+      // snapshots table may not exist yet — history shows its empty state
     }
-  } catch {
-    // snapshots table may not exist yet — history shows its empty state
   }
 
   // --- formats ---

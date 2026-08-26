@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getIgSnapshot } from "@/lib/instagramSync";
+import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import { computeContentScore } from "@/lib/contentScore";
 import {
   getFollowers,
@@ -36,13 +36,12 @@ export async function GET(req: Request) {
 
   let daily: DailySnapshot[] = [];
   try {
-    const { data } = await supabase
-      .from("account_snapshots")
-      .select("day, followers, reach, views, followers_gained")
-      .eq("user_id", user.id)
-      .order("day", { ascending: true })
-      .limit(400);
-    daily = (data ?? []) as DailySnapshot[];
+    daily = await readDailySnapshots<DailySnapshot>(
+      supabase,
+      user.id,
+      snap?.ig_user_id ?? null,
+      "day, followers, reach, views, followers_gained, source",
+    );
   } catch {
     /* audit still reports the rest */
   }

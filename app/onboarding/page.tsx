@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveConnection } from "@/lib/instagramSync";
 import { igConfigured } from "@/lib/instagram";
 import OnboardingFlow from "@/components/OnboardingFlow";
 
@@ -17,11 +18,9 @@ export default async function OnboardingPage({
   if (!user) redirect("/login");
 
   const { ig } = await searchParams;
-  const { data: igConn } = await supabase
-    .from("instagram_connections")
-    .select("username")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const igConn = (await getActiveConnection(supabase, user.id, "username")) as {
+    username?: string;
+  } | null;
 
   return (
     <OnboardingFlow

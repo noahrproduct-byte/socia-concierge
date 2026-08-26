@@ -4,7 +4,7 @@ import { Sparkles, Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
-import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
+import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import TimeZoneNote from "@/components/TimeZoneNote";
 import DashboardClient, {
   type DashMetric,
@@ -195,13 +195,12 @@ export default async function DashboardPage({
 
   let dailyRows: DailySnapshot[] = [];
   try {
-    const { data } = await supabase
-      .from("account_snapshots")
-      .select("day, followers, reach, views, followers_gained, source")
-      .eq("user_id", user.id)
-      .order("day", { ascending: true })
-      .limit(400);
-    dailyRows = (data ?? []) as DailySnapshot[];
+    dailyRows = await readDailySnapshots<DailySnapshot>(
+      supabase,
+      user.id,
+      snap?.ig_user_id ?? null,
+      "day, followers, reach, views, followers_gained, source",
+    );
   } catch {
     // snapshots table may not exist yet — series render their empty states
   }

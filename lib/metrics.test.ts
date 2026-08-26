@@ -170,3 +170,17 @@ describe("daily-series provenance", () => {
     expect(localDayStr(d)).toBe("2026-08-25");
   });
 });
+
+import { accountLimit, ACCOUNT_LIMIT } from "./plan";
+
+describe("plan gating", () => {
+  it("free connects one Instagram account", () => {
+    expect(accountLimit("free")).toBe(1);
+  });
+  it("pro connects up to three", () => {
+    expect(accountLimit("pro")).toBe(3);
+  });
+  it("no plan grants unlimited accounts", () => {
+    for (const n of Object.values(ACCOUNT_LIMIT)) expect(Number.isFinite(n)).toBe(true);
+  });
+});

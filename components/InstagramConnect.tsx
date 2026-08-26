@@ -70,7 +70,9 @@ export default function InstagramConnect({
         ? "Instagram isn't configured on the server yet (missing app credentials)."
         : status === "error"
           ? "Something went wrong connecting Instagram. Please try again."
-          : null;
+          : status === "limit"
+            ? "That's a new account beyond your plan's limit. Pro connects up to 3 Instagram accounts."
+            : null;
 
   const synced = ago(syncedAt);
 

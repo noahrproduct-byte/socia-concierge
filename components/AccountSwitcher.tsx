@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Users2, ChevronDown, Check, Camera, Music2 } from "lucide-react";
+// The account switcher — real, not a mock. It lists the Instagram accounts
+// actually connected to this user, switches which one is active (every page
+// reads through the active account, so a switch changes the whole app), and
+// gates adding accounts by plan: free = 1, pro = 3.
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, Check, Camera, Plus, Gem, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -12,34 +18,123 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-const ACCOUNTS = [
-  { id: "all", short: "All Accounts", label: "All Accounts", icon: <Users2 size={15} /> },
-  { id: "ig", short: "Instagram", label: "@yourbrand · Instagram", icon: <Camera size={15} /> },
-  { id: "tt", short: "TikTok", label: "@yourbrand · TikTok", icon: <Music2 size={15} /> },
-];
+type Account = {
+  ig_user_id: string | null;
+  username: string | null;
+  is_active: boolean;
+  avatar: string | null;
+};
 
 export default function AccountSwitcher() {
-  const [val, setVal] = useState("all");
-  const current = ACCOUNTS.find((a) => a.id === val)!;
+  const router = useRouter();
+  const [accounts, setAccounts] = useState<Account[] | null>(null);
+  const [limit, setLimit] = useState(1);
+  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/accounts")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!alive || !j) return;
+        setAccounts(j.accounts ?? []);
+        setLimit(j.limit ?? 1);
+        setPlan(j.plan === "pro" ? "pro" : "free");
+      })
+      .catch(() => alive && setAccounts([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Nothing connected (or still loading): no switcher to show.
+  if (!accounts || accounts.length === 0) return null;
+
+  const active = accounts.find((a) => a.is_active) ?? accounts[0];
+
+  async function switchTo(a: Account) {
+    if (!a.ig_user_id || a.is_active || switching) return;
+    setSwitching(a.ig_user_id);
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ig_user_id: a.ig_user_id }),
+      });
+      if (res.ok) {
+        setAccounts((xs) =>
+          (xs ?? []).map((x) => ({ ...x, is_active: x.ig_user_id === a.ig_user_id })),
+        );
+        router.refresh();
+      }
+    } finally {
+      setSwitching(null);
+    }
+  }
+
+  const canAdd = accounts.length < limit;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="pill-btn" aria-label="Switch account">
-        {current.icon}
-        {current.short}
+        {active.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={active.avatar} alt="" width={16} height={16} className="acsw-avatar" />
+        ) : (
+          <Camera size={15} />
+        )}
+        {active.username ? `@${active.username}` : "Account"}
         <ChevronDown size={14} className="drop-chev" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Switch account</DropdownMenuLabel>
+          <DropdownMenuLabel>Instagram accounts</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {ACCOUNTS.map((a) => (
-            <DropdownMenuItem key={a.id} onClick={() => setVal(a.id)} className="gap-2">
-              {a.icon}
-              <span className="flex-1">{a.label}</span>
-              {a.id === val && <Check size={14} />}
+          {accounts.map((a) => (
+            <DropdownMenuItem
+              key={a.ig_user_id ?? a.username ?? "?"}
+              onClick={() => switchTo(a)}
+              className="gap-2"
+            >
+              {a.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.avatar} alt="" width={18} height={18} className="acsw-avatar" />
+              ) : (
+                <Camera size={15} />
+              )}
+              <span className="flex-1">@{a.username ?? "unknown"}</span>
+              {switching === a.ig_user_id ? (
+                <Loader2 size={14} className="acsw-spin" />
+              ) : (
+                a.is_active && <Check size={14} />
+              )}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          {canAdd ? (
+            <DropdownMenuItem
+              className="gap-2"
+              onClick={() => {
+                window.location.href = "/api/auth/instagram/start";
+              }}
+            >
+              <Plus size={15} />
+              <span className="flex-1">Add Instagram account</span>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              className="gap-2"
+              onClick={() => {
+                window.location.href = "/settings#plan";
+              }}
+            >
+              <Gem size={14} />
+              <span className="flex-1">
+                {plan === "pro" ? `Account limit reached (${limit})` : "More accounts with Pro"}
+              </span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

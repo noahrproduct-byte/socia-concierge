@@ -209,3 +209,65 @@ create policy "Users can delete their own facebook connection"
 alter table public.account_snapshots
   add column if not exists followers_gained integer,
   add column if not exists source text;
+
+-- ---------------------------------------------------------------------------
+-- Plans + multi-account Instagram (Pro feature)
+-- ---------------------------------------------------------------------------
+
+-- The user's plan. 'free' | 'pro'. Stripe will manage this once billing
+-- lands; until then it is set manually. Everything gates closed by default.
+alter table public.profiles add column if not exists plan text not null default 'free';
+
+-- One row per connected Instagram account (was: one per user). ig_user_id
+-- becomes part of the identity; exactly one account is active at a time and
+-- every page reads through the active one.
+alter table public.instagram_connections
+  add column if not exists is_active boolean not null default true;
+
+-- Backfill identity for rows connected before ig_user_id was captured.
+update public.instagram_connections
+  set ig_user_id = coalesce(ig_user_id, username, user_id::text)
+  where ig_user_id is null;
+alter table public.instagram_connections alter column ig_user_id set not null;
+
+-- Swap the primary key user_id -> (user_id, ig_user_id), once.
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'instagram_connections_pkey'
+      and conrelid = 'public.instagram_connections'::regclass
+      and array_length(conkey, 1) = 1
+  ) then
+    alter table public.instagram_connections drop constraint instagram_connections_pkey;
+    alter table public.instagram_connections add primary key (user_id, ig_user_id);
+  end if;
+end $$;
+
+-- At most one active account per user.
+create unique index if not exists instagram_connections_one_active
+  on public.instagram_connections (user_id) where is_active;
+
+-- Snapshots become per-account so two accounts' histories never mix.
+alter table public.account_snapshots add column if not exists ig_user_id text;
+update public.account_snapshots s
+  set ig_user_id = c.ig_user_id
+  from public.instagram_connections c
+  where s.user_id = c.user_id and s.ig_user_id is null;
+-- Rows with no surviving connection can't be attributed to an account and
+-- would pollute whichever account is read; drop them.
+delete from public.account_snapshots where ig_user_id is null;
+alter table public.account_snapshots alter column ig_user_id set not null;
+
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'account_snapshots_pkey'
+      and conrelid = 'public.account_snapshots'::regclass
+      and array_length(conkey, 1) = 2
+  ) then
+    alter table public.account_snapshots drop constraint account_snapshots_pkey;
+    alter table public.account_snapshots add primary key (user_id, ig_user_id, day);
+  end if;
+end $$;

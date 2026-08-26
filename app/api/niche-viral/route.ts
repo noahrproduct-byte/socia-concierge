@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveConnection } from "@/lib/instagramSync";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -128,12 +129,8 @@ export async function GET() {
     // fall through to the generic error below if we have no niche at all
   }
   try {
-    const { data: conn } = await supabase
-      .from("instagram_connections")
-      .select("username")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    username = conn?.username ?? "";
+    const conn = await getActiveConnection(supabase, user.id, "username");
+    username = (conn as { username?: string } | null)?.username ?? "";
   } catch {
     // excluding the user's own account is best-effort
   }

@@ -32,6 +32,9 @@ export type IgMediaItem = {
 };
 
 export type IgSnapshot = {
+  /** Instagram user id of the account this snapshot describes. Pages use it
+   *  to scope snapshot-history reads so accounts never mix. */
+  ig_user_id: string | null;
   username: string | null;
   name: string | null;
   followers_count: number | null;
@@ -60,20 +63,32 @@ const STALE_MS = 6 * 60 * 60 * 1000; // re-sync after 6 hours
  *  historical daily series (see fetchDailySeries).
  *
  *  Best-effort: the table/columns may not exist yet. */
-async function recordSnapshot(supabase: Supa, userId: string, followers: number | null) {
+async function recordSnapshot(
+  supabase: Supa,
+  userId: string,
+  igUserId: string | null,
+  followers: number | null,
+) {
   if (followers == null) return;
   const day = new Date().toISOString().slice(0, 10);
+  const base = {
+    user_id: userId,
+    day,
+    followers,
+    source: "socia_snapshot",
+    retrieved_at: new Date().toISOString(),
+  };
   try {
-    const { error } = await supabase.from("account_snapshots").upsert(
-      {
-        user_id: userId,
-        day,
-        followers,
-        source: "socia_snapshot",
-        retrieved_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,day" },
-    );
+    // Post-migration shape: history is per account.
+    if (igUserId) {
+      const { error } = await supabase
+        .from("account_snapshots")
+        .upsert({ ...base, ig_user_id: igUserId }, { onConflict: "user_id,ig_user_id,day" });
+      if (!error) return;
+    }
+    const { error } = await supabase
+      .from("account_snapshots")
+      .upsert(base, { onConflict: "user_id,day" });
     if (error) {
       // Extended columns may not exist yet — fall back to the base shape.
       await supabase
@@ -229,10 +244,12 @@ function toSnapshot(
   profile: Record<string, unknown>,
   media: IgMediaItem[],
   syncedAt: string,
+  igUserId: string | null = null,
 ): IgSnapshot {
   const status = profile.insights_status as { ok?: boolean } | undefined;
   return {
     insights_ok: typeof status?.ok === "boolean" ? status.ok : null,
+    ig_user_id: igUserId,
     username: (profile.username as string) ?? null,
     name: (profile.name as string) ?? null,
     followers_count: (profile.followers_count as number) ?? null,
@@ -244,17 +261,81 @@ function toSnapshot(
   };
 }
 
+/** Daily history rows for ONE account. With multi-account, filtering by
+ *  ig_user_id is what keeps two accounts' histories from blending into one
+ *  chart; pre-migration (no column, single account) the filter falls away. */
+export async function readDailySnapshots<T>(
+  supabase: Supa,
+  userId: string,
+  igUserId: string | null,
+  columns: string,
+): Promise<T[]> {
+  if (igUserId) {
+    try {
+      const { data, error } = await supabase
+        .from("account_snapshots")
+        .select(columns)
+        .eq("user_id", userId)
+        .eq("ig_user_id", igUserId)
+        .order("day", { ascending: true })
+        .limit(400);
+      if (!error) return (data ?? []) as T[];
+    } catch {
+      // column may not exist yet
+    }
+  }
+  const { data, error } = await supabase
+    .from("account_snapshots")
+    .select(columns)
+    .eq("user_id", userId)
+    .order("day", { ascending: true })
+    .limit(400);
+  if (error) throw error;
+  return (data ?? []) as T[];
+}
+
+/** The connection every read and write goes through: the active account.
+ *  Tolerant of the pre-migration world where is_active doesn't exist and a
+ *  user has exactly one row. Multiple rows only appear post-migration, where
+ *  exactly one is active. */
+export async function getActiveConnection(
+  supabase: Supa,
+  userId: string,
+  fields: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const { data, error } = await supabase
+      .from("instagram_connections")
+      .select(fields)
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .limit(1);
+    if (!error && data?.length) return data[0];
+    if (error) throw error;
+  } catch {
+    // is_active may not exist yet — fall through to the single-row world
+  }
+  const { data } = await supabase
+    .from("instagram_connections")
+    .select(fields)
+    .eq("user_id", userId)
+    .limit(1);
+  return data?.[0] ?? null;
+}
+
 /** Fetch fresh data from Instagram and cache it. Returns the snapshot, or null
  *  if there's no usable connection. Cache write is best-effort. */
 export async function syncInstagram(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
-  const { data: conn } = await supabase
-    .from("instagram_connections")
-    .select("access_token, username")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const conn = (await getActiveConnection(
+    supabase,
+    userId,
+    "access_token, username, ig_user_id",
+  )) as { access_token?: string; username?: string; ig_user_id?: string } | null;
   if (!conn?.access_token) return null;
+  const token = conn.access_token;
+  const igId = conn.ig_user_id ?? null;
 
-  const fresh = await fetchFromInstagram(conn.access_token);
+  const fresh = await fetchFromInstagram(token);
   if (!fresh) return null;
 
   const now = new Date().toISOString();
@@ -269,7 +350,7 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
         `/${m.id}/insights`,
         ["views", "reach", "saved", "shares", "total_interactions"],
         {},
-        conn.access_token,
+        token,
       );
       if (r.permissionError) permissionError = r.permissionError;
       if (Object.keys(r.values).length) m.insights = r.values as IgMediaInsights;
@@ -284,11 +365,11 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     checked_at: now,
   };
 
-  const snap = toSnapshot(fresh.profile, fresh.media, now);
+  const snap = toSnapshot(fresh.profile, fresh.media, now, igId);
 
   // Persist (best-effort — works once the cache columns exist).
   try {
-    await supabase
+    let upd = supabase
       .from("instagram_connections")
       .update({
         username: snap.username ?? conn.username,
@@ -299,6 +380,9 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
         last_synced_at: now,
       })
       .eq("user_id", userId);
+    // Post-migration a user can hold several rows; target this account's.
+    if (igId) upd = upd.eq("ig_user_id", igId);
+    await upd;
   } catch {
     // cache columns may not exist yet; the in-memory snapshot still serves
   }
@@ -312,7 +396,7 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
   // values an earlier build recorded from sync-time counter reads, which were
   // never comparable daily totals.
   try {
-    const series = await fetchDailySeries(conn.access_token, 90);
+    const series = await fetchDailySeries(token, 90);
     if (series.size) {
       const rows = [...series.entries()].map(([day, vals]) => ({
         user_id: userId,
@@ -330,11 +414,22 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
         source: "instagram_api",
         retrieved_at: now,
       }));
-      const { error } = await supabase
-        .from("account_snapshots")
-        .upsert(rows, { onConflict: "user_id,day" });
+      // Per-account history first; pre-migration falls back to per-user.
+      let error = null;
+      if (igId) {
+        ({ error } = await supabase
+          .from("account_snapshots")
+          .upsert(rows.map((r) => ({ ...r, ig_user_id: igId })), {
+            onConflict: "user_id,ig_user_id,day",
+          }));
+      }
+      if (!igId || error) {
+        ({ error } = await supabase
+          .from("account_snapshots")
+          .upsert(rows, { onConflict: "user_id,day" }));
+      }
       if (error) {
-        // extended columns may be missing — try views only
+        // extended columns may be missing — try the bare shape
         await supabase
           .from("account_snapshots")
           .upsert(
@@ -347,32 +442,40 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     // history simply stays as far back as previous syncs recorded
   }
 
-  await recordSnapshot(supabase, userId, snap.followers_count);
+  await recordSnapshot(supabase, userId, igId, snap.followers_count);
 
   return snap;
 }
 
-/** Read the cached snapshot, auto-syncing when stale or never synced. */
+/** Read the cached snapshot of the ACTIVE account, auto-syncing when stale
+ *  or never synced. */
 export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
   // Try the full row first (cache columns may not exist yet).
-  const { data: row, error } = await supabase
-    .from("instagram_connections")
-    .select("username, access_token, profile, media, followers_count, media_count, last_synced_at")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const row = (await getActiveConnection(
+    supabase,
+    userId,
+    "ig_user_id, username, access_token, profile, media, followers_count, media_count, last_synced_at",
+  )) as {
+    ig_user_id?: string;
+    username?: string;
+    access_token?: string;
+    profile?: Record<string, unknown> | null;
+    media?: unknown;
+    followers_count?: number | null;
+    media_count?: number | null;
+    last_synced_at?: string | null;
+  } | null;
 
-  if (error) {
-    // Cache columns missing — fall back to a live sync every load.
-    const { data: base } = await supabase
-      .from("instagram_connections")
-      .select("access_token")
-      .eq("user_id", userId)
-      .maybeSingle();
+  if (row && row.access_token && row.profile === undefined && row.followers_count === undefined) {
+    // Cache columns missing entirely — live sync every load.
+    return syncInstagram(supabase, userId);
+  }
+  if (!row?.access_token) {
+    // The select may have failed on missing cache columns; last resort.
+    const base = await getActiveConnection(supabase, userId, "access_token");
     if (!base?.access_token) return null;
     return syncInstagram(supabase, userId);
   }
-
-  if (!row?.access_token) return null;
 
   const stale =
     !row.last_synced_at || Date.now() - new Date(row.last_synced_at).getTime() > STALE_MS;
@@ -383,7 +486,7 @@ export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgS
 
   if (!row.profile && row.followers_count == null) return null; // never synced successfully
 
-  await recordSnapshot(supabase, userId, row.followers_count ?? null);
+  await recordSnapshot(supabase, userId, row.ig_user_id ?? null, row.followers_count ?? null);
 
   const cachedStatus = (row.profile as Record<string, unknown> | null)?.insights_status as
     | { ok?: boolean }
@@ -391,6 +494,7 @@ export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgS
 
   return {
     insights_ok: typeof cachedStatus?.ok === "boolean" ? cachedStatus.ok : null,
+    ig_user_id: row.ig_user_id ?? null,
     username: row.username ?? null,
     name: (row.profile as Record<string, unknown> | null)?.name as string | null ?? null,
     followers_count: row.followers_count ?? null,

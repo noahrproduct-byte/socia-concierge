@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveConnection } from "@/lib/instagramSync";
 
 export const runtime = "nodejs";
 
@@ -25,11 +26,11 @@ export async function GET() {
     out.profile = null;
   }
   try {
-    const { data } = await supabase
-      .from("instagram_connections")
-      .select("username, profile, media, followers_count, media_count, last_synced_at")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const data = await getActiveConnection(
+      supabase,
+      user.id,
+      "username, profile, media, followers_count, media_count, last_synced_at",
+    );
     out.instagram = data ?? null;
   } catch {
     out.instagram = null;

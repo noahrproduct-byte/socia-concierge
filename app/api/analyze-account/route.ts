@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveConnection } from "@/lib/instagramSync";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NICHES } from "@/lib/niches";
 
@@ -155,11 +156,10 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   // 1) Do they have a live Instagram connection with a token?
-  const { data: conn } = await supabase
-    .from("instagram_connections")
-    .select("username, access_token")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const conn = (await getActiveConnection(supabase, user.id, "username, access_token")) as {
+    username?: string;
+    access_token?: string;
+  } | null;
 
   if (!conn?.access_token) {
     return NextResponse.json({ connected: false });

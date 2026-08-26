@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getActiveConnection } from "@/lib/instagramSync";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -66,11 +67,7 @@ export async function GET() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  const { data: conn } = await supabase
-    .from("instagram_connections")
-    .select("access_token, username, media")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const conn = await getActiveConnection(supabase, user.id, "access_token, username, media");
   if (!conn?.access_token) return NextResponse.json({ error: "No Instagram connection." }, { status: 400 });
   const token = conn.access_token as string;
 

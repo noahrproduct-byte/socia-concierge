@@ -10320,3 +10320,10 @@ html { scroll-behavior: smooth; }
   .dsh-top li { grid-template-columns: 20px 44px minmax(0, 1fr); row-gap: 8px; }
   .dsh-top-badge { grid-column: 2 / -1; justify-self: start; }
 }
+
+/* Account switcher (real accounts) */
+.acsw-avatar { border-radius: 99px; object-fit: cover; flex: none; }
+.acsw-spin { animation: acswspin 0.8s linear infinite; }
+@keyframes acswspin { to { transform: rotate(360deg); } }
+.st2-plan-up { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--slate); max-width: 300px; line-height: 1.45; }
+.st2-plan-up svg { flex: none; color: #2563ff; }

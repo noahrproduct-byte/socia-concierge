@@ -26,6 +26,7 @@ import ConnectionsManager from "@/components/ConnectionsManager";
 import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
 import { getIgSnapshot } from "@/lib/instagramSync";
+import { getPlan, accountLimit } from "@/lib/plan";
 import type { BrandDetail } from "@/lib/profile";
 
 export const metadata = { title: "Settings — SOCIA" };
@@ -94,6 +95,7 @@ export default async function SettingsPage({
 
   // Live account snapshot (avatar, followers, sync state) — best-effort.
   const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+  const plan = await getPlan(supabase, user.id);
 
   // Intelligence state from the real detection pipeline.
   let intel: IntelState = {
@@ -307,13 +309,20 @@ export default async function SettingsPage({
               <div className="st2-plan">
                 <div>
                   <div className="st2-plan-name">
-                    Free plan <span className="st2-badge">Current</span>
+                    {plan === "pro" ? "Pro plan" : "Free plan"} <span className="st2-badge">Current</span>
                   </div>
-                  <p>1 account · monthly audit · 5 recommendations</p>
+                  <p>
+                    {plan === "pro"
+                      ? `Up to ${accountLimit("pro")} Instagram accounts · full analytics`
+                      : "1 Instagram account · full analytics"}
+                  </p>
                 </div>
-                <button className="st2-upgrade" type="button">
-                  <Sparkles size={14} /> Upgrade to Pro
-                </button>
+                {plan !== "pro" && (
+                  <p className="st2-plan-up">
+                    <Sparkles size={14} /> Pro connects up to {accountLimit("pro")} Instagram
+                    accounts. Billing is coming soon.
+                  </p>
+                )}
               </div>
             </section>
 

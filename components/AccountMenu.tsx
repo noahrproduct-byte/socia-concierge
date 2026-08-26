@@ -4,7 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Settings, LogOut, ChevronsUpDown } from "lucide-react";
 
-export default function AccountMenu({ email }: { email?: string | null }) {
+export default function AccountMenu({
+  email,
+  plan = "free",
+}: {
+  email?: string | null;
+  /** The user's real plan — never assumed. */
+  plan?: "free" | "pro";
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const name = (email?.split("@")[0] ?? "account").replace(/[._-]+/g, " ");
@@ -41,7 +48,7 @@ export default function AccountMenu({ email }: { email?: string | null }) {
         <span className="acct-avatar">{initial}</span>
         <span className="acct-meta">
           <span className="acct-name">{name}</span>
-          <span className="acct-plan">Pro plan</span>
+          <span className="acct-plan">{plan === "pro" ? "Pro plan" : "Free plan"}</span>
         </span>
         <ChevronsUpDown size={15} className="acct-chev" />
       </button>

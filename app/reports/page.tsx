@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Download, FileText, ShieldCheck, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
-import { getIgSnapshot } from "@/lib/instagramSync";
+import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import {
   getFollowers,
   getFollowersGained,
@@ -57,13 +57,12 @@ export default async function ReportsPage({
   const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
   let daily: DailySnapshot[] = [];
   try {
-    const { data } = await supabase
-      .from("account_snapshots")
-      .select("day, followers, reach, views, followers_gained, source")
-      .eq("user_id", user.id)
-      .order("day", { ascending: true })
-      .limit(400);
-    daily = (data ?? []) as DailySnapshot[];
+    daily = await readDailySnapshots<DailySnapshot>(
+      supabase,
+      user.id,
+      snap?.ig_user_id ?? null,
+      "day, followers, reach, views, followers_gained, source",
+    );
   } catch {
     /* report still renders with what exists */
   }
