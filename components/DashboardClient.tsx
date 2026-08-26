@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { isChartableDay, localDayStr } from "@/lib/metrics";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -55,6 +56,9 @@ export type DashDaily = {
   reach: number | null;
   views: number | null;
   posts: number;
+  /** Provenance of the activity numbers. Only `instagram_api` — Meta's
+   *  finalised daily series — may be drawn as a daily time series. */
+  source: string | null;
 };
 
 export type DashMetric = {
@@ -148,11 +152,20 @@ export default function DashboardClient({
 
   // Which series can honestly be drawn for the selected metric?
   const series = useMemo(() => {
-    const pick = (f: (d: DashDaily) => number | null) =>
-      windowRows.map((d) => ({ day: d.day, v: f(d) })).filter((p) => p.v != null) as { day: string; v: number }[];
+    // Activity metrics count as daily only when they came from Meta's
+    // finalised daily series, and never for today — a day still in progress
+    // plotted beside whole ones reads as a fall that never happened. Follower
+    // totals are exempt: a point-in-time count is valid whenever it is taken.
+    const today = localDayStr(new Date());
+    const finalised = (d: DashDaily) => isChartableDay(d, today);
+    const pick = (f: (d: DashDaily) => number | null, activity = true) =>
+      windowRows
+        .filter((d) => !activity || finalised(d))
+        .map((d) => ({ day: d.day, v: f(d) }))
+        .filter((p) => p.v != null) as { day: string; v: number }[];
     switch (metric) {
       case "followers": {
-        const exact = pick((d) => d.followers);
+        const exact = pick((d) => d.followers, false);
         if (exact.length >= 3) return { rows: exact, mode: "daily" as SeriesMode, label: "Followers", exact: true };
         const gains = pick((d) => d.followersGained);
         return { rows: gains, mode: (gains.length >= 3 ? "daily" : "unavailable") as SeriesMode, label: "New followers", exact: false };
@@ -459,10 +472,11 @@ export default function DashboardClient({
                 </>
               ) : metric === "views" ? (
                 <>
-                  <b>Daily view history is still collecting.</b>
+                  <b>Instagram doesn&apos;t report views per day.</b>
                   <p>
-                    Instagram provides no per-day views series; SOCIA records the daily total on each
-                    sync{historyStart ? ` (since ${historyStart})` : ""}. Per-post views are in the table below.
+                    It returns each post&apos;s current total instead, with no indication of which day
+                    the views happened, so SOCIA shows views per post in the table below rather than
+                    inventing a daily curve.
                   </p>
                 </>
               ) : (

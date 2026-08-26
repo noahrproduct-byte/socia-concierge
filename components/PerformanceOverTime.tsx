@@ -4,14 +4,27 @@
 //
 // The governing rule: THE CHART FORM MUST MATCH THE DATA SOCIA ACTUALLY HAS.
 // Each metric resolves to an explicit visualization mode:
-//   followers  -> snapshot_history | history_unavailable
+//   followers  -> snapshot_history | gains_history | history_unavailable
+//   reach      -> daily_history    | history_unavailable
 //   views      -> daily_history    | post_totals
-//   engagement -> daily_history    | post_totals
+//   engagement -> post_totals      (see below)
 //   posts      -> publish_history  (always true time, publish dates are known)
+//
+// A day only counts as a true time-series point when the value genuinely
+// describes that day. Two things qualify: SOCIA's own follower observation (a
+// point-in-time total is valid whenever it is read) and Meta's historical
+// daily series (source `instagram_api`), which returns finalised days. A
+// counter read taken at sync time does not qualify, so it is never plotted —
+// otherwise the chart would show sync timing dressed up as a trend. Today is
+// excluded from activity series for the same reason: it is still running.
+//
+// Instagram serves no daily engagement series, so engagement is always
+// per-post totals. If that changes, fetchDailySeries starts returning the
+// metric and this promotes itself, exactly as views does.
+//
 // In post_totals mode nothing is plotted against a date axis — Instagram
 // reports each post's CURRENT total, not when the activity happened — so we
-// render a ranked list of real posts instead. Daily lines appear only from
-// SOCIA's own recorded snapshots, never backfilled.
+// render a ranked list of real posts instead.
 //
 // value vs availability stays separate: 0 is a confirmed zero, "—" means the
 // platform didn't provide it.
@@ -29,7 +42,7 @@ import {
   BarChart3,
   Radar,
 } from "lucide-react";
-import { median, pctChange, fmtMult } from "@/lib/metrics";
+import { median, pctChange, fmtMult, isChartableDay, localDayStr } from "@/lib/metrics";
 
 export type PerfPost = {
   t: string;
@@ -46,18 +59,18 @@ export type PerfPost = {
 
 export type DailyRow = {
   day: string;
+  /** SOCIA's own observation of the exact follower total that day. */
   followers: number | null;
+  /** Views that day, only when Meta served them as a historical daily series. */
   views: number | null;
   /** Unique accounts reached that day — Meta's real daily series. */
   reach: number | null;
   /** New followers gained that day (Instagram's follower_count metric).
    *  Gains only — unfollows aren't provided, so totals can't be rebuilt. */
   followers_gained: number | null;
-  likes: number | null;
-  comments: number | null;
-  total_interactions: number | null;
-  saves: number | null;
-  shares: number | null;
+  /** Where the row's activity numbers came from. `instagram_api` = Meta's
+   *  finalised daily series, the only provenance a daily chart may plot. */
+  source: string | null;
 };
 
 type Metric = "followers" | "reach" | "views" | "eng" | "posts";
@@ -101,6 +114,7 @@ const fmtNum = (n: number): string =>
   : n.toLocaleString("en-US");
 
 const shortDate = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
 const dateTime = (d: Date) =>
   `${shortDate(d)} · ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
 
@@ -149,30 +163,40 @@ const plotW = W - padL - padR;
 const plotH = H - padT - padB;
 
 /** Ranked posts — the honest rendering of current per-post totals.
- *  No date axis: each row is one real post. */
+ *  No date axis: each row is one real post, and the hover card describes that
+ *  post rather than a day, because a day is exactly what we don't know. */
 function RankedPosts({
   posts,
   value,
   unit,
   cls,
   med,
+  viewsMed,
+  engMed,
+  engOf,
+  hover,
+  onHover,
 }: {
   posts: PerfPost[];
   value: (p: PerfPost) => number;
   unit: string;
   cls: string;
   med: number | null;
+  viewsMed: number | null;
+  engMed: number | null;
+  engOf: (p: PerfPost) => number;
+  hover: number | null;
+  onHover: (i: number | null) => void;
 }) {
   const ranked = [...posts].sort((a, b) => value(b) - value(a)).slice(0, 8);
   const max = Math.max(...ranked.map(value), 1);
   return (
-    <ul className="an3-ranked">
+    <ul className="an3-ranked" onPointerLeave={() => onHover(null)}>
       {ranked.map((p, i) => {
         const v = value(p);
         const mult = med && med > 0 ? v / med : null;
         const d = new Date(p.t);
         const cap = p.caption.split("\n")[0].slice(0, 60) || "(no caption)";
-        const tip = `${cap}\nPublished ${dateTime(d)} · ${FMT_LABEL[p.type] ?? p.type}\nCurrent ${unit}: ${v.toLocaleString("en-US")}${mult ? `\nAccount median: ${Math.round(med!).toLocaleString("en-US")} — ${fmtMult(mult)} median` : ""}`;
         const row = (
           <>
             {p.thumb ? (
@@ -195,11 +219,37 @@ function RankedPosts({
           </>
         );
         return (
-          <li className="an3-rank" key={p.t + i} title={tip} style={{ animationDelay: `${i * 45}ms` }}>
+          <li
+            className={`an3-rank${hover === i ? " on" : ""}`}
+            key={p.t + i}
+            style={{ animationDelay: `${i * 45}ms` }}
+            onPointerEnter={() => onHover(i)}
+          >
             {p.permalink ? (
               <a href={p.permalink} target="_blank" rel="noreferrer" aria-label={`Open post: ${cap}`}>{row}</a>
             ) : (
               <span className="an3-rank-inner">{row}</span>
+            )}
+            {hover === i && (
+              <div className="an3-tip an3-rank-tip">
+                <b>{cap}</b>
+                <div><span>Published</span><em>{dateTime(d)}</em></div>
+                <div><span>Format</span><em>{FMT_LABEL[p.type] ?? p.type}</em></div>
+                <div>
+                  <span>Current views</span>
+                  <em>{p.views != null ? p.views.toLocaleString("en-US") : "—"}</em>
+                </div>
+                <div><span>Current engagement</span><em>{engOf(p).toLocaleString("en-US")}</em></div>
+                <div>
+                  <span>Account median</span>
+                  <em>
+                    {(unit === "views" ? viewsMed : engMed) != null
+                      ? `${Math.round((unit === "views" ? viewsMed : engMed)!).toLocaleString("en-US")} ${unit === "views" ? "views" : "eng."}`
+                      : "—"}
+                  </em>
+                </div>
+                <div><span>Performance</span><em>{mult != null ? `${fmtMult(mult)} median` : "—"}</em></div>
+              </div>
             )}
           </li>
         );
@@ -333,8 +383,11 @@ export default function PerformanceOverTime({
   const [metric, setMetric] = useState<Metric>(
     daily.some((r) => r.reach != null) ? "reach" : "eng",
   );
-  const [chartType, setChartType] = useState<ChartType>("line");
+  // Line is the default shape, except for posts: a count per day is a set of
+  // discrete events, and bars say that where a line would imply a continuum.
+  const [typeBy, setTypeBy] = useState<Partial<Record<Metric, ChartType>>>({});
   const [hover, setHover] = useState<number | null>(null);
+  const [rankHover, setRankHover] = useState<number | null>(null);
 
   const model = useMemo(() => {
     if (!now) return null;
@@ -377,36 +430,47 @@ export default function PerformanceOverTime({
     const engPrev = prevComparable || prev.length ? sum(prev, engOf) : null;
     const viewsAvail = cur.some((p) => p.views != null);
     const viewsCur = sum(cur, (p) => p.views ?? 0);
-    const viewsPrev = prev.some((p) => p.views != null) ? sum(prev, (p) => p.views ?? 0) : null;
+    // A previous-period total is only real when the window is comparable.
+    // No posts in a covered window is a true 0; an uncovered window, or posts
+    // Instagram gave no views for, is ignorance and must stay null.
+    const viewsPrev =
+      !viewsAvail ? null
+      : prev.length ? (prev.some((p) => p.views != null) ? sum(prev, (p) => p.views ?? 0) : null)
+      : prevComparable ? 0
+      : null;
     const savesAvail = cur.some((p) => p.saved != null);
     const sharesAvail = cur.some((p) => p.shares != null);
 
     // Real recorded daily series.
-    const startStr = start.toISOString().slice(0, 10);
-    const endStr = end.toISOString().slice(0, 10);
+    const startStr = localDayStr(start);
+    const endStr = localDayStr(end);
+    const prevStr = localDayStr(prevStart);
+    const todayStr = localDayStr(now);
     const inRows = daily.filter((r) => r.day >= startStr && r.day < endStr);
+    // Follower totals are point-in-time observations: today's is as valid as
+    // any other, so snapshots keep the current day.
     const folRows = inRows.filter((r) => r.followers != null);
-    const viewsRows = inRows.filter((r) => r.views != null);
-    // Reach is the one metric Meta serves as a genuine daily series.
-    const reachRows = inRows.filter((r) => r.reach != null);
-    const gainRows = inRows.filter((r) => r.followers_gained != null);
+    // Activity series: Meta's finalised daily numbers only, and never the
+    // current day — it is still accumulating, and plotting a part-day next to
+    // whole ones reads as a drop that did not happen.
+    const finalised = (r: DailyRow) => isChartableDay(r, todayStr);
+    const activityRows = inRows.filter(finalised);
+    const viewsRows = activityRows.filter((r) => r.views != null);
+    // Reach is the one activity metric Meta serves as a genuine daily series.
+    const reachRows = activityRows.filter((r) => r.reach != null);
+    const gainRows = activityRows.filter((r) => r.followers_gained != null);
     const gainsCur = gainRows.reduce((a, r) => a + (r.followers_gained ?? 0), 0);
-    const gainPrevRows = daily.filter(
-      (r) =>
-        r.day >= prevStart.toISOString().slice(0, 10) &&
-        r.day < startStr &&
-        r.followers_gained != null,
-    );
+    const prevActivity = daily.filter((r) => r.day >= prevStr && r.day < startStr && finalised(r));
+    const gainPrevRows = prevActivity.filter((r) => r.followers_gained != null);
     const gainsPrev = gainPrevRows.length
       ? gainPrevRows.reduce((a, r) => a + (r.followers_gained ?? 0), 0)
       : null;
     const reachCur = reachRows.reduce((a, r) => a + (r.reach ?? 0), 0);
-    const prevRows = daily.filter(
-      (r) => r.day >= prevStart.toISOString().slice(0, 10) && r.day < startStr && r.reach != null,
-    );
+    const prevRows = prevActivity.filter((r) => r.reach != null);
     const reachPrev = prevRows.length ? prevRows.reduce((a, r) => a + (r.reach ?? 0), 0) : null;
-    const engRows = inRows.filter((r) => r.total_interactions != null || (r.likes != null && r.comments != null));
-    const engOfRow = (r: DailyRow) => r.total_interactions ?? (r.likes ?? 0) + (r.comments ?? 0);
+    // How much of the chosen window the daily record actually covers — stated
+    // outright rather than left for the reader to infer from the axis.
+    const coverage = (n: number) => `${n} of ${days} day${days === 1 ? "" : "s"} recorded`;
 
     const before = daily.filter((r) => r.day <= startStr && r.followers != null);
     const folBaseline = before.length ? before[before.length - 1].followers : null;
@@ -426,7 +490,9 @@ export default function PerformanceOverTime({
         : "history_unavailable",
       reach: reachRows.length >= 3 ? "daily_history" : "history_unavailable",
       views: viewsRows.length >= 3 ? "daily_history" : "post_totals",
-      eng: engRows.length >= 3 ? "daily_history" : "post_totals",
+      // Instagram publishes no daily engagement series, so there is nothing
+      // truthful to plot against dates. Per-post totals it is.
+      eng: "post_totals",
       posts: "publish_history",
     };
 
@@ -463,7 +529,7 @@ export default function PerformanceOverTime({
       folRows, folNet, folDelta, firstSnapDay,
       reachRows, reachCur, reachDelta: deltaOf(reachCur, reachPrev),
       gainRows, gainsCur, gainsDelta: deltaOf(gainsCur, gainsPrev),
-      viewsRows, engRows, engOfRow, engOf,
+      viewsRows, engOf, coverage,
       buckets, weekly, freq, topFmt,
       engMedAll, viewsMedAll, topEng, topViews,
       postsDeltaAbs: prevComparable || prev.length ? cur.length - prev.length : null,
@@ -481,9 +547,11 @@ export default function PerformanceOverTime({
 
   const m = model;
   const mode = m.modes[metric];
+  const chartType: ChartType = typeBy[metric] ?? (metric === "posts" ? "bar" : "line");
+  const setChartType = (t: ChartType) => setTypeBy((prev) => ({ ...prev, [metric]: t }));
   const postsNote = `on posts published this period`;
   const prevNote = `vs posts published previous ${m.days} days`;
-  const pick = (id: Metric) => { setMetric(id); setHover(null); };
+  const pick = (id: Metric) => { setMetric(id); setHover(null); setRankHover(null); };
   const empty = m.cur.length === 0;
   // The line/bar toggle only appears where a real time series is drawn.
   const isTimeSeries =
@@ -495,10 +563,8 @@ export default function PerformanceOverTime({
   const lineRows =
     metric === "views" ? m.viewsRows
     : metric === "reach" ? m.reachRows
-    : metric === "eng" ? m.engRows
     : [];
-  const lineVal = (r: DailyRow) =>
-    metric === "views" ? r.views! : metric === "reach" ? r.reach! : m.engOfRow(r);
+  const lineVal = (r: DailyRow) => (metric === "views" ? r.views! : r.reach!);
 
   // Whichever series the active chart is actually drawing — the tooltip must
   // index into the same array the points came from.
@@ -530,17 +596,24 @@ export default function PerformanceOverTime({
 
   const kpis: {
     id: Metric; label: string; color: string; Ico: typeof Users;
-    value: string | null; naText?: string; d: DeltaVal; note: string; spark?: { data: number[]; color: string };
+    value: string | null; naText?: string; d: DeltaVal; note: string;
+    /** Absolute new followers, shown when no percentage change is measurable yet. */
+    gain?: number | null;
+    spark?: { data: number[]; color: string };
   }[] = [
     {
       id: "followers", label: "Followers", color: "blue", Ico: Users,
       value: followers != null ? followers.toLocaleString("en-US") : null,
       naText: "not synced yet",
+      // With two exact snapshots the change is measured. Before that,
+      // Instagram's own gains are the real number to show — a bare "–" would
+      // hide data SOCIA actually has.
       d: m.folDelta,
+      gain: m.folDelta == null && m.gainRows.length ? m.gainsCur : null,
       note: m.folDelta
         ? `vs previous ${m.days} days`
         : m.gainRows.length
-          ? `+${m.gainsCur.toLocaleString("en-US")} new followers · last ${m.days} days`
+          ? `new followers · last ${m.days} days`
           : m.firstSnapDay
             ? `history started ${shortDate(new Date(m.firstSnapDay + "T00:00:00"))}`
             : "history starts today",
@@ -550,7 +623,10 @@ export default function PerformanceOverTime({
       id: "reach", label: "Reach", color: "teal", Ico: Radar,
       value: m.reachRows.length ? fmtNum(m.reachCur) : null,
       naText: "daily reach history is building",
-      d: m.reachDelta, note: m.reachDelta ? `accounts reached · vs previous ${m.days} days` : "accounts reached daily",
+      d: m.reachDelta,
+      note: m.reachDelta
+        ? `accounts reached · vs previous ${m.days} days`
+        : `accounts reached · ${m.coverage(m.reachRows.length)}`,
       spark: { data: m.reachRows.map((r) => r.reach!), color: "#0d9488" },
     },
     {
@@ -558,13 +634,13 @@ export default function PerformanceOverTime({
       value: m.viewsAvail ? fmtNum(m.viewsCur) : null,
       naText: "Not provided by the connected account",
       d: m.viewsDelta, note: m.viewsDelta ? `${postsNote} · ${prevNote}` : postsNote,
-      spark: { data: m.viewsRows.map((r) => r.views!), color: "#10b981" },
+      spark: { data: m.cur.map((p) => p.views ?? 0).reverse(), color: "#10b981" },
     },
     {
       id: "eng", label: "Engagement", color: "purple", Ico: Activity,
       value: fmtNum(m.engCur),
       d: m.engDelta, note: m.engDelta ? `${postsNote} · ${prevNote}` : postsNote,
-      spark: { data: m.engRows.map(m.engOfRow), color: "#8b5cf6" },
+      spark: { data: m.cur.map(m.engOf).reverse(), color: "#8b5cf6" },
     },
     {
       id: "posts", label: "Posts", color: "amber", Ico: FileText,
@@ -616,7 +692,7 @@ export default function PerformanceOverTime({
       </div>
 
       <div className="an3-kpis">
-        {kpis.map(({ id, label, color, Ico, value, naText, d, note, spark }) => (
+        {kpis.map(({ id, label, color, Ico, value, naText, d, note, gain, spark }) => (
           <button
             key={id}
             type="button"
@@ -629,7 +705,16 @@ export default function PerformanceOverTime({
             {value != null ? (
               <>
                 <b>{value}</b>
-                <Delta d={d} note={note} />
+                {gain != null ? (
+                  <span className="an3-delta-wrap">
+                    <em className={`an3-delta ${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}`}>
+                      {gain >= 0 ? "+" : ""}{gain.toLocaleString("en-US")}
+                    </em>
+                    <small>{note}</small>
+                  </span>
+                ) : (
+                  <Delta d={d} note={note} />
+                )}
                 {spark && <Spark data={spark.data} color={spark.color} />}
               </>
             ) : (
@@ -706,7 +791,7 @@ export default function PerformanceOverTime({
             <>
               <div className="an3-hero">
                 <div><b>{followers != null ? followers.toLocaleString("en-US") : "–"}</b><small>Followers today</small></div>
-                <div><b>+{m.gainsCur.toLocaleString("en-US")}</b><small>New followers · last {m.days} days</small></div>
+                <div><b>+{m.gainsCur.toLocaleString("en-US")}</b><small>New followers · {m.coverage(m.gainRows.length)}</small></div>
                 {m.gainsDelta?.kind === "pct" && (
                   <div><b className={m.gainsDelta.pct >= 0 ? "up" : "down"}>{m.gainsDelta.pct >= 0 ? "↑" : "↓"} {Math.abs(m.gainsDelta.pct).toFixed(1)}%</b><small>vs previous {m.days} days</small></div>
                 )}
@@ -798,7 +883,7 @@ export default function PerformanceOverTime({
           mode === "daily_history" ? (
             <>
               <div className="an3-hero">
-                <div><b>{fmtNum(m.reachCur)}</b><small>Accounts reached · {m.days}-day total</small></div>
+                <div><b>{fmtNum(m.reachCur)}</b><small>Accounts reached · {m.coverage(m.reachRows.length)}</small></div>
                 <div><b>{fmtNum(Math.round(m.reachCur / Math.max(1, m.reachRows.length)))}</b><small>Average per day</small></div>
                 {m.reachDelta && (
                   <div>
@@ -808,7 +893,7 @@ export default function PerformanceOverTime({
                     <small>vs previous {m.days} days</small>
                   </div>
                 )}
-                {qualityChip("Real daily data", "Instagram reports reach as a genuine per-day series — this chart is actual daily activity, not post totals.")}
+                {qualityChip("Real daily data", "Instagram reports reach as a genuine per-day series — this chart is actual daily activity, not post totals. Today is left out until the day finishes.")}
               </div>
               <TimeSeries
                 type={chartType}
@@ -837,7 +922,8 @@ export default function PerformanceOverTime({
               )}
               <p className="an3-chart-note">
                 Reach is the number of unique accounts that saw your content each day, straight from
-                Instagram&apos;s daily insights.
+                Instagram&apos;s daily insights. Today is excluded until it finishes, so a part-day
+                never reads as a drop.
               </p>
             </>
           ) : (
@@ -873,15 +959,32 @@ export default function PerformanceOverTime({
             if (empty) return <p className="an3-empty">No posts in this period — pick a longer range or keep posting.</p>;
 
             const cls = isViews ? "green" : "purple";
-            const total = isViews ? m.viewsCur : m.engCur;
-            const delta = isViews ? m.viewsDelta : m.engDelta;
             const med = isViews ? m.viewsMedAll : m.engMedAll;
+            // In daily mode the headline has to describe the chart underneath
+            // it — the daily series — not the per-post totals, or the panel
+            // states two different numbers under one word.
+            const dailyTotal = m.viewsRows.reduce((a, r) => a + (r.views ?? 0), 0);
+            const isDaily = mode === "daily_history";
+            const total = isDaily ? dailyTotal : isViews ? m.viewsCur : m.engCur;
+            const delta = isDaily ? null : isViews ? m.viewsDelta : m.engDelta;
 
             return (
               <>
                 <div className="an3-hero">
-                  <div><b>{fmtNum(total)}</b><small>Current {isViews ? "views" : "engagement"} · {postsNote}</small></div>
-                  <div><b>{m.cur.length}</b><small>Posts published</small></div>
+                  {isDaily ? (
+                    <>
+                      <div><b>{fmtNum(total)}</b><small>Views · {m.coverage(m.viewsRows.length)}</small></div>
+                      <div>
+                        <b>{fmtNum(Math.round(total / Math.max(1, m.viewsRows.length)))}</b>
+                        <small>Average per day</small>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div><b>{fmtNum(total)}</b><small>Current {isViews ? "views" : "engagement"} · {postsNote}</small></div>
+                      <div><b>{m.cur.length}</b><small>Posts published</small></div>
+                    </>
+                  )}
                   {delta && (
                     <div>
                       <b className={delta.kind === "new" || delta.pct >= 0 ? "up" : "down"}>
@@ -890,8 +993,8 @@ export default function PerformanceOverTime({
                       <small>{prevNote}</small>
                     </div>
                   )}
-                  {mode === "daily_history"
-                    ? qualityChip("Real daily data", "Daily account activity recorded from Instagram insights.")
+                  {isDaily
+                    ? qualityChip("Real daily data", "Finished days from Instagram's historical daily series. Today is left out until it completes.")
                     : totalsChip}
                 </div>
 
@@ -904,35 +1007,31 @@ export default function PerformanceOverTime({
                   </div>
                 )}
 
-                {mode === "daily_history" ? (
+                {isDaily ? (
                   <>
                     <TimeSeries
                       type={chartType}
                       cls={cls}
-                      fill={isViews ? "rgba(16,185,129,0.07)" : "rgba(139,92,246,0.07)"}
-                      ariaLabel={`Daily ${isViews ? "views" : "engagement"}`}
+                      fill="rgba(16,185,129,0.07)"
+                      ariaLabel="Views per day"
                       hover={hover}
                       onHover={setHover}
                       items={lineRows.map((r) => ({
                         label: shortDate(new Date(r.day + "T00:00:00")),
                         v: lineVal(r),
-                        title: `${shortDate(new Date(r.day + "T00:00:00"))} — ${lineVal(r).toLocaleString("en-US")} ${isViews ? "views" : "engagements"}`,
+                        title: `${shortDate(new Date(r.day + "T00:00:00"))} — ${lineVal(r).toLocaleString("en-US")} views`,
                       }))}
                     />
                     {hoverRow && (
                       <div className="an3-tip" style={{ left: tipLeft }}>
                         <b>{new Date(hoverRow.day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</b>
-                        {isViews ? (
-                          <div><span>Views</span><em>{hoverRow.views!.toLocaleString("en-US")}</em></div>
-                        ) : (
-                          <>
-                            <div><span>Engagement</span><em>{m.engOfRow(hoverRow).toLocaleString("en-US")}</em></div>
-                            {hoverRow.likes != null && <div><span>Likes</span><em>{hoverRow.likes.toLocaleString("en-US")}</em></div>}
-                            {hoverRow.comments != null && <div><span>Comments</span><em>{hoverRow.comments.toLocaleString("en-US")}</em></div>}
-                          </>
-                        )}
+                        <div><span>Views</span><em>{hoverRow.views!.toLocaleString("en-US")}</em></div>
                       </div>
                     )}
+                    <p className="an3-chart-note">
+                      Instagram now serves views as a real per-day series, so this is daily activity.
+                      Today is excluded until the day finishes.
+                    </p>
                   </>
                 ) : (
                   <>
@@ -946,10 +1045,15 @@ export default function PerformanceOverTime({
                       unit={isViews ? "views" : "engagement"}
                       cls={cls}
                       med={med}
+                      viewsMed={m.viewsMedAll}
+                      engMed={m.engMedAll}
+                      engOf={m.engOf}
+                      hover={rankHover}
+                      onHover={setRankHover}
                     />
                     <p className="an3-chart-note">
                       Instagram reports each post&apos;s current total, not the day each {isViews ? "view" : "interaction"} happened —
-                      so SOCIA ranks real posts here. A true daily line appears automatically once enough daily snapshots exist.
+                      so SOCIA ranks real posts here. A true daily line appears automatically if Instagram starts serving one.
                     </p>
                   </>
                 )}
@@ -1012,7 +1116,7 @@ export default function PerformanceOverTime({
             {metric === "followers" && (
               <>
                 <li><span>Net growth (exact)</span><em className="flat">{m.folNet != null ? `${m.folNet >= 0 ? "+" : ""}${m.folNet.toLocaleString("en-US")}` : "recording daily"}</em></li>
-                <li><span>New followers ({m.days}d)</span><em className="flat">{m.gainRows.length ? `+${m.gainsCur.toLocaleString("en-US")}` : "—"}</em></li>
+                <li><span>New followers ({m.gainRows.length} of {m.days}d)</span><em className="flat">{m.gainRows.length ? `+${m.gainsCur.toLocaleString("en-US")}` : "—"}</em></li>
                 <li><span>Best day</span><em className="flat">{m.gainRows.length ? `+${Math.max(...m.gainRows.map((r) => r.followers_gained!))}` : "—"}</em></li>
                 <li><span>Exact snapshot days</span><em className="flat">{fol.length}</em></li>
                 <li><span>Current followers</span><em className="flat">{followers != null ? followers.toLocaleString("en-US") : "—"}</em></li>
@@ -1020,10 +1124,10 @@ export default function PerformanceOverTime({
             )}
             {metric === "reach" && (
               <>
-                <li><span>Accounts reached ({m.days}d)</span><em className="flat">{m.reachRows.length ? fmtNum(m.reachCur) : "—"}</em></li>
+                <li><span>Accounts reached</span><em className="flat">{m.reachRows.length ? fmtNum(m.reachCur) : "—"}</em></li>
                 <li><span>Average per day</span><em className="flat">{m.reachRows.length ? fmtNum(Math.round(m.reachCur / m.reachRows.length)) : "—"}</em></li>
                 <li><span>Best day</span><em className="flat">{m.reachRows.length ? fmtNum(Math.max(...m.reachRows.map((r) => r.reach!))) : "—"}</em></li>
-                <li><span>Days recorded</span><em className="flat">{m.reachRows.length}</em></li>
+                <li><span>Days recorded</span><em className="flat">{m.reachRows.length} of {m.days}</em></li>
               </>
             )}
             {metric === "views" && (
@@ -1062,7 +1166,8 @@ export default function PerformanceOverTime({
 
       <p className="an3-foot">
         <Info size={11} /> Views and engagement are each post&apos;s current total — SOCIA never guesses which day the
-        activity happened. Daily lines come from recorded snapshots. Times shown in your device&apos;s time zone.
+        activity happened, so they are ranked by post rather than drawn on a date axis. Daily lines are only
+        drawn from finished days Instagram reports as a real per-day series. Times shown in your device&apos;s time zone.
       </p>
     </section>
   );

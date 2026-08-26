@@ -197,7 +197,7 @@ export default async function DashboardPage({
   try {
     const { data } = await supabase
       .from("account_snapshots")
-      .select("day, followers, reach, views, followers_gained")
+      .select("day, followers, reach, views, followers_gained, source")
       .eq("user_id", user.id)
       .order("day", { ascending: true })
       .limit(400);
@@ -370,6 +370,7 @@ export default async function DashboardPage({
       reach: d.reach,
       views: d.views,
       posts: dayCounts.get(d.day) ?? 0,
+      source: d.source,
     }));
 
   // --- insight: only when a format genuinely outperforms the baseline ---

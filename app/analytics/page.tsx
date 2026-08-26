@@ -170,11 +170,17 @@ export default async function AnalyticsPage() {
     .filter((m) => m.timestamp)
     .map((m) => ({ t: m.timestamp!, e: engOf(m) }));
 
+  // Daily history. Only columns that carry a genuine per-day meaning are read:
+  // `followers` is SOCIA's own point-in-time observation (valid whenever it is
+  // taken), and `views`/`reach`/`followers_gained` come from Meta's historical
+  // daily series. Account-level likes/comments/saves/shares are deliberately
+  // not read — they were only ever counter reads at sync time, so they are not
+  // a comparable daily series and must never be charted as one.
   let dailyRows: DailyRow[] = [];
   try {
     const full = await supabase
       .from("account_snapshots")
-      .select("day, followers, views, reach, followers_gained, likes, comments, total_interactions, saves, shares")
+      .select("day, followers, views, reach, followers_gained, source")
       .eq("user_id", user.id)
       .order("day", { ascending: true })
       .limit(400);
@@ -194,11 +200,7 @@ export default async function AnalyticsPage() {
         views: null,
         reach: null,
         followers_gained: null,
-        likes: null,
-        comments: null,
-        total_interactions: null,
-        saves: null,
-        shares: null,
+        source: null,
       }));
     }
   } catch {

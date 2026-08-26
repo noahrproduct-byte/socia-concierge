@@ -91,14 +91,14 @@ describe("follower history", () => {
     expect(getFollowerGrowth(base(), 30).status).toBe("UNAVAILABLE");
   });
   it("computes growth from real snapshots", () => {
-    const acct = base({ daily: [{ day: dayStr(45), followers: 12000, reach: null, views: null, followers_gained: null }] });
+    const acct = base({ daily: [{ day: dayStr(45), followers: 12000, reach: null, views: null, followers_gained: null, source: "instagram_api" }] });
     expect(getFollowerGrowth(acct, 30).value).toBe(195);
   });
   it("sums Instagram's daily gains series", () => {
     const acct = base({
       daily: [
-        { day: dayStr(3), followers: null, reach: null, views: null, followers_gained: 4 },
-        { day: dayStr(2), followers: null, reach: null, views: null, followers_gained: 6 },
+        { day: dayStr(3), followers: null, reach: null, views: null, followers_gained: 4, source: "instagram_api" },
+        { day: dayStr(2), followers: null, reach: null, views: null, followers_gained: 6, source: "instagram_api" },
       ],
     });
     expect(getFollowersGained(acct, 30).value).toBe(10);
@@ -109,8 +109,8 @@ describe("reach and competitors", () => {
   it("sums only real daily reach rows", () => {
     const acct = base({
       daily: [
-        { day: dayStr(2), followers: null, reach: 1000, views: null, followers_gained: null },
-        { day: dayStr(1), followers: null, reach: 500, views: null, followers_gained: null },
+        { day: dayStr(2), followers: null, reach: 1000, views: null, followers_gained: null, source: "instagram_api" },
+        { day: dayStr(1), followers: null, reach: 500, views: null, followers_gained: null, source: "instagram_api" },
       ],
     });
     expect(getReach(acct, 30).value).toBe(1500);

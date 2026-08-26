@@ -10040,9 +10040,15 @@ html { scroll-behavior: smooth; }
 .an3-ranked-head b { font-size: 13px; font-weight: 750; color: var(--charcoal); }
 .an3-ranked-head small { font-size: 11px; color: var(--slate); }
 .an3-ranked { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.an3-rank { animation: cp3in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.an3-rank { position: relative; animation: cp3in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .an3-rank a, .an3-rank-inner { display: grid; grid-template-columns: 38px minmax(0, 1.15fr) minmax(0, 1.6fr) 78px; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 11px; text-decoration: none; color: inherit; transition: background 0.15s; }
-.an3-rank a:hover { background: #faf9f7; }
+.an3-rank a:hover, .an3-rank.on a, .an3-rank.on .an3-rank-inner { background: #faf9f7; }
+/* Hover card for a ranked post. Anchored to the row, not to a date — the
+   whole point of this mode is that we don't know which day the activity
+   happened on. */
+.an3-rank-tip { top: calc(100% - 2px); left: 56px; transform: none; min-width: 244px; }
+.an3-rank:nth-last-child(-n + 3) .an3-rank-tip { top: auto; bottom: calc(100% - 2px); }
+@media (max-width: 720px) { .an3-rank-tip { left: 8px; right: 8px; min-width: 0; } }
 .an3-rank-thumb { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; background: #eceae4; }
 .an3-rank-thumb.ph { display: block; }
 .an3-rank-meta { min-width: 0; }

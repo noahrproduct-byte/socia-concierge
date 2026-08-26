@@ -47,50 +47,38 @@ export type IgSnapshot = {
 
 const STALE_MS = 6 * 60 * 60 * 1000; // re-sync after 6 hours
 
-/** Record today's account metrics (one row per day) so history is real
- *  observations, never reconstructed. Only columns Meta actually provided
- *  are written. Best-effort: the table/columns may not exist yet. */
-async function recordSnapshot(
-  supabase: Supa,
-  userId: string,
-  followers: number | null,
-  daily?: Record<string, number>,
-) {
-  if (followers == null && !daily) return;
-  const row: Record<string, unknown> = {
-    user_id: userId,
-    day: new Date().toISOString().slice(0, 10),
-    retrieved_at: new Date().toISOString(),
-  };
-  // An exact follower total observed right now — the highest-quality source.
-  if (followers != null) {
-    row.followers = followers;
-    row.source = "socia_snapshot";
-  }
-  const COLS = [
-    "views",
-    "reach",
-    "profile_views",
-    "accounts_engaged",
-    "total_interactions",
-    "likes",
-    "comments",
-    "saves",
-    "shares",
-  ];
-  for (const c of COLS) if (daily && typeof daily[c] === "number") row[c] = daily[c];
+/** Record today's exact follower total (one row per day) so follower history
+ *  is real observations, never reconstructed.
+ *
+ *  Deliberately narrow. Account-level activity metrics (views, likes,
+ *  comments, saves, shares) are NOT recorded here: `/me/insights` with
+ *  `period=day` returns the value for the day *so far*, so a read taken at
+ *  whatever time a sync happens is not a comparable daily total — charting a
+ *  series of them would invent a trend out of sync timing. A follower count
+ *  is a point-in-time total, which is valid whenever it is read, so that is
+ *  the one thing this writes. True per-day activity comes only from Meta's
+ *  historical daily series (see fetchDailySeries).
+ *
+ *  Best-effort: the table/columns may not exist yet. */
+async function recordSnapshot(supabase: Supa, userId: string, followers: number | null) {
+  if (followers == null) return;
+  const day = new Date().toISOString().slice(0, 10);
   try {
-    const { error } = await supabase
-      .from("account_snapshots")
-      .upsert(row, { onConflict: "user_id,day" });
-    if (error && followers != null) {
+    const { error } = await supabase.from("account_snapshots").upsert(
+      {
+        user_id: userId,
+        day,
+        followers,
+        source: "socia_snapshot",
+        retrieved_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,day" },
+    );
+    if (error) {
       // Extended columns may not exist yet — fall back to the base shape.
       await supabase
         .from("account_snapshots")
-        .upsert(
-          { user_id: userId, day: row.day, followers },
-          { onConflict: "user_id,day" },
-        );
+        .upsert({ user_id: userId, day, followers }, { onConflict: "user_id,day" });
     }
   } catch {
     // history simply starts once the table exists
@@ -288,15 +276,6 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     }),
   );
 
-  // Account-level daily metrics for today's history snapshot.
-  const acct = await fetchInsights(
-    "/me/insights",
-    ["views", "reach", "total_interactions", "likes", "comments", "saves", "shares", "profile_views", "accounts_engaged"],
-    { period: "day", metric_type: "total_value" },
-    conn.access_token,
-  );
-  if (acct.permissionError) permissionError = acct.permissionError;
-
   // Stored with the cached profile so the UI can distinguish "token lacks the
   // insights permission — reconnect" from "metric not provided".
   (fresh.profile as Record<string, unknown>).insights_status = {
@@ -326,13 +305,28 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
 
   // Backfill Meta's own daily series first, then today's exact snapshot, so
   // the observed follower total (socia_snapshot) always wins for today.
+  //
+  // Meta's series is the ONLY source of truth for per-day activity, so each
+  // backfilled day writes every activity column explicitly — a metric Meta
+  // did not return is written as null rather than left alone. That clears
+  // values an earlier build recorded from sync-time counter reads, which were
+  // never comparable daily totals.
   try {
     const series = await fetchDailySeries(conn.access_token, 90);
     if (series.size) {
       const rows = [...series.entries()].map(([day, vals]) => ({
         user_id: userId,
         day,
-        ...vals,
+        views: vals.views ?? null,
+        reach: vals.reach ?? null,
+        followers_gained: vals.followers_gained ?? null,
+        total_interactions: null,
+        likes: null,
+        comments: null,
+        saves: null,
+        shares: null,
+        profile_views: null,
+        accounts_engaged: null,
         source: "instagram_api",
         retrieved_at: now,
       }));
@@ -353,7 +347,7 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     // history simply stays as far back as previous syncs recorded
   }
 
-  await recordSnapshot(supabase, userId, snap.followers_count, acct.values);
+  await recordSnapshot(supabase, userId, snap.followers_count);
 
   return snap;
 }

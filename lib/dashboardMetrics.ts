@@ -45,6 +45,9 @@ export type DailySnapshot = {
   reach: number | null;
   views: number | null;
   followers_gained: number | null;
+  /** `instagram_api` = Meta's finalised daily series. Anything else is a
+   *  point-in-time observation and must not be charted as a daily value. */
+  source: string | null;
 };
 
 export type AccountInput = {

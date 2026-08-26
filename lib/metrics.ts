@@ -87,3 +87,35 @@ export function engagementRate(posts: PostLike[], followers: number | null): num
 
 /** Presentation helper: 4.1× style multiplier formatting. */
 export const fmtMult = (x: number): string => `${x >= 10 ? x.toFixed(0) : x.toFixed(1)}×`;
+
+// ---------------------------------------------------------------------------
+// Daily-series provenance
+//
+// A value may only be drawn as a point on a date axis when it genuinely
+// describes that date. Two things fail that test and are excluded here:
+//
+//  1. Values read off a running counter at sync time. Instagram's
+//     `/me/insights?period=day` returns the metric for the day *so far*, so
+//     the number depends on when a sync happened, not on what the audience
+//     did. A line through those points charts sync timing.
+//  2. Today. The day is still accumulating, so a part-day plotted beside
+//     whole ones reads as a fall that has not happened.
+//
+// Only Meta's historical daily series (returned with since/until, which
+// yields finished days) qualifies, and SOCIA tags those rows at write time.
+// ---------------------------------------------------------------------------
+
+/** Provenance tag for rows written from Meta's historical daily series. */
+export const DAILY_SERIES_SOURCE = "instagram_api";
+
+/** Calendar day in the local time zone. `toISOString().slice(0, 10)` alone
+ *  reports the wrong day for anyone east of UTC. */
+export const localDayStr = (d: Date): string =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+/** True when a snapshot row's activity metrics may be charted as that day's
+ *  value: from Meta's finished daily series, and not the current day. */
+export const isChartableDay = (
+  row: { day: string; source: string | null },
+  today: string,
+): boolean => row.source === DAILY_SERIES_SOURCE && row.day < today;

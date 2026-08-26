@@ -59,7 +59,7 @@ export default async function ReportsPage({
   try {
     const { data } = await supabase
       .from("account_snapshots")
-      .select("day, followers, reach, views, followers_gained")
+      .select("day, followers, reach, views, followers_gained, source")
       .eq("user_id", user.id)
       .order("day", { ascending: true })
       .limit(400);

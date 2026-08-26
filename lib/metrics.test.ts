@@ -8,6 +8,9 @@ import {
   trendDirection,
   engagementRate,
   fmtMult,
+  isChartableDay,
+  localDayStr,
+  DAILY_SERIES_SOURCE,
 } from "./metrics";
 
 describe("median", () => {
@@ -139,5 +142,31 @@ describe("hourHistogram", () => {
     const { values, hot } = hourHistogram([{ t: d.toISOString(), e: 50 }]);
     expect(values).toHaveLength(12);
     expect(hot).toBe(Math.floor(d.getHours() / 2));
+  });
+});
+
+describe("daily-series provenance", () => {
+  const today = "2026-08-25";
+  const meta = (day: string) => ({ day, source: DAILY_SERIES_SOURCE });
+
+  it("charts a finished day from Meta's daily series", () => {
+    expect(isChartableDay(meta("2026-08-24"), today)).toBe(true);
+  });
+
+  it("refuses today, which is still accumulating", () => {
+    expect(isChartableDay(meta(today), today)).toBe(false);
+  });
+
+  it("refuses a counter read taken at sync time", () => {
+    expect(isChartableDay({ day: "2026-08-24", source: "socia_snapshot" }, today)).toBe(false);
+  });
+
+  it("refuses a row with no recorded provenance", () => {
+    expect(isChartableDay({ day: "2026-08-24", source: null }, today)).toBe(false);
+  });
+
+  it("reports the local calendar day, not the UTC one", () => {
+    const d = new Date(2026, 7, 25, 23, 30); // 11:30pm local, whatever the zone
+    expect(localDayStr(d)).toBe("2026-08-25");
   });
 });
