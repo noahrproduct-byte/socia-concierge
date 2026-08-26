@@ -81,6 +81,24 @@ export async function GET() {
   );
   const me = await meRes.json().catch(() => null);
 
+  // ---- raw media list: exactly what Instagram says the account published.
+  // media_product_type distinguishes FEED / REELS / STORY; the media edge
+  // itself omits stories and collab posts authored by the partner account,
+  // which is the usual cause of "SOCIA missed my post". ----
+  const mediaRes = await fetch(
+    `${BASE}/me/media?fields=id,timestamp,media_type,media_product_type,caption,permalink&limit=10&access_token=${encodeURIComponent(token)}`,
+    { signal: AbortSignal.timeout(10000) },
+  );
+  const mediaJson = await mediaRes.json().catch(() => null);
+  const recent_media =
+    mediaJson?.data?.map((m: Record<string, unknown>) => ({
+      timestamp: m.timestamp ?? null,
+      media_type: m.media_type ?? null,
+      media_product_type: m.media_product_type ?? null,
+      caption: typeof m.caption === "string" ? m.caption.split("\n")[0].slice(0, 60) : null,
+      permalink: m.permalink ?? null,
+    })) ?? null;
+
   // ---- account-level insights, one metric at a time ----
   const accountMetrics = [
     "views",
@@ -122,6 +140,8 @@ export async function GET() {
 
   return NextResponse.json({
     api_version: V,
+    recent_media,
+    recent_media_error: mediaJson?.error?.message ?? null,
     account_info: {
       username: me?.username ?? null,
       ig_user_id: me?.id ?? null,

@@ -133,11 +133,11 @@ function deltaOf(cur: number, prev: number | null): DeltaVal {
   return { kind: "pct", pct: pctChange(cur, prev)! };
 }
 
-function Delta({ d, note }: { d: DeltaVal; note: string }) {
+function Delta({ d, note, tip }: { d: DeltaVal; note: string; tip?: string }) {
   const cls = d == null ? "flat" : d.kind === "new" ? "up" : Math.abs(d.pct) < 2 ? "flat" : d.pct > 0 ? "up" : "down";
   return (
     <span className="an3-delta-wrap">
-      <em className={`an3-delta ${cls}`}>
+      <em className={`an3-delta ${cls}`} title={d != null ? tip : undefined}>
         {d == null ? "–" : d.kind === "new" ? "up from 0" : `${d.pct > 0 ? "↑" : d.pct < 0 ? "↓" : ""} ${Math.abs(d.pct).toFixed(1)}%`}
       </em>
       <small>{note}</small>
@@ -549,8 +549,9 @@ export default function PerformanceOverTime({
   const mode = m.modes[metric];
   const chartType: ChartType = typeBy[metric] ?? (metric === "posts" ? "bar" : "line");
   const setChartType = (t: ChartType) => setTypeBy((prev) => ({ ...prev, [metric]: t }));
-  const postsNote = `on posts published this period`;
+  const postsNote = `on posts from the last ${m.days} days`;
   const prevNote = `vs posts published previous ${m.days} days`;
+  const vsPrev = `vs previous ${m.days} days`;
   const pick = (id: Metric) => { setMetric(id); setHover(null); setRankHover(null); };
   const empty = m.cur.length === 0;
   // The line/bar toggle only appears where a real time series is drawn.
@@ -596,9 +597,10 @@ export default function PerformanceOverTime({
 
   const kpis: {
     id: Metric; label: string; color: string; Ico: typeof Users;
-    value: string | null; naText?: string; d: DeltaVal; note: string;
-    /** Absolute new followers, shown when no percentage change is measurable yet. */
+    value: string | null; naText?: string; d: DeltaVal; note: string; tip?: string;
+    /** Absolute change, shown when a percentage isn't the right shape. */
     gain?: number | null;
+    gainTip?: string;
     spark?: { data: number[]; color: string };
   }[] = [
     {
@@ -610,8 +612,9 @@ export default function PerformanceOverTime({
       // hide data SOCIA actually has.
       d: m.folDelta,
       gain: m.folDelta == null && m.gainRows.length ? m.gainsCur : null,
+      tip: vsPrev,
       note: m.folDelta
-        ? `vs previous ${m.days} days`
+        ? `total followers today`
         : m.gainRows.length
           ? `new followers · last ${m.days} days`
           : m.firstSnapDay
@@ -624,8 +627,9 @@ export default function PerformanceOverTime({
       value: m.reachRows.length ? fmtNum(m.reachCur) : null,
       naText: "daily reach history is building",
       d: m.reachDelta,
+      tip: vsPrev,
       note: m.reachDelta
-        ? `accounts reached · vs previous ${m.days} days`
+        ? `accounts reached · last ${m.days} days`
         : `accounts reached · ${m.coverage(m.reachRows.length)}`,
       spark: { data: m.reachRows.map((r) => r.reach!), color: "#0d9488" },
     },
@@ -633,7 +637,7 @@ export default function PerformanceOverTime({
       id: "views", label: "Views", color: "green", Ico: Play,
       value: m.viewsAvail ? fmtNum(m.viewsCur) : null,
       naText: "Not provided by the connected account",
-      d: m.viewsDelta, note: m.viewsDelta ? `${postsNote} · ${prevNote}` : postsNote,
+      d: m.viewsDelta, note: postsNote, tip: prevNote,
       // No sparkline: a spark is a time-series affordance, and per-post totals
       // are exactly what SOCIA refuses to plot against time.
       spark: m.viewsRows.length ? { data: m.viewsRows.map((r) => r.views!), color: "#10b981" } : undefined,
@@ -641,7 +645,7 @@ export default function PerformanceOverTime({
     {
       id: "eng", label: "Engagement", color: "purple", Ico: Activity,
       value: fmtNum(m.engCur),
-      d: m.engDelta, note: m.engDelta ? `${postsNote} · ${prevNote}` : postsNote,
+      d: m.engDelta, note: postsNote, tip: prevNote,
     },
     {
       id: "posts", label: "Posts", color: "amber", Ico: FileText,
@@ -649,7 +653,8 @@ export default function PerformanceOverTime({
       // Publish dates are exact, so a change in cadence is measurable whenever
       // the account's history covers the previous window.
       gain: m.postsDeltaAbs,
-      note: m.postsDeltaAbs != null ? `vs previous ${m.days} days` : "published this period",
+      gainTip: vsPrev,
+      note: `published in the last ${m.days} days`,
       spark: { data: m.buckets.map((b) => b.posts.length), color: "#f5b04c" },
     },
   ];
@@ -697,7 +702,7 @@ export default function PerformanceOverTime({
       </div>
 
       <div className="an3-kpis">
-        {kpis.map(({ id, label, color, Ico, value, naText, d, note, gain, spark }) => (
+        {kpis.map(({ id, label, color, Ico, value, naText, d, note, tip, gain, gainTip, spark }) => (
           <button
             key={id}
             type="button"
@@ -712,13 +717,13 @@ export default function PerformanceOverTime({
                 <b>{value}</b>
                 {gain != null ? (
                   <span className="an3-delta-wrap">
-                    <em className={`an3-delta ${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}`}>
+                    <em className={`an3-delta ${gain > 0 ? "up" : gain < 0 ? "down" : "flat"}`} title={gainTip}>
                       {gain >= 0 ? "+" : ""}{gain.toLocaleString("en-US")}
                     </em>
                     <small>{note}</small>
                   </span>
                 ) : (
-                  <Delta d={d} note={note} />
+                  <Delta d={d} note={note} tip={tip} />
                 )}
                 {spark && <Spark data={spark.data} color={spark.color} />}
               </>
