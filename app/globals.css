@@ -10047,7 +10047,9 @@ html { scroll-behavior: smooth; }
    whole point of this mode is that we don't know which day the activity
    happened on. */
 .an3-rank-tip { top: calc(100% - 2px); left: 56px; transform: none; min-width: 244px; }
-.an3-rank:nth-last-child(-n + 3) .an3-rank-tip { top: auto; bottom: calc(100% - 2px); }
+/* Flip upward only for the last rows of a long list. On a short list there is
+   nothing below to collide with, and flipping would cover the heading. */
+.an3-rank:nth-child(n + 5):nth-last-child(-n + 3) .an3-rank-tip { top: auto; bottom: calc(100% - 2px); }
 @media (max-width: 720px) { .an3-rank-tip { left: 8px; right: 8px; min-width: 0; } }
 .an3-rank-thumb { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; background: #eceae4; }
 .an3-rank-thumb.ph { display: block; }
