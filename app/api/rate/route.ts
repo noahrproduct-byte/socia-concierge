@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createClient } from "@/lib/supabase/server";
 import { BENCHMARKS, BENCHMARK_VERSION } from "@/lib/benchmarks";
 
 const anthropic = new Anthropic({
@@ -106,6 +107,13 @@ function extractJSON(text: string): unknown {
 }
 
 export async function POST(req: NextRequest) {
+  // Signed-in users only — this endpoint spends real API credits.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
   try {
     const body = (await req.json()) as RateBody;
 
