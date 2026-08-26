@@ -762,7 +762,16 @@ export default function PerformanceOverTime({
             <>
               <div className="an3-hero">
                 <div><b>{followers != null ? followers.toLocaleString("en-US") : "–"}</b><small>Total followers</small></div>
-                {m.folNet != null && <div><b>{m.folNet >= 0 ? "+" : ""}{m.folNet.toLocaleString("en-US")}</b><small>Net change</small></div>}
+                {m.folNet != null && (
+                  <div>
+                    <b>{m.folNet >= 0 ? "+" : ""}{m.folNet.toLocaleString("en-US")}</b>
+                    {/* Net change spans the snapshots SOCIA holds, which is
+                        usually less than the window. Saying so stops it
+                        reading as a contradiction of Instagram's 30-day
+                        gains figure in the KPI above. */}
+                    <small>Net change · {m.coverage(fol.length)}</small>
+                  </div>
+                )}
                 {m.folDelta?.kind === "pct" && (
                   <div><b className={m.folDelta.pct >= 0 ? "up" : "down"}>{m.folDelta.pct >= 0 ? "↑" : "↓"} {Math.abs(m.folDelta.pct).toFixed(1)}%</b><small>vs previous {m.days} days</small></div>
                 )}
