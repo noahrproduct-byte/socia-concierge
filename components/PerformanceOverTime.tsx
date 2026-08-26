@@ -634,13 +634,14 @@ export default function PerformanceOverTime({
       value: m.viewsAvail ? fmtNum(m.viewsCur) : null,
       naText: "Not provided by the connected account",
       d: m.viewsDelta, note: m.viewsDelta ? `${postsNote} · ${prevNote}` : postsNote,
-      spark: { data: m.cur.map((p) => p.views ?? 0).reverse(), color: "#10b981" },
+      // No sparkline: a spark is a time-series affordance, and per-post totals
+      // are exactly what SOCIA refuses to plot against time.
+      spark: m.viewsRows.length ? { data: m.viewsRows.map((r) => r.views!), color: "#10b981" } : undefined,
     },
     {
       id: "eng", label: "Engagement", color: "purple", Ico: Activity,
       value: fmtNum(m.engCur),
       d: m.engDelta, note: m.engDelta ? `${postsNote} · ${prevNote}` : postsNote,
-      spark: { data: m.cur.map(m.engOf).reverse(), color: "#8b5cf6" },
     },
     {
       id: "posts", label: "Posts", color: "amber", Ico: FileText,
@@ -939,7 +940,8 @@ export default function PerformanceOverTime({
           /* ---------- VIEWS / ENGAGEMENT ---------- */
           (() => {
             const isViews = metric === "views";
-            if (isViews && !m.viewsAvail) {
+            const isDaily = mode === "daily_history";
+            if (isViews && !isDaily && !m.viewsAvail) {
               return (
                 <div className="an3-unavailable">
                   {insightsOk === false ? (
@@ -956,7 +958,9 @@ export default function PerformanceOverTime({
                 </div>
               );
             }
-            if (empty) return <p className="an3-empty">No posts in this period — pick a longer range or keep posting.</p>;
+            if (!isDaily && empty) {
+              return <p className="an3-empty">No posts in this period — pick a longer range or keep posting.</p>;
+            }
 
             const cls = isViews ? "green" : "purple";
             const med = isViews ? m.viewsMedAll : m.engMedAll;
@@ -964,7 +968,6 @@ export default function PerformanceOverTime({
             // it — the daily series — not the per-post totals, or the panel
             // states two different numbers under one word.
             const dailyTotal = m.viewsRows.reduce((a, r) => a + (r.views ?? 0), 0);
-            const isDaily = mode === "daily_history";
             const total = isDaily ? dailyTotal : isViews ? m.viewsCur : m.engCur;
             const delta = isDaily ? null : isViews ? m.viewsDelta : m.engDelta;
 
