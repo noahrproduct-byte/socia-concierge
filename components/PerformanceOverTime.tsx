@@ -645,7 +645,11 @@ export default function PerformanceOverTime({
     },
     {
       id: "posts", label: "Posts", color: "amber", Ico: FileText,
-      value: String(m.cur.length), d: null, note: "published this period",
+      value: String(m.cur.length), d: null,
+      // Publish dates are exact, so a change in cadence is measurable whenever
+      // the account's history covers the previous window.
+      gain: m.postsDeltaAbs,
+      note: m.postsDeltaAbs != null ? `vs previous ${m.days} days` : "published this period",
       spark: { data: m.buckets.map((b) => b.posts.length), color: "#f5b04c" },
     },
   ];
