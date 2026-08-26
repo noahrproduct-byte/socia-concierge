@@ -878,7 +878,7 @@ export default function PerformanceOverTime({
                 <div><b>{m.cur.length}</b><small>Posts published</small></div>
                 <div><b>{m.freq.toFixed(1)}</b><small>Posts / week</small></div>
                 {m.topFmt && <div><b>{FMT_LABEL[m.topFmt] ?? m.topFmt}</b><small>Most-used format</small></div>}
-                {qualityChip("Real publish dates", "Publish timestamps are exact, so this is a true time series.")}
+                {qualityChip("Real publish dates", "Publish timestamps are exact, so this is a true time series. Counted from Instagram's own media list, which leaves out stories and collab posts published by a partner account.")}
               </div>
               <TimeSeries
                 type={chartType}
@@ -1188,7 +1188,9 @@ export default function PerformanceOverTime({
       <p className="an3-foot">
         <Info size={11} /> Views and engagement are each post&apos;s current total — SOCIA never guesses which day the
         activity happened, so they are ranked by post rather than drawn on a date axis. Daily lines are only
-        drawn from finished days Instagram reports as a real per-day series. Times shown in your device&apos;s time zone.
+        drawn from finished days Instagram reports as a real per-day series. Instagram&apos;s data leaves out
+        stories and collab posts published by a partner account, so post counts can differ from your profile
+        grid. Times shown in your device&apos;s time zone.
       </p>
     </section>
   );

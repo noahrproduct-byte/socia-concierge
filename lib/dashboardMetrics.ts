@@ -125,7 +125,7 @@ export function getPostsPublished(a: AccountInput, days: number): Metric {
     n,
     "CALCULATED",
     "Instagram API: me/media timestamps",
-    `count of synced posts with timestamp inside the last ${days} days`,
+    `count of synced posts with timestamp inside the last ${days} days; Instagram's media list omits stories and collab posts published by a partner account`,
     `last ${days} days`,
     a.posts.length,
   );
