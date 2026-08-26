@@ -116,12 +116,15 @@ export default async function CompetitorsPage({
   const reelViews = median(reels.filter((p) => p.insights?.views != null).map((p) => p.insights!.views!));
   const reelEng = median(reels.map(engagementOf));
   const freq = N ? (N / days) * 7 : 0;
-  const rate = engagementRate(posts.length ? posts : all, followers);
+  // Same definition as Analytics/Dashboard (all synced posts), so the same
+  // label can't show a different number per page. A 2-post window average
+  // dominated by one outlier is real math but a misleading "rate".
+  const rate = engagementRate(all, followers);
 
   type Row = { label: string; you: string; tip?: string };
   const compareRows: Row[] = [
     { label: "Followers", you: followers != null ? fmtNum(followers) : "—" },
-    { label: "Engagement rate", you: rate != null ? `${rate.toFixed(1)}%` : "—", tip: "avg(likes+comments)/post ÷ followers × 100" },
+    { label: "Engagement rate", you: rate != null ? `${rate.toFixed(1)}%` : "—", tip: `avg(likes+comments)/post ÷ followers × 100, across your last ${all.length} synced posts` },
     { label: "Posting frequency", you: `${freq.toFixed(1)} / week` },
     { label: "Median engagement", you: medEng != null ? fmtNum(Math.round(medEng)) : "—" },
     { label: "Median views", you: medViews != null ? fmtNum(Math.round(medViews)) : "—" },
@@ -208,8 +211,12 @@ export default async function CompetitorsPage({
     });
   }
   if (recs.length < 3 && gapsList.length) {
-    const g = gapsList.find((x) => !recs.some((r) => r.title.toLowerCase().includes(x.title.toLowerCase()))) ?? gapsList[0];
-    if (g && !recs.some((r) => r.title === g.title)) {
+    // Only a gap that isn't already covered by another recommendation —
+    // fewer than three honest recommendations beats a repeated one.
+    const g = gapsList.find(
+      (x) => !recs.some((r) => r.title.toLowerCase().includes(x.title.toLowerCase())),
+    );
+    if (g) {
       recs.push({ chip: "CONSISTENCY", tone: "con", title: g.title, body: g.body, cta: "Get specific ideas", href: "/chat" });
     }
   }
