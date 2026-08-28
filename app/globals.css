@@ -10380,6 +10380,9 @@ html { scroll-behavior: smooth; }
 .cp4-you { font-weight: 750; font-variant-numeric: tabular-nums; }
 .cp4-na { color: #b8b2a7; }
 .cp4-pos { font-size: 11px; font-weight: 650; color: var(--slate); background: #f4f2ec; border-radius: 99px; padding: 3px 9px; }
+.cp4-pos.up { color: #157f3d; background: #e8f5ec; }
+.cp4-pos.mid { color: #1d4ed8; background: #e9effd; }
+.cp4-pos.down { color: #b42318; background: #fdeceb; }
 .cp4-yourow td { background: #fbfcff; }
 .cp4-brow { cursor: pointer; transition: background .12s; }
 .cp4-brow:hover td { background: #faf9f7; }

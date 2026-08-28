@@ -30,6 +30,13 @@ import {
   localDayStr,
 } from "@/lib/metrics";
 import type { NicheIntel, PulseRow } from "@/lib/schema";
+import {
+  benchmarkFor,
+  engagementPosition,
+  frequencyPosition,
+  BENCHMARK_ATTRIBUTION,
+  type Position,
+} from "@/lib/nicheBenchmark";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
@@ -131,6 +138,13 @@ export default async function CompetitorsPage({
     { label: "Reel performance", you: reelViews != null ? `${fmtNum(Math.round(reelViews))} views` : reelEng != null ? `${fmtNum(Math.round(reelEng))} eng.` : "—" },
     { label: "Growth (followers)", you: growth ? growth.text : "—", tip: growth?.note },
   ];
+
+  // Position verdicts where a published tier benchmark exists. Rows without one
+  // keep "No verified data" — the empty-over-invented rule above still applies.
+  const positions: Record<string, Position> = {
+    "Engagement rate": engagementPosition(rate, followers),
+    "Posting frequency": frequencyPosition(N ? freq : null),
+  };
 
   // ---- patterns from niche web research (labeled AI-estimated) -----------
   let niche: string | null = null;
@@ -272,25 +286,36 @@ export default async function CompetitorsPage({
           <div className="cp4-tablewrap">
             <table className="cp4-table">
               <thead>
-                <tr><th>Metric</th><th>You{snap?.username ? ` · @${snap.username}` : ""}</th><th>Niche average</th><th>Top competitor</th><th>Position</th></tr>
+                <tr><th>Metric</th><th>You{snap?.username ? ` · @${snap.username}` : ""}</th><th>Tier benchmark</th><th>Top competitor</th><th>Position</th></tr>
               </thead>
               <tbody>
-                {compareRows.map((r) => (
-                  <tr key={r.label}>
-                    <td>{r.label}</td>
-                    <td className="cp4-you" title={r.tip}>{r.you}</td>
-                    <td className="cp4-na">—</td>
-                    <td className="cp4-na">—</td>
-                    <td><span className="cp4-pos">No verified data</span></td>
-                  </tr>
-                ))}
+                {compareRows.map((r) => {
+                  const bench = benchmarkFor(r.label, followers);
+                  const pos = positions[r.label];
+                  return (
+                    <tr key={r.label}>
+                      <td>{r.label}</td>
+                      <td className="cp4-you" title={r.tip}>{r.you}</td>
+                      <td className={bench ? undefined : "cp4-na"} title={bench?.note}>
+                        {bench ? bench.value : "—"}
+                      </td>
+                      <td className="cp4-na">—</td>
+                      <td>
+                        {pos && pos.tone !== "none" ? (
+                          <span className={`cp4-pos ${pos.tone}`} title={pos.detail}>{pos.text}</span>
+                        ) : (
+                          <span className="cp4-pos">No verified data</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <p className="cp4-note">
-            <Info size={11} /> Instagram&apos;s API doesn&apos;t expose other accounts&apos; metrics, and no
-            verifiable niche average exists — so SOCIA leaves those columns empty rather than estimating.
-            They fill in automatically if platforms open public data.
+            <Info size={11} /> {BENCHMARK_ATTRIBUTION} Top-competitor stays empty rather than
+            estimated, and fills in automatically if platforms ever open public data.
           </p>
         </section>
 
