@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 
 const MAX_TRACKED = 10;
 const HANDLE_RE = /^[a-zA-Z0-9._]{1,30}$/;
+// YouTube handles/ids allow hyphens and are longer than Instagram's.
+const YT_HANDLE_RE = /^[a-zA-Z0-9._-]{1,60}$/;
 
 export async function GET() {
   const supabase = await createClient();
@@ -38,8 +40,12 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => null)) as { handle?: string; platform?: string } | null;
   const handle = (body?.handle ?? "").trim().replace(/^@/, "");
-  const platform = body?.platform === "facebook" ? "facebook" : "instagram";
-  if (!HANDLE_RE.test(handle)) {
+  const platform =
+    body?.platform === "facebook" ? "facebook"
+    : body?.platform === "youtube" ? "youtube"
+    : "instagram";
+  const valid = platform === "youtube" ? YT_HANDLE_RE.test(handle) : HANDLE_RE.test(handle);
+  if (!valid) {
     return NextResponse.json({ error: "That doesn't look like a valid handle." }, { status: 400 });
   }
 
@@ -73,7 +79,10 @@ export async function DELETE(req: Request) {
     .from("tracked_competitors")
     .delete()
     .eq("user_id", user.id)
-    .eq("platform", body?.platform === "facebook" ? "facebook" : "instagram")
+    .eq(
+      "platform",
+      body?.platform === "facebook" ? "facebook" : body?.platform === "youtube" ? "youtube" : "instagram",
+    )
     .eq("handle", handle);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

@@ -17,6 +17,7 @@ import {
   ManageCompetitors,
   WinningNow,
   BreakdownRows,
+  YouTubeCompetitors,
   type Tracked,
 } from "@/components/CompetitorIntel";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
@@ -235,6 +236,9 @@ export default async function CompetitorsPage({
     }
   }
 
+  const igTracked = tracked.filter((t) => t.platform !== "youtube");
+  const ytTracked = tracked.filter((t) => t.platform === "youtube");
+
   const youStrip = {
     username: snap?.username ?? null,
     avatar: snap?.profile_picture_url ?? null,
@@ -274,7 +278,7 @@ export default async function CompetitorsPage({
             <h2>Who you&apos;re competing against</h2>
             <small>Your live numbers vs the accounts you track. Platforms don&apos;t expose other accounts&apos; stats, so theirs show &ldquo;—&rdquo; — never a guess.</small>
           </div>
-          <CompetitorStrip you={youStrip} tracked={tracked} />
+          <CompetitorStrip you={youStrip} tracked={igTracked} />
         </section>
 
         {/* 3 — how you compare */}
@@ -413,13 +417,22 @@ export default async function CompetitorsPage({
                   <td>{reels.length && medEng != null && (median(reels.map(engagementOf)) ?? 0) >= medEng ? "Reels" : posts.length ? "Mixed" : "—"}</td>
                   <td></td>
                 </tr>
-                <BreakdownRows tracked={tracked} />
+                <BreakdownRows tracked={igTracked} />
               </tbody>
             </table>
           </div>
-          {tracked.length === 0 && (
+          {igTracked.length === 0 && (
             <p className="cp4-empty">Track competitors with the button above — SOCIA links their public profiles and flags them in niche research.</p>
           )}
+        </section>
+
+        {/* 7b — YouTube: the one platform with real public competitor stats */}
+        <section className="cp4-sec db2-rise" style={{ animationDelay: "390ms" }}>
+          <div className="cp4-sec-head">
+            <h2>YouTube competitors</h2>
+            <small>Real public statistics from YouTube&apos;s official API</small>
+          </div>
+          <YouTubeCompetitors hasTracked={ytTracked.length > 0} />
         </section>
 
         {/* 8 — recommendations */}

@@ -34,7 +34,9 @@ export type Tracked = { platform: string; handle: string; added_at: string };
 const profileUrl = (c: Tracked) =>
   c.platform === "facebook"
     ? `https://facebook.com/${c.handle}`
-    : `https://instagram.com/${c.handle}`;
+    : c.platform === "youtube"
+      ? `https://youtube.com/@${c.handle}`
+      : `https://instagram.com/${c.handle}`;
 
 function ago(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -53,6 +55,7 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<Tracked[]>(initial);
   const [handle, setHandle] = useState("");
+  const [platform, setPlatform] = useState<"instagram" | "youtube">("instagram");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -65,7 +68,7 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
       const res = await fetch("/api/competitors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle: h, platform: "instagram" }),
+        body: JSON.stringify({ handle: h, platform }),
       });
       const j = await res.json();
       if (!res.ok) {
@@ -73,16 +76,16 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
         return;
       }
       setList((xs) =>
-        xs.some((x) => x.handle === h.toLowerCase())
+        xs.some((x) => x.handle === h.toLowerCase() && x.platform === platform)
           ? xs
-          : [...xs, { platform: "instagram", handle: h.toLowerCase(), added_at: new Date().toISOString() }],
+          : [...xs, { platform, handle: h.toLowerCase(), added_at: new Date().toISOString() }],
       );
       setHandle("");
       router.refresh();
     } finally {
       setBusy(false);
     }
-  }, [handle, busy, router]);
+  }, [handle, busy, router, platform]);
 
   const remove = useCallback(
     async (c: Tracked) => {
@@ -112,9 +115,17 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
                 <X size={15} />
               </button>
             </div>
+            <div className="cp4-platpick" role="group" aria-label="Platform">
+              {(["instagram", "youtube"] as const).map((p) => (
+                <button key={p} type="button" className={platform === p ? "on" : ""} onClick={() => setPlatform(p)}>
+                  {p === "instagram" ? "Instagram" : "YouTube"}
+                </button>
+              ))}
+            </div>
             <p className="cp4-modal-sub">
-              Add the Instagram accounts you compete with. SOCIA links to their public profiles and
-              flags their content when it shows up in niche research — it never invents their stats.
+              {platform === "instagram"
+                ? "Instagram publishes no analytics for accounts you don't own, so SOCIA links their public profile and flags their posts in niche research — it never invents their stats."
+                : "YouTube publishes real statistics for any channel, so SOCIA shows their actual subscribers, views, upload cadence and engagement. Paste a @handle, channel URL, or channel ID."}
             </p>
             <div className="cp4-add">
               <span className="cp4-at"><AtSign size={13} /></span>
@@ -122,7 +133,7 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
                 value={handle}
                 onChange={(e) => setHandle(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && add()}
-                placeholder="competitor handle"
+                placeholder={platform === "youtube" ? "@channel, URL, or channel ID" : "competitor handle"}
                 aria-label="Competitor handle"
               />
               <button type="button" className="btn-primary" onClick={add} disabled={busy || !handle.trim()}>
@@ -136,7 +147,7 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
                   <span className="cp4-mavatar">{c.handle[0]?.toUpperCase()}</span>
                   <span className="cp4-mmeta">
                     <b>@{c.handle}</b>
-                    <small>Instagram · tracking since {new Date(c.added_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</small>
+                    <small>{c.platform === "youtube" ? "YouTube" : c.platform === "facebook" ? "Facebook" : "Instagram"} · tracking since {new Date(c.added_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</small>
                   </span>
                   <a href={profileUrl(c)} target="_blank" rel="noreferrer" className="cp4-mopen" aria-label={`Open @${c.handle} on Instagram`}>
                     <ExternalLink size={13} />
@@ -440,6 +451,161 @@ export function BreakdownRows({ tracked }: { tracked: Tracked[] }) {
         </tr>
       ))}
       {detail && <CompetitorDrawer c={detail} onClose={() => setDetail(null)} />}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* YouTube competitors — REAL public stats from YouTube's official API */
+/* ------------------------------------------------------------------ */
+
+type YtRow = {
+  handle: string;
+  found: boolean;
+  title?: string;
+  avatar?: string | null;
+  url?: string;
+  subscribers?: number | null;
+  lifetimeViews?: number | null;
+  videoCount?: number | null;
+  uploadsPerWeek?: number | null;
+  engagementRate?: number | null;
+  medianViews?: number | null;
+  topVideos?: { videoId: string; title: string; url: string; views: number | null; likes: number | null; publishedAt: string }[];
+};
+
+const fmtN = (n: number | null | undefined): string =>
+  n == null ? "—"
+  : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"
+  : n >= 1e4 ? Math.round(n / 1e3) + "K"
+  : n.toLocaleString("en-US");
+
+export function YouTubeCompetitors({ hasTracked }: { hasTracked: boolean }) {
+  const [rows, setRows] = useState<YtRow[] | null>(null);
+  const [configured, setConfigured] = useState(true);
+  const [open, setOpen] = useState<YtRow | null>(null);
+
+  useEffect(() => {
+    if (!hasTracked) {
+      setRows([]);
+      return;
+    }
+    let alive = true;
+    fetch("/api/competitors/youtube")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!alive || !j) return;
+        setConfigured(j.configured !== false);
+        setRows(j.channels ?? []);
+      })
+      .catch(() => alive && setRows([]));
+    return () => {
+      alive = false;
+    };
+  }, [hasTracked]);
+
+  if (!hasTracked) {
+    return (
+      <p className="cp4-empty">
+        Track a YouTube channel with Manage competitors — YouTube publishes real statistics, so these
+        columns fill with its actual subscribers, views, cadence and engagement.
+      </p>
+    );
+  }
+  if (rows == null) return <div className="cp4-yt-skel" />;
+  if (!configured) {
+    return <p className="cp4-empty">YouTube isn&apos;t configured on the server yet (missing API key).</p>;
+  }
+
+  return (
+    <>
+      <div className="cp4-tablewrap">
+        <table className="cp4-table">
+          <thead>
+            <tr>
+              <th>Channel</th><th>Subscribers</th><th>Lifetime views</th>
+              <th>Median views</th><th>Uploads / week</th><th>Eng. rate</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) =>
+              r.found ? (
+                <tr key={r.handle} className="cp4-brow" onClick={() => setOpen(r)} tabIndex={0}
+                    onKeyDown={(e) => e.key === "Enter" && setOpen(r)}>
+                  <td>
+                    {r.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="cp4-face sm" src={r.avatar} alt="" width={26} height={26} />
+                    ) : <span className="cp4-face ph sm">{r.handle[0]?.toUpperCase()}</span>}
+                    <b>{r.title || `@${r.handle}`}</b>
+                  </td>
+                  <td className="cp4-real">{fmtN(r.subscribers)}</td>
+                  <td className="cp4-real">{fmtN(r.lifetimeViews)}</td>
+                  <td className="cp4-real">{fmtN(r.medianViews)}</td>
+                  <td className="cp4-real">{r.uploadsPerWeek != null ? r.uploadsPerWeek.toFixed(1) : "—"}</td>
+                  <td className="cp4-real">{r.engagementRate != null ? `${r.engagementRate.toFixed(1)}%` : "—"}</td>
+                  <td><span className="cp4-open-hint">Details</span></td>
+                </tr>
+              ) : (
+                <tr key={r.handle}>
+                  <td><span className="cp4-face ph sm">?</span><b>@{r.handle}</b></td>
+                  <td colSpan={6} className="cp4-na">Channel not found on YouTube</td>
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="cp4-note">
+        <Info size={11} /> Real public data from YouTube&apos;s official API — the same numbers any
+        visitor sees. Engagement rate is the median of (likes + comments) ÷ views across recent
+        uploads. A hidden subscriber count shows &ldquo;—&rdquo;, never a guess.
+      </p>
+      {open && (
+        <div className="cp4-modal-wrap" role="dialog" aria-modal="true" aria-label={`${open.title} details`}>
+          <div className="cp4-scrim" onClick={() => setOpen(null)} />
+          <aside className="cp4-drawer">
+            <div className="cp4-modal-head">
+              {open.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="cp4-face big" src={open.avatar} alt="" width={46} height={46} />
+              ) : <span className="cp4-face ph big">{open.handle[0]?.toUpperCase()}</span>}
+              <div className="cp4-drawer-id">
+                <h3>{open.title}</h3>
+                <small>YouTube · {fmtN(open.videoCount)} videos published</small>
+              </div>
+              <button type="button" className="cp4-x" onClick={() => setOpen(null)} aria-label="Close"><X size={15} /></button>
+            </div>
+            <a className="cp4-drawer-visit" href={open.url} target="_blank" rel="noreferrer">
+              View channel on YouTube <ExternalLink size={13} />
+            </a>
+            <div className="cp4-drawer-sec">
+              <h4>Public metrics</h4>
+              <ul className="cp4-drawer-metrics">
+                <li><span>Subscribers</span><b className="real">{fmtN(open.subscribers)}</b></li>
+                <li><span>Lifetime views</span><b className="real">{fmtN(open.lifetimeViews)}</b></li>
+                <li><span>Videos published</span><b className="real">{fmtN(open.videoCount)}</b></li>
+                <li><span>Uploads / week</span><b className="real">{open.uploadsPerWeek != null ? open.uploadsPerWeek.toFixed(1) : "—"}</b></li>
+                <li><span>Median views (recent)</span><b className="real">{fmtN(open.medianViews)}</b></li>
+                <li><span>Engagement rate</span><b className="real">{open.engagementRate != null ? `${open.engagementRate.toFixed(1)}%` : "—"}</b></li>
+              </ul>
+            </div>
+            {open.topVideos && open.topVideos.length > 0 && (
+              <div className="cp4-drawer-sec">
+                <h4>Top recent uploads</h4>
+                <ul className="cp4-drawer-found">
+                  {open.topVideos.map((v) => (
+                    <li key={v.videoId}>
+                      <a href={v.url} target="_blank" rel="noreferrer">{v.title} <ExternalLink size={11} /></a>
+                      <small>{fmtN(v.views)} views · {fmtN(v.likes)} likes · {new Date(v.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</small>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
     </>
   );
 }
