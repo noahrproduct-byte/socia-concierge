@@ -33,6 +33,8 @@ export type DiscoverDoc = {
   youtube: YtStats[];
   instagram: IgSuggestion[];
   found_at: string;
+  /** Why the Instagram list is empty, when it is. Never shown as data. */
+  ig_hint?: string;
 };
 
 function parseJsonArray(text: string): unknown[] {
@@ -120,6 +122,8 @@ export async function GET(req: Request) {
 
   // --- Instagram: web research, labeled as such -------------------------
   let instagram: IgSuggestion[] = [];
+  let igHint = "";
+  if (!process.env.ANTHROPIC_API_KEY) igHint = "no anthropic key";
   if (process.env.ANTHROPIC_API_KEY) {
     const prompt = `Search the web for real, currently-active Instagram accounts in the "${topic}" niche${
       location ? ` (the user is based in ${location}; include some local or regional accounts if they exist)` : ""
@@ -145,7 +149,7 @@ Output ONLY a JSON array, no other text:
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const res: any = await (anthropic.messages.create as any)({
           model: SEARCH_MODEL,
-          max_tokens: 2000,
+          max_tokens: 4000,
           tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
           messages,
         });
@@ -156,7 +160,9 @@ Output ONLY a JSON array, no other text:
         if (res.stop_reason !== "pause_turn") break;
         messages.push({ role: "assistant", content: res.content });
       }
-      instagram = parseJsonArray(text)
+      const parsed = parseJsonArray(text);
+      if (!parsed.length) igHint = `no array parsed from ${text.length} chars`;
+      instagram = parsed
         .map((raw) => {
           const r = raw as { handle?: unknown; why?: unknown };
           const handle = typeof r.handle === "string" ? r.handle.trim().replace(/^@/, "") : "";
@@ -170,7 +176,9 @@ Output ONLY a JSON array, no other text:
         })
         .filter((x): x is IgSuggestion => x != null)
         .slice(0, 6);
-    } catch {
+      if (parsed.length && !instagram.length) igHint = "all handles rejected by validation";
+    } catch (e) {
+      igHint = e instanceof Error ? e.message.slice(0, 160) : "search failed";
       instagram = [];
     }
   }
@@ -181,6 +189,7 @@ Output ONLY a JSON array, no other text:
     youtube,
     instagram,
     found_at: new Date().toISOString(),
+    ...(instagram.length ? {} : { ig_hint: igHint || "search returned nothing" }),
   };
 
   try {
