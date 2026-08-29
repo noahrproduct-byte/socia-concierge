@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { resolveChannel, recentVideos, uploadsPerWeek, publicEngagementRate, ytConfigured } from "@/lib/youtube";
+import { channelStats, ytConfigured } from "@/lib/youtube";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -35,37 +35,7 @@ export async function GET(req: Request) {
   }
   if (!handles.length) return NextResponse.json({ configured: true, channels: [] });
 
-  const channels = await Promise.all(
-    handles.slice(0, 10).map(async (h) => {
-      const ch = await resolveChannel(h);
-      if (!ch) return { handle: h, found: false as const };
-      const vids = ch.uploadsPlaylist ? await recentVideos(ch.uploadsPlaylist, 10) : [];
-      const views = vids.map((v) => v.views).filter((v): v is number => v != null).sort((a, b) => a - b);
-      const medianViews = views.length
-        ? views.length % 2
-          ? views[Math.floor(views.length / 2)]
-          : (views[views.length / 2 - 1] + views[views.length / 2]) / 2
-        : null;
-      return {
-        handle: h,
-        found: true as const,
-        channelId: ch.channelId,
-        title: ch.title,
-        avatar: ch.avatar,
-        url: `https://youtube.com/channel/${ch.channelId}`,
-        subscribers: ch.subscribers,
-        lifetimeViews: ch.views,
-        videoCount: ch.videoCount,
-        uploadsPerWeek: uploadsPerWeek(vids),
-        engagementRate: publicEngagementRate(vids),
-        medianViews,
-        topVideos: [...vids]
-          .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
-          .slice(0, 3)
-          .map((v) => ({ ...v, url: `https://youtube.com/watch?v=${v.videoId}` })),
-      };
-    }),
-  );
+  const channels = await Promise.all(handles.slice(0, 10).map((h) => channelStats(h)));
 
   return NextResponse.json({ configured: true, channels });
 }

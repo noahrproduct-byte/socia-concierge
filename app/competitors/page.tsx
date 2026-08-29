@@ -17,10 +17,10 @@ import {
   ManageCompetitors,
   WinningNow,
   BreakdownRows,
-  YouTubeCompetitors,
   type Tracked,
 } from "@/components/CompetitorIntel";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
+import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import {
   engagementOf,
   median,
@@ -236,8 +236,18 @@ export default async function CompetitorsPage({
     }
   }
 
-  const igTracked = tracked.filter((t) => t.platform !== "youtube");
+  // Real public stats for tracked YouTube channels, fetched once on the server
+  // (cached upstream) so the strip and the breakdown table agree exactly.
   const ytTracked = tracked.filter((t) => t.platform === "youtube");
+  let ytStats: Record<string, YtStats> = {};
+  if (ytTracked.length && ytConfigured()) {
+    try {
+      const results = await Promise.all(ytTracked.slice(0, 10).map((t) => channelStats(t.handle)));
+      ytStats = Object.fromEntries(results.map((r) => [r.handle, r]));
+    } catch {
+      // the table simply shows dashes if YouTube is unreachable
+    }
+  }
 
   const youStrip = {
     username: snap?.username ?? null,
@@ -278,7 +288,7 @@ export default async function CompetitorsPage({
             <h2>Who you&apos;re competing against</h2>
             <small>Your live numbers vs the accounts you track. Platforms don&apos;t expose other accounts&apos; stats, so theirs show &ldquo;—&rdquo; — never a guess.</small>
           </div>
-          <CompetitorStrip you={youStrip} tracked={igTracked} />
+          <CompetitorStrip you={youStrip} tracked={tracked} ytStats={ytStats} />
         </section>
 
         {/* 3 — how you compare */}
@@ -399,7 +409,7 @@ export default async function CompetitorsPage({
           <div className="cp4-tablewrap">
             <table className="cp4-table cp4-btable">
               <thead>
-                <tr><th>Account</th><th>Followers</th><th>Eng. rate</th><th>Posts / week</th><th>Median views</th><th>Best format</th><th></th></tr>
+                <tr><th>Account</th><th>Followers / subs</th><th>Eng. rate</th><th>Posts / week</th><th>Median views</th><th>Source</th><th></th></tr>
               </thead>
               <tbody>
                 <tr className="cp4-yourow">
@@ -414,25 +424,16 @@ export default async function CompetitorsPage({
                   <td>{rate != null ? `${rate.toFixed(1)}%` : "—"}</td>
                   <td>{freq.toFixed(1)}</td>
                   <td>{medViews != null ? fmtNum(Math.round(medViews)) : "—"}</td>
-                  <td>{reels.length && medEng != null && (median(reels.map(engagementOf)) ?? 0) >= medEng ? "Reels" : posts.length ? "Mixed" : "—"}</td>
+                  <td><span className="cp4-srcnote" title="Your authenticated Instagram data.">Your account</span></td>
                   <td></td>
                 </tr>
-                <BreakdownRows tracked={igTracked} />
+                <BreakdownRows tracked={tracked} ytStats={ytStats} />
               </tbody>
             </table>
           </div>
-          {igTracked.length === 0 && (
+          {tracked.length === 0 && (
             <p className="cp4-empty">Track competitors with the button above — SOCIA links their public profiles and flags them in niche research.</p>
           )}
-        </section>
-
-        {/* 7b — YouTube: the one platform with real public competitor stats */}
-        <section className="cp4-sec db2-rise" style={{ animationDelay: "390ms" }}>
-          <div className="cp4-sec-head">
-            <h2>YouTube competitors</h2>
-            <small>Real public statistics from YouTube&apos;s official API</small>
-          </div>
-          <YouTubeCompetitors hasTracked={ytTracked.length > 0} />
         </section>
 
         {/* 8 — recommendations */}

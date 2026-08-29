@@ -28,6 +28,7 @@ import {
   Info,
 } from "lucide-react";
 import type { ViralDoc, ViralItem } from "@/app/api/niche-viral/route";
+import type { YtStats } from "@/lib/youtube";
 
 export type Tracked = { platform: string; handle: string; added_at: string };
 
@@ -173,6 +174,7 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
 export function CompetitorStrip({
   you,
   tracked,
+  ytStats = {},
   onOpenDetail,
 }: {
   you: {
@@ -183,9 +185,12 @@ export function CompetitorStrip({
     spark: number[];
   };
   tracked: Tracked[];
+  /** Real public stats, keyed by handle, for the platforms that publish them. */
+  ytStats?: Record<string, YtStats>;
   onOpenDetail?: (c: Tracked) => void;
 }) {
   const [detail, setDetail] = useState<Tracked | null>(null);
+  const [ytDetail, setYtDetail] = useState<YtStats | null>(null);
   const openDetail = onOpenDetail ?? setDetail;
 
   return (
@@ -223,25 +228,53 @@ export function CompetitorStrip({
           )}
         </article>
 
-        {tracked.map((c) => (
-          <article className="cp4-acct" role="listitem" key={c.platform + c.handle}>
-            <button type="button" className="cp4-acct-open" onClick={() => openDetail(c)} aria-label={`Open @${c.handle} details`}>
-              <span className="cp4-face ph">{c.handle[0]?.toUpperCase()}</span>
-              <b className="cp4-handle">@{c.handle}</b>
-              <div className="cp4-nums">
-                <span><b>—</b><small>Followers</small></span>
-                <span><b>—</b><small>Eng. rate</small></span>
-              </div>
-              <small className="cp4-nodata" title="Instagram doesn't expose other accounts' analytics. SOCIA shows a dash instead of a guess.">
-                Public metrics unavailable
-              </small>
-            </button>
-          </article>
-        ))}
+        {tracked.map((c) => {
+          const yt = c.platform === "youtube" ? ytStats[c.handle] : undefined;
+          const live = yt?.found ? yt : null;
+          return (
+            <article className="cp4-acct" role="listitem" key={c.platform + c.handle}>
+              <button
+                type="button"
+                className="cp4-acct-open"
+                onClick={() => (live ? setYtDetail(live) : openDetail(c))}
+                aria-label={`Open ${live?.title ?? `@${c.handle}`} details`}
+              >
+                <span className={`cp4-plat ${c.platform}`}>{c.platform === "youtube" ? "YouTube" : "Instagram"}</span>
+                {live?.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="cp4-face" src={live.avatar} alt="" width={40} height={40} />
+                ) : (
+                  <span className="cp4-face ph">{c.handle[0]?.toUpperCase()}</span>
+                )}
+                <b className="cp4-handle">{live?.title ?? `@${c.handle}`}</b>
+                <div className="cp4-nums">
+                  <span>
+                    <b>{live ? fmtN(live.subscribers) : "—"}</b>
+                    <small>{c.platform === "youtube" ? "Subscribers" : "Followers"}</small>
+                  </span>
+                  <span>
+                    <b>{live?.engagementRate != null ? `${live.engagementRate.toFixed(1)}%` : "—"}</b>
+                    <small>Eng. rate</small>
+                  </span>
+                </div>
+                {live ? (
+                  <small className="cp4-realnote" title="Public data from YouTube's official API.">
+                    Real public data
+                  </small>
+                ) : (
+                  <small className="cp4-nodata" title="Instagram doesn't expose other accounts' analytics. SOCIA shows a dash instead of a guess.">
+                    {c.platform === "youtube" ? "Channel not found" : "Public metrics unavailable"}
+                  </small>
+                )}
+              </button>
+            </article>
+          );
+        })}
 
         <ManageAddCard />
       </div>
       {detail && <CompetitorDrawer c={detail} onClose={() => setDetail(null)} />}
+      {ytDetail && <YtDrawer ch={ytDetail} onClose={() => setYtDetail(null)} />}
     </>
   );
 }
@@ -432,47 +465,8 @@ export function WinningNow({ trackedHandles }: { trackedHandles: string[] }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Breakdown table row that opens the drawer                           */
+/* Unified breakdown: every tracked account, real data where it exists  */
 /* ------------------------------------------------------------------ */
-
-export function BreakdownRows({ tracked }: { tracked: Tracked[] }) {
-  const [detail, setDetail] = useState<Tracked | null>(null);
-  return (
-    <>
-      {tracked.map((c) => (
-        <tr key={c.platform + c.handle} className="cp4-brow" onClick={() => setDetail(c)} tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && setDetail(c)}>
-          <td>
-            <span className="cp4-face ph sm">{c.handle[0]?.toUpperCase()}</span>
-            <b>@{c.handle}</b>
-          </td>
-          <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
-          <td><span className="cp4-open-hint">Details</span></td>
-        </tr>
-      ))}
-      {detail && <CompetitorDrawer c={detail} onClose={() => setDetail(null)} />}
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* YouTube competitors — REAL public stats from YouTube's official API */
-/* ------------------------------------------------------------------ */
-
-type YtRow = {
-  handle: string;
-  found: boolean;
-  title?: string;
-  avatar?: string | null;
-  url?: string;
-  subscribers?: number | null;
-  lifetimeViews?: number | null;
-  videoCount?: number | null;
-  uploadsPerWeek?: number | null;
-  engagementRate?: number | null;
-  medianViews?: number | null;
-  topVideos?: { videoId: string; title: string; url: string; views: number | null; likes: number | null; publishedAt: string }[];
-};
 
 // YouTube lifetime views run into the billions, so B is a real bucket here.
 const fmtN = (n: number | null | undefined): string =>
@@ -482,132 +476,124 @@ const fmtN = (n: number | null | undefined): string =>
   : n >= 1e4 ? Math.round(n / 1e3) + "K"
   : n.toLocaleString("en-US");
 
-export function YouTubeCompetitors({ hasTracked }: { hasTracked: boolean }) {
-  const [rows, setRows] = useState<YtRow[] | null>(null);
-  const [configured, setConfigured] = useState(true);
-  const [open, setOpen] = useState<YtRow | null>(null);
-
-  useEffect(() => {
-    if (!hasTracked) {
-      setRows([]);
-      return;
-    }
-    let alive = true;
-    fetch("/api/competitors/youtube")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!alive || !j) return;
-        setConfigured(j.configured !== false);
-        setRows(j.channels ?? []);
-      })
-      .catch(() => alive && setRows([]));
-    return () => {
-      alive = false;
-    };
-  }, [hasTracked]);
-
-  if (!hasTracked) {
-    return (
-      <p className="cp4-empty">
-        Track a YouTube channel with Manage competitors — YouTube publishes real statistics, so these
-        columns fill with its actual subscribers, views, cadence and engagement.
-      </p>
-    );
-  }
-  if (rows == null) return <div className="cp4-yt-skel" />;
-  if (!configured) {
-    return <p className="cp4-empty">YouTube isn&apos;t configured on the server yet (missing API key).</p>;
-  }
+export function BreakdownRows({
+  tracked,
+  ytStats = {},
+}: {
+  tracked: Tracked[];
+  ytStats?: Record<string, YtStats>;
+}) {
+  const [detail, setDetail] = useState<Tracked | null>(null);
+  const [ytDetail, setYtDetail] = useState<YtStats | null>(null);
 
   return (
     <>
-      <div className="cp4-tablewrap">
-        <table className="cp4-table">
-          <thead>
-            <tr>
-              <th>Channel</th><th>Subscribers</th><th>Lifetime views</th>
-              <th>Median views</th><th>Uploads / week</th><th>Eng. rate</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) =>
-              r.found ? (
-                <tr key={r.handle} className="cp4-brow" onClick={() => setOpen(r)} tabIndex={0}
-                    onKeyDown={(e) => e.key === "Enter" && setOpen(r)}>
-                  <td>
-                    {r.avatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img className="cp4-face sm" src={r.avatar} alt="" width={26} height={26} />
-                    ) : <span className="cp4-face ph sm">{r.handle[0]?.toUpperCase()}</span>}
-                    <b>{r.title || `@${r.handle}`}</b>
-                  </td>
-                  <td className="cp4-real">{fmtN(r.subscribers)}</td>
-                  <td className="cp4-real">{fmtN(r.lifetimeViews)}</td>
-                  <td className="cp4-real">{fmtN(r.medianViews)}</td>
-                  <td className="cp4-real">{r.uploadsPerWeek != null ? r.uploadsPerWeek.toFixed(1) : "—"}</td>
-                  <td className="cp4-real">{r.engagementRate != null ? `${r.engagementRate.toFixed(1)}%` : "—"}</td>
-                  <td><span className="cp4-open-hint">Details</span></td>
-                </tr>
-              ) : (
-                <tr key={r.handle}>
-                  <td><span className="cp4-face ph sm">?</span><b>@{r.handle}</b></td>
-                  <td colSpan={6} className="cp4-na">Channel not found on YouTube</td>
-                </tr>
-              ),
-            )}
-          </tbody>
-        </table>
-      </div>
-      <p className="cp4-note">
-        <Info size={11} /> Real public data from YouTube&apos;s official API — the same numbers any
-        visitor sees. Engagement rate is the median of (likes + comments) ÷ views across recent
-        uploads. A hidden subscriber count shows &ldquo;—&rdquo;, never a guess.
-      </p>
-      {open && (
-        <div className="cp4-modal-wrap" role="dialog" aria-modal="true" aria-label={`${open.title} details`}>
-          <div className="cp4-scrim" onClick={() => setOpen(null)} />
-          <aside className="cp4-drawer">
-            <div className="cp4-modal-head">
-              {open.avatar ? (
+      {tracked.map((c) => {
+        const yt = c.platform === "youtube" ? ytStats[c.handle] : undefined;
+        const live = yt?.found ? yt : null;
+        return (
+          <tr
+            key={c.platform + c.handle}
+            className="cp4-brow"
+            tabIndex={0}
+            onClick={() => (live ? setYtDetail(live) : setDetail(c))}
+            onKeyDown={(e) => e.key === "Enter" && (live ? setYtDetail(live) : setDetail(c))}
+          >
+            <td>
+              {live?.avatar ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="cp4-face big" src={open.avatar} alt="" width={46} height={46} />
-              ) : <span className="cp4-face ph big">{open.handle[0]?.toUpperCase()}</span>}
-              <div className="cp4-drawer-id">
-                <h3>{open.title}</h3>
-                <small>YouTube · {fmtN(open.videoCount)} videos published</small>
-              </div>
-              <button type="button" className="cp4-x" onClick={() => setOpen(null)} aria-label="Close"><X size={15} /></button>
-            </div>
-            <a className="cp4-drawer-visit" href={open.url} target="_blank" rel="noreferrer">
-              View channel on YouTube <ExternalLink size={13} />
-            </a>
-            <div className="cp4-drawer-sec">
-              <h4>Public metrics</h4>
-              <ul className="cp4-drawer-metrics">
-                <li><span>Subscribers</span><b className="real">{fmtN(open.subscribers)}</b></li>
-                <li><span>Lifetime views</span><b className="real">{fmtN(open.lifetimeViews)}</b></li>
-                <li><span>Videos published</span><b className="real">{fmtN(open.videoCount)}</b></li>
-                <li><span>Uploads / week</span><b className="real">{open.uploadsPerWeek != null ? open.uploadsPerWeek.toFixed(1) : "—"}</b></li>
-                <li><span>Median views (recent)</span><b className="real">{fmtN(open.medianViews)}</b></li>
-                <li><span>Engagement rate</span><b className="real">{open.engagementRate != null ? `${open.engagementRate.toFixed(1)}%` : "—"}</b></li>
-              </ul>
-            </div>
-            {open.topVideos && open.topVideos.length > 0 && (
-              <div className="cp4-drawer-sec">
-                <h4>Top recent uploads</h4>
-                <ul className="cp4-drawer-found">
-                  {open.topVideos.map((v) => (
-                    <li key={v.videoId}>
-                      <a href={v.url} target="_blank" rel="noreferrer">{v.title} <ExternalLink size={11} /></a>
-                      <small>{fmtN(v.views)} views · {fmtN(v.likes)} likes · {new Date(v.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</small>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </aside>
-        </div>
-      )}
+                <img className="cp4-face sm" src={live.avatar} alt="" width={26} height={26} />
+              ) : (
+                <span className="cp4-face ph sm">{c.handle[0]?.toUpperCase()}</span>
+              )}
+              <b>{live?.title ?? `@${c.handle}`}</b>
+              <span className={`cp4-plat inline ${c.platform}`}>
+                {c.platform === "youtube" ? "YouTube" : "Instagram"}
+              </span>
+            </td>
+            <td className={live ? "cp4-real" : "cp4-na"}>{live ? fmtN(live.subscribers) : "—"}</td>
+            <td className={live ? "cp4-real" : "cp4-na"}>
+              {live?.engagementRate != null ? `${live.engagementRate.toFixed(1)}%` : "—"}
+            </td>
+            <td className={live ? "cp4-real" : "cp4-na"}>
+              {live?.uploadsPerWeek != null ? live.uploadsPerWeek.toFixed(1) : "—"}
+            </td>
+            <td className={live ? "cp4-real" : "cp4-na"}>{live ? fmtN(live.medianViews) : "—"}</td>
+            <td className="cp4-na">
+              {live ? (
+                <span className="cp4-srcnote" title="Public data from YouTube's official API — the same numbers any visitor sees.">
+                  Public API
+                </span>
+              ) : (
+                <span className="cp4-srcnote" title="Instagram publishes no analytics for accounts you don't own.">
+                  Not published
+                </span>
+              )}
+            </td>
+            <td><span className="cp4-open-hint">Details</span></td>
+          </tr>
+        );
+      })}
+      {detail && <CompetitorDrawer c={detail} onClose={() => setDetail(null)} />}
+      {ytDetail && <YtDrawer ch={ytDetail} onClose={() => setYtDetail(null)} />}
     </>
+  );
+}
+
+/** Detail drawer for a channel whose stats are genuinely public. */
+export function YtDrawer({ ch, onClose }: { ch: YtStats; onClose: () => void }) {
+  return (
+    <div className="cp4-modal-wrap" role="dialog" aria-modal="true" aria-label={`${ch.title} details`}>
+      <div className="cp4-scrim" onClick={onClose} />
+      <aside className="cp4-drawer">
+        <div className="cp4-modal-head">
+          {ch.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="cp4-face big" src={ch.avatar} alt="" width={46} height={46} />
+          ) : (
+            <span className="cp4-face ph big">{ch.handle[0]?.toUpperCase()}</span>
+          )}
+          <div className="cp4-drawer-id">
+            <h3>{ch.title}</h3>
+            <small>YouTube · {fmtN(ch.videoCount)} videos published</small>
+          </div>
+          <button type="button" className="cp4-x" onClick={onClose} aria-label="Close"><X size={15} /></button>
+        </div>
+        <a className="cp4-drawer-visit" href={ch.url} target="_blank" rel="noreferrer">
+          View channel on YouTube <ExternalLink size={13} />
+        </a>
+        <div className="cp4-drawer-sec">
+          <h4>Public metrics</h4>
+          <ul className="cp4-drawer-metrics">
+            <li><span>Subscribers</span><b className="real">{fmtN(ch.subscribers)}</b></li>
+            <li><span>Lifetime views</span><b className="real">{fmtN(ch.lifetimeViews)}</b></li>
+            <li><span>Videos published</span><b className="real">{fmtN(ch.videoCount)}</b></li>
+            <li><span>Uploads / week</span><b className="real">{ch.uploadsPerWeek != null ? ch.uploadsPerWeek.toFixed(1) : "—"}</b></li>
+            <li><span>Median views (recent)</span><b className="real">{fmtN(ch.medianViews)}</b></li>
+            <li><span>Engagement rate</span><b className="real">{ch.engagementRate != null ? `${ch.engagementRate.toFixed(1)}%` : "—"}</b></li>
+          </ul>
+          <p className="cp4-drawer-note">
+            <Info size={11} /> Public data from YouTube&apos;s official API. Engagement rate is the
+            median of (likes + comments) ÷ views across recent uploads.
+          </p>
+        </div>
+        {ch.topVideos && ch.topVideos.length > 0 && (
+          <div className="cp4-drawer-sec">
+            <h4>Top recent uploads</h4>
+            <ul className="cp4-drawer-found">
+              {ch.topVideos.map((v) => (
+                <li key={v.videoId}>
+                  <a href={v.url} target="_blank" rel="noreferrer">{v.title} <ExternalLink size={11} /></a>
+                  <small>
+                    {fmtN(v.views)} views · {fmtN(v.likes)} likes ·{" "}
+                    {new Date(v.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </aside>
+    </div>
   );
 }

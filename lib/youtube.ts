@@ -45,7 +45,7 @@ async function ytFetch<T>(path: string, params: Record<string, string>): Promise
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set("key", key);
   try {
-    const res = await fetch(u, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(u, { signal: AbortSignal.timeout(10000), next: { revalidate: 900 } });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -161,4 +161,53 @@ export function publicEngagementRate(videos: YtVideo[]): number | null {
   const s = [...rates].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+export type YtStats = {
+  handle: string;
+  found: boolean;
+  channelId?: string;
+  title?: string;
+  avatar?: string | null;
+  url?: string;
+  subscribers?: number | null;
+  lifetimeViews?: number | null;
+  videoCount?: number | null;
+  uploadsPerWeek?: number | null;
+  engagementRate?: number | null;
+  medianViews?: number | null;
+  topVideos?: (YtVideo & { url: string })[];
+};
+
+function medianOf(xs: number[]): number | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/** Everything the UI shows for one tracked channel, from public data only.
+ *  One implementation shared by the API route and the server-rendered page. */
+export async function channelStats(handle: string): Promise<YtStats> {
+  const ch = await resolveChannel(handle);
+  if (!ch) return { handle, found: false };
+  const vids = ch.uploadsPlaylist ? await recentVideos(ch.uploadsPlaylist, 10) : [];
+  return {
+    handle,
+    found: true,
+    channelId: ch.channelId,
+    title: ch.title,
+    avatar: ch.avatar,
+    url: `https://youtube.com/channel/${ch.channelId}`,
+    subscribers: ch.subscribers,
+    lifetimeViews: ch.views,
+    videoCount: ch.videoCount,
+    uploadsPerWeek: uploadsPerWeek(vids),
+    engagementRate: publicEngagementRate(vids),
+    medianViews: medianOf(vids.map((v) => v.views).filter((v): v is number => v != null)),
+    topVideos: [...vids]
+      .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+      .slice(0, 3)
+      .map((v) => ({ ...v, url: `https://youtube.com/watch?v=${v.videoId}` })),
+  };
 }

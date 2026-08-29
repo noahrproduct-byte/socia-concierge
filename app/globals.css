@@ -10517,3 +10517,9 @@ html { scroll-behavior: smooth; }
 .cp4-real { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--charcoal); }
 .cp4-drawer-metrics b.real { color: var(--charcoal); }
 .cp4-yt-skel { height: 120px; border-radius: 12px; background: linear-gradient(100deg,#f1efe9 40%,#faf9f6 50%,#f1efe9 60%); background-size: 200% 100%; animation: cp4shimmer 1.2s infinite; }
+.cp4-plat { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: .05em; padding: 2px 7px; border-radius: 99px; margin-bottom: 8px; }
+.cp4-plat.youtube { color: #b42318; background: #fdeceb; }
+.cp4-plat.instagram { color: #a8348a; background: #fbeaf6; }
+.cp4-plat.inline { margin: 0 0 0 8px; vertical-align: middle; }
+.cp4-realnote { display: block; margin-top: 8px; font-size: 10px; font-weight: 650; color: #157f3d; }
+.cp4-srcnote { font-size: 11px; font-weight: 650; color: var(--slate); background: #f4f2ec; border-radius: 99px; padding: 3px 9px; white-space: nowrap; }
