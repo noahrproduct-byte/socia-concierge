@@ -424,7 +424,7 @@ export function WinningNow({ trackedHandles }: { trackedHandles: string[] }) {
       {items.map((it, i) => {
         const handle = it.creator.replace(/^@/, "");
         const isTracked = trackedHandles.some((h) => handle.toLowerCase().includes(h));
-        const ask = `I want to adapt this trending ${it.platform === "tiktok" ? "TikTok" : "YouTube Short"} for my account: "${it.title}" by @${handle}. Why it may be working: ${it.why} Give me a concrete version for my niche with a hook, shot list, and caption.`;
+        const ask = `I want to adapt this trending ${it.platform === "tiktok" ? "TikTok" : it.platform === "instagram" ? "Instagram Reel" : "YouTube Short"} for my account: "${it.title}" by @${handle}. Why it may be working: ${it.why} Give me a concrete version for my niche with a hook, shot list, and caption.`;
         return (
           <article className="cp4-win" key={it.url} style={{ animationDelay: `${i * 60}ms` }}>
             <a className="cp4-win-media" href={it.url} target="_blank" rel="noreferrer" aria-label="Open the original post">
@@ -434,7 +434,7 @@ export function WinningNow({ trackedHandles }: { trackedHandles: string[] }) {
               ) : (
                 <span className="cp4-win-ph"><ImageIcon size={24} /></span>
               )}
-              <span className="cp4-win-platform">{it.platform === "tiktok" ? "TikTok" : "Shorts"}</span>
+              <span className="cp4-win-platform">{it.platform === "tiktok" ? "TikTok" : it.platform === "instagram" ? "Reel" : "Shorts"}</span>
               {it.views && (
                 <span className="cp4-win-views" title="View count as reported by the platform page where SOCIA found this — not independently verified.">
                   <Play size={10} /> {it.views}
@@ -595,5 +595,153 @@ export function YtDrawer({ ch, onClose }: { ch: YtStats; onClose: () => void }) 
         )}
       </aside>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Suggested accounts — discovery in the user's real niche             */
+/* ------------------------------------------------------------------ */
+
+type IgSuggestion = { handle: string; why: string; source: "web_research" };
+type DiscoverDoc = { niche: string; youtube: YtStats[]; instagram: IgSuggestion[]; found_at: string };
+
+export function DiscoverAccounts({ tracked }: { tracked: Tracked[] }) {
+  const router = useRouter();
+  const [doc, setDoc] = useState<DiscoverDoc | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [added, setAdded] = useState<Set<string>>(
+    () => new Set(tracked.map((t) => `${t.platform}:${t.handle}`)),
+  );
+
+  const load = useCallback(async (refresh = false) => {
+    setState("loading");
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/competitors/discover${refresh ? "?refresh=1" : ""}`);
+      const j = await res.json();
+      if (!res.ok) {
+        setMsg(j.error ?? "Couldn't scan right now.");
+        setState("error");
+        return;
+      }
+      setDoc(j);
+      setState("ok");
+    } catch {
+      setMsg("Couldn't reach the server.");
+      setState("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const track = useCallback(
+    async (handle: string, platform: "instagram" | "youtube") => {
+      const key = `${platform}:${handle}`;
+      if (adding || added.has(key)) return;
+      setAdding(key);
+      try {
+        const res = await fetch("/api/competitors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ handle, platform }),
+        });
+        if (res.ok) {
+          setAdded((s) => new Set(s).add(key));
+          router.refresh();
+        } else {
+          const j = await res.json();
+          setMsg(j.error ?? "Couldn't track that account.");
+        }
+      } finally {
+        setAdding(null);
+      }
+    },
+    [adding, added, router],
+  );
+
+  if (state === "loading" || state === "idle") {
+    return (
+      <div className="cp4-disc-grid">
+        {[0, 1, 2, 3].map((i) => <div className="cp4-disc-skel" key={i} />)}
+      </div>
+    );
+  }
+  if (state === "error") {
+    return (
+      <div className="cp4-win-empty">
+        <b>{msg}</b>
+        <button type="button" className="btn-primary" onClick={() => load(true)}>Scan again</button>
+      </div>
+    );
+  }
+
+  const yt = (doc?.youtube ?? []).filter((c) => !added.has(`youtube:${c.handle}`));
+  const ig = (doc?.instagram ?? []).filter((c) => !added.has(`instagram:${c.handle}`));
+  if (!yt.length && !ig.length) {
+    return <p className="cp4-empty">Nothing new to suggest — you&apos;re already tracking what SOCIA found.</p>;
+  }
+
+  return (
+    <>
+      {msg && <p className="cp4-err">{msg}</p>}
+      {yt.length > 0 && (
+        <>
+          <small className="cp4-disc-label">
+            YOUTUBE CHANNELS
+            <em title="Found through YouTube's official channel search. Subscriber counts are real public data.">real public data</em>
+          </small>
+          <div className="cp4-disc-grid">
+            {yt.map((c) => (
+              <article className="cp4-disc" key={c.channelId}>
+                {c.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="cp4-face" src={c.avatar} alt="" width={40} height={40} />
+                ) : <span className="cp4-face ph">{c.title?.[0] ?? "?"}</span>}
+                <b className="cp4-disc-name">{c.title}</b>
+                <small className="cp4-disc-sub">{fmtN(c.subscribers)} subscribers · {fmtN(c.lifetimeViews)} views</small>
+                <div className="cp4-disc-actions">
+                  <a href={c.url} target="_blank" rel="noreferrer">View <ExternalLink size={11} /></a>
+                  <button type="button" onClick={() => track(c.handle, "youtube")} disabled={adding === `youtube:${c.handle}`}>
+                    {adding === `youtube:${c.handle}` ? <Loader2 size={12} className="cp4-spin" /> : <Plus size={12} />} Track
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+      {ig.length > 0 && (
+        <>
+          <small className="cp4-disc-label">
+            INSTAGRAM ACCOUNTS
+            <em title="Instagram has no public search API, so these come from live web research. Verify before tracking — SOCIA shows no metrics for them.">from web research</em>
+          </small>
+          <div className="cp4-disc-grid">
+            {ig.map((c) => (
+              <article className="cp4-disc" key={c.handle}>
+                <span className="cp4-face ph">{c.handle[0]?.toUpperCase()}</span>
+                <b className="cp4-disc-name">@{c.handle}</b>
+                <small className="cp4-disc-sub">{c.why}</small>
+                <div className="cp4-disc-actions">
+                  <a href={`https://instagram.com/${c.handle}`} target="_blank" rel="noreferrer">View <ExternalLink size={11} /></a>
+                  <button type="button" onClick={() => track(c.handle, "instagram")} disabled={adding === `instagram:${c.handle}`}>
+                    {adding === `instagram:${c.handle}` ? <Loader2 size={12} className="cp4-spin" /> : <Plus size={12} />} Track
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+      <p className="cp4-note">
+        <Info size={11} /> YouTube suggestions come from its official channel search with real
+        subscriber counts. Instagram publishes no search API, so those are found by web research —
+        check them before tracking.
+      </p>
+    </>
   );
 }

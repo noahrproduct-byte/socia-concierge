@@ -17,6 +17,7 @@ import {
   ManageCompetitors,
   WinningNow,
   BreakdownRows,
+  DiscoverAccounts,
   type Tracked,
 } from "@/components/CompetitorIntel";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
@@ -289,6 +290,15 @@ export default async function CompetitorsPage({
             <small>Your live numbers vs the accounts you track. Platforms don&apos;t expose other accounts&apos; stats, so theirs show &ldquo;—&rdquo; — never a guess.</small>
           </div>
           <CompetitorStrip you={youStrip} tracked={tracked} ytStats={ytStats} />
+        </section>
+
+        {/* 2b — discovery: accounts in the user's real niche */}
+        <section className="cp4-sec db2-rise" style={{ animationDelay: "90ms" }}>
+          <div className="cp4-sec-head">
+            <h2>Accounts in your niche</h2>
+            <small>Scanned for {niche ?? "your niche"} · track one to add it above</small>
+          </div>
+          <DiscoverAccounts tracked={tracked} />
         </section>
 
         {/* 3 — how you compare */}

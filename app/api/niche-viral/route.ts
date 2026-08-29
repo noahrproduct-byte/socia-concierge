@@ -20,7 +20,7 @@ const TTL_MS = 24 * 60 * 60 * 1000;
 const SEARCH_MODEL = "claude-sonnet-5"; // search+extract task; opus not needed
 
 export type ViralItem = {
-  platform: "tiktok" | "youtube";
+  platform: "tiktok" | "youtube" | "instagram";
   url: string;
   creator: string;
   title: string;
@@ -71,10 +71,11 @@ async function enrich(raw: Record<string, unknown>): Promise<ViralItem | null> {
   }
   const isTikTok = host.endsWith("tiktok.com");
   const isYouTube = host.endsWith("youtube.com") || host === "youtu.be";
-  if (!isTikTok && !isYouTube) return null;
+  const isInstagram = host.endsWith("instagram.com");
+  if (!isTikTok && !isYouTube && !isInstagram) return null;
 
   const item: ViralItem = {
-    platform: isTikTok ? "tiktok" : "youtube",
+    platform: isTikTok ? "tiktok" : isInstagram ? "instagram" : "youtube",
     url,
     creator: typeof raw.creator === "string" ? raw.creator : "",
     title: typeof raw.title === "string" ? raw.title : "",
@@ -128,11 +129,22 @@ export async function GET() {
   } catch {
     // fall through to the generic error below if we have no niche at all
   }
+  // The user's own recent captions, so "what's winning" is content they could
+  // actually make — not generic niche virality.
+  let ownThemes = "";
   try {
-    const conn = await getActiveConnection(supabase, user.id, "username");
-    username = (conn as { username?: string } | null)?.username ?? "";
+    const conn = await getActiveConnection(supabase, user.id, "username, media");
+    const c = conn as { username?: string; media?: unknown } | null;
+    username = c?.username ?? "";
+    const media = Array.isArray(c?.media) ? (c!.media as { caption?: string }[]) : [];
+    ownThemes = media
+      .map((m) => (m.caption ?? "").split("\n")[0].replace(/#[\p{L}\p{N}_]+/gu, "").trim())
+      .filter((t) => t.length > 3)
+      .slice(0, 6)
+      .join("; ")
+      .slice(0, 400);
   } catch {
-    // excluding the user's own account is best-effort
+    // personalisation is best-effort; the niche search still works
   }
   if (!niche) {
     return NextResponse.json(
@@ -141,7 +153,10 @@ export async function GET() {
     );
   }
 
-  const cacheKey = `viral:${niche}`;
+  // Results are now tailored to this account's own content, so the cache must
+  // be per user — a shared niche key would serve one user's personalised
+  // picks to another.
+  const cacheKey = `viral:${niche}:${user.id}`;
 
   // Fresh cache?
   try {
@@ -168,9 +183,14 @@ export async function GET() {
   }
 
   const topic = subNiche || niche;
-  const prompt = `Search the web for short-form videos (TikTok or YouTube Shorts) about "${topic}" that are currently viral or performed exceptionally well recently (ideally within the last 60 days).
+  const prompt = `Search the web for short-form videos (Instagram Reels, TikTok, or YouTube Shorts) about "${topic}" that are currently viral or performed exceptionally well recently (ideally within the last 60 days).
 
 Find 4 posts from 4 DIFFERENT creators.${username ? ` Exclude anything from the account "@${username}".` : ""}
+${
+  ownThemes
+    ? `\nThe user makes this kind of content themselves — recent posts of theirs include: ${ownThemes}.\nStrongly prefer videos this specific account could realistically remake: same subject matter, comparable production effort, no celebrity access or big budgets required. Skip anything that depends on resources a small independent business would not have.\n`
+    : ""
+}
 
 STRICT HONESTY RULES:
 - Only include posts you actually found via search, with their real URLs. Never invent a URL, creator, or title.
@@ -178,7 +198,7 @@ STRICT HONESTY RULES:
 - "why": ONE sentence of clearly interpretive analysis of why it likely performs (hook, format, framing). No invented statistics.
 
 Output ONLY a JSON array, no other text:
-[{"platform":"tiktok"|"youtube","url":"...","creator":"...","title":"...","views_reported":"..."|null,"why":"..."}]`;
+[{"platform":"tiktok"|"youtube"|"instagram","url":"...","creator":"...","title":"...","views_reported":"..."|null,"why":"..."}]`;
 
   try {
     // Web search is a server-side tool; long turns can pause — continue them.

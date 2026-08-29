@@ -211,3 +211,48 @@ export async function channelStats(handle: string): Promise<YtStats> {
       .map((v) => ({ ...v, url: `https://youtube.com/watch?v=${v.videoId}` })),
   };
 }
+
+/** Discover channels in a niche. YouTube's search is a real API, so every
+ *  suggestion here is a channel that genuinely exists with genuine stats —
+ *  no invented handles. Ordered by subscriber count, biggest first. */
+export async function searchChannels(query: string, max = 6): Promise<YtStats[]> {
+  const found = await ytFetch<{ items?: { snippet?: { channelId?: string } }[] }>("search", {
+    part: "snippet",
+    type: "channel",
+    maxResults: String(Math.min(15, max * 2)),
+    q: query,
+    relevanceLanguage: "en",
+  });
+  const ids = [
+    ...new Set(
+      (found?.items ?? []).map((i) => i.snippet?.channelId).filter((v): v is string => Boolean(v)),
+    ),
+  ].slice(0, 12);
+  if (!ids.length) return [];
+
+  const j = await ytFetch<{ items?: ChannelItem[] }>("channels", {
+    part: "snippet,statistics,contentDetails",
+    id: ids.join(","),
+  });
+  const channels = (j?.items ?? []).map(toChannel);
+
+  return channels
+    .sort((a, b) => (b.subscribers ?? 0) - (a.subscribers ?? 0))
+    .slice(0, max)
+    .map((ch) => ({
+      handle: (ch.handle ?? ch.channelId).replace(/^@/, ""),
+      found: true as const,
+      channelId: ch.channelId,
+      title: ch.title,
+      avatar: ch.avatar,
+      url: `https://youtube.com/channel/${ch.channelId}`,
+      subscribers: ch.subscribers,
+      lifetimeViews: ch.views,
+      videoCount: ch.videoCount,
+      // Cadence/engagement need per-video reads; the discover list stays cheap
+      // and the full picture appears once the channel is tracked.
+      uploadsPerWeek: null,
+      engagementRate: null,
+      medianViews: null,
+    }));
+}
