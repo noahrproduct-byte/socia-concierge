@@ -256,3 +256,63 @@ export async function searchChannels(query: string, max = 6): Promise<YtStats[]>
       medianViews: null,
     }));
 }
+
+/** Search videos in a niche, with their real public statistics. Discovery of
+ *  content, not just channels — every item is a real video Google returned. */
+export async function searchVideos(
+  query: string,
+  max = 10,
+  publishedAfterDays = 90,
+): Promise<(YtVideo & { channelId: string; channelTitle: string; url: string })[]> {
+  const after = new Date(Date.now() - publishedAfterDays * 86400000).toISOString();
+  const found = await ytFetch<{ items?: { id?: { videoId?: string } }[] }>("search", {
+    part: "snippet",
+    type: "video",
+    order: "viewCount",
+    maxResults: String(Math.min(25, max * 2)),
+    q: query,
+    publishedAfter: after,
+    relevanceLanguage: "en",
+  });
+  const ids = [
+    ...new Set((found?.items ?? []).map((i) => i.id?.videoId).filter((v): v is string => Boolean(v))),
+  ].slice(0, 20);
+  if (!ids.length) return [];
+
+  const vids = await ytFetch<{
+    items?: {
+      id: string;
+      snippet?: {
+        title?: string; publishedAt?: string; channelId?: string; channelTitle?: string;
+        thumbnails?: { medium?: { url?: string }; high?: { url?: string } };
+      };
+      statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+    }[];
+  }>("videos", { part: "snippet,statistics", id: ids.join(",") });
+
+  return (vids?.items ?? [])
+    .map((v) => ({
+      videoId: v.id,
+      title: v.snippet?.title ?? "",
+      publishedAt: v.snippet?.publishedAt ?? "",
+      thumb: v.snippet?.thumbnails?.high?.url ?? v.snippet?.thumbnails?.medium?.url ?? null,
+      views: num(v.statistics?.viewCount),
+      likes: num(v.statistics?.likeCount),
+      comments: num(v.statistics?.commentCount),
+      channelId: v.snippet?.channelId ?? "",
+      channelTitle: v.snippet?.channelTitle ?? "",
+      url: `https://youtube.com/watch?v=${v.id}`,
+    }))
+    .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
+    .slice(0, max);
+}
+
+/** Median public views across a channel's recent uploads — the denominator
+ *  that turns a raw view count into "N× their normal". Null when unknown. */
+export async function channelMedianViews(uploadsPlaylist: string): Promise<number | null> {
+  const vids = await recentVideos(uploadsPlaylist, 10);
+  const xs = vids.map((v) => v.views).filter((v): v is number => v != null).sort((a, b) => a - b);
+  if (!xs.length) return null;
+  const m = Math.floor(xs.length / 2);
+  return xs.length % 2 ? xs[m] : (xs[m - 1] + xs[m]) / 2;
+}

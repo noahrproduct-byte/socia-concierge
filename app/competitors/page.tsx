@@ -12,12 +12,11 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import { ExportButton } from "@/components/CompetitorsBoard";
+import CompetitorDiscovery from "@/components/CompetitorDiscovery";
 import {
   CompetitorStrip,
   ManageCompetitors,
-  WinningNow,
   BreakdownRows,
-  DiscoverAccounts,
   type Tracked,
 } from "@/components/CompetitorIntel";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
@@ -292,15 +291,6 @@ export default async function CompetitorsPage({
           <CompetitorStrip you={youStrip} tracked={tracked} ytStats={ytStats} />
         </section>
 
-        {/* 2b — discovery: accounts in the user's real niche */}
-        <section className="cp4-sec db2-rise" style={{ animationDelay: "90ms" }}>
-          <div className="cp4-sec-head">
-            <h2>Accounts in your niche</h2>
-            <small>Scanned for {niche ?? "your niche"} · track one to add it above</small>
-          </div>
-          <DiscoverAccounts tracked={tracked} />
-        </section>
-
         {/* 3 — how you compare */}
         <section className="cp4-sec db2-rise" style={{ animationDelay: "120ms" }}>
           <div className="cp4-sec-head">
@@ -343,40 +333,15 @@ export default async function CompetitorsPage({
           </p>
         </section>
 
-        {/* 4 — what's winning right now */}
+        {/* 4 — discovery: content, patterns and accounts SOCIA found */}
         <section className="cp4-sec db2-rise" style={{ animationDelay: "180ms" }}>
-          <div className="cp4-sec-head">
-            <h2>What&apos;s winning right now</h2>
-            <small>Real posts by other creators, found by live web search · view counts as the platform reported them</small>
-          </div>
-          <WinningNow trackedHandles={tracked.map((t) => t.handle)} />
+          <CompetitorDiscovery
+            trackedKeys={tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`)}
+            ownHandle={snap?.username ?? null}
+          />
         </section>
 
-        <div className="cp4-duo">
-          {/* 5 — patterns */}
-          <section className="cp4-sec db2-rise" style={{ animationDelay: "240ms" }}>
-            <div className="cp4-sec-head">
-              <h2>Patterns moving in your niche</h2>
-              <small>AI-estimated momentum from SOCIA&apos;s web research — not measured platform data</small>
-            </div>
-            {pulse.length ? (
-              <ol className="cp4-patterns">
-                {pulse.map((p, i) => (
-                  <li key={p.label}>
-                    <span className="cp4-pat-num">{String(i + 1).padStart(2, "0")}</span>
-                    <span className="cp4-pat-meta"><b>{p.label}</b><small>{p.group}</small></span>
-                    <b className={`cp4-pat-pct ${p.change_pct >= 0 ? "up" : "down"}`}>
-                      {p.change_pct >= 0 ? "↑" : "↓"} {Math.abs(p.change_pct)}%<em>est.</em>
-                    </b>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="cp4-empty">Run your niche analysis and SOCIA&apos;s researched patterns appear here.</p>
-            )}
-            <Link href="/niche" className="cp4-more">View all trends <ArrowRight size={13} /></Link>
-          </section>
-
+        <div>
           {/* 6 — competitive position */}
           <section className="cp4-sec db2-rise" style={{ animationDelay: "300ms" }}>
             <div className="cp4-sec-head">

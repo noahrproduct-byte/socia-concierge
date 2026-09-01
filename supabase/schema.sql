@@ -291,3 +291,97 @@ create policy "Users can add their own competitors"
   on public.tracked_competitors for insert with check (auth.uid() = user_id);
 create policy "Users can delete their own competitors"
   on public.tracked_competitors for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Discovery: accounts and content SOCIA finds for the user automatically.
+--
+-- Separate from tracked_competitors on purpose: discovery is a suggestion,
+-- tracking is a decision. Rows carry their provenance so the UI can label
+-- verified API data differently from web-discovered leads, and any metric a
+-- source doesn't publish stays NULL (never 0 — unknown is not zero).
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.discovered_accounts (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  platform text not null,
+  -- Stable platform id where one exists (YouTube channelId), else the handle.
+  platform_account_id text not null,
+  handle text,
+  display_name text,
+  profile_image text,
+  profile_url text,
+  followers integer,          -- null = the platform doesn't publish it
+  location text,
+  category text,
+  classification text not null default 'adjacent_competitor',
+  relevance_score integer,
+  relevance_reasons jsonb,
+  data_source text not null,  -- youtube_api | web_research
+  last_checked timestamptz not null default now(),
+  primary key (user_id, platform, platform_account_id)
+);
+
+alter table public.discovered_accounts enable row level security;
+create policy "Users read their own discovered accounts"
+  on public.discovered_accounts for select using (auth.uid() = user_id);
+create policy "Users write their own discovered accounts"
+  on public.discovered_accounts for insert with check (auth.uid() = user_id);
+create policy "Users update their own discovered accounts"
+  on public.discovered_accounts for update using (auth.uid() = user_id);
+create policy "Users delete their own discovered accounts"
+  on public.discovered_accounts for delete using (auth.uid() = user_id);
+
+create table if not exists public.discovered_content (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  -- Canonical URL is the dedup key: the same video found by two searches
+  -- must be stored once.
+  content_url text not null,
+  platform text not null,
+  account_handle text,
+  account_name text,
+  account_image text,
+  thumbnail_url text,
+  title text,
+  published_at timestamptz,
+  content_type text,
+  views bigint,
+  likes bigint,
+  comments bigint,
+  -- Performance relative to the creator's own median, when both are real.
+  multiplier numeric,
+  relevance_score integer,
+  relevance_reasons jsonb,
+  trend_tags jsonb,
+  why_recommended text,
+  data_source text not null,
+  last_checked timestamptz not null default now(),
+  primary key (user_id, content_url)
+);
+
+alter table public.discovered_content enable row level security;
+create policy "Users read their own discovered content"
+  on public.discovered_content for select using (auth.uid() = user_id);
+create policy "Users write their own discovered content"
+  on public.discovered_content for insert with check (auth.uid() = user_id);
+create policy "Users update their own discovered content"
+  on public.discovered_content for update using (auth.uid() = user_id);
+create policy "Users delete their own discovered content"
+  on public.discovered_content for delete using (auth.uid() = user_id);
+
+-- When discovery last ran, so the page can show "updated N minutes ago"
+-- truthfully instead of implying it is live.
+create table if not exists public.discovery_runs (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  ran_at timestamptz not null default now(),
+  accounts_found integer not null default 0,
+  content_found integer not null default 0,
+  sources jsonb
+);
+
+alter table public.discovery_runs enable row level security;
+create policy "Users read their own discovery runs"
+  on public.discovery_runs for select using (auth.uid() = user_id);
+create policy "Users write their own discovery runs"
+  on public.discovery_runs for insert with check (auth.uid() = user_id);
+create policy "Users update their own discovery runs"
+  on public.discovery_runs for update using (auth.uid() = user_id);
