@@ -23,6 +23,7 @@ import {
 } from "@/components/CompetitorIntel";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
+import { nameKey } from "@/lib/discovery";
 import {
   engagementOf,
   median,
@@ -279,7 +280,21 @@ export default async function CompetitorsPage({
         relevanceReasons: (r.relevance_reasons as string[]) ?? [],
       }))
       .filter((sg) => sg.handle && !trackedKeys.has(`${sg.platform}:${sg.handle.toLowerCase()}`))
-      .sort((a, b) => (CLASS_ORDER[a.classification] ?? 9) - (CLASS_ORDER[b.classification] ?? 9))
+      .sort((a, b) => (CLASS_ORDER[a.classification] ?? 9) - (CLASS_ORDER[b.classification] ?? 9));
+
+    // Rows stored before name-matching existed can still hold the same
+    // business twice ("Mozzarella Pizzeria" / "Mozzarella (Hermitage)"), so
+    // collapse on read as well as at discovery time. First wins, and the sort
+    // above means that is the better-classified one.
+    const seenName = new Set<string>();
+    suggested = suggested
+      .filter((sg) => {
+        const k = `${sg.platform}:${nameKey(sg.displayName ?? sg.handle)}`;
+        if (!nameKey(sg.displayName ?? sg.handle)) return true;
+        if (seenName.has(k)) return false;
+        seenName.add(k);
+        return true;
+      })
       .slice(0, 6);
   } catch {
     // discovery tables may not exist yet — the strip still shows tracked accounts
@@ -429,7 +444,7 @@ export default async function CompetitorsPage({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img className="cp4-face sm" src={youStrip.avatar} alt="" width={26} height={26} />
                     ) : <span className="cp4-face ph sm">Y</span>}
-                    <b>@{snap?.username ?? "you"}</b><span className="cp4-youtag inline">YOU</span>
+                    <b>@{snap?.username ?? "you"}</b><span className="cp4-tag you">YOU</span>
                   </td>
                   <td>{followers != null ? fmtNum(followers) : "—"}</td>
                   <td>{rate != null ? `${rate.toFixed(1)}%` : "—"}</td>

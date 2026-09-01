@@ -235,13 +235,15 @@ export function CompetitorStrip({
     <>
       <div className="cp4-strip" role="list">
         <article className="cp4-acct you" role="listitem">
-          <span className="cp4-youtag">YOU</span>
-          {you.avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="cp4-face" src={you.avatar} alt="" width={40} height={40} />
-          ) : (
-            <span className="cp4-face ph"><Users size={16} /></span>
-          )}
+          <div className="cp4-acct-head">
+            {you.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="cp4-face" src={you.avatar} alt="" width={38} height={38} />
+            ) : (
+              <span className="cp4-face ph"><Users size={16} /></span>
+            )}
+            <span className="cp4-tag you">YOU</span>
+          </div>
           <b className="cp4-handle">@{you.username ?? "your account"}</b>
           <div className="cp4-nums">
             <span><b>{you.followers != null ? you.followers.toLocaleString("en-US") : "—"}</b><small>Followers</small></span>
@@ -277,13 +279,15 @@ export function CompetitorStrip({
                 onClick={() => (live ? setYtDetail(live) : openDetail(c))}
                 aria-label={`Open ${live?.title ?? `@${c.handle}`} details`}
               >
-                <span className={`cp4-plat ${c.platform}`}>{c.platform === "youtube" ? "YouTube" : "Instagram"}</span>
-                {live?.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="cp4-face" src={live.avatar} alt="" width={40} height={40} />
-                ) : (
-                  <span className="cp4-face ph">{c.handle[0]?.toUpperCase()}</span>
-                )}
+                <div className="cp4-acct-head">
+                  {live?.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="cp4-face" src={live.avatar} alt="" width={38} height={38} />
+                  ) : (
+                    <span className="cp4-face ph">{c.handle[0]?.toUpperCase()}</span>
+                  )}
+                  <span className={`cp4-plat ${c.platform}`}>{c.platform === "youtube" ? "YouTube" : "Instagram"}</span>
+                </div>
                 <b className="cp4-handle">{live?.title ?? `@${c.handle}`}</b>
                 <div className="cp4-nums">
                   <span>
@@ -295,15 +299,9 @@ export function CompetitorStrip({
                     <small>Eng. rate</small>
                   </span>
                 </div>
-                {live ? (
-                  <small className="cp4-realnote" title="Public data from YouTube's official API.">
-                    Real public data
-                  </small>
-                ) : (
-                  <small className="cp4-nodata" title="Instagram doesn't expose other accounts' analytics. SOCIA shows a dash instead of a guess.">
-                    {c.platform === "youtube" ? "Channel not found" : "Public metrics unavailable"}
-                  </small>
-                )}
+                <small className={live ? "cp4-foot ok" : "cp4-foot"}>
+                  {live ? "Tracked · public API" : c.platform === "youtube" ? "Channel not found" : "Tracked · metrics not published"}
+                </small>
               </button>
             </article>
           );
@@ -315,11 +313,10 @@ export function CompetitorStrip({
             const key = `${sg.platform}:${sg.handle}`;
             return (
               <article className="cp4-acct cp4-sugg" role="listitem" key={key}>
-                <span className="cp4-suggtag">SUGGESTED</span>
-                <div className="cp4-sugg-top">
+                <div className="cp4-acct-head">
                   {sg.profileImage ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img className="cp4-face" src={sg.profileImage} alt="" width={40} height={40} />
+                    <img className="cp4-face" src={sg.profileImage} alt="" width={38} height={38} />
                   ) : (
                     <span className="cp4-face ph">{(sg.displayName ?? sg.handle ?? "?")[0]?.toUpperCase()}</span>
                   )}
@@ -330,14 +327,27 @@ export function CompetitorStrip({
                 <b className="cp4-handle">{sg.displayName ?? `@${sg.handle}`}</b>
                 <div className="cp4-nums">
                   <span>
-                    <b>{sg.followers != null ? sg.followers.toLocaleString("en-US") : "—"}</b>
-                    <small>{sg.platform === "youtube" ? "Subscribers" : "Followers"}</small>
+                    {sg.followers != null ? (
+                      <>
+                        <b>{sg.followers.toLocaleString("en-US")}</b>
+                        <small>{sg.platform === "youtube" ? "Subscribers" : "Followers"}</small>
+                      </>
+                    ) : (
+                      // "—" under a "Followers" label reads as a broken value.
+                      // Say what is true instead: the platform doesn't publish it.
+                      <>
+                        <b className="muted">&mdash;</b>
+                        <small title="Instagram and Facebook don't publish follower counts to third parties.">
+                          Not published
+                        </small>
+                      </>
+                    )}
                   </span>
                 </div>
-                <small className="cp4-suggwhy" title={sg.relevanceReasons.join(" · ")}>
+                <small className="cp4-foot" title={sg.relevanceReasons.join(" · ")}>
                   {sg.relevanceReasons[0] ?? "Found in your niche"}
                 </small>
-                <div className="cp4-suggacts">
+                <div className="cp4-acct-actions">
                   <a href={sg.profileUrl ?? "#"} target="_blank" rel="noreferrer">View</a>
                   <button type="button" onClick={() => trackSuggested(sg)} disabled={adding === key}>
                     {adding === key ? <Loader2 size={11} className="cp4-spin" /> : <Plus size={11} />} Track
