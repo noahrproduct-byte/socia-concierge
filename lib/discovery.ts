@@ -390,14 +390,52 @@ export function scoreContent(c: ContentCandidate, p: DiscoveryProfile): ScoredCo
   };
 }
 
+/** The identifying core of a business name: parentheses, generic trade words
+ *  and location suffixes removed. Web research surfaces the same place under
+ *  several names ("Mozzarella Pizzeria" and "Mozzarella (Hermitage)"), which
+ *  would otherwise accumulate as separate competitors. */
+const GENERIC_NAME_WORDS = new Set([
+  "the", "pizza", "pizzeria", "pizzas", "restaurant", "ristorante", "cafe", "caffe",
+  "kitchen", "grill", "bar", "co", "inc", "llc", "shop", "house", "of", "and",
+  "italian", "food", "eatery", "official",
+]);
+
+export function nameKey(name: string | null | undefined): string {
+  return (name ?? "")
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")     // drop "(Hermitage)"
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 1 && !GENERIC_NAME_WORDS.has(w))
+    .slice(0, 2)
+    .join(" ")
+    .trim();
+}
+
 /** Merge duplicates found through different searches, keeping the richest
- *  record. Accounts key on platform + id, content keys on canonical URL. */
+ *  record. Platform-API accounts key on their stable id. Web-research
+ *  accounts have no such id, so they additionally merge on the identifying
+ *  core of their name — within one local market, two results sharing that
+ *  core are the same business far more often than not. */
 export function dedupeAccounts(xs: ScoredAccount[]): ScoredAccount[] {
   const by = new Map<string, ScoredAccount>();
+  const nameSeen = new Map<string, string>();
+
   for (const x of xs) {
-    const k = `${x.platform}:${x.platformAccountId.toLowerCase()}`;
+    let k = `${x.platform}:${x.platformAccountId.toLowerCase()}`;
+
+    if (x.dataSource === "web_research") {
+      const nk = nameKey(x.displayName ?? x.handle);
+      if (nk) {
+        const existing = nameSeen.get(`${x.platform}:${nk}`);
+        if (existing) k = existing;
+        else nameSeen.set(`${x.platform}:${nk}`, k);
+      }
+    }
+
     const prev = by.get(k);
-    if (!prev || x.relevanceScore > prev.relevanceScore) by.set(k, prev ? { ...prev, ...x } : x);
+    if (!prev) by.set(k, x);
+    else if (x.relevanceScore > prev.relevanceScore) by.set(k, { ...prev, ...x });
   }
   return [...by.values()].sort((a, b) => b.relevanceScore - a.relevanceScore);
 }

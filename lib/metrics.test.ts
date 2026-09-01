@@ -223,7 +223,7 @@ describe("AI availability", () => {
 
 import {
   goalKind, buildQueries, scoreAccount, classifyAccount, scoreContent,
-  detectTrendTags, dedupeAccounts, dedupeContent, canonicalUrl, rollUpTrends,
+  detectTrendTags, dedupeAccounts, dedupeContent, canonicalUrl, rollUpTrends, nameKey,
   type DiscoveryProfile, type AccountCandidate, type ContentCandidate,
 } from "./discovery";
 
@@ -371,5 +371,39 @@ describe("discovery: deduplication", () => {
       likes: null, comments: null, multiplier: null, dataSource: "youtube_api", why: null,
     }, profile());
     expect(dedupeContent([mk("https://x.com/a?utm_source=1"), mk("https://x.com/a")])).toHaveLength(1);
+  });
+});
+
+describe("discovery: near-duplicate businesses", () => {
+  const web = (name: string, id: string): AccountCandidate => ({
+    platform: "instagram", platformAccountId: id, handle: id, displayName: name,
+    profileImage: null, profileUrl: null, followers: null, location: null,
+    category: null, dataSource: "web_research",
+  });
+
+  it("reduces a business name to its identifying core", () => {
+    expect(nameKey("Mozzarella Pizzeria")).toBe(nameKey("Mozzarella (Hermitage)"));
+    expect(nameKey("Gondola House Pizzeria")).toBe("gondola");
+  });
+
+  it("merges the same place found under two names", () => {
+    const xs = [web("Mozzarella Pizzeria", "mozzarella_pizzeria"), web("Mozzarella (Hermitage)", "mozzarella_herm")]
+      .map((c) => scoreAccount(c, profile()));
+    expect(dedupeAccounts(xs)).toHaveLength(1);
+  });
+
+  it("keeps genuinely different businesses apart", () => {
+    const xs = [web("Cicis Pizza", "cicis"), web("Gondola House Pizzeria", "gondola"), web("King Pizza", "king")]
+      .map((c) => scoreAccount(c, profile()));
+    expect(dedupeAccounts(xs)).toHaveLength(3);
+  });
+
+  it("never name-merges accounts that carry a verified platform id", () => {
+    const api = (name: string, id: string): AccountCandidate => ({
+      ...web(name, id), platform: "youtube", dataSource: "youtube_api",
+    });
+    const xs = [api("Pizza Channel", "UC1"), api("Pizza Channel", "UC2")]
+      .map((c) => scoreAccount(c, profile()));
+    expect(dedupeAccounts(xs)).toHaveLength(2);
   });
 });
