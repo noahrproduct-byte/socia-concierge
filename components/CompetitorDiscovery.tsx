@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, ExternalLink, Loader2, RefreshCw, Info, ArrowRight, Check, Sparkles, PauseCircle,
 } from "lucide-react";
-import { AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import { CLASSIFICATION_LABEL, type Classification, type ScoredAccount, type ScoredContent, type TrendRollup } from "@/lib/discovery";
 
 type Sources = { youtube: "ok" | "not_configured" | "failed"; web: string };
