@@ -172,7 +172,10 @@ export default async function CompetitorsPage({
         seenName.add(key);
         return true;
       })
-      .slice(0, 6);
+      // Everything discovery holds, not just six: the table shows six by
+      // default and expands on "View all", and "Discovered for you" is what
+      // lies past those six. Capping here starved both.
+      .slice(0, 24);
   } catch {
     // discovery tables may not exist yet — the strip still shows tracked accounts
   }
