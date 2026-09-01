@@ -316,15 +316,17 @@ export function CompetitorStrip({
             return (
               <article className="cp4-acct cp4-sugg" role="listitem" key={key}>
                 <span className="cp4-suggtag">SUGGESTED</span>
-                <span className={`cp4-plat ${sg.platform}`}>
-                  {sg.platform === "youtube" ? "YouTube" : sg.platform === "facebook" ? "Facebook" : "Instagram"}
-                </span>
-                {sg.profileImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="cp4-face" src={sg.profileImage} alt="" width={40} height={40} />
-                ) : (
-                  <span className="cp4-face ph">{(sg.displayName ?? sg.handle ?? "?")[0]?.toUpperCase()}</span>
-                )}
+                <div className="cp4-sugg-top">
+                  {sg.profileImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="cp4-face" src={sg.profileImage} alt="" width={40} height={40} />
+                  ) : (
+                    <span className="cp4-face ph">{(sg.displayName ?? sg.handle ?? "?")[0]?.toUpperCase()}</span>
+                  )}
+                  <span className={`cp4-plat ${sg.platform}`}>
+                    {sg.platform === "youtube" ? "YouTube" : sg.platform === "facebook" ? "Facebook" : "Instagram"}
+                  </span>
+                </div>
                 <b className="cp4-handle">{sg.displayName ?? `@${sg.handle}`}</b>
                 <div className="cp4-nums">
                   <span>
