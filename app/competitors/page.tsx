@@ -24,6 +24,8 @@ import {
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import { nameKey } from "@/lib/discovery";
+import CompetitorWorkspace from "@/components/CompetitorWorkspace";
+import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import {
   engagementOf,
   median,
@@ -53,6 +55,15 @@ export const metadata = { title: "Competitors — SOCIA" };
 //   Patterns       -> niche web research, labeled as AI-estimated momentum
 // Niche averages don't exist in any data SOCIA can verify, so the comparison
 // table says so instead of inventing a number.
+
+function agoText(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  return `${Math.round(hrs / 24)} day${Math.round(hrs / 24) === 1 ? "" : "s"} ago`;
+}
 
 const fmtNum = (n: number): string =>
   n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"
@@ -310,6 +321,94 @@ export default async function CompetitorsPage({
     spark: folSeries.map((r) => r.followers),
   };
 
+  // Only shown when a discovery run genuinely exists — the header must not
+  // imply freshness the app cannot vouch for.
+  let lastRun: string | null = null;
+  try {
+    const { data } = await supabase
+      .from("discovery_runs")
+      .select("ran_at")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    lastRun = data?.ran_at ?? null;
+  } catch {
+    // no run recorded — the status line simply doesn't render
+  }
+
+  // ---- leaderboard rows: the user, tracked accounts, then discovery -------
+  // Each cell states its provenance, and an absent value states WHY it is
+  // absent. Instagram and Facebook publish nothing about accounts the user
+  // doesn't own, so those rows carry connection_needed / unavailable rather
+  // than a dash that could be mistaken for zero.
+  const leaderRows: LeaderRow[] = [];
+
+  leaderRows.push({
+    id: "you",
+    platform: "instagram",
+    handle: snap?.username ?? "you",
+    name: snap?.username ? `@${snap.username}` : "Your account",
+    avatar: snap?.profile_picture_url ?? null,
+    url: snap?.username ? `https://instagram.com/${snap.username}` : null,
+    isYou: true,
+    tracked: true,
+    classification: null,
+    audience: cell(followers, "live_api"),
+    engagement: cell(rate, "calculated", all.length || null),
+    cadence: cell(N ? freq : null, "calculated", N || null),
+    medianViews: medViews != null ? cell(Math.round(medViews), "live_api", viewsVals.length) : absent("insufficient"),
+    momentum: growth && folSeries.length >= 2
+      ? cell(folSeries.at(-1)!.followers - folSeries[0].followers, "socia_snapshot", folSeries.length)
+      : absent("insufficient"),
+  });
+
+  for (const t of tracked) {
+    const yt = t.platform === "youtube" ? ytStats[t.handle] : undefined;
+    const live = yt?.found ? yt : null;
+    leaderRows.push({
+      id: `${t.platform}:${t.handle}`,
+      platform: t.platform === "youtube" ? "youtube" : t.platform === "facebook" ? "facebook" : "instagram",
+      handle: t.handle,
+      name: live?.title ?? `@${t.handle}`,
+      avatar: live?.avatar ?? null,
+      url: live?.url
+        ?? (t.platform === "facebook" ? `https://facebook.com/${t.handle}` : `https://instagram.com/${t.handle}`),
+      isYou: false,
+      tracked: true,
+      classification: "direct_competitor",
+      audience: live ? cell(live.subscribers ?? null, "public_api") : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
+      engagement: live ? cell(live.engagementRate ?? null, "calculated", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
+      cadence: live ? cell(live.uploadsPerWeek ?? null, "calculated", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
+      medianViews: live ? cell(live.medianViews ?? null, "public_api", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
+      momentum: absent("unavailable"),
+    });
+  }
+
+  const inLeader = new Set(leaderRows.map((r) => `${r.platform}:${r.handle.toLowerCase()}`));
+  for (const sg of suggested) {
+    const key = `${sg.platform}:${(sg.handle ?? "").toLowerCase()}`;
+    if (!sg.handle || inLeader.has(key)) continue;
+    inLeader.add(key);
+    const isYt = sg.platform === "youtube";
+    leaderRows.push({
+      id: key,
+      platform: isYt ? "youtube" : sg.platform === "facebook" ? "facebook" : "instagram",
+      handle: sg.handle,
+      name: sg.displayName ?? `@${sg.handle}`,
+      avatar: sg.profileImage,
+      url: sg.profileUrl,
+      isYou: false,
+      tracked: false,
+      classification: sg.classification,
+      audience: sg.followers != null ? cell(sg.followers, "public_api") : absent(isYt ? "unknown" : "connection_needed"),
+      // Discovery lists an account; it does not read that account's posts.
+      // Those cells fill in once the account is tracked and fetched.
+      engagement: absent(isYt ? "unknown" : "connection_needed"),
+      cadence: absent(isYt ? "unknown" : "connection_needed"),
+      medianViews: absent(isYt ? "unknown" : "connection_needed"),
+      momentum: absent("unavailable"),
+    });
+  }
+
   return (
     <AppShell active="competitors" userEmail={user.email}>
       <div className="cp4">
@@ -317,7 +416,12 @@ export default async function CompetitorsPage({
         <div className="cp4-head db2-rise">
           <div>
             <h1>Competitor Intelligence</h1>
-            <p>See who&apos;s winning in your niche, what they&apos;re doing differently, and where you can gain ground.</p>
+            <p>See who is winning your niche, why they&apos;re winning, and what you should do next.</p>
+            {lastRun && (
+              <span className="cw-status">
+                <i /> Live competitor intelligence · refreshed {agoText(lastRun)}
+              </span>
+            )}
           </div>
           <div className="cp4-controls">
             <span className="cp4-chipset" role="group" aria-label="Platform">
@@ -335,56 +439,7 @@ export default async function CompetitorsPage({
           </div>
         </div>
 
-        {/* 2 — who you're competing against */}
-        <section className="cp4-sec db2-rise" style={{ animationDelay: "60ms" }}>
-          <div className="cp4-sec-head">
-            <h2>Who you&apos;re competing against</h2>
-            <small>Your live numbers, the accounts you track, and the strongest competitors SOCIA found. Metrics appear only where a platform publishes them.</small>
-          </div>
-          <CompetitorStrip you={youStrip} tracked={tracked} ytStats={ytStats} suggested={suggested} />
-        </section>
-
-        {/* 3 — how you compare */}
-        <section className="cp4-sec db2-rise" style={{ animationDelay: "120ms" }}>
-          <div className="cp4-sec-head">
-            <h2>How you compare</h2>
-            <small>Last {days} days · your column is live Instagram data</small>
-          </div>
-          <div className="cp4-tablewrap">
-            <table className="cp4-table">
-              <thead>
-                <tr><th>Metric</th><th>You{snap?.username ? ` · @${snap.username}` : ""}</th><th>Tier benchmark</th><th>Top competitor</th><th>Position</th></tr>
-              </thead>
-              <tbody>
-                {compareRows.map((r) => {
-                  const bench = benchmarkFor(r.label, followers);
-                  const pos = positions[r.label];
-                  return (
-                    <tr key={r.label}>
-                      <td>{r.label}</td>
-                      <td className="cp4-you" title={r.tip}>{r.you}</td>
-                      <td className={bench ? undefined : "cp4-na"} title={bench?.note}>
-                        {bench ? bench.value : "—"}
-                      </td>
-                      <td className="cp4-na">—</td>
-                      <td>
-                        {pos && pos.tone !== "none" ? (
-                          <span className={`cp4-pos ${pos.tone}`} title={pos.detail}>{pos.text}</span>
-                        ) : (
-                          <span className="cp4-pos">No verified data</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="cp4-note">
-            <Info size={11} /> {BENCHMARK_ATTRIBUTION} Top-competitor stays empty rather than
-            estimated, and fills in automatically if platforms ever open public data.
-          </p>
-        </section>
+        <CompetitorWorkspace rows={leaderRows} />
 
         {/* 4 — discovery: content, patterns and accounts SOCIA found */}
         <section className="cp4-sec db2-rise" style={{ animationDelay: "180ms" }}>
@@ -394,91 +449,17 @@ export default async function CompetitorsPage({
           />
         </section>
 
-        <div>
-          {/* 6 — competitive position */}
-          <section className="cp4-sec db2-rise" style={{ animationDelay: "300ms" }}>
-            <div className="cp4-sec-head">
-              <h2>Your competitive position</h2>
-              <small>Measured from your own synced posts</small>
-            </div>
-            {advantages.length || gapsList.length ? (
-              <div className="cp4-pos-grid">
-                <div>
-                  <small className="cp4-pos-label adv">YOUR ADVANTAGES</small>
-                  <ul>
-                    {advantages.map((a) => (
-                      <li key={a.title}><CheckCircle2 size={14} className="cp4-adv-ico" /><span><b>{a.title}</b><p>{a.body}</p></span></li>
-                    ))}
-                    {advantages.length === 0 && <li className="cp4-empty">No measured advantage stands out yet.</li>}
-                  </ul>
-                </div>
-                <div>
-                  <small className="cp4-pos-label gap">YOUR GAPS</small>
-                  <ul>
-                    {gapsList.map((g) => (
-                      <li key={g.title}><AlertTriangle size={14} className="cp4-gap-ico" /><span><b>{g.title}</b><p>{g.body}</p></span></li>
-                    ))}
-                    {gapsList.length === 0 && <li className="cp4-empty">No measurable gaps right now.</li>}
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              <p className="cp4-empty">SOCIA needs at least 5 synced posts to measure advantages and gaps honestly.</p>
-            )}
-          </section>
-        </div>
-
-        {/* 7 — competitor breakdown */}
-        <section className="cp4-sec db2-rise" style={{ animationDelay: "360ms" }}>
-          <div className="cp4-sec-head">
-            <h2>Competitor breakdown</h2>
-            <small>Click a competitor for its detail view</small>
-          </div>
-          <div className="cp4-tablewrap">
-            <table className="cp4-table cp4-btable">
-              <thead>
-                <tr><th>Account</th><th>Followers / subs</th><th>Eng. rate</th><th>Posts / week</th><th>Median views</th><th>Source</th><th></th></tr>
-              </thead>
-              <tbody>
-                <tr className="cp4-yourow">
-                  <td>
-                    {youStrip.avatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img className="cp4-face sm" src={youStrip.avatar} alt="" width={26} height={26} />
-                    ) : <span className="cp4-face ph sm">Y</span>}
-                    <b>@{snap?.username ?? "you"}</b><span className="cp4-tag you">YOU</span>
-                  </td>
-                  <td>{followers != null ? fmtNum(followers) : "—"}</td>
-                  <td>{rate != null ? `${rate.toFixed(1)}%` : "—"}</td>
-                  <td>{freq.toFixed(1)}</td>
-                  <td>{medViews != null ? fmtNum(Math.round(medViews)) : "—"}</td>
-                  <td><span className="cp4-srcnote" title="Your authenticated Instagram data.">Your account</span></td>
-                  <td></td>
-                </tr>
-                <BreakdownRows tracked={tracked} ytStats={ytStats} />
-              </tbody>
-            </table>
-          </div>
-          {tracked.length === 0 && (
-            <p className="cp4-empty">Track competitors with the button above — SOCIA links their public profiles and flags them in niche research.</p>
-          )}
-        </section>
-
-        {/* 7b — Instagram competitor data via Business Discovery */}
-        <section className="cp4-sec db2-rise" style={{ animationDelay: "400ms" }}>
-          <div className="cp4-sec-head">
-            <h2>Instagram competitor data</h2>
-            <small>Public Business Discovery data, available once a linked Facebook Page is connected</small>
-          </div>
-          <IgCompetitorData hasTracked={tracked.some((t) => t.platform === "instagram")} />
-        </section>
+        {/* Instagram connection — compact, and only while it is required */}
+        {tracked.some((t) => t.platform === "instagram") && (
+          <IgCompetitorData hasTracked />
+        )}
 
         {/* 8 — recommendations */}
         {recs.length > 0 && (
           <section className="cp4-sec db2-rise" style={{ animationDelay: "420ms" }}>
             <div className="cp4-sec-head">
-              <h2>What SOCIA recommends this week</h2>
-              <small>Each recommendation traces to a computation shown above</small>
+              <h2>Your next moves</h2>
+              <small>Each move traces to a number measured above</small>
             </div>
             <div className="cp4-recs">
               {recs.map((r) => {

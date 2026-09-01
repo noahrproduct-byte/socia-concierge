@@ -407,3 +407,98 @@ describe("discovery: near-duplicate businesses", () => {
     expect(dedupeAccounts(xs)).toHaveLength(2);
   });
 });
+
+import {
+  cell, absent, nicheMedian, rankOf, diffVs, buildPositionRows, type LeaderRow,
+} from "./competitorRollup";
+
+const row = (over: Partial<LeaderRow> = {}): LeaderRow => ({
+  id: "x", platform: "youtube", handle: "x", name: "X", avatar: null, url: null,
+  isYou: false, tracked: false, classification: null,
+  audience: cell(1000, "public_api"), engagement: cell(2, "calculated"),
+  cadence: cell(3, "calculated"), medianViews: cell(500, "public_api"),
+  momentum: absent("unknown"), ...over,
+});
+
+describe("competitor rollup: absence is typed, never zero", () => {
+  it("distinguishes the four kinds of missing", () => {
+    expect(absent("unavailable").state).toBe("unavailable");
+    expect(absent("connection_needed").state).toBe("connection_needed");
+    expect(absent("insufficient").state).toBe("insufficient");
+    expect(cell(null).state).toBe("unknown");
+  });
+  it("never turns a missing value into 0", () => {
+    expect(cell(null).value).toBeNull();
+    expect(absent("unavailable").value).toBeNull();
+  });
+});
+
+describe("competitor rollup: niche medians", () => {
+  it("refuses to call two accounts a niche", () => {
+    const rows = [row({ id: "a" }), row({ id: "b" })];
+    expect(nicheMedian(rows, (r) => r.engagement).state).toBe("insufficient");
+  });
+  it("computes a median once three accounts carry the metric", () => {
+    const rows = [
+      row({ id: "a", engagement: cell(2) }),
+      row({ id: "b", engagement: cell(4) }),
+      row({ id: "c", engagement: cell(6) }),
+    ];
+    const m = nicheMedian(rows, (r) => r.engagement);
+    expect(m.value).toBe(4);
+    expect(m.sample).toBe(3);
+  });
+  it("excludes the user from their own benchmark", () => {
+    const rows = [
+      row({ id: "you", isYou: true, engagement: cell(100) }),
+      row({ id: "a", engagement: cell(2) }),
+      row({ id: "b", engagement: cell(4) }),
+      row({ id: "c", engagement: cell(6) }),
+    ];
+    expect(nicheMedian(rows, (r) => r.engagement).value).toBe(4);
+  });
+  it("ignores rows whose metric is absent", () => {
+    const rows = [
+      row({ id: "a", engagement: cell(2) }),
+      row({ id: "b", engagement: absent("connection_needed") }),
+      row({ id: "c", engagement: cell(4) }),
+      row({ id: "d", engagement: cell(6) }),
+    ];
+    expect(nicheMedian(rows, (r) => r.engagement).sample).toBe(3);
+  });
+});
+
+describe("competitor rollup: rank and diff", () => {
+  it("ranks only among measurable accounts", () => {
+    const rows = [
+      row({ id: "you", isYou: true, audience: cell(50) }),
+      row({ id: "a", audience: cell(100) }),
+      row({ id: "b", audience: absent("unavailable") }),
+    ];
+    expect(rankOf(rows, (r) => r.audience)).toEqual({ rank: 2, of: 2 });
+  });
+  it("returns no rank when there is nothing to rank against", () => {
+    expect(rankOf([row({ isYou: true })], (r) => r.audience)).toBeNull();
+  });
+  it("computes a difference only when both sides are real", () => {
+    expect(diffVs(cell(1), absent("insufficient"))).toBeNull();
+    expect(diffVs(cell(2), cell(4))?.pct).toBe(-50);
+  });
+  it("never divides by a zero benchmark", () => {
+    expect(diffVs(cell(5), cell(0))).toBeNull();
+  });
+});
+
+describe("competitor rollup: position rows", () => {
+  it("puts an unmeasurable metric in neither column", () => {
+    const you = row({ id: "you", isYou: true, engagement: cell(5), cadence: absent("unknown") });
+    const rows = [you, row({ id: "a" }), row({ id: "b" }), row({ id: "c" })];
+    const { wins, gaps } = buildPositionRows(rows, you);
+    expect([...wins, ...gaps].some((r) => r.label === "Posting frequency")).toBe(false);
+  });
+  it("sorts a better-than-median metric into wins", () => {
+    const you = row({ id: "you", isYou: true, engagement: cell(9) });
+    const rows = [you, row({ id: "a", engagement: cell(2) }), row({ id: "b", engagement: cell(3) }), row({ id: "c", engagement: cell(4) })];
+    expect(buildPositionRows(rows, you).wins.some((r) => r.label === "Engagement rate")).toBe(true);
+  });
+});
