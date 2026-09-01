@@ -319,6 +319,26 @@ describe("discovery: content", () => {
     expect(detectTrendTags("POV: you order the pizza")).toContain("POV");
     expect(detectTrendTags("3 mistakes people make")).toContain("Listicle hook");
     expect(detectTrendTags(null)).toEqual([]);
+    expect(detectTrendTags("   ")).toEqual([]);
+  });
+
+  // Real titles the first vocabulary missed entirely — it was written for
+  // English hook-style headlines, which is not what these niches publish.
+  it("tags the title shapes that actually appear in short-form food video", () => {
+    expect(detectTrendTags("Italian pizza vs AMERICAN pizza")).toContain("Comparison");
+    expect(detectTrendTags("1 Second vs 1 Hour Pizza")).toContain("Time contrast");
+    expect(detectTrendTags("3 Levels of Pizza")).toContain("Levels / tiers");
+    expect(detectTrendTags("I Ordered The World's Largest Pizza Slice"))
+      .toEqual(expect.arrayContaining(["First-person challenge", "Superlative"]));
+    expect(detectTrendTags("They kept DESTROYING PIZZA")).toContain("High-drama framing");
+    expect(detectTrendTags("60 Secondi con un Pizzaiolo")).toContain("People on camera");
+    expect(detectTrendTags("Pizza Match Cut Today. What Transition Next?"))
+      .toContain("Camera technique");
+  });
+
+  it("never repeats a tag when several rules match", () => {
+    const tags = detectTrendTags("I tried the world's best cheapest pizza vs the most expensive");
+    expect(new Set(tags).size).toBe(tags.length);
   });
   it("rewards a real multiplier, not a guessed one", () => {
     const withMult = scoreContent(content({ multiplier: 4 }), profile()).relevanceScore;

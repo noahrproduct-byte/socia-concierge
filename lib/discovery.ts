@@ -282,22 +282,48 @@ export type ScoredContent = ContentCandidate & {
 };
 
 /** Format/topic tags detected from the title. Used for trend rollups; these
- *  describe the text SOCIA read, they are not performance claims. */
+ *  describe the text SOCIA read, they are not performance claims.
+ *
+ *  The vocabulary is drawn from what short-form titles in these niches
+ *  actually look like, not from hook-writing advice. Real examples that the
+ *  first version missed entirely: "Italian pizza vs AMERICAN pizza",
+ *  "I Ordered The World's Largest Pizza Slice", "1 Second vs 1 Hour Pizza".
+ *  Accented and non-English words are matched where the pattern is the same
+ *  word ("secondi", "levels"), but nothing is guessed from a language SOCIA
+ *  cannot read — an untagged title simply contributes no pattern. */
 export function detectTrendTags(title: string | null): string[] {
   const t = (title ?? "").toLowerCase();
+  if (!t.trim()) return [];
   const tags: string[] = [];
   const rules: [RegExp, string][] = [
+    // Structural comparisons — extremely common and highly visual.
+    [/\bvs\.?\b|\bversus\b|\bcompared? to\b/, "Comparison"],
+    [/\b\d+\s*(second|sec|minute|min|hour|hr|day)s?\b.*\bvs\b|\bvs\b.*\b\d+\s*(second|sec|minute|min|hour|hr|day)s?\b/, "Time contrast"],
+    [/\b\d+\s*(levels?|ways?|types?|kinds?)\b/, "Levels / tiers"],
+    [/\b\d+\s+(mistakes|things|tips|reasons|rules|secrets)\b/, "Listicle hook"],
+    // First-person challenge and reaction formats.
+    [/\bi (tried|ordered|made|ate|tested|visited|bought|spent)\b/, "First-person challenge"],
+    [/\bwe (tried|made|ordered|are|went)\b/, "First-person challenge"],
+    [/\b(world'?s|city'?s|country'?s)\s+(largest|biggest|best|worst|smallest|most)\b/, "Superlative"],
+    [/\b(largest|biggest|cheapest|most expensive|best|worst)\b/, "Superlative"],
+    // Process and craft.
+    [/behind the scenes|\bbts\b|how (it|we|they) (is|are|do)|making of|\bprep\b|\bprocess\b/, "Behind the scenes"],
+    [/recipe|how to make|tutorial|step by step/, "Tutorial"],
+    [/\bmatch cut\b|transition|time.?lapse|slow.?mo/, "Camera technique"],
+    // People and place.
     [/\bpov\b/, "POV"],
-    [/behind the scenes|bts|how (it|we) (is|are) made|making of|prep\b/, "Behind the scenes"],
-    [/\b\d+\s+(mistakes|things|ways|tips|reasons|levels)\b/, "Listicle hook"],
-    [/asmr|satisfying|oddly/, "ASMR / satisfying"],
-    [/review|tried|taste test|rating/, "Review"],
-    [/recipe|how to make|tutorial/, "Tutorial"],
-    [/secret|nobody|never|stop\b|don'?t/, "Contrarian hook"],
-    [/day in the life|routine/, "Day in the life"],
-    [/owner|founder|chef|employee|staff|meet the/, "People on camera"],
+    [/owner|founder|chef|employee|staff|meet the|pizzaiolo|pizzaiuolo/, "People on camera"],
+    [/day in the life|routine|shift\b/, "Day in the life"],
+    // Reaction, judgement and stakes.
+    [/review|rating|taste test|tier list|ranked|judge/, "Review / ranking"],
+    [/destroy|shocked|insane|crazy|unbelievable|struggling|fail/, "High-drama framing"],
+    [/asmr|satisfying|oddly|cheese pull|crispy|gooey/, "Sensory / ASMR"],
+    [/secret|nobody|never|\bstop\b|don'?t|you'?re doing it wrong/, "Contrarian hook"],
+    [/\$\d|\bcheap\b|\bprice\b|\bcost\b|\bworth it\b|\bvalue\b/, "Price / value"],
   ];
-  for (const [re, label] of rules) if (re.test(t)) tags.push(label);
+  for (const [re, label] of rules) {
+    if (re.test(t) && !tags.includes(label)) tags.push(label);
+  }
   return tags;
 }
 
