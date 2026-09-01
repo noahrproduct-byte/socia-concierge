@@ -263,9 +263,6 @@ export default async function CompetitorsPage({
     }
   }
 
-  // Strongest discovered accounts the user isn't already tracking. Local and
-  // direct competitors first — "who am I competing against" is answered by the
-  // pizzeria down the road before it's answered by a national channel.
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
   const CLASS_ORDER: Record<string, number> = {
     local_competitor: 0, direct_competitor: 1, emerging_creator: 2,
@@ -321,6 +318,29 @@ export default async function CompetitorsPage({
     spark: folSeries.map((r) => r.followers),
   };
 
+  // Discovery stores a channel's subscriber count but not its posting cadence
+  // or engagement — those need its recent uploads. YouTube publishes them, so
+  // leaving the columns empty would be understating what SOCIA can know. Read
+  // them for the handful shown, which also gives the niche medians a real
+  // sample instead of "not enough data".
+  let ytDiscovered: Record<string, YtStats> = {};
+  if (ytConfigured()) {
+    try {
+      const ytSuggested = suggested
+        .filter((sg) => sg.platform === "youtube" && sg.handle)
+        .slice(0, 8);
+      if (ytSuggested.length) {
+        const results = await Promise.all(ytSuggested.map((sg) => channelStats(sg.handle!)));
+        ytDiscovered = Object.fromEntries(results.filter((r) => r.found).map((r) => [r.handle, r]));
+      }
+    } catch {
+      // partial enrichment is fine — unenriched rows keep their dashes
+    }
+  }
+
+  // Strongest discovered accounts the user isn't already tracking. Local and
+  // direct competitors first — "who am I competing against" is answered by the
+  // pizzeria down the road before it's answered by a national channel.
   // Only shown when a discovery run genuinely exists — the header must not
   // imply freshness the app cannot vouch for.
   let lastRun: string | null = null;
@@ -389,22 +409,26 @@ export default async function CompetitorsPage({
     if (!sg.handle || inLeader.has(key)) continue;
     inLeader.add(key);
     const isYt = sg.platform === "youtube";
+    const enriched = isYt ? ytDiscovered[sg.handle] : undefined;
     leaderRows.push({
       id: key,
       platform: isYt ? "youtube" : sg.platform === "facebook" ? "facebook" : "instagram",
       handle: sg.handle,
       name: sg.displayName ?? `@${sg.handle}`,
-      avatar: sg.profileImage,
-      url: sg.profileUrl,
+      avatar: enriched?.avatar ?? sg.profileImage,
+      url: enriched?.url ?? sg.profileUrl,
       isYou: false,
       tracked: false,
       classification: sg.classification,
-      audience: sg.followers != null ? cell(sg.followers, "public_api") : absent(isYt ? "unknown" : "connection_needed"),
-      // Discovery lists an account; it does not read that account's posts.
-      // Those cells fill in once the account is tracked and fetched.
-      engagement: absent(isYt ? "unknown" : "connection_needed"),
-      cadence: absent(isYt ? "unknown" : "connection_needed"),
-      medianViews: absent(isYt ? "unknown" : "connection_needed"),
+      audience: enriched
+        ? cell(enriched.subscribers ?? null, "public_api")
+        : sg.followers != null ? cell(sg.followers, "public_api")
+        : absent(isYt ? "unknown" : "connection_needed"),
+      // Enriched from the channel's recent uploads where YouTube publishes
+      // them; Instagram and Facebook expose nothing for accounts you don't own.
+      engagement: enriched ? cell(enriched.engagementRate ?? null, "calculated", 10) : absent(isYt ? "unknown" : "connection_needed"),
+      cadence: enriched ? cell(enriched.uploadsPerWeek ?? null, "calculated", 10) : absent(isYt ? "unknown" : "connection_needed"),
+      medianViews: enriched ? cell(enriched.medianViews ?? null, "public_api", 10) : absent(isYt ? "unknown" : "connection_needed"),
       momentum: absent("unavailable"),
     });
   }
