@@ -19,6 +19,7 @@ import {
   ManageCompetitors,
   BreakdownRows,
   type Tracked,
+  type Suggested,
 } from "@/components/CompetitorIntel";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
@@ -250,6 +251,40 @@ export default async function CompetitorsPage({
     }
   }
 
+  // Strongest discovered accounts the user isn't already tracking. Local and
+  // direct competitors first — "who am I competing against" is answered by the
+  // pizzeria down the road before it's answered by a national channel.
+  const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
+  const CLASS_ORDER: Record<string, number> = {
+    local_competitor: 0, direct_competitor: 1, emerging_creator: 2,
+    content_inspiration: 3, niche_leader: 4, adjacent_competitor: 5,
+  };
+  let suggested: Suggested[] = [];
+  try {
+    const { data } = await supabase
+      .from("discovered_accounts")
+      .select("platform, handle, display_name, profile_image, profile_url, followers, classification, relevance_score, relevance_reasons")
+      .eq("user_id", user.id)
+      .order("relevance_score", { ascending: false })
+      .limit(40);
+    suggested = ((data ?? []) as Record<string, unknown>[])
+      .map((r) => ({
+        platform: String(r.platform),
+        handle: (r.handle as string) ?? null,
+        displayName: (r.display_name as string) ?? null,
+        profileImage: (r.profile_image as string) ?? null,
+        profileUrl: (r.profile_url as string) ?? null,
+        followers: (r.followers as number) ?? null,
+        classification: String(r.classification),
+        relevanceReasons: (r.relevance_reasons as string[]) ?? [],
+      }))
+      .filter((sg) => sg.handle && !trackedKeys.has(`${sg.platform}:${sg.handle.toLowerCase()}`))
+      .sort((a, b) => (CLASS_ORDER[a.classification] ?? 9) - (CLASS_ORDER[b.classification] ?? 9))
+      .slice(0, 6);
+  } catch {
+    // discovery tables may not exist yet — the strip still shows tracked accounts
+  }
+
   const youStrip = {
     username: snap?.username ?? null,
     avatar: snap?.profile_picture_url ?? null,
@@ -287,9 +322,9 @@ export default async function CompetitorsPage({
         <section className="cp4-sec db2-rise" style={{ animationDelay: "60ms" }}>
           <div className="cp4-sec-head">
             <h2>Who you&apos;re competing against</h2>
-            <small>Your live numbers vs the accounts you track. Platforms don&apos;t expose other accounts&apos; stats, so theirs show &ldquo;—&rdquo; — never a guess.</small>
+            <small>Your live numbers, the accounts you track, and the strongest competitors SOCIA found. Metrics appear only where a platform publishes them.</small>
           </div>
-          <CompetitorStrip you={youStrip} tracked={tracked} ytStats={ytStats} />
+          <CompetitorStrip you={youStrip} tracked={tracked} ytStats={ytStats} suggested={suggested} />
         </section>
 
         {/* 3 — how you compare */}

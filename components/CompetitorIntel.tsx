@@ -172,10 +172,22 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
 /* Competitor strip: YOU (real numbers) + tracked handles              */
 /* ------------------------------------------------------------------ */
 
+export type Suggested = {
+  platform: string;
+  handle: string | null;
+  displayName: string | null;
+  profileImage: string | null;
+  profileUrl: string | null;
+  followers: number | null;
+  classification: string;
+  relevanceReasons: string[];
+};
+
 export function CompetitorStrip({
   you,
   tracked,
   ytStats = {},
+  suggested = [],
   onOpenDetail,
 }: {
   you: {
@@ -188,11 +200,36 @@ export function CompetitorStrip({
   tracked: Tracked[];
   /** Real public stats, keyed by handle, for the platforms that publish them. */
   ytStats?: Record<string, YtStats>;
+  /** Strongest accounts discovery found that the user hasn't tracked yet —
+   *  the answer to "who am I competing against" is incomplete without them. */
+  suggested?: Suggested[];
   onOpenDetail?: (c: Tracked) => void;
 }) {
+  const router = useRouter();
   const [detail, setDetail] = useState<Tracked | null>(null);
   const [ytDetail, setYtDetail] = useState<YtStats | null>(null);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState<string | null>(null);
   const openDetail = onOpenDetail ?? setDetail;
+
+  const trackSuggested = async (sg: Suggested) => {
+    if (!sg.handle || adding) return;
+    const key = `${sg.platform}:${sg.handle}`;
+    setAdding(key);
+    try {
+      const res = await fetch("/api/competitors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handle: sg.handle, platform: sg.platform }),
+      });
+      if (res.ok) {
+        setAdded((s) => new Set(s).add(key));
+        router.refresh();
+      }
+    } finally {
+      setAdding(null);
+    }
+  };
 
   return (
     <>
@@ -271,6 +308,42 @@ export function CompetitorStrip({
             </article>
           );
         })}
+
+        {suggested
+          .filter((sg) => sg.handle && !added.has(`${sg.platform}:${sg.handle}`))
+          .map((sg) => {
+            const key = `${sg.platform}:${sg.handle}`;
+            return (
+              <article className="cp4-acct cp4-sugg" role="listitem" key={key}>
+                <span className="cp4-suggtag">SUGGESTED</span>
+                <span className={`cp4-plat ${sg.platform}`}>
+                  {sg.platform === "youtube" ? "YouTube" : sg.platform === "facebook" ? "Facebook" : "Instagram"}
+                </span>
+                {sg.profileImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="cp4-face" src={sg.profileImage} alt="" width={40} height={40} />
+                ) : (
+                  <span className="cp4-face ph">{(sg.displayName ?? sg.handle ?? "?")[0]?.toUpperCase()}</span>
+                )}
+                <b className="cp4-handle">{sg.displayName ?? `@${sg.handle}`}</b>
+                <div className="cp4-nums">
+                  <span>
+                    <b>{sg.followers != null ? sg.followers.toLocaleString("en-US") : "—"}</b>
+                    <small>{sg.platform === "youtube" ? "Subscribers" : "Followers"}</small>
+                  </span>
+                </div>
+                <small className="cp4-suggwhy" title={sg.relevanceReasons.join(" · ")}>
+                  {sg.relevanceReasons[0] ?? "Found in your niche"}
+                </small>
+                <div className="cp4-suggacts">
+                  <a href={sg.profileUrl ?? "#"} target="_blank" rel="noreferrer">View</a>
+                  <button type="button" onClick={() => trackSuggested(sg)} disabled={adding === key}>
+                    {adding === key ? <Loader2 size={11} className="cp4-spin" /> : <Plus size={11} />} Track
+                  </button>
+                </div>
+              </article>
+            );
+          })}
 
         <ManageAddCard />
       </div>
