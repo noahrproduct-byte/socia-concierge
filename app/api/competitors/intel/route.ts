@@ -314,9 +314,13 @@ Output ONLY this JSON, no other text:
   // ---- persist (best effort; a failure must not fail the response) ------
   if (accounts.length || content.length) {
     try {
-      await supabase.from("discovered_accounts").delete().eq("user_id", user.id);
+      // Upsert, never replace. Web research returns a different slice of the
+      // market on every run, so deleting first meant a refresh could destroy
+      // the best finds — the four local pizzerias vanished exactly this way.
+      // Rows accumulate and last_checked carries their freshness; stale ones
+      // are pruned below by age, not by absence from one run.
       if (accounts.length) {
-        await supabase.from("discovered_accounts").insert(
+        await supabase.from("discovered_accounts").upsert(
           accounts.map((a) => ({
             user_id: user.id, platform: a.platform, platform_account_id: a.platformAccountId,
             handle: a.handle, display_name: a.displayName, profile_image: a.profileImage,
@@ -325,11 +329,11 @@ Output ONLY this JSON, no other text:
             relevance_score: a.relevanceScore, relevance_reasons: a.relevanceReasons,
             data_source: a.dataSource, last_checked: ranAt,
           })),
+          { onConflict: "user_id,platform,platform_account_id" },
         );
       }
-      await supabase.from("discovered_content").delete().eq("user_id", user.id);
       if (content.length) {
-        await supabase.from("discovered_content").insert(
+        await supabase.from("discovered_content").upsert(
           content.map((c) => ({
             user_id: user.id, content_url: c.contentUrl, platform: c.platform,
             account_handle: c.accountHandle, account_name: c.accountName,
@@ -340,8 +344,19 @@ Output ONLY this JSON, no other text:
             trend_tags: c.trendTags, why_recommended: c.why, data_source: c.dataSource,
             last_checked: ranAt,
           })),
+          { onConflict: "user_id,content_url" },
         );
       }
+
+      // Prune by age so the list stays current without a single unlucky run
+      // wiping good accounts. 30 days for accounts, 14 for content, since a
+      // "winning post" goes stale faster than a competitor does.
+      const accountCutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+      const contentCutoff = new Date(Date.now() - 14 * 86400000).toISOString();
+      await supabase.from("discovered_accounts").delete()
+        .eq("user_id", user.id).lt("last_checked", accountCutoff);
+      await supabase.from("discovered_content").delete()
+        .eq("user_id", user.id).lt("last_checked", contentCutoff);
       await supabase.from("discovery_runs").upsert(
         {
           user_id: user.id, ran_at: ranAt, accounts_found: accounts.length,
@@ -354,7 +369,12 @@ Output ONLY this JSON, no other text:
     }
   }
 
-  const doc: IntelDoc = { accounts, content, trends, ranAt, sources, profileGaps };
+  // Return everything SOCIA knows, not just what this run happened to find —
+  // otherwise a refresh visibly loses accounts it had already discovered.
+  const merged = await readStored(supabase, user.id);
+  const doc: IntelDoc = merged
+    ? { ...merged, ranAt, sources, profileGaps }
+    : { accounts, content, trends, ranAt, sources, profileGaps };
   return NextResponse.json(doc);
 }
 
