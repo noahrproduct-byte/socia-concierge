@@ -282,17 +282,19 @@ export default async function CompetitorsPage({
       .filter((sg) => sg.handle && !trackedKeys.has(`${sg.platform}:${sg.handle.toLowerCase()}`))
       .sort((a, b) => (CLASS_ORDER[a.classification] ?? 9) - (CLASS_ORDER[b.classification] ?? 9));
 
-    // Rows stored before name-matching existed can still hold the same
-    // business twice ("Mozzarella Pizzeria" / "Mozzarella (Hermitage)"), so
-    // collapse on read as well as at discovery time. First wins, and the sort
-    // above means that is the better-classified one.
+    // One card per BUSINESS, not per account. The same restaurant surfaces as
+    // an Instagram page and a Facebook page; both are real, but this strip
+    // answers "who am I competing against", where showing it twice is noise.
+    // The per-platform breakdown stays available further down the page.
+    // Ties resolve to whichever row sorted higher — better classification
+    // first, then relevance — so the more useful listing is the one kept.
     const seenName = new Set<string>();
     suggested = suggested
       .filter((sg) => {
-        const k = `${sg.platform}:${nameKey(sg.displayName ?? sg.handle)}`;
-        if (!nameKey(sg.displayName ?? sg.handle)) return true;
-        if (seenName.has(k)) return false;
-        seenName.add(k);
+        const key = nameKey(sg.displayName ?? sg.handle);
+        if (!key) return true;
+        if (seenName.has(key)) return false;
+        seenName.add(key);
         return true;
       })
       .slice(0, 6);
