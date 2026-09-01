@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { searchChannels, ytConfigured, type YtStats } from "@/lib/youtube";
+import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -34,7 +35,7 @@ export type DiscoverDoc = {
   instagram: IgSuggestion[];
   found_at: string;
   /** Why the Instagram list is empty, when it is. Never shown as data. */
-  ig_hint?: string;
+  ig_unavailable?: AiUnavailable;
 };
 
 function parseJsonArray(text: string): unknown[] {
@@ -122,8 +123,7 @@ export async function GET(req: Request) {
 
   // --- Instagram: web research, labeled as such -------------------------
   let instagram: IgSuggestion[] = [];
-  let igHint = "";
-  if (!process.env.ANTHROPIC_API_KEY) igHint = "no anthropic key";
+  let igFail: AiUnavailable | null = process.env.ANTHROPIC_API_KEY ? null : "no_key";
   if (process.env.ANTHROPIC_API_KEY) {
     const prompt = `Search the web for real, currently-active Instagram accounts in the "${topic}" niche${
       location ? ` (the user is based in ${location}; include some local or regional accounts if they exist)` : ""
@@ -161,7 +161,7 @@ Output ONLY a JSON array, no other text:
         messages.push({ role: "assistant", content: res.content });
       }
       const parsed = parseJsonArray(text);
-      if (!parsed.length) igHint = `no array parsed from ${text.length} chars`;
+      if (!parsed.length) igFail = "failed";
       instagram = parsed
         .map((raw) => {
           const r = raw as { handle?: unknown; why?: unknown };
@@ -176,9 +176,9 @@ Output ONLY a JSON array, no other text:
         })
         .filter((x): x is IgSuggestion => x != null)
         .slice(0, 6);
-      if (parsed.length && !instagram.length) igHint = "all handles rejected by validation";
+      if (parsed.length && !instagram.length) igFail = "failed";
     } catch (e) {
-      igHint = e instanceof Error ? e.message.slice(0, 160) : "search failed";
+      igFail = aiFailureKind(e);
       instagram = [];
     }
   }
@@ -189,15 +189,19 @@ Output ONLY a JSON array, no other text:
     youtube,
     instagram,
     found_at: new Date().toISOString(),
-    ...(instagram.length ? {} : { ig_hint: igHint || "search returned nothing" }),
+    ...(instagram.length || !igFail ? {} : { ig_unavailable: igFail }),
   };
 
-  try {
-    await supabase
-      .from("niche_trends")
-      .upsert({ niche: cacheKey, data: doc, updated_at: new Date().toISOString() }, { onConflict: "niche" });
-  } catch {
-    /* caching is best-effort */
+  // Never cache an outage — a 24h TTL would keep showing "paused" long after
+  // credit is restored. Only a genuine result is worth keeping.
+  if (!igFail || instagram.length) {
+    try {
+      await supabase
+        .from("niche_trends")
+        .upsert({ niche: cacheKey, data: doc, updated_at: new Date().toISOString() }, { onConflict: "niche" });
+    } catch {
+      /* caching is best-effort */
+    }
   }
 
   return NextResponse.json(doc);

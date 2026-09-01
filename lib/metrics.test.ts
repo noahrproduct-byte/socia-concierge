@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   engagementOf,
   median,
@@ -182,5 +182,41 @@ describe("plan gating", () => {
   });
   it("no plan grants unlimited accounts", () => {
     for (const n of Object.values(ACCOUNT_LIMIT)) expect(Number.isFinite(n)).toBe(true);
+  });
+});
+
+import { aiFailureKind, AI_UNAVAILABLE_COPY } from "./anthropic";
+
+describe("AI availability", () => {
+  const KEY = process.env.ANTHROPIC_API_KEY;
+  beforeEach(() => { process.env.ANTHROPIC_API_KEY = "test-key"; });
+  afterEach(() => {
+    if (KEY === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = KEY;
+  });
+
+  it("recognises an exhausted credit balance", () => {
+    const err = new Error('400 {"type":"error","error":{"message":"Your credit balance is too low to access the Anthropic API."}}');
+    expect(aiFailureKind(err)).toBe("no_credit");
+  });
+
+  it("recognises rate limiting", () => {
+    expect(aiFailureKind(new Error("429 rate limit exceeded"))).toBe("rate_limited");
+  });
+
+  it("reports a missing key ahead of any error text", () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    expect(aiFailureKind(new Error("credit balance too low"))).toBe("no_key");
+  });
+
+  it("falls back to a generic failure", () => {
+    expect(aiFailureKind(new Error("socket hang up"))).toBe("failed");
+  });
+
+  it("gives every kind actionable copy", () => {
+    for (const [kind, copy] of Object.entries(AI_UNAVAILABLE_COPY)) {
+      expect(copy.length).toBeGreaterThan(20);
+      expect(kind).toBeTruthy();
+    }
   });
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { anthropic } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
@@ -179,7 +180,10 @@ export async function GET() {
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "The AI isn't connected yet." }, { status: 500 });
+    return NextResponse.json(
+      { error: AI_UNAVAILABLE_COPY.no_key, unavailable: "no_key" },
+      { status: 503 },
+    );
   }
 
   const topic = subNiche || niche;
@@ -253,7 +257,12 @@ Output ONLY a JSON array, no other text:
     }
     return NextResponse.json(doc);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Search failed.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Say why, so the UI can state the real reason instead of rendering an
+    // empty section that reads as "nothing found".
+    const kind = aiFailureKind(err);
+    return NextResponse.json(
+      { error: AI_UNAVAILABLE_COPY[kind], unavailable: kind },
+      { status: kind === "no_credit" || kind === "no_key" ? 503 : 500 },
+    );
   }
 }

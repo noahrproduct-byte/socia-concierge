@@ -26,6 +26,7 @@ import {
   Users,
   Settings2,
   Info,
+  PauseCircle,
 } from "lucide-react";
 import type { ViralDoc, ViralItem } from "@/app/api/niche-viral/route";
 import type { YtStats } from "@/lib/youtube";
@@ -382,16 +383,23 @@ export function CompetitorDrawer({ c, onClose }: { c: Tracked; onClose: () => vo
 
 export function WinningNow({ trackedHandles }: { trackedHandles: string[] }) {
   const [doc, setDoc] = useState<ViralDoc | null>(null);
-  const [state, setState] = useState<"loading" | "ok" | "empty" | "error">("loading");
+  const [state, setState] = useState<"loading" | "ok" | "empty" | "error" | "paused">("loading");
+  const [reason, setReason] = useState<string | null>(null);
 
   const load = useCallback(async (refresh = false) => {
     setState("loading");
+    setReason(null);
     try {
       const res = await fetch(`/api/niche-viral${refresh ? "?refresh=1" : ""}`);
-      if (!res.ok) throw new Error();
-      const j = (await res.json()) as ViralDoc;
-      setDoc(j);
-      setState(j.items?.length ? "ok" : "empty");
+      const j = await res.json();
+      if (!res.ok) {
+        // An AI outage is not "nothing found" — say which it is.
+        setReason(j.error ?? null);
+        setState(j.unavailable ? "paused" : "error");
+        return;
+      }
+      setDoc(j as ViralDoc);
+      setState((j as ViralDoc).items?.length ? "ok" : "empty");
     } catch {
       setState("error");
     }
@@ -407,6 +415,9 @@ export function WinningNow({ trackedHandles }: { trackedHandles: string[] }) {
         {[0, 1, 2, 3].map((i) => <div className="cp4-win-skel" key={i} />)}
       </div>
     );
+  }
+  if (state === "paused") {
+    return <AiPaused reason={reason} onRetry={() => load(true)} />;
   }
   if (state === "error" || state === "empty") {
     return (
@@ -598,12 +609,36 @@ export function YtDrawer({ ch, onClose }: { ch: YtStats; onClose: () => void }) 
   );
 }
 
+/** Shown where an AI section would otherwise render blank. An empty list and
+ *  a paused account look identical to a user, and only one of them means
+ *  "SOCIA found nothing" — so the real reason is stated. */
+export function AiPaused({ reason, onRetry }: { reason: string | null; onRetry?: () => void }) {
+  return (
+    <div className="cp4-paused">
+      <span className="cp4-paused-ico"><PauseCircle size={16} /></span>
+      <div>
+        <b>AI features are paused</b>
+        <p>{reason ?? "The AI couldn't be reached right now."}</p>
+      </div>
+      {onRetry && (
+        <button type="button" className="cp4-paused-retry" onClick={onRetry}>Retry</button>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Suggested accounts — discovery in the user's real niche             */
 /* ------------------------------------------------------------------ */
 
 type IgSuggestion = { handle: string; why: string; source: "web_research" };
-type DiscoverDoc = { niche: string; youtube: YtStats[]; instagram: IgSuggestion[]; found_at: string };
+type DiscoverDoc = {
+  niche: string;
+  youtube: YtStats[];
+  instagram: IgSuggestion[];
+  found_at: string;
+  ig_unavailable?: "no_credit" | "no_key" | "rate_limited" | "failed";
+};
 
 export function DiscoverAccounts({ tracked }: { tracked: Tracked[] }) {
   const router = useRouter();
@@ -681,7 +716,7 @@ export function DiscoverAccounts({ tracked }: { tracked: Tracked[] }) {
 
   const yt = (doc?.youtube ?? []).filter((c) => !added.has(`youtube:${c.handle}`));
   const ig = (doc?.instagram ?? []).filter((c) => !added.has(`instagram:${c.handle}`));
-  if (!yt.length && !ig.length) {
+  if (!yt.length && !ig.length && !doc?.ig_unavailable) {
     return <p className="cp4-empty">Nothing new to suggest — you&apos;re already tracking what SOCIA found.</p>;
   }
 
@@ -712,6 +747,19 @@ export function DiscoverAccounts({ tracked }: { tracked: Tracked[] }) {
               </article>
             ))}
           </div>
+        </>
+      )}
+      {ig.length === 0 && doc?.ig_unavailable && (
+        <>
+          <small className="cp4-disc-label">INSTAGRAM ACCOUNTS</small>
+          <AiPaused
+            reason={
+              doc.ig_unavailable === "no_credit"
+                ? "Instagram discovery needs AI web research, and the Anthropic account is out of credit. YouTube suggestions above are unaffected — they come from Google's API."
+                : "Instagram discovery needs AI web research, which couldn't be reached right now."
+            }
+            onRetry={() => load(true)}
+          />
         </>
       )}
       {ig.length > 0 && (
