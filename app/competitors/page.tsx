@@ -269,7 +269,7 @@ export default async function CompetitorsPage({
       id: `${t.platform}:${t.handle}`,
       platform: t.platform === "youtube" ? "youtube" : t.platform === "facebook" ? "facebook" : "instagram",
       handle: t.handle,
-      name: live?.title ?? `@${t.handle}`,
+      name: (live?.title ?? `@${t.handle}`).trim(),
       avatar: live?.avatar ?? null,
       url: live?.url
         ?? (t.platform === "facebook" ? `https://facebook.com/${t.handle}` : `https://instagram.com/${t.handle}`),
@@ -300,7 +300,7 @@ export default async function CompetitorsPage({
       id: key,
       platform: isYt ? "youtube" : sg.platform === "facebook" ? "facebook" : "instagram",
       handle: sg.handle,
-      name: sg.displayName ?? `@${sg.handle}`,
+      name: (sg.displayName ?? `@${sg.handle}`).trim(),
       avatar: enriched?.avatar ?? sg.profileImage,
       url: enriched?.url ?? sg.profileUrl,
       isYou: false,

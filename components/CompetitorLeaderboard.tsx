@@ -18,7 +18,7 @@ const fmtN = (n: number | null | undefined): string =>
   : n >= 1e9 ? (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B"
   : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"
   : n >= 1e4 ? Math.round(n / 1e3) + "K"
-  : n.toLocaleString("en-US");
+  : Math.round(n).toLocaleString("en-US");
 
 export type SortKey = "match" | "audience" | "engagement" | "cadence" | "medianViews";
 export type Filter = "all" | "direct" | "similar" | "growing" | "engaging" | "active";
