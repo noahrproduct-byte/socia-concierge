@@ -1,48 +1,28 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  Info,
-  CalendarDays,
-  Zap,
-  Type,
-} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import { ExportButton } from "@/components/CompetitorsBoard";
-import CompetitorDiscovery from "@/components/CompetitorDiscovery";
 import IgCompetitorData from "@/components/IgCompetitorData";
 import {
-  CompetitorStrip,
   ManageCompetitors,
-  BreakdownRows,
   type Tracked,
   type Suggested,
 } from "@/components/CompetitorIntel";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import { nameKey } from "@/lib/discovery";
-import CompetitorWorkspace from "@/components/CompetitorWorkspace";
+import CompetitorWorkspace, { type WinningItem } from "@/components/CompetitorWorkspace";
+import RefreshDiscovery from "@/components/RefreshDiscovery";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import {
   engagementOf,
   median,
-  postsPerWeek,
   engagementRate,
   fmtMult,
   isChartableDay,
   localDayStr,
 } from "@/lib/metrics";
-import type { NicheIntel, PulseRow } from "@/lib/schema";
-import {
-  benchmarkFor,
-  engagementPosition,
-  frequencyPosition,
-  BENCHMARK_ATTRIBUTION,
-  type Position,
-} from "@/lib/nicheBenchmark";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
@@ -129,129 +109,15 @@ export default async function CompetitorsPage({
 
   // ---- YOUR metrics for the window (all real; null = not available) ------
   const N = posts.length;
-  const enough = all.length >= 5;
-  const engs = posts.map(engagementOf);
-  const medEng = median(engs);
   const viewsVals = posts.filter((p) => p.insights?.views != null).map((p) => p.insights!.views!);
   const medViews = median(viewsVals);
   const reels = posts.filter((p) => p.media_type === "VIDEO");
-  const reelViews = median(reels.filter((p) => p.insights?.views != null).map((p) => p.insights!.views!));
-  const reelEng = median(reels.map(engagementOf));
   const freq = N ? (N / days) * 7 : 0;
   // Same definition as Analytics/Dashboard (all synced posts), so the same
   // label can't show a different number per page. A 2-post window average
   // dominated by one outlier is real math but a misleading "rate".
   const rate = engagementRate(all, followers);
 
-  type Row = { label: string; you: string; tip?: string };
-  const compareRows: Row[] = [
-    { label: "Followers", you: followers != null ? fmtNum(followers) : "—" },
-    { label: "Engagement rate", you: rate != null ? `${rate.toFixed(1)}%` : "—", tip: `avg(likes+comments)/post ÷ followers × 100, across your last ${all.length} synced posts` },
-    { label: "Posting frequency", you: `${freq.toFixed(1)} / week` },
-    { label: "Median engagement", you: medEng != null ? fmtNum(Math.round(medEng)) : "—" },
-    { label: "Median views", you: medViews != null ? fmtNum(Math.round(medViews)) : "—" },
-    { label: "Reel performance", you: reelViews != null ? `${fmtNum(Math.round(reelViews))} views` : reelEng != null ? `${fmtNum(Math.round(reelEng))} eng.` : "—" },
-    { label: "Growth (followers)", you: growth ? growth.text : "—", tip: growth?.note },
-  ];
-
-  // Position verdicts where a published tier benchmark exists. Rows without one
-  // keep "No verified data" — the empty-over-invented rule above still applies.
-  const positions: Record<string, Position> = {
-    "Engagement rate": engagementPosition(rate, followers),
-    "Posting frequency": frequencyPosition(N ? freq : null),
-  };
-
-  // ---- patterns from niche web research (labeled AI-estimated) -----------
-  let niche: string | null = null;
-  let pulse: (PulseRow & { group: string })[] = [];
-  try {
-    const { data: prof } = await supabase.from("profiles").select("niche").eq("user_id", user.id).maybeSingle();
-    niche = prof?.niche ?? null;
-    if (niche) {
-      const { data: trendRow } = await supabase.from("niche_trends").select("data").eq("niche", niche).maybeSingle();
-      const intel = (trendRow?.data ?? null) as NicheIntel | null;
-      if (intel?.pulse) {
-        pulse = [
-          ...(intel.pulse.formats ?? []).map((r) => ({ ...r, group: "Format" })),
-          ...(intel.pulse.hooks ?? []).map((r) => ({ ...r, group: "Hook" })),
-          ...(intel.pulse.topics ?? []).map((r) => ({ ...r, group: "Topic" })),
-        ]
-          .sort((a, b) => Math.abs(b.change_pct) - Math.abs(a.change_pct))
-          .slice(0, 5);
-      }
-    }
-  } catch {
-    /* trends simply absent */
-  }
-
-  // ---- advantages / gaps (measured from the user's own data only) --------
-  type Point = { title: string; body: string };
-  const advantages: Point[] = [];
-  const gapsList: Point[] = [];
-  const allMedian = median(all.map(engagementOf));
-  if (enough && allMedian != null && allMedian > 0) {
-    const byType = new Map<string, IgMediaItem[]>();
-    for (const p of all) byType.set(p.media_type ?? "IMAGE", [...(byType.get(p.media_type ?? "IMAGE") ?? []), p]);
-    const reelMed = median((byType.get("VIDEO") ?? []).map(engagementOf));
-    if (reelMed != null && reelMed / allMedian >= 1.2) {
-      advantages.push({ title: "Strong Reel performance", body: `Your Reels run ${fmtMult(reelMed / allMedian)} your overall median engagement (${byType.get("VIDEO")!.length} Reels of your last ${all.length} posts).` });
-    }
-    const captioned = all.filter((p) => (p.caption ?? "").trim()).length;
-    if (captioned / all.length >= 0.9) {
-      advantages.push({ title: "High caption consistency", body: `${Math.round((captioned / all.length) * 100)}% of your last ${all.length} posts carry captions the algorithm can index.` });
-    }
-    const top = Math.max(...all.map(engagementOf));
-    if (top / allMedian >= 2) {
-      advantages.push({ title: "Proven outlier content", body: `Your best post runs ${fmtMult(top / allMedian)} your median — you've already made content that breaks out.` });
-    }
-
-    const freq30 = postsPerWeek(all.map((p) => p.timestamp), 30);
-    if (freq30 != null && freq30 < 2) {
-      gapsList.push({ title: "Posting frequency", body: `You published ${freq30.toFixed(1)} post${freq30 >= 1.05 ? "s" : ""}/week over the last 30 days. 3–5/week is common growth guidance (a general benchmark — not competitor data).` });
-    }
-    const bestFmt = [...byType.entries()].map(([t, g]) => ({ t, m: median(g.map(engagementOf)) ?? 0, n: g.length })).sort((a, b) => b.m - a.m)[0];
-    if (bestFmt && bestFmt.m / allMedian > 1.2 && bestFmt.n / all.length < 0.5) {
-      const name = bestFmt.t === "VIDEO" ? "Reels" : bestFmt.t === "CAROUSEL_ALBUM" ? "Carousels" : "Static posts";
-      gapsList.push({ title: "Format mix", body: `${name} run ${fmtMult(bestFmt.m / allMedian)} your median but are only ${Math.round((bestFmt.n / all.length) * 100)}% of your recent posts.` });
-    }
-    const uncap = all.length - captioned;
-    if (uncap > 0) {
-      gapsList.push({ title: "Uncaptioned posts", body: `${uncap} of your last ${all.length} posts have no caption — search and SOCIA can't index them.` });
-    }
-  }
-
-  // ---- recommendations: max 3, each traced to a real computation ---------
-  type Rec = { chip: string; tone: string; title: string; body: string; cta: string; href: string };
-  const recs: Rec[] = [];
-  const freq30 = postsPerWeek(all.map((p) => p.timestamp), 30);
-  if (freq30 != null && freq30 < 2) {
-    recs.push({
-      chip: "HIGH PRIORITY", tone: "hi", title: "Increase posting frequency",
-      body: `You averaged ${freq30.toFixed(1)} post${freq30 >= 1.05 ? "s" : ""}/week over the last 30 days. 3–5/week is common growth guidance (general benchmark, not competitor data).`,
-      cta: "Open content plan", href: "/tool",
-    });
-  }
-  const risingPattern = pulse.find((p) => p.change_pct > 0);
-  if (risingPattern) {
-    recs.push({
-      chip: "OPPORTUNITY", tone: "opp", title: `${risingPattern.label} is gaining momentum`,
-      body: `${risingPattern.group} with an AI-estimated +${Math.abs(risingPattern.change_pct)}% momentum in ${niche ?? "your niche"}, from SOCIA's web research — not measured platform data.`,
-      cta: "Build a post around it", href: `/chat?q=${encodeURIComponent(`"${risingPattern.label}" is gaining momentum in my niche. Give me one concrete post idea using it: hook, structure, and caption.`)}`,
-    });
-  }
-  if (recs.length < 3 && gapsList.length) {
-    // Only a gap that isn't already covered by another recommendation —
-    // fewer than three honest recommendations beats a repeated one.
-    const g = gapsList.find(
-      (x) => !recs.some((r) => r.title.toLowerCase().includes(x.title.toLowerCase())),
-    );
-    if (g) {
-      recs.push({ chip: "CONSISTENCY", tone: "con", title: g.title, body: g.body, cta: "Get specific ideas", href: "/chat" });
-    }
-  }
-
-  // Real public stats for tracked YouTube channels, fetched once on the server
-  // (cached upstream) so the strip and the breakdown table agree exactly.
   const ytTracked = tracked.filter((t) => t.platform === "youtube");
   let ytStats: Record<string, YtStats> = {};
   if (ytTracked.length && ytConfigured()) {
@@ -285,6 +151,7 @@ export default async function CompetitorsPage({
         profileUrl: (r.profile_url as string) ?? null,
         followers: (r.followers as number) ?? null,
         classification: String(r.classification),
+        relevanceScore: (r.relevance_score as number) ?? null,
         relevanceReasons: (r.relevance_reasons as string[]) ?? [],
       }))
       .filter((sg) => sg.handle && !trackedKeys.has(`${sg.platform}:${sg.handle.toLowerCase()}`))
@@ -362,6 +229,18 @@ export default async function CompetitorsPage({
   // than a dash that could be mistaken for zero.
   const leaderRows: LeaderRow[] = [];
 
+  // The user's strongest format: highest median engagement among formats with
+  // at least two posts in the window. Fewer than that and no format is named.
+  const FORMAT_LABEL: Record<string, string> = { VIDEO: "Reels", CAROUSEL_ALBUM: "Carousels", IMAGE: "Static" };
+  const byFormat = new Map<string, number[]>();
+  for (const p of posts) byFormat.set(p.media_type ?? "IMAGE", [...(byFormat.get(p.media_type ?? "IMAGE") ?? []), engagementOf(p)]);
+  const yourTopFormat = [...byFormat.entries()]
+    .filter(([, xs]) => xs.length >= 2)
+    .map(([t, xs]) => ({ t, m: median(xs) ?? 0 }))
+    .sort((a, b) => b.m - a.m)[0]?.t;
+  const matchFor = (platform: string, handle: string): number | null =>
+    suggested.find((sg) => sg.platform === platform && sg.handle?.toLowerCase() === handle.toLowerCase())?.relevanceScore ?? null;
+
   leaderRows.push({
     id: "you",
     platform: "instagram",
@@ -379,6 +258,8 @@ export default async function CompetitorsPage({
     momentum: growth && folSeries.length >= 2
       ? cell(folSeries.at(-1)!.followers - folSeries[0].followers, "socia_snapshot", folSeries.length)
       : absent("insufficient"),
+    match: null,
+    topFormat: yourTopFormat ? FORMAT_LABEL[yourTopFormat] ?? yourTopFormat : null,
   });
 
   for (const t of tracked) {
@@ -400,6 +281,11 @@ export default async function CompetitorsPage({
       cadence: live ? cell(live.uploadsPerWeek ?? null, "calculated", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
       medianViews: live ? cell(live.medianViews ?? null, "public_api", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
       momentum: absent("unavailable"),
+      // A hand-added account has a score only if discovery also found it.
+      match: matchFor(t.platform, t.handle),
+      // YouTube is video by definition; Instagram formats arrive only via
+      // Business Discovery, so until then nothing is claimed.
+      topFormat: live ? "Video" : null,
     });
   }
 
@@ -430,22 +316,52 @@ export default async function CompetitorsPage({
       cadence: enriched ? cell(enriched.uploadsPerWeek ?? null, "calculated", 10) : absent(isYt ? "unknown" : "connection_needed"),
       medianViews: enriched ? cell(enriched.medianViews ?? null, "public_api", 10) : absent(isYt ? "unknown" : "connection_needed"),
       momentum: absent("unavailable"),
+      match: sg.relevanceScore,
+      topFormat: enriched ? "Video" : null,
     });
+  }
+
+  // Winning content: what discovery stored, read server-side so it renders
+  // with the page rather than after it.
+  let content: WinningItem[] = [];
+  try {
+    const { data } = await supabase
+      .from("discovered_content")
+      .select("content_url, platform, account_name, title, thumbnail_url, views, likes, comments, published_at, multiplier, relevance_score, trend_tags")
+      .eq("user_id", user.id)
+      .order("relevance_score", { ascending: false })
+      .limit(40);
+    content = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+      url: String(r.content_url),
+      platform: String(r.platform),
+      accountName: (r.account_name as string) ?? null,
+      title: (r.title as string) ?? null,
+      thumbnailUrl: (r.thumbnail_url as string) ?? null,
+      views: (r.views as number) ?? null,
+      likes: (r.likes as number) ?? null,
+      comments: (r.comments as number) ?? null,
+      publishedAt: (r.published_at as string) ?? null,
+      multiplier: r.multiplier != null ? Number(r.multiplier) : null,
+      relevanceScore: (r.relevance_score as number) ?? 0,
+      trendTags: (r.trend_tags as string[]) ?? [],
+    }));
+  } catch {
+    // no discovery yet — the section shows its empty state
   }
 
   return (
     <AppShell active="competitors" userEmail={user.email}>
       <div className="cp4">
-        {/* 1 — header */}
-        <div className="cp4-head db2-rise">
+        {/* header */}
+        <div className="cp4-head cw-head db2-rise">
           <div>
-            <h1>Competitor Intelligence</h1>
-            <p>See who is winning your niche, why they&apos;re winning, and what you should do next.</p>
-            {lastRun && (
-              <span className="cw-status">
-                <i /> Live competitor intelligence · refreshed {agoText(lastRun)}
-              </span>
-            )}
+            <h1>Competitors</h1>
+            <p>See who&apos;s outperforming you, why they&apos;re winning, and what you can learn from them.</p>
+            <span className="cw-status">
+              <i className={lastRun ? "live" : ""} />
+              {lastRun ? <>Live data · Refreshed {agoText(lastRun)}</> : <>No discovery run yet</>}
+              <RefreshDiscovery />
+            </span>
           </div>
           <div className="cp4-controls">
             <span className="cp4-chipset" role="group" aria-label="Platform">
@@ -454,7 +370,7 @@ export default async function CompetitorsPage({
             <span className="cp4-chipset" role="group" aria-label="Date range">
               {[7, 30, 90].map((d) => (
                 <Link key={d} href={`/competitors?range=${d}`} className={`cp4-chip${days === d ? " on" : ""}`}>
-                  {d}D
+                  {d === 7 ? "Last 7 days" : d === 30 ? "Last 30 days" : "Last 90 days"}
                 </Link>
               ))}
             </span>
@@ -463,44 +379,13 @@ export default async function CompetitorsPage({
           </div>
         </div>
 
-        <CompetitorWorkspace rows={leaderRows} />
-
-        {/* 4 — discovery: content, patterns and accounts SOCIA found */}
-        <section className="cp4-sec db2-rise" style={{ animationDelay: "180ms" }}>
-          <CompetitorDiscovery
-            trackedKeys={tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`)}
-            ownHandle={snap?.username ?? null}
-          />
-        </section>
+        <CompetitorWorkspace rows={leaderRows} content={content} />
 
         {/* Instagram connection — compact, and only while it is required */}
         {tracked.some((t) => t.platform === "instagram") && (
           <IgCompetitorData hasTracked />
         )}
 
-        {/* 8 — recommendations */}
-        {recs.length > 0 && (
-          <section className="cp4-sec db2-rise" style={{ animationDelay: "420ms" }}>
-            <div className="cp4-sec-head">
-              <h2>Your next moves</h2>
-              <small>Each move traces to a number measured above</small>
-            </div>
-            <div className="cp4-recs">
-              {recs.map((r) => {
-                const Ico = r.tone === "hi" ? CalendarDays : r.tone === "opp" ? Zap : Type;
-                return (
-                  <article className={`cp4-rec ${r.tone}`} key={r.title}>
-                    <small className="cp4-rec-chip">{r.chip}</small>
-                    <span className="cp4-rec-ico"><Ico size={15} /></span>
-                    <b>{r.title}</b>
-                    <p>{r.body}</p>
-                    <Link href={r.href} className="cp4-rec-cta">{r.cta} <ArrowRight size={12} /></Link>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        )}
       </div>
     </AppShell>
   );

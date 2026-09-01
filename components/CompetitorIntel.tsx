@@ -180,6 +180,7 @@ export type Suggested = {
   profileUrl: string | null;
   followers: number | null;
   classification: string;
+  relevanceScore: number | null;
   relevanceReasons: string[];
 };
 

@@ -63,6 +63,12 @@ export type LeaderRow = {
   medianViews: Cell;
   /** Only ever set from two real observations, never inferred. */
   momentum: Cell;
+  /** SOCIA's relevance score for a discovered account (0-100). Null for
+   *  accounts the user added by hand — no score was ever computed. */
+  match: number | null;
+  /** Best-performing format where the platform tells us. YouTube channels
+   *  are "Video"; Instagram media types arrive only via Business Discovery. */
+  topFormat: string | null;
 };
 
 const med = (xs: number[]): number | null => {
