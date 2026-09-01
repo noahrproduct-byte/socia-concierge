@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import { ExportButton } from "@/components/CompetitorsBoard";
 import CompetitorDiscovery from "@/components/CompetitorDiscovery";
+import IgCompetitorData from "@/components/IgCompetitorData";
 import {
   CompetitorStrip,
   ManageCompetitors,
@@ -409,6 +410,15 @@ export default async function CompetitorsPage({
           {tracked.length === 0 && (
             <p className="cp4-empty">Track competitors with the button above — SOCIA links their public profiles and flags them in niche research.</p>
           )}
+        </section>
+
+        {/* 7b — Instagram competitor data via Business Discovery */}
+        <section className="cp4-sec db2-rise" style={{ animationDelay: "400ms" }}>
+          <div className="cp4-sec-head">
+            <h2>Instagram competitor data</h2>
+            <small>Public Business Discovery data, available once a linked Facebook Page is connected</small>
+          </div>
+          <IgCompetitorData hasTracked={tracked.some((t) => t.platform === "instagram")} />
         </section>
 
         {/* 8 — recommendations */}

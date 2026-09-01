@@ -27,6 +27,7 @@ import {
   Settings2,
   Info,
   PauseCircle,
+  Sparkles,
 } from "lucide-react";
 import type { ViralDoc, ViralItem } from "@/app/api/niche-viral/route";
 import type { YtStats } from "@/lib/youtube";
@@ -529,3 +530,171 @@ export function AiPaused({ reason, onRetry }: { reason: string | null; onRetry?:
   );
 }
 
+
+/* ------------------------------------------------------------------ */
+/* Instagram competitors — real metrics via Business Discovery         */
+/* ------------------------------------------------------------------ */
+
+type IgCompetitor = {
+  handle: string;
+  found: boolean;
+  reason?: string;
+  displayName?: string | null;
+  profilePicture?: string | null;
+  followers?: number | null;
+  mediaCount?: number | null;
+  postsPerWeek?: number | null;
+  medianEngagement?: number | null;
+  engagementRate?: number | null;
+  topPosts?: {
+    permalink: string | null; caption: string | null; thumbnail: string | null;
+    likes: number | null; comments: number | null; timestamp: string | null; mediaType: string | null;
+  }[];
+};
+
+/** Instagram is the platform users care most about and the one Meta locks
+ *  down hardest. When the Facebook/IG chain is connected, Business Discovery
+ *  returns real public numbers; when it isn't, this says exactly what to do
+ *  rather than leaving dashes with no explanation. */
+export function InstagramCompetitors({ hasTracked }: { hasTracked: boolean }) {
+  const [rows, setRows] = useState<IgCompetitor[] | null>(null);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [reason, setReason] = useState<string | null>(null);
+  const [open, setOpen] = useState<IgCompetitor | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/competitors/instagram")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!alive || !j) return;
+        setEnabled(Boolean(j.enabled));
+        setReason(j.reason ?? null);
+        setRows(j.competitors ?? []);
+      })
+      .catch(() => alive && setRows([]));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (enabled === false) {
+    return (
+      <div className="cpd-gap cpi-enable">
+        <Sparkles size={14} />
+        <span>
+          <b>Enable Instagram competitor data</b>
+          <p>
+            {reason ?? "Connect a Facebook Page linked to your Instagram Professional account."}{" "}
+            Instagram only shares another account&apos;s numbers through a connected Page — this is
+            Meta&apos;s only official route, and it returns real follower counts, posting cadence and
+            per-post engagement for public business accounts.
+          </p>
+        </span>
+        <a href="/settings#accounts">Connect Facebook <ArrowRight size={12} /></a>
+      </div>
+    );
+  }
+  if (!hasTracked) {
+    return <p className="cp4-empty">Track an Instagram account and its real public metrics appear here.</p>;
+  }
+  if (rows == null) return <div className="cp4-yt-skel" />;
+
+  return (
+    <>
+      <div className="cp4-tablewrap">
+        <table className="cp4-table">
+          <thead>
+            <tr><th>Account</th><th>Followers</th><th>Posts / week</th><th>Median engagement</th><th>Eng. rate</th><th></th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) =>
+              r.found ? (
+                <tr key={r.handle} className="cp4-brow" tabIndex={0}
+                    onClick={() => setOpen(r)} onKeyDown={(e) => e.key === "Enter" && setOpen(r)}>
+                  <td>
+                    {r.profilePicture ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="cp4-face sm" src={r.profilePicture} alt="" width={26} height={26} />
+                    ) : <span className="cp4-face ph sm">{r.handle[0]?.toUpperCase()}</span>}
+                    <b>@{r.handle}</b>
+                  </td>
+                  <td className="cp4-real">{fmtN(r.followers)}</td>
+                  <td className="cp4-real">{r.postsPerWeek != null ? r.postsPerWeek.toFixed(1) : "—"}</td>
+                  <td className="cp4-real">{fmtN(r.medianEngagement)}</td>
+                  <td className="cp4-real">{r.engagementRate != null ? `${r.engagementRate.toFixed(1)}%` : "—"}</td>
+                  <td><span className="cp4-open-hint">Details</span></td>
+                </tr>
+              ) : (
+                <tr key={r.handle}>
+                  <td><span className="cp4-face ph sm">{r.handle[0]?.toUpperCase()}</span><b>@{r.handle}</b></td>
+                  <td colSpan={5} className="cp4-na">{r.reason ?? "Not available"}</td>
+                </tr>
+              ),
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="cp4-note">
+        <Info size={11} /> Real public data from Instagram Business Discovery. Engagement rate is
+        median (likes + comments) ÷ followers — the same definition SOCIA uses for your own account,
+        so the two compare directly. Reach, saves and impressions stay private to each account&apos;s
+        owner and are not shown.
+      </p>
+      {open && (
+        <div className="cp4-modal-wrap" role="dialog" aria-modal="true" aria-label={`@${open.handle} details`}>
+          <div className="cp4-scrim" onClick={() => setOpen(null)} />
+          <aside className="cp4-drawer">
+            <div className="cp4-modal-head">
+              {open.profilePicture ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="cp4-face big" src={open.profilePicture} alt="" width={46} height={46} />
+              ) : <span className="cp4-face ph big">{open.handle[0]?.toUpperCase()}</span>}
+              <div className="cp4-drawer-id">
+                <h3>@{open.handle}</h3>
+                <small>Instagram · {fmtN(open.mediaCount)} posts published</small>
+              </div>
+              <button type="button" className="cp4-x" onClick={() => setOpen(null)} aria-label="Close"><X size={15} /></button>
+            </div>
+            <a className="cp4-drawer-visit" href={`https://instagram.com/${open.handle}`} target="_blank" rel="noreferrer">
+              View profile on Instagram <ExternalLink size={13} />
+            </a>
+            <div className="cp4-drawer-sec">
+              <h4>Public metrics</h4>
+              <ul className="cp4-drawer-metrics">
+                <li><span>Followers</span><b className="real">{fmtN(open.followers)}</b></li>
+                <li><span>Posts published</span><b className="real">{fmtN(open.mediaCount)}</b></li>
+                <li><span>Posts / week</span><b className="real">{open.postsPerWeek != null ? open.postsPerWeek.toFixed(1) : "—"}</b></li>
+                <li><span>Median engagement</span><b className="real">{fmtN(open.medianEngagement)}</b></li>
+                <li><span>Engagement rate</span><b className="real">{open.engagementRate != null ? `${open.engagementRate.toFixed(1)}%` : "—"}</b></li>
+                <li><span>Reach / saves</span><b>—</b></li>
+              </ul>
+              <p className="cp4-drawer-note">
+                <Info size={11} /> Reach, impressions and saves are private to the account owner.
+                Instagram never exposes them for other accounts, so SOCIA shows a dash.
+              </p>
+            </div>
+            {open.topPosts && open.topPosts.length > 0 && (
+              <div className="cp4-drawer-sec">
+                <h4>Top recent posts</h4>
+                <ul className="cp4-drawer-found">
+                  {open.topPosts.map((p, i) => (
+                    <li key={p.permalink ?? i}>
+                      <a href={p.permalink ?? "#"} target="_blank" rel="noreferrer">
+                        {(p.caption ?? "(no caption)").split("\n")[0].slice(0, 60)} <ExternalLink size={11} />
+                      </a>
+                      <small>
+                        {fmtN(p.likes)} likes · {fmtN(p.comments)} comments
+                        {p.timestamp && ` · ${new Date(p.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+    </>
+  );
+}

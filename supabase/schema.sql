@@ -385,3 +385,72 @@ create policy "Users write their own discovery runs"
   on public.discovery_runs for insert with check (auth.uid() = user_id);
 create policy "Users update their own discovery runs"
   on public.discovery_runs for update using (auth.uid() = user_id);
+
+-- The Instagram Professional account linked to the connected Facebook Page.
+-- Business Discovery (real public metrics for OTHER Instagram business
+-- accounts) is only reachable through this Page-linked id, never through the
+-- Instagram Login API.
+alter table public.facebook_connections
+  add column if not exists ig_business_id text,
+  add column if not exists ig_business_username text;
+
+-- Competitor snapshots fetched via Instagram Business Discovery. Public data
+-- Meta serves for public Business/Creator accounts; anything it omits stays
+-- NULL. Cached so the page doesn't re-query Meta on every render.
+create table if not exists public.ig_competitor_snapshots (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  handle text not null,
+  display_name text,
+  biography text,
+  profile_picture text,
+  followers integer,
+  media_count integer,
+  posts_per_week numeric,
+  median_engagement numeric,
+  engagement_rate numeric,
+  media jsonb,
+  fetched_at timestamptz not null default now(),
+  primary key (user_id, handle)
+);
+
+alter table public.ig_competitor_snapshots enable row level security;
+create policy "Users read their own ig competitor snapshots"
+  on public.ig_competitor_snapshots for select using (auth.uid() = user_id);
+create policy "Users write their own ig competitor snapshots"
+  on public.ig_competitor_snapshots for insert with check (auth.uid() = user_id);
+create policy "Users update their own ig competitor snapshots"
+  on public.ig_competitor_snapshots for update using (auth.uid() = user_id);
+
+-- The Instagram Professional account linked to the connected Page. Capturing
+-- it is what enables Instagram Business Discovery (real public metrics for
+-- other public business accounts) — see lib/igBusinessDiscovery.ts.
+alter table public.facebook_connections
+  add column if not exists ig_business_id text,
+  add column if not exists ig_business_username text;
+
+-- Cached competitor data from Business Discovery. Refreshed on demand rather
+-- than on every render, and every column here is a value Meta actually
+-- returned — anything it withholds stays null and renders "—".
+create table if not exists public.ig_competitor_snapshots (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  handle text not null,
+  display_name text,
+  biography text,
+  profile_picture text,
+  followers integer,
+  media_count integer,
+  posts_per_week numeric,
+  median_engagement numeric,
+  engagement_rate numeric,
+  media jsonb,
+  fetched_at timestamptz not null default now(),
+  primary key (user_id, handle)
+);
+
+alter table public.ig_competitor_snapshots enable row level security;
+create policy "Users read their own ig competitor snapshots"
+  on public.ig_competitor_snapshots for select using (auth.uid() = user_id);
+create policy "Users write their own ig competitor snapshots"
+  on public.ig_competitor_snapshots for insert with check (auth.uid() = user_id);
+create policy "Users update their own ig competitor snapshots"
+  on public.ig_competitor_snapshots for update using (auth.uid() = user_id);

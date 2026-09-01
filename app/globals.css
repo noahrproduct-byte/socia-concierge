@@ -10574,3 +10574,12 @@ html { scroll-behavior: smooth; }
 .cpd-metrics b { font-size: 13px; font-weight: 750; color: var(--charcoal); font-variant-numeric: tabular-nums; }
 .cpd-metrics small { font-size: 9.5px; color: var(--slate); }
 .cp4-disc-label em { font-style: normal; }
+.igc-enable { display: flex; align-items: flex-start; gap: 13px; padding: 16px 18px; border: 1px solid #f0d9ea; background: linear-gradient(180deg,#fffafd,#fff); border-radius: 13px; }
+.igc-enable-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #fbeaf6; color: #a8348a; flex: none; }
+.igc-enable b { display: block; font-size: 14px; font-weight: 720; color: var(--charcoal); }
+.igc-enable p { font-size: 12.5px; line-height: 1.5; color: var(--slate); margin-top: 3px; }
+.igc-enable small { display: block; font-size: 11px; line-height: 1.5; color: #a39d92; margin-top: 6px; }
+.igc-enable-cta { margin-left: auto; align-self: center; white-space: nowrap; text-decoration: none; }
+.igc-foot { display: flex; align-items: flex-start; gap: 14px; }
+.igc-foot .cp4-note { flex: 1; }
+.igc-foot .cpd-refresh { flex: none; margin-top: 6px; }

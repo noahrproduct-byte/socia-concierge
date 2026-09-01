@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { igAccountForPage } from "@/lib/igBusinessDiscovery";
 import { FB_GRAPH_V, fbAppId, fbAppSecret, fbRedirectUri } from "@/lib/facebook";
 import { syncFacebook } from "@/lib/facebookSync";
 
@@ -72,20 +73,32 @@ export async function GET(req: Request) {
     if (pages.length === 1) {
       // Unambiguous — connect it directly.
       const p = pages[0];
-      const { error } = await supabase.from("facebook_connections").upsert(
-        {
-          user_id: user.id,
-          page_id: p.id,
-          page_name: p.name ?? null,
-          username: p.username ?? null,
-          followers_count: p.followers_count ?? p.fan_count ?? null,
-          picture_url: p.picture?.data?.url ?? null,
-          access_token: p.access_token ?? null,
-          connection_status: "connected",
-          pending_pages: null,
-        },
-        { onConflict: "user_id" },
-      );
+      // The Page-linked Instagram account is what unlocks Business Discovery.
+      const ig = p.access_token ? await igAccountForPage(p.id, p.access_token).catch(() => null) : null;
+      const row: Record<string, unknown> = {
+        user_id: user.id,
+        page_id: p.id,
+        page_name: p.name ?? null,
+        username: p.username ?? null,
+        followers_count: p.followers_count ?? p.fan_count ?? null,
+        picture_url: p.picture?.data?.url ?? null,
+        access_token: p.access_token ?? null,
+        connection_status: "connected",
+        pending_pages: null,
+        ig_business_id: ig?.id ?? null,
+        ig_business_username: ig?.username ?? null,
+      };
+      let { error } = await supabase
+        .from("facebook_connections")
+        .upsert(row, { onConflict: "user_id" });
+      if (error) {
+        // ig_business_* columns may not exist yet — connect without them.
+        delete row.ig_business_id;
+        delete row.ig_business_username;
+        ({ error } = await supabase
+          .from("facebook_connections")
+          .upsert(row, { onConflict: "user_id" }));
+      }
       if (error) return done("error");
       await syncFacebook(supabase, user.id).catch(() => null);
       return done("connected");

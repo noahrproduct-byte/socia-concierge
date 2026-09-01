@@ -4,6 +4,12 @@
 // registered under Valid OAuth Redirect URIs. Permissions used:
 //   pages_show_list       -> list the Pages the user manages
 //   pages_read_engagement -> Page profile, posts, reactions/comments/shares
+//   instagram_basic       -> the IG Professional account linked to a Page,
+//                            which is what unlocks Business Discovery: real
+//                            public follower/media counts for OTHER public
+//                            Instagram business accounts. This is the only
+//                            route Meta offers to competitor data on
+//                            Instagram; the Instagram Login API has none.
 // read_insights (Page insights time series) is an advanced permission that
 // requires App Review and isn't selectable on user-token login
 // configurations, so SOCIA doesn't request it — the capability map reports
@@ -13,7 +19,7 @@
 
 export const FB_GRAPH_V = "v23.0";
 
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement"].join(",");
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "instagram_basic"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

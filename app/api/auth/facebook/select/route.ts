@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncFacebook } from "@/lib/facebookSync";
+import { igAccountForPage } from "@/lib/igBusinessDiscovery";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,10 +36,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That Page isn't in your pending list — reconnect Facebook." }, { status: 400 });
   }
 
+  // The Page's linked Instagram Professional account is what enables
+  // Business Discovery. Best-effort: a Page without one still connects fine,
+  // it just can't provide Instagram competitor data.
+  const igAccount = await igAccountForPage(p.id, p.access_token).catch(() => null);
+
   const { error } = await supabase.from("facebook_connections").upsert(
     {
       user_id: user.id,
       page_id: p.id,
+      ig_business_id: igAccount?.id ?? null,
+      ig_business_username: igAccount?.username ?? null,
       page_name: p.name ?? null,
       username: p.username ?? null,
       followers_count: p.followers_count ?? p.fan_count ?? null,
