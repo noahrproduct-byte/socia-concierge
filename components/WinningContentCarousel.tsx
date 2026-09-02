@@ -16,7 +16,7 @@ const fmtN = (n: number | null | undefined): string =>
   : n >= 1e4 ? Math.round(n / 1e3) + "K"
   : Math.round(n).toLocaleString("en-US");
 
-export default function WinningContentCarousel({ items }: { items: WinningItem[] }) {
+export default function WinningContentCarousel({ items, onAnalyze }: { items: WinningItem[]; onAnalyze: (item: WinningItem) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
@@ -65,7 +65,6 @@ export default function WinningContentCarousel({ items }: { items: WinningItem[]
         }}
       >
         {items.map((w) => {
-          const ask = `Break down why this ${w.platform === "youtube" ? "YouTube video" : "post"} worked: "${w.title ?? w.url}"${w.accountName ? ` by ${w.accountName}` : ""}${w.multiplier ? `, which did ${w.multiplier.toFixed(1)}× that creator's usual views` : ""}. Then give me a version I could make for my own account.`;
           return (
             <article className="wc-card" key={w.url}>
               <a className="wc-thumb" href={w.url} target="_blank" rel="noreferrer" aria-label={`Open: ${w.title ?? "post"}`}>
@@ -94,7 +93,7 @@ export default function WinningContentCarousel({ items }: { items: WinningItem[]
               </div>
               <div className="wc-actions">
                 <a href={w.url} target="_blank" rel="noreferrer">View original</a>
-                <a className="strong" href={`/chat?q=${encodeURIComponent(ask)}`}>Analyze</a>
+                <button type="button" className="strong" onClick={() => onAnalyze(w)}>Analyze</button>
               </div>
             </article>
           );

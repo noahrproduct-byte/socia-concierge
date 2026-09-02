@@ -14,6 +14,7 @@ import { nameKey } from "@/lib/discovery";
 import CompetitorWorkspace, { type WinningItem } from "@/components/CompetitorWorkspace";
 import RefreshDiscovery from "@/components/RefreshDiscovery";
 import RangeSelect from "@/components/RangeSelect";
+import PlatformSelect from "@/components/PlatformSelect";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import {
   engagementOf,
@@ -53,7 +54,7 @@ const fmtNum = (n: number): string =>
 export default async function CompetitorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; platform?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -61,8 +62,9 @@ export default async function CompetitorsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { range } = await searchParams;
+  const { range, platform: platformParam } = await searchParams;
   const days = range === "7" ? 7 : range === "90" ? 90 : 30;
+  const platform = platformParam === "instagram" || platformParam === "youtube" || platformParam === "facebook" ? platformParam : "all";
 
   const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
   const all: IgMediaItem[] = snap?.media ?? [];
@@ -225,6 +227,15 @@ export default async function CompetitorsPage({
     // no run recorded — the status line simply doesn't render
   }
 
+  // The user's market, for detecting local-language patterns in competitor posts.
+  let userLocation: string | null = null;
+  try {
+    const { data: prof } = await supabase.from("profiles").select("brand_detail").eq("user_id", user.id).maybeSingle();
+    userLocation = (prof?.brand_detail as { location?: string } | null)?.location ?? null;
+  } catch {
+    /* patterns simply skip the local tag */
+  }
+
   // ---- leaderboard rows: the user, tracked accounts, then discovery -------
   // Each cell states its provenance, and an absent value states WHY it is
   // absent. Instagram and Facebook publish nothing about accounts the user
@@ -330,7 +341,7 @@ export default async function CompetitorsPage({
   try {
     const { data } = await supabase
       .from("discovered_content")
-      .select("content_url, platform, account_name, title, thumbnail_url, views, likes, comments, published_at, multiplier, relevance_score, trend_tags")
+      .select("content_url, platform, account_name, title, thumbnail_url, views, likes, comments, published_at, multiplier, relevance_score, trend_tags, why_recommended")
       .eq("user_id", user.id)
       .order("relevance_score", { ascending: false })
       .limit(40);
@@ -347,6 +358,7 @@ export default async function CompetitorsPage({
       multiplier: r.multiplier != null ? Number(r.multiplier) : null,
       relevanceScore: (r.relevance_score as number) ?? 0,
       trendTags: (r.trend_tags as string[]) ?? [],
+      why: (r.why_recommended as string) ?? null,
     }));
   } catch {
     // no discovery yet — the section shows its empty state
@@ -359,30 +371,27 @@ export default async function CompetitorsPage({
         <div className="cp4-head cw-head db2-rise">
           <div>
             <h1>Competitors</h1>
-            <p>See who&apos;s outperforming you, why they&apos;re winning, and what you can learn from them.</p>
+            <p>See who&apos;s outperforming you, what they&apos;re doing differently, and what you can learn from them.</p>
             <span className="cw-status">
               <i className={lastRun ? "live" : ""} />
-              {lastRun ? <>Live data · Refreshed {agoText(lastRun)}</> : <>No discovery run yet</>}
+              {lastRun ? <>Live competitor intelligence · Last refreshed {agoText(lastRun)}</> : <>No discovery run yet</>}
               <RefreshDiscovery />
             </span>
           </div>
           <div className="cp4-controls">
-            <label className="lb-sel compact" title="Facebook joins when a Page is connected.">
-              <select value="instagram" aria-label="Platform" disabled>
-                <option value="instagram">Instagram</option>
-              </select>
-            </label>
+            <PlatformSelect value={platform} />
             <RangeSelect days={days} compact />
             <ExportButton />
             <ManageCompetitors initial={tracked} />
           </div>
         </div>
 
-        <div className="cp4-sec-head cw-table-head">
-          <h2>Competitors in your niche</h2>
-          <small>Accounts similar to you that are currently performing better</small>
-        </div>
-        <CompetitorWorkspace rows={leaderRows} content={content} days={days} />
+        <CompetitorWorkspace
+          rows={platform === "all" ? leaderRows : leaderRows.filter((r) => r.isYou || r.platform === platform)}
+          content={platform === "all" ? content : content.filter((c) => c.platform === platform)}
+          days={days}
+          location={userLocation}
+        />
 
         {/* Instagram connection — compact, and only while it is required */}
         {tracked.some((t) => t.platform === "instagram") && (

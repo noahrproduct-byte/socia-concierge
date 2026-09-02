@@ -1,20 +1,25 @@
 "use client";
 
-// Competitors workspace: table → selected/most-similar competitor → why →
-// their content → discovered for you.
+// Competitors workspace.
 //
-// Selecting a table row drives the three panels without a reload. The default
-// selection is the computed most-similar outperformer (lib/similarCompetitor),
-// never the biggest account. Every sentence in "what they're doing well" is
-// derived from a pair of real values and carries both numbers.
+//   roster (horizontal) → select one → comparison · why · winning content →
+//   patterns · what to learn · discover more
+//
+// Everything below the roster reacts to the selected card without a reload.
+// The default selection is the computed most-similar outperformer, never the
+// biggest account. Every comparison, observation, pattern share and multiplier
+// is computed from values the page already holds; the AI is only ever asked to
+// interpret numbers that are on screen.
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, ExternalLink, ArrowRight, Plus, Check, Loader2, Info, Sparkles } from "lucide-react";
-import CompetitorLeaderboard from "@/components/CompetitorLeaderboard";
+import { X, ExternalLink, ArrowRight, Plus, Check, Loader2, Info, ChevronLeft, ChevronRight } from "lucide-react";
+import CompetitorRoster from "@/components/CompetitorRoster";
 import WinningContentCarousel from "@/components/WinningContentCarousel";
+import WinningContentAnalysisDrawer from "@/components/WinningContentAnalysisDrawer";
 import { CELL_REASON, SOURCE_LABEL, type Cell, type LeaderRow } from "@/lib/competitorRollup";
 import { pickMostSimilar, compareRows, leadsOn, similarity, doingWell, type Comparison, type SimilarPick } from "@/lib/similarCompetitor";
+import { patternsFor, recommendationsFor } from "@/lib/competitorPatterns";
 import { CLASSIFICATION_LABEL, type Classification } from "@/lib/discovery";
 
 export type WinningItem = {
@@ -30,6 +35,8 @@ export type WinningItem = {
   multiplier: number | null;
   relevanceScore: number;
   trendTags: string[];
+  /** Web-research interpretation, when one exists. Labelled as such in the UI. */
+  why: string | null;
 };
 
 const fmtN = (n: number | null | undefined): string =>
@@ -49,7 +56,7 @@ const fmtC = (c: Comparison, cl: Cell) =>
 
 const platName = (p: string) => (p === "youtube" ? "YouTube" : p === "facebook" ? "Facebook" : "Instagram");
 
-/** Does this content belong to this account? Names from web research and
+/** Does this post belong to this account? Names from web research and
  *  channel titles from the API share no id, so match on the text both carry. */
 const belongsTo = (item: WinningItem, r: LeaderRow) => {
   const a = (item.accountName ?? "").toLowerCase();
@@ -58,53 +65,62 @@ const belongsTo = (item: WinningItem, r: LeaderRow) => {
   return a.includes(r.handle.toLowerCase()) || a.includes(n) || n.includes(a);
 };
 
-export default function CompetitorWorkspace({ rows, content, days }: { rows: LeaderRow[]; content: WinningItem[]; days: number }) {
+const ROSTER_MAX = 12;
+
+export default function CompetitorWorkspace({
+  rows, content, days, location,
+}: { rows: LeaderRow[]; content: WinningItem[]; days: number; location: string | null }) {
   const router = useRouter();
-  const [open, setOpen] = useState<LeaderRow | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [open, setOpen] = useState<LeaderRow | null>(null);
+  const [analyze, setAnalyze] = useState<WinningItem | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [justTracked, setJustTracked] = useState<Set<string>>(new Set());
+  const [allDiscovered, setAllDiscovered] = useState(false);
 
   const you = useMemo(() => rows.find((r) => r.isYou), [rows]);
-  const autoPick = useMemo(() => pickMostSimilar(rows), [rows]);
 
-  // The active competitor: the user's selection, else the computed pick.
+  // Roster = accounts SOCIA actively compares: everything tracked, then the
+  // best-matched discoveries. Discovery strip = the rest, not yet tracked.
+  const { roster, discovered } = useMemo(() => {
+    const comps = rows.filter((r) => !r.isYou);
+    const tracked = comps.filter((r) => r.tracked);
+    const untracked = comps.filter((r) => !r.tracked).sort((a, b) => (b.match ?? -1) - (a.match ?? -1));
+    const fill = Math.max(0, ROSTER_MAX - tracked.length);
+    const roster = [...tracked, ...untracked.slice(0, fill)].sort((a, b) => (b.match ?? -1) - (a.match ?? -1));
+    return { roster, discovered: untracked.slice(fill) };
+  }, [rows]);
+
+  const autoPick = useMemo(() => (you ? pickMostSimilar([you, ...roster]) : null), [you, roster]);
+
   const active: SimilarPick | null = useMemo(() => {
     if (!you) return null;
-    const sel = selectedId ? rows.find((r) => r.id === selectedId && !r.isYou) : null;
+    const sel = selectedId ? roster.find((r) => r.id === selectedId) : null;
     if (sel) return { row: sel, similarity: similarity(you, sel), leads: leadsOn(you, sel), comparisons: compareRows(you, sel) };
     return autoPick;
-  }, [rows, you, selectedId, autoPick]);
-  const isAuto = !selectedId || active?.row.id === autoPick?.row.id;
+  }, [you, roster, selectedId, autoPick]);
 
-  const themes = useMemo(() => {
-    if (!active) return [];
-    const counts = new Map<string, number>();
-    for (const it of content) if (belongsTo(it, active.row)) for (const t of it.trendTags) counts.set(t, (counts.get(t) ?? 0) + 1);
-    return [...counts.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
-  }, [active, content]);
-  const observations = useMemo(() => (active ? doingWell(active, themes) : []), [active, themes]);
-
-  // Winning content: the active competitor's posts first, then posts by other
-  // table accounts, then the most relevant of the rest. Relevance, not raw
-  // views, decides — a 20M-view clip from an unrelated creator ranks below a
-  // 100K-view post from the pizzeria across town.
-  const winning = useMemo(() => {
-    const comps = rows.filter((r) => !r.isYou);
-    const rank = (a: WinningItem, b: WinningItem) => b.relevanceScore - a.relevanceScore || (b.multiplier ?? 0) - (a.multiplier ?? 0);
-    const mine = active ? content.filter((c) => belongsTo(c, active.row)) : [];
-    const others = content.filter((c) => !mine.includes(c) && comps.some((r) => belongsTo(c, r)));
-    const rest = content.filter((c) => !mine.includes(c) && !others.includes(c) && c.relevanceScore >= 40);
-    return [...mine.sort(rank), ...others.sort(rank), ...rest.sort(rank)].slice(0, 10);
-  }, [rows, content, active]);
-
-  const untracked = useMemo(
-    () => rows.filter((r) => !r.isYou && !r.tracked).sort((a, b) => (b.match ?? -1) - (a.match ?? -1)),
-    [rows],
+  const theirPosts = useMemo(() => (active ? content.filter((c) => belongsTo(c, active.row)) : []), [active, content]);
+  const patterns = useMemo(
+    () => patternsFor(theirPosts.map((p) => ({ title: p.title, multiplier: p.multiplier, url: p.url })), location),
+    [theirPosts, location],
   );
-  const discovered = untracked.slice(6, 10);
-  const beyond = Math.max(0, untracked.length - 6);
+  const observations = useMemo(() => {
+    if (!active) return [];
+    const themes = patterns.insufficient ? [] : patterns.patterns.map((p) => ({ tag: p.tag, count: p.count }));
+    return doingWell(active, themes);
+  }, [active, patterns]);
+  const recs = useMemo(() => (active ? recommendationsFor(active, observations, patterns) : []), [active, observations, patterns]);
+
+  // Winning content: the selected competitor's posts, then other roster
+  // accounts', then the most relevant of the rest. Relevance, never raw views.
+  const winning = useMemo(() => {
+    const rank = (a: WinningItem, b: WinningItem) => b.relevanceScore - a.relevanceScore || (b.multiplier ?? 0) - (a.multiplier ?? 0);
+    const mine = theirPosts;
+    const others = content.filter((c) => !mine.includes(c) && roster.some((r) => belongsTo(c, r)));
+    const rest = content.filter((c) => !mine.includes(c) && !others.includes(c) && c.relevanceScore >= 40);
+    return [...mine.sort(rank), ...others.sort(rank), ...rest.sort(rank)].slice(0, 12);
+  }, [theirPosts, content, roster]);
 
   const track = useCallback(async (r: LeaderRow) => {
     setBusy(r.id);
@@ -118,71 +134,59 @@ export default function CompetitorWorkspace({ rows, content, days }: { rows: Lea
     } finally { setBusy(null); }
   }, [router]);
 
-  const analyzeQ = active
-    ? `Compare my account with ${active.row.name} (@${active.row.handle}) using only these measured numbers: ${active.comparisons
-        .filter((c) => c.diffPct != null)
-        .map((c) => `${c.label}: me ${fmtC(c, c.you)}, them ${fmtC(c, c.them)}`)
-        .join("; ")}. Explain what they do differently and give me three concrete things to test this month.`
-    : "";
-
   const measurable = active ? active.comparisons.filter((c) => c.diffPct != null).length : 0;
+  const shownDiscovered = allDiscovered ? discovered : discovered.slice(0, 5);
 
   return (
     <>
-      {/* ---------- 1. table ---------- */}
+      {/* ───────── 1. roster ───────── */}
       <section className="cw-block">
-        <CompetitorLeaderboard
-          rows={rows}
-          selectedId={active?.row.id ?? null}
-          onSelect={(r) => setSelectedId(r.id)}
-          onOpen={setOpen}
-          onTrack={track}
-          expanded={expanded}
-          onExpandedChange={setExpanded}
-        />
+        <div className="cw-block-head">
+          <h2>Competitors in your niche</h2>
+          <small>Accounts SOCIA believes are most relevant to your business, audience, location, and goals.</small>
+        </div>
+        {roster.length ? (
+          <CompetitorRoster you={you} rows={roster} selectedId={active?.row.id ?? null} onSelect={(r) => setSelectedId(r.id)} />
+        ) : (
+          <p className="cp4-empty">No competitors yet — run Refresh to let SOCIA search your niche, or add one with Manage competitors.</p>
+        )}
       </section>
 
-      {/* ---------- 2 · 3 · 4 ---------- */}
+      {/* ───────── 2 · 3 · 4 ───────── */}
       <div className="cw-trio">
-        {/* most similar / selected */}
         <section className="cw-panel">
-          <div className="cw-panel-head">
-            <h2>
-              {isAuto ? "Most similar competitor" : "Selected competitor"}
-              <Info size={13} className="cw-info" aria-label="How this is chosen" />
-            </h2>
-            {!isAuto && (
-              <button type="button" className="cw-reset" onClick={() => setSelectedId(null)}>Show most similar</button>
-            )}
-          </div>
           {active && you ? (
             <>
               <div className="cw-pick">
                 {active.row.avatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={active.row.avatar} alt="" width={44} height={44} />
-                ) : <span className="cp4-face ph">{active.row.name[0]?.toUpperCase()}</span>}
+                  <img src={active.row.avatar} alt="" width={52} height={52} />
+                ) : <span className="cp4-face ph big">{active.row.name[0]?.toUpperCase()}</span>}
                 <span className="cw-pick-id">
                   <b title={active.row.name}>{active.row.name}</b>
                   <small>@{active.row.handle} · {platName(active.row.platform)}</small>
                 </span>
-                <span
-                  className="cw-match"
-                  title={active.row.match != null
-                    ? "SOCIA relevance score: niche, locality, comparable audience and verified metrics"
-                    : "Similarity from classification and audience proximity"}
-                >
-                  {active.similarity}% match
-                </span>
+              </div>
+              <div className="cw-pick-row">
+                {active.row.classification && (
+                  <span className={`cr-chip ${active.row.classification}`}>{CLASSIFICATION_LABEL[active.row.classification as Classification] ?? active.row.classification}</span>
+                )}
+                <b className="cw-match-big" title={active.row.match != null ? "SOCIA relevance score: niche, locality, comparable audience and verified metrics" : "Similarity from classification and audience proximity"}>
+                  {active.similarity}% <span>match</span>
+                </b>
               </div>
               <div className="cw-tags">
-                {active.row.classification && <span>{CLASSIFICATION_LABEL[active.row.classification as Classification] ?? active.row.classification}</span>}
                 <span>{platName(active.row.platform)}</span>
+                {active.row.topFormat && <span>Top format: {active.row.topFormat}</span>}
                 {measurable > 0 && <span>Leads on {active.leads} of {measurable} metrics</span>}
+                {active.row.id !== autoPick?.row.id && (
+                  <button type="button" className="cw-reset" onClick={() => setSelectedId(null)}>Back to most similar</button>
+                )}
               </div>
-              <div className="cw-cmp-head"><b>Key comparison</b><small>Last {days} days</small></div>
+
+              <div className="cw-cmp-head"><b>Performance comparison</b><small>Last {days} days</small></div>
               <table className="cw-cmp-table">
-                <thead><tr><th>Metric</th><th>You</th><th>Competitor</th><th>Difference</th></tr></thead>
+                <thead><tr><th>Metric</th><th>You</th><th>{active.row.name.split(" ")[0]}</th><th>Difference</th></tr></thead>
                 <tbody>
                   {active.comparisons.map((c) => (
                     <tr key={c.key}>
@@ -190,47 +194,39 @@ export default function CompetitorWorkspace({ rows, content, days }: { rows: Lea
                       <td>{fmtC(c, c.you)}</td>
                       <td title={c.them.source ? SOURCE_LABEL[c.them.source] : undefined}>{fmtC(c, c.them)}</td>
                       <td>
-                        {c.diffPct == null ? (
-                          <span className="lb-absent" title="One side isn't published, so no honest difference exists.">—</span>
-                        ) : (
-                          <span className={`cw-diff ${c.diffPct > 0 ? "up" : "down"}`}>
-                            {c.diffPct > 0 ? "↑" : "↓"} {Math.abs(Math.round(c.diffPct)).toLocaleString("en-US")}%
-                          </span>
-                        )}
+                        {c.diffPct == null
+                          ? <span className="lb-absent" title="One side isn't published, so no honest difference exists.">—</span>
+                          : <span className={`cw-diff ${c.diffPct > 0 ? "up" : "down"}`}>{c.diffPct > 0 ? "↑" : "↓"} {Math.abs(Math.round(c.diffPct)).toLocaleString("en-US")}%</span>}
                       </td>
                     </tr>
                   ))}
                   <tr>
                     <td>30d growth</td>
                     <td>{cellText(you.momentum, (n) => `${n >= 0 ? "+" : ""}${fmtN(n)}`)}</td>
-                    <td><span className="lb-absent">—</span></td>
+                    <td><span className="lb-absent" title="No platform publishes follower history for accounts you don't own.">—</span></td>
                     <td><span className="lb-absent">—</span></td>
                   </tr>
                 </tbody>
               </table>
               <div className="cw-actions">
-                <button type="button" className="cw-btn ghost" onClick={() => setOpen(active.row)}>View full comparison</button>
-                <a className="cw-btn" href={`/chat?q=${encodeURIComponent(analyzeQ)}`}>Analyze this competitor <ArrowRight size={13} /></a>
+                <button type="button" className="cw-btn ghost" onClick={() => setOpen(active.row)}>Full comparison</button>
+                {active.row.url && <a className="cw-btn ghost" href={active.row.url} target="_blank" rel="noreferrer">Open profile <ExternalLink size={12} /></a>}
               </div>
             </>
           ) : (
             <p className="cp4-empty">
-              No similar account is measurably outperforming you yet. This fills in as SOCIA discovers competitors
-              with public metrics, or once Meta is connected for Instagram competitor data.
+              No similar account is measurably outperforming you yet. This fills in as SOCIA discovers competitors with
+              public metrics, or once Meta is connected for Instagram competitor data.
             </p>
           )}
         </section>
 
-        {/* why */}
         <section className="cw-panel">
-          <div className="cw-panel-head"><h2>What they&apos;re doing well</h2></div>
+          <div className="cw-panel-head"><h2>Why they&apos;re outperforming you <Info size={13} className="cw-info" /></h2></div>
           {observations.length ? (
             <ul className="cw-obs">
-              {observations.map((o) => (
-                <li key={o.key}>
-                  <b>{o.title}</b>
-                  <p>{o.detail}</p>
-                </li>
+              {observations.slice(0, 4).map((o) => (
+                <li key={o.key}><b>{o.title}</b><p>{o.detail}</p></li>
               ))}
             </ul>
           ) : active ? (
@@ -239,72 +235,144 @@ export default function CompetitorWorkspace({ rows, content, days }: { rows: Lea
               {active.row.platform !== "youtube" && " Connect Meta to unlock Instagram competitor data."}
             </p>
           ) : (
-            <p className="cp4-empty">Observations appear once a competitor with public metrics is selected.</p>
+            <p className="cp4-empty">Select a competitor to see the evidence.</p>
           )}
-          {active && <a className="cw-link" href={`/chat?q=${encodeURIComponent(analyzeQ)}`}>See all insights <ArrowRight size={13} /></a>}
+          {active && (
+            <a className="cw-link" href={`/chat?q=${encodeURIComponent(`Compare my account with ${active.row.name} using only these measured numbers: ${active.comparisons.filter((c) => c.diffPct != null).map((c) => `${c.label}: me ${fmtC(c, c.you)}, them ${fmtC(c, c.them)}`).join("; ")}. What do they do differently?`)}`}>
+              See all insights <ArrowRight size={13} />
+            </a>
+          )}
         </section>
 
-        {/* winning content */}
         <section className="cw-panel cw-content">
           <div className="cw-panel-head">
             <h2>Winning content <small>Last 30 days</small></h2>
             <a className="cw-link inline" href="/niche">View all content <ArrowRight size={13} /></a>
           </div>
           {winning.length ? (
-            <WinningContentCarousel items={winning} />
+            <WinningContentCarousel items={winning} onAnalyze={setAnalyze} />
           ) : (
             <div className="cw-empty">
               <b>We don&apos;t have enough verified competitor post data yet.</b>
-              <p>Refresh discovery to search your niche, or track a competitor with public posts.</p>
+              <p>Refresh to search your niche, or track a competitor with public posts.</p>
             </div>
           )}
         </section>
       </div>
 
-      {/* ---------- 5. discovered ---------- */}
-      <section className="cw-block cw-disc">
-        <div className="cw-panel-head">
-          <h2><Sparkles size={14} className="cw-spark" /> Discovered for you <small>High-match accounts SOCIA found in your niche.</small></h2>
-          {beyond > 4 && (
-            <button type="button" className="cw-link inline" onClick={() => { setExpanded(true); document.querySelector(".lb")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}>
-              Explore {beyond - 4} more accounts <ArrowRight size={13} />
-            </button>
+      {/* ───────── 5 · 6 · 7 ───────── */}
+      <div className="cb-row">
+        <section className="cw-panel">
+          <div className="cw-panel-head"><h2>Patterns SOCIA noticed <Info size={13} className="cw-info" /></h2></div>
+          {!active ? (
+            <p className="cp4-empty">Select a competitor to analyse their posts.</p>
+          ) : patterns.insufficient ? (
+            <p className="cp4-empty">
+              Not enough content yet to identify reliable patterns — {patterns.total} of {patterns.minSample} posts needed for {active.row.name}.
+            </p>
+          ) : patterns.patterns.length ? (
+            <>
+              <ol className="cb-patterns">
+                {patterns.patterns.slice(0, 5).map((p, i) => (
+                  <li key={p.tag}>
+                    <span className="cb-num">{String(i + 1).padStart(2, "0")}</span>
+                    <span className="cb-pat">
+                      <b>{p.tag}</b>
+                      <span className="cb-bar" aria-hidden><i style={{ width: `${p.share}%` }} /></span>
+                      <small>
+                        {p.count} / {p.total} analysed posts
+                        {p.medianMultiplier != null && ` · median ${p.medianMultiplier.toFixed(1)}× baseline`}
+                      </small>
+                    </span>
+                    <span className={`cb-impact ${p.impact}`}>{p.impact === "high" ? "High impact" : "Medium impact"}</span>
+                  </li>
+                ))}
+              </ol>
+              <small className="cb-based">Based on {patterns.total} analysed posts</small>
+            </>
+          ) : (
+            <p className="cp4-empty">No repeated pattern across their {patterns.total} analysed posts.</p>
           )}
-        </div>
-        {discovered.length ? (
-          <ul className="cw-disc-list">
-            {discovered.map((r) => (
-              <li key={r.id}>
-                {r.avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.avatar} alt="" width={34} height={34} />
-                ) : <span className="cp4-face ph sm">{r.name[0]?.toUpperCase()}</span>}
-                <span className="cw-disc-id">
-                  <b title={r.name}>{r.name}</b>
-                  <small>@{r.handle} · {platName(r.platform)}</small>
-                </span>
-                <span className="cw-disc-num">
-                  <b>{r.audience.state === "ok" ? fmtN(r.audience.value) : "—"}</b>
-                  <small>{r.audience.state === "ok" ? (r.platform === "youtube" ? "subscribers" : "followers") : "not published"}</small>
-                  {r.match != null && <em>{r.match}% match</em>}
-                </span>
-                {justTracked.has(r.id) ? (
-                  <span className="lb-tracked"><Check size={12} /> Tracked</span>
-                ) : (
-                  <button type="button" onClick={() => track(r)} disabled={busy === r.id}>
-                    {busy === r.id ? <Loader2 size={11} className="cp4-spin" /> : <Plus size={11} />} Track
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="cp4-empty">Everything SOCIA has found is already in the table above.</p>
-        )}
-      </section>
+        </section>
+
+        <section className="cw-panel">
+          <div className="cw-panel-head"><h2>What you can learn{active ? ` from ${active.row.name.split(" ")[0]}` : ""} <Info size={13} className="cw-info" /></h2></div>
+          {recs.length ? (
+            <ol className="cb-recs">
+              {recs.map((r) => (
+                <li key={r.n}>
+                  <span className="cb-recnum">{r.n}</span>
+                  <span className="cb-rec">
+                    <b>{r.title}</b>
+                    <small>{r.evidence}</small>
+                    <small><em>Recommended test:</em> {r.test}</small>
+                  </span>
+                  <a className="cw-btn ghost sm" href={r.cta.href}>{r.cta.label}</a>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="cp4-empty">Recommendations appear once a comparison shows a measurable gap.</p>
+          )}
+        </section>
+
+        <section className="cw-panel cb-discover">
+          <div className="cw-panel-head">
+            <h2>Discover more competitors <Info size={13} className="cw-info" /></h2>
+            {discovered.length > 5 && (
+              <button type="button" className="cw-link inline" onClick={() => setAllDiscovered((v) => !v)}>
+                {allDiscovered ? "Show fewer" : `Explore all ${discovered.length} discovered`} <ArrowRight size={13} />
+              </button>
+            )}
+          </div>
+          {shownDiscovered.length ? (
+            <DiscoverStrip rows={shownDiscovered} busy={busy} tracked={justTracked} onTrack={track} />
+          ) : (
+            <p className="cp4-empty">Everything SOCIA has found is already in the roster above.</p>
+          )}
+        </section>
+      </div>
 
       {open && you && <DetailDrawer r={open} you={you} onClose={() => setOpen(null)} />}
+      {analyze && <WinningContentAnalysisDrawer item={analyze} onClose={() => setAnalyze(null)} />}
     </>
+  );
+}
+
+function DiscoverStrip({ rows, busy, tracked, onTrack }: { rows: LeaderRow[]; busy: string | null; tracked: Set<string>; onTrack: (r: LeaderRow) => void }) {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const step = (d: 1 | -1) => el?.scrollBy({ left: 260 * d, behavior: "smooth" });
+  const overflow = el ? el.scrollWidth > el.clientWidth + 4 : false;
+  return (
+    <div className="cd-wrap">
+      {overflow && <button type="button" className="cr-arrow left sm" onClick={() => step(-1)} aria-label="Previous discovered competitors"><ChevronLeft size={14} /></button>}
+      <div className="cd-scroll" ref={setEl} role="list">
+        {rows.map((r) => (
+          <div className="cd-item" role="listitem" key={r.id}>
+            {r.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={r.avatar} alt="" width={36} height={36} />
+            ) : <span className="cr-ph sm">{r.name[0]?.toUpperCase()}</span>}
+            <span className="cd-id">
+              <b title={r.name}>{r.name}</b>
+              <small>@{r.handle} <i className={`lb-dot ${r.platform}`} /></small>
+              <small>
+                {r.audience.state === "ok" ? `${fmtN(r.audience.value)} ${r.platform === "youtube" ? "subscribers" : "followers"}` : "followers not published"}
+                {r.match != null && <em> · {r.match}% match</em>}
+              </small>
+            </span>
+            {tracked.has(r.id) ? (
+              <span className="lb-tracked"><Check size={12} /> Tracked</span>
+            ) : (
+              <button type="button" onClick={() => onTrack(r)} disabled={busy === r.id}>
+                {busy === r.id ? <Loader2 size={11} className="cp4-spin" /> : <Plus size={11} />} Track
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {overflow && <button type="button" className="cr-arrow right sm" onClick={() => step(1)} aria-label="Next discovered competitors"><ChevronRight size={14} /></button>}
+    </div>
   );
 }
 

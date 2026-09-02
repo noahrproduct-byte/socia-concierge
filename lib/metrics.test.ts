@@ -563,3 +563,66 @@ describe("most similar competitor", () => {
     expect(doingWell(pick, [{ tag: "Comparison", count: 3 }]).some((o) => o.key === "theme")).toBe(true);
   });
 });
+
+import { patternsFor, recommendationsFor, tagsFor, locationTokens } from "./competitorPatterns";
+
+describe("competitor patterns", () => {
+  const post = (title: string, multiplier: number | null = null, i = 0) => ({ title, multiplier, url: `u${i}-${title}` });
+
+  it("refuses to call fewer than five posts a pattern", () => {
+    const r = patternsFor([post("POV pizza"), post("POV dough"), post("POV oven")], "Nashville");
+    expect(r.insufficient).toBe(true);
+    expect(r.patterns).toEqual([]);
+  });
+
+  it("counts a real share over the analysed posts", () => {
+    const posts = [post("POV a",3,1), post("POV b",2,2), post("Review c",null,3), post("POV d",4,4), post("Recipe e",1,5)];
+    const r = patternsFor(posts, null);
+    const pov = r.patterns.find((p) => p.tag === "POV")!;
+    expect(pov.count).toBe(3);
+    expect(pov.total).toBe(5);
+    expect(pov.share).toBe(60);
+    expect(pov.medianMultiplier).toBe(3);
+  });
+
+  it("tags local language only when the user's market is named", () => {
+    expect(tagsFor("Best pizza in Nashville", locationTokens("Nashville, Tennessee"))).toContain("Local / location language");
+    expect(tagsFor("Best pizza in town", locationTokens("Nashville, Tennessee"))).not.toContain("Local / location language");
+    expect(locationTokens("Hermitage, TN")).toEqual(["hermitage"]);
+  });
+
+  it("marks high impact only with breadth and lift", () => {
+    const wide = [post("POV a",3,1), post("POV b",2,2), post("POV c",4,3), post("x",1,4), post("y",1,5)];
+    expect(patternsFor(wide, null).patterns[0].impact).toBe("high");
+    const flat = [post("POV a",1,1), post("POV b",1,2), post("POV c",1,3), post("x",1,4), post("y",1,5)];
+    expect(patternsFor(flat, null).patterns[0].impact).toBe("medium");
+  });
+});
+
+describe("competitor recommendations", () => {
+  const you = lr({ id: "you", isYou: true, cadence: cell(0.9), medianViews: cell(298) });
+  const them = lr({ id: "t", name: "Patio Pizza", match: 80, cadence: cell(4.8), medianViews: cell(8125) });
+
+  it("derives the cadence action from the two real numbers", () => {
+    const pick = pickMostSimilar([you, them])!;
+    const recs = recommendationsFor(pick, [], { total: 0, minSample: 5, insufficient: true, patterns: [] });
+    expect(recs[0].title).toBe("Increase posting frequency");
+    expect(recs[0].evidence).toContain("0.9/week");
+    expect(recs[0].evidence).toContain("4.8/week");
+  });
+
+  it("never pads to three", () => {
+    const even = lr({ id: "e", match: 80, cadence: cell(0.9), medianViews: cell(298), audience: cell(20000) });
+    const pick = pickMostSimilar([you, even])!;
+    const recs = recommendationsFor(pick, [], { total: 0, minSample: 5, insufficient: true, patterns: [] });
+    expect(recs.length).toBeLessThan(3);
+    expect(recs.every((r) => r.evidence.length > 0)).toBe(true);
+  });
+
+  it("uses a counted pattern when one exists", () => {
+    const pick = pickMostSimilar([you, them])!;
+    const pat = { total: 10, minSample: 5, insufficient: false, patterns: [{ tag: "POV", count: 6, total: 10, share: 60, medianMultiplier: 3.2, impact: "high" as const, examples: [] }] };
+    const recs = recommendationsFor(pick, [], pat);
+    expect(recs.some((r) => r.evidence.includes("6 of 10"))).toBe(true);
+  });
+});
