@@ -195,7 +195,7 @@ export default function CompetitorWorkspace({
 
               <div className="cw-cmp-head"><b>Performance comparison</b><small>Last {days} days</small></div>
               <table className="cw-cmp-table">
-                <thead><tr><th>Metric</th><th>You</th><th>{active.row.name.split(" ")[0]}</th><th>Difference</th></tr></thead>
+                <thead><tr><th>Metric</th><th>You</th><th title={active.row.name}>{active.row.name}</th><th>Difference</th></tr></thead>
                 <tbody>
                   {active.comparisons.map((c) => (
                     <tr key={c.key}>
@@ -305,7 +305,7 @@ export default function CompetitorWorkspace({
         </section>
 
         <section className="cw-panel">
-          <div className="cw-panel-head"><h2>What you can learn{active ? ` from ${active.row.name.split(" ")[0]}` : ""} <Info size={13} className="cw-info" /></h2></div>
+          <div className="cw-panel-head"><h2 title={active ? `What you can learn from ${active.row.name}` : undefined}>What you can learn{active ? ` from ${active.row.name}` : ""} <Info size={13} className="cw-info" /></h2></div>
           {recs.length ? (
             <ol className="cb-recs">
               {recs.map((r) => (

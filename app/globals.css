@@ -10776,8 +10776,9 @@ html { scroll-behavior: smooth; }
 @media (max-width: 860px) { .cw-trio { grid-template-columns: 1fr; } .cw-disc-list { grid-template-columns: 1fr; } .lb-bar .lb-search { margin-left: 0; } }
 
 /* primary action inside .cw-actions must beat the generic link colour */
-.cw-actions a.cw-btn { color: #fff; }
-.cw-actions a.cw-btn:hover { color: #fff; text-decoration: none; }
+.cw-actions a.cw-btn:not(.ghost) { color: #fff; }
+.cw-actions a.cw-btn:not(.ghost):hover { color: #fff; text-decoration: none; }
+.cw-actions a.cw-btn.ghost { color: var(--charcoal); text-decoration: none; }
 .cw-actions .cw-btn.ghost { white-space: nowrap; }
 
 
@@ -10888,3 +10889,6 @@ html { scroll-behavior: smooth; }
 .wc-actions button.strong { all: unset; cursor: pointer; font-size: 11.5px; font-weight: 700; color: #5b4bd6; }
 .wc-actions button.strong:hover { text-decoration: underline; }
 .wc-actions button.strong:focus-visible { outline: 2px solid #5b4bd6; outline-offset: 2px; border-radius: 4px; }
+
+.cw-cmp-table th { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-panel-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
