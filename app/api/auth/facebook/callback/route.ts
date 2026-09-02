@@ -68,7 +68,29 @@ export async function GET(req: Request) {
     const pagesJson = await pagesRes.json().catch(() => null);
     if (!pagesRes.ok) return done("error");
     const pages: PageEntry[] = pagesJson?.data ?? [];
-    if (!pages.length) return done("nopages");
+    if (!pages.length) {
+      // An empty Page list has two very different causes, and the user cannot
+      // act until they know which. Ask Facebook what it actually granted:
+      // with Facebook Login for Business the permissions come from the login
+      // configuration in the Meta dashboard, NOT from the scope parameter, so
+      // a config missing pages_show_list returns no Pages however many the
+      // user grants.
+      let granted: string[] = [];
+      try {
+        const permUrl = new URL(`${BASE}/me/permissions`);
+        permUrl.searchParams.set("access_token", userToken);
+        const permRes = await fetch(permUrl, { signal: AbortSignal.timeout(10000) });
+        const permJson = (await permRes.json().catch(() => null)) as
+          | { data?: { permission?: string; status?: string }[] }
+          | null;
+        granted = (permJson?.data ?? [])
+          .filter((x) => x.status === "granted" && x.permission)
+          .map((x) => x.permission!);
+      } catch {
+        /* fall through to the generic message */
+      }
+      return done(granted.length && !granted.includes("pages_show_list") ? "noperm" : "nopages");
+    }
 
     if (pages.length === 1) {
       // Unambiguous — connect it directly.
