@@ -10736,7 +10736,7 @@ html { scroll-behavior: smooth; }
 .cw-cmp-table td:first-child { color: var(--slate); }
 .cw-diff { font-weight: 750; font-variant-numeric: tabular-nums; }
 .cw-diff.up { color: #157f3d; } .cw-diff.down { color: #b42318; }
-.cw-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 4px; }
+.cw-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 4px; flex-wrap: wrap; }
 .cw-actions a, .cw-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: #5b4bd6; text-decoration: none; }
 .cw-link { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 700; color: #5b4bd6; margin-top: auto; }
 .cw-link:hover, .cw-actions a:hover { text-decoration: underline; }
@@ -10875,3 +10875,8 @@ html { scroll-behavior: smooth; }
 }
 @media (max-width: 1100px) { .cw-disc-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .cw-trio { grid-template-columns: 1fr; } .cw-disc-list { grid-template-columns: 1fr; } .lb-bar .lb-search { margin-left: 0; } }
+
+/* primary action inside .cw-actions must beat the generic link colour */
+.cw-actions a.cw-btn { color: #fff; }
+.cw-actions a.cw-btn:hover { color: #fff; text-decoration: none; }
+.cw-actions .cw-btn.ghost { white-space: nowrap; }
