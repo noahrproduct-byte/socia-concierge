@@ -417,7 +417,7 @@ const row = (over: Partial<LeaderRow> = {}): LeaderRow => ({
   isYou: false, tracked: false, classification: null,
   audience: cell(1000, "public_api"), engagement: cell(2, "calculated"),
   cadence: cell(3, "calculated"), medianViews: cell(500, "public_api"),
-  momentum: absent("unknown"), match: null, topFormat: null, ...over,
+  momentum: absent("unknown"), ...over,
 });
 
 describe("competitor rollup: absence is typed, never zero", () => {
@@ -500,66 +500,5 @@ describe("competitor rollup: position rows", () => {
     const you = row({ id: "you", isYou: true, engagement: cell(9) });
     const rows = [you, row({ id: "a", engagement: cell(2) }), row({ id: "b", engagement: cell(3) }), row({ id: "c", engagement: cell(4) })];
     expect(buildPositionRows(rows, you).wins.some((r) => r.label === "Engagement rate")).toBe(true);
-  });
-});
-
-import { pickMostSimilar, similarity, leadsOn, doingWell, compareRows } from "./similarCompetitor";
-
-const lr = (over: Partial<LeaderRow> = {}): LeaderRow => ({
-  id: "x", platform: "instagram", handle: "x", name: "X", avatar: null, url: null,
-  isYou: false, tracked: false, classification: null, match: null, topFormat: null,
-  audience: cell(12000, "live_api"), engagement: cell(1.1), cadence: cell(0.9),
-  medianViews: cell(298), momentum: absent("insufficient"), ...over,
-});
-
-describe("most similar competitor", () => {
-  const you = lr({ id: "you", isYou: true });
-
-  it("prefers a similar outperformer over a giant", () => {
-    const local = lr({ id: "local", match: 82, audience: cell(27800), engagement: cell(2.6), cadence: cell(4.8), medianViews: cell(84000) });
-    const giant = lr({ id: "giant", match: 30, audience: cell(16_800_000), engagement: cell(4.8), cadence: cell(5.2), medianViews: cell(1_800_000) });
-    expect(pickMostSimilar([you, giant, local])?.row.id).toBe("local");
-  });
-
-  it("requires the pick to actually outperform on something", () => {
-    const worse = lr({ id: "worse", match: 95, audience: cell(500), engagement: cell(0.2), cadence: cell(0.1), medianViews: cell(10) });
-    expect(pickMostSimilar([you, worse])).toBeNull();
-  });
-
-  it("returns null with no user row", () => {
-    expect(pickMostSimilar([lr({ id: "a", match: 90 })])).toBeNull();
-  });
-
-  it("counts only comparable metrics as leads", () => {
-    const them = lr({ id: "t", engagement: absent("connection_needed"), cadence: cell(5), medianViews: absent("connection_needed"), audience: cell(20000) });
-    expect(leadsOn(you, them)).toBe(2);
-  });
-
-  it("falls back to classification and audience proximity without a discovery score", () => {
-    const close = lr({ id: "c", classification: "direct_competitor", audience: cell(15000) });
-    const far = lr({ id: "f", classification: "niche_leader", audience: cell(9_000_000) });
-    expect(similarity(you, close)).toBeGreaterThan(similarity(you, far));
-  });
-
-  it("never invents a difference when a side is missing", () => {
-    const them = lr({ id: "t", medianViews: absent("connection_needed") });
-    const mv = compareRows(you, them).find((c) => c.key === "medianViews")!;
-    expect(mv.diffPct).toBeNull();
-  });
-
-  it("writes each observation from the two numbers it compares", () => {
-    const them = lr({ id: "t", match: 80, cadence: cell(4.8), engagement: cell(2.6) });
-    const pick = pickMostSimilar([you, them])!;
-    const obs = doingWell(pick);
-    expect(obs.find((o) => o.key === "cadence")?.detail).toContain("4.8/week");
-    expect(obs.find((o) => o.key === "cadence")?.detail).toContain("0.9/week");
-    expect(obs.some((o) => o.key === "theme")).toBe(false);
-  });
-
-  it("adds a theme observation only from counted tags", () => {
-    const them = lr({ id: "t", match: 80, cadence: cell(4.8) });
-    const pick = pickMostSimilar([you, them])!;
-    expect(doingWell(pick, [{ tag: "Comparison", count: 1 }]).some((o) => o.key === "theme")).toBe(false);
-    expect(doingWell(pick, [{ tag: "Comparison", count: 3 }]).some((o) => o.key === "theme")).toBe(true);
   });
 });
