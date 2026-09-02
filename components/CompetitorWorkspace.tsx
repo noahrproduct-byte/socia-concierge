@@ -115,11 +115,20 @@ export default function CompetitorWorkspace({
   // Winning content: the selected competitor's posts, then other roster
   // accounts', then the most relevant of the rest. Relevance, never raw views.
   const winning = useMemo(() => {
-    const rank = (a: WinningItem, b: WinningItem) => b.relevanceScore - a.relevanceScore || (b.multiplier ?? 0) - (a.multiplier ?? 0);
+    // Evidence first: a post with a computed baseline multiple, then one with
+    // public counts, then one with at least a thumbnail. A web-found link with
+    // nothing verifiable is real and stays, but it must not lead the carousel
+    // ahead of posts whose performance SOCIA can actually show.
+    const evidence = (c: WinningItem) =>
+      (c.multiplier != null ? 4 : 0) + (c.views != null ? 2 : 0) + (c.thumbnailUrl ? 1 : 0);
+    const rank = (a: WinningItem, b: WinningItem) =>
+      evidence(b) - evidence(a) || b.relevanceScore - a.relevanceScore || (b.multiplier ?? 0) - (a.multiplier ?? 0);
     const mine = theirPosts;
     const others = content.filter((c) => !mine.includes(c) && roster.some((r) => belongsTo(c, r)));
     const rest = content.filter((c) => !mine.includes(c) && !others.includes(c) && c.relevanceScore >= 40);
-    return [...mine.sort(rank), ...others.sort(rank), ...rest.sort(rank)].slice(0, 12);
+    const tiered = [...mine.sort(rank), ...others.sort(rank), ...rest.sort(rank)];
+    // Tier order holds among posts with evidence; unverifiable ones close the row.
+    return [...tiered.filter((c) => evidence(c) > 0), ...tiered.filter((c) => evidence(c) === 0)].slice(0, 12);
   }, [theirPosts, content, roster]);
 
   const track = useCallback(async (r: LeaderRow) => {
