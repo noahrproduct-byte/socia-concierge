@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import { ExportButton } from "@/components/CompetitorsBoard";
@@ -14,6 +13,7 @@ import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import { nameKey } from "@/lib/discovery";
 import CompetitorWorkspace, { type WinningItem } from "@/components/CompetitorWorkspace";
 import RefreshDiscovery from "@/components/RefreshDiscovery";
+import RangeSelect from "@/components/RangeSelect";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import {
   engagementOf,
@@ -367,22 +367,22 @@ export default async function CompetitorsPage({
             </span>
           </div>
           <div className="cp4-controls">
-            <span className="cp4-chipset" role="group" aria-label="Platform">
-              <span className="cp4-chip on" title="Facebook joins when a Page is connected.">Instagram</span>
-            </span>
-            <span className="cp4-chipset" role="group" aria-label="Date range">
-              {[7, 30, 90].map((d) => (
-                <Link key={d} href={`/competitors?range=${d}`} className={`cp4-chip${days === d ? " on" : ""}`}>
-                  {d === 7 ? "Last 7 days" : d === 30 ? "Last 30 days" : "Last 90 days"}
-                </Link>
-              ))}
-            </span>
+            <label className="lb-sel compact" title="Facebook joins when a Page is connected.">
+              <select value="instagram" aria-label="Platform" disabled>
+                <option value="instagram">Instagram</option>
+              </select>
+            </label>
+            <RangeSelect days={days} compact />
             <ExportButton />
             <ManageCompetitors initial={tracked} />
           </div>
         </div>
 
-        <CompetitorWorkspace rows={leaderRows} content={content} />
+        <div className="cp4-sec-head cw-table-head">
+          <h2>Competitors in your niche</h2>
+          <small>Accounts similar to you that are currently performing better</small>
+        </div>
+        <CompetitorWorkspace rows={leaderRows} content={content} days={days} />
 
         {/* Instagram connection — compact, and only while it is required */}
         {tracked.some((t) => t.platform === "instagram") && (
