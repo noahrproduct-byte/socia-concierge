@@ -538,13 +538,21 @@ function Report({ data, planId, posts }: { data: Deliverable; planId: string | n
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || "Couldn't add the drafts.");
       const n = (j.posts ?? []).length;
+      const already = Number(j.skipped ?? 0);
       const wk = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const notes = [
+        skipped.length ? `${skipped.join(", ")} skipped: not a weekday` : null,
+        already ? `${already} already on the calendar` : null,
+      ].filter(Boolean);
       setSched({
         busy: false,
         ok: true,
-        msg: `${n} draft${n === 1 ? "" : "s"} added to the week of ${wk}${
-          skipped.length ? ` (${skipped.join(", ")} skipped: not a weekday)` : ""
-        }. Attach a video to each on the Calendar and they'll post themselves.`,
+        msg:
+          n === 0
+            ? `Nothing new to add: this plan's week of ${wk} is already on your Calendar.`
+            : `${n} draft${n === 1 ? "" : "s"} added to the week of ${wk}${
+                notes.length ? ` (${notes.join("; ")})` : ""
+              }. Attach a video to each on the Calendar and they'll post themselves.`,
       });
     } catch (e) {
       setSched({ busy: false, ok: false, msg: e instanceof Error ? e.message : "Couldn't add the drafts." });

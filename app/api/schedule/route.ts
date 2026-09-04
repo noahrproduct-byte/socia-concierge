@@ -91,9 +91,29 @@ export async function POST(req: Request) {
     rows.push(draft);
   }
 
+  // A plan's day is placed once per time slot: re-running "Schedule this week"
+  // on the same plan adds nothing and says so, instead of duplicating drafts.
+  let skipped = 0;
+  const planIds = [...new Set(rows.map((r) => r.plan_id).filter((x): x is string => Boolean(x)))];
+  if (planIds.length) {
+    const { data: existing } = await supabase
+      .from("scheduled_posts")
+      .select("plan_id, plan_day, scheduled_at")
+      .eq("user_id", user.id)
+      .in("plan_id", planIds)
+      .neq("status", "cancelled");
+    const taken = new Set((existing ?? []).map((e) => `${e.plan_id}|${(e.plan_day ?? "").toLowerCase()}|${new Date(e.scheduled_at).toISOString()}`));
+    const before = rows.length;
+    const kept = rows.filter((r) => !r.plan_id || !taken.has(`${r.plan_id}|${(r.plan_day ?? "").toLowerCase()}|${r.scheduled_at}`));
+    skipped = before - kept.length;
+    rows.length = 0;
+    rows.push(...kept);
+  }
+  if (!rows.length) return NextResponse.json({ posts: [], skipped });
+
   const { data, error } = await supabase.from("scheduled_posts").insert(rows).select("*");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ posts: data ?? [] });
+  return NextResponse.json({ posts: data ?? [], skipped });
 }
 
 export async function PATCH(req: Request) {
