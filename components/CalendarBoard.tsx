@@ -97,6 +97,7 @@ type Audience = {
   // per weekday (Mon-first): 24 smoothed values normalized 0..1
   days: number[][];
   bestDays: number[]; // weekday indexes worth flagging
+  dayHasData: boolean[]; // weekday has >= 2 of the user's posts (its best hour means something)
   bestHour: (day: number) => number;
   peak: { day: number; hour: number } | null;
   postCount: number;
@@ -143,10 +144,20 @@ function buildAudience(posts: CalPost[]): Audience {
     enough,
     days,
     bestDays: enough ? bestDays : [],
+    dayHasData: days.map((hs, i) => dayPosts[i] >= 2 && Math.max(...hs) > 0),
     bestHour: (day) => days[day].indexOf(Math.max(...days[day])),
     peak: enough ? peak : null,
     postCount: posts.length,
   };
+}
+
+/** Hour to place a post on a weekday (Mon-first index): that day's best hour
+ *  when the day has enough of the user's own posts to say, else the overall
+ *  peak hour, else noon. Never a lone early post's hour. */
+function suggestedHour(aud: Audience, dayMonFirst: number): number {
+  if (aud.enough && aud.dayHasData[dayMonFirst]) return aud.bestHour(dayMonFirst);
+  if (aud.enough && aud.peak) return aud.peak.hour;
+  return 12;
 }
 
 const lvl = (v: number) => (v <= 0.02 ? "n" : v < 0.28 ? "l" : v < 0.55 ? "m" : v < 0.8 ? "h" : "p");
@@ -261,7 +272,7 @@ export default function CalendarBoard({
 
   const openNew = (date: Date, weekdayMonFirst: number) => {
     const d = new Date(date);
-    d.setHours(aud.enough ? aud.bestHour(weekdayMonFirst) : 12, 0, 0, 0);
+    d.setHours(suggestedHour(aud, weekdayMonFirst), 0, 0, 0);
     if (d.getTime() <= Date.now()) {
       // today, and the suggested hour already passed: next full hour
       const n = new Date();
@@ -1114,7 +1125,7 @@ function PlanModal({
   const { drafts, skipped } = draftsFromPlan(
     plan?.data?.weeklyPlan ?? [],
     weekStart,
-    (wd) => (aud.enough ? aud.bestHour((wd + 6) % 7) : 12)
+    (wd) => suggestedHour(aud, (wd + 6) % 7)
   );
   const usable = drafts.filter((d) => new Date(d.scheduled_at).getTime() > now.getTime());
   const passed = drafts.length - usable.length;
@@ -1165,7 +1176,7 @@ function PlanModal({
                   <b>{p.client_handle ? `@${p.client_handle.replace(/^@/, "")}` : p.niche || "Content Plan"}</b>
                   <span>
                     {p.data?.weeklyPlan?.length} posts · {p.niche || "—"} ·{" "}
-                    {new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {new Date(p.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                   </span>
                 </button>
               ))}
@@ -1195,7 +1206,7 @@ function PlanModal({
               <span>
                 What gets added{" "}
                 <em>
-                  {aud.enough ? "at your audience's best hour each day" : "at 12 PM (no audience data yet)"}
+                  {aud.enough ? "at your audience's best hour" : "at 12 PM (no audience data yet)"}
                 </em>
               </span>
               <ul className="cal2-preview">
