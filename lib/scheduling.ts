@@ -63,6 +63,8 @@ export function captionFromPlanItem(item: { hook?: string; concept?: string }): 
  *  with the format noted — the user can change it before attaching media. */
 export function mediaTypeForFormat(format: string | null | undefined): MediaType {
   const f = (format ?? "").toLowerCase();
+  // A Reel described as "one static hero shot" is still a Reel: video words win.
+  if (/\breels?\b|\bvideo\b|\bshorts?\b/.test(f)) return "REELS";
   if (f.includes("static") || f.includes("photo") || f.includes("image")) return "IMAGE";
   return "REELS";
 }

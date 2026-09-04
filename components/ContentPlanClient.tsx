@@ -69,6 +69,28 @@ function Counter({ value, max }: { value: string; max: number }) {
   );
 }
 
+// Older plans (and an occasionally wordy model) put production notes in
+// `format` and a paragraph in `predictedPerformance`. Tags show a short label;
+// the full text still renders, underneath, as its own line.
+const FORMAT_LABELS: [RegExp, string][] = [
+  [/reel|video|short/i, "Reel"],
+  [/carousel|slides?/i, "Carousel"],
+  [/stor(y|ies)/i, "Story"],
+  [/static|photo|image|single/i, "Static"],
+];
+function formatLabel(f: string): string {
+  const s = f.trim();
+  if (s.length <= 14) return s;
+  for (const [re, label] of FORMAT_LABELS) if (re.test(s)) return label;
+  return s.split(/[,;:.–—(]/)[0].trim().slice(0, 14);
+}
+function perfLabel(p: string): string {
+  const s = p.trim();
+  if (s.length <= 28) return s;
+  const head = s.split(/[,;:.–—(]/)[0].trim();
+  return head.length <= 28 ? head : "See notes";
+}
+
 function perfTone(p: string): "green" | "amber" | "blue" {
   if (/high/i.test(p)) return "green";
   if (/experiment|test|risk/i.test(p)) return "amber";
@@ -345,8 +367,10 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
               </div>
               <h2>Building your plan…</h2>
               <p>
-                Auditing {form.clientHandle.trim() || "your account"} and drafting the week.
-                Usually takes 20–40 seconds.
+                Reading {onFile.posts > 0 ? `your last ${onFile.posts} posts` : "your brief"}
+                {onFile.competitors > 0 ? `, ${onFile.competitors} competitors` : ""}
+                {onFile.winning > 0 ? ` and ${onFile.winning} winning videos` : ""}, then drafting
+                the week. Usually takes one to three minutes.
               </p>
               <div className="cpl-load-bar" aria-hidden>
                 <span />
@@ -651,9 +675,9 @@ function Report({ data, planId, posts }: { data: Deliverable; planId: string | n
                       <Clock size={10} /> {timeFor(post.day)}
                     </span>
                   )}
-                  <span className="cpl-tag fmt">{post.format}</span>
+                  <span className="cpl-tag fmt">{formatLabel(post.format)}</span>
                   <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`}>
-                    {post.predictedPerformance}
+                    {perfLabel(post.predictedPerformance)}
                   </span>
                 </div>
                 <div className="cpl-concept">{post.concept}</div>
@@ -662,6 +686,18 @@ function Report({ data, planId, posts }: { data: Deliverable; planId: string | n
                   {post.hook}
                 </div>
                 <div className="cpl-postmeta">
+                  {formatLabel(post.format) !== post.format.trim() && (
+                    <>
+                      <b>Production:</b> {post.format}
+                      <br />
+                    </>
+                  )}
+                  {perfLabel(post.predictedPerformance) !== post.predictedPerformance.trim() && (
+                    <>
+                      <b>Expected:</b> {post.predictedPerformance}
+                      <br />
+                    </>
+                  )}
                   <b>Why this:</b> {post.rationale}
                   <br />
                   <b>Based on:</b> {post.evidence}

@@ -36,6 +36,8 @@ Rules:
 - Write hooks as the actual first line of the post, in the account's voice, not a description of a hook.
 - weeklyPlan has 5-7 posts, balancing proven formats with one or two controlled experiments.
 - weeklyPlan[].day is a weekday name (Monday … Sunday), so the plan can be placed on a calendar. Do not put times in it; SOCIA assigns times from the audience data.
+- weeklyPlan[].format is one short label: Reel, Carousel, Static or Story. Shot length, camera notes, captions and CTAs belong in concept.
+- weeklyPlan[].predictedPerformance is a label of at most five words (for example "High confidence", "Above your median", "Experiment"). Ranges, caveats and what to measure belong in rationale.
 - Cite only numbers that appear in the evidence you were given. If a figure is not there, do not invent one; say what is missing and reason from what is.
 - Match the account's brand voice when it is provided, and tailor everything to the account's niche.`;
 

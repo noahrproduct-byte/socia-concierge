@@ -632,6 +632,14 @@ import {
   readiness, isDue, nextAction,
 } from "./scheduling";
 
+describe("mediaTypeForFormat", () => {
+  it("lets video words win over a 'static' shot description", () => {
+    expect(mediaTypeForFormat("Reel, 6-10s, one static hero slice")).toBe("REELS");
+    expect(mediaTypeForFormat("Static photo")).toBe("IMAGE");
+    expect(mediaTypeForFormat("Carousel")).toBe("REELS");
+  });
+});
+
 describe("scheduling: plan → drafts", () => {
   const monday = new Date(2026, 8, 7); // Mon 7 Sep 2026, local midnight
 

@@ -110,7 +110,11 @@ const STATUS_LABEL: Record<PostStatus, string> = {
 
 function StatusChip({ p }: { p: ScheduledPost }) {
   const label =
-    p.status === "draft" && !p.media_url ? "Needs video" : STATUS_LABEL[p.status];
+    p.status === "draft" && !p.media_url
+      ? p.media_type === "IMAGE"
+        ? "Needs image"
+        : "Needs video"
+      : STATUS_LABEL[p.status];
   return (
     <span className={`cal2-chip st-${p.status}`}>
       {p.status === "publishing" && <Loader2 size={10} className="cal2-spin" />}
