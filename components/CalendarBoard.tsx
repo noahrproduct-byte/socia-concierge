@@ -97,7 +97,6 @@ type Audience = {
   // per weekday (Mon-first): 24 smoothed values normalized 0..1
   days: number[][];
   bestDays: number[]; // weekday indexes worth flagging
-  dayHasData: boolean[]; // weekday has >= 2 of the user's posts (its best hour means something)
   bestHour: (day: number) => number;
   peak: { day: number; hour: number } | null;
   postCount: number;
@@ -144,18 +143,19 @@ function buildAudience(posts: CalPost[]): Audience {
     enough,
     days,
     bestDays: enough ? bestDays : [],
-    dayHasData: days.map((hs, i) => dayPosts[i] >= 2 && Math.max(...hs) > 0),
     bestHour: (day) => days[day].indexOf(Math.max(...days[day])),
     peak: enough ? peak : null,
     postCount: posts.length,
   };
 }
 
-/** Hour to place a post on a weekday (Mon-first index): that day's best hour
- *  when the day has enough of the user's own posts to say, else the overall
- *  peak hour, else noon. Never a lone early post's hour. */
+/** Hour to place a post on a weekday (Mon-first index): that day's own best
+ *  hour only when the day is one the grid flags as BEST (enough posts, near the
+ *  top total — the same rule that shows its "Best window"); otherwise the
+ *  audience's overall peak hour; noon when there is no audience data. A day
+ *  with two posts of eight reactions each does not get to name an hour. */
 function suggestedHour(aud: Audience, dayMonFirst: number): number {
-  if (aud.enough && aud.dayHasData[dayMonFirst]) return aud.bestHour(dayMonFirst);
+  if (aud.enough && aud.bestDays.includes(dayMonFirst)) return aud.bestHour(dayMonFirst);
   if (aud.enough && aud.peak) return aud.peak.hour;
   return 12;
 }
