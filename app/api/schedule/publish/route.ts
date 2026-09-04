@@ -126,9 +126,13 @@ export async function POST(req: Request) { return run(req); }
 
 async function run(req: Request) {
   const url = new URL(req.url);
-  const auth = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  const isCron = Boolean(cronSecret) && auth === `Bearer ${cronSecret}`;
+  // Tolerate the ways a pasted secret gets mangled (surrounding quotes, stray
+  // whitespace, "bearer" casing); the comparison itself stays exact.
+  const clean = (s: string | null | undefined) => (s ?? "").trim().replace(/^["']|["']$/g, "");
+  const auth = clean(req.headers.get("authorization"));
+  const cronSecret = clean(process.env.CRON_SECRET);
+  const bearer = auth.match(/^bearer\s+(.+)$/i)?.[1];
+  const isCron = cronSecret.length > 0 && bearer !== undefined && clean(bearer) === cronSecret;
 
   // ---- user mode: publish one of my posts now -----------------------------
   if (!isCron) {
