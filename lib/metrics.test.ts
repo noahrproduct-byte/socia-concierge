@@ -626,3 +626,82 @@ describe("competitor recommendations", () => {
     expect(recs.some((r) => r.evidence.includes("6 of 10"))).toBe(true);
   });
 });
+
+import {
+  weekdayIndex, dateForWeekday, captionFromPlanItem, mediaTypeForFormat, draftsFromPlan,
+  readiness, isDue, nextAction,
+} from "./scheduling";
+
+describe("scheduling: plan → drafts", () => {
+  const monday = new Date(2026, 8, 7); // Mon 7 Sep 2026, local midnight
+
+  it("reads weekdays from a plan's free text, and refuses non-weekdays", () => {
+    expect(weekdayIndex("Monday")).toBe(1);
+    expect(weekdayIndex("tue")).toBe(2);
+    expect(weekdayIndex("Sunday")).toBe(0);
+    expect(weekdayIndex("Day 1")).toBeNull();
+    expect(weekdayIndex("")).toBeNull();
+  });
+
+  it("puts Sunday at the end of a Monday-first week", () => {
+    expect(dateForWeekday(monday, 1).getDate()).toBe(7);
+    expect(dateForWeekday(monday, 0).getDate()).toBe(13);
+  });
+
+  it("uses the plan's own words for the caption, hook first", () => {
+    expect(captionFromPlanItem({ hook: "Watch this crust.", concept: "Cheese pull reveal" })).toBe("Watch this crust.\n\nCheese pull reveal");
+    expect(captionFromPlanItem({ hook: "", concept: "Only a concept" })).toBe("Only a concept");
+  });
+
+  it("maps formats to a publishable media type", () => {
+    expect(mediaTypeForFormat("Reel")).toBe("REELS");
+    expect(mediaTypeForFormat("Static image")).toBe("IMAGE");
+    expect(mediaTypeForFormat("Carousel")).toBe("REELS");
+  });
+
+  it("dates every weekday item and reports the ones it cannot place", () => {
+    const { drafts, skipped } = draftsFromPlan(
+      [
+        { day: "Monday", concept: "a", hook: "h1", format: "Reel" },
+        { day: "Friday", concept: "b", hook: "h2", format: "Static" },
+        { day: "Launch day", concept: "c", hook: "h3", format: "Reel" },
+      ],
+      monday,
+      (wd) => (wd === 5 ? 18 : 12),
+    );
+    expect(drafts).toHaveLength(2);
+    expect(skipped).toEqual(["Launch day"]);
+    expect(new Date(drafts[1].scheduled_at).getHours()).toBe(18);
+    expect(drafts[1].media_type).toBe("IMAGE");
+  });
+});
+
+describe("scheduling: readiness and due", () => {
+  const future = new Date(Date.now() + 3600_000).toISOString();
+  const past = new Date(Date.now() - 600_000).toISOString();
+
+  it("lists exactly what a draft is missing", () => {
+    expect(readiness({ media_url: null, scheduled_at: past, caption: "" }).missing).toEqual(["media", "caption", "a future time"]);
+    expect(readiness({ media_url: "https://x/v.mp4", scheduled_at: future, caption: "hi" }).ready).toBe(true);
+  });
+
+  it("is due only when scheduled, with media, and past its time", () => {
+    expect(isDue({ status: "scheduled", media_url: "u", scheduled_at: past })).toBe(true);
+    expect(isDue({ status: "scheduled", media_url: "u", scheduled_at: future })).toBe(false);
+    expect(isDue({ status: "draft", media_url: "u", scheduled_at: past })).toBe(false);
+    expect(isDue({ status: "scheduled", media_url: null, scheduled_at: past })).toBe(false);
+  });
+
+  it("does not resurrect a post the runner missed by more than the grace window", () => {
+    const stale = new Date(Date.now() - 20 * 3600_000).toISOString();
+    expect(isDue({ status: "scheduled", media_url: "u", scheduled_at: stale })).toBe(false);
+  });
+
+  it("maps container status to the publisher's next move", () => {
+    expect(nextAction("FINISHED")).toBe("publish");
+    expect(nextAction("IN_PROGRESS")).toBe("wait");
+    expect(nextAction("ERROR")).toBe("fail");
+    expect(nextAction("PUBLISHED")).toBe("done");
+    expect(nextAction(null)).toBe("wait");
+  });
+});

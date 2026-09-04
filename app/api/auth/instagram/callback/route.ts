@@ -86,9 +86,17 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${origin}/settings?ig=limit`);
     }
 
+    // Instagram Login returns the permissions it actually granted alongside the
+    // token. Stored so the app can say truthfully whether it may publish.
+    const grantedScopes: string[] = Array.isArray(shortJson.permissions)
+      ? (shortJson.permissions as unknown[]).filter((x): x is string => typeof x === "string")
+      : typeof shortJson.permissions === "string"
+        ? String(shortJson.permissions).split(",").map((x) => x.trim()).filter(Boolean)
+        : [];
     const connRow = {
       user_id: user.id,
       ig_user_id: igId,
+      scopes: grantedScopes,
       username: me.username ?? null,
       account_type: me.account_type ?? null,
       access_token: longToken,
@@ -110,7 +118,11 @@ export async function GET(req: Request) {
       .from("instagram_connections")
       .upsert({ ...connRow, is_active: true }, { onConflict: "user_id,ig_user_id" });
     if (upsertErr) {
-      await supabase.from("instagram_connections").upsert(connRow, { onConflict: "user_id" });
+      // Composite key or scopes column may not exist yet — fall back to the
+      // pre-migration shape without the new column.
+      const { scopes: _scopes, ...legacy } = connRow;
+      void _scopes;
+      await supabase.from("instagram_connections").upsert(legacy, { onConflict: "user_id" });
     }
 
     await supabase
