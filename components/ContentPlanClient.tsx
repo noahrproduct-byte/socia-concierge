@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AtSign,
@@ -13,16 +13,29 @@ import {
   Users,
   CalendarCheck2,
   CalendarPlus,
+  CalendarDays,
   ArrowRight,
   Clock,
   Activity,
   Grid3x3,
   FileDown,
   Plug,
+  Database,
+  Trophy,
 } from "lucide-react";
 import CountUp from "@/components/CountUp";
 import BestTime from "@/components/BestTime";
 import type { Deliverable, GenerateInput, SavedPlan } from "@/lib/schema";
+import {
+  buildAudience,
+  suggestedHour,
+  hourLabel,
+  mondayOf,
+  DAY_MS,
+  audienceWindowsText,
+  type CalPost,
+} from "@/lib/audience";
+import { draftsFromPlan, weekdayIndex } from "@/lib/scheduling";
 
 // Server-assembled context: real prefill from the connected account/profile,
 // plus the live metrics shown in the preview strip. Nothing here is invented —
@@ -35,7 +48,9 @@ export type PlanContext = {
   syncedAgo: string | null;
   postsAnalyzed: number | null;
   engRate: string | null;
-  posts: { t: string; e: number }[];
+  posts: CalPost[];
+  /** What SOCIA will attach to the brief automatically, counted on the server. */
+  evidence: { posts: number; competitors: number; winning: number };
 };
 
 // Soft guidance limits — counters only, never truncation.
@@ -64,7 +79,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   const [form, setForm] = useState<GenerateInput>(context.prefill);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<Deliverable | null>(null);
+  const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(null);
   const [history, setHistory] = useState<SavedPlan[]>([]);
 
   useEffect(() => {
@@ -98,11 +113,12 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        // Timing is computed here, in the viewer's time zone, from real posts.
+        body: JSON.stringify({ ...form, audienceWindows: audienceWindowsText(context.posts) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Something went wrong.");
-      setResult(json.data as Deliverable);
+      setResult({ data: json.data as Deliverable, id: (json.saved as SavedPlan | null)?.id ?? null });
       if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -112,6 +128,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   }
 
   const competitorCount = form.competitors.split("\n").filter((l) => l.trim()).length;
+  const onFile = context.evidence;
 
   return (
     <div className="cpl">
@@ -233,7 +250,13 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
           />
 
           <label className="cpl-lab">
-            <span>Recent posts &amp; how they did <em>— one per line</em></span>
+            <span>
+              {onFile.posts > 0 ? (
+                <>Notes on recent posts <em>— optional</em></>
+              ) : (
+                <>Recent posts &amp; how they did <em>— one per line</em></>
+              )}
+            </span>
             <Counter value={form.recentPosts} max={MAX.recentPosts!} />
           </label>
           <textarea
@@ -245,9 +268,20 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
             onChange={(e) => set("recentPosts", e.target.value)}
           />
           {note("recentPosts")}
+          {onFile.posts > 0 && (
+            <small className="cpl-auto">
+              <Sparkles size={10} /> SOCIA already includes your last {onFile.posts} posts with their real numbers.
+            </small>
+          )}
 
           <label className="cpl-lab">
-            <span>Competitors you watch <em>— one per line</em></span>
+            <span>
+              {onFile.competitors > 0 || onFile.winning > 0 ? (
+                <>Other competitors <em>— optional</em></>
+              ) : (
+                <>Competitors you watch <em>— one per line</em></>
+              )}
+            </span>
             <Counter value={form.competitors} max={MAX.competitors!} />
           </label>
           <textarea
@@ -259,6 +293,14 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
             onChange={(e) => set("competitors", e.target.value)}
           />
 
+          {(onFile.competitors > 0 || onFile.winning > 0) && (
+            <small className="cpl-auto">
+              <Sparkles size={10} /> SOCIA already includes{" "}
+              {onFile.competitors > 0 ? `${onFile.competitors} competitor${onFile.competitors === 1 ? "" : "s"}` : ""}
+              {onFile.competitors > 0 && onFile.winning > 0 ? " and " : ""}
+              {onFile.winning > 0 ? `${onFile.winning} winning videos` : ""} from your Competitors page.
+            </small>
+          )}
           <button className="cpl-generate" onClick={generate} disabled={loading} type="button">
             {loading ? (
               <>
@@ -282,7 +324,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                   className="cpl-recent-item"
                   type="button"
                   onClick={() => {
-                    setResult(h.data);
+                    setResult({ data: h.data, id: h.id });
                     setError(null);
                   }}
                 >
@@ -311,7 +353,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
               </div>
             </div>
           ) : result ? (
-            <Report data={result} />
+            <Report data={result.data} planId={result.id} posts={context.posts} />
           ) : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
@@ -378,11 +420,18 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                         <small>Posts analyzed</small>
                       </div>
                     )}
-                    {competitorCount > 0 && (
+                    {onFile.competitors + competitorCount > 0 && (
                       <div className="cpl-stat">
                         <Users size={13} />
-                        <b>{competitorCount}</b>
-                        <small>Competitors listed</small>
+                        <b>{onFile.competitors + competitorCount}</b>
+                        <small>Competitors on file</small>
+                      </div>
+                    )}
+                    {onFile.winning > 0 && (
+                      <div className="cpl-stat">
+                        <Trophy size={13} />
+                        <b>{onFile.winning}</b>
+                        <small>Winning videos found</small>
                       </div>
                     )}
                     {context.engRate && (
@@ -430,7 +479,54 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   );
 }
 
-function Report({ data }: { data: Deliverable }) {
+function Report({ data, planId, posts }: { data: Deliverable; planId: string | null; posts: CalPost[] }) {
+  // Times are SOCIA's, from the audience data, never the model's guess. The
+  // same rule the Calendar uses, so the two never disagree.
+  const aud = useMemo(() => buildAudience(posts), [posts]);
+  const timeFor = (day: string): string | null => {
+    const wd = weekdayIndex(day);
+    return wd == null ? null : hourLabel(suggestedHour(aud, (wd + 6) % 7));
+  };
+  const ev = data.evidenceUsed;
+  const [sched, setSched] = useState<{ busy: boolean; ok: boolean; msg: string | null }>({
+    busy: false,
+    ok: false,
+    msg: null,
+  });
+
+  async function scheduleWeek() {
+    setSched({ busy: true, ok: false, msg: null });
+    try {
+      const now = new Date();
+      // Thursday or later (or Sunday): most of this week is gone, use next.
+      const nextWeek = now.getDay() === 0 || now.getDay() >= 4;
+      const weekStart = new Date(mondayOf(now).getTime() + (nextWeek ? 7 : 0) * DAY_MS);
+      const { drafts, skipped } = draftsFromPlan(data.weeklyPlan ?? [], weekStart, (wd) =>
+        suggestedHour(aud, (wd + 6) % 7)
+      );
+      const usable = drafts.filter((d) => new Date(d.scheduled_at).getTime() > now.getTime());
+      if (!usable.length) throw new Error("None of the plan's days land on a future date this week or next.");
+      const res = await fetch("/api/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: usable.map((d) => ({ ...d, plan_id: planId })) }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || "Couldn't add the drafts.");
+      const n = (j.posts ?? []).length;
+      const wk = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      setSched({
+        busy: false,
+        ok: true,
+        msg: `${n} draft${n === 1 ? "" : "s"} added to the week of ${wk}${
+          skipped.length ? ` (${skipped.join(", ")} skipped: not a weekday)` : ""
+        }. Attach a video to each on the Calendar and they'll post themselves.`,
+      });
+    } catch (e) {
+      setSched({ busy: false, ok: false, msg: e instanceof Error ? e.message : "Couldn't add the drafts." });
+    }
+  }
+
   return (
     <div className="cpl-r">
       <div className="cpl-rhead">
@@ -453,6 +549,21 @@ function Report({ data }: { data: Deliverable }) {
             />
           </div>
         </div>
+      </div>
+
+      <div className="cpl-evidence" title="What this plan was built from">
+        <Database size={12} />
+        {ev ? (
+          <>
+            <span>Built from</span>
+            <b>{ev.posts > 0 ? `${ev.posts} of your posts` : "no account posts"}</b>
+            <b>{ev.competitors > 0 ? `${ev.competitors} competitor${ev.competitors === 1 ? "" : "s"}` : "no competitors on file"}</b>
+            <b>{ev.winning > 0 ? `${ev.winning} winning videos` : "no winning content"}</b>
+            <b>{ev.windows ? "your audience windows" : "no timing data"}</b>
+          </>
+        ) : (
+          <span>Built from the brief you typed. No account data was attached to this plan.</span>
+        )}
       </div>
 
       <section className="cpl-rsec">
@@ -535,6 +646,11 @@ function Report({ data }: { data: Deliverable }) {
               <article className="cpl-post" key={i} style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="cpl-post-tags">
                   <span className="cpl-tag day">{post.day}</span>
+                  {timeFor(post.day) && (
+                    <span className="cpl-tag time" title={aud.enough ? "From your audience's engagement windows" : "No audience data yet; noon by default"}>
+                      <Clock size={10} /> {timeFor(post.day)}
+                    </span>
+                  )}
                   <span className="cpl-tag fmt">{post.format}</span>
                   <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`}>
                     {post.predictedPerformance}
@@ -560,7 +676,32 @@ function Report({ data }: { data: Deliverable }) {
         <button className="cpl-export" onClick={() => window.print()} type="button">
           <FileDown size={14} /> Export as PDF
         </button>
+        {data.weeklyPlan?.length > 0 && (
+          <button
+            className="cpl-schedule"
+            onClick={scheduleWeek}
+            disabled={sched.busy || sched.ok}
+            type="button"
+            title="Creates a calendar draft for each day of the plan at your audience's hour"
+          >
+            <CalendarDays size={14} />{" "}
+            {sched.busy ? "Adding to Calendar…" : sched.ok ? "Added to Calendar" : "Schedule this week"}
+          </button>
+        )}
       </div>
+      {sched.msg && (
+        <p className={`cpl-sched-msg${sched.ok ? " ok" : ""}`}>
+          {sched.msg}
+          {sched.ok && (
+            <>
+              {" "}
+              <Link href="/calendar">
+                Open Calendar <ArrowRight size={12} />
+              </Link>
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }

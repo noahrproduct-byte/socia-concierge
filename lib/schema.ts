@@ -28,6 +28,8 @@ export type Deliverable = {
     evidence: string; // which competitor/pattern it's derived from
     predictedPerformance: string; // e.g. "High confidence" / "Experiment"
   }[];
+  /** Attached by the server after generation; not part of the model's schema. */
+  evidenceUsed?: EvidenceUsed;
 };
 
 // JSON Schema for the Messages API `output_config.format`. Structured outputs
@@ -134,6 +136,19 @@ export type GenerateInput = {
   recentPosts: string;
   competitors: string;
   goal: string;
+  /** Audience timing, computed in the browser (viewer's time zone) from the
+   *  account's own posts. Optional; empty when there isn't enough data. */
+  audienceWindows?: string;
+};
+
+/** What a plan was actually built from. Stored with the plan so history is
+ *  honest about it. Zero means that source contributed nothing. */
+export type EvidenceUsed = {
+  posts: number;
+  competitors: number;
+  winning: number;
+  windows: boolean;
+  followers: number | null;
 };
 
 // A plan saved to the database (one row in the `plans` table).

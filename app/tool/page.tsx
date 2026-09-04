@@ -19,30 +19,26 @@ function ago(iso: string): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
-const FMT: Record<string, string> = {
-  VIDEO: "Reel",
-  CAROUSEL_ALBUM: "Carousel",
-  IMAGE: "Static",
-};
-
-// Summarize the account's real recent posts as "one per line" form input,
-// kept under the field's soft 500-char guide.
-function recentLines(media: IgMediaItem[]): string {
-  const lines: string[] = [];
-  for (const m of media) {
-    if (!m.caption) continue;
-    const first = m.caption.split("\n")[0].trim().slice(0, 48);
-    const fmt = FMT[m.media_type ?? ""] ?? "Post";
-    const eng: string[] = [];
-    if (typeof m.like_count === "number") eng.push(`${m.like_count.toLocaleString("en-US")} likes`);
-    if (typeof m.comments_count === "number")
-      eng.push(`${m.comments_count.toLocaleString("en-US")} comments`);
-    const line = `${fmt}: ${first}${eng.length ? ` — ${eng.join(" · ")}` : ""}`;
-    if (lines.join("\n").length + line.length + 1 > 500) break;
-    lines.push(line);
-    if (lines.length >= 4) break;
-  }
-  return lines.join("\n");
+/** Rows on file that the generator attaches to the brief by itself. Counted
+ *  here so the form can say so truthfully; zero when a table doesn't exist. */
+async function evidenceCounts(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const count = async (table: string) => {
+    try {
+      const { count, error } = await supabase
+        .from(table)
+        .select("user_id", { count: "exact", head: true })
+        .eq("user_id", userId);
+      return error ? 0 : count ?? 0;
+    } catch {
+      return 0;
+    }
+  };
+  const [discovered, tracked, winning] = await Promise.all([
+    count("discovered_accounts"),
+    count("tracked_competitors"),
+    count("discovered_content"),
+  ]);
+  return { competitors: Math.min(discovered, 10) + tracked, winning: Math.min(winning, 12) };
 }
 
 export default async function ContentPlanPage() {
@@ -80,12 +76,17 @@ export default async function ContentPlanPage() {
       ? ((avg(media.map(engOf)) / snap.followers_count) * 100).toFixed(1) + "%"
       : null;
 
+  const counts = await evidenceCounts(supabase, user.id);
+  const evidence = { posts: Math.min(media.length, 25), ...counts };
+
+  // Recent posts and competitors are attached server-side with real numbers
+  // when the account is connected; the fields become optional extra notes.
   const prefill: GenerateInput = {
     clientHandle: brandName || snap?.name || (snap?.username ? `@${snap.username}` : ""),
     niche: niche ?? "",
     platform: platform || "Instagram",
     brandVoice: "",
-    recentPosts: recentLines(media),
+    recentPosts: "",
     competitors: "",
     goal: goal ?? "",
   };
@@ -96,7 +97,6 @@ export default async function ContentPlanPage() {
   if (prefill.niche)
     autoNotes.niche = nicheDetected ? "Detected from your content" : "From your profile";
   if (prefill.goal) autoNotes.goal = "From your profile";
-  if (prefill.recentPosts) autoNotes.recentPosts = "From your connected account";
 
   const context: PlanContext = {
     prefill,
@@ -107,6 +107,7 @@ export default async function ContentPlanPage() {
     postsAnalyzed: snap ? media.length : null,
     engRate,
     posts: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engOf(m) })),
+    evidence,
   };
 
   return (

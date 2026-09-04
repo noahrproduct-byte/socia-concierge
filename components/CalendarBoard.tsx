@@ -36,8 +36,18 @@ import {
   type MediaType,
   type PostStatus,
 } from "@/lib/scheduling";
+import {
+  buildAudience,
+  suggestedHour,
+  hourLabel,
+  mondayOf,
+  DOW,
+  DAY_MS,
+  type Audience,
+  type CalPost,
+} from "@/lib/audience";
 
-export type CalPost = { t: string; e: number };
+export type { CalPost };
 /** What the page knows about the publishing pipeline. `canPublish` is null when
  *  the connection predates scope recording — unknown, not "no". `lastRunAt` is
  *  the publisher's heartbeat; without a recent one, auto-publishing isn't "on". */
@@ -53,12 +63,8 @@ const ago = (ms: number) => {
   return `${d} day${d === 1 ? "" : "s"} ago`;
 };
 
-const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const DAY_MS = 86400000;
 const CAPTION_MAX = 2200;
 
-const hourLabel = (h: number) =>
-  h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 const fmtDay = (d: Date | string) =>
@@ -73,14 +79,6 @@ const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 const byTime = (a: ScheduledPost, b: ScheduledPost) =>
   new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
 
-/** Monday 00:00 of the week containing d (local time). */
-function mondayOf(d: Date): Date {
-  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const dow = (m.getDay() + 6) % 7; // Mon=0
-  m.setDate(m.getDate() - dow);
-  return m;
-}
-
 async function api<T>(method: string, body?: unknown, path = ""): Promise<T> {
   const res = await fetch(`/api/schedule${path}`, {
     method,
@@ -90,74 +88,6 @@ async function api<T>(method: string, body?: unknown, path = ""): Promise<T> {
   const j = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new Error(j.error ?? `Request failed (${res.status})`);
   return j;
-}
-
-type Audience = {
-  enough: boolean;
-  // per weekday (Mon-first): 24 smoothed values normalized 0..1
-  days: number[][];
-  bestDays: number[]; // weekday indexes worth flagging
-  bestHour: (day: number) => number;
-  peak: { day: number; hour: number } | null;
-  postCount: number;
-};
-
-/** Bucket real posts into weekday × hour engagement, smoothed across hours.
- *  Runs client-side so hours land in the viewer's time zone. */
-function buildAudience(posts: CalPost[]): Audience {
-  const raw: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
-  const dayPosts = Array(7).fill(0);
-  for (const p of posts) {
-    const d = new Date(p.t);
-    if (isNaN(d.getTime())) continue;
-    const day = (d.getDay() + 6) % 7;
-    raw[day][d.getHours()] += Math.max(1, p.e);
-    dayPosts[day]++;
-  }
-  const days = raw.map((hs) =>
-    hs.map((_, h) => 0.5 * (hs[h - 1] ?? 0) + hs[h] + 0.5 * (hs[h + 1] ?? 0))
-  );
-  let max = 0;
-  let peak: { day: number; hour: number } | null = null;
-  days.forEach((hs, day) =>
-    hs.forEach((v, hour) => {
-      if (v > max) {
-        max = v;
-        peak = { day, hour };
-      }
-    })
-  );
-  if (max > 0) days.forEach((hs) => hs.forEach((v, h) => (hs[h] = v / max)));
-
-  const totals = days.map((hs) => hs.reduce((a, b) => a + b, 0));
-  const topTotal = Math.max(...totals);
-  const bestDays = totals
-    .map((t, i) => ({ t, i }))
-    .filter(({ t, i }) => t > 0 && t >= topTotal * 0.8 && dayPosts[i] >= 2)
-    .sort((a, b) => b.t - a.t)
-    .slice(0, 2)
-    .map(({ i }) => i);
-
-  const enough = posts.length >= 5 && max > 0;
-  return {
-    enough,
-    days,
-    bestDays: enough ? bestDays : [],
-    bestHour: (day) => days[day].indexOf(Math.max(...days[day])),
-    peak: enough ? peak : null,
-    postCount: posts.length,
-  };
-}
-
-/** Hour to place a post on a weekday (Mon-first index): that day's own best
- *  hour only when the day is one the grid flags as BEST (enough posts, near the
- *  top total — the same rule that shows its "Best window"); otherwise the
- *  audience's overall peak hour; noon when there is no audience data. A day
- *  with two posts of eight reactions each does not get to name an hour. */
-function suggestedHour(aud: Audience, dayMonFirst: number): number {
-  if (aud.enough && aud.bestDays.includes(dayMonFirst)) return aud.bestHour(dayMonFirst);
-  if (aud.enough && aud.peak) return aud.peak.hour;
-  return 12;
 }
 
 const lvl = (v: number) => (v <= 0.02 ? "n" : v < 0.28 ? "l" : v < 0.55 ? "m" : v < 0.8 ? "h" : "p");

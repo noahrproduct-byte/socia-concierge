@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { SYSTEM, buildUserPrompt } from "@/lib/prompt";
 import { getProfile } from "@/lib/profile";
-import { deliverableSchema, type GenerateInput } from "@/lib/schema";
+import { deliverableSchema, type Deliverable, type GenerateInput } from "@/lib/schema";
 import { createClient } from "@/lib/supabase/server";
+import { getIgSnapshot } from "@/lib/instagramSync";
+import { loadEvidence, type Evidence } from "@/lib/planEvidence";
 
 export const runtime = "nodejs";
 // Opus 5 thinks before answering; give the request room.
@@ -54,16 +56,25 @@ export async function POST(req: Request) {
     );
   }
 
-  // The user's saved brand & strategist settings sharpen the plan (best-effort).
+  // The user's saved brand & strategist settings sharpen the plan, and the
+  // evidence SOCIA already holds (posts, competitors, winning content) is what
+  // the strategist reasons over. All best-effort: generation still works with
+  // the typed brief alone, and the plan records what it was built from.
   let brand = null;
+  let evidence: Evidence | null = null;
   try {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (user) brand = (await getProfile(supabase, user.id))?.brand_detail ?? null;
+    if (user) {
+      brand = (await getProfile(supabase, user.id))?.brand_detail ?? null;
+      const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+      evidence = await loadEvidence(supabase, user.id, snap);
+      evidence.used.windows = Boolean(input.audienceWindows?.trim());
+    }
   } catch {
-    // generation still works without settings
+    // generation still works without settings or evidence
   }
 
   try {
@@ -78,7 +89,7 @@ export async function POST(req: Request) {
       output_config: {
         format: { type: "json_schema", schema: deliverableSchema },
       },
-      messages: [{ role: "user", content: buildUserPrompt(input, brand) }],
+      messages: [{ role: "user", content: buildUserPrompt(input, brand, evidence) }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
@@ -106,6 +117,9 @@ export async function POST(req: Request) {
         { status: 502 },
       );
     }
+
+    // Record what the plan was built from, so the report and history can say so.
+    if (evidence) (data as Deliverable).evidenceUsed = evidence.used;
 
     // Save to the signed-in user's history. Best-effort: if the `plans` table
     // doesn't exist yet or the user is logged out, generation still succeeds.
