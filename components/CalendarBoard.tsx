@@ -39,8 +39,19 @@ import {
 
 export type CalPost = { t: string; e: number };
 /** What the page knows about the publishing pipeline. `canPublish` is null when
- *  the connection predates scope recording — unknown, not "no". */
-export type PublishInfo = { canPublish: boolean | null; configured: boolean };
+ *  the connection predates scope recording — unknown, not "no". `lastRunAt` is
+ *  the publisher's heartbeat; without a recent one, auto-publishing isn't "on". */
+export type PublishInfo = { canPublish: boolean | null; configured: boolean; lastRunAt: string | null };
+
+const ago = (ms: number) => {
+  const m = Math.round(ms / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+};
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_MS = 86400000;
@@ -308,14 +319,17 @@ export default function CalendarBoard({
         </div>
       </div>
 
-      <AutoPublishStatus
-        connected={connected}
-        igUsername={igUsername}
-        publish={publish}
-        queued={queued}
-        drafts={drafts}
-        failed={failed}
-      />
+      {now && (
+        <AutoPublishStatus
+          now={now}
+          connected={connected}
+          igUsername={igUsername}
+          publish={publish}
+          queued={queued}
+          drafts={drafts}
+          failed={failed}
+        />
+      )}
 
       {/* calendar container */}
       <div className="cal2-card">
@@ -420,8 +434,10 @@ export default function CalendarBoard({
   );
 }
 
-/** Whether posts will actually go out by themselves, stated from facts. */
+/** Whether posts will actually go out by themselves, stated from facts:
+ *  connection, granted permission, publisher configured, publisher recently ran. */
 function AutoPublishStatus({
+  now,
   connected,
   igUsername,
   publish,
@@ -429,6 +445,7 @@ function AutoPublishStatus({
   drafts,
   failed,
 }: {
+  now: Date;
   connected: boolean;
   igUsername: string | null;
   publish: PublishInfo;
@@ -453,15 +470,17 @@ function AutoPublishStatus({
       : publish.canPublish === false
         ? "denied"
         : "unknown";
-  const ready = perm === "ok" && publish.configured;
+  const staleMs = publish.lastRunAt ? now.getTime() - new Date(publish.lastRunAt).getTime() : null;
+  const running = staleMs !== null && staleMs < 20 * 60_000;
+  const ready = perm === "ok" && publish.configured && running;
   return (
     <div className={`cal2-auto ${ready ? "on" : "warn"}`}>
       {ready ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
       <span>
         {ready ? (
           <>
-            <b>Auto-publishing is on for @{igUsername}.</b> Scheduled posts go out at their time
-            on the publisher&apos;s schedule.
+            <b>Auto-publishing is on for @{igUsername}.</b> Publisher last ran {ago(staleMs!)};
+            scheduled posts go out within a few minutes of their time.
           </>
         ) : perm === "denied" ? (
           <>
@@ -475,10 +494,20 @@ function AutoPublishStatus({
             <Link href="/settings">Reconnect Instagram</Link> once to grant
             &ldquo;publish content&rdquo;. You can still try Publish now on any post.
           </>
+        ) : !publish.configured ? (
+          <>
+            <b>The auto-publisher isn&apos;t set up on this deployment yet.</b> Scheduled posts
+            wait; Publish now works on any post with a video.
+          </>
+        ) : staleMs === null ? (
+          <>
+            <b>The publisher hasn&apos;t run yet.</b> Once its 5-minute schedule is live this turns
+            on; until then use Publish now.
+          </>
         ) : (
           <>
-            <b>The auto-publisher isn&apos;t running on this deployment yet.</b> Scheduled posts
-            wait; Publish now works on any post with a video.
+            <b>The publisher last ran {ago(staleMs)}.</b> It should run every 5 minutes; scheduled
+            posts wait until it does.
           </>
         )}
       </span>

@@ -116,9 +116,13 @@ export function readiness(p: Pick<ScheduledPost, "media_url" | "scheduled_at" | 
   return { ready: missing.length === 0, missing };
 }
 
+/** How long after its time a scheduled post may still go out. Past this, the
+ *  runner marks it missed rather than posting hours late. */
+export const GRACE_HOURS = 12;
+
 /** Due = scheduled, has media, and its time has passed. Grace window keeps a
  *  post from being skipped forever if the runner was late. */
-export function isDue(p: Pick<ScheduledPost, "status" | "media_url" | "scheduled_at">, now = new Date(), graceHours = 12): boolean {
+export function isDue(p: Pick<ScheduledPost, "status" | "media_url" | "scheduled_at">, now = new Date(), graceHours = GRACE_HOURS): boolean {
   if (p.status !== "scheduled" || !p.media_url) return false;
   const t = new Date(p.scheduled_at).getTime();
   return t <= now.getTime() && now.getTime() - t <= graceHours * 3600_000;

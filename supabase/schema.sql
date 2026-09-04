@@ -535,3 +535,19 @@ begin
       using (bucket_id = 'scheduled-media');
   end if;
 end $$;
+
+-- The publisher's heartbeat: one row, rewritten by the cron runner each time it
+-- runs, so the calendar can state when auto-publishing last actually ran.
+create table if not exists public.publisher_heartbeat (
+  id integer primary key,
+  ran_at timestamptz not null,
+  considered integer not null default 0,
+  published integer not null default 0
+);
+alter table public.publisher_heartbeat enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename='publisher_heartbeat' and policyname='Signed-in users read the publisher heartbeat') then
+    create policy "Signed-in users read the publisher heartbeat" on public.publisher_heartbeat for select to authenticated using (true);
+  end if;
+end $$;

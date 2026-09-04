@@ -35,7 +35,7 @@ export default async function CalendarPage() {
   // The user's queue (recent past kept so published/failed posts stay visible)
   // and what we know about whether the publisher can actually post.
   const since = new Date(Date.now() - 60 * 86400000).toISOString();
-  const [{ data: rows }, conn] = await Promise.all([
+  const [{ data: rows }, conn, { data: heartbeat }] = await Promise.all([
     supabase
       .from("scheduled_posts")
       .select("*")
@@ -45,11 +45,13 @@ export default async function CalendarPage() {
       .order("scheduled_at", { ascending: true })
       .limit(400),
     getActiveConnection(supabase, user.id, "ig_user_id, scopes"),
+    supabase.from("publisher_heartbeat").select("ran_at").eq("id", 1).maybeSingle(),
   ]);
   const scopes = (conn as { scopes?: unknown } | null)?.scopes;
   const publish: PublishInfo = {
     canPublish: Array.isArray(scopes) ? scopes.includes(PUBLISH_SCOPE) : null,
     configured: serviceConfigured() && Boolean(process.env.CRON_SECRET),
+    lastRunAt: (heartbeat as { ran_at?: string } | null)?.ran_at ?? null,
   };
 
   return (

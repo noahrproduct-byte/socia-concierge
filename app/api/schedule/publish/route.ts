@@ -4,7 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import {
   createContainer, containerStatus, publishContainer, mediaPermalink, canPublish,
 } from "@/lib/igPublish";
-import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, type ScheduledPost } from "@/lib/scheduling";
+import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, type ScheduledPost } from "@/lib/scheduling";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -155,6 +155,18 @@ async function run(req: Request) {
     return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set; the publisher can't run for all users." }, { status: 503 });
   }
   const now = new Date();
+  // A scheduled post the publisher never reached inside the grace window is a
+  // missed post, and says so, rather than sitting "scheduled" forever.
+  const cutoff = new Date(now.getTime() - GRACE_HOURS * 3600_000).toISOString();
+  await svc
+    .from("scheduled_posts")
+    .update({
+      status: "failed",
+      error: `Missed its window: the publisher didn't run within ${GRACE_HOURS} hours of the scheduled time.`,
+      updated_at: now.toISOString(),
+    })
+    .eq("status", "scheduled")
+    .lt("scheduled_at", cutoff);
   const { data: candidates, error } = await svc
     .from("scheduled_posts")
     .select("*")
@@ -177,5 +189,10 @@ async function run(req: Request) {
     if (r.result === "published") perUserCount.set(post.user_id, used + 1);
     results.push(r);
   }
-  return NextResponse.json({ ran_at: now.toISOString(), considered: due.length, results });
+  const published = results.filter((r) => r.result === "published").length;
+  // Heartbeat: the calendar states when the publisher last actually ran.
+  await svc
+    .from("publisher_heartbeat")
+    .upsert({ id: 1, ran_at: now.toISOString(), considered: due.length, published });
+  return NextResponse.json({ ran_at: now.toISOString(), considered: due.length, published, results });
 }
