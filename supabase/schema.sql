@@ -454,3 +454,84 @@ create policy "Users write their own ig competitor snapshots"
   on public.ig_competitor_snapshots for insert with check (auth.uid() = user_id);
 create policy "Users update their own ig competitor snapshots"
   on public.ig_competitor_snapshots for update using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Scheduling: posts the user has queued for SOCIA to publish.
+--
+-- A row is a draft until it has media and a time; then it is `scheduled`. The
+-- publisher moves it through publishing → published (with the real Instagram
+-- media id and permalink) or failed (with Instagram's actual error). Nothing
+-- is marked published until Instagram returns an id.
+-- ---------------------------------------------------------------------------
+create table if not exists public.scheduled_posts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  ig_user_id text,
+  plan_id uuid references public.plans (id) on delete set null,
+  plan_day text,
+  scheduled_at timestamptz not null,
+  caption text not null default '',
+  media_type text not null default 'REELS',   -- REELS | IMAGE
+  media_path text,                            -- storage object path
+  media_url text,                             -- public URL Instagram fetches
+  status text not null default 'draft',       -- draft|scheduled|publishing|published|failed|cancelled
+  container_id text,
+  published_media_id text,
+  permalink text,
+  error text,
+  attempts integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists scheduled_posts_due_idx
+  on public.scheduled_posts (status, scheduled_at);
+create index if not exists scheduled_posts_user_idx
+  on public.scheduled_posts (user_id, scheduled_at);
+
+alter table public.scheduled_posts enable row level security;
+
+-- Media lives in a public bucket so Instagram can fetch it by URL. Objects are
+-- namespaced by user id; policies keep writes to the owner.
+insert into storage.buckets (id, name, public)
+  values ('scheduled-media', 'scheduled-media', true)
+  on conflict (id) do nothing;
+
+-- The publish scopes Instagram actually granted at connect time, so the UI can
+-- say truthfully whether auto-posting is possible for this account.
+alter table public.instagram_connections
+  add column if not exists scopes text[];
+
+do $$
+begin
+  -- scheduled_posts policies (guarded)
+  if not exists (select 1 from pg_policies where tablename='scheduled_posts' and policyname='Users read their own scheduled posts') then
+    create policy "Users read their own scheduled posts" on public.scheduled_posts for select using (auth.uid() = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where tablename='scheduled_posts' and policyname='Users add their own scheduled posts') then
+    create policy "Users add their own scheduled posts" on public.scheduled_posts for insert with check (auth.uid() = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where tablename='scheduled_posts' and policyname='Users edit their own scheduled posts') then
+    create policy "Users edit their own scheduled posts" on public.scheduled_posts for update using (auth.uid() = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where tablename='scheduled_posts' and policyname='Users remove their own scheduled posts') then
+    create policy "Users remove their own scheduled posts" on public.scheduled_posts for delete using (auth.uid() = user_id);
+  end if;
+  -- storage policies: owner-namespaced writes, public read
+  if not exists (select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='Scheduled media: owner insert') then
+    create policy "Scheduled media: owner insert" on storage.objects for insert to authenticated
+      with check (bucket_id = 'scheduled-media' and (storage.foldername(name))[1] = auth.uid()::text);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='Scheduled media: owner update') then
+    create policy "Scheduled media: owner update" on storage.objects for update to authenticated
+      using (bucket_id = 'scheduled-media' and (storage.foldername(name))[1] = auth.uid()::text);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='Scheduled media: owner delete') then
+    create policy "Scheduled media: owner delete" on storage.objects for delete to authenticated
+      using (bucket_id = 'scheduled-media' and (storage.foldername(name))[1] = auth.uid()::text);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='Scheduled media: public read') then
+    create policy "Scheduled media: public read" on storage.objects for select
+      using (bucket_id = 'scheduled-media');
+  end if;
+end $$;

@@ -16,6 +16,10 @@
 export const IG_SCOPES = [
   "instagram_business_basic",
   "instagram_business_manage_insights",
+  // Scheduling / auto-posting. Must be enabled on the Instagram use case in
+  // the Meta app dashboard BEFORE users reconnect, or Instagram rejects the
+  // whole authorization (see the note above).
+  "instagram_business_content_publish",
 ].join(",");
 
 export function igClientId() {

@@ -1,10 +1,11 @@
 "use client";
 
-// The scheduling workspace. Scheduled posts are a labeled sample (there is no
-// scheduling backend yet), but every intelligence element — best days, best
-// window, and the per-day audience activity bars — is computed from the user's
-// real posts, in the browser's own time zone. Nothing analytical is invented:
-// with too little data the intelligence simply doesn't render.
+// The scheduling workspace. Posts on the grid are the user's real scheduled
+// posts (`scheduled_posts`); the publisher sends each one to Instagram at its
+// time. Every intelligence element — best days, best window, the per-day
+// audience activity bars — is computed from the user's real Instagram posts in
+// the browser's own time zone. With too little data the intelligence simply
+// doesn't render. Nothing on this page is a sample.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -15,28 +16,51 @@ import {
   Lightbulb,
   ArrowRight,
   Info,
-  Camera,
-  Music2,
   Star,
+  X,
+  Upload,
+  Film,
+  Image as ImageIcon,
+  CalendarPlus,
+  ExternalLink,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
+  Trash2,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  draftsFromPlan,
+  readiness,
+  type ScheduledPost,
+  type MediaType,
+  type PostStatus,
+} from "@/lib/scheduling";
 
 export type CalPost = { t: string; e: number };
+/** What the page knows about the publishing pipeline. `canPublish` is null when
+ *  the connection predates scope recording — unknown, not "no". */
+export type PublishInfo = { canPublish: boolean | null; configured: boolean };
 
 const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_MS = 86400000;
-
-// Sample schedule (clearly labeled in the toolbar) — anchored to the current week.
-const SAMPLE = [
-  { d: 0, time: "8:00 AM", title: "Dough-tossing Reel", fmt: "Reel", plat: "Instagram" },
-  { d: 1, time: "12:00 PM", title: "Behind the scenes: oven", fmt: "Reel", plat: "TikTok" },
-  { d: 1, time: "7:00 PM", title: "“3 mistakes” carousel", fmt: "Carousel", plat: "Instagram" },
-  { d: 3, time: "7:00 PM", title: "Weekly special drop", fmt: "Story", plat: "Instagram" },
-  { d: 4, time: "6:00 PM", title: "Friday night pies", fmt: "Reel", plat: "Instagram" },
-  { d: 6, time: "11:00 AM", title: "Sunday brunch menu", fmt: "Carousel", plat: "Instagram" },
-];
+const CAPTION_MAX = 2200;
 
 const hourLabel = (h: number) =>
   h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const fmtDay = (d: Date | string) =>
+  new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+const firstLine = (s: string) =>
+  (s.split("\n").find((l) => l.trim()) ?? "").trim() || "Untitled post";
+const toLocalInput = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+const byTime = (a: ScheduledPost, b: ScheduledPost) =>
+  new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
 
 /** Monday 00:00 of the week containing d (local time). */
 function mondayOf(d: Date): Date {
@@ -44,6 +68,17 @@ function mondayOf(d: Date): Date {
   const dow = (m.getDay() + 6) % 7; // Mon=0
   m.setDate(m.getDate() - dow);
   return m;
+}
+
+async function api<T>(method: string, body?: unknown, path = ""): Promise<T> {
+  const res = await fetch(`/api/schedule${path}`, {
+    method,
+    headers: { "content-type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = (await res.json().catch(() => ({}))) as T & { error?: string };
+  if (!res.ok) throw new Error(j.error ?? `Request failed (${res.status})`);
+  return j;
 }
 
 type Audience = {
@@ -112,18 +147,46 @@ const LVL_NAME: Record<string, string> = {
   p: "peak",
 };
 
-function PlatIcon({ plat }: { plat: string }) {
-  return plat === "TikTok" ? <Music2 size={11} /> : <Camera size={11} />;
+const STATUS_LABEL: Record<PostStatus, string> = {
+  draft: "Draft",
+  scheduled: "Scheduled",
+  publishing: "Publishing",
+  published: "Published",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
+function StatusChip({ p }: { p: ScheduledPost }) {
+  const label =
+    p.status === "draft" && !p.media_url ? "Needs video" : STATUS_LABEL[p.status];
+  return (
+    <span className={`cal2-chip st-${p.status}`}>
+      {p.status === "publishing" && <Loader2 size={10} className="cal2-spin" />}
+      {p.status === "published" && <CheckCircle2 size={10} />}
+      {p.status === "failed" && <AlertTriangle size={10} />}
+      {label}
+    </span>
+  );
+}
+
+function MediaIcon({ type }: { type: MediaType }) {
+  return type === "IMAGE" ? <ImageIcon size={11} /> : <Film size={11} />;
 }
 
 export default function CalendarBoard({
   posts,
   igUsername,
   connected,
+  scheduled,
+  userId,
+  publish,
 }: {
   posts: CalPost[];
   igUsername: string | null;
   connected: boolean;
+  scheduled: ScheduledPost[];
+  userId: string;
+  publish: PublishInfo;
 }) {
   // Everything date/timezone-dependent renders after mount so SSR (UTC) and the
   // browser never disagree.
@@ -133,21 +196,74 @@ export default function CalendarBoard({
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
-  const [account, setAccount] = useState("all");
+
+  const [items, setItems] = useState<ScheduledPost[]>(() => [...scheduled].sort(byTime));
+  const [composer, setComposer] = useState<{ post: ScheduledPost | null; at: Date } | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 7000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const aud = useMemo(() => buildAudience(posts), [posts]);
 
-  const events = SAMPLE.filter(
-    (e) => account === "all" || e.plat.toLowerCase() === account
-  );
+  const upsert = (p: ScheduledPost) =>
+    setItems((xs) => {
+      if (p.status === "cancelled") return xs.filter((x) => x.id !== p.id);
+      const i = xs.findIndex((x) => x.id === p.id);
+      return (i < 0 ? [...xs, p] : xs.map((x) => (x.id === p.id ? p : x))).sort(byTime);
+    });
+  const remove = (id: string) => setItems((xs) => xs.filter((x) => x.id !== id));
 
-  const openDays =
-    7 - new Set(SAMPLE.map((e) => e.d)).size; // days with nothing scheduled this week
+  // While Instagram is processing a video, refresh so the grid shows the outcome.
+  const anyPublishing = items.some((p) => p.status === "publishing");
+  useEffect(() => {
+    if (!anyPublishing) return;
+    const t = setInterval(async () => {
+      try {
+        const j = await api<{ posts: ScheduledPost[] }>("GET");
+        setItems([...j.posts].sort(byTime));
+      } catch {
+        /* keep what we have */
+      }
+    }, 10000);
+    return () => clearInterval(t);
+  }, [anyPublishing]);
+
+  const thisWeek = now
+    ? items.filter((p) => {
+        const t = new Date(p.scheduled_at).getTime();
+        const m = mondayOf(now).getTime();
+        return t >= m && t < m + 7 * DAY_MS;
+      })
+    : [];
+  const openDays = now
+    ? 7 - new Set(thisWeek.map((p) => (new Date(p.scheduled_at).getDay() + 6) % 7)).size
+    : 0;
 
   const bestLine =
     aud.peak != null
       ? `${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)} gets the most reach with your audience.`
       : null;
+
+  const openNew = (date: Date, weekdayMonFirst: number) => {
+    const d = new Date(date);
+    d.setHours(aud.enough ? aud.bestHour(weekdayMonFirst) : 12, 0, 0, 0);
+    if (d.getTime() <= Date.now()) {
+      // today, and the suggested hour already passed: next full hour
+      const n = new Date();
+      n.setMinutes(0, 0, 0);
+      n.setHours(n.getHours() + 1);
+      d.setTime(n.getTime());
+    }
+    setComposer({ post: null, at: d });
+  };
+
+  const drafts = items.filter((p) => p.status === "draft").length;
+  const queued = items.filter((p) => p.status === "scheduled").length;
+  const failed = items.filter((p) => p.status === "failed").length;
 
   return (
     <div className="cal2">
@@ -178,10 +294,28 @@ export default function CalendarBoard({
             </div>
           )}
         </div>
-        <Link href="/tool" className="cal2-new">
-          <Plus size={15} /> New post
-        </Link>
+        <div className="cal2-head-actions">
+          <button type="button" className="cal2-plan" onClick={() => setPlanOpen(true)}>
+            <CalendarPlus size={15} /> Schedule from Content Plan
+          </button>
+          <button
+            type="button"
+            className="cal2-new"
+            onClick={() => now && openNew(now, (now.getDay() + 6) % 7)}
+          >
+            <Plus size={15} /> New post
+          </button>
+        </div>
       </div>
+
+      <AutoPublishStatus
+        connected={connected}
+        igUsername={igUsername}
+        publish={publish}
+        queued={queued}
+        drafts={drafts}
+        failed={failed}
+      />
 
       {/* calendar container */}
       <div className="cal2-card">
@@ -195,14 +329,25 @@ export default function CalendarBoard({
               setWeekOffset={setWeekOffset}
               monthOffset={monthOffset}
               setMonthOffset={setMonthOffset}
-              account={account}
-              setAccount={setAccount}
-              igUsername={igUsername}
             />
             {view === "week" ? (
-              <WeekGrid now={now} weekOffset={weekOffset} aud={aud} events={events} />
+              <WeekGrid
+                now={now}
+                weekOffset={weekOffset}
+                aud={aud}
+                items={items}
+                onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
+                onNew={openNew}
+              />
             ) : (
-              <MonthGrid now={now} monthOffset={monthOffset} aud={aud} events={events} />
+              <MonthGrid
+                now={now}
+                monthOffset={monthOffset}
+                aud={aud}
+                items={items}
+                onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
+                onNew={openNew}
+              />
             )}
           </>
         )}
@@ -214,7 +359,7 @@ export default function CalendarBoard({
           <Lightbulb size={15} />
         </span>
         <div className="cal2-insight-body">
-          <b>Optimal times — based on your audience.</b>
+          <b>Optimal times, based on your audience.</b>
           <p>
             {bestLine ??
               "Connect your Instagram and SOCIA maps when your audience actually engages."}
@@ -241,6 +386,107 @@ export default function CalendarBoard({
           <Info size={11} /> Times shown in your device&apos;s time zone
         </span>
       </div>
+
+      {composer && (
+        <Composer
+          post={composer.post}
+          at={composer.at}
+          userId={userId}
+          connected={connected}
+          onClose={() => setComposer(null)}
+          onSaved={upsert}
+          onRemoved={remove}
+          notify={setNotice}
+        />
+      )}
+      {planOpen && now && (
+        <PlanModal
+          aud={aud}
+          now={now}
+          onClose={() => setPlanOpen(false)}
+          onCreated={(ps) => ps.forEach(upsert)}
+          notify={setNotice}
+        />
+      )}
+      {notice && (
+        <div className="cal2-notice" role="status">
+          {notice}
+          <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Whether posts will actually go out by themselves, stated from facts. */
+function AutoPublishStatus({
+  connected,
+  igUsername,
+  publish,
+  queued,
+  drafts,
+  failed,
+}: {
+  connected: boolean;
+  igUsername: string | null;
+  publish: PublishInfo;
+  queued: number;
+  drafts: number;
+  failed: number;
+}) {
+  if (!connected) {
+    return (
+      <div className="cal2-auto off">
+        <AlertTriangle size={14} />
+        <span>
+          <b>Auto-publishing is off.</b> <Link href="/settings">Connect Instagram</Link> to publish
+          from SOCIA.
+        </span>
+      </div>
+    );
+  }
+  const perm =
+    publish.canPublish === true
+      ? "ok"
+      : publish.canPublish === false
+        ? "denied"
+        : "unknown";
+  const ready = perm === "ok" && publish.configured;
+  return (
+    <div className={`cal2-auto ${ready ? "on" : "warn"}`}>
+      {ready ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+      <span>
+        {ready ? (
+          <>
+            <b>Auto-publishing is on for @{igUsername}.</b> Scheduled posts go out at their time
+            on the publisher&apos;s schedule.
+          </>
+        ) : perm === "denied" ? (
+          <>
+            <b>Instagram hasn&apos;t granted publishing permission.</b>{" "}
+            <Link href="/settings">Reconnect Instagram</Link> and approve
+            &ldquo;publish content&rdquo; to enable it.
+          </>
+        ) : perm === "unknown" ? (
+          <>
+            <b>Publishing permission not confirmed yet.</b>{" "}
+            <Link href="/settings">Reconnect Instagram</Link> once to grant
+            &ldquo;publish content&rdquo;. You can still try Publish now on any post.
+          </>
+        ) : (
+          <>
+            <b>The auto-publisher isn&apos;t running on this deployment yet.</b> Scheduled posts
+            wait; Publish now works on any post with a video.
+          </>
+        )}
+      </span>
+      <span className="cal2-auto-counts">
+        {queued > 0 && <em>{queued} scheduled</em>}
+        {drafts > 0 && <em>{drafts} draft{drafts === 1 ? "" : "s"}</em>}
+        {failed > 0 && <em className="bad">{failed} failed</em>}
+      </span>
     </div>
   );
 }
@@ -253,9 +499,6 @@ function Toolbar({
   setWeekOffset,
   monthOffset,
   setMonthOffset,
-  account,
-  setAccount,
-  igUsername,
 }: {
   now: Date;
   view: "week" | "month";
@@ -264,9 +507,6 @@ function Toolbar({
   setWeekOffset: (fn: (n: number) => number) => void;
   monthOffset: number;
   setMonthOffset: (fn: (n: number) => number) => void;
-  account: string;
-  setAccount: (a: string) => void;
-  igUsername: string | null;
 }) {
   let label: string;
   if (view === "week") {
@@ -305,12 +545,6 @@ function Toolbar({
         )}
       </div>
       <div className="cal2-tb-right">
-        <span
-          className="cal2-demo"
-          title="Example posts — the audience activity below is computed from your real account."
-        >
-          Sample schedule
-        </span>
         <div className="cal2-seg" role="tablist">
           {(["week", "month"] as const).map((v) => (
             <button
@@ -325,18 +559,24 @@ function Toolbar({
             </button>
           ))}
         </div>
-        <select
-          className="cal2-select"
-          value={account}
-          onChange={(e) => setAccount(e.target.value)}
-          aria-label="Filter by account"
-        >
-          <option value="all">All accounts</option>
-          <option value="instagram">{igUsername ? `@${igUsername}` : "Instagram"}</option>
-          <option value="tiktok">TikTok</option>
-        </select>
       </div>
     </div>
+  );
+}
+
+function PostCard({ p, onOpen }: { p: ScheduledPost; onOpen: (p: ScheduledPost) => void }) {
+  return (
+    <button type="button" className={`cal2-post st-${p.status}`} onClick={() => onOpen(p)}>
+      <span className="cal2-time">{fmtTime(p.scheduled_at)}</span>
+      <span className="cal2-title">{firstLine(p.caption)}</span>
+      <span className="cal2-meta">
+        <span className="cal2-plat">
+          <MediaIcon type={p.media_type} /> {p.media_type === "IMAGE" ? "Image" : "Reel"}
+        </span>
+        <StatusChip p={p} />
+      </span>
+      {p.status === "failed" && p.error && <span className="cal2-err">{p.error}</span>}
+    </button>
   );
 }
 
@@ -344,29 +584,34 @@ function WeekGrid({
   now,
   weekOffset,
   aud,
-  events,
+  items,
+  onOpen,
+  onNew,
 }: {
   now: Date;
   weekOffset: number;
   aud: Audience;
-  events: typeof SAMPLE;
+  items: ScheduledPost[];
+  onOpen: (p: ScheduledPost) => void;
+  onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
   const monday = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
-  const todayKey = now.toDateString();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   return (
     <div className="cal2-grid" key={weekOffset /* re-run entrance animation per week */}>
       {DOW.map((dow, i) => {
         const date = new Date(monday.getTime() + i * DAY_MS);
-        const isToday = date.toDateString() === todayKey;
+        const isToday = sameDay(date, now);
+        const isPast = date.getTime() < todayStart.getTime();
         const best = aud.bestDays.includes(i);
-        const dayEvents = weekOffset === 0 ? events.filter((e) => e.d === i) : [];
+        const dayEvents = items.filter((p) => sameDay(new Date(p.scheduled_at), date));
         const bars = aud.days[i];
         const bestHour = aud.bestHour(i);
         const strength = bars[bestHour] ?? 0;
 
         return (
-          <div className={`cal2-col${best ? " best" : ""}`} key={dow}>
+          <div className={`cal2-col${best ? " best" : ""}${isPast ? " past" : ""}`} key={dow}>
             <div className="cal2-dayhead">
               <span className="cal2-dow">{dow}</span>
               <span className={`cal2-num${isToday ? " today" : ""}`}>{date.getDate()}</span>
@@ -378,7 +623,7 @@ function WeekGrid({
             </div>
 
             <div className="cal2-slots">
-              {best && aud.enough && (
+              {best && aud.enough && !isPast && (
                 <div className="cal2-window">
                   <small>Best window</small>
                   <b>{hourLabel(bestHour)}</b>
@@ -391,23 +636,16 @@ function WeekGrid({
                 </div>
               )}
 
-              {dayEvents.map((e) => (
-                <article className="cal2-post" key={e.title}>
-                  <span className="cal2-time">{e.time}</span>
-                  <span className="cal2-title">{e.title}</span>
-                  <span className="cal2-meta">
-                    <span className="cal2-plat">
-                      <PlatIcon plat={e.plat} /> {e.plat}
-                    </span>
-                    <span className={`cal2-fmt ${e.fmt.toLowerCase()}`}>{e.fmt}</span>
-                  </span>
-                </article>
+              {dayEvents.map((p) => (
+                <PostCard p={p} key={p.id} onOpen={onOpen} />
               ))}
 
-              <Link href="/tool" className="cal2-add">
-                <Plus size={14} />
-                <span>Schedule post</span>
-              </Link>
+              {!isPast && (
+                <button type="button" className="cal2-add" onClick={() => onNew(date, i)}>
+                  <Plus size={14} />
+                  <span>{dayEvents.length ? "Add another" : "Schedule post"}</span>
+                </button>
+              )}
             </div>
 
             {aud.enough && (
@@ -443,25 +681,26 @@ function MonthGrid({
   now,
   monthOffset,
   aud,
-  events,
+  items,
+  onOpen,
+  onNew,
 }: {
   now: Date;
   monthOffset: number;
   aud: Audience;
-  events: typeof SAMPLE;
+  items: ScheduledPost[];
+  onOpen: (p: ScheduledPost) => void;
+  onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
   const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   const lead = (first.getDay() + 6) % 7;
-  const todayKey = now.toDateString();
-  const monday = mondayOf(now);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Absolute dates of the sample events (anchored to the current week).
-  const eventByDate = new Map<string, typeof SAMPLE>();
-  for (const e of events) {
-    const d = new Date(monday.getTime() + e.d * DAY_MS);
-    const k = d.toDateString();
-    eventByDate.set(k, [...(eventByDate.get(k) ?? []), e]);
+  const eventByDate = new Map<string, ScheduledPost[]>();
+  for (const p of items) {
+    const k = new Date(p.scheduled_at).toDateString();
+    eventByDate.set(k, [...(eventByDate.get(k) ?? []), p]);
   }
 
   const cells: (Date | null)[] = [
@@ -484,21 +723,503 @@ function MonthGrid({
           if (!d) return <div className="cal2-mcell blank" key={`b${i}`} />;
           const wd = (d.getDay() + 6) % 7;
           const best = aud.bestDays.includes(wd);
+          const isPast = d.getTime() < todayStart.getTime();
           const evs = eventByDate.get(d.toDateString()) ?? [];
           return (
-            <div className={`cal2-mcell${best ? " best" : ""}`} key={d.getTime()}>
-              <span className={`cal2-mnum${d.toDateString() === todayKey ? " today" : ""}`}>
-                {d.getDate()}
-              </span>
-              {evs.map((e) => (
-                <span className="cal2-mevent" key={e.title} title={`${e.time} · ${e.title}`}>
-                  {e.title}
-                </span>
+            <div className={`cal2-mcell${best ? " best" : ""}${isPast ? " past" : ""}`} key={d.getTime()}>
+              <span className={`cal2-mnum${sameDay(d, now) ? " today" : ""}`}>{d.getDate()}</span>
+              {evs.map((p) => (
+                <button
+                  type="button"
+                  className={`cal2-mevent st-${p.status}`}
+                  key={p.id}
+                  title={`${fmtTime(p.scheduled_at)} · ${firstLine(p.caption)} · ${STATUS_LABEL[p.status]}`}
+                  onClick={() => onOpen(p)}
+                >
+                  {firstLine(p.caption)}
+                </button>
               ))}
+              {!isPast && (
+                <button
+                  type="button"
+                  className="cal2-madd"
+                  aria-label={`Schedule a post on ${fmtDay(d)}`}
+                  onClick={() => onNew(d, wd)}
+                >
+                  <Plus size={11} />
+                </button>
+              )}
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ modals */
+
+function Modal({
+  title,
+  onClose,
+  children,
+  wide,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="cal2-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`cal2-modal${wide ? " wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+        <div className="cal2-modal-head">
+          <h2>{title}</h2>
+          <button type="button" className="cal2-x" aria-label="Close" onClick={onClose}>
+            <X size={16} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Create or edit one post: time, caption, media (uploaded to the user's own
+ *  folder in the `scheduled-media` bucket), then save, publish now, or remove. */
+function Composer({
+  post,
+  at,
+  userId,
+  connected,
+  onClose,
+  onSaved,
+  onRemoved,
+  notify,
+}: {
+  post: ScheduledPost | null;
+  at: Date;
+  userId: string;
+  connected: boolean;
+  onClose: () => void;
+  onSaved: (p: ScheduledPost) => void;
+  onRemoved: (id: string) => void;
+  notify: (s: string) => void;
+}) {
+  const [when, setWhen] = useState(toLocalInput(post ? new Date(post.scheduled_at) : at));
+  const [caption, setCaption] = useState(post?.caption ?? "");
+  const [mediaType, setMediaType] = useState<MediaType>(post?.media_type ?? "REELS");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState<"save" | "upload" | "publish" | "remove" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const locked = post?.status === "published" || post?.status === "publishing";
+  const hasMedia = Boolean(post?.media_url) || Boolean(file);
+  const whenDate = new Date(when);
+  const whenValid = !Number.isNaN(whenDate.getTime());
+  const missing = readiness({
+    media_url: hasMedia ? "x" : null,
+    caption,
+    scheduled_at: whenValid ? whenDate.toISOString() : new Date(0).toISOString(),
+  }).missing;
+
+  const persist = async (): Promise<ScheduledPost> => {
+    const body = { scheduled_at: whenDate.toISOString(), caption, media_type: mediaType };
+    let cur: ScheduledPost;
+    if (!post) {
+      cur = (await api<{ posts: ScheduledPost[] }>("POST", body)).posts[0];
+    } else {
+      cur = (await api<{ post: ScheduledPost }>("PATCH", { id: post.id, ...body })).post;
+    }
+    if (file) {
+      setBusy("upload");
+      const supabase = createClient();
+      const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+      const path = `${userId}/${cur.id}/${Date.now()}_${safe}`;
+      const { error } = await supabase.storage
+        .from("scheduled-media")
+        .upload(path, file, { upsert: false, contentType: file.type || undefined });
+      if (error) throw new Error(`Upload failed: ${error.message}`);
+      const { data: pub } = supabase.storage.from("scheduled-media").getPublicUrl(path);
+      if (cur.media_path) await supabase.storage.from("scheduled-media").remove([cur.media_path]);
+      cur = (
+        await api<{ post: ScheduledPost }>("PATCH", { id: cur.id, media_path: path, media_url: pub.publicUrl })
+      ).post;
+    }
+    onSaved(cur);
+    return cur;
+  };
+
+  const save = async () => {
+    if (!whenValid) return setErr("Pick a valid date and time.");
+    setErr(null);
+    setBusy("save");
+    try {
+      const cur = await persist();
+      notify(
+        cur.status === "scheduled"
+          ? `Scheduled for ${fmtDay(cur.scheduled_at)} at ${fmtTime(cur.scheduled_at)}.`
+          : `Saved as a draft. It still needs ${readiness(cur).missing.join(" and ")} before it can go out.`
+      );
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const publishNow = async () => {
+    if (!whenValid) return setErr("Pick a valid date and time.");
+    setErr(null);
+    setBusy("save");
+    try {
+      const cur = await persist();
+      setBusy("publish");
+      const j = await api<{ result: string; post: ScheduledPost }>("POST", undefined, `/publish?id=${cur.id}`);
+      onSaved(j.post);
+      if (j.post.status === "published") notify("Published to Instagram.");
+      else if (j.post.status === "publishing") notify("Instagram is still processing the video. The calendar updates when it's live.");
+      else notify(j.post.error ?? "Instagram didn't publish the post.");
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const removePost = async () => {
+    if (!post) return onClose();
+    setBusy("remove");
+    try {
+      await api("DELETE", { id: post.id });
+      onRemoved(post.id);
+      notify("Post removed.");
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't remove the post.");
+      setBusy(null);
+    }
+  };
+
+  const accept = mediaType === "IMAGE" ? "image/jpeg" : "video/mp4,video/quicktime";
+  const busyLabel =
+    busy === "upload" ? "Uploading…" : busy === "publish" ? "Publishing…" : busy === "save" ? "Saving…" : null;
+
+  return (
+    <Modal title={post ? "Edit post" : "New post"} onClose={onClose}>
+      {post && (
+        <div className={`cal2-status st-${post.status}`}>
+          <StatusChip p={post} />
+          {post.plan_day && <span className="cal2-from-plan">From your Content Plan · {post.plan_day}</span>}
+          {post.status === "published" && post.permalink && (
+            <a href={post.permalink} target="_blank" rel="noreferrer" className="cal2-permalink">
+              View on Instagram <ExternalLink size={12} />
+            </a>
+          )}
+          {post.status === "failed" && post.error && <p className="cal2-status-err">{post.error}</p>}
+        </div>
+      )}
+
+      <label className="cal2-field">
+        <span>Date and time</span>
+        <input
+          type="datetime-local"
+          value={when}
+          disabled={locked}
+          onChange={(e) => setWhen(e.target.value)}
+        />
+      </label>
+
+      <div className="cal2-field">
+        <span>Format</span>
+        <div className="cal2-seg" role="tablist">
+          {(["REELS", "IMAGE"] as MediaType[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={mediaType === t}
+              className={mediaType === t ? "on" : ""}
+              disabled={locked}
+              onClick={() => setMediaType(t)}
+            >
+              {t === "REELS" ? "Reel" : "Image"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="cal2-field">
+        <span>{mediaType === "IMAGE" ? "Image (JPG)" : "Video (MP4 or MOV)"}</span>
+        {post?.media_url && !file && (
+          <div className="cal2-media">
+            {post.media_type === "IMAGE" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={post.media_url} alt="" />
+            ) : (
+              <video src={post.media_url} controls preload="metadata" />
+            )}
+          </div>
+        )}
+        {!locked && (
+          <label className={`cal2-upload${file ? " has" : ""}`}>
+            <Upload size={14} />
+            <span>{file ? file.name : post?.media_url ? "Replace file" : "Choose file"}</span>
+            <input
+              type="file"
+              accept={accept}
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+        )}
+        {!hasMedia && (
+          <small className="cal2-hint">The post stays a draft until a file is attached.</small>
+        )}
+      </div>
+
+      <label className="cal2-field">
+        <span>
+          Caption <em>{caption.length}/{CAPTION_MAX}</em>
+        </span>
+        <textarea
+          rows={6}
+          maxLength={CAPTION_MAX}
+          value={caption}
+          disabled={locked}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder="First line is the hook. Hashtags go at the end."
+        />
+      </label>
+
+      {err && <p className="cal2-form-err">{err}</p>}
+
+      <div className="cal2-modal-actions">
+        {post && !locked && (
+          <button type="button" className="cal2-btn danger" disabled={busy !== null} onClick={removePost}>
+            <Trash2 size={13} /> Remove
+          </button>
+        )}
+        <span className="cal2-grow" />
+        {!locked && (
+          <>
+            <button
+              type="button"
+              className="cal2-btn ghost"
+              disabled={busy !== null || !connected || !hasMedia}
+              title={!connected ? "Connect Instagram first" : !hasMedia ? "Attach a file first" : "Send this post to Instagram right now"}
+              onClick={publishNow}
+            >
+              {busy === "publish" ? <Loader2 size={13} className="cal2-spin" /> : null} Publish now
+            </button>
+            <button type="button" className="cal2-btn primary" disabled={busy !== null} onClick={save}>
+              {busyLabel ?? (missing.length === 0 ? "Schedule" : "Save draft")}
+            </button>
+          </>
+        )}
+        {locked && (
+          <button type="button" className="cal2-btn primary" onClick={onClose}>
+            Close
+          </button>
+        )}
+      </div>
+      {!locked && missing.length > 0 && (
+        <p className="cal2-hint center">Needs {missing.join(" and ")} to be scheduled.</p>
+      )}
+    </Modal>
+  );
+}
+
+type PlanRow = {
+  id: string;
+  client_handle: string | null;
+  niche: string | null;
+  platform: string | null;
+  created_at: string;
+  data: { weeklyPlan?: { day: string; concept: string; hook: string; format: string }[] } | null;
+};
+
+/** Turn a saved Content Plan's week into dated drafts. Each draft lands on its
+ *  weekday at the audience's best hour for that day (noon when unknown). */
+function PlanModal({
+  aud,
+  now,
+  onClose,
+  onCreated,
+  notify,
+}: {
+  aud: Audience;
+  now: Date;
+  onClose: () => void;
+  onCreated: (ps: ScheduledPost[]) => void;
+  notify: (s: string) => void;
+}) {
+  const [plans, setPlans] = useState<PlanRow[] | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
+  // Thursday or later (or Sunday): most of this week is gone, default to next.
+  const [week, setWeek] = useState<"this" | "next">(() =>
+    now.getDay() === 0 || now.getDay() >= 4 ? "next" : "this"
+  );
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/plans")
+      .then((r) => r.json())
+      .then((j: { plans?: PlanRow[] }) => {
+        const rows = (j.plans ?? []).filter((p) => (p.data?.weeklyPlan?.length ?? 0) > 0);
+        setPlans(rows);
+        setPick(rows[0]?.id ?? null);
+      })
+      .catch(() => setPlans([]));
+  }, []);
+
+  const plan = plans?.find((p) => p.id === pick) ?? null;
+  const weekStart = new Date(mondayOf(now).getTime() + (week === "next" ? 7 : 0) * DAY_MS);
+  const { drafts, skipped } = draftsFromPlan(
+    plan?.data?.weeklyPlan ?? [],
+    weekStart,
+    (wd) => (aud.enough ? aud.bestHour((wd + 6) % 7) : 12)
+  );
+  const usable = drafts.filter((d) => new Date(d.scheduled_at).getTime() > now.getTime());
+  const passed = drafts.length - usable.length;
+
+  const create = async () => {
+    if (!plan || usable.length === 0) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const j = await api<{ posts: ScheduledPost[] }>("POST", {
+        items: usable.map((d) => ({ ...d, plan_id: plan.id })),
+      });
+      onCreated(j.posts);
+      notify(
+        `${j.posts.length} draft${j.posts.length === 1 ? "" : "s"} added for the week of ${fmtDay(weekStart)}. Open each day to attach its video.`
+      );
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Couldn't create the drafts.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Schedule from Content Plan" onClose={onClose} wide>
+      {plans === null ? (
+        <p className="cal2-hint">Loading your plans…</p>
+      ) : plans.length === 0 ? (
+        <div className="cal2-empty">
+          <p>No saved Content Plan with a weekly schedule yet.</p>
+          <Link href="/tool" className="cal2-btn primary">
+            Build a plan
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="cal2-field">
+            <span>Plan</span>
+            <div className="cal2-planlist">
+              {plans.map((p) => (
+                <button
+                  type="button"
+                  key={p.id}
+                  className={`cal2-planrow${p.id === pick ? " on" : ""}`}
+                  onClick={() => setPick(p.id)}
+                >
+                  <b>{p.client_handle ? `@${p.client_handle.replace(/^@/, "")}` : p.niche || "Content Plan"}</b>
+                  <span>
+                    {p.data?.weeklyPlan?.length} posts · {p.niche || "—"} ·{" "}
+                    {new Date(p.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="cal2-field">
+            <span>Week</span>
+            <div className="cal2-seg" role="tablist">
+              {(["this", "next"] as const).map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  role="tab"
+                  aria-selected={week === w}
+                  className={week === w ? "on" : ""}
+                  onClick={() => setWeek(w)}
+                >
+                  {w === "this" ? "This week" : "Next week"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {plan && (
+            <div className="cal2-field">
+              <span>
+                What gets added{" "}
+                <em>
+                  {aud.enough ? "at your audience's best hour each day" : "at 12 PM (no audience data yet)"}
+                </em>
+              </span>
+              <ul className="cal2-preview">
+                {drafts.map((d) => {
+                  const past = new Date(d.scheduled_at).getTime() <= now.getTime();
+                  return (
+                    <li key={d.plan_day + d.scheduled_at} className={past ? "past" : ""}>
+                      <b>{fmtDay(d.scheduled_at)}</b>
+                      <span>{fmtTime(d.scheduled_at)}</span>
+                      <span className="cal2-plat">
+                        <MediaIcon type={d.media_type} /> {d.media_type === "IMAGE" ? "Image" : "Reel"}
+                      </span>
+                      <i>{firstLine(d.caption)}</i>
+                      {past && <em>already passed</em>}
+                    </li>
+                  );
+                })}
+              </ul>
+              {skipped.length > 0 && (
+                <small className="cal2-hint">
+                  Not placed (no weekday in the plan): {skipped.join(", ")}.
+                </small>
+              )}
+              {passed > 0 && (
+                <small className="cal2-hint">
+                  {passed} day{passed === 1 ? " has" : "s have"} already passed this week and won&apos;t be added.
+                </small>
+              )}
+              <small className="cal2-hint">
+                Each post is created as a draft with the plan&apos;s hook and concept as its caption. Attach a video to
+                each one and it&apos;s scheduled.
+              </small>
+            </div>
+          )}
+
+          {err && <p className="cal2-form-err">{err}</p>}
+
+          <div className="cal2-modal-actions">
+            <span className="cal2-grow" />
+            <button type="button" className="cal2-btn ghost" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="cal2-btn primary"
+              disabled={busy || !plan || usable.length === 0}
+              onClick={create}
+            >
+              {busy ? "Adding…" : `Add ${usable.length} draft${usable.length === 1 ? "" : "s"}`}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }
