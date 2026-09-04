@@ -173,7 +173,7 @@ export default async function DashboardPage({
 
         {profile?.niche && (
           <div className="panel-grid">
-            <Link href="/niche" className="hub-card">
+            <Link href="/competitors#trends" className="hub-card">
               <span className="hub-glyph">🔥</span>
               <h3>What&apos;s working in {profile.niche}</h3>
               <p>See the videos and formats performing best in your niche right now.</p>

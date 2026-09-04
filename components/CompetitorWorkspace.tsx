@@ -256,7 +256,7 @@ export default function CompetitorWorkspace({
         <section className="cw-panel cw-content">
           <div className="cw-panel-head">
             <h2>Winning content <small>Last 30 days</small></h2>
-            <a className="cw-link inline" href="/niche">View all content <ArrowRight size={13} /></a>
+            <a className="cw-link inline" href="#trends">View all content <ArrowRight size={13} /></a>
           </div>
           {winning.length ? (
             <WinningContentCarousel items={winning} onAnalyze={setAnalyze} />

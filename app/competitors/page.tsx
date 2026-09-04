@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/profile";
+import { igConfigured } from "@/lib/instagram";
 import AppShell from "@/components/AppShell";
+import NicheTrends from "@/components/NicheTrends";
+import NicheDetection, { type NicheDetail } from "@/components/NicheDetection";
 import { ExportButton } from "@/components/CompetitorsBoard";
 import IgCompetitorData from "@/components/IgCompetitorData";
 import {
@@ -236,6 +242,24 @@ export default async function CompetitorsPage({
     /* patterns simply skip the local tag */
   }
 
+  // Niche, for the merged trends section (formerly its own /niche page).
+  // Competitors and niche trends answer the same question — "what's working
+  // around me" — so they live together now.
+  const profile = await getProfile(supabase, user.id).catch(() => null);
+  const niche = profile?.niche ?? null;
+  let nicheDetail: NicheDetail = null;
+  try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("niche_detail")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    nicheDetail = (data?.niche_detail as NicheDetail) ?? null;
+  } catch {
+    nicheDetail = null;
+  }
+  const igConnected = Boolean(snap);
+
   // ---- leaderboard rows: the user, tracked accounts, then discovery -------
   // Each cell states its provenance, and an absent value states WHY it is
   // absent. Instagram and Facebook publish nothing about accounts the user
@@ -397,6 +421,60 @@ export default async function CompetitorsPage({
         {tracked.some((t) => t.platform === "instagram") && (
           <IgCompetitorData hasTracked />
         )}
+
+        {/* ---- Niche trends (merged from /niche) --------------------------
+             Same three states the standalone page had: niche known → the
+             trends feed; connected but undetected → detection; nothing
+             connected → connect prompt with manual fallback. */}
+        <section id="trends" className="cp4-trends db2-rise" style={{ marginTop: 36 }}>
+          <div className="cp4-sec-head" style={{ marginBottom: 14 }}>
+            <h2>{niche ? `Trends in ${niche}` : "Trends in your niche"}</h2>
+            <small>
+              {niche
+                ? "What's performing right now: formats, hooks, and concepts."
+                : "SOCIA finds your niche first, then watches what wins in it."}
+            </small>
+          </div>
+
+          {niche ? (
+            <>
+              <NicheDetection
+                mode="settled"
+                niche={niche}
+                detail={nicheDetail}
+                username={snap?.username}
+                mediaCount={all.length}
+              />
+              <NicheTrends niche={niche} />
+            </>
+          ) : igConnected ? (
+            <NicheDetection
+              mode="detect"
+              username={snap?.username}
+              mediaCount={all.length}
+            />
+          ) : (
+            <>
+              <div className="db-connect">
+                <span className="db-connect-ico"><Link2 size={22} /></span>
+                <div className="db-connect-copy">
+                  <h2>Connect your account and SOCIA finds your niche</h2>
+                  <p>
+                    Connect Instagram and SOCIA reads your real content to identify your
+                    niche automatically. No forms.
+                  </p>
+                </div>
+                <Link
+                  href={igConfigured() ? "/api/auth/instagram/start" : "/settings"}
+                  className="db-connect-cta"
+                >
+                  Connect Instagram
+                </Link>
+              </div>
+              <NicheDetection mode="manual" niche={null} />
+            </>
+          )}
+        </section>
 
       </div>
     </AppShell>
