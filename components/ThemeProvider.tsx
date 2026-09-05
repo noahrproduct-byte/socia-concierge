@@ -5,7 +5,7 @@
 // and on the signed-in user's profile so it follows them across devices.
 // `system` tracks prefers-color-scheme live; an explicit choice never does.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { APPEARANCE_KEY, THEME_COLOR, isAppearance, type Appearance, type Resolved } from "@/lib/appearance";
 
 export { APPEARANCE_KEY, THEME_COLOR, isAppearance };
@@ -138,8 +138,13 @@ export function useTheme(): Ctx {
  */
 export function ThemeSync({ appearance }: { appearance: Appearance | null }) {
   const { appearance: local, ready } = useTheme();
+  const synced = useRef(false);
   useEffect(() => {
-    if (!ready || !appearance || appearance === local) return;
+    // Once per page load. After that the user's clicks are the truth; the
+    // account copy is updated by setAppearance, not the other way round.
+    if (synced.current || !ready || !appearance) return;
+    synced.current = true;
+    if (appearance === local) return;
     try {
       localStorage.setItem(APPEARANCE_KEY, appearance);
     } catch {
