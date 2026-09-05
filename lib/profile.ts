@@ -24,6 +24,8 @@ export type Profile = {
   platforms: string[] | null;
   account_connected: boolean;
   brand_detail?: BrandDetail | null;
+  /** light | dark | system; null until the user picks one. */
+  appearance?: "light" | "dark" | "system" | null;
 };
 
 // Reads the signed-in user's profile row. Returns null if the profile hasn't
@@ -34,6 +36,13 @@ export async function getProfile(
   userId: string,
 ): Promise<Profile | null> {
   try {
+    const newest = await supabase
+      .from("profiles")
+      .select("niche, brand_name, goals, platforms, account_connected, brand_detail, appearance")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!newest.error) return (newest.data as Profile) ?? null;
+    // appearance column may not exist yet
     const full = await supabase
       .from("profiles")
       .select("niche, brand_name, goals, platforms, account_connected, brand_detail")

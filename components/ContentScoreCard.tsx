@@ -124,8 +124,8 @@ export default function ContentScoreCard({
         >
           <defs>
             <linearGradient id="db2sg" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#4c86ff" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#4c86ff" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--primary-bright)" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="var(--primary-bright)" stopOpacity="0" />
             </linearGradient>
           </defs>
           <path className="a" d={`M0,${H} L${pts.join(" L")} L${W},${H} Z`} fill="url(#db2sg)" />
@@ -133,7 +133,7 @@ export default function ContentScoreCard({
             className="l"
             points={pts.join(" ")}
             fill="none"
-            stroke="#6ea0ff"
+            stroke="var(--primary-text)"
             strokeWidth="1.8"
             strokeLinejoin="round"
             pathLength={100}

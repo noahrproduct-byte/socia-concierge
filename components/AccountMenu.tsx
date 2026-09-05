@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Settings, LogOut, ChevronsUpDown } from "lucide-react";
+import { Settings, LogOut, ChevronsUpDown, Sun, Moon, SunMoon } from "lucide-react";
+import { useTheme, type Appearance } from "@/components/ThemeProvider";
+
+const APPEARANCES: { value: Appearance; label: string; Icon: typeof Sun }[] = [
+  { value: "light", label: "Light", Icon: Sun },
+  { value: "dark", label: "Dark", Icon: Moon },
+  { value: "system", label: "System", Icon: SunMoon },
+];
 
 export default function AccountMenu({
   email,
@@ -14,6 +21,7 @@ export default function AccountMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { appearance, setAppearance, ready } = useTheme();
   const name = (email?.split("@")[0] ?? "account").replace(/[._-]+/g, " ");
   const initial = (email?.[0] ?? "?").toUpperCase();
 
@@ -29,6 +37,26 @@ export default function AccountMenu({
     <div className="acct" ref={ref}>
       {open && (
         <div className="acct-menu" role="menu">
+          {/* quick appearance switch; Settings → Appearance is the full control */}
+          <div className="acct-appearance">
+            <span>Appearance</span>
+            <span className="acct-seg" role="radiogroup" aria-label="Appearance">
+              {APPEARANCES.map(({ value, label, Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={ready && appearance === value}
+                  aria-label={label}
+                  title={label}
+                  className={ready && appearance === value ? "on" : ""}
+                  onClick={() => setAppearance(value)}
+                >
+                  <Icon size={13} />
+                </button>
+              ))}
+            </span>
+          </div>
           <Link href="/settings" className="acct-item" role="menuitem" onClick={() => setOpen(false)}>
             <Settings size={15} /> Settings
           </Link>

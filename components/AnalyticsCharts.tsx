@@ -123,8 +123,8 @@ export function GrowthChart({
       <svg viewBox={`0 0 ${W} ${H}`} className="svgchart" role="img" aria-label={ariaLabel}>
         <defs>
           <linearGradient id="an2area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2563FF" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="#2563FF" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {grid.map((gy, i) => (

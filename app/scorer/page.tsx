@@ -54,7 +54,7 @@ export default async function ScorerPage() {
   }
 
   return (
-    <AppShell active="scorer" userEmail={user.email} dark>
+    <AppShell active="scorer" userEmail={user.email}>
       {/* shares the dark-page shell + header system introduced on Content Plan */}
       <div className="cpl">
         <div className="cpl-head">

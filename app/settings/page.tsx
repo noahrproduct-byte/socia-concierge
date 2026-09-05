@@ -14,7 +14,9 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertTriangle,
+  SunMoon,
 } from "lucide-react";
+import AppearanceSettings from "@/components/AppearanceSettings";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
 import BrandSettings from "@/components/BrandSettings";
@@ -278,6 +280,15 @@ export default async function SettingsPage({
             </section>
 
             {/* 6 — Notifications & Reports (planned; no fake toggles) */}
+            <section className="st2-card" id="appearance">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><SunMoon size={15} /></span>
+                <h3>Appearance</h3>
+                <span className="st2-card-note">Choose how SOCIA looks on this device.</span>
+              </div>
+              <AppearanceSettings />
+            </section>
+
             <section className="st2-card" id="notifications">
               <div className="st2-card-head">
                 <span className="st2-card-ico"><Bell size={15} /></span>

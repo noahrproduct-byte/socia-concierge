@@ -551,3 +551,7 @@ begin
     create policy "Signed-in users read the publisher heartbeat" on public.publisher_heartbeat for select to authenticated using (true);
   end if;
 end $$;
+
+-- Appearance preference (light | dark | system). Cached on the device for
+-- instant paint; stored here so it follows the user across devices.
+alter table public.profiles add column if not exists appearance text;

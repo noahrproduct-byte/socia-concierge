@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
 import BrandMark from "@/components/BrandMark";
+import { ThemeSync, isAppearance, type Appearance } from "@/components/ThemeProvider";
 import { createClient } from "@/lib/supabase/server";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
@@ -49,13 +50,10 @@ const NAV: NavItem[] = [
 export default async function AppShell({
   active,
   userEmail,
-  dark = false,
   children,
 }: {
   active: string;
   userEmail?: string | null;
-  /** Full dark application shell (edge-to-edge), for immersive pages. */
-  dark?: boolean;
   children: React.ReactNode;
 }) {
   // Channel state for the sidebar (best effort; the shell renders fine without it).
@@ -63,6 +61,7 @@ export default async function AppShell({
   let fbPageName: string | null = null;
   let platforms: string[] = [];
   let plan: Plan = "free";
+  let appearance: Appearance | null = null;
   try {
     const supabase = await createClient();
     const {
@@ -77,13 +76,20 @@ export default async function AppShell({
           .select("page_name, connection_status")
           .eq("user_id", user.id)
           .maybeSingle(),
-        supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle(),
+        supabase.from("profiles").select("platforms, appearance").eq("user_id", user.id).maybeSingle(),
         getPlan(supabase, user.id),
       ]);
       igUsername = (conn as { username?: string } | null)?.username ?? null;
       fbPageName =
         fbRes.data?.connection_status === "connected" ? (fbRes.data.page_name ?? "Facebook") : null;
-      platforms = profRes.data?.platforms ?? [];
+      let prof = profRes.data as { platforms?: string[]; appearance?: string } | null;
+      if (profRes.error) {
+        // `appearance` column not migrated yet: read the legacy shape.
+        const { data } = await supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle();
+        prof = data as { platforms?: string[] } | null;
+      }
+      platforms = prof?.platforms ?? [];
+      appearance = isAppearance(prof?.appearance) ? prof.appearance : null;
       plan = planRes;
     }
   } catch {
@@ -123,7 +129,8 @@ export default async function AppShell({
   ];
 
   return (
-    <div className={`app${dark ? " app-dark" : ""}`}>
+    <div className="app">
+      <ThemeSync appearance={appearance} />
       <aside className="side">
         <Link href="/dashboard" className="side-logo">
           <BrandMark size={32} />

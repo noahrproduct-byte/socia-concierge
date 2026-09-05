@@ -620,7 +620,7 @@ export default function PerformanceOverTime({
           : m.firstSnapDay
             ? `history started ${shortDate(new Date(m.firstSnapDay + "T00:00:00"))}`
             : "history starts today",
-      spark: { data: folVals, color: "#2563ff" },
+      spark: { data: folVals, color: "var(--primary)" },
     },
     {
       id: "reach", label: "Reach", color: "teal", Ico: Radar,
@@ -640,7 +640,7 @@ export default function PerformanceOverTime({
       d: m.viewsDelta, note: postsNote, tip: prevNote,
       // No sparkline: a spark is a time-series affordance, and per-post totals
       // are exactly what SOCIA refuses to plot against time.
-      spark: m.viewsRows.length ? { data: m.viewsRows.map((r) => r.views!), color: "#10b981" } : undefined,
+      spark: m.viewsRows.length ? { data: m.viewsRows.map((r) => r.views!), color: "var(--success)" } : undefined,
     },
     {
       id: "eng", label: "Engagement", color: "purple", Ico: Activity,
@@ -655,7 +655,7 @@ export default function PerformanceOverTime({
       gain: m.postsDeltaAbs,
       gainTip: vsPrev,
       note: `published in the last ${m.days} days`,
-      spark: { data: m.buckets.map((b) => b.posts.length), color: "#f5b04c" },
+      spark: { data: m.buckets.map((b) => b.posts.length), color: "var(--warning-text)" },
     },
   ];
 
@@ -785,7 +785,7 @@ export default function PerformanceOverTime({
               <TimeSeries
                 type={chartType}
                 cls="blue"
-                fill="rgba(37,99,255,0.08)"
+                fill="rgba(var(--primary-rgb),0.08)"
                 zeroBased={false}
                 ariaLabel="Total followers over time"
                 hover={hover}
@@ -819,7 +819,7 @@ export default function PerformanceOverTime({
               <TimeSeries
                 type={chartType}
                 cls="blue"
-                fill="rgba(37,99,255,0.08)"
+                fill="rgba(var(--primary-rgb),0.08)"
                 ariaLabel="New followers per day"
                 hover={hover}
                 onHover={setHover}
@@ -883,7 +883,7 @@ export default function PerformanceOverTime({
               <TimeSeries
                 type={chartType}
                 cls="amber"
-                fill="rgba(245,176,76,0.10)"
+                fill="rgba(var(--warning-rgb),0.10)"
                 ariaLabel={`Posts published per ${m.weekly ? "week" : "day"}`}
                 items={m.buckets.map((b) => {
                   const fmts = [...b.posts.reduce((acc, p) => acc.set(p.type, (acc.get(p.type) ?? 0) + 1), new Map<string, number>())]
@@ -1033,7 +1033,7 @@ export default function PerformanceOverTime({
                     <TimeSeries
                       type={chartType}
                       cls={cls}
-                      fill="rgba(16,185,129,0.07)"
+                      fill="rgba(var(--success-rgb),0.07)"
                       ariaLabel="Views per day"
                       hover={hover}
                       onHover={setHover}

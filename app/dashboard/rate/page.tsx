@@ -70,13 +70,13 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <span className="text-sm font-medium text-neutral-300">{label}</span>
-        <span className="text-sm font-semibold text-neutral-100">
+        <span className="text-sm font-medium text-foreground/85">{label}</span>
+        <span className="text-sm font-semibold text-foreground">
           {score}
-          <span className="text-neutral-500">/10</span>
+          <span className="text-muted-foreground">/10</span>
         </span>
       </div>
-      <div className="h-2 w-full rounded-full bg-neutral-800 overflow-hidden">
+      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${color}`}
           style={{ width: `${pct}%` }}
@@ -130,20 +130,20 @@ export default function ContentRaterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl px-6 py-12">
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl font-bold tracking-tight">Content Rater</h1>
-          <p className="mt-2 text-neutral-400">
+          <p className="mt-2 text-muted-foreground">
             Paste your caption before you post it. Get it scored on hook strength,
             caption quality and engagement potential — plus exactly what to fix.
           </p>
         </div>
 
         {/* Input card */}
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <label className="block text-sm font-medium text-neutral-300 mb-2">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <label className="block text-sm font-medium text-foreground/85 mb-2">
             Your caption
           </label>
           <textarea
@@ -151,24 +151,24 @@ export default function ContentRaterPage() {
             onChange={(e) => setCaption(e.target.value)}
             rows={6}
             placeholder="Paste the caption you're about to post…"
-            className="w-full resize-y rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm
-                       text-neutral-100 placeholder-neutral-600 outline-none
+            className="w-full resize-y rounded-xl border border-input bg-background px-4 py-3 text-sm
+                       text-foreground placeholder:text-muted-foreground outline-none
                        focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
           />
-          <div className="mt-1 text-right text-xs text-neutral-600">
+          <div className="mt-1 text-right text-xs text-muted-foreground">
             {caption.length} characters
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">
+              <label className="block text-sm font-medium text-foreground/85 mb-2">
                 Post type
               </label>
               <select
                 value={postType}
                 onChange={(e) => setPostType(e.target.value)}
-                className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm
-                           text-neutral-100 outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm
+                           text-foreground outline-none focus:border-violet-500"
               >
                 {POST_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -179,14 +179,14 @@ export default function ContentRaterPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-300 mb-2">
+              <label className="block text-sm font-medium text-foreground/85 mb-2">
                 Niche
               </label>
               <select
                 value={niche}
                 onChange={(e) => setNiche(e.target.value)}
-                className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm
-                           text-neutral-100 outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm
+                           text-foreground outline-none focus:border-violet-500"
               >
                 {NICHES.map((n) => (
                   <option key={n} value={n}>
@@ -201,8 +201,8 @@ export default function ContentRaterPage() {
             onClick={handleRate}
             disabled={loading || caption.trim().length < 10}
             className="mt-6 w-full rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white
-                       transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-neutral-800
-                       disabled:text-neutral-500"
+                       transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-muted
+                       disabled:text-muted-foreground"
           >
             {loading ? "Analyzing…" : "Rate this post"}
           </button>
@@ -216,10 +216,10 @@ export default function ContentRaterPage() {
 
         {/* Loading skeleton */}
         {loading && (
-          <div className="mt-6 animate-pulse rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <div className="h-20 w-20 rounded-full bg-neutral-800" />
-            <div className="mt-6 h-3 w-2/3 rounded bg-neutral-800" />
-            <div className="mt-3 h-3 w-1/2 rounded bg-neutral-800" />
+          <div className="mt-6 animate-pulse rounded-2xl border border-border bg-card p-6">
+            <div className="h-20 w-20 rounded-full bg-muted" />
+            <div className="mt-6 h-3 w-2/3 rounded bg-muted" />
+            <div className="mt-3 h-3 w-1/2 rounded bg-muted" />
           </div>
         )}
 
@@ -227,7 +227,7 @@ export default function ContentRaterPage() {
         {result && !loading && (
           <div className="mt-6 space-y-4">
             {/* Grade + overall */}
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+            <div className="rounded-2xl border border-border bg-card p-6">
               <div className="flex items-center gap-6">
                 <div
                   className={`flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border-2 text-5xl font-bold ${gradeColor(
@@ -237,12 +237,12 @@ export default function ContentRaterPage() {
                   {result.grade}
                 </div>
                 <div>
-                  <div className="text-sm uppercase tracking-wide text-neutral-500">
+                  <div className="text-sm uppercase tracking-wide text-muted-foreground">
                     Overall score
                   </div>
                   <div className="text-4xl font-bold tracking-tight">
                     {result.overallScore}
-                    <span className="text-lg text-neutral-500">/100</span>
+                    <span className="text-lg text-muted-foreground">/100</span>
                   </div>
                   <span
                     className={`mt-2 inline-block rounded-lg border px-3 py-1 text-xs font-semibold ${potentialColor(
@@ -253,56 +253,56 @@ export default function ContentRaterPage() {
                   </span>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-neutral-400">
+              <p className="mt-4 text-sm text-muted-foreground">
                 {result.engagementReason}
               </p>
             </div>
 
             {/* Scores */}
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-6">
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-6">
               <div>
                 <ScoreBar label="Hook strength" score={result.hookScore} />
-                <p className="mt-3 text-sm text-neutral-400">
+                <p className="mt-3 text-sm text-muted-foreground">
                   {result.hookAnalysis}
                 </p>
                 <div className="mt-3 rounded-xl border border-violet-500/25 bg-violet-500/5 p-4">
                   <div className="text-xs font-semibold uppercase tracking-wide text-violet-400">
                     Try this instead
                   </div>
-                  <p className="mt-1.5 text-sm text-neutral-200">
+                  <p className="mt-1.5 text-sm text-foreground">
                     {result.rewrittenHook}
                   </p>
                 </div>
               </div>
 
-              <div className="border-t border-neutral-800 pt-6">
+              <div className="border-t border-border pt-6">
                 <ScoreBar label="Caption quality" score={result.captionScore} />
-                <p className="mt-3 text-sm text-neutral-400">
+                <p className="mt-3 text-sm text-muted-foreground">
                   {result.captionAnalysis}
                 </p>
               </div>
             </div>
 
             {/* Tips */}
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
+            <div className="rounded-2xl border border-border bg-card p-6">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Fix these before posting
               </h2>
               <div className="mt-4 space-y-3">
                 {result.tips.map((tip, i) => (
                   <div
                     key={i}
-                    className="rounded-xl border border-neutral-800 bg-neutral-950 p-4"
+                    className="rounded-xl border border-border bg-background p-4"
                   >
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-xs font-bold text-violet-300">
                         {i + 1}
                       </span>
                       <div>
-                        <div className="text-sm font-semibold text-neutral-100">
+                        <div className="text-sm font-semibold text-foreground">
                           {tip.title}
                         </div>
-                        <div className="mt-1 text-sm text-neutral-400">
+                        <div className="mt-1 text-sm text-muted-foreground">
                           {tip.detail}
                         </div>
                       </div>
@@ -313,15 +313,15 @@ export default function ContentRaterPage() {
             </div>
 
             {/* Hashtags */}
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+            <div className="rounded-2xl border border-border bg-card p-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   Suggested hashtags
                 </h2>
                 <button
                   onClick={copyHashtags}
-                  className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium
-                             text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+                  className="rounded-lg border border-input px-3 py-1.5 text-xs font-medium
+                             text-foreground/85 transition hover:border-ring hover:text-white"
                 >
                   {copied ? "Copied" : "Copy all"}
                 </button>
@@ -330,7 +330,7 @@ export default function ContentRaterPage() {
                 {result.hashtags.map((h) => (
                   <span
                     key={h}
-                    className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-300"
+                    className="rounded-lg border border-input bg-background px-3 py-1.5 text-sm text-foreground/85"
                   >
                     {h}
                   </span>

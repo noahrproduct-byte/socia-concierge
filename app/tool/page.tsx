@@ -111,7 +111,7 @@ export default async function ContentPlanPage() {
   };
 
   return (
-    <AppShell active="tool" userEmail={user.email} dark>
+    <AppShell active="tool" userEmail={user.email}>
       <ContentPlanClient context={context} />
     </AppShell>
   );

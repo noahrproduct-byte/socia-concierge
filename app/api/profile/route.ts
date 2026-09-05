@@ -11,6 +11,12 @@ export async function GET() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ profile: null });
+    const withAppearance = await supabase
+      .from("profiles")
+      .select("niche, brand_name, goals, platforms, account_connected, brand_detail, appearance")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!withAppearance.error) return NextResponse.json({ profile: withAppearance.data ?? null });
     const full = await supabase
       .from("profiles")
       .select("niche, brand_name, goals, platforms, account_connected, brand_detail")
@@ -43,11 +49,15 @@ export async function POST(req: Request) {
     platforms?: string[];
     account_connected?: boolean;
     brand_detail?: BrandDetail;
+    appearance?: string;
   };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  if ("appearance" in body && !["light", "dark", "system"].includes(String(body.appearance))) {
+    return NextResponse.json({ error: "appearance must be light, dark or system." }, { status: 400 });
   }
 
   const row: Record<string, unknown> = {
@@ -63,6 +73,7 @@ export async function POST(req: Request) {
   if (typeof body.account_connected === "boolean") {
     row.account_connected = body.account_connected;
   }
+  if ("appearance" in body) row.appearance = body.appearance;
 
   // brand_detail is a single jsonb shared by two forms — merge, never clobber.
   let brandSaved: boolean | undefined;
@@ -82,6 +93,12 @@ export async function POST(req: Request) {
   }
 
   let { error } = await supabase.from("profiles").upsert(row, { onConflict: "user_id" });
+
+  if (error && "appearance" in row) {
+    // Column not migrated yet: the device copy still applies; save the rest.
+    delete row.appearance;
+    ({ error } = await supabase.from("profiles").upsert(row, { onConflict: "user_id" }));
+  }
 
   if (error && "brand_detail" in row) {
     // Column may not exist yet — save everything else and tell the client.
