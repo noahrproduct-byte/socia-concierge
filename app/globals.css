@@ -11141,3 +11141,14 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .acct-seg button { display: grid; place-items: center; width: 26px; height: 24px; border: none; border-radius: 6px; background: none; color: var(--sidebar-muted); cursor: pointer; transition: background 0.15s, color 0.15s; }
 .acct-seg button:hover { color: var(--sidebar-text-strong); }
 .acct-seg button.on { background: var(--primary); color: var(--on-primary); }
+
+/* Account menu is a themed popover over the workspace (its trigger stays in the dark sidebar) */
+.acct-menu { background: var(--surface-elevated); border: 1px solid var(--border); color: var(--text-primary); box-shadow: 0 18px 44px rgba(var(--shadow-rgb), 0.22); }
+.acct-item { color: var(--text-primary); }
+.acct-item:hover { background: var(--surface-hover); }
+.acct-item.danger { color: var(--danger-text); }
+.acct-appearance { color: var(--text-secondary); border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.acct-seg { background: var(--surface-muted); }
+.acct-seg button { color: var(--text-muted); }
+.acct-seg button:hover { color: var(--text-primary); }
+.acct-seg button.on { background: var(--primary); color: var(--on-primary); }

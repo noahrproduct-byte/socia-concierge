@@ -1015,7 +1015,7 @@ function ScorerStyles() {
       .vs2-thumb:hover { transform: translateY(-2px); border-color: var(--primary); }
       .vs2-thumb img { width: 100%; display: block; }
       .vs2-thumb span { position: absolute; left: 3px; bottom: 3px; font-size: 9px; line-height: 1;
-        padding: 2px 4px; border-radius: 4px; background: rgba(0,0,0,.66); color: var(--text-primary); }
+        padding: 2px 4px; border-radius: 4px; background: var(--surface); color: var(--text-primary); }
 
       .vs2-results { display: grid; gap: 16px; }
       @media (min-width: 1400px) { .vs2-results { grid-template-columns: 1.55fr 1fr; } }
