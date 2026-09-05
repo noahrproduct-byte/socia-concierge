@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
 import BrandMark from "@/components/BrandMark";
-import { ThemeSync, isAppearance, type Appearance } from "@/components/ThemeProvider";
+import { ThemeSync } from "@/components/ThemeProvider";
+import { isAppearance, type Appearance } from "@/lib/appearance";
 import { createClient } from "@/lib/supabase/server";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
