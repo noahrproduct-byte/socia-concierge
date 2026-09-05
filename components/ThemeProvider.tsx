@@ -69,11 +69,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [resolved, setResolved] = useState<Resolved>("light");
   const [ready, setReady] = useState(false);
 
-  // Read what the head script already applied.
+  // Read what the head script already applied, and apply it again: if React
+  // had to recover from a hydration mismatch it re-renders <html> and drops
+  // the attributes the script set. This runs right after hydration.
   useEffect(() => {
     const a = readStored();
+    const r = resolveAppearance(a);
     setAppearanceState(a);
-    setResolved(resolveAppearance(a));
+    setResolved(r);
+    applyResolved(r);
     setReady(true);
   }, []);
 
