@@ -839,7 +839,7 @@ function ScorerStyles() {
 
       .vs2-tips {
         cursor: default;
-        background: rgba(8,12,22,.55); border: 1px solid var(--border);
+        background: var(--surface); border: 1px solid var(--border);
         border-radius: 14px; padding: 15px 17px;
       }
       .vs2-tips > b { display: block; font-size: 12.5px; font-weight: 700; color: var(--text-primary);
@@ -865,7 +865,7 @@ function ScorerStyles() {
       .vs2-field { position: relative; display: block; }
       .vs2-context textarea { width: 100%; resize: vertical; font: inherit; font-size: 13px;
         line-height: 1.55; padding: 10px 12px 24px; border-radius: 11px;
-        border: 1px solid var(--border); background: rgba(8,12,22,.55); color: var(--text-primary);
+        border: 1px solid var(--border); background: var(--surface); color: var(--text-primary);
         transition: border-color .2s, box-shadow .2s; }
       .vs2-context textarea::placeholder { color: var(--text-muted); }
       .vs2-context textarea:focus { outline: none; border-color: rgba(var(--primary-rgb), .55);
@@ -972,7 +972,7 @@ function ScorerStyles() {
         animation: vsCurveDemo 1.6s ease-out both; animation-delay: .45s; }
       .vs2-ecurve .ed { fill: var(--danger-text); filter: drop-shadow(0 0 5px rgba(var(--danger-rgb), .8));
         animation: vsPulse 2s ease-in-out infinite; animation-delay: 1.8s; }
-      .vs2-ecurve .et rect { fill: rgba(8,12,22,.92); stroke: rgba(var(--danger-rgb), .35); }
+      .vs2-ecurve .et rect { fill: var(--surface-elevated); stroke: rgba(var(--danger-rgb), .35); }
       .vs2-ecurve .et text { fill: var(--text-secondary); font-size: 9px; }
       .vs2-ecurve .et .etv { fill: var(--danger-text); font-weight: 700; }
       .vs2-ecap { margin-top: 10px !important; }

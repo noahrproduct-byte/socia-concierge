@@ -7653,7 +7653,7 @@ a.hub-card:hover {
   aspect-ratio: 9 / 14;
   border-radius: 14px;
   overflow: hidden;
-  background: var(--inverse-surface);
+  background: var(--panel-dark);
 }
 .nt2-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
 .nt2-cover:hover img { transform: scale(1.02); }
@@ -10447,7 +10447,7 @@ html { scroll-behavior: smooth; }
 /* winning grid */
 .cp4-win-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .cp4-win { border: 1px solid var(--line); border-radius: 13px; overflow: hidden; background: var(--surface); animation: cp3in .4s cubic-bezier(.22,1,.36,1) both; }
-.cp4-win-media { position: relative; display: block; aspect-ratio: 4 / 3; background: var(--inverse-surface); overflow: hidden; }
+.cp4-win-media { position: relative; display: block; aspect-ratio: 4 / 3; background: var(--panel-dark); overflow: hidden; }
 .cp4-win-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s; }
 .cp4-win:hover .cp4-win-media img { transform: scale(1.02); }
 .cp4-win-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
@@ -10759,7 +10759,7 @@ html { scroll-behavior: smooth; }
 .wc-scroll:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); border-radius: 10px; }
 .wc-card { flex: 0 0 236px; scroll-snap-align: start; display: flex; flex-direction: column; gap: 5px; border: 1px solid var(--line); border-radius: 12px; padding: 8px; background: var(--surface); transition: border-color .15s, box-shadow .15s; min-width: 0; }
 .wc-card:hover { border-color: var(--border-strong); box-shadow: 0 4px 14px rgba(var(--shadow-rgb), .06); }
-.wc-thumb { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 9px; overflow: hidden; background: var(--inverse-surface); }
+.wc-thumb { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 9px; overflow: hidden; background: var(--panel-dark); }
 .wc-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s; }
 .wc-card:hover .wc-thumb img { transform: scale(1.02); }
 .wc-thumb-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
@@ -11021,7 +11021,7 @@ button.cal2-mevent { width: 100%; text-align: left; border: none; border-left: 2
 .cal2-upload.has { border-style: solid; border-color: rgba(var(--success-rgb), 0.5); color: var(--success-text); }
 .cal2-upload span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal2-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.cal2-media { border-radius: 10px; overflow: hidden; background: var(--inverse-surface); max-height: 260px; display: grid; place-items: center; }
+.cal2-media { border-radius: 10px; overflow: hidden; background: var(--panel-dark); max-height: 260px; display: grid; place-items: center; }
 .cal2-media video, .cal2-media img { max-width: 100%; max-height: 260px; display: block; }
 .cal2-hint { display: block; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
 .cal2-hint.center { text-align: right; margin-top: 8px; }
