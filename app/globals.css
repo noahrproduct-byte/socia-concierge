@@ -11152,3 +11152,13 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .acct-seg button { color: var(--text-muted); }
 .acct-seg button:hover { color: var(--text-primary); }
 .acct-seg button.on { background: var(--primary); color: var(--on-primary); }
+
+/* All posts (Analytics): per-post actions that lead somewhere */
+.lib-embedded .dsh-panel-head { padding: 0 0 10px; }
+.lib-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.lib-act { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 650; color: var(--primary-text); background: var(--primary-subtle); border-radius: 7px; padding: 4px 8px; text-decoration: none; white-space: nowrap; transition: background 0.15s; }
+.lib-act:hover { background: rgba(var(--primary-rgb), 0.2); }
+.lib-act.ghost { color: var(--text-secondary); background: var(--surface-muted); }
+.lib-act.ghost:hover { color: var(--text-primary); background: var(--surface-hover); }
+.lib-open { display: inline-flex; margin-left: 2px; }
+.an3-library .chart-head { align-items: flex-start; flex-direction: column; gap: 2px; }

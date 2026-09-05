@@ -6,7 +6,6 @@ import {
   Sparkles,
   FileText,
   FileBarChart,
-  LayoutGrid,
   Video,
   CalendarDays,
   Settings,
@@ -38,7 +37,6 @@ type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
   { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
-  { href: "/content", label: "Content", Icon: LayoutGrid, key: "content" },
   { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
   { href: "/chat", label: "AI Strategist", Icon: Sparkles, key: "chat" },
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },

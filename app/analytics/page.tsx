@@ -22,6 +22,8 @@ import PerformanceOverTime, {
   type DailyRow,
 } from "@/components/PerformanceOverTime";
 import RadarChart from "@/components/RadarChart";
+import ContentLibrary, { type LibraryPost } from "@/components/ContentLibrary";
+import { getPerformanceBaseline } from "@/lib/dashboardMetrics";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import type { Kpi } from "@/lib/demoData";
 
@@ -227,6 +229,45 @@ export default async function AnalyticsPage() {
   const posts = live && livePosts.length
     ? livePosts
     : DEMO_POSTS.map((p) => ({ ...p, thumb: null, href: null }));
+
+  // --- every synced post, with the metrics Instagram returned ("—" = not provided) ---
+  const baseline = live
+    ? getPerformanceBaseline({
+        followers: snap?.followers_count ?? null,
+        lifetimePosts: snap?.media_count ?? null,
+        posts: media,
+        daily: [],
+        syncedAt: snap?.last_synced_at ?? null,
+        platform: "instagram",
+        handle: snap?.username ?? null,
+      }).value
+    : null;
+  const libraryPosts: LibraryPost[] = live
+    ? [...media]
+        .filter((m) => m.timestamp)
+        .sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime())
+        .map((m, i) => {
+          const e = engOf(m);
+          const reach = m.insights?.reach ?? null;
+          return {
+            id: m.id ?? String(i),
+            caption: (m.caption || "").split("\n")[0].trim(),
+            published: m.timestamp!,
+            format: m.media_type === "VIDEO" ? "Reel" : m.media_type === "CAROUSEL_ALBUM" ? "Carousel" : "Post",
+            views: m.insights?.views ?? null,
+            reach,
+            likes: m.like_count ?? null,
+            comments: m.comments_count ?? null,
+            saves: m.insights?.saved ?? null,
+            shares: m.insights?.shares ?? null,
+            engagements: e,
+            engRate: reach && reach > 0 ? (e / reach) * 100 : null,
+            multiplier: baseline && baseline > 0 ? e / baseline : null,
+            thumb: m.thumbnail_url || m.media_url || null,
+            permalink: m.permalink ?? null,
+          };
+        })
+    : [];
 
   // --- baseline comparison (live: your recent 5 posts vs your average) ---
   const recentLikes = media.slice(0, 5).map((m) => m.like_count ?? 0);
@@ -465,6 +506,18 @@ export default async function AnalyticsPage() {
           </ul>
         </section>
 
+        {libraryPosts.length > 0 && (
+          <section className="chart-card db2-rise an3-library" id="posts" style={{ animationDelay: "620ms" }}>
+            <div className="chart-head">
+              <h3>All posts</h3>
+              <p className="an2-formats-note">
+                Every post SOCIA has synced, with the metrics Instagram returned. &ldquo;×&rdquo; compares each
+                post with your own baseline.
+              </p>
+            </div>
+            <ContentLibrary posts={libraryPosts} embedded />
+          </section>
+        )}
       </div>
     </AppShell>
   );

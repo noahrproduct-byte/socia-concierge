@@ -147,7 +147,7 @@ export default async function ReportsPage({
       <section className="dsh-panel dsh-tablewrap">
         <div className="dsh-panel-head">
           <h2>Top posts this period</h2>
-          <Link href="/content" className="dsh-link">
+          <Link href="/analytics#posts" className="dsh-link">
             All content <ArrowRight size={12} />
           </Link>
         </div>

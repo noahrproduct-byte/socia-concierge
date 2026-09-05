@@ -154,7 +154,7 @@ export default function CalendarBoard({
   const [monthOffset, setMonthOffset] = useState(0);
 
   const [items, setItems] = useState<ScheduledPost[]>(() => [...scheduled].sort(byTime));
-  const [composer, setComposer] = useState<{ post: ScheduledPost | null; at: Date } | null>(null);
+  const [composer, setComposer] = useState<{ post: ScheduledPost | null; at: Date; caption?: string } | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -164,6 +164,20 @@ export default function CalendarBoard({
   }, [notice]);
 
   const aud = useMemo(() => buildAudience(posts), [posts]);
+
+  // Deep link from Analytics → "Follow-up": open a draft for tomorrow at the
+  // audience's hour with the original post's first line as a starting caption.
+  useEffect(() => {
+    if (!now) return;
+    const sp = new URLSearchParams(window.location.search);
+    if (!sp.has("compose")) return;
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    d.setHours(suggestedHour(aud, (d.getDay() + 6) % 7), 0, 0, 0);
+    setComposer({ post: null, at: d, caption: sp.get("caption") ?? "" });
+    window.history.replaceState(null, "", "/calendar");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now]);
 
   const upsert = (p: ScheduledPost) =>
     setItems((xs) => {
@@ -350,6 +364,7 @@ export default function CalendarBoard({
         <Composer
           post={composer.post}
           at={composer.at}
+          initialCaption={composer.caption}
           userId={userId}
           connected={connected}
           onClose={() => setComposer(null)}
@@ -769,6 +784,7 @@ function Modal({
 function Composer({
   post,
   at,
+  initialCaption,
   userId,
   connected,
   onClose,
@@ -778,6 +794,7 @@ function Composer({
 }: {
   post: ScheduledPost | null;
   at: Date;
+  initialCaption?: string;
   userId: string;
   connected: boolean;
   onClose: () => void;
@@ -786,7 +803,7 @@ function Composer({
   notify: (s: string) => void;
 }) {
   const [when, setWhen] = useState(toLocalInput(post ? new Date(post.scheduled_at) : at));
-  const [caption, setCaption] = useState(post?.caption ?? "");
+  const [caption, setCaption] = useState(post?.caption ?? initialCaption ?? "");
   const [mediaType, setMediaType] = useState<MediaType>(post?.media_type ?? "REELS");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<"save" | "upload" | "publish" | "remove" | null>(null);

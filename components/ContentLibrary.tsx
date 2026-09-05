@@ -4,7 +4,8 @@
 // the server exactly as Instagram returned them; "—" means not provided.
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronUp, ExternalLink, Sparkles, CalendarPlus } from "lucide-react";
 
 export type LibraryPost = {
   id: string;
@@ -50,7 +51,19 @@ const COLS: { key: keyof LibraryPost; label: string; num?: boolean }[] = [
   { key: "multiplier", label: "vs baseline", num: true },
 ];
 
-export default function ContentLibrary({ posts }: { posts: LibraryPost[] }) {
+/** The question the Strategist opens with for one post: its real numbers, no guesses. */
+function whyQuestion(p: LibraryPost): string {
+  const nums = [
+    p.views != null ? `${p.views.toLocaleString("en-US")} views` : null,
+    p.reach != null ? `${p.reach.toLocaleString("en-US")} reach` : null,
+    `${p.engagements.toLocaleString("en-US")} engagements`,
+    p.multiplier != null ? `${p.multiplier.toFixed(1)}× my baseline` : null,
+  ].filter(Boolean);
+  const when = new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `Why did my ${p.format.toLowerCase()} "${displayTitle(p.caption)}" (${when}, ${nums.join(", ")}) perform the way it did, and what should I do next with it?`;
+}
+
+export default function ContentLibrary({ posts, embedded = false }: { posts: LibraryPost[]; embedded?: boolean }) {
   const [format, setFormat] = useState("all");
   const [sort, setSort] = useState<{ col: keyof LibraryPost; dir: 1 | -1 }>({
     col: "published",
@@ -88,7 +101,7 @@ export default function ContentLibrary({ posts }: { posts: LibraryPost[] }) {
   }
 
   return (
-    <section className="dsh-panel dsh-tablewrap">
+    <section className={embedded ? "lib-embedded" : "dsh-panel dsh-tablewrap"}>
       <div className="dsh-panel-head">
         <div className="lib-filters">
           {formats.map((f) => (
@@ -155,11 +168,27 @@ export default function ContentLibrary({ posts }: { posts: LibraryPost[] }) {
                   )}
                 </td>
                 <td className="num">
-                  {p.permalink && (
-                    <a href={p.permalink} target="_blank" rel="noreferrer" className="dsh-link" aria-label="Open on Instagram">
-                      <ExternalLink size={13} />
-                    </a>
-                  )}
+                  <span className="lib-actions">
+                    <Link
+                      href={`/chat?q=${encodeURIComponent(whyQuestion(p))}`}
+                      className="lib-act"
+                      title="Ask the Strategist about this post"
+                    >
+                      <Sparkles size={11} /> Why
+                    </Link>
+                    <Link
+                      href={`/calendar?compose=1&caption=${encodeURIComponent(displayTitle(p.caption))}`}
+                      className="lib-act ghost"
+                      title="Open a calendar draft that follows up on this post"
+                    >
+                      <CalendarPlus size={11} /> Follow-up
+                    </Link>
+                    {p.permalink && (
+                      <a href={p.permalink} target="_blank" rel="noreferrer" className="dsh-link lib-open" aria-label="Open on Instagram">
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                  </span>
                 </td>
               </tr>
             ))}

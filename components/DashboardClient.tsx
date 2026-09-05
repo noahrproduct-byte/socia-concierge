@@ -585,7 +585,7 @@ export default function DashboardClient({
       <section className="dsh-panel dsh-tablewrap">
         <div className="dsh-panel-head">
           <h2>Recent content performance</h2>
-          <Link href="/content" className="dsh-link">View all content <ArrowRight size={12} /></Link>
+          <Link href="/analytics#posts" className="dsh-link">View all posts <ArrowRight size={12} /></Link>
         </div>
         {posts.length ? (
           <div className="dsh-tablescroll">
