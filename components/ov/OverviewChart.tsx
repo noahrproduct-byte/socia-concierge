@@ -4,7 +4,7 @@
 // metric, an optional quieter series for the previous period, hover and
 // keyboard tooltips. Data arrives already computed; nothing is estimated here.
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fmtNum, type Series, type SeriesPoint } from "@/lib/overview";
 
 type Props = {
@@ -23,7 +23,6 @@ const labelDay = (day: string) => new Date(day + "T00:00:00Z").toLocaleDateStrin
 const labelFull = (day: string) => new Date(day + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 export default function OverviewChart({ series, granularity = "day", showPrevious = true, height = 240, compact = false, onPick }: Props) {
-  const id = useId();
   const [hover, setHover] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -64,8 +63,7 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
 
   return (
     <div className={`ov-chart${empty ? " empty" : ""}`} data-metric={series.metric}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-labelledby={`${id}-t`} className="ov-chart-svg">
-        <title id={`${id}-t`}>{series.label}, {granularity === "week" ? "weekly" : "daily"}</title>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${series.label}, ${granularity === "week" ? "weekly" : "daily"}`} className="ov-chart-svg">
         {Array.from({ length: ticks + 1 }, (_, t) => {
           const v = (max / ticks) * t;
           const gy = y(v);
