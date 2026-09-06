@@ -17,6 +17,7 @@ import AudienceBars from "./ov/AudienceBars";
 import MiniArea from "./ov/MiniArea";
 import DateRangeSelector from "./DateRangeSelector";
 import AccountSwitcher from "./AccountSwitcher";
+import Mounted from "./ov/Mounted";
 import { weekly, rankPosts, fmtNum, audienceInsight, type Kpi, type Series, type MetricId, type Insight, type PostCard, type Slice, type PlatformRow } from "@/lib/overview";
 import type { Demographics } from "@/lib/igDemographics";
 import type { CalPost } from "@/lib/audience";
@@ -51,10 +52,14 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   const [gran, setGran] = useState<"day" | "week">(d.rangeDays > 31 ? "week" : "day");
   const [contentTab, setContentTab] = useState<"top" | "under" | "format" | "platform">("top");
   const [open, setOpen] = useState<PostCard | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // The timing insight needs the viewer's clock: added after mount only.
   const insights = useMemo(() => {
+    if (!mounted) return d.insights;
     const w = audienceInsight(d.timed);
     return w ? [...d.insights, w] : d.insights;
-  }, [d.insights, d.timed]);
+  }, [d.insights, d.timed, mounted]);
 
   // Section tabs follow the scroll position.
   useEffect(() => {
@@ -99,8 +104,10 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
           <p>Understand what&apos;s working, what&apos;s not, and where to grow.</p>
         </div>
         <div className="dv-head-actions">
-          <AccountSwitcher />
-          <DateRangeSelector />
+          <Mounted fallback={<span className="ov-ctl-ph" aria-hidden />}>
+            <AccountSwitcher />
+            <DateRangeSelector />
+          </Mounted>
           <a href="/api/export" download className="ov-btn ghost"><Download size={14} /> Export</a>
         </div>
       </header>

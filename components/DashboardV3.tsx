@@ -15,6 +15,7 @@ import ContentDrawer from "./ov/ContentDrawer";
 import { InsightList } from "./ov/Insights";
 import DateRangeSelector from "./DateRangeSelector";
 import AccountSwitcher from "./AccountSwitcher";
+import Mounted from "./ov/Mounted";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
 
@@ -73,9 +74,10 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
   }, []);
   // Timing is a client-side insight (viewer's time zone); it joins the list last.
   const insights = useMemo(() => {
+    if (!clock) return d.insights;
     const w = audienceInsight(d.timed);
     return w ? [...d.insights, w] : d.insights;
-  }, [d.insights, d.timed]);
+  }, [d.insights, d.timed, clock]);
   const slices: Slice[] = d.platforms
     .filter((p) => p.connected && p.value != null && p.value > 0)
     .map((p) => ({ label: p.label, value: p.value!, share: p.share, count: 0, tone: p.id === "instagram" ? "primary" : p.id === "tiktok" ? "info" : p.id === "youtube" ? "danger" : "info" }));
@@ -88,8 +90,10 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
           <p>Here&apos;s what&apos;s happening with your content.</p>
         </div>
         <div className="dv-head-actions">
-          <AccountSwitcher />
-          <DateRangeSelector />
+          <Mounted fallback={<span className="ov-ctl-ph" aria-hidden />}>
+            <AccountSwitcher />
+            <DateRangeSelector />
+          </Mounted>
           <Link href="/tool" className="ov-btn primary"><Sparkles size={14} /> Generate Content</Link>
         </div>
       </header>

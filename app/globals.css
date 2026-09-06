@@ -11577,3 +11577,4 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .dv-focus-line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ov-ctl-ph { display: inline-block; width: 150px; height: 36px; border-radius: 10px; background: var(--surface-muted); }

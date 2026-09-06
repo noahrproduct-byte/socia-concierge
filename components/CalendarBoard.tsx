@@ -213,8 +213,10 @@ export default function CalendarBoard({
     ? 7 - new Set(thisWeek.map((p) => (new Date(p.scheduled_at).getDay() + 6) % 7)).size
     : 0;
 
+  // Hours are the viewer's, so this sentence exists only after mount (the
+  // server would compute it in UTC and the text wouldn't match).
   const bestLine =
-    aud.peak != null
+    now && aud.peak != null
       ? `${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)} gets the most reach with your audience.`
       : null;
 
