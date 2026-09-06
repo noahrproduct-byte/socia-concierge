@@ -61,7 +61,7 @@ export default function ContentRow({ posts, onOpen, size = "md" }: { posts: Post
               <span className="ov-card-title">{p.title}</span>
               {p.multiplier != null && p.multiplier >= 1.05 && <span className="ov-card-mult">+{p.multiplier.toFixed(1)}x</span>}
             </span>
-            <span className="ov-card-date">{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+            <span className="ov-card-date">{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>
           </button>
         ))}
       </div>

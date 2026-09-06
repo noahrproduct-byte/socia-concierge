@@ -7,7 +7,7 @@
 import type { IgMediaItem } from "./instagramSync";
 import type { DailySnapshot } from "./dashboardMetrics";
 import { engagementOf, median, postsPerWeek, pctChange } from "./metrics";
-import { bestWindow, type TimedPost } from "./bestTime";
+import { buildAudience, hourLabel, DOW, type CalPost } from "./audience";
 import type { Deliverable } from "./schema";
 import type { ScheduledPost } from "./scheduling";
 
@@ -451,21 +451,8 @@ export function buildInsights(input: {
     }
   }
 
-  // 4. Best window (audience timing from the account's own posts)
-  const timed: TimedPost[] = dated.map((m) => ({ t: m.timestamp!, e: eng(m) }));
-  const win = bestWindow(timed, 5);
-  if (win) {
-    out.push({
-      id: "window", kind: "window", tone: "info",
-      title: `Your audience engages most ${win.short}`,
-      body: `Computed from when your last ${timed.length} posts earned their engagement.`,
-      observed: [`Best window: ${win.long}`, `Sample: ${timed.length} dated posts`],
-      interpretation: "Posts published into the window get their first engagement faster, which Instagram reads as a signal to keep distributing.",
-      recommendation: `Schedule this week's most important post for ${win.short}.`,
-      postIds: [],
-      planNote: `Best engagement window: ${win.long}.`,
-    });
-  }
+  // 4. Best window lives in audienceInsight(): it must run in the viewer's
+  //    time zone, so the client adds it.
 
   // 5. Cadence
   const cur = postsPerWeek(dated.map((m) => m.timestamp), 30);
@@ -507,6 +494,25 @@ export function buildInsights(input: {
 
   const order: Insight["kind"][] = ["outlier", "format", "location", "trend", "window", "cadence"];
   return out.sort((x, y) => order.indexOf(x.kind) - order.indexOf(y.kind));
+}
+
+/** The timing insight, computed where the viewer's clock is (client side), with
+ *  the same rule the Calendar and Best Times use. null below five posts. */
+export function audienceInsight(posts: CalPost[]): Insight | null {
+  const aud = buildAudience(posts);
+  if (!aud.enough || !aud.peak) return null;
+  const when = `${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)}`;
+  const bestDays = aud.bestDays.map((d) => DOW[d]).join(", ");
+  return {
+    id: "window", kind: "window", tone: "info",
+    title: `Your audience engages most ${when}`,
+    body: `From when your last ${aud.postCount} posts earned their engagement, in your time zone.`,
+    observed: [`Peak window: ${when}`, `Best days: ${bestDays || "no day stands out yet"}`, `Sample: ${aud.postCount} dated posts`],
+    interpretation: "Posts published into the window get their first engagement faster, which Instagram reads as a signal to keep distributing.",
+    recommendation: `Schedule this week's most important post for ${when}.`,
+    postIds: [],
+    planNote: `Best engagement window: ${when}.`,
+  };
 }
 
 // --------------------------------------------------------- plan & goals ----

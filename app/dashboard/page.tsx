@@ -6,7 +6,7 @@ import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import { getPerformanceBaseline, type AccountInput, type DailySnapshot } from "@/lib/dashboardMetrics";
-import { median } from "@/lib/metrics";
+import { median, engagementOf } from "@/lib/metrics";
 import AppShell from "@/components/AppShell";
 import SyncCinematic from "@/components/SyncCinematic";
 import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
@@ -183,6 +183,7 @@ export default async function DashboardPage({
   const d: DashboardData = {
     greeting, name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,
     insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
+    timed: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engagementOf(m) })),
   };
 
   return (

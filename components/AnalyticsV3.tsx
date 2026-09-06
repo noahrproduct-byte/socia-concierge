@@ -16,7 +16,8 @@ import BestTimes from "./ov/BestTimes";
 import AudienceBars from "./ov/AudienceBars";
 import MiniArea from "./ov/MiniArea";
 import DateRangeSelector from "./DateRangeSelector";
-import { weekly, rankPosts, fmtNum, type Kpi, type Series, type MetricId, type Insight, type PostCard, type Slice, type PlatformRow } from "@/lib/overview";
+import AccountSwitcher from "./AccountSwitcher";
+import { weekly, rankPosts, fmtNum, audienceInsight, type Kpi, type Series, type MetricId, type Insight, type PostCard, type Slice, type PlatformRow } from "@/lib/overview";
 import type { Demographics } from "@/lib/igDemographics";
 import type { CalPost } from "@/lib/audience";
 
@@ -50,6 +51,10 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   const [gran, setGran] = useState<"day" | "week">(d.rangeDays > 31 ? "week" : "day");
   const [contentTab, setContentTab] = useState<"top" | "under" | "format" | "platform">("top");
   const [open, setOpen] = useState<PostCard | null>(null);
+  const insights = useMemo(() => {
+    const w = audienceInsight(d.timed);
+    return w ? [...d.insights, w] : d.insights;
+  }, [d.insights, d.timed]);
 
   // Section tabs follow the scroll position.
   useEffect(() => {
@@ -94,6 +99,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
           <p>Understand what&apos;s working, what&apos;s not, and where to grow.</p>
         </div>
         <div className="dv-head-actions">
+          <AccountSwitcher />
           <DateRangeSelector />
           <a href="/api/export" download className="ov-btn ghost"><Download size={14} /> Export</a>
         </div>
@@ -181,7 +187,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
               <h2 id="av-ins-h"><span className="ov-h-ico primary"><Lightbulb size={14} /></span> Key Insights</h2>
               <Link href="/chat" className="ov-link">Ask</Link>
             </div>
-            <InsightList insights={d.insights.slice(0, 4)} posts={d.posts} />
+            <InsightList insights={insights.slice(0, 4)} posts={d.posts} />
           </section>
 
           <section id="an-growth" className="ov-card" aria-labelledby="av-growth-h">

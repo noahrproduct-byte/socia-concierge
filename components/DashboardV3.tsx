@@ -3,7 +3,7 @@
 // Dashboard: quick understanding. Every number arrives computed on the server
 // from the account's own rows (lib/overview); this file only lays it out.
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sparkles, ArrowRight, Send, Target, Film, MapPin, Users, Zap, Plus, CalendarDays, Star } from "lucide-react";
@@ -14,7 +14,9 @@ import ContentRow from "./ov/ContentRow";
 import ContentDrawer from "./ov/ContentDrawer";
 import { InsightList } from "./ov/Insights";
 import DateRangeSelector from "./DateRangeSelector";
-import { fmtNum, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
+import AccountSwitcher from "./AccountSwitcher";
+import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
+import type { CalPost } from "@/lib/audience";
 
 export type DashboardData = {
   greeting: string;
@@ -35,6 +37,7 @@ export type DashboardData = {
   upcoming: Upcoming[];
   goals: string[];
   trackers: GoalTracker[];
+  timed: CalPost[];
 };
 
 const TILE_ICON = { video: Film, map: MapPin, users: Users, target: Target } as const;
@@ -59,6 +62,20 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
   const [open, setOpen] = useState<PostCard | null>(null);
   const [ask, setAsk] = useState("");
   const series = d.series[metric];
+  // Anything that depends on the viewer's clock renders after mount: the
+  // server (UTC) and the browser must agree on the first paint.
+  const [greet, setGreet] = useState(d.greeting);
+  const [clock, setClock] = useState<Date | null>(null);
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreet(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
+    setClock(new Date());
+  }, []);
+  // Timing is a client-side insight (viewer's time zone); it joins the list last.
+  const insights = useMemo(() => {
+    const w = audienceInsight(d.timed);
+    return w ? [...d.insights, w] : d.insights;
+  }, [d.insights, d.timed]);
   const slices: Slice[] = d.platforms
     .filter((p) => p.connected && p.value != null && p.value > 0)
     .map((p) => ({ label: p.label, value: p.value!, share: p.share, count: 0, tone: p.id === "instagram" ? "primary" : p.id === "tiktok" ? "info" : p.id === "youtube" ? "danger" : "info" }));
@@ -67,10 +84,11 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
     <div className="dv">
       <header className="dv-head">
         <div>
-          <h1>{d.greeting}, {d.name} <span aria-hidden>👋</span></h1>
+          <h1>{greet}, {d.name} <span aria-hidden>👋</span></h1>
           <p>Here&apos;s what&apos;s happening with your content.</p>
         </div>
         <div className="dv-head-actions">
+          <AccountSwitcher />
           <DateRangeSelector />
           <Link href="/tool" className="ov-btn primary"><Sparkles size={14} /> Generate Content</Link>
         </div>
@@ -172,12 +190,17 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
                   {d.upcoming.map((u) => {
                     const s = STATUS[u.status];
                     const when = new Date(u.at);
-                    const today = new Date(); const tomorrow = new Date(Date.now() + 86400000);
-                    const dayLabel = when.toDateString() === today.toDateString() ? "Today" : when.toDateString() === tomorrow.toDateString() ? "Tomorrow" : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                    let dayLabel = "";
+                    let timeLabel = "";
+                    if (clock) {
+                      const tomorrow = new Date(clock.getTime() + 86400000);
+                      dayLabel = when.toDateString() === clock.toDateString() ? "Today" : when.toDateString() === tomorrow.toDateString() ? "Tomorrow" : when.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                      timeLabel = when.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                    }
                     return (
                       <li key={u.id}>
                         <Link href="/calendar" className="dv-up-row">
-                          <span className="dv-up-when"><b>{dayLabel}</b><small>{when.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</small></span>
+                          <span className="dv-up-when"><b>{dayLabel || " "}</b><small>{timeLabel || " "}</small></span>
                           {u.thumb ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={u.thumb} alt="" width={40} height={40} />
@@ -208,11 +231,11 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
             </div>
             <p className="ov-card-sub">Your personal content strategist.</p>
             <div className="dv-ai-bubble">
-              {d.greeting}, {d.name}! {d.insights.length
-                ? <>I looked at {d.handle ? `@${d.handle}` : "your account"}&apos;s recent performance. Here {d.insights.length === 1 ? "is the key opportunity" : `are ${d.insights.length} key opportunities`} for this week:</>
+              {greet}, {d.name}! {insights.length
+                ? <>I looked at {d.handle ? `@${d.handle}` : "your account"}&apos;s recent performance. Here {Math.min(insights.length, 3) === 1 ? "is the key opportunity" : `are ${Math.min(insights.length, 3)} key opportunities`} for this week:</>
                 : <>I need a few more posts on {d.handle ? `@${d.handle}` : "your account"} before I can point at anything I can prove.</>}
             </div>
-            <InsightList insights={d.insights.slice(0, 3)} numbered posts={d.posts} compact />
+            <InsightList insights={insights.slice(0, 3)} numbered posts={d.posts} compact />
             <Link href="/tool" className="ov-btn outline full">View full strategy <ArrowRight size={13} /></Link>
             <form className="dv-ask" onSubmit={(e) => { e.preventDefault(); if (ask.trim()) router.push(`/chat?q=${encodeURIComponent(ask.trim())}`); }}>
               <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="Ask SOCIA anything..." aria-label="Ask SOCIA" />

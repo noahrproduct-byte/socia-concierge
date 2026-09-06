@@ -21,7 +21,7 @@ export default function KpiCard({ kpi, iconLeft = false }: { kpi: Kpi; iconLeft?
       <div className="ov-kpi-body">
         <span className="ov-kpi-label">{kpi.label}</span>
         <span className="ov-kpi-row">
-          <b className={`ov-kpi-value${kpi.status !== "ok" ? " dim" : ""}`}>{kpi.value}</b>
+          <b className={`ov-kpi-value${kpi.status === "unavailable" ? " dim" : ""}`}>{kpi.value}</b>
           {kpi.deltaText && (
             <em className={`ov-kpi-delta ${kpi.positive === false ? "down" : "up"}`}>{kpi.deltaText}</em>
           )}
