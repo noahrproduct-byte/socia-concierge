@@ -14,10 +14,13 @@ const APPEARANCES: { value: Appearance; label: string; Icon: typeof Sun }[] = [
 export default function AccountMenu({
   email,
   plan = "free",
+  placement = "above",
 }: {
   email?: string | null;
   /** The user's real plan — never assumed. */
   plan?: "free" | "pro";
+  /** Where the menu opens relative to the trigger (sidebar: above; top bar: below). */
+  placement?: "above" | "below";
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,9 +37,9 @@ export default function AccountMenu({
   }, []);
 
   return (
-    <div className="acct" ref={ref}>
+    <div className={`acct ${placement}`} ref={ref}>
       {open && (
-        <div className="acct-menu" role="menu">
+        <div className={`acct-menu ${placement}`} role="menu">
           {/* quick appearance switch; Settings → Appearance is the full control */}
           <div className="acct-appearance">
             <span>Appearance</span>
@@ -76,7 +79,7 @@ export default function AccountMenu({
         <span className="acct-avatar">{initial}</span>
         <span className="acct-meta">
           <span className="acct-name">{name}</span>
-          <span className="acct-plan">{plan === "pro" ? "Pro plan" : "Free plan"}</span>
+          <span className="acct-plan">{placement === "below" ? "Business Account" : plan === "pro" ? "Pro plan" : "Free plan"}</span>
         </span>
         <ChevronsUpDown size={15} className="acct-chev" />
       </button>

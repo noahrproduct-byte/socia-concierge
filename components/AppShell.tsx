@@ -14,10 +14,11 @@ import {
   Play,
   Plus,
   Gem,
+  LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
-import AccountMenu from "@/components/AccountMenu";
 import BrandMark from "@/components/BrandMark";
+import TopBar, { type SearchItem } from "@/components/TopBar";
 import { ThemeSync } from "@/components/ThemeProvider";
 import { isAppearance, type Appearance } from "@/lib/appearance";
 import { createClient } from "@/lib/supabase/server";
@@ -25,6 +26,8 @@ import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { getPlan, type Plan } from "@/lib/plan";
+import { buildActivity, displayTitle, type Activity } from "@/lib/overview";
+import type { ScheduledPost } from "@/lib/scheduling";
 
 const FB_MARK = (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden>
@@ -43,7 +46,13 @@ const NAV: NavItem[] = [
   { href: "/scorer", label: "Video Scorer", Icon: Video, key: "scorer" },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
   { href: "/reports", label: "Reports", Icon: FileBarChart, key: "reports" },
-  { href: "/settings", label: "Settings", Icon: Settings, key: "settings" },
+];
+
+const PAGES: SearchItem[] = [
+  ...NAV.map((n) => ({ kind: "page" as const, label: n.label, href: n.href })),
+  { kind: "page", label: "Settings", href: "/settings" },
+  { kind: "page", label: "Appearance", hint: "Settings", href: "/settings#appearance" },
+  { kind: "page", label: "Connected accounts", hint: "Settings", href: "/settings#accounts" },
 ];
 
 export default async function AppShell({
@@ -55,76 +64,66 @@ export default async function AppShell({
   userEmail?: string | null;
   children: React.ReactNode;
 }) {
-  // Channel state for the sidebar (best effort; the shell renders fine without it).
+  // Shell state (best effort; the shell renders fine without any of it).
   let igUsername: string | null = null;
   let fbPageName: string | null = null;
   let platforms: string[] = [];
   let plan: Plan = "free";
   let appearance: Appearance | null = null;
+  let searchIndex: SearchItem[] = PAGES;
+  let activity: Activity[] = [];
   try {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      // The ACTIVE connection — with multi-account there can be several rows.
-      const [conn, fbRes, profRes, planRes] = await Promise.all([
-        getActiveConnection(supabase, user.id, "username"),
-        supabase
-          .from("facebook_connections")
-          .select("page_name, connection_status")
-          .eq("user_id", user.id)
-          .maybeSingle(),
+      const [conn, fbRes, profRes, planRes, schedRes, plansRes] = await Promise.all([
+        getActiveConnection(supabase, user.id, "username, media, last_synced_at"),
+        supabase.from("facebook_connections").select("page_name, connection_status").eq("user_id", user.id).maybeSingle(),
         supabase.from("profiles").select("platforms, appearance").eq("user_id", user.id).maybeSingle(),
         getPlan(supabase, user.id),
+        supabase.from("scheduled_posts").select("*").eq("user_id", user.id).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
+        supabase.from("plans").select("id, created_at, client_handle").eq("user_id", user.id).order("created_at", { ascending: false }).limit(3),
       ]);
-      igUsername = (conn as { username?: string } | null)?.username ?? null;
-      fbPageName =
-        fbRes.data?.connection_status === "connected" ? (fbRes.data.page_name ?? "Facebook") : null;
+      const c = conn as { username?: string; media?: { id?: string; caption?: string; timestamp?: string; permalink?: string }[]; last_synced_at?: string } | null;
+      igUsername = c?.username ?? null;
+      fbPageName = fbRes.data?.connection_status === "connected" ? (fbRes.data.page_name ?? "Facebook") : null;
       let prof = profRes.data as { platforms?: string[]; appearance?: string } | null;
       if (profRes.error) {
-        // `appearance` column not migrated yet: read the legacy shape.
         const { data } = await supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle();
         prof = data as { platforms?: string[] } | null;
       }
       platforms = prof?.platforms ?? [];
       appearance = isAppearance(prof?.appearance) ? prof.appearance : null;
       plan = planRes;
+      const posts: SearchItem[] = (c?.media ?? [])
+        .filter((m) => m.caption)
+        .slice(0, 60)
+        .map((m) => ({
+          kind: "post" as const,
+          label: displayTitle(m.caption ?? ""),
+          hint: m.timestamp ? new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : undefined,
+          href: m.permalink ?? "/analytics#posts",
+        }));
+      searchIndex = [...PAGES, ...posts];
+      activity = buildActivity({
+        scheduled: ((schedRes.data ?? []) as ScheduledPost[]),
+        plans: (plansRes.data ?? []) as { id: string; created_at: string; client_handle: string | null }[],
+        syncedAt: c?.last_synced_at ?? null,
+        handle: igUsername,
+      });
     }
   } catch {
-    // sidebar still renders with default channel rows
+    // sidebar still renders with default rows
   }
 
   const igConnect = igConfigured() ? "/api/auth/instagram/start" : "/settings";
-  const channels = [
-    {
-      id: "ig",
-      label: igUsername ? `@${igUsername}` : "Instagram",
-      on: Boolean(igUsername) || platforms.includes("Instagram"),
-      href: igUsername ? "/settings" : igConnect,
-      icon: <Camera size={15} />,
-    },
-    {
-      id: "fb",
-      label: fbPageName ?? "Facebook",
-      on: Boolean(fbPageName) || platforms.includes("Facebook"),
-      href: fbPageName ? "/settings" : fbConfigured() ? "/api/auth/facebook/start" : "/settings",
-      icon: FB_MARK,
-    },
-    {
-      id: "tt",
-      label: "TikTok",
-      on: platforms.includes("TikTok"),
-      href: "/settings",
-      icon: <Music2 size={15} />,
-    },
-    {
-      id: "yt",
-      label: "YouTube",
-      on: platforms.includes("YouTube"),
-      href: "/settings",
-      icon: <Play size={15} fill="#fff" />,
-    },
+  const accounts = [
+    { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername) || platforms.includes("Instagram"), href: igUsername ? "/settings#accounts" : igConnect, icon: <Camera size={14} /> },
+    { id: "fb", label: fbPageName ?? "Facebook", on: Boolean(fbPageName) || platforms.includes("Facebook"), href: fbPageName ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts", icon: FB_MARK },
+    { id: "tt", label: "TikTok", on: platforms.includes("TikTok"), href: "/settings#accounts", icon: <Music2 size={14} /> },
+    { id: "yt", label: "YouTube", on: platforms.includes("YouTube"), href: "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
   ];
 
   return (
@@ -132,42 +131,54 @@ export default async function AppShell({
       <ThemeSync appearance={appearance} />
       <aside className="side">
         <Link href="/dashboard" className="side-logo">
-          <BrandMark size={32} />
+          <BrandMark size={30} />
           <span className="side-word">SOCIA</span>
         </Link>
 
-        <div className="side-sec">Channels</div>
+        <nav className="side-nav" aria-label="Main">
+          {NAV.map(({ href, label, Icon, key }) => (
+            <Link key={key} href={href} className={`side-link${active === key ? " active" : ""}`} aria-current={active === key ? "page" : undefined}>
+              <Icon size={17} strokeWidth={2} className="side-ico" />
+              <span>{label}</span>
+            </Link>
+          ))}
+        </nav>
+
+        <div className="side-sec">Social Accounts</div>
         <div className="side-channels">
-          {channels.map((c) => (
+          {accounts.map((c) => (
             <Link key={c.id} href={c.href} className="chan-row" title={c.on ? "Manage in settings" : "Connect"}>
               <span className={`chan-ico ${c.id}`}>{c.icon}</span>
               <span className="chan-label">{c.label}</span>
               {c.on ? <span className="chan-dot" aria-label="connected" /> : <span className="chan-add"><Plus size={12} /></span>}
             </Link>
           ))}
+          <Link href="/settings#accounts" className="side-add"><Plus size={13} /> Add Account</Link>
         </div>
 
-        <div className="side-sec">Tools</div>
-        <nav className="side-nav" aria-label="Main">
-          {NAV.map(({ href, label, Icon, key }) => (
-            <Link key={key} href={href} className={`side-link${active === key ? " active" : ""}`}>
-              <Icon size={18} strokeWidth={2} className="side-ico" />
-              <span>{label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <div className="side-foot">
+        <div className="side-bottom">
           {plan !== "pro" && (
-            <Link href="/settings#plan" className="side-upgrade">
-              <Gem size={14} /> Upgrade to Pro
+            <Link href="/settings#plan" className="side-upcard">
+              <span className="side-upcard-head"><Gem size={14} /> Upgrade to Pro</span>
+              <small>Get advanced insights, more competitors and AI tools.</small>
+              <span className="side-upcard-btn">Upgrade</span>
             </Link>
           )}
-          <AccountMenu email={userEmail} plan={plan} />
+          <Link href="/settings" className={`side-link${active === "settings" ? " active" : ""}`} aria-current={active === "settings" ? "page" : undefined}>
+            <Settings size={17} strokeWidth={2} className="side-ico" />
+            <span>Settings</span>
+          </Link>
+          <Link href="/#faq" className="side-link">
+            <LifeBuoy size={17} strokeWidth={2} className="side-ico" />
+            <span>Help &amp; Support</span>
+          </Link>
         </div>
       </aside>
 
-      <main className="app-main">{children}</main>
+      <main className="app-main">
+        <TopBar email={userEmail} plan={plan} index={searchIndex} activity={activity} />
+        <div className="app-content">{children}</div>
+      </main>
     </div>
   );
 }

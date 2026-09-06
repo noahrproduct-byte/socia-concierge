@@ -1,89 +1,27 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Link2 } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
-import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
-import TimeZoneNote from "@/components/TimeZoneNote";
-import DashboardClient, {
-  type DashMetric,
-  type DashPost,
-  type DashDaily,
-  type DashInsight,
-} from "@/components/DashboardClient";
-import {
-  getFollowers,
-  getReach,
-  getPerformanceBaseline,
-  changeVsPrevious,
-  getEngagementRate,
-  getAverageLikes,
-  getPostsPublished,
-  getFollowerGrowth,
-  getFollowersGained,
-  getTopPosts,
-  getBestPostingWindow,
-  getLifetimePosts,
-  ENGAGEMENT_RATE_FORMULA,
-  type AccountInput,
-  type DailySnapshot,
-} from "@/lib/dashboardMetrics";
+import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
+import { getPerformanceBaseline, type AccountInput, type DailySnapshot } from "@/lib/dashboardMetrics";
+import { median } from "@/lib/metrics";
 import AppShell from "@/components/AppShell";
-import DateRangeSelector from "@/components/DateRangeSelector";
-import AccountSwitcher from "@/components/AccountSwitcher";
 import SyncCinematic from "@/components/SyncCinematic";
-import LiveSync from "@/components/LiveSync";
-
+import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
+import {
+  RANGES, rangeDays, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming,
+  type PlatformRow,
+} from "@/lib/overview";
+import type { Deliverable } from "@/lib/schema";
+import type { ScheduledPost } from "@/lib/scheduling";
 
 export const metadata = { title: "Dashboard — SOCIA" };
 
-
-// ---- real-data helpers (synced Instagram snapshot) ----
-function fmtNum(n: number | null | undefined): string {
-  if (n == null) return "–";
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
-  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
-  return String(n);
-}
-const engOfPost = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
-function medianOf(xs: number[]): number | null {
-  if (!xs.length) return null;
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-function agoLabel(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 2) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
-}
-function fmtDate(ts?: string): string {
-  if (!ts) return "";
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-function formatLabel(t?: string): string {
-  if (t === "VIDEO") return "Reel";
-  if (t === "CAROUSEL_ALBUM") return "Carousel";
-  return "Post";
-}
-
-type ContentRow = {
-  title: string;
-  date: string;
-  format: string;
-  platform: "ig" | "tt" | "yt";
-  aVal: string;
-  aLabel: string;
-  bVal: string;
-  bLabel: string;
-  mult: string | null;
-  engagement?: number;
-};
-
+// The dashboard answers: how am I doing, what changed, what's working, what
+// needs attention, what should I do next. Every figure is computed in
+// lib/overview from the account's own rows; nothing on this page is a sample.
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -94,9 +32,9 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
   const { ig, range: rangeParam } = await searchParams;
   const justConnected = ig === "connected";
-
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
@@ -104,10 +42,10 @@ export default async function DashboardPage({
 
   const profile = await getProfile(supabase, user.id);
   const connected = profile?.account_connected ?? false;
+  const snap = connected ? await getIgSnapshot(supabase, user.id) : null;
+  const live = Boolean(snap && snap.followers_count != null);
 
-  // No social account connected yet → show a real connect/empty state,
-  // not fabricated analytics.
-  if (!connected) {
+  if (!connected || !live) {
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     return (
       <AppShell active="dashboard" userEmail={user.email}>
@@ -185,294 +123,72 @@ export default async function DashboardPage({
     );
   }
 
-  // Date range drives every period metric on the page (?range=7|30|90|...).
-  const RANGE_DAYS: Record<string, number> = { "7": 7, "30": 30, "90": 90, "180": 180, "365": 365 };
-  const rangeId = rangeParam && (RANGE_DAYS[rangeParam] || rangeParam === "all") ? rangeParam : "30";
-
-  const snap = await getIgSnapshot(supabase, user.id);
-  const media = snap?.media ?? [];
-  const live = Boolean(snap && snap.followers_count != null);
+  const rangeId = (RANGES.some((r) => r.id === rangeParam) ? rangeParam : "30") as string;
+  const days = rangeDays(rangeId);
+  const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
+  const media = snap!.media ?? [];
 
   let dailyRows: DailySnapshot[] = [];
   try {
-    dailyRows = await readDailySnapshots<DailySnapshot>(
-      supabase,
-      user.id,
-      snap?.ig_user_id ?? null,
-      "day, followers, reach, views, followers_gained, source",
-    );
+    dailyRows = await readDailySnapshots<DailySnapshot>(supabase, user.id, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source");
   } catch {
     // snapshots table may not exist yet — series render their empty states
   }
-
-  const oldestPost = media.length
-    ? Math.min(...media.filter((m) => m.timestamp).map((m) => new Date(m.timestamp!).getTime()))
-    : null;
-  const oldestSnap = dailyRows.length ? new Date(dailyRows[0].day + "T00:00:00").getTime() : null;
-  const allDays = Math.max(
-    7,
-    Math.ceil((Date.now() - Math.min(oldestPost ?? Infinity, oldestSnap ?? Infinity)) / 86400000) || 30,
-  );
-  const rangeDays = rangeId === "all" ? allDays : RANGE_DAYS[rangeId];
+  const [schedRes, plansRes] = await Promise.all([
+    supabase.from("scheduled_posts").select("*").eq("user_id", user.id).neq("status", "cancelled")
+      .gte("scheduled_at", new Date(Date.now() - 30 * DAY_MS).toISOString()).order("scheduled_at", { ascending: true }).limit(200),
+    supabase.from("plans").select("id, data, created_at, client_handle").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
+  ]);
+  const scheduled = (schedRes.data ?? []) as ScheduledPost[];
+  const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
+  const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
   const acct: AccountInput = {
-    followers: snap?.followers_count ?? null,
-    lifetimePosts: snap?.media_count ?? null,
-    posts: media,
-    daily: dailyRows,
-    syncedAt: snap?.last_synced_at ?? null,
-    platform: "instagram",
-    handle: snap?.username ?? null,
+    followers: snap!.followers_count ?? null, lifetimePosts: snap!.media_count ?? null, posts: media, daily: dailyRows,
+    syncedAt: snap!.last_synced_at ?? null, platform: "instagram", handle: snap!.username ?? null,
   };
+  const baseline = getPerformanceBaseline(acct).value;
+  const posts = postCards(media, baseline);
+  const top = rankPosts(posts, "views", 8);
+  const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
 
-  // --- metrics strip (every value from the central service) ---
-  const followersM = getFollowers(acct);
-  const growthM = getFollowerGrowth(acct, rangeDays);
-  const gainedM = getFollowersGained(acct, rangeDays);
-  const reachM = getReach(acct, rangeDays);
-  const engRateM = getEngagementRate(acct);
-  const publishedM = getPostsPublished(acct, rangeDays);
-  const baselineM = getPerformanceBaseline(acct);
+  const kpisAll = buildKpis({ media, daily: dailyRows, followers: snap!.followers_count ?? null, days });
+  const kpis = (["views", "engagement_rate", "followers", "posts"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
+  const series = {
+    views: buildSeries("views", media, dailyRows, days),
+    engagement: buildSeries("engagement", media, dailyRows, days),
+    followers: buildSeries("followers", media, dailyRows, days),
+  };
+  const brand = profile?.brand_detail ?? null;
+  const insights = buildInsights({ media, baseline, location: brand?.location ?? null, handle: snap!.username ?? null });
+  const focus = buildFocus(latestPlan);
+  const upcoming = buildUpcoming(scheduled);
 
-  const since = Date.now() - rangeDays * 86400000;
-  const prevSince = since - rangeDays * 86400000;
-  const inRange = media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since);
-  const prevRange = media.filter(
-    (m) => m.timestamp && new Date(m.timestamp).getTime() >= prevSince && new Date(m.timestamp).getTime() < since,
-  );
-  const engIn = inRange.reduce((s2, m) => s2 + engOfPost(m), 0);
-  const historyCoversPrev = oldestPost != null && oldestPost <= prevSince;
-  const engPrev =
-    prevRange.length || historyCoversPrev
-      ? prevRange.reduce((s2, m) => s2 + engOfPost(m), 0)
-      : null;
-  const engDelta = changeVsPrevious(engIn, engPrev);
-  const postsDelta = prevRange.length || historyCoversPrev ? inRange.length - prevRange.length : null;
+  const follRows = dailyRows.filter((d) => d.followers != null && d.day >= new Date(Date.now() - 30 * DAY_MS).toISOString().slice(0, 10));
+  const followerDelta30 = follRows.length >= 2 ? follRows[follRows.length - 1].followers! - follRows[0].followers! : null;
+  const { goals, trackers } = buildGoals({
+    goalsText: profile?.goals ?? null, plan: latestPlan, scheduled, media,
+    frequency: brand?.strategist?.frequency ?? null, followerDelta30,
+  });
 
-  const reachRows = dailyRows.filter((d) => d.reach != null);
-  const reachPrev = dailyRows.filter(
-    (d) => d.reach != null && d.day < new Date(since).toISOString().slice(0, 10) &&
-      d.day >= new Date(prevSince).toISOString().slice(0, 10),
-  );
-  const reachPrevTotal = reachPrev.length ? reachPrev.reduce((s2, d) => s2 + (d.reach ?? 0), 0) : null;
-  const reachDelta = reachM.value != null ? changeVsPrevious(reachM.value, reachPrevTotal) : null;
+  const platformMetric: "views" | "engagement" = series.views.total != null ? "views" : "engagement";
+  const platformTotal = platformMetric === "views" ? series.views.total : series.engagement.total;
+  const platforms: PlatformRow[] = [
+    { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === (platformMetric === "views" ? "views" : "engagement_rate"))?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
+    { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "facebook", label: "Facebook", connected: false, value: null, deltaPct: null, share: 0 },
+  ];
 
-  const fmtShort = (ms: number) =>
-    new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const periodNote = `vs ${fmtShort(prevSince)} – ${fmtShort(since - 86400000)}`;
-  const metricsStrip: DashMetric[] = live
-    ? [
-        {
-          key: "followers",
-          label: "Followers",
-          value: followersM.value != null ? followersM.value.toLocaleString("en-US") : "—",
-          raw: followersM.value,
-          delta: growthM.value != null ? `${growthM.value >= 0 ? "+" : ""}${growthM.value.toLocaleString("en-US")}`
-            : gainedM.value != null ? `+${gainedM.value.toLocaleString("en-US")} new` : null,
-          deltaPct: null,
-          positive: (growthM.value ?? gainedM.value ?? 0) >= 0,
-          note: growthM.value != null ? periodNote : gainedM.value != null ? `new followers · ${periodNote}` : "history collecting",
-          spark: dailyRows.filter((d) => d.followers_gained != null).slice(-30).map((d) => d.followers_gained!),
-          tooltip: `${followersM.source} · ${followersM.method}`,
-        },
-        {
-          key: "reach",
-          label: "Reach",
-          value: reachM.value != null ? fmtNum(reachM.value) : "—",
-          raw: reachM.value,
-          delta: null,
-          deltaPct: reachDelta?.value != null ? `${reachDelta.value >= 0 ? "+" : ""}${reachDelta.value.toFixed(1)}%` : null,
-          positive: (reachDelta?.value ?? 0) >= 0,
-          note: reachM.value != null ? (reachDelta?.value != null ? periodNote : `last ${rangeDays} days`) : "collecting history",
-          spark: reachRows.slice(-30).map((d) => d.reach!),
-          tooltip: `${reachM.source} · ${reachM.method}`,
-        },
-        {
-          key: "engagements",
-          label: "Engagements",
-          value: engIn.toLocaleString("en-US"),
-          raw: engIn,
-          delta: engPrev != null ? `${engIn - engPrev >= 0 ? "+" : ""}${(engIn - engPrev).toLocaleString("en-US")}` : null,
-          deltaPct: engDelta.value != null ? `${engDelta.value >= 0 ? "+" : ""}${engDelta.value.toFixed(1)}%` : null,
-          positive: engPrev == null || engIn >= engPrev,
-          note: engPrev != null ? periodNote : "on posts published this period",
-          spark: [],
-          tooltip: "Likes + comments on posts published in the selected period (current totals from Instagram).",
-        },
-        {
-          key: "engrate",
-          label: "Engagement rate",
-          value: engRateM.value != null ? engRateM.value.toFixed(2) + "%" : "—",
-          raw: engRateM.value,
-          delta: null,
-          deltaPct: null,
-          positive: true,
-          note: engRateM.value != null ? engRateM.period : "unavailable",
-          spark: [],
-          tooltip: `${ENGAGEMENT_RATE_FORMULA} · ${engRateM.method}`,
-        },
-        {
-          key: "posts",
-          label: "Posts",
-          value: String(publishedM.value ?? 0),
-          raw: publishedM.value,
-          delta: postsDelta != null ? `${postsDelta >= 0 ? "+" : ""}${postsDelta}` : null,
-          deltaPct: null,
-          positive: (postsDelta ?? 0) >= 0,
-          note: postsDelta != null ? periodNote : `last ${rangeDays} days`,
-          spark: [],
-          tooltip: publishedM.method,
-        },
-      ]
-    : [];
-
-  // --- per-post rows (real insights only) ---
-  const base = baselineM.value;
-  const allDashPosts: DashPost[] = media
-    .filter((m) => m.timestamp)
-    .sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime())
-    .map((m, i) => {
-      const e = engOfPost(m);
-      const reach = m.insights?.reach ?? null;
-      return {
-        id: m.id ?? String(i),
-        caption: (m.caption || "").split("\n")[0].trim(),
-        published: m.timestamp!,
-        format: formatLabel(m.media_type),
-        views: m.insights?.views ?? null,
-        reach,
-        engagements: e,
-        engRate: reach && reach > 0 ? (e / reach) * 100 : null,
-        multiplier: base && base > 0 ? e / base : null,
-        thumb: m.thumbnail_url || m.media_url || null,
-        permalink: m.permalink ?? null,
-      };
-    });
-  const dashPosts = allDashPosts.slice(0, 5); // executive view — full list lives on /content
-  const topDashPosts = [...allDashPosts]
-    .sort((a, b) => b.engagements - a.engagements)
-    .slice(0, 4);
-
-  // --- daily series for the chart ---
-  const dayCounts = new Map<string, number>();
-  for (const m of media) {
-    if (!m.timestamp) continue;
-    const d = new Date(m.timestamp);
-    const key = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-    dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1);
-  }
-  const dashDaily: DashDaily[] = dailyRows
-    .map((d) => ({
-      day: d.day,
-      followers: d.followers,
-      followersGained: d.followers_gained,
-      reach: d.reach,
-      views: d.views,
-      posts: dayCounts.get(d.day) ?? 0,
-      source: d.source,
-    }));
-
-  // --- insight: only when a format genuinely outperforms the baseline ---
-  let insight: DashInsight | null = null;
-  if (base && base > 0) {
-    const byFormat = new Map<string, number[]>();
-    for (const m of media) {
-      const t = m.media_type ?? "IMAGE";
-      byFormat.set(t, [...(byFormat.get(t) ?? []), engOfPost(m)]);
-    }
-    let bestFmt: { type: string; ratio: number; n: number } | null = null;
-    for (const [t, xs] of byFormat) {
-      if (xs.length < 3) continue;
-      const med = medianOf(xs)!;
-      const ratio = med / base;
-      if (!bestFmt || ratio > bestFmt.ratio) bestFmt = { type: t, ratio, n: xs.length };
-    }
-    if (bestFmt && bestFmt.ratio >= 1.15) {
-      const topOfFormat = media
-        .filter((m) => (m.media_type ?? "IMAGE") === bestFmt!.type)
-        .sort((a, b) => engOfPost(b) - engOfPost(a))[0];
-      insight = {
-        title: `${formatLabel(bestFmt.type)}s are your strongest format`,
-        body: `more engagement than your median post, measured across ${bestFmt.n} ${formatLabel(bestFmt.type).toLowerCase()}s.`,
-        multiplier: `${bestFmt.ratio.toFixed(1)}×`,
-        thumb: topOfFormat?.thumbnail_url || topOfFormat?.media_url || null,
-      };
-    }
-  }
-
-  const historyStart = dailyRows.length ? fmtDate(dailyRows[0].day + "T00:00:00") : null;
-  const syncedAgo = snap?.last_synced_at ? agoLabel(snap.last_synced_at) : null;
+  const d: DashboardData = {
+    greeting, name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,
+    insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
+  };
 
   return (
     <AppShell active="dashboard" userEmail={user.email}>
-      {justConnected && (
-        <SyncCinematic username={snap?.username} followers={snap?.followers_count} />
-      )}
-
-      <div className="dsh-head">
-        <div>
-          <h1>
-            {greeting}, {name} <span aria-hidden>👋</span>
-          </h1>
-          <p>Here&apos;s how your content is performing.</p>
-          {live && (
-            <div className="dsh-account">
-              {snap?.profile_picture_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={snap.profile_picture_url} alt="" width={40} height={40} />
-              ) : (
-                <span className="ph" aria-hidden />
-              )}
-              <div className="dsh-account-meta">
-                <b>@{snap!.username}</b>
-                <small>
-                  Instagram
-                  {syncedAgo && (
-                    <>
-                      <span className="live"><i /> Live</span>
-                      Last synced {syncedAgo}
-                    </>
-                  )}
-                </small>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="dsh-controls">
-          <DateRangeSelector />
-          <AccountSwitcher />
-          <Link href="/chat" className="btn-primary db2-ask">
-            <Sparkles size={15} /> Ask AI Strategist
-          </Link>
-        </div>
-      </div>
-
-      {live ? (
-        <DashboardClient
-          metrics={metricsStrip}
-          daily={dashDaily}
-          posts={dashPosts}
-          topPosts={topDashPosts}
-          insight={insight}
-          range={rangeId}
-          rangeDays={rangeDays}
-          rangeBase="/dashboard"
-          followersNow={snap?.followers_count ?? null}
-          historyStart={historyStart}
-        />
-      ) : (
-        <div className="dsh-panel">
-          <p className="dsh-empty">
-            Your account is registered but hasn&apos;t synced yet. Open Settings and hit Sync now to
-            pull your real numbers.
-          </p>
-        </div>
-      )}
-
-      <div className="dsh-foot">
-        <span />
-        <TimeZoneNote />
-      </div>
+      {justConnected && <SyncCinematic username={snap?.username} followers={snap?.followers_count} />}
+      <DashboardV3 d={d} />
     </AppShell>
   );
 }

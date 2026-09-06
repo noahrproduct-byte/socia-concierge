@@ -1,527 +1,104 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  Sparkles,
-  Users,
-  Heart,
-  Activity,
-  CalendarClock,
-  ExternalLink,
-  ArrowRight,
-} from "lucide-react";
+import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/profile";
+import { igConfigured } from "@/lib/instagram";
+import { getIgSnapshot, readDailySnapshots, getActiveConnection } from "@/lib/instagramSync";
+import { getPerformanceBaseline, type AccountInput, type DailySnapshot } from "@/lib/dashboardMetrics";
+import { median, engagementOf } from "@/lib/metrics";
+import { fetchDemographics } from "@/lib/igDemographics";
 import AppShell from "@/components/AppShell";
-import LiveSync from "@/components/LiveSync";
-import AccountSwitcher from "@/components/AccountSwitcher";
-import { MetricCard } from "@/components/ui";
-import { FormatBars, Reveal } from "@/components/AnalyticsCharts";
-import BestTime from "@/components/BestTime";
-import type { TimedPost } from "@/lib/bestTime";
-import PerformanceOverTime, {
-  type PerfPost,
-  type DailyRow,
-} from "@/components/PerformanceOverTime";
-import RadarChart from "@/components/RadarChart";
-import ContentLibrary, { type LibraryPost } from "@/components/ContentLibrary";
-import { getPerformanceBaseline } from "@/lib/dashboardMetrics";
-import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
-import type { Kpi } from "@/lib/demoData";
+import AnalyticsV3, { type AnalyticsData } from "@/components/AnalyticsV3";
+import {
+  RANGES, rangeDays, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, type PlatformRow, type MetricId,
+} from "@/lib/overview";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
-// ---- helpers ----
-function fmtNum(n: number | null | undefined): string {
-  if (n == null) return "–";
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
-  if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
-  return String(n);
-}
-function avg(xs: number[]): number {
-  return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
-}
-const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
-
-// Real per-format engagement rates (% of followers), only for formats present.
-function formatRates(media: IgMediaItem[], followers: number) {
-  const groups: [string, (m: IgMediaItem) => boolean][] = [
-    ["Reels", (m) => m.media_type === "VIDEO"],
-    ["Carousels", (m) => m.media_type === "CAROUSEL_ALBUM"],
-    ["Static", (m) => m.media_type === "IMAGE"],
-  ];
-  return groups
-    .map(([label, test]) => {
-      const xs = media.filter(test);
-      return {
-        label,
-        value: xs.length ? Math.round((avg(xs.map(engOf)) / followers) * 1000) / 10 : 0,
-        note: `${xs.length} post${xs.length === 1 ? "" : "s"}`,
-        count: xs.length,
-      };
-    })
-    .filter((g) => g.count > 0)
-    .sort((a, b) => b.value - a.value);
-}
-
-const clamp = (v: number) => Math.max(8, Math.min(100, Math.round(v)));
-
-// ---- demo data (shown only before an account is connected) ----
-const DEMO_FORMATS = [
-  { label: "Reels", value: 7.2 },
-  { label: "Carousels", value: 5.1 },
-  { label: "Stories", value: 3.9 },
-  { label: "Static", value: 2.8 },
-];
-const DEMO_POSTS = [
-  { title: "Owner tossing dough (Reel)", sub: "610 saves", metric: "22.4k views", up: true },
-  { title: "Cheese pull close-up (Reel)", sub: "420 saves", metric: "14.1k views", up: true },
-  { title: "Behind the scenes: new oven", sub: "180 saves", metric: "9.8k views", up: true },
-  { title: "Menu update (Carousel)", sub: "12 saves", metric: "0.8k views", up: false },
-];
-const DEMO_RADAR = [72, 84, 66, 78, 90];
-
-export default async function AnalyticsPage() {
+// Analytics: investigate performance. Deeper than the dashboard, same rule —
+// every figure computed from the account's own rows, labelled with its source.
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
-  const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+  const { range: rangeParam } = await searchParams;
+  const rangeId = (RANGES.some((r) => r.id === rangeParam) ? rangeParam : "30") as string;
+  const days = rangeDays(rangeId);
+  const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
 
-  const snap = await getIgSnapshot(supabase, user.id);
+  const [profile, snap] = await Promise.all([getProfile(supabase, user.id), getIgSnapshot(supabase, user.id)]);
   const live = Boolean(snap && snap.followers_count != null);
-  const media = snap?.media ?? [];
-  const followers = snap?.followers_count ?? 0;
-  const eng = media.map(engOf);
-  const overallAvg = avg(eng);
 
-  // --- KPI cards ---
-  const engRateNum =
-    live && followers > 0 && media.length ? (overallAvg / followers) * 100 : null;
-  const avgLikes = media.length ? Math.round(avg(media.map((m) => m.like_count ?? 0))) : null;
-  
-  const chronological = [...media].reverse();
-  const dateLabels = chronological.map((m) =>
-    m.timestamp ? new Date(m.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "",
-  );
-  const recent = eng.slice(0, 5);
-  const prev = eng.slice(5, 10);
-  let engChange =
-    recent.length && prev.length && avg(prev) > 0
-      ? Math.round(((avg(recent) - avg(prev)) / avg(prev)) * 1000) / 10
-      : null;
-  if (engChange !== null && Math.abs(engChange) > 300) engChange = null;
-
-  const kpis: Kpi[] = live
-    ? [
-        {
-          key: "followers",
-          label: "Followers",
-          value: followers.toLocaleString("en-US"),
-          change: null,
-          up: true,
-          compare: "Live from Instagram",
-          spark: [],
-        },
-        {
-          key: "reach",
-          label: "Avg likes / post",
-          value: fmtNum(avgLikes),
-          change: null,
-          up: true,
-          compare: `across ${media.length} posts`,
-          spark: chronological.map((m) => m.like_count ?? 0),
-          sparkLabels: dateLabels,
-        },
-        {
-          key: "engagement",
-          label: "Engagement rate",
-          value: engRateNum != null ? engRateNum.toFixed(1) + "%" : "–",
-          change: engChange,
-          up: (engChange ?? 0) >= 0,
-          compare: "per post, of followers",
-          spark: chronological.map(engOf),
-          sparkLabels: dateLabels,
-        },
-      ]
-    : [
-        { key: "followers", label: "Followers", value: "12,480", change: 3.2, up: true, compare: "demo data", spark: [] },
-        { key: "reach", label: "Reach / week", value: "1.24M", change: 34, up: true, compare: "demo data", spark: [] },
-        { key: "engagement", label: "Engagement rate", value: "5.8%", change: 0.6, up: true, compare: "demo data", spark: [] },
-      ];
-
-  // --- performance-over-time module: real posts + real follower snapshots ---
-  const perfPosts: PerfPost[] = media
-    .filter((m) => m.timestamp)
-    .map((m) => ({
-      t: m.timestamp!,
-      likes: m.like_count ?? 0,
-      comments: m.comments_count ?? 0,
-      views: m.insights?.views ?? null,
-      saved: m.insights?.saved ?? null,
-      shares: m.insights?.shares ?? null,
-      type: m.media_type ?? "IMAGE",
-      caption: m.caption ?? "",
-      thumb: m.thumbnail_url || m.media_url || null,
-      permalink: m.permalink ?? null,
-    }));
-  const timedPosts: TimedPost[] = media
-    .filter((m) => m.timestamp)
-    .map((m) => ({ t: m.timestamp!, e: engOf(m) }));
-
-  // Daily history. Only columns that carry a genuine per-day meaning are read:
-  // `followers` is SOCIA's own point-in-time observation (valid whenever it is
-  // taken), and `views`/`reach`/`followers_gained` come from Meta's historical
-  // daily series. Account-level likes/comments/saves/shares are deliberately
-  // not read — they were only ever counter reads at sync time, so they are not
-  // a comparable daily series and must never be charted as one.
-  let dailyRows: DailyRow[] = [];
-  try {
-    dailyRows = await readDailySnapshots<DailyRow>(
-      supabase,
-      user.id,
-      snap?.ig_user_id ?? null,
-      "day, followers, views, reach, followers_gained, source",
+  if (!live) {
+    const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
+    return (
+      <AppShell active="analytics" userEmail={user.email}>
+        <div className="dv-head">
+          <div>
+            <h1>Analytics</h1>
+            <p>Understand what&apos;s working, what&apos;s not, and where to grow.</p>
+          </div>
+        </div>
+        <div className="db-connect">
+          <span className="db-connect-ico"><Link2 size={22} /></span>
+          <div className="db-connect-copy">
+            <h2>Connect your Instagram account</h2>
+            <p>Analytics fills with your real views, reach, engagement and audience the moment an account is connected. Nothing here is estimated.</p>
+          </div>
+          <Link href={igHref} className="db-connect-cta">Connect Instagram</Link>
+        </div>
+      </AppShell>
     );
-  } catch {
-    // extended columns may not exist yet — base shape still gives followers
-    try {
-      const base = await readDailySnapshots<{ day: string; followers: number | null }>(
-        supabase,
-        user.id,
-        snap?.ig_user_id ?? null,
-        "day, followers",
-      );
-      dailyRows = base.map((r) => ({
-        day: r.day,
-        followers: r.followers,
-        views: null,
-        reach: null,
-        followers_gained: null,
-        source: null,
-      }));
-    } catch {
-      // snapshots table may not exist yet — history shows its empty state
-    }
   }
 
-  // --- formats ---
-  const formats = live && followers > 0 ? formatRates(media, followers) : DEMO_FORMATS;
+  const media = snap!.media ?? [];
+  const [dailyRows, tokenRow] = await Promise.all([
+    readDailySnapshots<DailySnapshot>(supabase, user.id, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as DailySnapshot[]),
+    getActiveConnection(supabase, user.id, "access_token") as Promise<{ access_token?: string } | null>,
+  ]);
+  const demo = await fetchDemographics(tokenRow?.access_token ?? null);
 
-  // --- top posts ---
-  const livePosts = [...media]
-    .sort((a, b) => engOf(b) - engOf(a))
-    .slice(0, 4)
-    .map((m) => {
-      const firstLine = (m.caption || "").split("\n")[0].trim();
-      return {
-        title: firstLine ? firstLine.slice(0, 52) : "(no caption)",
-        sub: `${fmtNum(m.comments_count ?? 0)} comments`,
-        metric: `${fmtNum(m.like_count ?? 0)} likes`,
-        up: engOf(m) >= overallAvg,
-        thumb: m.thumbnail_url || m.media_url || null,
-        href: m.permalink || null,
-      };
-    });
-  const posts = live && livePosts.length
-    ? livePosts
-    : DEMO_POSTS.map((p) => ({ ...p, thumb: null, href: null }));
+  const acct: AccountInput = {
+    followers: snap!.followers_count ?? null, lifetimePosts: snap!.media_count ?? null, posts: media, daily: dailyRows,
+    syncedAt: snap!.last_synced_at ?? null, platform: "instagram", handle: snap!.username ?? null,
+  };
+  const baseline = getPerformanceBaseline(acct).value;
+  const posts = postCards(media, baseline);
+  const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
 
-  // --- every synced post, with the metrics Instagram returned ("—" = not provided) ---
-  const baseline = live
-    ? getPerformanceBaseline({
-        followers: snap?.followers_count ?? null,
-        lifetimePosts: snap?.media_count ?? null,
-        posts: media,
-        daily: [],
-        syncedAt: snap?.last_synced_at ?? null,
-        platform: "instagram",
-        handle: snap?.username ?? null,
-      }).value
-    : null;
-  const libraryPosts: LibraryPost[] = live
-    ? [...media]
-        .filter((m) => m.timestamp)
-        .sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime())
-        .map((m, i) => {
-          const e = engOf(m);
-          const reach = m.insights?.reach ?? null;
-          return {
-            id: m.id ?? String(i),
-            caption: (m.caption || "").split("\n")[0].trim(),
-            published: m.timestamp!,
-            format: m.media_type === "VIDEO" ? "Reel" : m.media_type === "CAROUSEL_ALBUM" ? "Carousel" : "Post",
-            views: m.insights?.views ?? null,
-            reach,
-            likes: m.like_count ?? null,
-            comments: m.comments_count ?? null,
-            saves: m.insights?.saved ?? null,
-            shares: m.insights?.shares ?? null,
-            engagements: e,
-            engRate: reach && reach > 0 ? (e / reach) * 100 : null,
-            multiplier: baseline && baseline > 0 ? e / baseline : null,
-            thumb: m.thumbnail_url || m.media_url || null,
-            permalink: m.permalink ?? null,
-          };
-        })
-    : [];
+  const kpisAll = buildKpis({ media, daily: dailyRows, followers: snap!.followers_count ?? null, days });
+  const kpis = (["views", "engagement_rate", "followers", "reach"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
+  const metrics: MetricId[] = ["views", "engagement", "followers", "reach"];
+  const series = Object.fromEntries(metrics.map((m) => [m, buildSeries(m, media, dailyRows, days)])) as AnalyticsData["series"];
 
-  // --- baseline comparison (live: your recent 5 posts vs your average) ---
-  const recentLikes = media.slice(0, 5).map((m) => m.like_count ?? 0);
-  const recentComments = media.slice(0, 5).map((m) => m.comments_count ?? 0);
-  const allLikes = media.map((m) => m.like_count ?? 0);
-  const allComments = media.map((m) => m.comments_count ?? 0);
-  const bench = live
-    ? [
-        {
-          label: "Engagement rate",
-          a: followers > 0 ? Math.round((avg(recent) / followers) * 1000) / 10 : 0,
-          b: followers > 0 ? Math.round((overallAvg / followers) * 1000) / 10 : 0,
-          unit: "%",
-        },
-        {
-          label: "Likes / post",
-          a: Math.round(avg(recentLikes)),
-          b: Math.round(avg(allLikes)),
-          unit: "",
-        },
-        {
-          label: "Comments / post",
-          a: Math.round(avg(recentComments) * 10) / 10,
-          b: Math.round(avg(allComments) * 10) / 10,
-          unit: "",
-        },
-      ]
-    : [
-        { label: "Engagement rate", a: 5.8, b: 3.9, unit: "%" },
-        { label: "Save rate", a: 2.1, b: 1.2, unit: "%" },
-        { label: "Follows / post", a: 34, b: 21, unit: "" },
-      ];
-  const benchNames: [string, string] = live ? ["last 5", "your avg"] : ["you", "niche"];
+  const insights = buildInsights({ media, baseline, location: profile?.brand_detail?.location ?? null, handle: snap!.username ?? null });
+  const breakdown = formatBreakdown(media, days);
 
-  // --- insight card (live: honest, derived from the account's own posts) ---
-  const reels = media.filter((m) => m.media_type === "VIDEO");
-  const reelMult = reels.length >= 3 && overallAvg > 0 ? avg(reels.map(engOf)) / overallAvg : null;
-  const topMult = overallAvg > 0 && eng.length ? Math.max(...eng) / overallAvg : null;
-  const spanDays =
-    media.length >= 2 && media[media.length - 1].timestamp && media[0].timestamp
-      ? Math.max(
-          7,
-          (new Date(media[0].timestamp!).getTime() -
-            new Date(media[media.length - 1].timestamp!).getTime()) /
-            86400000,
-        )
-      : null;
-  const postsPerWeek = spanDays ? (media.length / spanDays) * 7 : null;
-  const momentum = recent.length && prev.length && avg(prev) > 0 ? avg(recent) / avg(prev) : null;
-  const commentShare = overallAvg > 0 ? avg(allComments) / overallAvg : null;
+  const fs = series.followers.current.filter((p) => p.value != null);
+  const followerDelta = fs.length >= 2 ? fs[fs.length - 1].value! - fs[0].value! : null;
 
-  const radar = live
-    ? [
-        clamp(((engRateNum ?? 0) / 5) * 100),
-        clamp(((postsPerWeek ?? 0) / 5) * 100),
-        clamp(((momentum ?? 0) / 2) * 100),
-        clamp(((commentShare ?? 0) / 0.12) * 100),
-        clamp(((topMult ?? 0) / 6) * 100),
-      ]
-    : DEMO_RADAR;
-  const radarAxes = live
-    ? ["Engagement", "Consistency", "Momentum", "Community", "Virality"]
-    : ["Engagement", "Retention", "Consistency", "Growth", "Quality"];
-  const insightHead = live
-    ? reelMult && reelMult >= 1.2
-      ? { a: "Reels earn", b: `${reelMult.toFixed(1)}× your average`, c: "engagement" }
-      : topMult
-        ? { a: "Your top post earned", b: `${topMult.toFixed(1)}× your average`, c: "engagement" }
-        : { a: "Your content profile,", b: "computed from real posts", c: "" }
-    : { a: "You outperform", b: "78%", c: "of similar accounts" };
-  const insightSub = live
-    ? `Profile computed from your last ${media.length} posts.`
-    : "Demo data. Connect your account for your real profile.";
+  const platformMetric = series.views.total != null ? "views" : "engagement";
+  const platformTotal = platformMetric === "views" ? series.views.total : series.engagement.total;
+  const platforms: PlatformRow[] = [
+    { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === "views")?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
+    { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "facebook", label: "Facebook", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
+  ];
+
+  const d: AnalyticsData = {
+    handle: snap!.username ?? null, rangeLabel, rangeDays: days, kpis, series, insights, posts, baseline, medianViews, breakdown, platforms, demo,
+    timed: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engagementOf(m) })),
+    followerDelta, followers: snap!.followers_count ?? null,
+  };
 
   return (
     <AppShell active="analytics" userEmail={user.email}>
-      {/* Header */}
-      <div className="dash-header db2-rise">
-        <div>
-          <h1 className="dash-greeting">
-            {greeting}, {name} <span aria-hidden>👋</span>
-          </h1>
-          <p className="dash-context">
-            {live
-              ? <>Live snapshot of <b>@{snap!.username}</b>, synced from Instagram.</>
-              : <>Your performance overview. Connect an account for live data.</>}
-          </p>
-        </div>
-        <div className="dash-controls">
-          {live && <LiveSync syncedAt={snap!.last_synced_at} />}
-          <AccountSwitcher />
-          <Link href="/chat" className="btn-primary db2-ask">
-            <Sparkles size={15} /> Ask AI Strategist
-          </Link>
-        </div>
-      </div>
-
-      {/* KPI cards */}
-      <div className="kpi-row">
-        {kpis.map((k, i) => (
-          <MetricCard
-            key={k.key}
-            kpi={k}
-            icon={k.key === "followers" ? <Users size={16} /> : k.key === "reach" ? <Heart size={16} /> : <Activity size={16} />}
-            index={i}
-          />
-        ))}
-        {/* Best time to post, with the real posting-hour histogram */}
-        <section className="db2-kpi db2-rise an2-besttime" style={{ animationDelay: "290ms" }}>
-          <div className="db2-kpi-top">
-            <span className="db2-kpi-ico"><CalendarClock size={16} /></span>
-            <span className="db2-kpi-label">Best time to post</span>
-          </div>
-          <div className="db2-kpi-value an2-besttime-val">
-            {live ? <BestTime posts={timedPosts} withHistogram /> : "Tue 7PM"}
-          </div>
-          <span className="db2-kpi-compare">
-            {live ? "when your posts earn the most" : "demo data"}
-          </span>
-        </section>
-      </div>
-
-      {/* Performance over time — the analytics centerpiece */}
-      <PerformanceOverTime
-        posts={live ? perfPosts : []}
-        followers={live ? followers : null}
-        daily={dailyRows}
-        insightsOk={snap?.insights_ok ?? null}
-      />
-
-      {/* Benchmark/insight + formats */}
-      <div className="panel-grid an2-main">
-        <section className="chart-card db2-rise" style={{ animationDelay: "430ms" }}>
-          <div className="chart-head">
-            <h3>{live ? "Recent posts vs your baseline" : "Benchmarked vs your niche"}</h3>
-          </div>
-          <div className="an2-bench-grid">
-            <Reveal className="bench an2-bench">
-              {bench.map((b) => {
-                const max = Math.max(b.a, b.b) || 1;
-                return (
-                  <div className="bench-row" key={b.label}>
-                    <div className="bench-label">{b.label}</div>
-                    <div className="bench-bars">
-                      <span className="bench-track">
-                        <span className="bench-fill you" style={{ ["--w" as string]: `${(b.a / max) * 100}%` }} />
-                      </span>
-                      <span className="bench-num">
-                        {b.a}{b.unit} <em>{benchNames[0]}</em>
-                      </span>
-                    </div>
-                    <div className="bench-bars">
-                      <span className="bench-track">
-                        <span className="bench-fill niche" style={{ ["--w" as string]: `${(b.b / max) * 100}%` }} />
-                      </span>
-                      <span className="bench-num muted">
-                        {b.b}{b.unit} <em>{benchNames[1]}</em>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </Reveal>
-
-            <Reveal className="an2-insight" delay={120}>
-              <h4>
-                {insightHead.a} <b>{insightHead.b}</b> {insightHead.c}
-              </h4>
-              <RadarChart values={radar} axes={radarAxes} />
-              <p className="an2-insight-sub">{insightSub}</p>
-              <Link href="/competitors" className="an2-insight-cta">
-                See how you compare <ArrowRight size={13} />
-              </Link>
-            </Reveal>
-          </div>
-        </section>
-
-        <section className="chart-card db2-rise" style={{ animationDelay: "500ms" }}>
-          <div className="chart-head">
-            <h3>Engagement by format</h3>
-          </div>
-          <FormatBars items={formats} />
-          <p className="an2-formats-note">
-            {live ? "Avg engagement per post, as % of followers." : "Demo data."}
-          </p>
-        </section>
-      </div>
-
-      {/* Top posts */}
-      <div className="an2-bottom">
-        <section className="chart-card db2-rise" style={{ animationDelay: "560ms" }}>
-          <div className="chart-head">
-            <h3>Top performing posts</h3>
-            {live && snap?.username && (
-              <a
-                className="link-mini"
-                href={`https://instagram.com/${snap.username}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View profile
-              </a>
-            )}
-          </div>
-          <ul className="an2-posts">
-            {posts.map((p, i) => (
-              <li className="an2-post" key={i}>
-                <span className="an2-post-rank">{i + 1}</span>
-                {p.thumb ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="an2-post-thumb" src={p.thumb} alt="" loading="lazy" width={44} height={44} />
-                ) : (
-                  <span className="an2-post-thumb ph" aria-hidden />
-                )}
-                <span className="an2-post-meta">
-                  <b>{p.title}</b>
-                  <small>{p.sub}</small>
-                </span>
-                <span className={`an2-post-metric ${p.up ? "up" : "down"}`}>
-                  {p.up ? "▲" : "▼"} {p.metric}
-                </span>
-                {p.href && (
-                  <a
-                    className="an2-post-open"
-                    href={p.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Open on Instagram"
-                    aria-label="Open on Instagram"
-                  >
-                    <ExternalLink size={14} />
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {libraryPosts.length > 0 && (
-          <section className="chart-card db2-rise an3-library" id="posts" style={{ animationDelay: "620ms" }}>
-            <div className="chart-head">
-              <h3>All posts</h3>
-              <p className="an2-formats-note">
-                Every post SOCIA has synced, with the metrics Instagram returned. &ldquo;×&rdquo; compares each
-                post with your own baseline.
-              </p>
-            </div>
-            <ContentLibrary posts={libraryPosts} embedded />
-          </section>
-        )}
-      </div>
+      <AnalyticsV3 d={d} />
     </AppShell>
   );
 }
-
-// ---- server-rendered pieces ----
-

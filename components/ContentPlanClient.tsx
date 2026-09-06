@@ -104,6 +104,21 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(null);
   const [history, setHistory] = useState<SavedPlan[]>([]);
 
+  // Deep links ("Add to Content Plan" from Dashboard / Analytics insights and
+  // content drawers) arrive as ?note= and land in the notes field, reviewed
+  // by the user before anything is generated.
+  useEffect(() => {
+    try {
+      const note = new URLSearchParams(window.location.search).get("note");
+      if (note) {
+        setForm((f) => ({ ...f, recentPosts: f.recentPosts ? `${f.recentPosts}\n${note}` : note }));
+        window.history.replaceState(null, "", "/tool");
+      }
+    } catch {
+      /* no-op */
+    }
+  }, []);
+
   useEffect(() => {
     fetch("/api/plans")
       .then((r) => (r.ok ? r.json() : { plans: [] }))
