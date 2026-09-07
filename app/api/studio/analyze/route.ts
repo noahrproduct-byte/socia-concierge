@@ -7,7 +7,7 @@ import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
 import { postCards, displayTitle, type PostCard } from "@/lib/overview";
-import { studioSchema, GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
+import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -99,23 +99,30 @@ Return the JSON. Requirements:
 - platformFit: Instagram Reels, TikTok, YouTube Shorts, each with a fit and a one-line reason grounded in length, opening and text.
 - compare: rows such as hook speed, subject visibility, people visible, text on screen, CTA, caption length, contrasting the draft with the winners' cover frames and captions; verdict per row; a two-sentence summary that says what the winners typically do.
 - niche: patterns observed in the niche list and how the draft compares, hedged.
-- captionSuggestion: one caption in the account's voice with an ask that fits the goal.`;
+- captionSuggestion: one caption in the account's voice with an ask that fits the goal.
+
+Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly this shape:
+{"overall":0,"categories":[{"id":"hook|pacing|clarity|visual|cta|audio","assessable":true,"score":0,"explanation":"","evidence":"","fix":""}],"observed":{"subjectAppearsAt":0,"faceSeen":"yes|no|unknown","onScreenText":"yes|no|unknown","ctaDetected":"yes|no|unknown","summary":""},"markers":[{"t":0,"kind":"issue|strong|pacing|cta|text","label":""}],"segments":[{"start":0,"end":0,"label":"","rating":"weak|good|strong|needs","reason":""}],"topFixes":[{"title":"","observed":"","suggestion":"","kind":"opening|hook_text|ending|pacing|text|audio|visual|caption","t":0,"applyField":"hook|cta|caption|onscreen|none","applyValue":""}],"currentHook":"","hooks":[{"style":"curiosity|direct|local|educational|challenge|story","text":""}],"currentCta":"","ctaOptions":[""],"onScreenText":[{"t":0,"text":"","role":"opening|mid|cta"}],"cuts":{"suggestedSec":0,"edits":[{"type":"remove|trim","start":0,"end":0,"reason":""}],"note":""},"audio":{"observed":"","direction":{"style":"","bpm":"","texture":"","why":""},"alternative":{"style":"","bpm":"","texture":"","why":""}},"platformFit":[{"platform":"Instagram Reels|TikTok|YouTube Shorts","fit":"strong|medium|weak","note":""}],"compare":{"rows":[{"label":"","current":"","winners":"","verdict":"better|similar|worse|unknown"}],"summary":""},"niche":{"patterns":[""],"summary":""},"captionSuggestion":""}`;
 
   try {
-    const params = {
+    // The full analysis schema is too large for structured outputs ("compiled
+    // grammar is too large"), so the shape is given in the prompt and parsed
+    // tolerantly; every field is mapped defensively below.
+    const res = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 6000,
       system: SYSTEM,
-      output_config: { format: { type: "json_schema", schema: studioSchema } },
       messages: [{ role: "user", content: [...images, { type: "text", text }] }],
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await anthropic.messages.create(params as any);
+    });
     if (res.stop_reason === "refusal") return NextResponse.json({ error: "SOCIA declined to analyse this content." }, { status: 422 });
     const block = res.content.find((b) => b.type === "text");
     const rawText = block && "text" in block ? block.text : "";
     let raw: Record<string, unknown>;
-    try { raw = JSON.parse(rawText.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch { return NextResponse.json({ error: "The analysis came back unreadable. Try again." }, { status: 502 }); }
+    try {
+      const cleaned = rawText.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+      const s0 = cleaned.indexOf("{"), e0 = cleaned.lastIndexOf("}");
+      raw = JSON.parse(s0 === -1 || e0 <= s0 ? cleaned : cleaned.slice(s0, e0 + 1));
+    } catch { return NextResponse.json({ error: "The analysis came back unreadable. Try again." }, { status: 502 }); }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = raw as any;
