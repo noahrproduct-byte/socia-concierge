@@ -508,17 +508,20 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
   // user applies (saved to the plan when it has an id), never auto-applied.
   const [ask, setAsk] = useState<{ q: string | null; day: string | null } | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
+  const [saveNote, setSaveNote] = useState<string | null>(null);
   const onProposal = async (p: AskProposal) => {
     if (p.kind !== "plan_day" || !data.weeklyPlan?.[p.index]) return false;
     const weeklyPlan = data.weeklyPlan.map((d, i) => (i === p.index ? { ...d, concept: p.proposed.concept, hook: p.proposed.hook, format: p.proposed.format || d.format, rationale: p.proposed.rationale } : d));
+    // The user approved it: apply on screen now, persist best-effort.
+    onUpdate({ ...data, weeklyPlan });
+    setApplied(p.day); setTimeout(() => setApplied(null), 2000);
     if (planId) {
       try {
         const res = await fetch("/api/plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: planId, weeklyPlan }) });
-        if (!res.ok) return false;
-      } catch { return false; }
-    }
-    onUpdate({ ...data, weeklyPlan });
-    setApplied(p.day); setTimeout(() => setApplied(null), 2000);
+        const j = await res.json().catch(() => ({}));
+        setSaveNote(res.ok ? `${p.day} updated and saved to this plan.` : j.error ?? "Applied on screen, but the plan could not be saved.");
+      } catch { setSaveNote("Applied on screen, but the plan could not be saved."); }
+    } else setSaveNote(`${p.day} updated on screen. Generate or open a saved plan to keep changes.`);
     return true;
   };
   const timeFor = (day: string): string | null => {
@@ -690,6 +693,7 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
             <h3>This week&apos;s plan</h3>
             <button type="button" className="ov-btn ghost small" onClick={() => setAsk({ q: null, day: null })}><Sparkles size={12} /> Ask SOCIA about this plan</button>
           </div>
+          {saveNote && <p className="cpl-sched-msg ok">{saveNote}</p>}
           <div className="cpl-posts">
             {data.weeklyPlan.map((post, i) => (
               <article className={`cpl-post${applied === post.day ? " applied" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>

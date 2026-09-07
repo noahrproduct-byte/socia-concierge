@@ -146,21 +146,31 @@ export async function extractFrames(source: File | string, onProgress: (done: nu
   const url = typeof source === "string" ? source : URL.createObjectURL(source);
   const video = document.createElement("video");
   if (typeof source === "string") video.crossOrigin = "anonymous";
-  video.src = url; video.muted = true; video.playsInline = true; video.preload = "auto";
-  await new Promise<void>((resolve, reject) => {
-    video.onloadedmetadata = () => resolve();
-    video.onerror = () => reject(new Error("unsupported"));
-  });
+  video.muted = true; video.playsInline = true; video.preload = "auto";
+  // A detached <video> may never load (Chrome defers media for off-DOM and
+  // background elements); keep it in the document, out of sight.
+  video.style.cssText = "position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
+  document.body.appendChild(video);
+  const cleanup = () => { video.pause(); video.removeAttribute("src"); video.load(); video.remove(); if (typeof source !== "string") URL.revokeObjectURL(url); };
+  video.src = url;
+  video.load();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("unsupported")), 25000);
+      video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
+      video.onerror = () => { clearTimeout(t); reject(new Error("unsupported")); };
+    });
+  } catch (e) { cleanup(); throw e; }
   const duration = video.duration;
-  if (!isFinite(duration) || duration <= 0) { if (typeof source !== "string") URL.revokeObjectURL(url); throw new Error("unsupported"); }
-  if (duration > MAX_SECONDS) { if (typeof source !== "string") URL.revokeObjectURL(url); throw new Error("too_long"); }
-  if (duration < 1) { if (typeof source !== "string") URL.revokeObjectURL(url); throw new Error("too_short"); }
+  if (!isFinite(duration) || duration <= 0) { cleanup(); throw new Error("unsupported"); }
+  if (duration > MAX_SECONDS) { cleanup(); throw new Error("too_long"); }
+  if (duration < 1) { cleanup(); throw new Error("too_short"); }
   const canvas = document.createElement("canvas");
   const scale = FRAME_WIDTH / (video.videoWidth || FRAME_WIDTH);
   canvas.width = FRAME_WIDTH;
   canvas.height = Math.max(1, Math.round((video.videoHeight || FRAME_WIDTH) * scale));
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("unsupported");
+  if (!ctx) { cleanup(); throw new Error("unsupported"); }
   // Front-load the samples: the first three seconds decide whether anyone stays.
   const early = [0, 0.7, 1.5, 2.5].filter((t) => t < duration);
   const rest: number[] = [];
@@ -168,21 +178,22 @@ export async function extractFrames(source: File | string, onProgress: (done: nu
   for (let i = 1; i <= remaining; i++) { const t = 2.5 + (i / (remaining + 1)) * Math.max(0, duration - 2.5); if (t < duration) rest.push(Number(t.toFixed(2))); }
   const times = [...early, ...rest];
   const frames: string[] = [], thumbs: { src: string; t: number }[] = [];
-  for (let i = 0; i < times.length; i++) {
-    video.currentTime = Math.min(times[i], Math.max(0, duration - 0.05));
-    await new Promise<void>((resolve, reject) => {
-      const done = () => { video.removeEventListener("seeked", done); resolve(); };
-      video.addEventListener("seeked", done);
-      setTimeout(() => reject(new Error("unsupported")), 15000);
-    });
-    try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); } catch { throw new Error("cors"); }
-    let data: string;
-    try { data = canvas.toDataURL("image/jpeg", 0.6); } catch { throw new Error("cors"); }
-    frames.push(data.split(",")[1]);
-    thumbs.push({ src: data, t: times[i] });
-    onProgress(i + 1, times.length);
-  }
-  if (typeof source !== "string") URL.revokeObjectURL(url);
+  try {
+    for (let i = 0; i < times.length; i++) {
+      video.currentTime = Math.min(times[i], Math.max(0, duration - 0.05));
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => { video.removeEventListener("seeked", done); reject(new Error("unsupported")); }, 15000);
+        const done = () => { clearTimeout(t); video.removeEventListener("seeked", done); resolve(); };
+        video.addEventListener("seeked", done);
+      });
+      try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); } catch { throw new Error("cors"); }
+      let data: string;
+      try { data = canvas.toDataURL("image/jpeg", 0.6); } catch { throw new Error("cors"); }
+      frames.push(data.split(",")[1]);
+      thumbs.push({ src: data, t: times[i] });
+      onProgress(i + 1, times.length);
+    }
+  } finally { cleanup(); }
   return { frames, times, duration, thumbs };
 }
 
@@ -194,7 +205,7 @@ export async function imageFrames(sources: (File | string)[]): Promise<Frames> {
     const url = typeof src === "string" ? src : URL.createObjectURL(src);
     const img = new Image();
     if (typeof src === "string") img.crossOrigin = "anonymous";
-    await new Promise<void>((resolve, reject) => { img.onload = () => resolve(); img.onerror = () => reject(new Error("unsupported")); img.src = url; });
+    await new Promise<void>((resolve, reject) => { const t = setTimeout(() => reject(new Error("unsupported")), 20000); img.onload = () => { clearTimeout(t); resolve(); }; img.onerror = () => { clearTimeout(t); reject(new Error("unsupported")); }; img.src = url; });
     const canvas = document.createElement("canvas");
     const scale = FRAME_WIDTH / (img.naturalWidth || FRAME_WIDTH);
     canvas.width = FRAME_WIDTH; canvas.height = Math.max(1, Math.round((img.naturalHeight || FRAME_WIDTH) * scale));

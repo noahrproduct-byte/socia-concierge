@@ -562,3 +562,11 @@ alter table public.account_snapshots
   add column if not exists follows integer,
   add column if not exists media_count integer;
 create index if not exists account_snapshots_user_day_idx on public.account_snapshots (user_id, day);
+
+-- Content Plan edits (SOCIA proposals the user applies) need an update policy.
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'plans' and policyname = 'Users can update their own plans') then
+    create policy "Users can update their own plans" on public.plans for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  end if;
+end $$;

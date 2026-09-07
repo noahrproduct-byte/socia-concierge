@@ -45,7 +45,8 @@ export async function PATCH(req: Request) {
   const { data: cur, error: readErr } = await supabase.from("plans").select("id, data").eq("id", body.id).eq("user_id", user.id).maybeSingle();
   if (readErr || !cur) return NextResponse.json({ error: "Plan not found." }, { status: 404 });
   const data = { ...(cur.data as Record<string, unknown>), weeklyPlan: body.weeklyPlan };
-  const { data: row, error } = await supabase.from("plans").update({ data }).eq("id", body.id).eq("user_id", user.id).select("id, client_handle, niche, platform, data, created_at").single();
+  const { data: rows, error } = await supabase.from("plans").update({ data }).eq("id", body.id).eq("user_id", user.id).select("id, client_handle, niche, platform, data, created_at");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ plan: row });
+  if (!rows?.length) return NextResponse.json({ error: "The change was applied on screen but could not be saved to the plan. Run the latest supabase/schema.sql (plans update policy) to enable saving." }, { status: 403 });
+  return NextResponse.json({ plan: rows[0] });
 }

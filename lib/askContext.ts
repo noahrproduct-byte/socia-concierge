@@ -56,7 +56,7 @@ function systemPrompt(page: AskPage, profile: Profile | null): string {
 Rules:
 - Cite only numbers that appear in the evidence. If something isn't there, say it isn't available; never estimate views, reach, growth, virality odds or competitor metrics.
 - Never claim platform algorithm rules as facts.
-- "text" is a 1-3 sentence direct answer in plain English. Short. No headings, no markdown.
+- "text" is a 1-3 sentence direct answer in plain English. Short. No headings, no markdown, no em dashes (use commas or full stops), and never quote a post's id; refer to posts by their title in quotes.
 - actions: 1-3 real next steps from the allowed types; "note" carries the text that action needs (a plan note, a caption seed, an analytics tab id like "times" or "content", or nothing).
 - postId: the id (in square brackets in the evidence) of the single post most relevant to the answer, or "" when none.
 - proposals: only when the page allows them and the user asked for a change; otherwise an empty array. Use kind "none" never; omit instead.

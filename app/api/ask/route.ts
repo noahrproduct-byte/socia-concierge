@@ -79,12 +79,15 @@ export async function POST(req: Request) {
         proposals.push({ kind: "text", field: p.field, label: p.label || p.field, options: p.options.slice(0, 5) });
       }
     }
+    // Post ids are for the model's postId field, never for prose; and the
+    // product's copy rule (no em dashes) applies to SOCIA's answers too.
+    const clean = (t: string) => (t ?? "").replace(/\[\d{6,}\]\s*/g, "").replace(/\s*—\s*/g, ", ").replace(/\s*–\s*/g, " to ").trim();
     const answer: AskAnswer = {
-      text: raw.text ?? "",
-      observed: (raw.observed ?? []).slice(0, 5),
-      derived: (raw.derived ?? []).slice(0, 4),
-      interpretation: raw.interpretation ?? "",
-      recommendation: raw.recommendation ?? "",
+      text: clean(raw.text),
+      observed: (raw.observed ?? []).slice(0, 5).map(clean),
+      derived: (raw.derived ?? []).slice(0, 4).map(clean),
+      interpretation: clean(raw.interpretation),
+      recommendation: clean(raw.recommendation),
       actions: (raw.actions ?? []).map((a) => ({ label: a.label, href: hrefFor(a.type, a.note ?? "", post) })).filter((a): a is { label: string; href: string } => Boolean(a.href) && Boolean(a.label)).slice(0, 3),
       proposals,
       post: post ? { id: post.id, title: post.title, thumb: post.thumb, stat: post.views != null ? `${post.views.toLocaleString("en-US")} views` : `${post.engagements.toLocaleString("en-US")} interactions`, permalink: post.permalink } : null,
