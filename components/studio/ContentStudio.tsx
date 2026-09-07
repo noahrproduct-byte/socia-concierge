@@ -161,7 +161,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         setSavedId(source.draftId);
       } else if (source.file) {
         const when = new Date(); when.setDate(when.getDate() + 1); when.setHours(12, 0, 0, 0);
-        const { posts } = await api<{ posts: { id: string }[] }>("POST", { scheduled_at: when.toISOString(), caption, media_type: source.kind === "video" ? "REELS" : "IMAGE" });
+        const { posts } = await api<{ posts: { id: string }[] }>("POST", { scheduled_at: when.toISOString(), caption, media_type: source.kind === "video" ? "REELS" : "IMAGE", keep_draft: true });
         const id = posts[0].id;
         const supabase = createClient();
         const safe = source.file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
@@ -169,7 +169,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         const { error } = await supabase.storage.from("scheduled-media").upload(path, source.file, { upsert: false, contentType: source.file.type || undefined });
         if (error) throw new Error(`Upload failed: ${error.message}`);
         const { data: pub } = supabase.storage.from("scheduled-media").getPublicUrl(path);
-        await api("PATCH", { id, media_path: path, media_url: pub.publicUrl });
+        await api("PATCH", { id, media_path: path, media_url: pub.publicUrl, keep_draft: true });
         setSavedId(id);
       }
       notify("Draft saved to the Calendar");

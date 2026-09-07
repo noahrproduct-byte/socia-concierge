@@ -20,6 +20,9 @@ type Body = {
   plan_id?: string | null;
   plan_day?: string | null;
   status?: PostStatus;
+  /** Keep the row a draft even when it has everything it needs to publish;
+   *  the user schedules it deliberately from the Calendar. */
+  keep_draft?: boolean;
   items?: Body[];
 };
 
@@ -87,7 +90,7 @@ export async function POST(req: Request) {
       media_url: it.media_url ?? null,
       status: "draft" as PostStatus,
     };
-    draft.status = promote({ ...draft, status: "draft" });
+    draft.status = it.keep_draft || body.keep_draft ? "draft" : promote({ ...draft, status: "draft" });
     rows.push(draft);
   }
 
@@ -147,7 +150,10 @@ export async function PATCH(req: Request) {
 
   // Re-derive status from the facts; a failed post that gets new media or a
   // new time goes back to scheduled with a clean slate.
-  if (next.status !== "cancelled") {
+  if (next.status !== "cancelled" && body.keep_draft && (cur.status === "draft" || cur.status === "failed")) {
+    next.status = "draft";
+    if (cur.status === "failed") { next.error = null; next.container_id = null; }
+  } else if (next.status !== "cancelled") {
     const merged = {
       media_url: (next.media_url as string | null | undefined) ?? cur.media_url,
       scheduled_at: (next.scheduled_at as string | undefined) ?? cur.scheduled_at,
