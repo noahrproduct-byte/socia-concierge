@@ -13,11 +13,14 @@ export type SeekRequest = { t: number; n: number } | null;
 
 const RATING_CLS: Record<Segment["rating"], string> = { weak: "weak", needs: "needs", good: "good", strong: "strong" };
 
-export default function StudioPlayer({ url, kind, images, thumbs, markers, segments, seek, onTime, onDuration, cover, onCover, activeMarker }: {
+export default function StudioPlayer({ url, kind, images, thumbs, markers, segments, seek, onTime, onDuration, cover, onCover, activeMarker, videoRef }: {
   url: string | null; kind: StudioKind; images: string[]; thumbs: { src: string; t: number }[]; markers: Marker[]; segments: Segment[];
   seek: SeekRequest; onTime: (t: number) => void; onDuration: (d: number) => void; cover: number | null; onCover: (i: number | null) => void; activeMarker: number | null;
+  /** The parent samples frames from this same element. */
+  videoRef?: React.MutableRefObject<HTMLVideoElement | null>;
 }) {
   const video = useRef<HTMLVideoElement>(null);
+  useEffect(() => { if (videoRef) videoRef.current = video.current; });
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [volume, setVolume] = useState(1);
@@ -52,7 +55,7 @@ export default function StudioPlayer({ url, kind, images, thumbs, markers, segme
   return (
     <div className="stp">
       <div className="stp-stage" onClick={toggle} role="presentation">
-        <video ref={video} src={url} playsInline muted={muted} preload="metadata"
+        <video ref={video} src={url} playsInline muted={muted} preload="auto" crossOrigin={url.startsWith("blob:") ? undefined : "anonymous"}
           onTimeUpdate={(e) => { setT(e.currentTarget.currentTime); onTime(e.currentTarget.currentTime); }}
           onLoadedMetadata={(e) => { setDur(e.currentTarget.duration); onDuration(e.currentTarget.duration); }}
           onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />

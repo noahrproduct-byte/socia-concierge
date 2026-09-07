@@ -54,6 +54,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [toast, setToast] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const seekN = useRef(0);
+  const playerVideo = useRef<HTMLVideoElement | null>(null);
 
   const doSeek = useCallback((t: number) => { seekN.current += 1; setSeek({ t, n: seekN.current }); }, []);
   const notify = (s: string) => { setToast(s); setTimeout(() => setToast(null), 1800); };
@@ -89,7 +90,15 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     setW((cur) => ({ ...cur, hook: "", cta: "", onscreen: [], cover: null }));
     setPhase("extracting"); setProgress({ done: 0, total: 10 });
     try {
-      const fr = src.kind === "video" ? await extractFrames(src.file ?? src.url, (d, t) => setProgress({ done: d, total: t })) : await imageFrames(src.files.length ? src.files : src.images);
+      // Sample from the player once React has mounted it for this source.
+      let el: HTMLVideoElement | null = null;
+      for (let i = 0; i < 40 && src.kind === "video"; i++) {
+        el = playerVideo.current;
+        if (el && el.src === src.url) break;
+        el = null;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      const fr = src.kind === "video" ? await extractFrames(src.file ?? src.url, (d, t) => setProgress({ done: d, total: t }), el) : await imageFrames(src.files.length ? src.files : src.images);
       setFrames(fr);
       await analyze(src, fr);
     } catch (e) {
@@ -217,7 +226,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 <span className="st-file">{source.kind === "video" ? <FileVideo size={14} /> : <ImageIcon size={14} />} {source.name}{frames?.duration ? ` · ${Math.round(frames.duration)}s` : ""}</span>
                 <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => input.current?.click()}>Replace</button>
               </div>
-              <StudioPlayer url={source.url} kind={source.kind} images={source.images} thumbs={frames?.thumbs ?? []} markers={analysis?.markers ?? []} segments={analysis?.segments ?? []} seek={seek} onTime={() => null} onDuration={() => null} cover={w.cover} onCover={(i) => setW((c) => ({ ...c, cover: i }))} activeMarker={activeMarker} />
+              <StudioPlayer url={source.url} kind={source.kind} images={source.images} thumbs={frames?.thumbs ?? []} markers={analysis?.markers ?? []} segments={analysis?.segments ?? []} seek={seek} onTime={() => null} onDuration={() => null} cover={w.cover} onCover={(i) => setW((c) => ({ ...c, cover: i }))} activeMarker={activeMarker} videoRef={playerVideo} />
             </div>
           )}
           <div className="ov-card st-context">

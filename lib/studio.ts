@@ -142,24 +142,37 @@ export type Frames = { frames: string[]; times: number[]; duration: number; thum
 
 /** Sample frames from a video (a File or a same-site/CORS URL) with <video>
  *  + <canvas>. The file never leaves the browser; only small JPEG frames do. */
-export async function extractFrames(source: File | string, onProgress: (done: number, total: number) => void): Promise<Frames> {
-  const url = typeof source === "string" ? source : URL.createObjectURL(source);
-  const video = document.createElement("video");
-  if (typeof source === "string") video.crossOrigin = "anonymous";
-  video.muted = true; video.playsInline = true; video.preload = "auto";
-  // A detached <video> may never load (Chrome defers media for off-DOM and
-  // background elements); keep it in the document, out of sight.
-  video.style.cssText = "position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
-  document.body.appendChild(video);
-  const cleanup = () => { video.pause(); video.removeAttribute("src"); video.load(); video.remove(); if (typeof source !== "string") URL.revokeObjectURL(url); };
-  video.src = url;
-  video.load();
+export async function extractFrames(source: File | string, onProgress: (done: number, total: number) => void, existing?: HTMLVideoElement | null): Promise<Frames> {
+  // Prefer the visible player's own element: it is already decoding the
+  // file, so no second decoder has to load (Chrome defers loading for
+  // off-screen and background media). Otherwise a hidden in-document one.
+  const own = !existing;
+  const url = existing ? existing.currentSrc || existing.src : typeof source === "string" ? source : URL.createObjectURL(source);
+  const video = existing ?? document.createElement("video");
+  if (own) {
+    if (typeof source === "string") video.crossOrigin = "anonymous";
+    video.muted = true; video.playsInline = true; video.preload = "auto";
+    video.style.cssText = "position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
+    document.body.appendChild(video);
+    video.src = url;
+    video.load();
+  } else {
+    video.pause();
+  }
+  const cleanup = () => {
+    if (own) { video.pause(); video.removeAttribute("src"); video.load(); video.remove(); if (typeof source !== "string") URL.revokeObjectURL(url); }
+    else { try { video.currentTime = 0; } catch { /* ignore */ } }
+  };
   try {
-    await new Promise<void>((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("unsupported")), 25000);
-      video.onloadedmetadata = () => { clearTimeout(t); resolve(); };
-      video.onerror = () => { clearTimeout(t); reject(new Error("unsupported")); };
-    });
+    if (video.readyState < 1) {
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(() => reject(new Error("unsupported")), 25000);
+        const ok = () => { clearTimeout(t); video.removeEventListener("loadedmetadata", ok); video.removeEventListener("error", bad); resolve(); };
+        const bad = () => { clearTimeout(t); video.removeEventListener("loadedmetadata", ok); video.removeEventListener("error", bad); reject(new Error("unsupported")); };
+        video.addEventListener("loadedmetadata", ok);
+        video.addEventListener("error", bad);
+      });
+    }
   } catch (e) { cleanup(); throw e; }
   const duration = video.duration;
   if (!isFinite(duration) || duration <= 0) { cleanup(); throw new Error("unsupported"); }
