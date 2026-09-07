@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
+import { AskHost } from "@/components/AskSocia";
 import { relTime, type Activity } from "@/lib/overview";
 
 export type SearchItem = { kind: "page" | "post"; label: string; hint?: string; href: string };
@@ -84,6 +85,7 @@ export default function TopBar({ email, plan, index, activity }: { email?: strin
         )}
       </div>
       <div className="tb-right">
+        <AskHost />
         <div className="tb-bell" ref={bellRef}>
           <button type="button" className={`tb-iconbtn${bell ? " on" : ""}`} aria-label="Recent activity" aria-expanded={bell} onClick={() => setBell((v) => !v)}>
             <Bell size={16} />

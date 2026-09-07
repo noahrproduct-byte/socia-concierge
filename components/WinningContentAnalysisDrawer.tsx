@@ -70,8 +70,8 @@ export default function WinningContentAnalysisDrawer({ item, onClose }: { item: 
           ) : (
             <p className="cp4-drawer-note">No interpretation has been generated for this post yet.</p>
           )}
-          <a className="cw-link" href={`/chat?q=${encodeURIComponent(ask)}`}>
-            {item.why ? "Go deeper with the strategist" : "Ask the strategist why it worked"} <ArrowRight size={13} />
+          <a className="cw-link" href={`/chat?q=${encodeURIComponent(ask)}`} data-ask-context={JSON.stringify({ page: "competitors", competitorName: item.accountName ?? undefined, competitorPlatform: item.platform })} data-ask-label={`Post: ${(item.title ?? item.url).slice(0, 40)}`} data-ask-send="1">
+            {item.why ? "Go deeper with SOCIA" : "Ask SOCIA why it worked"} <ArrowRight size={13} />
           </a>
           <p className="cp4-drawer-note">
             <Info size={11} /> Interpretation is a reading of the observed data above, not a measurement.

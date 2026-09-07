@@ -247,8 +247,10 @@ export default function CompetitorWorkspace({
             <p className="cp4-empty">Select a competitor to see the evidence.</p>
           )}
           {active && (
-            <a className="cw-link" href={`/chat?q=${encodeURIComponent(`Compare my account with ${active.row.name} using only these measured numbers: ${active.comparisons.filter((c) => c.diffPct != null).map((c) => `${c.label}: me ${fmtC(c, c.you)}, them ${fmtC(c, c.them)}`).join("; ")}. What do they do differently?`)}`}>
-              See all insights <ArrowRight size={13} />
+            <a className="cw-link" href={`/chat?q=${encodeURIComponent(`Why is ${active.row.name} outperforming me, and what do they do differently?`)}`}
+              data-ask-context={JSON.stringify({ page: "competitors", competitorId: active.row.id, competitorPlatform: active.row.platform, competitorName: active.row.name, comparisons: active.comparisons.filter((c) => c.diffPct != null).map((c) => `${c.label}: me ${fmtC(c, c.you)}, them ${fmtC(c, c.them)} (${c.diffPct! > 0 ? "+" : ""}${Math.round(c.diffPct!)}%)`) })}
+              data-ask-label={`Competitor: ${active.row.name}`} data-ask-send="1">
+              Ask SOCIA why <ArrowRight size={13} />
             </a>
           )}
         </section>

@@ -6,7 +6,8 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
-import { Download, Lightbulb, ArrowRight, Target } from "lucide-react";
+import { Download, Lightbulb, ArrowRight, Target, Sparkles } from "lucide-react";
+import { askSocia } from "@/lib/ask";
 import KpiCard from "./ov/KpiCard";
 import OverviewChart from "./ov/OverviewChart";
 import PointDrawer from "./ov/PointDrawer";
@@ -183,6 +184,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
             <DateRangeSelector />
           </Mounted>
           <a href="/api/export" download className="ov-btn ghost"><Download size={14} /> Export</a>
+          <button type="button" className="ov-btn primary" onClick={() => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric } })}><Sparkles size={14} /> Ask SOCIA</button>
         </div>
       </header>
 
@@ -235,7 +237,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
               <section className="ov-card" aria-labelledby="av-ins-h">
                 <div className="ov-card-head">
                   <h2 id="av-ins-h"><span className="ov-h-ico primary"><Lightbulb size={14} /></span> Key Insights</h2>
-                  <Link href="/chat" className="ov-link">Ask</Link>
+                  <button type="button" className="ov-link" onClick={() => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric }, question: "What am I missing?" })}>Ask</button>
                 </div>
                 <InsightList insights={insights.slice(0, 5)} posts={d.posts} compact onTab={jumpTab} />
               </section>

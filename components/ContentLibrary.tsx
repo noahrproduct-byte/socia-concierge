@@ -172,7 +172,10 @@ export default function ContentLibrary({ posts, embedded = false }: { posts: Lib
                     <Link
                       href={`/chat?q=${encodeURIComponent(whyQuestion(p))}`}
                       className="lib-act"
-                      title="Ask the Strategist about this post"
+                      title="Ask SOCIA about this post"
+                      data-ask-context={JSON.stringify({ page: "content", postId: p.id })}
+                      data-ask-label={`Post: ${displayTitle(p.caption).slice(0, 40)}`}
+                      data-ask-send="1"
                     >
                       <Sparkles size={11} /> Why
                     </Link>

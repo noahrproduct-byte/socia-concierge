@@ -179,7 +179,7 @@ export function buildGaps(input: {
         performance,
         gap: "Most captions end without giving people a reason to comment, save or share.",
         action: "Add one clear question or ask to the next 3 captions, then compare comments and saves against these 10.",
-        cta: { label: "Generate ideas", href: `/chat?q=${encodeURIComponent(`Only ${withPrompt.length} of my last ${last10.length} captions include a direct prompt. Write 3 caption endings with a specific question or ask that fit my pizza restaurant audience.`)}` },
+        cta: { label: "Generate ideas", href: `/chat?q=${encodeURIComponent(`Only ${withPrompt.length} of my last ${last10.length} captions include a direct prompt. Write 3 caption endings with a specific question or ask that fit my audience and my goal.`)}` },
         secondary: { label: "See posts", tab: "content" },
         postIds: ids(without.slice(0, 3)), planNote: `Captions rarely prompt a response (${withPrompt.length}/${last10.length}); end each post with a question or ask.`,
       });

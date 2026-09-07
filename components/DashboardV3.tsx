@@ -5,7 +5,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Sparkles, ArrowRight, Send, Target, Film, MapPin, Users, Zap, Plus, CalendarDays, Star } from "lucide-react";
 import KpiCard from "./ov/KpiCard";
 import OverviewChart from "./ov/OverviewChart";
@@ -18,6 +17,7 @@ import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
+import { askSocia } from "@/lib/ask";
 
 export type DashboardData = {
   greeting: string;
@@ -58,7 +58,6 @@ const CHIPS = [
 ];
 
 export default function DashboardV3({ d }: { d: DashboardData }) {
-  const router = useRouter();
   const [metric, setMetric] = useState<"views" | "engagement" | "followers">(d.series.views.provenance === "unavailable" ? "engagement" : "views");
   const [open, setOpen] = useState<PostCard | null>(null);
   const [ask, setAsk] = useState("");
@@ -241,7 +240,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
             </div>
             <InsightList insights={insights.slice(0, 3)} numbered posts={d.posts} compact />
             <Link href="/tool" className="ov-btn outline full">View full strategy <ArrowRight size={13} /></Link>
-            <form className="dv-ask" onSubmit={(e) => { e.preventDefault(); if (ask.trim()) router.push(`/chat?q=${encodeURIComponent(ask.trim())}`); }}>
+            <form className="dv-ask" onSubmit={(e) => { e.preventDefault(); if (ask.trim()) { askSocia({ question: ask.trim(), autoSend: true, context: { page: "dashboard" } }); setAsk(""); } }}>
               <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="Ask SOCIA anything..." aria-label="Ask SOCIA" />
               <button type="submit" aria-label="Ask"><Send size={14} /></button>
             </form>

@@ -68,7 +68,7 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
             <div className="ov-detail-actions">
               {open.action.tab && onTab && <button type="button" className="ov-btn ghost" onClick={() => { onTab(open.action.tab!); setOpen(null); }}><ArrowRight size={13} /> {open.action.label}</button>}
               <Link href={`/tool?note=${encodeURIComponent(open.planNote)}`} className="ov-btn primary"><Sparkles size={13} /> Add to Content Plan</Link>
-              <Link href={`/chat?q=${encodeURIComponent(`${open.title}. ${open.body} What should I do about it this week?`)}`} className="ov-btn ghost"><Info size={13} /> Ask the Strategist</Link>
+              <Link href={`/chat?q=${encodeURIComponent(`${open.title}. ${open.body} What should I do about it this week?`)}`} className="ov-btn ghost" data-ask-context={JSON.stringify({ postId: open.postIds[0] })} data-ask-label={open.tag} data-ask-send="1"><Info size={13} /> Ask SOCIA</Link>
             </div>
           </>
         )}

@@ -47,9 +47,12 @@ export async function updateSession(request: NextRequest) {
     "/competitors",
     "/niche",
     "/chat",
+    "/content",
     "/tool",
     "/scorer",
+    "/studio",
     "/calendar",
+    "/reports",
     "/settings",
   ];
   if (!user && protectedPaths.some((p) => path.startsWith(p))) {

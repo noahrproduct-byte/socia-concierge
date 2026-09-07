@@ -1,0 +1,104 @@
+import { NextResponse } from "next/server";
+import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { createClient } from "@/lib/supabase/server";
+import { buildAskEvidence } from "@/lib/askContext";
+import { askAnswerSchema, type AskAnswer, type AskContext, type ModelAnswer, type AskProposal } from "@/lib/ask";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+// Ask SOCIA, in context. The page and object the user is looking at arrive
+// with the question; the server assembles verified evidence for them and the
+// model answers in labelled parts. Actions are mapped to real routes here;
+// the model never writes a URL.
+
+type Msg = { role: "user" | "assistant"; content: string };
+
+function parseJson(text: string): ModelAnswer | null {
+  const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  try { return JSON.parse(cleaned); } catch { /* fall through */ }
+  const s = cleaned.indexOf("{"), e = cleaned.lastIndexOf("}");
+  if (s === -1 || e <= s) return null;
+  try { return JSON.parse(cleaned.slice(s, e + 1)); } catch { return null; }
+}
+
+function hrefFor(type: string, note: string, post: { permalink: string | null } | null): string | null {
+  const q = (s: string) => encodeURIComponent(s.slice(0, 400));
+  switch (type) {
+    case "content_plan": return `/tool?note=${q(note)}`;
+    case "calendar": return `/calendar?compose=1${note ? `&caption=${q(note)}` : ""}`;
+    case "analytics": return `/analytics#${["overview", "content", "audience", "times", "growth"].includes(note) ? note : "overview"}`;
+    case "content": return "/content";
+    case "competitors": return "/competitors";
+    case "studio": return "/studio";
+    case "reports": return "/reports";
+    case "post": return post?.permalink ?? null;
+    default: return null;
+  }
+}
+
+export async function POST(req: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
+
+  let body: { context?: AskContext; messages?: Msg[] };
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+  const ctx: AskContext = { page: "global", ...(body.context ?? {}) };
+  const messages = (body.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-12);
+  while (messages.length && messages[0].role === "assistant") messages.shift();
+  if (!messages.length) return NextResponse.json({ error: "No message to send." }, { status: 400 });
+
+  const ev = await buildAskEvidence(supabase, user.id, ctx);
+  const first = messages[0];
+  const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
+
+  try {
+    const params = {
+      model: MODEL,
+      max_tokens: 2000,
+      system: ev.system,
+      output_config: { format: { type: "json_schema", schema: askAnswerSchema } },
+      messages: convo,
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await anthropic.messages.create(params as any);
+    if (res.stop_reason === "refusal") return NextResponse.json({ error: "SOCIA can't help with that one. Try rephrasing." }, { status: 422 });
+    const block = res.content.find((b) => b.type === "text");
+    const raw = block && "text" in block ? parseJson(block.text) : null;
+    if (!raw) return NextResponse.json({ error: "SOCIA returned something unreadable. Try again." }, { status: 502 });
+
+    const post = raw.postId ? ev.posts.find((p) => p.id === raw.postId) ?? null : null;
+    const proposals: AskProposal[] = [];
+    for (const p of raw.proposals ?? []) {
+      if (p.kind === "plan_day" && ctx.page === "plan" && ev.plan && ev.plan.data.weeklyPlan?.[p.index]) {
+        const cur = ev.plan.data.weeklyPlan[p.index];
+        proposals.push({ kind: "plan_day", planId: ev.plan.id, index: p.index, day: cur.day, current: { concept: cur.concept, hook: cur.hook, format: cur.format, rationale: cur.rationale }, proposed: { concept: p.concept, hook: p.hook, format: p.format || cur.format, rationale: p.rationale }, why: p.why });
+      } else if (p.kind === "text" && p.field !== "none" && p.options?.length) {
+        proposals.push({ kind: "text", field: p.field, label: p.label || p.field, options: p.options.slice(0, 5) });
+      }
+    }
+    const answer: AskAnswer = {
+      text: raw.text ?? "",
+      observed: (raw.observed ?? []).slice(0, 5),
+      derived: (raw.derived ?? []).slice(0, 4),
+      interpretation: raw.interpretation ?? "",
+      recommendation: raw.recommendation ?? "",
+      actions: (raw.actions ?? []).map((a) => ({ label: a.label, href: hrefFor(a.type, a.note ?? "", post) })).filter((a): a is { label: string; href: string } => Boolean(a.href) && Boolean(a.label)).slice(0, 3),
+      proposals,
+      post: post ? { id: post.id, title: post.title, thumb: post.thumb, stat: post.views != null ? `${post.views.toLocaleString("en-US")} views` : `${post.engagements.toLocaleString("en-US")} interactions`, permalink: post.permalink } : null,
+    };
+
+    // Keep a record (best-effort), so nothing the strategist said is lost.
+    try {
+      const title = `${ctx.page}: ${first.content.slice(0, 44)}`;
+      await supabase.from("conversations").insert({ user_id: user.id, title, messages: [...messages, { role: "assistant", content: answer.text }] });
+    } catch { /* history is optional */ }
+
+    return NextResponse.json({ answer });
+  } catch (err) {
+    const kind = aiFailureKind(err);
+    return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
+  }
+}

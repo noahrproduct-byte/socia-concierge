@@ -23,6 +23,8 @@ import {
   Trophy,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import { AskDrawer } from "@/components/AskSocia";
+import type { AskProposal } from "@/lib/ask";
 import CountUp from "@/components/CountUp";
 import BestTime from "@/components/BestTime";
 import type { Deliverable, GenerateInput, SavedPlan } from "@/lib/schema";
@@ -372,7 +374,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
               </div>
             </div>
           ) : result ? (
-            <Report data={result.data} planId={result.id} posts={context.posts} />
+            <Report data={result.data} planId={result.id} posts={context.posts} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
           ) : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
@@ -498,10 +500,27 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   );
 }
 
-function Report({ data, planId, posts }: { data: Deliverable; planId: string | null; posts: CalPost[] }) {
+function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; onUpdate: (d: Deliverable) => void }) {
   // Times are SOCIA's, from the audience data, never the model's guess. The
   // same rule the Calendar uses, so the two never disagree.
   const aud = useMemo(() => buildAudience(posts), [posts]);
+  // Ask SOCIA about this plan: proposals come back as a rewritten day the
+  // user applies (saved to the plan when it has an id), never auto-applied.
+  const [ask, setAsk] = useState<{ q: string | null; day: string | null } | null>(null);
+  const [applied, setApplied] = useState<string | null>(null);
+  const onProposal = async (p: AskProposal) => {
+    if (p.kind !== "plan_day" || !data.weeklyPlan?.[p.index]) return false;
+    const weeklyPlan = data.weeklyPlan.map((d, i) => (i === p.index ? { ...d, concept: p.proposed.concept, hook: p.proposed.hook, format: p.proposed.format || d.format, rationale: p.proposed.rationale } : d));
+    if (planId) {
+      try {
+        const res = await fetch("/api/plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: planId, weeklyPlan }) });
+        if (!res.ok) return false;
+      } catch { return false; }
+    }
+    onUpdate({ ...data, weeklyPlan });
+    setApplied(p.day); setTimeout(() => setApplied(null), 2000);
+    return true;
+  };
   const timeFor = (day: string): string | null => {
     const wd = weekdayIndex(day);
     return wd == null ? null : hourLabel(suggestedHour(aud, (wd + 6) % 7));
@@ -667,12 +686,16 @@ function Report({ data, planId, posts }: { data: Deliverable; planId: string | n
 
       {data.weeklyPlan?.length > 0 && (
         <section className="cpl-rsec">
-          <h3>This week&apos;s plan</h3>
+          <div className="cpl-rsec-head">
+            <h3>This week&apos;s plan</h3>
+            <button type="button" className="ov-btn ghost small" onClick={() => setAsk({ q: null, day: null })}><Sparkles size={12} /> Ask SOCIA about this plan</button>
+          </div>
           <div className="cpl-posts">
             {data.weeklyPlan.map((post, i) => (
-              <article className="cpl-post" key={i} style={{ animationDelay: `${i * 70}ms` }}>
+              <article className={`cpl-post${applied === post.day ? " applied" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="cpl-post-tags">
                   <span className="cpl-tag day">{post.day}</span>
+                  <button type="button" className="cpl-improve" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to film.`, day: post.day })}><Sparkles size={11} /> Improve</button>
                   {timeFor(post.day) && (
                     <span className="cpl-tag time" title={aud.enough ? "From your audience's engagement windows" : "No audience data yet; noon by default"}>
                       <Clock size={10} /> {timeFor(post.day)}
@@ -711,6 +734,9 @@ function Report({ data, planId, posts }: { data: Deliverable; planId: string | n
         </section>
       )}
 
+      {ask && (
+        <AskDrawer open onClose={() => setAsk(null)} context={{ page: "plan", planId: planId ?? undefined, planDay: ask.day ?? undefined }} contextLabel={ask.day ? `Day: ${ask.day}` : `Plan for ${data.clientHandle}`} initialQuestion={ask.q} onProposal={onProposal} title="Ask SOCIA about this plan" />
+      )}
       <div className="cpl-ractions">
         <button className="cpl-export" onClick={() => window.print()} type="button">
           <FileDown size={14} /> Export as PDF

@@ -26,3 +26,26 @@ export async function GET() {
     return NextResponse.json({ plans: [] });
   }
 }
+
+// Apply a change to one saved plan (the Content Plan's "Apply change" from a
+// SOCIA proposal). Only the weekly plan is editable; the audit stays as built.
+export async function PATCH(req: Request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  let body: { id?: string; weeklyPlan?: unknown[] };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  if (!body.id || !Array.isArray(body.weeklyPlan)) return NextResponse.json({ error: "id and weeklyPlan required." }, { status: 400 });
+  const { data: cur, error: readErr } = await supabase.from("plans").select("id, data").eq("id", body.id).eq("user_id", user.id).maybeSingle();
+  if (readErr || !cur) return NextResponse.json({ error: "Plan not found." }, { status: 404 });
+  const data = { ...(cur.data as Record<string, unknown>), weeklyPlan: body.weeklyPlan };
+  const { data: row, error } = await supabase.from("plans").update({ data }).eq("id", body.id).eq("user_id", user.id).select("id, client_handle, niche, platform, data, created_at").single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ plan: row });
+}

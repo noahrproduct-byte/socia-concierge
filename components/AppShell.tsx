@@ -3,10 +3,10 @@ import {
   LayoutDashboard,
   BarChart3,
   Radar,
-  Sparkles,
   FileText,
   FileBarChart,
-  Video,
+  Images,
+  Clapperboard,
   CalendarDays,
   Settings,
   Camera,
@@ -37,13 +37,15 @@ const FB_MARK = (
 
 type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 
+// Pages are user jobs, not technologies. SOCIA AI is not a destination: it
+// lives inside each of these pages (Ask SOCIA in the top bar and in context).
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
   { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
+  { href: "/content", label: "Content", Icon: Images, key: "content" },
   { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
-  { href: "/chat", label: "AI Strategist", Icon: Sparkles, key: "chat" },
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
-  { href: "/scorer", label: "Video Scorer", Icon: Video, key: "scorer" },
+  { href: "/studio", label: "Content Studio", Icon: Clapperboard, key: "studio" },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
   { href: "/reports", label: "Reports", Icon: FileBarChart, key: "reports" },
 ];
