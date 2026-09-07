@@ -7,7 +7,6 @@ import {
   Compass,
   Target,
   Sparkles,
-  Zap,
   CheckCircle2,
   BarChart3,
   Users,
@@ -23,6 +22,7 @@ import {
   Database,
   Trophy,
 } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 import CountUp from "@/components/CountUp";
 import BestTime from "@/components/BestTime";
 import type { Deliverable, GenerateInput, SavedPlan } from "@/lib/schema";
@@ -170,48 +170,28 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   return (
     <div className="cpl">
       {/* header */}
-      <div className="cpl-head">
-        <div>
-          <small className="cpl-eyebrow">Content Plan</small>
-          <h1>Your content plan</h1>
-          <p>
-            SOCIA builds a weekly plan for your account. Add anything recent to sharpen it, or
-            just hit generate.
-          </p>
-        </div>
-        <div className="cpl-badges">
-          <div className="cpl-badge">
-            <span className="cpl-badge-ico blue">
-              <Zap size={14} />
+      <PageHeader
+        title="Content Plan"
+        sub="SOCIA builds a weekly plan for your account. Add anything recent to sharpen it, or just hit generate."
+        status={
+          context.connected ? (
+            <span className="ov-status">
+              <i className="live" />
+              Account connected{context.syncedAgo ? ` · Updated ${context.syncedAgo}` : ""} · Uses your posts, competitors and audience
             </span>
-            <span className="cpl-badge-meta">
-              <b>Powered by AI</b>
-              <small>Strategy + performance + competitors</small>
-            </span>
-          </div>
-          {context.connected ? (
-            <div className="cpl-badge">
-              <span className="cpl-badge-ico green">
-                <CheckCircle2 size={14} />
-              </span>
-              <span className="cpl-badge-meta">
-                <b>Account connected</b>
-                <small>Live data{context.syncedAgo ? ` · Updated ${context.syncedAgo}` : ""}</small>
-              </span>
-            </div>
           ) : (
-            <Link href="/settings" className="cpl-badge link">
-              <span className="cpl-badge-ico dim">
-                <Plug size={14} />
-              </span>
-              <span className="cpl-badge-meta">
-                <b>No account connected</b>
-                <small>Connect for live data →</small>
-              </span>
-            </Link>
-          )}
-        </div>
-      </div>
+            <span className="ov-status">
+              <i />
+              No account connected · <Link href="/settings">Connect for live data</Link>
+            </span>
+          )
+        }
+        actions={
+          <Link href="/calendar" className="ov-btn ghost">
+            <CalendarDays size={14} /> Open Calendar
+          </Link>
+        }
+      />
 
       <div className="cpl-grid">
         {/* configuration */}

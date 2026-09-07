@@ -1,10 +1,10 @@
 // app/scorer/page.tsx
 
 import { redirect } from "next/navigation";
-import { Zap, CheckCircle2, Plug, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
+import PageHeader from "@/components/PageHeader";
 import VideoScorer from "@/components/VideoScorer";
 import { getIgSnapshot } from "@/lib/instagramSync";
 
@@ -55,51 +55,24 @@ export default async function ScorerPage() {
 
   return (
     <AppShell active="scorer" userEmail={user.email}>
-      {/* shares the dark-page shell + header system introduced on Content Plan */}
       <div className="cpl">
-        <div className="cpl-head">
-          <div>
-            <small className="cpl-eyebrow">Pre-post analysis</small>
-            <h1>
-              Video Scorer <Sparkles size={20} className="ch2-spark" />
-            </h1>
-            <p>
-              Upload a draft and get it graded — hook, script, visual, audio — before you post.
-            </p>
-          </div>
-          <div className="cpl-badges">
-            <div className="cpl-badge">
-              <span className="cpl-badge-ico blue">
-                <Zap size={14} />
+        <PageHeader
+          title="Video Scorer"
+          sub="Upload a draft and get it graded on hook, script, visual and audio before you post."
+          status={
+            connected ? (
+              <span className="ov-status">
+                <i className="live" />
+                Account connected{syncedAgo ? ` · Updated ${syncedAgo}` : ""} · Scored against your own performance
               </span>
-              <span className="cpl-badge-meta">
-                <b>Powered by AI</b>
-                <small>Strategy + performance + competitors</small>
-              </span>
-            </div>
-            {connected ? (
-              <div className="cpl-badge">
-                <span className="cpl-badge-ico green">
-                  <CheckCircle2 size={14} />
-                </span>
-                <span className="cpl-badge-meta">
-                  <b>Account connected</b>
-                  <small>Live data{syncedAgo ? ` · Updated ${syncedAgo}` : ""}</small>
-                </span>
-              </div>
             ) : (
-              <Link href="/settings" className="cpl-badge link">
-                <span className="cpl-badge-ico dim">
-                  <Plug size={14} />
-                </span>
-                <span className="cpl-badge-meta">
-                  <b>No account connected</b>
-                  <small>Connect for live data →</small>
-                </span>
-              </Link>
-            )}
-          </div>
-        </div>
+              <span className="ov-status">
+                <i />
+                No account connected · <Link href="/settings">Connect for live data</Link>
+              </span>
+            )
+          }
+        />
 
         <VideoScorer niche={niche} />
       </div>

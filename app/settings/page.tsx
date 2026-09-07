@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
-  Settings as SettingsIcon,
   UserRound,
   Share2,
   CreditCard,
@@ -19,6 +18,7 @@ import {
 import AppearanceSettings from "@/components/AppearanceSettings";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
+import PageHeader from "@/components/PageHeader";
 import BrandSettings from "@/components/BrandSettings";
 import StrategistSettings from "@/components/StrategistSettings";
 import IntelligenceCard, { type IntelState } from "@/components/IntelligenceCard";
@@ -160,16 +160,7 @@ export default async function SettingsPage({
   return (
     <AppShell active="settings" userEmail={user.email}>
       <div className="st2 st3">
-        <div className="st2-head">
-          <div>
-            <small className="st2-eyebrow">Account</small>
-            <h1>Settings</h1>
-            <p>Manage your brand, connections, intelligence, and plan.</p>
-          </div>
-          <div className="st2-deco" aria-hidden>
-            <SettingsIcon size={28} />
-          </div>
-        </div>
+        <PageHeader title="Settings" sub="Manage your brand, connections, intelligence, and plan." />
 
         <div className="st3-layout">
           <SettingsNav />

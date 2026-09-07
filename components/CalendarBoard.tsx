@@ -28,6 +28,7 @@ import {
   Loader2,
   Trash2,
 } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 import { createClient } from "@/lib/supabase/client";
 import {
   draftsFromPlan,
@@ -239,13 +240,11 @@ export default function CalendarBoard({
 
   return (
     <div className="cal2">
-      {/* header */}
-      <div className="cal2-head">
-        <div>
-          <small className="cal2-eyebrow">Scheduling</small>
-          <h1>Calendar</h1>
-          <p>Plan your week around when your audience is actually online.</p>
-          {aud.enough && aud.peak && now ? (
+      <PageHeader
+        title="Calendar"
+        sub="Plan your week around when your audience is actually online."
+        status={
+          aud.enough && aud.peak && now ? (
             <div className="cal2-live">
               <span className="cal2-dot" aria-hidden />
               <b>Audience data</b>
@@ -256,29 +255,28 @@ export default function CalendarBoard({
               </em>
             </div>
           ) : connected ? (
-            <div className="cal2-live muted">
-              Not enough posts yet to map your audience windows.
-            </div>
+            <div className="cal2-live muted">Not enough posts yet to map your audience windows.</div>
           ) : (
             <div className="cal2-live muted">
-              <Link href="/settings">Connect your Instagram</Link>&nbsp;to see your audience
-              windows.
+              <Link href="/settings">Connect your Instagram</Link>&nbsp;to see your audience windows.
             </div>
-          )}
-        </div>
-        <div className="cal2-head-actions">
-          <button type="button" className="cal2-plan" onClick={() => setPlanOpen(true)}>
-            <CalendarPlus size={15} /> Schedule from Content Plan
-          </button>
-          <button
-            type="button"
-            className="cal2-new"
-            onClick={() => now && openNew(now, (now.getDay() + 6) % 7)}
-          >
-            <Plus size={15} /> New post
-          </button>
-        </div>
-      </div>
+          )
+        }
+        actions={
+          <>
+            <button type="button" className="ov-btn ghost" onClick={() => setPlanOpen(true)}>
+              <CalendarPlus size={14} /> Schedule from Content Plan
+            </button>
+            <button
+              type="button"
+              className="ov-btn primary"
+              onClick={() => now && openNew(now, (now.getDay() + 6) % 7)}
+            >
+              <Plus size={14} /> New post
+            </button>
+          </>
+        }
+      />
 
       {now && (
         <AutoPublishStatus

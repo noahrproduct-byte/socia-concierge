@@ -20,7 +20,7 @@ import type { ViralDoc, ViralItem } from "@/app/api/niche-viral/route";
 /** Print the page — the same lightweight export the plan report uses. */
 export function ExportButton() {
   return (
-    <button className="cp3-export" type="button" onClick={() => window.print()}>
+    <button className="ov-btn ghost" type="button" onClick={() => window.print()}>
       <Download size={14} /> Export report
     </button>
   );

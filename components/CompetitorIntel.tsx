@@ -104,7 +104,7 @@ export function ManageCompetitors({ initial }: { initial: Tracked[] }) {
 
   return (
     <>
-      <button className="btn-primary cp4-manage" type="button" onClick={() => setOpen(true)}>
+      <button className="ov-btn primary" type="button" onClick={() => setOpen(true)}>
         <Settings2 size={14} /> Manage competitors
       </button>
       {open && (

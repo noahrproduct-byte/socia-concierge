@@ -15,6 +15,7 @@ import {
   ArrowRight,
   Zap,
 } from "lucide-react";
+import PageHeader from "@/components/PageHeader";
 
 type Msg = { role: "user" | "assistant"; content: string };
 type Conversation = { id: string; title: string | null; messages: Msg[]; updated_at: string };
@@ -165,32 +166,30 @@ export default function ChatClient({ context }: { context: StrategistContext }) 
 
   return (
     <div className="ch2">
-      {/* header */}
-      <div className="ch2-head">
-        <div>
-          <small className="ch2-eyebrow">Ask anything</small>
-          <h1>
-            AI Strategist <Sparkles size={20} className="ch2-spark" />
-          </h1>
-          <p>A strategist that already knows your account, niche, and numbers.</p>
-        </div>
-      </div>
-      {chips.length > 0 && (
-        <div className="ch2-strip">
-          {chips.map(({ Ico, value }) => (
-            <span className="ch2-status" key={value}>
-              <Ico size={12} /> {value}
-            </span>
-          ))}
-        </div>
-      )}
+      <PageHeader
+        title="AI Strategist"
+        sub="A strategist that already knows your account, niche, and numbers."
+        status={
+          chips.length > 0 ? (
+            <div className="ch2-strip">
+              {chips.map(({ Ico, value }) => (
+                <span className="ch2-status" key={value}>
+                  <Ico size={12} /> {value}
+                </span>
+              ))}
+            </div>
+          ) : null
+        }
+        actions={
+          <button className="ov-btn primary" onClick={newChat} type="button">
+            <Plus size={14} /> New chat
+          </button>
+        }
+      />
 
       <div className="ch2-cols">
         {/* history */}
         <aside className="ch2-side">
-          <button className="btn-primary db2-ask ch2-new" onClick={newChat} type="button">
-            <Plus size={15} /> New chat
-          </button>
           <small className="ch2-side-label">Recent chats</small>
           <div className="ch2-list">
             {conversations.length === 0 && <p className="ch2-list-empty">No saved chats yet.</p>}

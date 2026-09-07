@@ -798,10 +798,10 @@ function ScorerStyles() {
         margin-top: 20px;
         padding: 34px 30px;
         border: 1.5px dashed rgba(var(--primary-rgb), .4);
-        border-radius: 18px;
+        border-radius: 14px;
         background:
           radial-gradient(480px 200px at 50% 0%, rgba(var(--primary-rgb), .06), transparent 70%),
-          var(--surface-muted);
+          var(--surface);
         cursor: pointer;
         transition: border-color .2s, background .2s, box-shadow .2s, transform .18s, padding .3s ease;
         animation: vsIn .45s cubic-bezier(.22,1,.36,1) both;
@@ -839,8 +839,8 @@ function ScorerStyles() {
 
       .vs2-tips {
         cursor: default;
-        background: var(--surface); border: 1px solid var(--border);
-        border-radius: 14px; padding: 15px 17px;
+        background: var(--surface-muted); border: 1px solid var(--border);
+        border-radius: 12px; padding: 15px 17px;
       }
       .vs2-tips > b { display: block; font-size: 12.5px; font-weight: 700; color: var(--text-primary);
         margin-bottom: 10px; }
@@ -906,8 +906,8 @@ function ScorerStyles() {
       .vs2-empty-head p { margin: 10px 0 0; font-size: 13.5px; color: var(--text-secondary); }
       .vs2-egrid { display: grid; gap: 14px; }
       @media (min-width: 980px) { .vs2-egrid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-      .vs2-ecard { background: var(--surface-muted); border: 1px solid var(--border);
-        border-radius: 16px; padding: 18px 20px;
+      .vs2-ecard { background: var(--surface); border: 1px solid var(--border);
+        border-radius: 14px; padding: 16px 18px;
         animation: vsIn .5s cubic-bezier(.22,1,.36,1) both;
         transition: transform .2s cubic-bezier(.22,1,.36,1), border-color .2s; }
       .vs2-ecard:hover { transform: translateY(-3px); border-color: rgba(var(--primary-rgb), .3); }
@@ -1000,8 +1000,8 @@ function ScorerStyles() {
       @media (min-width: 1040px) { .vs2-layout { grid-template-columns: 300px minmax(0,1fr); } }
       .vs2-layout > * { min-width: 0; }
 
-      .vs2-player { position: sticky; top: 16px; background: var(--surface-muted);
-        border: 1px solid var(--border); border-radius: 16px; padding: 12px; }
+      .vs2-player { position: sticky; top: 74px; background: var(--surface);
+        border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
       .vs2-player video { width: 100%; border-radius: 11px; display: block; background: var(--surface); }
       .vs2-time { font-size: 12px; color: var(--text-secondary); margin-top: 8px;
         font-variant-numeric: tabular-nums; }
@@ -1020,8 +1020,8 @@ function ScorerStyles() {
       .vs2-results { display: grid; gap: 16px; }
       @media (min-width: 1400px) { .vs2-results { grid-template-columns: 1.55fr 1fr; } }
       .vs2-results > * { min-width: 0; }
-      .vs2-card { background: var(--surface-muted); border: 1px solid var(--border);
-        border-radius: 16px; padding: 18px 20px; }
+      .vs2-card { background: var(--surface); border: 1px solid var(--border);
+        border-radius: 14px; padding: 16px 18px; }
       .vs2-card-head { display: flex; align-items: baseline; justify-content: space-between;
         gap: 12px; margin-bottom: 12px; }
       .vs2-card-head h3 { font-size: 10.5px; font-weight: 750; letter-spacing: .11em;

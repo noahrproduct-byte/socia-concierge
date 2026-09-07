@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import AppShell from "@/components/AppShell";
+import PageHeader from "@/components/PageHeader";
 import NicheTrends from "@/components/NicheTrends";
 import NicheDetection, { type NicheDetail } from "@/components/NicheDetection";
 import { ExportButton } from "@/components/CompetitorsBoard";
@@ -391,24 +392,25 @@ export default async function CompetitorsPage({
   return (
     <AppShell active="competitors" userEmail={user.email}>
       <div className="cp4">
-        {/* header */}
-        <div className="cp4-head cw-head db2-rise">
-          <div>
-            <h1>Competitors</h1>
-            <p>See who&apos;s outperforming you, what they&apos;re doing differently, and what you can learn from them.</p>
-            <span className="cw-status">
+        <PageHeader
+          title="Competitors"
+          sub="See who's outperforming you, what they're doing differently, and what you can learn from them."
+          status={
+            <span className="ov-status">
               <i className={lastRun ? "live" : ""} />
               {lastRun ? <>Live competitor intelligence · Last refreshed {agoText(lastRun)}</> : <>No discovery run yet</>}
               <RefreshDiscovery />
             </span>
-          </div>
-          <div className="cp4-controls">
-            <PlatformSelect value={platform} />
-            <RangeSelect days={days} compact />
-            <ExportButton />
-            <ManageCompetitors initial={tracked} />
-          </div>
-        </div>
+          }
+          actions={
+            <>
+              <PlatformSelect value={platform} />
+              <RangeSelect days={days} compact />
+              <ExportButton />
+              <ManageCompetitors initial={tracked} />
+            </>
+          }
+        />
 
         <CompetitorWorkspace
           rows={platform === "all" ? leaderRows : leaderRows.filter((r) => r.isYou || r.platform === platform)}

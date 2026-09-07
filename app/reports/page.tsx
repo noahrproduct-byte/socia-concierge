@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Download, FileText, ShieldCheck, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
+import PageHeader from "@/components/PageHeader";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import {
   getFollowers,
@@ -84,30 +85,28 @@ export default async function ReportsPage({
 
   return (
     <AppShell active="reports" userEmail={user.email}>
-      <div className="dsh-head">
-        <div>
-          <h1>Reports</h1>
-          <p>
-            Period summary for {snap?.username ? `@${snap.username}` : "your account"} · {periodLabel}
-          </p>
-        </div>
-        <div className="dsh-controls">
-          <div className="dsh-ranges">
-            {[
-              { id: "7", label: "7D" },
-              { id: "30", label: "30D" },
-              { id: "90", label: "90D" },
-            ].map((r) => (
-              <Link key={r.id} href={`/reports?range=${r.id}`} className={String(days) === r.id ? "on" : ""}>
-                {r.label}
-              </Link>
-            ))}
-          </div>
-          <a className="dsh-cta" href="/api/export">
-            <Download size={13} /> Export data (JSON)
-          </a>
-        </div>
-      </div>
+      <PageHeader
+        title="Reports"
+        sub={<>Period summary for {snap?.username ? `@${snap.username}` : "your account"} · {periodLabel}</>}
+        actions={
+          <>
+            <div className="ov-seg" role="group" aria-label="Date range">
+              {[
+                { id: "7", label: "7D" },
+                { id: "30", label: "30D" },
+                { id: "90", label: "90D" },
+              ].map((r) => (
+                <Link key={r.id} href={`/reports?range=${r.id}`} className={String(days) === r.id ? "on" : ""}>
+                  {r.label}
+                </Link>
+              ))}
+            </div>
+            <a className="ov-btn ghost" href="/api/export">
+              <Download size={14} /> Export data (JSON)
+            </a>
+          </>
+        }
+      />
 
       <section className="dsh-panel dsh-tablewrap">
         <div className="dsh-panel-head">
