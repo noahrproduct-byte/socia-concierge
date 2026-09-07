@@ -81,6 +81,18 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
   const ticks = 4;
   const labelEvery = Math.max(1, Math.ceil(n / (compact ? 7 : granularity === "day" ? 10 : 12)));
   const empty = series.provenance === "unavailable" || !cur.some((b) => b.value != null);
+  // Breakout labels: neighbouring spikes would overprint, so only the tallest
+  // one within a label's width gets the text (the tooltip still says breakout).
+  const labelReach = Math.ceil(110 / slot);
+  const labelOk = (i: number) => {
+    const v = cur[i].value ?? 0;
+    for (let j = Math.max(0, i - labelReach); j <= Math.min(n - 1, i + labelReach); j++) {
+      if (j === i || !outliers.has(j)) continue;
+      const w = cur[j].value ?? 0;
+      if (w > v || (w === v && j < i)) return false;
+    }
+    return true;
+  };
   const linePts = cur.map((b, i) => (b.value == null ? null : `${x(i)},${y(b.value)}`)).filter(Boolean).join(" ");
 
   const hovered = hover != null ? cur[hover] : null;
@@ -135,7 +147,7 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
                   <line x1={x(i) - barW / 2 - 3} x2={x(i) + barW / 2 + 3} y1={padT + 13} y2={padT + 9} />
                 </g>
               )}
-              {b.value != null && !isFollowers && outliers.has(i) && (
+              {b.value != null && !isFollowers && outliers.has(i) && labelOk(i) && (
                 <text x={x(i)} y={padT - 8} textAnchor="middle" className="ov-brk-label">{fmtNum(b.value)} · breakout</text>
               )}
               {b.value != null && isFollowers && on && <circle cx={x(i)} cy={y(v)} r={5} className="ov-dot" />}

@@ -150,7 +150,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
     const s = d.series.views.provenance === "unavailable" ? d.series.reach : d.series.views;
     const wk = bucketize(s.current, "week", "sum", d.today).filter((b) => b.value != null && !b.partial);
     const med = median(wk.map((b) => b.value!));
-    if (med == null || med <= 0 || wk.length < 4) return { label: s.label, growth: [] as Bucket[], decline: [] as Bucket[], median: med };
+    if (med == null || med <= 0 || wk.length < 4) return { label: s.label, growth: [] as Bucket[], decline: [] as Bucket[], median: null as number | null };
     return { label: s.label, growth: wk.filter((b) => b.value! >= med * 1.5), decline: wk.filter((b) => b.value! <= med * 0.6), median: med };
   }, [d.series, d.today]);
   const milestones = useMemo(() => {
