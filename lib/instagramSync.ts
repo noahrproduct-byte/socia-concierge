@@ -4,6 +4,8 @@
 // goes stale. If the cache columns don't exist yet, the fetched snapshot
 // is still returned in-memory so pages render real data either way.
 
+import { hasSnapshot, writeDailySnapshot } from "./snapshotJob";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
@@ -68,33 +70,19 @@ async function recordSnapshot(
   userId: string,
   igUserId: string | null,
   followers: number | null,
+  extra: { follows?: number | null; media_count?: number | null } = {},
 ) {
   if (followers == null) return;
   const day = new Date().toISOString().slice(0, 10);
-  const base = {
-    user_id: userId,
-    day,
-    followers,
-    source: "socia_snapshot",
-    retrieved_at: new Date().toISOString(),
-  };
   try {
-    // Post-migration shape: history is per account.
-    if (igUserId) {
-      const { error } = await supabase
-        .from("account_snapshots")
-        .upsert({ ...base, ig_user_id: igUserId }, { onConflict: "user_id,ig_user_id,day" });
-      if (!error) return;
-    }
-    const { error } = await supabase
-      .from("account_snapshots")
-      .upsert(base, { onConflict: "user_id,day" });
-    if (error) {
-      // Extended columns may not exist yet — fall back to the base shape.
-      await supabase
-        .from("account_snapshots")
-        .upsert({ user_id: userId, day, followers }, { onConflict: "user_id,day" });
-    }
+    // The first observation of a UTC day is the day's value (the scheduled
+    // job takes it just after midnight), so a later page view never moves it.
+    if (await hasSnapshot(supabase, userId, igUserId, day)) return;
+    await writeDailySnapshot(supabase, userId, igUserId, day, {
+      followers,
+      follows: extra.follows ?? null,
+      media_count: extra.media_count ?? null,
+    });
   } catch {
     // history simply starts once the table exists
   }
@@ -223,7 +211,7 @@ async function fetchFromInstagram(token: string): Promise<{
       "fields",
       "id,caption,media_type,like_count,comments_count,timestamp,permalink,media_url,thumbnail_url",
     );
-    mediaUrl.searchParams.set("limit", "25");
+    mediaUrl.searchParams.set("limit", "50");
     mediaUrl.searchParams.set("access_token", token);
 
     const [pRes, mRes] = await Promise.all([fetch(profUrl), fetch(mediaUrl)]);
@@ -278,7 +266,7 @@ export async function readDailySnapshots<T>(
         .eq("user_id", userId)
         .eq("ig_user_id", igUserId)
         .order("day", { ascending: true })
-        .limit(400);
+        .limit(800);
       if (!error) return (data ?? []) as T[];
     } catch {
       // column may not exist yet
@@ -289,7 +277,7 @@ export async function readDailySnapshots<T>(
     .select(columns)
     .eq("user_id", userId)
     .order("day", { ascending: true })
-    .limit(400);
+    .limit(800);
   if (error) throw error;
   return (data ?? []) as T[];
 }
@@ -396,7 +384,20 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
   // values an earlier build recorded from sync-time counter reads, which were
   // never comparable daily totals.
   try {
-    const series = await fetchDailySeries(token, 90);
+    // Meta keeps about two years of daily history. Pull a year the first time
+    // (or while the stored series is still short), then top up recent days.
+    let storedDays = 0;
+    try {
+      const { count } = await supabase
+        .from("account_snapshots")
+        .select("day", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("source", "instagram_api");
+      storedDays = count ?? 0;
+    } catch {
+      // count is only an optimisation
+    }
+    const series = await fetchDailySeries(token, storedDays < 60 ? 365 : 35);
     if (series.size) {
       const rows = [...series.entries()].map(([day, vals]) => ({
         user_id: userId,
@@ -442,7 +443,10 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
     // history simply stays as far back as previous syncs recorded
   }
 
-  await recordSnapshot(supabase, userId, igId, snap.followers_count);
+  await recordSnapshot(supabase, userId, igId, snap.followers_count, {
+    follows: (fresh.profile.follows_count as number | undefined) ?? null,
+    media_count: snap.media_count,
+  });
 
   return snap;
 }
@@ -486,7 +490,10 @@ export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgS
 
   if (!row.profile && row.followers_count == null) return null; // never synced successfully
 
-  await recordSnapshot(supabase, userId, row.ig_user_id ?? null, row.followers_count ?? null);
+  await recordSnapshot(supabase, userId, row.ig_user_id ?? null, row.followers_count ?? null, {
+    follows: ((row.profile as Record<string, unknown> | null)?.follows_count as number | undefined) ?? null,
+    media_count: row.media_count ?? null,
+  });
 
   const cachedStatus = (row.profile as Record<string, unknown> | null)?.insights_status as
     | { ok?: boolean }

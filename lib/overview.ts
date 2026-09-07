@@ -6,8 +6,10 @@
 
 import type { IgMediaItem } from "./instagramSync";
 import type { DailySnapshot } from "./dashboardMetrics";
-import { engagementOf, median, postsPerWeek, pctChange } from "./metrics";
-import { buildAudience, hourLabel, DOW, type CalPost } from "./audience";
+import { median, postsPerWeek, pctChange } from "./metrics";
+import { interactionsTotal, engagementRateOf } from "./engagement";
+import { buildWindows, relText, type TimedPost } from "./postingTimes";
+import type { CalPost } from "./audience";
 import type { Deliverable } from "./schema";
 import type { ScheduledPost } from "./scheduling";
 
@@ -18,6 +20,7 @@ export const RANGES = [
   { id: "28", days: 28, label: "Last 28 days" },
   { id: "30", days: 30, label: "Last 30 days" },
   { id: "90", days: 90, label: "Last 90 days" },
+  { id: "365", days: 365, label: "Last 12 months" },
 ] as const;
 export type RangeId = (typeof RANGES)[number]["id"];
 export const rangeDays = (id: string | undefined): number =>
@@ -54,7 +57,7 @@ export type PostCard = {
   saves: number | null;
   shares: number | null;
   engagements: number;
-  /** engagements ÷ the account's own median. null until a baseline exists. */
+  /** interactions ÷ the account's median post. null until a baseline exists. */
   multiplier: number | null;
   thumb: string | null;
   permalink: string | null;
@@ -71,7 +74,7 @@ export function postCards(media: IgMediaItem[], baseline: number | null): PostCa
     .filter((m) => m.timestamp)
     .sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime())
     .map((m, i) => {
-      const e = engagementOf(m);
+      const e = interactionsTotal(m);
       return {
         id: m.id ?? String(i),
         title: displayTitle(m.caption ?? ""),
@@ -177,10 +180,10 @@ export function buildSeries(
   if (metric === "engagement") {
     const pick = (d: string) => {
       const ms = byPublishDay.get(d) ?? [];
-      return { value: ms.length ? ms.reduce((s, m) => s + engagementOf(m), 0) : null, postIds: ids(ms) };
+      return { value: ms.length ? ms.reduce((s, m) => s + interactionsTotal(m), 0) : null, postIds: ids(ms) };
     };
     const current = make(curDays, pick), previous = make(prevDays, pick);
-    return { metric, label: "Engagement", provenance: "publish_totals", note: "Likes + comments on each post, placed on the day it was published.", current, previous, total: sum(current) ?? 0, prevTotal: sum(previous) };
+    return { metric, label: "Engagement", provenance: "publish_totals", note: "Likes + comments + saves + shares on each post, placed on the day it was published.", current, previous, total: sum(current) ?? 0, prevTotal: sum(previous) };
   }
 
   if (metric === "followers") {
@@ -191,7 +194,7 @@ export function buildSeries(
     return {
       metric, label: "Followers",
       provenance: has ? "snapshot" : "unavailable",
-      note: first ? `Your follower count, recorded by SOCIA each day since ${new Date(first + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}.` : "SOCIA records your follower count daily from the moment you connect; no history yet.",
+      note: first ? `Your follower count, recorded by SOCIA once a day since ${new Date(first + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}. Counts before that are not available from Instagram.` : "SOCIA records your follower count once a day from the moment you connect; no history yet.",
       current, previous, total: last(current), prevTotal: last(previous),
     };
   }
@@ -220,6 +223,103 @@ export function weekly(points: SeriesPoint[], mode: "sum" | "last" = "sum"): Ser
     if (p.value != null) bucket.value = mode === "last" ? p.value : (bucket.value ?? 0) + p.value;
     bucket.postIds.push(...p.postIds);
   }
+  return out;
+}
+
+// --------------------------------------------------------------- buckets ---
+
+export type Granularity = "day" | "week" | "month" | "year";
+export type Bucket = {
+  key: string;
+  /** First calendar day of the bucket (ISO). */
+  start: string;
+  /** Last calendar day of the bucket that lies inside the series (ISO). */
+  end: string;
+  value: number | null;
+  postIds: string[];
+  /** Days inside the bucket that had a value. */
+  days: number;
+  /** The bucket containing today: still accumulating. */
+  partial: boolean;
+};
+
+const mondayOfDay = (day: string) => { const d = new Date(day + "T00:00:00Z"); return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * DAY_MS).toISOString().slice(0, 10); };
+const bucketKeyOf = (day: string, g: Granularity) => (g === "day" ? day : g === "week" ? mondayOfDay(day) : g === "month" ? day.slice(0, 7) : day.slice(0, 4));
+
+/** Group daily points by calendar period. Flow metrics (views, engagement,
+ *  reach) are summed; the follower level takes the last observed value. A
+ *  bucket with no data at all stays null (never zero). */
+export function bucketize(points: SeriesPoint[], g: Granularity, mode: "sum" | "last", today = new Date().toISOString().slice(0, 10)): Bucket[] {
+  const out: Bucket[] = [];
+  for (const p of points) {
+    const key = bucketKeyOf(p.day, g);
+    let b = out[out.length - 1];
+    if (!b || b.key !== key) { b = { key, start: p.day, end: p.day, value: null, postIds: [], days: 0, partial: false }; out.push(b); }
+    b.end = p.day;
+    if (p.value != null) { b.value = mode === "last" ? p.value : (b.value ?? 0) + p.value; b.days++; }
+    b.postIds.push(...p.postIds);
+  }
+  const todayKey = bucketKeyOf(today, g);
+  for (const b of out) b.partial = g !== "day" && b.key === todayKey;
+  return out;
+}
+
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const md = (day: string) => `${MON[+day.slice(5, 7) - 1]} ${+day.slice(8, 10)}`;
+/** Axis label for a bucket. */
+export function bucketLabel(b: Bucket, g: Granularity): string {
+  if (g === "day") return md(b.start);
+  if (g === "week") return md(b.start);
+  if (g === "month") return MON[+b.key.slice(5, 7) - 1];
+  return b.key;
+}
+/** Tooltip title for a bucket, e.g. "Aug 17–23", "August 2026". */
+export function bucketTitle(b: Bucket, g: Granularity): string {
+  if (g === "day") return new Date(b.start + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  if (g === "week") { const e = new Date(new Date(b.start + "T00:00:00Z").getTime() + 6 * DAY_MS).toISOString().slice(0, 10); return `${md(b.start)}–${e.slice(0, 7) === b.start.slice(0, 7) ? +e.slice(8, 10) : md(e)}`; }
+  if (g === "month") return new Date(b.key + "-01T00:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  return b.key;
+}
+
+/** Which groupings the data can honestly support for a range. Yearly needs
+ *  two calendar years of data; monthly needs a range that spans whole months. */
+export function granularityOptions(days: number, firstDataDay: string | null, today = new Date().toISOString().slice(0, 10)): { id: Granularity; label: string; enabled: boolean; why: string }[] {
+  const years = firstDataDay ? +today.slice(0, 4) - +firstDataDay.slice(0, 4) + 1 : 0;
+  return [
+    { id: "day", label: "Daily", enabled: true, why: "" },
+    { id: "week", label: "Weekly", enabled: true, why: "" },
+    { id: "month", label: "Monthly", enabled: days >= 90, why: days >= 90 ? "" : "Choose a range of 90 days or more to group by month." },
+    { id: "year", label: "Yearly", enabled: days >= 365 && years >= 2, why: days >= 365 && years >= 2 ? "" : "Available after SOCIA has collected more history." },
+  ];
+}
+
+// -------------------------------------------------------------- baseline ---
+
+export type Baseline = { label: string; value: number; kind: "median_day" | "median_post" } | null;
+
+/** The reference every bucket is compared against. Post-total series compare
+ *  a day with the account's median post; a platform daily series compares it
+ *  with the median day. Medians, so one breakout post cannot move the bar. */
+export function seriesBaseline(series: Series, postValues: number[] = []): Baseline {
+  if (series.provenance === "unavailable" || series.metric === "followers") return null;
+  if (series.provenance === "publish_totals") {
+    const m = median(postValues);
+    return m != null && m > 0 ? { label: "Median post", value: m, kind: "median_post" } : null;
+  }
+  const m = median(series.current.map((p) => p.value).filter((v): v is number => v != null && v > 0));
+  return m != null ? { label: "Typical day", value: m, kind: "median_day" } : null;
+}
+
+/** Indexes of values far above the rest: beyond median + 6·MAD and at least
+ *  3× the median. Robust to the very spikes it looks for. */
+export function detectOutliers(values: (number | null)[]): Set<number> {
+  const xs = values.filter((v): v is number => v != null && v > 0);
+  const out = new Set<number>();
+  if (xs.length < 4) return out;
+  const med = median(xs)!;
+  const mad = median(xs.map((v) => Math.abs(v - med)))!;
+  const thr = Math.max(med + 6 * mad, 3 * med);
+  values.forEach((v, i) => { if (v != null && v > thr) out.add(i); });
   return out;
 }
 
@@ -265,10 +365,12 @@ export function buildKpis(input: {
     return { pct, text: pct == null ? null : `${pct >= 0 ? "↑" : "↓"} ${Math.abs(pct).toFixed(pct >= 100 ? 0 : 1)}%` };
   };
 
-  // Engagement rate over posts in range: (likes+comments) ÷ followers ÷ posts
-  const rate = (ms: IgMediaItem[]) => (followers && followers > 0 && ms.length ? (ms.reduce((s, m) => s + engagementOf(m), 0) / ms.length / followers) * 100 : null);
-  const rateCur = rate(inRange);
-  const ratePrev = coversPrev || prevRange.length ? rate(prevRange) : null;
+  // Engagement rate: interactions ÷ reach when every post has reach, else ÷ followers (labelled).
+  const erCur = engagementRateOf(inRange, followers);
+  const erPrev = coversPrev || prevRange.length ? engagementRateOf(prevRange, followers) : null;
+  const rateCur = erCur.value;
+  const ratePrev = erPrev && erPrev.method === erCur.method ? erPrev.value : null;
+  const fdays = daily.filter((d) => d.followers != null).length;
 
   const v = delta(views.total, views.prevTotal);
   const r = delta(reach.total, reach.prevTotal);
@@ -286,13 +388,13 @@ export function buildKpis(input: {
     {
       id: "engagement_rate", label: "Engagement Rate", value: rateCur != null ? `${rateCur.toFixed(rateCur < 1 ? 2 : 1)}%` : "—", raw: rateCur,
       deltaPct: e.pct, deltaText: e.pct != null ? `${e.pct >= 0 ? "↑" : "↓"} ${Math.abs(rateCur! - ratePrev!).toFixed(2)} pts` : null, positive: e.pct == null ? null : e.pct >= 0,
-      note: rateCur == null ? (inRange.length ? "Needs a follower count" : `No posts in the last ${days} days`) : e.pct != null ? period : `${inRange.length} post${inRange.length === 1 ? "" : "s"} · likes + comments ÷ followers`,
-      status: rateCur == null ? "unavailable" : "ok", source: "Average likes + comments per post published in the period, divided by current followers.",
+      note: rateCur == null ? (inRange.length ? "Needs reach or a follower count" : `No posts in the last ${days} days`) : e.pct != null ? `${period} · ${erCur.suffix}` : `${inRange.length} post${inRange.length === 1 ? "" : "s"} · ${erCur.suffix}`,
+      status: rateCur == null ? "unavailable" : "ok", source: `How SOCIA calculates engagement: ${erCur.formula}.`,
     },
     {
       id: "followers", label: "Followers", value: followers != null ? followers.toLocaleString("en-US") : "—", raw: followers,
       deltaPct: f.pct, deltaText: f.text ?? (foll.total != null && foll.prevTotal == null ? null : null), positive: f.pct == null ? null : f.pct >= 0,
-      note: followers == null ? "Connect Instagram" : f.text ? period : foll.provenance === "snapshot" ? "history still collecting" : "live from Instagram",
+      note: followers == null ? "Connect Instagram" : f.text ? period : fdays <= 1 ? "Tracking started today" : `${fdays} days of history collected`,
       status: followers == null ? "unavailable" : f.text ? "ok" : "collecting", source: foll.note,
     },
     {
@@ -319,7 +421,7 @@ export function formatBreakdown(media: IgMediaItem[], days: number, now = new Da
   const ms = media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since);
   const haveViews = ms.length > 0 && ms.every((m) => m.insights?.views != null);
   const metric = haveViews ? "views" : "engagement";
-  const val = (m: IgMediaItem) => (metric === "views" ? (m.insights?.views ?? 0) : engagementOf(m));
+  const val = (m: IgMediaItem) => (metric === "views" ? (m.insights?.views ?? 0) : interactionsTotal(m));
   const groups: Record<string, { value: number; count: number }> = {};
   for (const m of ms) {
     const f = formatOf(m) + (formatOf(m) === "Photo" ? "s" : "s");
@@ -341,8 +443,12 @@ export type Insight = {
   id: string;
   kind: "outlier" | "format" | "location" | "window" | "cadence" | "trend";
   tone: "up" | "down" | "info" | "warn";
+  /** Short uppercase label, e.g. "BREAKOUT POST". */
+  tag: string;
   title: string;
   body: string;
+  /** What the row's button says; the evidence drawer opens either way. */
+  action: { label: string; tab?: "content" | "audience" | "times" | "growth" };
   observed: string[];
   interpretation: string;
   recommendation: string;
@@ -363,7 +469,7 @@ export function buildInsights(input: {
   const { media, baseline, location } = input;
   const out: Insight[] = [];
   const dated = media.filter((m) => m.timestamp);
-  const eng = (m: IgMediaItem) => engagementOf(m);
+  const eng = (m: IgMediaItem) => interactionsTotal(m);
   const label = (m: IgMediaItem) => `"${displayTitle(m.caption ?? "").slice(0, 40)}"`;
 
   // 1. Outlier: one post far above the account's own median
@@ -372,15 +478,15 @@ export function buildInsights(input: {
     const mult = eng(top) / baseline;
     if (mult >= 3) {
       out.push({
-        id: "outlier", kind: "outlier", tone: "up",
-        title: `One ${formatOf(top).toLowerCase()} did ${fmtMult(mult)} your usual engagement`,
-        body: `${label(top)} earned ${eng(top).toLocaleString("en-US")} likes and comments against a median of ${Math.round(baseline).toLocaleString("en-US")}.`,
+        id: "outlier", kind: "outlier", tone: "up", tag: "Breakout post", action: { label: "See why" },
+        title: `One ${formatOf(top).toLowerCase()} earned ${fmtMult(mult)} your median interactions`,
+        body: `${label(top)}: ${eng(top).toLocaleString("en-US")} interactions against a median of ${Math.round(baseline).toLocaleString("en-US")}.`,
         observed: [
-          `${label(top)}: ${eng(top).toLocaleString("en-US")} engagements${top.insights?.views != null ? `, ${fmtNum(top.insights.views)} views` : ""}`,
-          `Your median post: ${Math.round(baseline).toLocaleString("en-US")} engagements (last ${dated.length} posts)`,
+          `${label(top)}: ${eng(top).toLocaleString("en-US")} interactions${top.insights?.views != null ? `, ${fmtNum(top.insights.views)} views` : ""}`,
+          `Your median post: ${Math.round(baseline).toLocaleString("en-US")} interactions (last ${dated.length} posts)`,
         ],
-        interpretation: "A single post this far above the median usually means its hook and format hit an audience beyond your followers. That's a repeatable pattern, not luck, until a second attempt says otherwise.",
-        recommendation: `Make a second post with the same format and opening line structure as ${label(top)}, and compare it against the ${Math.round(baseline)} median.`,
+        interpretation: "A post this far above the median was distributed well beyond your followers. The hook and subject are the likeliest reasons; one post can't prove which, so treat it as a pattern to test, not a conclusion.",
+        recommendation: `Make a second post with the same format and opening structure as ${label(top)}, and compare it against the ${Math.round(baseline)} median.`,
         postIds: [top.id ?? ""],
         planNote: `Repeat the format and hook of ${label(top)} (${fmtMult(mult)} my median).`,
       });
@@ -402,11 +508,11 @@ export function buildInsights(input: {
     if (best && best.med / baseline >= 1.15 && byFmt.size > 1) {
       const vs = worst && worst.fmt !== best.fmt ? ` ${best.fmt}s: ${Math.round(best.med)} median vs ${worst.fmt}s: ${Math.round(worst.med)}.` : "";
       out.push({
-        id: "format", kind: "format", tone: "up",
+        id: "format", kind: "format", tone: "up", tag: "Format", action: { label: "See posts", tab: "content" },
         title: `${best.fmt}s are your strongest format`,
-        body: `Median ${Math.round(best.med).toLocaleString("en-US")} engagements across ${plural(best.n, best.fmt.toLowerCase())}, ${fmtMult(best.med / baseline)} your overall median.`,
-        observed: [`${best.fmt}s: median ${Math.round(best.med)} engagements (${best.n} posts)`, `All posts: median ${Math.round(baseline)}`, ...(vs ? [vs.trim()] : [])],
-        interpretation: "The format itself is carrying reach here; Instagram distributes it to more non-followers than your other formats.",
+        body: `Median ${Math.round(best.med).toLocaleString("en-US")} interactions across ${plural(best.n, best.fmt.toLowerCase())}, ${fmtMult(best.med / baseline)} your overall median.`,
+        observed: [`${best.fmt}s: median ${Math.round(best.med)} interactions (${best.n} posts)`, `All posts: median ${Math.round(baseline)}`, ...(vs ? [vs.trim()] : [])],
+        interpretation: "In this sample the format travels further; Instagram tends to show it to more non-followers than your other formats. Sample sizes are small, so keep measuring.",
         recommendation: `Plan the next week so at least two thirds of posts are ${best.fmt.toLowerCase()}s.`,
         postIds: (byFmt.get(best.fmt) ?? []).slice(0, 3).map((m) => m.id ?? ""),
         planNote: `${best.fmt}s earn ${fmtMult(best.med / baseline)} my median; weight the week toward them.`,
@@ -423,7 +529,7 @@ export function buildInsights(input: {
       const place = location.split(",")[0].trim();
       if (mentions.length === 0) {
         out.push({
-          id: "location", kind: "location", tone: "warn",
+          id: "location", kind: "location", tone: "warn", tag: "Local content", action: { label: "Investigate" },
           title: `None of your last ${dated.length} posts mention ${place}`,
           body: "For a local business, reach that isn't local doesn't turn into visits.",
           observed: [`0 of ${dated.length} captions mention ${tokens.map((t) => `"${t}"`).join(" or ")}`],
@@ -437,12 +543,12 @@ export function buildInsights(input: {
         if (mr > 0 && (mm / mr >= 1.3 || mm / mr <= 0.7)) {
           const up = mm >= mr;
           out.push({
-            id: "location", kind: "location", tone: up ? "up" : "info",
-            title: up ? `Posts that mention ${place} earn ${fmtMult(mm / mr)} more` : `Posts that mention ${place} earn less than the rest`,
-            body: `Median ${Math.round(mm)} engagements on ${plural(mentions.length, "post")} mentioning ${place}, vs ${Math.round(mr)} on the other ${rest.length}.`,
-            observed: [`${mentions.length} posts mention ${place}: median ${Math.round(mm)}`, `${rest.length} posts don't: median ${Math.round(mr)}`],
-            interpretation: up ? "Naming the place seems to help Instagram put the post in front of people nearby, who engage more." : "The local posts are landing softer; the hooks on them may be weaker rather than the location itself hurting.",
-            recommendation: up ? `Keep ${place} in the caption and add the location tag on every post.` : `Keep naming ${place}, but open those posts with the same hook style as your best performers.`,
+            id: "location", kind: "location", tone: up ? "up" : "info", tag: "Local content", action: { label: "Investigate" },
+            title: up ? `Posts mentioning ${place} had ${fmtMult(mm / mr)} the median interactions` : `Posts mentioning ${place} are underperforming your other posts`,
+            body: `Median ${Math.round(mm)} interactions on ${plural(mentions.length, "post")} mentioning ${place}, vs ${Math.round(mr)} on the other ${rest.length}, in this sample.`,
+            observed: [`${mentions.length} posts mention ${place}: median ${Math.round(mm)} interactions`, `${rest.length} posts don't: median ${Math.round(mr)}`],
+            interpretation: up ? "The local posts landed better in this sample. That is consistent with Instagram showing them to nearby people, but the sample can't separate the place from the hooks and subjects of those posts." : "The local posts landed softer in this sample. That doesn't show the mention itself hurt; those posts may simply have had weaker hooks or subjects.",
+            recommendation: up ? `Keep ${place} in the caption and add the location tag on every post, then re-check in two weeks.` : `Keep naming ${place}, but open those posts with the same hook style as your best performers and compare.`,
             postIds: mentions.slice(0, 3).map((m) => m.id ?? ""),
             planNote: up ? `Local mentions earn ${fmtMult(mm / mr)}; name ${place} in every caption.` : `Local posts underperform; pair ${place} mentions with stronger hooks.`,
           });
@@ -461,7 +567,7 @@ export function buildInsights(input: {
     const prev30 = Math.max(0, prev * 2 - cur); // posts/week in the 30 days before the last 30
     if (prev30 > 0 && cur / prev30 <= 0.7) {
       out.push({
-        id: "cadence", kind: "cadence", tone: "down",
+        id: "cadence", kind: "cadence", tone: "down", tag: "Cadence", action: { label: "See posts", tab: "content" },
         title: `Posting dropped to ${cur.toFixed(1)}/week`,
         body: `From ${prev30.toFixed(1)}/week in the 30 days before.`,
         observed: [`Last 30 days: ${cur.toFixed(1)} posts/week`, `Previous 30 days: ${prev30.toFixed(1)} posts/week`],
@@ -480,9 +586,9 @@ export function buildInsights(input: {
     if (b > 0 && Math.abs(a / b - 1) >= 0.25) {
       const up = a > b;
       out.push({
-        id: "trend", kind: "trend", tone: up ? "up" : "down",
-        title: up ? `Your last 5 posts run ${fmtMult(a / b)} the 5 before` : `Your last 5 posts run ${Math.round((1 - a / b) * 100)}% below the 5 before`,
-        body: `Median ${Math.round(a)} vs ${Math.round(b)} engagements.`,
+        id: "trend", kind: "trend", tone: up ? "up" : "down", tag: up ? "Recent lift" : "Recent decline", action: { label: "See posts", tab: "content" },
+        title: up ? `Your last 5 posts earned ${fmtMult(a / b)} the median interactions of the 5 before` : `Your last 5 posts earned ${Math.round((1 - a / b) * 100)}% fewer median interactions than the 5 before`,
+        body: `Median ${Math.round(a)} vs ${Math.round(b)} interactions per post.`,
         observed: [`Last 5 posts: median ${Math.round(a)}`, `Previous 5: median ${Math.round(b)}`],
         interpretation: up ? "Whatever changed in the last five is working; hold it constant while you test one variable at a time." : "The recent five share something the earlier ones didn't; compare hooks and formats between the two groups before changing more.",
         recommendation: up ? "Keep the current format mix for another week and measure again." : "Re-run the best-performing format from the earlier group this week.",
@@ -498,20 +604,21 @@ export function buildInsights(input: {
 
 /** The timing insight, computed where the viewer's clock is (client side), with
  *  the same rule the Calendar and Best Times use. null below five posts. */
-export function audienceInsight(posts: CalPost[]): Insight | null {
-  const aud = buildAudience(posts);
-  if (!aud.enough || !aud.peak) return null;
-  const when = `${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)}`;
-  const bestDays = aud.bestDays.map((d) => DOW[d]).join(", ");
+export function audienceInsight(posts: (CalPost & { id?: string; format?: string })[]): Insight | null {
+  const timed: TimedPost[] = posts.map((p, i) => ({ id: p.id ?? String(i), t: p.t, e: p.e, format: p.format ?? "Post" }));
+  const w = buildWindows(timed);
+  if (!w.enough || !w.best.length) return null;
+  const top = w.best[0];
+  const early = top.confidence === "early";
   return {
-    id: "window", kind: "window", tone: "info",
-    title: `Your audience engages most ${when}`,
-    body: `From when your last ${aud.postCount} posts earned their engagement, in your time zone.`,
-    observed: [`Peak window: ${when}`, `Best days: ${bestDays || "no day stands out yet"}`, `Sample: ${aud.postCount} dated posts`],
-    interpretation: "Posts published into the window get their first engagement faster, which Instagram reads as a signal to keep distributing.",
-    recommendation: `Schedule this week's most important post for ${when}.`,
-    postIds: [],
-    planNote: `Best engagement window: ${when}.`,
+    id: "window", kind: "window", tone: "info", tag: early ? "Early signal" : "Best time signal", action: { label: "View posting times", tab: "times" },
+    title: `Your strongest recent engagement landed ${top.label}`,
+    body: `Median ${relText(top.rel)} across ${plural(top.n, "post")} in that window, in your time zone.${early ? " Fewer than 4 posts, so an early signal." : ""}`,
+    observed: [`${top.label}: ${relText(top.rel)} (${plural(top.n, "post")})`, ...w.best.slice(1).map((b) => `${b.label}: ${relText(b.rel)} (${plural(b.n, "post")})`), `Sample: ${w.posts} dated posts, medians against your typical post`],
+    interpretation: "Posts in that window earned more in this sample. That is when they landed, not proof that the hour caused it; the posts themselves may simply have been stronger.",
+    recommendation: `Schedule this week's most important post for ${top.label} and compare it with your median.`,
+    postIds: top.postIds,
+    planNote: `Best window so far: ${top.label} (${relText(top.rel)}, ${top.n} posts).`,
   };
 }
 

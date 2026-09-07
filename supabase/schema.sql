@@ -555,3 +555,10 @@ end $$;
 -- Appearance preference (light | dark | system). Cached on the device for
 -- instant paint; stored here so it follows the user across devices.
 alter table public.profiles add column if not exists appearance text;
+
+-- Daily snapshot totals beyond followers (point-in-time counts Instagram
+-- reports on the profile). Additive; the app writes them when present.
+alter table public.account_snapshots
+  add column if not exists follows integer,
+  add column if not exists media_count integer;
+create index if not exists account_snapshots_user_day_idx on public.account_snapshots (user_id, day);

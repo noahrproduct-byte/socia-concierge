@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { TrendingUp, TrendingDown, MapPin, Clock, Sparkles, ChevronRight, Info, Film, AlertTriangle } from "lucide-react";
+import { TrendingUp, TrendingDown, MapPin, Clock, Sparkles, ChevronRight, Info, Film, AlertTriangle, ArrowRight } from "lucide-react";
 import Drawer from "./Drawer";
 import type { Insight, PostCard } from "@/lib/overview";
 
@@ -14,7 +14,9 @@ const ICON = {
   outlier: TrendingUp, format: Film, location: MapPin, window: Clock, cadence: AlertTriangle, trend: TrendingUp,
 } as const;
 
-export function InsightList({ insights, numbered = false, posts = [], compact = false }: { insights: Insight[]; numbered?: boolean; posts?: PostCard[]; compact?: boolean }) {
+type Tab = "content" | "audience" | "times" | "growth";
+
+export function InsightList({ insights, numbered = false, posts = [], compact = false, onTab }: { insights: Insight[]; numbered?: boolean; posts?: PostCard[]; compact?: boolean; onTab?: (t: Tab) => void }) {
   const [open, setOpen] = useState<Insight | null>(null);
   if (!insights.length) {
     return <div className="ov-empty small">Not enough posts yet for SOCIA to say anything it can back up. Insights appear after five dated posts.</div>;
@@ -30,8 +32,10 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
               <button type="button" className="ov-insight" onClick={() => setOpen(it)}>
                 {numbered ? <span className="ov-insight-num">{i + 1}</span> : <span className={`ov-insight-ico ${it.tone}`}><Icon size={14} /></span>}
                 <span className="ov-insight-body">
+                  <small className="ov-insight-tag">{it.tag}</small>
                   <b>{it.title}</b>
-                  <small>{it.body}</small>
+                  {!compact && <small>{it.body}</small>}
+                  <em className="ov-insight-act">{it.action.label} <ArrowRight size={11} /></em>
                 </span>
                 <ChevronRight size={14} className="ov-insight-chev" />
               </button>
@@ -42,9 +46,10 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
       <Drawer open={Boolean(open)} title="Insight evidence" onClose={() => setOpen(null)}>
         {open && (
           <>
+            <small className="ov-insight-tag big">{open.tag}</small>
             <h3 className="ov-drawer-title">{open.title}</h3>
             <div className="ov-why-block"><small>Observed data</small><ul>{open.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
-            <div className="ov-why-block ai"><small>AI interpretation</small><p>{open.interpretation}</p></div>
+            <div className="ov-why-block ai"><small>SOCIA's interpretation</small><p>{open.interpretation}</p></div>
             <div className="ov-why-block rec"><small>Recommendation</small><p>{open.recommendation}</p></div>
             {evidence.length > 0 && (
               <div className="ov-evidence">
@@ -55,12 +60,13 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={p.thumb} alt="" width={40} height={40} />
                     ) : <span className="ov-card-ph" />}
-                    <span><b>{p.title}</b><em>{p.engagements.toLocaleString("en-US")} engagements{p.views != null ? ` · ${p.views.toLocaleString("en-US")} views` : ""}</em></span>
+                    <span><b>{p.title}</b><em>{p.engagements.toLocaleString("en-US")} interactions{p.views != null ? ` · ${p.views.toLocaleString("en-US")} views` : ""}</em></span>
                   </a>
                 ))}
               </div>
             )}
             <div className="ov-detail-actions">
+              {open.action.tab && onTab && <button type="button" className="ov-btn ghost" onClick={() => { onTab(open.action.tab!); setOpen(null); }}><ArrowRight size={13} /> {open.action.label}</button>}
               <Link href={`/tool?note=${encodeURIComponent(open.planNote)}`} className="ov-btn primary"><Sparkles size={13} /> Add to Content Plan</Link>
               <Link href={`/chat?q=${encodeURIComponent(`${open.title}. ${open.body} What should I do about it this week?`)}`} className="ov-btn ghost"><Info size={13} /> Ask the Strategist</Link>
             </div>

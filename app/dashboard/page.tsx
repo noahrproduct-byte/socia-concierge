@@ -5,13 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
-import { getPerformanceBaseline, type AccountInput, type DailySnapshot } from "@/lib/dashboardMetrics";
-import { median, engagementOf } from "@/lib/metrics";
+import type { DailySnapshot } from "@/lib/dashboardMetrics";
+import { median } from "@/lib/metrics";
+import { interactionsTotal } from "@/lib/engagement";
 import AppShell from "@/components/AppShell";
 import SyncCinematic from "@/components/SyncCinematic";
 import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
 import {
-  RANGES, rangeDays, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming,
+  RANGES, rangeDays, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
   type PlatformRow,
 } from "@/lib/overview";
 import type { Deliverable } from "@/lib/schema";
@@ -143,11 +144,8 @@ export default async function DashboardPage({
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
-  const acct: AccountInput = {
-    followers: snap!.followers_count ?? null, lifetimePosts: snap!.media_count ?? null, posts: media, daily: dailyRows,
-    syncedAt: snap!.last_synced_at ?? null, platform: "instagram", handle: snap!.username ?? null,
-  };
-  const baseline = getPerformanceBaseline(acct).value;
+  // Baseline = the median post's interactions, the same reference Analytics uses.
+  const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);
   const top = rankPosts(posts, "views", 8);
   const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
@@ -183,7 +181,7 @@ export default async function DashboardPage({
   const d: DashboardData = {
     greeting, name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,
     insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
-    timed: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engagementOf(m) })),
+    timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
   };
 
   return (

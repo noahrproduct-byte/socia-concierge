@@ -5,6 +5,7 @@ import {
   createContainer, containerStatus, publishContainer, mediaPermalink, canPublish,
 } from "@/lib/igPublish";
 import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, type ScheduledPost } from "@/lib/scheduling";
+import { runDailySnapshots, type SnapshotRun } from "@/lib/snapshotJob";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -198,5 +199,11 @@ async function run(req: Request) {
   await svc
     .from("publisher_heartbeat")
     .upsert({ id: 1, ran_at: now.toISOString(), considered: due.length, published });
-  return NextResponse.json({ ran_at: now.toISOString(), considered: due.length, published, results });
+  // Daily account snapshots ride on the same tick: the first run after
+  // midnight UTC records each account's totals; later runs find them present.
+  let snapshots: SnapshotRun | null = null;
+  if (Date.now() < deadline - 5_000) {
+    try { snapshots = await runDailySnapshots(svc, now, Math.max(3_000, deadline - Date.now() - 2_000)); } catch { snapshots = null; }
+  }
+  return NextResponse.json({ ran_at: now.toISOString(), considered: due.length, published, results, snapshots });
 }
