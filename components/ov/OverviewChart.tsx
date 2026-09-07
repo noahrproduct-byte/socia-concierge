@@ -100,7 +100,7 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
           return (
             <g key={t}>
               <line x1={padL} x2={W - padR} y1={gy} y2={gy} className="ov-grid" />
-              <text x={padL - 8} y={gy + 4} textAnchor="end" className="ov-axis">{t === 0 && !isFollowers ? "0" : fmtNum(Math.round(v))}</text>
+              <text x={padL - 8} y={gy + 4} textAnchor="end" className="ov-axis">{t === 0 && !isFollowers ? "0" : isFollowers ? Math.round(v).toLocaleString("en-US") : fmtNum(Math.round(v))}</text>
             </g>
           );
         })}

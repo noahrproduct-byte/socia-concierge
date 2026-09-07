@@ -149,7 +149,7 @@ export default function ContentLibrary({ posts, embedded = false }: { posts: Lib
                   </span>
                 </td>
                 <td className="muted">
-                  {new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
                 </td>
                 <td className="muted">{p.format}</td>
                 <td className="num">{fmt(p.views)}</td>
