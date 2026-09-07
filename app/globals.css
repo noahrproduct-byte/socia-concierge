@@ -11626,7 +11626,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 
 /* Reports */
 .dsh-panel { border-radius: 14px; padding: 16px 18px; }
-.dsh-panel-head h2 { font-size: 15px; font-weight: 700; }
+.dsh-panel-head h2 { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
 .dv-head + .dsh-tablewrap { margin-top: 0; }
 
 /* Settings */

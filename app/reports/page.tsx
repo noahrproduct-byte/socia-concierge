@@ -111,7 +111,7 @@ export default async function ReportsPage({
       <section className="dsh-panel dsh-tablewrap">
         <div className="dsh-panel-head">
           <h2>
-            <FileText size={14} style={{ verticalAlign: -2, marginRight: 6 }} />
+            <FileText size={14} />
             Metric report
           </h2>
           <span className="lib-totals">Every row shows how the value was produced</span>
