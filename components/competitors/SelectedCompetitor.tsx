@@ -57,6 +57,8 @@ export function ProfileCard({ r, location, igEnabled, onTrack, tracking, similar
 }
 
 const ROW_LABEL: Record<Cmp["key"], string> = { audience: "Followers", cadence: "Posts per week", medianViews: "Median views", engagement: "Engagement rate" };
+// The reference order: size, cadence, reach, then rate.
+const ORDER: Cmp["key"][] = ["audience", "cadence", "medianViews", "engagement"];
 const fmtC = (c: Cmp, v: number) => (c.unit === "pct" ? `${v.toFixed(1)}%` : c.unit === "perWeek" ? v.toFixed(1) : fmtN(v));
 
 export function Comparison({ r, you, comparisons, days, connected, connectHref }: {
@@ -71,12 +73,12 @@ export function Comparison({ r, you, comparisons, days, connected, connectHref }
       <table className="cx-table">
         <thead><tr><th>Metric</th><th>You</th><th title={r.name}>{r.name}</th><th>Difference</th></tr></thead>
         <tbody>
-          {comparisons.map((c) => {
-            const label = c.key === "audience" && r.platform === "youtube" ? "Followers / subs" : ROW_LABEL[c.key];
+          {ORDER.map((k) => comparisons.find((c) => c.key === k)).filter((c): c is Cmp => Boolean(c)).map((c) => {
+            const label = ROW_LABEL[c.key];
             const youText = !connected && c.you.state !== "ok" ? null : cellText(c.you, (n) => fmtC(c, n));
             return (
               <tr key={c.key}>
-                <td>{label}</td>
+                <td title={c.key === "audience" && r.platform === "youtube" ? "Subscribers on YouTube" : undefined}>{label}</td>
                 <td className={c.you.state === "ok" ? "" : "muted"}>{youText ?? <Link href={connectHref} className="ov-link">Connect</Link>}</td>
                 <td className={c.them.state === "ok" ? "" : "muted"} title={c.them.source ? `${SOURCE_LABEL[c.them.source]}${c.them.sample ? ` · ${c.them.sample} posts` : ""}` : undefined}>{cellText(c.them, (n) => fmtC(c, n))}</td>
                 <td>

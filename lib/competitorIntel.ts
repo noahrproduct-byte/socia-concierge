@@ -177,7 +177,7 @@ export function learnings(pick: SimilarPick, patterns: GroupedPatterns): Learnin
     out.push({
       n: 0,
       title: short ? "Post more short-form content" : "Post more consistently",
-      observed: `They post ${cad.them.value.toFixed(1)}× per week vs. your ${cad.you.value.toFixed(1)}.${shortLine}`,
+      observed: `They publish ${cad.them.value.toFixed(1)} posts per week vs. your ${cad.you.value.toFixed(1)}.${shortLine}`,
       action: { kind: "plan", label: "Add to Plan", note: `Add ${extra} more ${short ? short.tag.slice(0, -1).toLowerCase() : "post"}${extra === 1 ? "" : "s"} this week: ${name} publishes ${cad.them.value.toFixed(1)}/week to my ${cad.you.value.toFixed(1)}.` },
     });
   }
@@ -196,7 +196,7 @@ export function learnings(pick: SimilarPick, patterns: GroupedPatterns): Learnin
   if (hook && out.length < 3) {
     out.push({
       n: 0,
-      title: `Open with a ${hook.tag.toLowerCase()}`,
+      title: `Open with a ${/^[A-Z]{2,}$/.test(hook.tag) ? hook.tag : hook.tag.toLowerCase()}`,
       observed: `${hook.count} of their last ${hook.total} titles use this structure${hook.medianMultiplier != null ? `, at a median ${hook.medianMultiplier.toFixed(1)}× their baseline` : ""}.`,
       action: { kind: "examples", label: "See Examples", tag: hook.tag },
     });

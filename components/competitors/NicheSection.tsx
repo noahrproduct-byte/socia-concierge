@@ -77,7 +77,9 @@ function Working({ w, onTag }: { w: WorkingResult; onTag: (t: string) => void })
               </button>
               <span className="cx-work-body"><b>{r.tag}</b><small>Seen in {r.seenIn} of {r.of} top posts</small></span>
               <span className="cx-work-lift">
-                {r.lift != null ? <><b>{r.lift.toFixed(1)}×</b><small>higher median performance</small></> : <small className="muted" title={`Needs at least three posts without the pattern to compare; ${r.withoutCount} available.`}>lift not measurable</small>}
+                {r.lift != null
+                  ? <><b className={r.lift >= 1.2 ? "" : "flat"}>{r.lift.toFixed(1)}×</b><small>{r.lift >= 1.2 ? "higher median performance" : r.lift >= 0.9 ? "median performance, about even" : "median performance, below the rest"}</small></>
+                  : <small className="muted" title={`Needs at least three posts without the pattern to compare; ${r.withoutCount} available.`}>lift not measurable</small>}
               </span>
             </li>
           ))}
