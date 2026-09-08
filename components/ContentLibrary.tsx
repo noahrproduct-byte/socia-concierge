@@ -173,7 +173,7 @@ export default function ContentLibrary({ posts, embedded = false }: { posts: Lib
                       href={`/chat?q=${encodeURIComponent(whyQuestion(p))}`}
                       className="lib-act"
                       title="Ask SOCIA about this post"
-                      data-ask-context={JSON.stringify({ page: "content", postId: p.id })}
+                      data-ask-context={JSON.stringify({ page: "post", postId: p.id })}
                       data-ask-label={`Post: ${displayTitle(p.caption).slice(0, 40)}`}
                       data-ask-send="1"
                     >

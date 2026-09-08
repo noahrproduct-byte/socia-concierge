@@ -5,7 +5,7 @@
 // recommendation) with real actions and, where the page allows it, concrete
 // proposals the user can apply. Browser-safe: no SDK imports.
 
-export type AskPage = "global" | "dashboard" | "analytics" | "content" | "competitors" | "plan" | "studio";
+export type AskPage = "global" | "dashboard" | "analytics" | "post" | "competitors" | "plan" | "studio";
 
 export type StudioAskContext = {
   kind: "video" | "image" | "carousel";
@@ -63,20 +63,19 @@ export const ASK_SUGGESTIONS: Record<AskPage, string[]> = {
   global: ["What should I focus on this week?", "Show me my best content.", "Why has my engagement changed?", "Create a plan around my goal."],
   dashboard: ["What matters most right now?", "What should I post this week?", "Is my account growing?", "What am I missing?"],
   analytics: ["What caused this spike?", "Why is engagement falling?", "What format is working best?", "What should I focus on next week?", "Is my account actually growing?", "What am I missing?"],
-  content: ["Why did this post perform the way it did?", "What should I do next with this?", "Which of my posts should I repeat?", "Write a follow-up caption."],
+  post: ["Why did this post perform the way it did?", "What should I do next with this?", "Which of my posts should I repeat?", "Write a follow-up caption."],
   competitors: ["Why is this competitor outperforming me?", "What are they doing differently?", "Give me an idea inspired by this without copying.", "What gap do they have that I can use?"],
   plan: ["Make Friday's post more focused on my goal.", "Give me another idea for Tuesday.", "Make this week easier to film.", "Give me 3 more Reels.", "Move my hardest posts to the weekend."],
   studio: ["How do I make the first 3 seconds better?", "Is this too long?", "Rewrite the hook.", "What caption should I use?", "What should the CTA be?", "Should I post this on Instagram or TikTok?"],
 };
 
 export const ASK_PAGE_LABEL: Record<AskPage, string> = {
-  global: "Your account", dashboard: "Dashboard", analytics: "Analytics", content: "Content", competitors: "Competitors", plan: "Content Plan", studio: "Content Studio",
+  global: "Your account", dashboard: "Dashboard", analytics: "Analytics", post: "Post", competitors: "Competitors", plan: "Content Plan", studio: "Content Studio",
 };
 
 /** Which page an Ask belongs to, from the current path. */
 export function pageForPath(path: string): AskPage {
   if (path.startsWith("/analytics")) return "analytics";
-  if (path.startsWith("/content")) return "content";
   if (path.startsWith("/competitors")) return "competitors";
   if (path.startsWith("/tool")) return "plan";
   if (path.startsWith("/studio")) return "studio";

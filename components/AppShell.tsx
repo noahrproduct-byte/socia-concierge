@@ -5,7 +5,6 @@ import {
   Radar,
   FileText,
   FileBarChart,
-  Images,
   Clapperboard,
   CalendarDays,
   Settings,
@@ -42,7 +41,6 @@ type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
   { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
-  { href: "/content", label: "Content", Icon: Images, key: "content" },
   { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
   { href: "/studio", label: "Content Studio", Icon: Clapperboard, key: "studio" },

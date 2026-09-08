@@ -28,7 +28,7 @@ function hrefFor(type: string, note: string, post: { permalink: string | null } 
     case "content_plan": return `/tool?note=${q(note)}`;
     case "calendar": return `/calendar?compose=1${note ? `&caption=${q(note)}` : ""}`;
     case "analytics": return `/analytics#${["overview", "content", "audience", "times", "growth"].includes(note) ? note : "overview"}`;
-    case "content": return "/content";
+    case "content": return "/analytics#content";
     case "competitors": return "/competitors";
     case "studio": return "/studio";
     case "reports": return "/reports";

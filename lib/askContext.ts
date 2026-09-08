@@ -38,7 +38,7 @@ const PAGE_RULES: Record<AskPage, string> = {
   global: "The user asked from the top bar. Answer from the account evidence and point them to the right area with actions.",
   dashboard: "The user is on the Dashboard. Say what matters most right now, backed by the evidence.",
   analytics: "The user is on Analytics with the range and metric shown. Explain what happened and why, using the series, KPIs, insights and gaps given.",
-  content: "The user is looking at one of their posts. Explain its performance against the account's own medians.",
+  post: "The user is looking at one of their posts. Explain its performance against the account's own medians.",
   competitors: "The user is on Competitors looking at a selected account. Compare only with the measured numbers given; never invent competitor metrics.",
   plan: "The user is on their Content Plan. When asked to change a day, return a plan_day proposal (index from the plan) with a rewritten concept, a written hook, a short format label and a rationale; the user applies it, you never assume it is applied.",
   studio: "The user is in Content Studio with a piece of content analysed. When asked for hooks, captions, CTAs or on-screen text, return a text proposal with 3 options; never rewrite their content silently.",
