@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
 import {
-  searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured,
+  searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
 } from "@/lib/youtube";
 import {
   buildQueries, goalKind, scoreAccount, scoreContent, dedupeAccounts, dedupeContent,
@@ -136,10 +136,12 @@ export async function GET(req: Request) {
 
   if (ytConfigured()) {
     try {
-      // Two channel searches and two video searches keep quota sane
-      // (search costs 100 units each against a 10k/day budget).
+      // Two channel searches and three video searches keep quota sane
+      // (search costs 100 units each against a 10k/day budget). Video
+      // results are what the niche patterns and trend direction are counted
+      // over, so they get the larger share.
       const chQueries = queries.slice(0, 2);
-      const vidQueries = queries.slice(0, 2);
+      const vidQueries = queries.slice(0, 3);
 
       const chResults = await Promise.all(
         chQueries.map(async (q) => ({ q, list: await searchChannels(q.q, 5) })),
@@ -163,11 +165,11 @@ export async function GET(req: Request) {
       }
 
       const vidResults = await Promise.all(
-        vidQueries.map(async (q) => ({ q, list: await searchVideos(q.q, 6, 90) })),
+        vidQueries.map(async (q) => ({ q, list: await searchVideos(q.q, 10, 90) })),
       );
       // A view count only becomes "N× normal" against that creator's own
       // median, so fetch the median for the channels we actually surface.
-      const channelIds = [...new Set(vidResults.flatMap((r) => r.list.map((v) => v.channelId)))].slice(0, 8);
+      const channelIds = [...new Set(vidResults.flatMap((r) => r.list.map((v) => v.channelId)))].slice(0, 16);
       const medians = new Map<string, number | null>();
       await Promise.all(
         channelIds.map(async (id) => {
@@ -192,7 +194,8 @@ export async function GET(req: Request) {
             thumbnailUrl: v.thumb,
             title: v.title,
             publishedAt: v.publishedAt || null,
-            contentType: "short",
+            // From the real duration: YouTube's Shorts limit is three minutes.
+            contentType: ytFormat(v.durationSec) === "Video" ? "video" : "short",
             views: v.views,
             likes: v.likes,
             comments: v.comments,
@@ -307,7 +310,7 @@ Output ONLY this JSON, no other text:
 
   // ---- score, classify, dedupe ------------------------------------------
   const accounts = dedupeAccounts(accountCandidates.map((c) => scoreAccount(c, profile))).slice(0, 24);
-  const content = dedupeContent(contentCandidates.map((c) => scoreContent(c, profile))).slice(0, 24);
+  const content = dedupeContent(contentCandidates.map((c) => scoreContent(c, profile))).slice(0, 40);
   const trends = rollUpTrends(content);
   const ranAt = new Date().toISOString();
 

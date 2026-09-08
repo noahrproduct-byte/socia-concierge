@@ -19,6 +19,8 @@ export const ytConfigured = (): boolean => Boolean(process.env.YOUTUBE_API_KEY);
 export type YtChannel = {
   channelId: string;
   title: string;
+  /** Channel "about" text, as published. Null when the channel has none. */
+  description: string | null;
   handle: string | null;
   avatar: string | null;
   /** null when the channel hides its subscriber count. */
@@ -36,7 +38,22 @@ export type YtVideo = {
   views: number | null;
   likes: number | null;
   comments: number | null;
+  /** Length in seconds from contentDetails.duration; null when Google omits it. */
+  durationSec: number | null;
 };
+
+/** ISO 8601 duration ("PT1M32S") to seconds. Null when unparseable. */
+export function isoDurationSec(v: string | undefined | null): number | null {
+  if (!v) return null;
+  const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(v);
+  if (!m) return null;
+  const [, d, h, mi, s] = m;
+  return (Number(d ?? 0) * 86400) + (Number(h ?? 0) * 3600) + (Number(mi ?? 0) * 60) + Number(s ?? 0);
+}
+
+/** YouTube's own Shorts limit is three minutes; anything longer is a video. */
+export const ytFormat = (durationSec: number | null): "Short" | "Video" | null =>
+  durationSec == null ? null : durationSec <= 180 ? "Short" : "Video";
 
 async function ytFetch<T>(path: string, params: Record<string, string>): Promise<T | null> {
   const key = process.env.YOUTUBE_API_KEY;
@@ -55,7 +72,7 @@ async function ytFetch<T>(path: string, params: Record<string, string>): Promise
 
 type ChannelItem = {
   id: string;
-  snippet?: { title?: string; customUrl?: string; thumbnails?: { default?: { url?: string }; medium?: { url?: string } } };
+  snippet?: { title?: string; description?: string; customUrl?: string; thumbnails?: { default?: { url?: string }; medium?: { url?: string } } };
   statistics?: { subscriberCount?: string; viewCount?: string; videoCount?: string; hiddenSubscriberCount?: boolean };
   contentDetails?: { relatedPlaylists?: { uploads?: string } };
 };
@@ -70,6 +87,7 @@ function toChannel(it: ChannelItem): YtChannel {
   return {
     channelId: it.id,
     title: it.snippet?.title ?? "",
+    description: it.snippet?.description?.trim() || null,
     handle: it.snippet?.customUrl ?? null,
     avatar: it.snippet?.thumbnails?.medium?.url ?? it.snippet?.thumbnails?.default?.url ?? null,
     // A hidden subscriber count is unavailable, not zero.
@@ -127,8 +145,9 @@ export async function recentVideos(uploadsPlaylist: string, max = 10): Promise<Y
       id: string;
       snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; high?: { url?: string } } };
       statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+      contentDetails?: { duration?: string };
     }[];
-  }>("videos", { part: "snippet,statistics", id: ids.join(",") });
+  }>("videos", { part: "snippet,statistics,contentDetails", id: ids.join(",") });
 
   return (vids?.items ?? []).map((v) => ({
     videoId: v.id,
@@ -138,6 +157,7 @@ export async function recentVideos(uploadsPlaylist: string, max = 10): Promise<Y
     views: num(v.statistics?.viewCount),
     likes: num(v.statistics?.likeCount),
     comments: num(v.statistics?.commentCount),
+    durationSec: isoDurationSec(v.contentDetails?.duration),
   }));
 }
 
@@ -176,7 +196,10 @@ export type YtStats = {
   uploadsPerWeek?: number | null;
   engagementRate?: number | null;
   medianViews?: number | null;
+  description?: string | null;
   topVideos?: (YtVideo & { url: string })[];
+  /** Every recent upload read (up to 10), newest first, for pattern analysis. */
+  recent?: (YtVideo & { url: string })[];
 };
 
 function medianOf(xs: number[]): number | null {
@@ -205,10 +228,12 @@ export async function channelStats(handle: string): Promise<YtStats> {
     uploadsPerWeek: uploadsPerWeek(vids),
     engagementRate: publicEngagementRate(vids),
     medianViews: medianOf(vids.map((v) => v.views).filter((v): v is number => v != null)),
+    description: ch.description,
     topVideos: [...vids]
       .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
       .slice(0, 3)
       .map((v) => ({ ...v, url: `https://youtube.com/watch?v=${v.videoId}` })),
+    recent: vids.map((v) => ({ ...v, url: `https://youtube.com/watch?v=${v.videoId}` })),
   };
 }
 
@@ -287,8 +312,9 @@ export async function searchVideos(
         thumbnails?: { medium?: { url?: string }; high?: { url?: string } };
       };
       statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+      contentDetails?: { duration?: string };
     }[];
-  }>("videos", { part: "snippet,statistics", id: ids.join(",") });
+  }>("videos", { part: "snippet,statistics,contentDetails", id: ids.join(",") });
 
   return (vids?.items ?? [])
     .map((v) => ({
@@ -299,12 +325,24 @@ export async function searchVideos(
       views: num(v.statistics?.viewCount),
       likes: num(v.statistics?.likeCount),
       comments: num(v.statistics?.commentCount),
+      durationSec: isoDurationSec(v.contentDetails?.duration),
       channelId: v.snippet?.channelId ?? "",
       channelTitle: v.snippet?.channelTitle ?? "",
       url: `https://youtube.com/watch?v=${v.id}`,
     }))
     .sort((a, b) => (b.views ?? 0) - (a.views ?? 0))
     .slice(0, max);
+}
+
+/** Length of one video, for the analysis drawer. One quota unit. */
+export async function videoDurationSec(videoId: string): Promise<number | null> {
+  const j = await ytFetch<{ items?: { contentDetails?: { duration?: string } }[] }>("videos", { part: "contentDetails", id: videoId });
+  return isoDurationSec(j?.items?.[0]?.contentDetails?.duration);
+}
+
+export function youtubeVideoId(url: string): string | null {
+  const m = /(?:youtube\.com\/(?:shorts\/|watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,15})/.exec(url);
+  return m?.[1] ?? null;
 }
 
 /** Median public views across a channel's recent uploads — the denominator

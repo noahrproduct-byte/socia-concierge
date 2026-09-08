@@ -310,21 +310,59 @@ export function detectTrendTags(title: string | null): string[] {
     [/behind the scenes|\bbts\b|how (it|we|they) (is|are|do)|making of|\bprep\b|\bprocess\b/, "Behind the scenes"],
     [/recipe|how to make|tutorial|step by step/, "Tutorial"],
     [/\bmatch cut\b|transition|time.?lapse|slow.?mo/, "Camera technique"],
+    [/\bdough\b|\boven\b|\bbak(e|ing)\b|from scratch|\bstretch|hand.?tossed|wood.?fired|\bmaking\b/, "Kitchen / process"],
     // People and place.
     [/\bpov\b/, "POV"],
     [/owner|founder|chef|employee|staff|meet the|pizzaiolo|pizzaiuolo/, "People on camera"],
     [/day in the life|routine|shift\b/, "Day in the life"],
+    [/reaction|reacts?\b|first time|\btries\b|\btrying\b/, "Customer reactions"],
     // Reaction, judgement and stakes.
     [/review|rating|taste test|tier list|ranked|judge/, "Review / ranking"],
     [/destroy|shocked|insane|crazy|unbelievable|struggling|fail/, "High-drama framing"],
     [/asmr|satisfying|oddly|cheese pull|crispy|gooey/, "Sensory / ASMR"],
     [/secret|nobody|never|\bstop\b|don'?t|you'?re doing it wrong/, "Contrarian hook"],
-    [/\$\d|\bcheap\b|\bprice\b|\bcost\b|\bworth it\b|\bvalue\b/, "Price / value"],
+    [/\$\d|\bcheap\b|\bprice\b|\bcost\b|\bworth it\b|\bvalue\b|\bdeal\b|discount|\bbogo\b|% off|\bfree\b/, "Price / value"],
+    // Business subjects a local operator can act on.
+    [/catering|party tray|large order|big order|\bbulk\b|feeds \d+|for a crowd|\bevent\b|office lunch/, "Catering / large orders"],
+    [/new menu|menu item|\bnew\b.{0,20}\b(pizza|item|special|flavou?r)\b|limited time|\bspecial\b|\blaunch/, "Menu / new item"],
+    [/delivery|take.?out|pick.?up|order online|doordash|uber ?eats|grubhub/, "Delivery / takeout"],
+    [/holiday|christmas|thanksgiving|labor day|halloween|valentine|super bowl|game day|4th of july|new year/, "Holiday / seasonal"],
   ];
   for (const [re, label] of rules) {
     if (re.test(t) && !tags.includes(label)) tags.push(label);
   }
   return tags;
+}
+
+/** Which family a detected tag belongs to. Themes are subjects, hooks are
+ *  title structures, style is presentation. The niche pattern maths only ever
+ *  counts themes and hooks; style is shown but never called "what's working". */
+export type TagGroup = "theme" | "hook" | "style";
+export const TAG_GROUP: Record<string, TagGroup> = {
+  "Behind the scenes": "theme", "Kitchen / process": "theme", "Tutorial": "theme", "People on camera": "theme",
+  "Day in the life": "theme", "Customer reactions": "theme", "Review / ranking": "theme", "Sensory / ASMR": "theme",
+  "Price / value": "theme", "Catering / large orders": "theme", "Menu / new item": "theme", "Delivery / takeout": "theme",
+  "Holiday / seasonal": "theme", "Local / location language": "theme",
+  "Comparison": "hook", "Time contrast": "hook", "Levels / tiers": "hook", "Listicle hook": "hook",
+  "First-person challenge": "hook", "Superlative": "hook", "High-drama framing": "hook", "Contrarian hook": "hook", "POV": "hook",
+  "Camera technique": "style", "Caps for emphasis": "style", "Emoji in title": "style", "Hashtags in title": "style",
+  "Question in title": "style", "Number in title": "style",
+};
+export const tagGroup = (tag: string): TagGroup => TAG_GROUP[tag] ?? "theme";
+
+/** Presentation signals measurable from the title text itself. Each is a
+ *  plain fact about the string, not a judgement. */
+export function styleTags(title: string | null): string[] {
+  const t = (title ?? "").trim();
+  if (!t) return [];
+  const out: string[] = [];
+  // A whole word of three or more letters in capitals, ignoring common acronyms.
+  if (/(?<![A-Z])[A-Z]{3,}(?![A-Z])/.test(t.replace(/\b(POV|ASMR|BTS|NYC|USA|DIY|BBQ|TN|LA|NY)\b/g, ""))) out.push("Caps for emphasis");
+  if (/\p{Extended_Pictographic}/u.test(t)) out.push("Emoji in title");
+  if (/#[\p{L}\p{N}_]+/u.test(t)) out.push("Hashtags in title");
+  if (t.includes("?")) out.push("Question in title");
+  if (/\d/.test(t)) out.push("Number in title");
+  return out;
 }
 
 /** Content relevance, 0-100, from real signals only. */

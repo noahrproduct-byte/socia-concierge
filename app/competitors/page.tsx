@@ -1,484 +1,288 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import AppShell from "@/components/AppShell";
-import PageHeader from "@/components/PageHeader";
-import NicheTrends from "@/components/NicheTrends";
-import NicheDetection, { type NicheDetail } from "@/components/NicheDetection";
-import { ExportButton } from "@/components/CompetitorsBoard";
-import IgCompetitorData from "@/components/IgCompetitorData";
-import {
-  ManageCompetitors,
-  type Tracked,
-  type Suggested,
-} from "@/components/CompetitorIntel";
+import CompetitorsPage from "@/components/competitors/CompetitorsPage";
+import type { CompetitorsData, Tracked, NicheRange, PlatformFilter } from "@/components/competitors/types";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
-import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
+import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtube";
 import { nameKey } from "@/lib/discovery";
-import CompetitorWorkspace, { type WinningItem } from "@/components/CompetitorWorkspace";
-import RefreshDiscovery from "@/components/RefreshDiscovery";
-import RangeSelect from "@/components/RangeSelect";
-import PlatformSelect from "@/components/PlatformSelect";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
-import {
-  engagementOf,
-  median,
-  engagementRate,
-  fmtMult,
-  isChartableDay,
-  localDayStr,
-} from "@/lib/metrics";
+import { withBaseline, type CompetitorRow, type CompPost, type PostsGate } from "@/lib/competitorIntel";
+import { igCompetitorRows, type IgCompetitor } from "@/lib/igCompetitorData";
+import { locationTokens, tagsFor } from "@/lib/competitorPatterns";
+import { tagGroup } from "@/lib/discovery";
+import { goalKeywords } from "@/lib/gaps";
+import { engagementRateOf, interactionsTotal } from "@/lib/engagement";
+import { median, isChartableDay, localDayStr } from "@/lib/metrics";
+import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
-// Competitor Intelligence. The page's honesty contract:
-//   YOU            -> authenticated Instagram data (verified)
-//   Competitors    -> handles the user tracks; platforms expose no analytics
-//                     for other accounts, so their metrics are "—", never guesses
-//   Winning posts  -> real posts by other creators found by live web search,
-//                     labeled Trending creator vs Tracked competitor
-//   Patterns       -> niche web research, labeled as AI-estimated momentum
-// Niche averages don't exist in any data SOCIA can verify, so the comparison
-// table says so instead of inventing a number.
+// Competitors. The honesty contract:
+//   YOU            authenticated Instagram data
+//   Competitors    YouTube's public API, or Instagram Business Discovery once a
+//                  Facebook Page is linked; otherwise a stated absence, never a guess
+//   Niche posts    real posts found by the discovery pipeline, with the public
+//                  counts the platform served and a baseline only where the
+//                  creator's own median is known
+// The page only assembles; lib/competitorIntel and lib/nicheTrends do the maths.
 
-function agoText(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 2) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
-  return `${Math.round(hrs / 24)} day${Math.round(hrs / 24) === 1 ? "" : "s"} ago`;
+type Suggested = {
+  platform: string; handle: string | null; displayName: string | null; profileImage: string | null; profileUrl: string | null;
+  followers: number | null; location: string | null; classification: string; relevanceScore: number | null; relevanceReasons: string[];
+};
+
+const CLASS_ORDER: Record<string, number> = {
+  local_competitor: 0, direct_competitor: 1, emerging_creator: 2, content_inspiration: 3, niche_leader: 4, adjacent_competitor: 5,
+};
+
+const IG_FORMAT: Record<string, string> = { VIDEO: "Reel", IMAGE: "Photo", CAROUSEL_ALBUM: "Carousel" };
+
+function ytPosts(s: YtStats): CompPost[] {
+  return withBaseline((s.recent ?? []).map((v) => ({
+    url: v.url, title: v.title || null, thumb: v.thumb, views: v.views, likes: v.likes, comments: v.comments,
+    publishedAt: v.publishedAt || null, format: ytFormat(v.durationSec), durationSec: v.durationSec, multiplier: null,
+  })));
 }
 
-const fmtNum = (n: number): string =>
-  n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"
-  : n >= 1e4 ? Math.round(n / 1e3) + "K"
-  : n.toLocaleString("en-US");
+function igPosts(c: IgCompetitor): CompPost[] {
+  return (c.media ?? []).map((m) => ({
+    url: m.permalink ?? "", title: m.caption ? m.caption.split("\n")[0].slice(0, 140) : null, thumb: m.thumbnail,
+    views: null, likes: m.likes, comments: m.comments, publishedAt: m.timestamp,
+    format: m.mediaType ? IG_FORMAT[m.mediaType] ?? null : null, durationSec: null, multiplier: null,
+  })).filter((p) => p.url);
+}
 
-export default async function CompetitorsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string; platform?: string }>;
-}) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ range?: string; platform?: string; niche_range?: string }> }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { range, platform: platformParam } = await searchParams;
-  const days = range === "7" ? 7 : range === "90" ? 90 : 30;
-  const platform = platformParam === "instagram" || platformParam === "youtube" || platformParam === "facebook" ? platformParam : "all";
+  const sp = await searchParams;
+  const days = sp.range === "7" ? 7 : sp.range === "90" ? 90 : 30;
+  const platform: PlatformFilter = sp.platform === "instagram" || sp.platform === "youtube" || sp.platform === "facebook" ? sp.platform : "all";
+  const nicheRange: NicheRange = sp.niche_range === "30" ? 30 : sp.niche_range === "all" ? 0 : 90;
+  const now = new Date();
 
+  // ---- the user -----------------------------------------------------------
   const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
   const all: IgMediaItem[] = snap?.media ?? [];
-  const cutoff = Date.now() - days * 86400000;
+  const cutoff = now.getTime() - days * 86400000;
   const posts = all.filter((p) => p.timestamp && new Date(p.timestamp).getTime() >= cutoff);
   const followers = snap?.followers_count ?? null;
-
-  // Tracked competitors (table may not exist yet — page renders without it).
-  let tracked: Tracked[] = [];
+  const profile = await getProfile(supabase, user.id).catch(() => null);
+  const location = profile?.brand_detail?.location ?? null;
+  let subNiche: string | null = null;
   try {
-    const { data, error } = await supabase
-      .from("tracked_competitors")
-      .select("platform, handle, added_at")
-      .eq("user_id", user.id)
-      .order("added_at", { ascending: true });
-    if (!error) tracked = (data ?? []) as Tracked[];
-  } catch {
-    /* not migrated yet */
-  }
+    const { data } = await supabase.from("profiles").select("niche_detail").eq("user_id", user.id).maybeSingle();
+    subNiche = (data?.niche_detail as { sub_niche?: string } | null)?.sub_niche ?? null;
+  } catch { /* optional */ }
 
-  // Real follower history for the YOU sparkline + growth.
-  let folSeries: { day: string; followers: number }[] = [];
-  let gains: number | null = null;
+  let momentumCell = absent("insufficient");
   try {
     const rows = await readDailySnapshots<{ day: string; followers: number | null; followers_gained: number | null; source: string | null }>(
       supabase, user.id, snap?.ig_user_id ?? null, "day, followers, followers_gained, source",
     );
     const from = localDayStr(new Date(cutoff));
-    const today = localDayStr(new Date());
-    folSeries = rows
-      .filter((r) => r.day >= from && r.followers != null)
-      .map((r) => ({ day: r.day, followers: r.followers! }));
-    const gainRows = rows.filter((r) => r.day >= from && r.followers_gained != null && isChartableDay(r, today));
-    gains = gainRows.length ? gainRows.reduce((a, r) => a + (r.followers_gained ?? 0), 0) : null;
-  } catch {
-    /* history simply absent */
-  }
-  const growth =
-    folSeries.length >= 2
-      ? { text: `${folSeries.at(-1)!.followers - folSeries[0].followers >= 0 ? "+" : ""}${(folSeries.at(-1)!.followers - folSeries[0].followers).toLocaleString("en-US")}`, note: "net, from daily snapshots" }
-      : gains != null
-        ? { text: `+${gains.toLocaleString("en-US")}`, note: "new followers (unfollows not reported)" }
-        : null;
+    const series = rows.filter((r) => r.day >= from && r.followers != null && isChartableDay(r, localDayStr(now)));
+    if (series.length >= 2) momentumCell = cell(series[series.length - 1].followers! - series[0].followers!, "socia_snapshot", series.length);
+  } catch { /* history absent */ }
 
-  // ---- YOUR metrics for the window (all real; null = not available) ------
   const N = posts.length;
   const viewsVals = posts.filter((p) => p.insights?.views != null).map((p) => p.insights!.views!);
   const medViews = median(viewsVals);
-  const reels = posts.filter((p) => p.media_type === "VIDEO");
-  const freq = N ? (N / days) * 7 : 0;
-  // Same definition as Analytics/Dashboard (all synced posts), so the same
-  // label can't show a different number per page. A 2-post window average
-  // dominated by one outlier is real math but a misleading "rate".
-  const rate = engagementRate(all, followers);
+  const er = engagementRateOf(all, followers);
+  const byFormat = new Map<string, number[]>();
+  for (const p of posts) byFormat.set(p.media_type ?? "IMAGE", [...(byFormat.get(p.media_type ?? "IMAGE") ?? []), interactionsTotal(p)]);
+  const FORMAT_LABEL: Record<string, string> = { VIDEO: "Reels", CAROUSEL_ALBUM: "Carousels", IMAGE: "Photos" };
+  const yourTopFormat = [...byFormat.entries()].filter(([, xs]) => xs.length >= 2).map(([t, xs]) => ({ t, m: median(xs) ?? 0 })).sort((a, b) => b.m - a.m)[0]?.t;
 
-  const ytTracked = tracked.filter((t) => t.platform === "youtube");
-  let ytStats: Record<string, YtStats> = {};
-  if (ytTracked.length && ytConfigured()) {
-    try {
-      const results = await Promise.all(ytTracked.slice(0, 10).map((t) => channelStats(t.handle)));
-      ytStats = Object.fromEntries(results.map((r) => [r.handle, r]));
-    } catch {
-      // the table simply shows dashes if YouTube is unreachable
-    }
-  }
+  const you: LeaderRow | null = snap ? {
+    id: "you", platform: "instagram", handle: snap.username ?? "you", name: snap.username ? `@${snap.username}` : "Your account",
+    avatar: snap.profile_picture_url ?? null, url: snap.username ? `https://instagram.com/${snap.username}` : null,
+    isYou: true, tracked: true, classification: null,
+    audience: cell(followers, "live_api"),
+    engagement: er.value != null ? cell(er.value, "calculated", er.posts) : absent("insufficient"),
+    cadence: N ? cell((N / days) * 7, "calculated", N) : absent("insufficient"),
+    medianViews: medViews != null ? cell(Math.round(medViews), "live_api", viewsVals.length) : absent("insufficient"),
+    momentum: momentumCell, match: null, topFormat: yourTopFormat ? FORMAT_LABEL[yourTopFormat] ?? yourTopFormat : null,
+  } : null;
 
+  // ---- tracked + discovered accounts --------------------------------------
+  let tracked: Tracked[] = [];
+  try {
+    const { data, error } = await supabase.from("tracked_competitors").select("platform, handle, added_at").eq("user_id", user.id).order("added_at", { ascending: true });
+    if (!error) tracked = (data ?? []) as Tracked[];
+  } catch { /* not migrated yet */ }
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
-  const CLASS_ORDER: Record<string, number> = {
-    local_competitor: 0, direct_competitor: 1, emerging_creator: 2,
-    content_inspiration: 3, niche_leader: 4, adjacent_competitor: 5,
-  };
+
   let suggested: Suggested[] = [];
   try {
     const { data } = await supabase
       .from("discovered_accounts")
-      .select("platform, handle, display_name, profile_image, profile_url, followers, classification, relevance_score, relevance_reasons")
-      .eq("user_id", user.id)
-      .order("relevance_score", { ascending: false })
-      .limit(40);
+      .select("platform, handle, display_name, profile_image, profile_url, followers, location, classification, relevance_score, relevance_reasons")
+      .eq("user_id", user.id).order("relevance_score", { ascending: false }).limit(40);
+    const seenName = new Set<string>();
     suggested = ((data ?? []) as Record<string, unknown>[])
       .map((r) => ({
-        platform: String(r.platform),
-        handle: (r.handle as string) ?? null,
-        displayName: (r.display_name as string) ?? null,
-        profileImage: (r.profile_image as string) ?? null,
-        profileUrl: (r.profile_url as string) ?? null,
-        followers: (r.followers as number) ?? null,
-        classification: String(r.classification),
-        relevanceScore: (r.relevance_score as number) ?? null,
-        relevanceReasons: (r.relevance_reasons as string[]) ?? [],
+        platform: String(r.platform), handle: (r.handle as string) ?? null, displayName: (r.display_name as string) ?? null,
+        profileImage: (r.profile_image as string) ?? null, profileUrl: (r.profile_url as string) ?? null,
+        followers: (r.followers as number) ?? null, location: (r.location as string) ?? null, classification: String(r.classification),
+        relevanceScore: (r.relevance_score as number) ?? null, relevanceReasons: (r.relevance_reasons as string[]) ?? [],
       }))
       .filter((sg) => sg.handle && !trackedKeys.has(`${sg.platform}:${sg.handle.toLowerCase()}`))
-      .sort((a, b) => (CLASS_ORDER[a.classification] ?? 9) - (CLASS_ORDER[b.classification] ?? 9));
-
-    // One card per BUSINESS, not per account. The same restaurant surfaces as
-    // an Instagram page and a Facebook page; both are real, but this strip
-    // answers "who am I competing against", where showing it twice is noise.
-    // The per-platform breakdown stays available further down the page.
-    // Ties resolve to whichever row sorted higher — better classification
-    // first, then relevance — so the more useful listing is the one kept.
-    const seenName = new Set<string>();
-    suggested = suggested
-      .filter((sg) => {
-        const key = nameKey(sg.displayName ?? sg.handle);
-        if (!key) return true;
-        if (seenName.has(key)) return false;
-        seenName.add(key);
-        return true;
-      })
-      // Everything discovery holds, not just six: the table shows six by
-      // default and expands on "View all", and "Discovered for you" is what
-      // lies past those six. Capping here starved both.
+      .sort((a, b) => (CLASS_ORDER[a.classification] ?? 9) - (CLASS_ORDER[b.classification] ?? 9) || (b.relevanceScore ?? -1) - (a.relevanceScore ?? -1))
+      // One card per business: the same restaurant surfaces on two platforms.
+      .filter((sg) => { const k = nameKey(sg.displayName ?? sg.handle); if (!k) return true; if (seenName.has(k)) return false; seenName.add(k); return true; })
       .slice(0, 24);
-  } catch {
-    // discovery tables may not exist yet — the strip still shows tracked accounts
+  } catch { /* discovery tables may not exist yet */ }
+
+  // YouTube: public stats and recent uploads for every channel shown.
+  const ytHandles = [
+    ...tracked.filter((t) => t.platform === "youtube").map((t) => t.handle),
+    ...suggested.filter((s) => s.platform === "youtube" && s.handle).map((s) => s.handle!),
+  ].slice(0, 14);
+  const yt = new Map<string, YtStats>();
+  if (ytHandles.length && ytConfigured()) {
+    const res = await Promise.all(ytHandles.map((h) => channelStats(h).catch(() => ({ handle: h, found: false } as YtStats))));
+    for (const r of res) yt.set(r.handle.toLowerCase(), r);
   }
 
-  const youStrip = {
-    username: snap?.username ?? null,
-    avatar: snap?.profile_picture_url ?? null,
-    followers,
-    engRate: rate,
-    spark: folSeries.map((r) => r.followers),
+  // Instagram: Business Discovery for tracked and discovered handles when a Page is linked.
+  const igHandles = [
+    ...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle),
+    ...suggested.filter((s) => s.platform === "instagram" && s.handle).map((s) => s.handle!),
+  ].slice(0, 8);
+  const igRes = await igCompetitorRows(supabase, user.id, igHandles).catch(() => ({ enabled: false, reason: null as string | null, competitors: [] as IgCompetitor[] }));
+  const ig = new Map(igRes.competitors.map((c) => [c.handle.toLowerCase(), c]));
+  const igGate = (c: IgCompetitor | undefined): PostsGate => !igRes.enabled ? "connection_needed" : !c ? "unavailable" : c.found ? "unavailable" : (c.reasonKind === "no_permission" ? "no_permission" : c.reasonKind === "not_business" ? "not_business" : c.reasonKind === "not_found" ? "not_found" : "failed");
+
+  const matchFor = (p: string, h: string) => suggested.find((sg) => sg.platform === p && sg.handle?.toLowerCase() === h.toLowerCase());
+
+  const rows: CompetitorRow[] = [];
+  const seen = new Set<string>();
+  const push = (r: CompetitorRow) => { if (seen.has(r.id)) return; seen.add(r.id); rows.push(r); };
+
+  const build = (p: "instagram" | "youtube" | "facebook", handle: string, isTracked: boolean, sg: Suggested | undefined): CompetitorRow => {
+    const key = `${p}:${handle.toLowerCase()}`;
+    if (p === "youtube") {
+      const s = yt.get(handle.toLowerCase());
+      const live = s?.found ? s : null;
+      const postsRead = live ? ytPosts(live) : [];
+      const n = postsRead.length || null;
+      return {
+        id: key, platform: p, handle, name: (live?.title ?? sg?.displayName ?? `@${handle}`).replace(/\s+/g, " ").trim(),
+        avatar: live?.avatar ?? sg?.profileImage ?? null, url: live?.url ?? sg?.profileUrl ?? `https://youtube.com/@${handle}`,
+        isYou: false, tracked: isTracked, classification: sg?.classification ?? (isTracked ? "direct_competitor" : null),
+        audience: live ? cell(live.subscribers ?? null, "public_api") : sg?.followers != null ? cell(sg.followers, "public_api") : absent("unknown"),
+        engagement: live ? cell(live.engagementRate ?? null, "calculated", n) : absent("unknown"),
+        cadence: live ? cell(live.uploadsPerWeek ?? null, "calculated", n) : absent("unknown"),
+        medianViews: live ? cell(live.medianViews ?? null, "public_api", n) : absent("unknown"),
+        momentum: absent("unavailable"), match: sg?.relevanceScore ?? null,
+        topFormat: postsRead.length ? (postsRead.filter((x) => x.format === "Short").length >= postsRead.length / 2 ? "Shorts" : "Videos") : null,
+        description: live?.description ?? null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [],
+        postsCount: live?.videoCount ?? null, posts: postsRead, postsSource: postsRead.length ? "youtube_api" : null,
+        postsGate: postsRead.length ? null : ytConfigured() ? (live ? "unavailable" : "not_found") : "unavailable",
+      };
+    }
+    if (p === "instagram") {
+      const c = ig.get(handle.toLowerCase());
+      const live = c?.found ? c : null;
+      const postsRead = live ? igPosts(live) : [];
+      const n = postsRead.length || null;
+      const gate = live && postsRead.length ? null : igGate(c);
+      return {
+        id: key, platform: p, handle, name: (live?.displayName ?? sg?.displayName ?? `@${handle}`).replace(/\s+/g, " ").trim(),
+        avatar: live?.profilePicture ?? sg?.profileImage ?? null, url: sg?.profileUrl ?? `https://instagram.com/${handle}`,
+        isYou: false, tracked: isTracked, classification: sg?.classification ?? (isTracked ? "direct_competitor" : null),
+        audience: live ? cell(live.followers ?? null, "public_api") : absent(igRes.enabled ? "unknown" : "connection_needed"),
+        engagement: live ? cell(live.engagementRate ?? null, "calculated", n) : absent(igRes.enabled ? "unknown" : "connection_needed"),
+        cadence: live ? cell(live.postsPerWeek ?? null, "calculated", n) : absent(igRes.enabled ? "unknown" : "connection_needed"),
+        // Meta never publishes another account's views.
+        medianViews: absent("unavailable"),
+        momentum: absent("unavailable"), match: sg?.relevanceScore ?? null,
+        topFormat: postsRead.length ? (postsRead.filter((x) => x.format === "Reel").length >= postsRead.length / 2 ? "Reels" : "Photos") : null,
+        description: live?.biography ?? null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [],
+        postsCount: live?.mediaCount ?? null, posts: postsRead, postsSource: postsRead.length ? "instagram_discovery" : null, postsGate: gate,
+      };
+    }
+    return {
+      id: key, platform: p, handle, name: (sg?.displayName ?? `@${handle}`).replace(/\s+/g, " ").trim(),
+      avatar: sg?.profileImage ?? null, url: sg?.profileUrl ?? `https://facebook.com/${handle}`,
+      isYou: false, tracked: isTracked, classification: sg?.classification ?? (isTracked ? "direct_competitor" : null),
+      audience: absent("unavailable"), engagement: absent("unavailable"), cadence: absent("unavailable"), medianViews: absent("unavailable"),
+      momentum: absent("unavailable"), match: sg?.relevanceScore ?? null, topFormat: null,
+      description: null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [], postsCount: null, posts: [], postsSource: null, postsGate: "unavailable",
+    };
   };
 
-  // Discovery stores a channel's subscriber count but not its posting cadence
-  // or engagement — those need its recent uploads. YouTube publishes them, so
-  // leaving the columns empty would be understating what SOCIA can know. Read
-  // them for the handful shown, which also gives the niche medians a real
-  // sample instead of "not enough data".
-  let ytDiscovered: Record<string, YtStats> = {};
-  if (ytConfigured()) {
-    try {
-      const ytSuggested = suggested
-        .filter((sg) => sg.platform === "youtube" && sg.handle)
-        .slice(0, 8);
-      if (ytSuggested.length) {
-        const results = await Promise.all(ytSuggested.map((sg) => channelStats(sg.handle!)));
-        ytDiscovered = Object.fromEntries(results.filter((r) => r.found).map((r) => [r.handle, r]));
-      }
-    } catch {
-      // partial enrichment is fine — unenriched rows keep their dashes
-    }
-  }
-
-  // Strongest discovered accounts the user isn't already tracking. Local and
-  // direct competitors first — "who am I competing against" is answered by the
-  // pizzeria down the road before it's answered by a national channel.
-  // Only shown when a discovery run genuinely exists — the header must not
-  // imply freshness the app cannot vouch for.
-  let lastRun: string | null = null;
-  try {
-    const { data } = await supabase
-      .from("discovery_runs")
-      .select("ran_at")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    lastRun = data?.ran_at ?? null;
-  } catch {
-    // no run recorded — the status line simply doesn't render
-  }
-
-  // The user's market, for detecting local-language patterns in competitor posts.
-  let userLocation: string | null = null;
-  try {
-    const { data: prof } = await supabase.from("profiles").select("brand_detail").eq("user_id", user.id).maybeSingle();
-    userLocation = (prof?.brand_detail as { location?: string } | null)?.location ?? null;
-  } catch {
-    /* patterns simply skip the local tag */
-  }
-
-  // Niche, for the merged trends section (formerly its own /niche page).
-  // Competitors and niche trends answer the same question — "what's working
-  // around me" — so they live together now.
-  const profile = await getProfile(supabase, user.id).catch(() => null);
-  const niche = profile?.niche ?? null;
-  let nicheDetail: NicheDetail = null;
-  try {
-    const { data } = await supabase
-      .from("profiles")
-      .select("niche_detail")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    nicheDetail = (data?.niche_detail as NicheDetail) ?? null;
-  } catch {
-    nicheDetail = null;
-  }
-  const igConnected = Boolean(snap);
-
-  // ---- leaderboard rows: the user, tracked accounts, then discovery -------
-  // Each cell states its provenance, and an absent value states WHY it is
-  // absent. Instagram and Facebook publish nothing about accounts the user
-  // doesn't own, so those rows carry connection_needed / unavailable rather
-  // than a dash that could be mistaken for zero.
-  const leaderRows: LeaderRow[] = [];
-
-  // The user's strongest format: highest median engagement among formats with
-  // at least two posts in the window. Fewer than that and no format is named.
-  const FORMAT_LABEL: Record<string, string> = { VIDEO: "Reels", CAROUSEL_ALBUM: "Carousels", IMAGE: "Static" };
-  const byFormat = new Map<string, number[]>();
-  for (const p of posts) byFormat.set(p.media_type ?? "IMAGE", [...(byFormat.get(p.media_type ?? "IMAGE") ?? []), engagementOf(p)]);
-  const yourTopFormat = [...byFormat.entries()]
-    .filter(([, xs]) => xs.length >= 2)
-    .map(([t, xs]) => ({ t, m: median(xs) ?? 0 }))
-    .sort((a, b) => b.m - a.m)[0]?.t;
-  const matchFor = (platform: string, handle: string): number | null =>
-    suggested.find((sg) => sg.platform === platform && sg.handle?.toLowerCase() === handle.toLowerCase())?.relevanceScore ?? null;
-
-  leaderRows.push({
-    id: "you",
-    platform: "instagram",
-    handle: snap?.username ?? "you",
-    name: snap?.username ? `@${snap.username}` : "Your account",
-    avatar: snap?.profile_picture_url ?? null,
-    url: snap?.username ? `https://instagram.com/${snap.username}` : null,
-    isYou: true,
-    tracked: true,
-    classification: null,
-    audience: cell(followers, "live_api"),
-    engagement: cell(rate, "calculated", all.length || null),
-    cadence: cell(N ? freq : null, "calculated", N || null),
-    medianViews: medViews != null ? cell(Math.round(medViews), "live_api", viewsVals.length) : absent("insufficient"),
-    momentum: growth && folSeries.length >= 2
-      ? cell(folSeries.at(-1)!.followers - folSeries[0].followers, "socia_snapshot", folSeries.length)
-      : absent("insufficient"),
-    match: null,
-    topFormat: yourTopFormat ? FORMAT_LABEL[yourTopFormat] ?? yourTopFormat : null,
-  });
-
   for (const t of tracked) {
-    const yt = t.platform === "youtube" ? ytStats[t.handle] : undefined;
-    const live = yt?.found ? yt : null;
-    leaderRows.push({
-      id: `${t.platform}:${t.handle}`,
-      platform: t.platform === "youtube" ? "youtube" : t.platform === "facebook" ? "facebook" : "instagram",
-      handle: t.handle,
-      name: (live?.title ?? `@${t.handle}`).replace(/\s+/g, " ").trim(),
-      avatar: live?.avatar ?? null,
-      url: live?.url
-        ?? (t.platform === "facebook" ? `https://facebook.com/${t.handle}` : `https://instagram.com/${t.handle}`),
-      isYou: false,
-      tracked: true,
-      classification: "direct_competitor",
-      audience: live ? cell(live.subscribers ?? null, "public_api") : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
-      engagement: live ? cell(live.engagementRate ?? null, "calculated", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
-      cadence: live ? cell(live.uploadsPerWeek ?? null, "calculated", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
-      medianViews: live ? cell(live.medianViews ?? null, "public_api", 10) : absent(t.platform === "youtube" ? "unknown" : "connection_needed"),
-      momentum: absent("unavailable"),
-      // A hand-added account has a score only if discovery also found it.
-      match: matchFor(t.platform, t.handle),
-      // YouTube is video by definition; Instagram formats arrive only via
-      // Business Discovery, so until then nothing is claimed.
-      topFormat: live ? "Video" : null,
-    });
+    const p = t.platform === "youtube" ? "youtube" : t.platform === "facebook" ? "facebook" : "instagram";
+    push(build(p, t.handle, true, matchFor(p, t.handle)));
   }
-
-  const inLeader = new Set(leaderRows.map((r) => `${r.platform}:${r.handle.toLowerCase()}`));
   for (const sg of suggested) {
-    const key = `${sg.platform}:${(sg.handle ?? "").toLowerCase()}`;
-    if (!sg.handle || inLeader.has(key)) continue;
-    inLeader.add(key);
-    const isYt = sg.platform === "youtube";
-    const enriched = isYt ? ytDiscovered[sg.handle] : undefined;
-    leaderRows.push({
-      id: key,
-      platform: isYt ? "youtube" : sg.platform === "facebook" ? "facebook" : "instagram",
-      handle: sg.handle,
-      name: (sg.displayName ?? `@${sg.handle}`).replace(/\s+/g, " ").trim(),
-      avatar: enriched?.avatar ?? sg.profileImage,
-      url: enriched?.url ?? sg.profileUrl,
-      isYou: false,
-      tracked: false,
-      classification: sg.classification,
-      audience: enriched
-        ? cell(enriched.subscribers ?? null, "public_api")
-        : sg.followers != null ? cell(sg.followers, "public_api")
-        : absent(isYt ? "unknown" : "connection_needed"),
-      // Enriched from the channel's recent uploads where YouTube publishes
-      // them; Instagram and Facebook expose nothing for accounts you don't own.
-      engagement: enriched ? cell(enriched.engagementRate ?? null, "calculated", 10) : absent(isYt ? "unknown" : "connection_needed"),
-      cadence: enriched ? cell(enriched.uploadsPerWeek ?? null, "calculated", 10) : absent(isYt ? "unknown" : "connection_needed"),
-      medianViews: enriched ? cell(enriched.medianViews ?? null, "public_api", 10) : absent(isYt ? "unknown" : "connection_needed"),
-      momentum: absent("unavailable"),
-      match: sg.relevanceScore,
-      topFormat: enriched ? "Video" : null,
-    });
+    if (!sg.handle) continue;
+    const p = sg.platform === "youtube" ? "youtube" : sg.platform === "facebook" ? "facebook" : "instagram";
+    push(build(p, sg.handle, false, sg));
   }
 
-  // Winning content: what discovery stored, read server-side so it renders
-  // with the page rather than after it.
-  let content: WinningItem[] = [];
+  // ---- discovery run + niche content --------------------------------------
+  let lastRun: string | null = null;
+  let sources: { youtube: string; web: string } | null = null;
+  try {
+    const { data } = await supabase.from("discovery_runs").select("ran_at, sources").eq("user_id", user.id).maybeSingle();
+    lastRun = data?.ran_at ?? null;
+    sources = (data?.sources as { youtube: string; web: string } | null) ?? null;
+  } catch { /* no run recorded */ }
+
+  const loc = locationTokens(location);
+  const FORMAT: Record<string, string> = { short: "Short", video: "Video", reel: "Reel" };
+  let content: NichePost[] = [];
   try {
     const { data } = await supabase
       .from("discovered_content")
-      .select("content_url, platform, account_name, title, thumbnail_url, views, likes, comments, published_at, multiplier, relevance_score, trend_tags, why_recommended")
-      .eq("user_id", user.id)
-      .order("relevance_score", { ascending: false })
-      .limit(40);
+      .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, why_recommended, data_source")
+      .eq("user_id", user.id).order("relevance_score", { ascending: false }).limit(200);
     content = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
-      url: String(r.content_url),
-      platform: String(r.platform),
-      accountName: (r.account_name as string) ?? null,
-      title: (r.title as string) ?? null,
-      thumbnailUrl: (r.thumbnail_url as string) ?? null,
-      views: (r.views as number) ?? null,
-      likes: (r.likes as number) ?? null,
-      comments: (r.comments as number) ?? null,
-      publishedAt: (r.published_at as string) ?? null,
-      multiplier: r.multiplier != null ? Number(r.multiplier) : null,
+      url: String(r.content_url), platform: String(r.platform), accountName: (r.account_name as string) ?? null, accountHandle: (r.account_handle as string) ?? null,
+      title: (r.title as string) ?? null, thumb: (r.thumbnail_url as string) ?? null,
+      views: (r.views as number) ?? null, likes: (r.likes as number) ?? null, comments: (r.comments as number) ?? null,
+      publishedAt: (r.published_at as string) ?? null, multiplier: r.multiplier != null ? Number(r.multiplier) : null,
       relevanceScore: (r.relevance_score as number) ?? 0,
-      trendTags: (r.trend_tags as string[]) ?? [],
-      why: (r.why_recommended as string) ?? null,
+      // Re-tagged with the current vocabulary; stored tags may predate it.
+      tags: tagsFor((r.title as string) ?? null, loc),
+      format: r.content_type ? FORMAT[String(r.content_type)] ?? null : null,
+      why: (r.why_recommended as string) ?? null, dataSource: String(r.data_source ?? "web_research"),
     }));
-  } catch {
-    // no discovery yet — the section shows its empty state
-  }
+  } catch { /* no discovery yet */ }
+
+  let saved: NichePost[] = [];
+  try {
+    const { data } = await supabase.from("niche_trends").select("data").eq("niche", `saved:${user.id}`).maybeSingle();
+    const doc = data?.data as { v: number; items: NichePost[] } | undefined;
+    if (doc?.v === 1 && Array.isArray(doc.items)) saved = doc.items;
+  } catch { /* none */ }
+
+  // The user's own posts, tagged the same way, for the opportunity maths.
+  const ownBase = median(all.map(interactionsTotal));
+  const own: OwnPost[] = all.map((m) => ({
+    tags: tagsFor((m.caption ?? "").split("\n")[0], loc).filter((t) => tagGroup(t) !== "style"),
+    multiplier: ownBase && ownBase > 0 ? interactionsTotal(m) / ownBase : null,
+  }));
+
+  const data: CompetitorsData = {
+    connected: Boolean(snap), igConnectHref: igConfigured() ? "/api/auth/instagram/start" : "/settings#accounts",
+    you, rows, tracked, days, platform, lastRun, sources,
+    ig: { enabled: igRes.enabled, reason: igRes.enabled ? null : (igRes.reason ?? null) }, ytConfigured: ytConfigured(),
+    niche: profile?.niche ?? null, subNiche, nicheRange, content, saved, own,
+    goalKeywords: goalKeywords(profile?.goals ?? null), goalText: profile?.goals ?? null, location, now: now.toISOString(),
+  };
 
   return (
     <AppShell active="competitors" userEmail={user.email}>
-      <div className="cp4">
-        <PageHeader
-          title="Competitors"
-          sub="See who's outperforming you, what they're doing differently, and what you can learn from them."
-          status={
-            <span className="ov-status">
-              <i className={lastRun ? "live" : ""} />
-              {lastRun ? <>Live competitor intelligence · Last refreshed {agoText(lastRun)}</> : <>No discovery run yet</>}
-              <RefreshDiscovery />
-            </span>
-          }
-          actions={
-            <>
-              <PlatformSelect value={platform} />
-              <RangeSelect days={days} compact />
-              <ExportButton />
-              <ManageCompetitors initial={tracked} />
-            </>
-          }
-        />
-
-        <CompetitorWorkspace
-          rows={platform === "all" ? leaderRows : leaderRows.filter((r) => r.isYou || r.platform === platform)}
-          content={platform === "all" ? content : content.filter((c) => c.platform === platform)}
-          days={days}
-          location={userLocation}
-        />
-
-        {/* Instagram connection — compact, and only while it is required */}
-        {tracked.some((t) => t.platform === "instagram") && (
-          <IgCompetitorData hasTracked />
-        )}
-
-        {/* ---- Niche trends (merged from /niche) --------------------------
-             Same three states the standalone page had: niche known → the
-             trends feed; connected but undetected → detection; nothing
-             connected → connect prompt with manual fallback. */}
-        <section id="trends" className="cp4-trends db2-rise" style={{ marginTop: 36 }}>
-          <div className="cp4-sec-head" style={{ marginBottom: 14 }}>
-            <h2>{niche ? `Trends in ${niche}` : "Trends in your niche"}</h2>
-            <small>
-              {niche
-                ? "What's performing right now: formats, hooks, and concepts."
-                : "SOCIA finds your niche first, then watches what wins in it."}
-            </small>
-          </div>
-
-          {niche ? (
-            <>
-              <NicheDetection
-                mode="settled"
-                niche={niche}
-                detail={nicheDetail}
-                username={snap?.username}
-                mediaCount={all.length}
-              />
-              <NicheTrends niche={niche} />
-            </>
-          ) : igConnected ? (
-            <NicheDetection
-              mode="detect"
-              username={snap?.username}
-              mediaCount={all.length}
-            />
-          ) : (
-            <>
-              <div className="db-connect">
-                <span className="db-connect-ico"><Link2 size={22} /></span>
-                <div className="db-connect-copy">
-                  <h2>Connect your account and SOCIA finds your niche</h2>
-                  <p>
-                    Connect Instagram and SOCIA reads your real content to identify your
-                    niche automatically. No forms.
-                  </p>
-                </div>
-                <Link
-                  href={igConfigured() ? "/api/auth/instagram/start" : "/settings"}
-                  className="db-connect-cta"
-                >
-                  Connect Instagram
-                </Link>
-              </div>
-              <NicheDetection mode="manual" niche={null} />
-            </>
-          )}
-        </section>
-
-      </div>
+      <CompetitorsPage d={data} />
     </AppShell>
   );
 }
