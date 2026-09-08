@@ -4,7 +4,7 @@ import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import AppShell from "@/components/AppShell";
 import CompetitorsPage from "@/components/competitors/CompetitorsPage";
-import type { CompetitorsData, Tracked, NicheRange, PlatformFilter } from "@/components/competitors/types";
+import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, YouSeriesPoint } from "@/components/competitors/types";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtube";
 import { nameKey } from "@/lib/discovery";
@@ -81,6 +81,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   } catch { /* optional */ }
 
   let momentumCell = absent("insufficient");
+  let followerSeries: FollowerPoint[] = [];
   try {
     const rows = await readDailySnapshots<{ day: string; followers: number | null; followers_gained: number | null; source: string | null }>(
       supabase, user.id, snap?.ig_user_id ?? null, "day, followers, followers_gained, source",
@@ -88,7 +89,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     const from = localDayStr(new Date(cutoff));
     const series = rows.filter((r) => r.day >= from && r.followers != null && isChartableDay(r, localDayStr(now)));
     if (series.length >= 2) momentumCell = cell(series[series.length - 1].followers! - series[0].followers!, "socia_snapshot", series.length);
+    followerSeries = series.map((r) => ({ day: r.day, followers: r.followers! }));
   } catch { /* history absent */ }
+
+  // Your posts in range as chartable points — the trajectory chart's left line.
+  const youSeries: YouSeriesPoint[] = posts
+    .filter((p) => p.timestamp)
+    .map((p) => ({ t: p.timestamp!, interactions: interactionsTotal(p), views: p.insights?.views ?? null }));
 
   const N = posts.length;
   const viewsVals = posts.filter((p) => p.insights?.views != null).map((p) => p.insights!.views!);
@@ -276,7 +283,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     connected: Boolean(snap), igConnectHref: igConfigured() ? "/api/auth/instagram/start" : "/settings#accounts",
     you, rows, tracked, days, platform, lastRun, sources,
     ig: { enabled: igRes.enabled, reason: igRes.enabled ? null : (igRes.reason ?? null) }, ytConfigured: ytConfigured(),
-    niche: profile?.niche ?? null, subNiche, nicheRange, content, saved, own,
+    niche: profile?.niche ?? null, subNiche, nicheRange, content, saved, own, youSeries, followerSeries,
     goalKeywords: goalKeywords(profile?.goals ?? null), goalText: profile?.goals ?? null, location, now: now.toISOString(),
   };
 

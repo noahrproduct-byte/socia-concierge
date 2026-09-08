@@ -1,25 +1,30 @@
 "use client";
 
-// Competitors: who to study → why they're ahead → their patterns → what to
-// learn → what wins across the niche → what's trending → what to create.
-// Selection is client state; every section below the roster re-derives from
-// the selected competitor without a reload.
+// Competitors, laid out as a command center: verdicts first (intelligence
+// strip), then the market (chip carousel), then the evidence — trajectory,
+// score, gaps, content intelligence — and finally the move SOCIA recommends.
+// Selection is client state; every section re-derives from the selected
+// competitor without a reload. The honesty contract from page.tsx holds
+// everywhere: real numbers keep provenance, absences keep their reason.
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Link2 } from "lucide-react";
+import { Plus, Link2, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { askSocia } from "@/lib/ask";
 import { absent, type LeaderRow } from "@/lib/competitorRollup";
 import { compareRows, leadsOn, pickMostSimilar, similarity, type SimilarPick } from "@/lib/similarCompetitor";
 import { groupedPatterns, learnings, reasonsFor, type CompetitorRow, type Reason } from "@/lib/competitorIntel";
+import { engagementRank, performanceScore } from "@/lib/competitorScore";
 import type { NichePost } from "@/lib/nicheTrends";
 import type { CompetitorsData } from "./types";
 import { PlatformSelect, RangeSelect, RefreshButton } from "./Controls";
 import Roster from "./Roster";
-import { Comparison, ProfileCard, Reasons } from "./SelectedCompetitor";
-import { Learn, Patterns, Themes } from "./PatternsRow";
+import IntelStrip from "./IntelStrip";
+import { GapBars, NextMove, ProfileBar, WhyWinning } from "./SelectedCompetitor";
+import { ContentMix, TopContent, WhenTheyPost } from "./PatternsRow";
+import { Radar, Scatter, ScoreRing, Trajectory, type Pt, type ScatterPost } from "./viz";
 import NicheSection from "./NicheSection";
 import NicheDrawer from "./NicheDrawer";
 import EvidenceDrawer, { type Evidence } from "./EvidenceDrawer";
@@ -46,11 +51,15 @@ function agoText(iso: string, now: Date): string {
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
 
+type Metric = "interactions" | "views" | "followers";
+
 export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   const router = useRouter();
   const now = useMemo(() => new Date(d.now), [d.now]);
   const you = d.you ?? placeholderYou();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [metric, setMetric] = useState<Metric>("interactions");
+  const [scatterFmt, setScatterFmt] = useState<string>("All");
   const [evidence, setEvidence] = useState<Evidence | null>(null);
   const [openPost, setOpenPost] = useState<NichePost | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -65,6 +74,16 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
     return [...rows].sort((a, b) => Number(b.tracked) - Number(a.tracked) || (b.match ?? -1) - (a.match ?? -1));
   }, [d.rows, d.platform]);
 
+  // Rank badges: published engagement rates only — you plus every row that has one.
+  const { ranks, youRank } = useMemo(() => {
+    const rated = roster.filter((r) => r.engagement.state === "ok" && r.engagement.value != null).map((r) => ({ id: r.id, v: r.engagement.value! }));
+    if (d.you?.engagement.state === "ok" && d.you.engagement.value != null) rated.push({ id: "you", v: d.you.engagement.value });
+    rated.sort((a, b) => b.v - a.v);
+    const map: Record<string, number> = {};
+    rated.forEach((x, i) => { map[x.id] = i + 1; });
+    return { ranks: map, youRank: map["you"] ?? null };
+  }, [roster, d.you]);
+
   const autoPick = useMemo(() => (d.you ? pickMostSimilar([d.you, ...roster]) : null), [d.you, roster]);
   const active: CompetitorRow | null = useMemo(() => {
     const sel = selectedId ? roster.find((r) => r.id === selectedId) : null;
@@ -77,6 +96,76 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   const patterns = useMemo(() => (active ? groupedPatterns(active.posts, d.location) : null), [active, d.location]);
   const reasons: Reason[] = useMemo(() => (pick ? reasonsFor(pick, Boolean(active?.topFormat && /Shorts|Reels/.test(active.topFormat))) : []), [pick, active]);
   const learn = useMemo(() => (pick && patterns ? learnings(pick, patterns) : []), [pick, patterns]);
+
+  const score = useMemo(() => performanceScore(d.you), [d.you]);
+  const rank = useMemo(() => engagementRank(d.you, roster), [d.you, roster]);
+  const momentum = d.you && d.you.momentum.state === "ok" && d.you.momentum.value != null ? d.you.momentum.value : null;
+
+  // ---- trajectory series (per-post, both sides real) ----------------------
+  const yourPts = useMemo(() => {
+    const src = d.youSeries ?? [];
+    const pts: Record<Exclude<Metric, "followers">, Pt[]> = { interactions: [], views: [] };
+    for (const p of src) {
+      const t = new Date(p.t).getTime();
+      if (Number.isNaN(t)) continue;
+      pts.interactions.push({ t, v: p.interactions });
+      if (p.views != null) pts.views.push({ t, v: p.views });
+    }
+    return pts;
+  }, [d.youSeries]);
+
+  const theirPts = useMemo(() => {
+    const pts: Record<Exclude<Metric, "followers">, Pt[]> = { interactions: [], views: [] };
+    for (const p of active?.posts ?? []) {
+      if (!p.publishedAt) continue;
+      const t = new Date(p.publishedAt).getTime();
+      if (Number.isNaN(t)) continue;
+      const inter = (p.likes ?? 0) + (p.comments ?? 0);
+      if (p.likes != null || p.comments != null) pts.interactions.push({ t, v: inter });
+      if (p.views != null) pts.views.push({ t, v: p.views });
+    }
+    return pts;
+  }, [active]);
+
+  const followerPts: Pt[] = useMemo(
+    () => (d.followerSeries ?? []).map((r) => ({ t: new Date(`${r.day}T12:00:00`).getTime(), v: r.followers })).filter((p) => !Number.isNaN(p.t)),
+    [d.followerSeries],
+  );
+
+  const themName = active?.name ?? "Competitor";
+  const trajYou = metric === "followers" ? followerPts : yourPts[metric];
+  const trajThem = metric === "followers" ? [] : theirPts[metric];
+  const trajNote =
+    metric === "followers" ? (followerPts.length >= 2 ? `Your daily follower snapshots. ${themName}'s history isn't published by any platform.` : "Follower history builds from SOCIA's daily snapshots after you connect.")
+    : metric === "views" && trajThem.length === 0 && active?.platform === "instagram" ? `Instagram never publishes view counts for accounts you don't own — only ${themName}'s likes and comments are comparable.`
+    : null;
+
+  // ---- scatter ------------------------------------------------------------
+  const scatterAll: ScatterPost[] = useMemo(() =>
+    (active?.posts ?? [])
+      .filter((p) => p.publishedAt && (p.views ?? p.likes) != null)
+      .map((p) => ({
+        url: p.url, title: p.title, thumb: p.thumb, format: p.format,
+        t: new Date(p.publishedAt!).getTime(), y: (p.views ?? p.likes)!,
+        comments: p.comments, multiplier: p.multiplier,
+      }))
+      .filter((p) => !Number.isNaN(p.t)),
+    [active]);
+  const scatterFormats = useMemo(() => ["All", ...[...new Set(scatterAll.map((p) => p.format).filter((f): f is string => Boolean(f)))].slice(0, 3)], [scatterAll]);
+  const scatterPosts = scatterFmt === "All" ? scatterAll : scatterAll.filter((p) => p.format === scatterFmt);
+  const scatterYLabel = scatterAll.some((p) => (active?.posts ?? []).find((q) => q.url === p.url)?.views != null) ? "Views" : "Likes";
+
+  // ---- radar --------------------------------------------------------------
+  const radarAxes = useMemo(() => {
+    if (!pick) return [];
+    const LABEL: Record<string, string> = { audience: "Audience", engagement: "Engagement", cadence: "Frequency", medianViews: "Reach" };
+    return pick.comparisons
+      .filter((c) => c.you.state === "ok" && c.them.state === "ok" && c.you.value != null && c.them.value != null)
+      .map((c) => {
+        const max = Math.max(c.you.value!, c.them.value!, 1e-9);
+        return { label: LABEL[c.key] ?? c.key, you: c.you.value! / max, them: c.them.value! / max };
+      });
+  }, [pick]);
 
   const askContext = useCallback((question: string) => {
     if (!active || !pick) return;
@@ -108,16 +197,17 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   }, [savedSet]);
 
   const webPaused = d.sources && d.sources.web !== "ok";
+  const opportunity = learn[0]?.title ?? (patterns && !patterns.insufficient && patterns.format[0] ? `More ${patterns.format[0].tag.toLowerCase()}` : null);
 
   return (
-    <div className="cx">
+    <div className="cx cx2">
       <PageHeader
         title="Competitors"
-        sub="See who's outperforming you, what they're doing differently, and turn their success into your next move."
+        sub="See who's winning — and why."
         status={
           <span className="ov-status cx-status">
             <i className={d.lastRun ? "live" : ""} />
-            {d.lastRun ? <>Live competitor intelligence · refreshed {agoText(d.lastRun, now)}</> : <>No discovery run yet</>}
+            {d.lastRun ? <>Live intelligence · {agoText(d.lastRun, now)}</> : <>No discovery run yet</>}
             {webPaused && <em className="cx-status-warn" title={`Web research: ${d.sources?.web}`}>· web research paused</em>}
             <RefreshButton />
           </span>
@@ -131,8 +221,14 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
         }
       />
 
+      <IntelStrip c={{
+        rank, score, momentum, days: d.days, connected: d.connected,
+        threat: autoPick ? { name: autoPick.row.name, leads: autoPick.leads } : null,
+        opportunity,
+      }} />
+
       {roster.length ? (
-        <Roster you={d.you} rows={roster} selectedId={active?.id ?? null} onSelect={setSelectedId} connectHref={d.igConnectHref} />
+        <Roster you={d.you} rows={roster} ranks={ranks} youRank={youRank} selectedId={active?.id ?? null} onSelect={setSelectedId} connectHref={d.igConnectHref} />
       ) : (
         <div className="ov-empty cx-roster-empty">
           <b>{d.niche ? (d.platform === "all" ? "No competitors found yet" : `No ${d.platform} competitors yet`) : "Set your niche to find competitors"}</b>
@@ -146,20 +242,91 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
 
       {active && pick ? (
         <>
-          <div className="cx-row cx-row-top">
-            <ProfileCard r={active} location={d.location} igEnabled={d.ig.enabled} onTrack={track} tracking={tracking === active.id} similarity={pick.similarity} />
-            <Comparison r={active} you={you} comparisons={pick.comparisons} days={d.days} connected={d.connected} connectHref={d.igConnectHref} />
-            <Reasons reasons={reasons} r={active} connected={d.connected} onEvidence={(reason) => setEvidence({ kind: "reason", reason })} />
+          <ProfileBar r={active} similarity={pick.similarity} igEnabled={d.ig.enabled} onTrack={track} tracking={tracking === active.id} />
+
+          <div className="cx2-grid main">
+            <section className="ov-card cx2-card cx2-traj">
+              <div className="cx2-card-head">
+                <h2><Activity size={14} /> Performance trajectory</h2>
+                <div className="ov-seg cx2-seg" role="tablist" aria-label="Metric">
+                  {(["interactions", "views", "followers"] as Metric[]).map((m) => (
+                    <button key={m} type="button" role="tab" aria-selected={metric === m} className={metric === m ? "on" : ""} onClick={() => setMetric(m)}>
+                      {m === "interactions" ? "Interactions" : m === "views" ? "Views" : "Followers"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="cx2-legend">
+                <span><i className="cx2-swatch you round" /> You</span>
+                {metric !== "followers" && <span><i className="cx2-swatch them round" /> {themName}</span>}
+                <span className="cx2-micro">{metric === "followers" ? "DAILY SNAPSHOTS" : "PER POST, IN RANGE"}</span>
+              </div>
+              <Trajectory
+                you={trajYou} them={trajThem} themName={themName}
+                unit={fmtN} animateKey={`${metric}:${active.id}`}
+              />
+              {trajNote && <small className="cx2-foot">{trajNote}</small>}
+            </section>
+
+            <section className="ov-card cx2-card cx2-score">
+              <div className="cx2-card-head"><h2>SOCIA performance score</h2></div>
+              <div className="cx2-score-body">
+                <ScoreRing value={score.overall} />
+                <div className="cx2-subscores">
+                  {score.components.map((c) => (
+                    <div key={c.key} className="cx2-sub" title={c.note}>
+                      <span>{c.label}</span>
+                      <span className="cx2-sub-track">{c.value != null ? <i style={{ ["--w" as string]: `${c.value}%` }} /> : <i className="absent" />}</span>
+                      <b className={c.value != null ? "" : "none"}>{c.value ?? "—"}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <small className="cx2-foot">
+                {score.overall != null
+                  ? `Computed from ${score.basis} of 4 metrics of your real data against published 2026 benchmarks. Hover each for the formula.`
+                  : d.connected ? "Fills in as your data syncs — nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <Link href={d.igConnectHref} className="ov-link">Connect</Link></>}
+              </small>
+              {radarAxes.length >= 3 && (
+                <>
+                  <div className="cx2-card-head sub"><h3>Market position</h3><span className="cx2-micro">YOU VS {themName.toUpperCase().slice(0, 18)}</span></div>
+                  <Radar axes={radarAxes} themName={themName} />
+                </>
+              )}
+            </section>
           </div>
-          <div className="cx-row cx-row-mid">
-            <Patterns r={active} patterns={patterns} />
-            <Themes r={active} patterns={patterns} />
-            <Learn r={active} items={learn} onIdeas={askContext} onExamples={(tag, title) => setEvidence({ kind: "examples", tag, title })} />
+
+          <GapBars comparisons={pick.comparisons} themName={themName} connected={d.connected} connectHref={d.igConnectHref} />
+
+          <div className="cx2-grid duo">
+            <ContentMix r={active} patterns={patterns} yourTopFormat={d.you?.topFormat ?? null} />
+            <WhenTheyPost r={active} />
           </div>
+
+          {scatterAll.length >= 3 && (
+            <section className="ov-card cx2-card cx2-scatter">
+              <div className="cx2-card-head">
+                <h2>Content performance</h2>
+                <div className="ov-seg cx2-seg" role="tablist" aria-label="Format">
+                  {scatterFormats.map((f) => (
+                    <button key={f} type="button" role="tab" aria-selected={scatterFmt === f} className={scatterFmt === f ? "on" : ""} onClick={() => setScatterFmt(f)}>{f === "All" ? "All" : `${f}s`}</button>
+                  ))}
+                </div>
+              </div>
+              <Scatter posts={scatterPosts} yLabel={scatterYLabel} unit={fmtN} />
+              <small className="cx2-foot">Each bubble is one of {themName}&apos;s real posts — size is comments. Click one to open it.</small>
+            </section>
+          )}
+
+          <TopContent r={active} onExamples={(tag, title) => setEvidence({ kind: "examples", tag, title })} />
+
+          <WhyWinning reasons={reasons} r={active} connected={d.connected} onEvidence={(reason) => setEvidence({ kind: "reason", reason })} />
+
+          <NextMove items={learn} themName={active.name} onIdeas={askContext} onExamples={(tag, title) => setEvidence({ kind: "examples", tag, title })} />
         </>
       ) : roster.length ? null : (
         !d.connected && (
-          <div className="ov-empty cx-connect"><Link2 size={14} /><b>Connect Instagram to compare your own numbers</b><p>Competitor data still appears without it; the comparison column needs your account.</p><Link href={d.igConnectHref} className="ov-btn primary small">Connect Instagram</Link></div>
+          <div className="ov-empty cx-connect"><Link2 size={14} /><b>Connect Instagram to compare your own numbers</b><p>Competitor data still appears without it; the comparison needs your account.</p><Link href={d.igConnectHref} className="ov-btn primary small">Connect Instagram</Link></div>
         )
       )}
 

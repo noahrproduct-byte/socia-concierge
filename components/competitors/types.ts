@@ -7,6 +7,11 @@ import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 
 export type Tracked = { platform: string; handle: string; added_at: string };
+
+/** One of the user's own posts, for the trajectory chart. All real. */
+export type YouSeriesPoint = { t: string; interactions: number; views: number | null };
+/** One daily follower snapshot recorded by SOCIA. */
+export type FollowerPoint = { day: string; followers: number };
 export type PlatformFilter = "all" | "instagram" | "youtube" | "facebook";
 export type NicheRange = 30 | 90 | 0;
 
@@ -30,6 +35,10 @@ export type CompetitorsData = {
   content: NichePost[];
   saved: NichePost[];
   own: OwnPost[];
+  /** Your posts in range as chartable points; empty when not connected. */
+  youSeries: YouSeriesPoint[];
+  /** Your daily follower counts inside the range; empty until snapshots exist. */
+  followerSeries: FollowerPoint[];
   goalKeywords: string[];
   goalText: string | null;
   location: string | null;
