@@ -1324,7 +1324,8 @@ export default function CinematicLanding() {
             </div>
             <div>
               <small>LEGAL</small>
-              <span className="so-footer-soon">Privacy · Terms (coming soon)</span>
+              <Link href="/privacy">Privacy</Link>
+              <Link href="/terms">Terms</Link>
             </div>
           </div>
           <div className="so-footer-copy">© 2026 SOCIA. All rights reserved.</div>

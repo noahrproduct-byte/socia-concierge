@@ -336,6 +336,9 @@ export default async function SettingsPage({
                 <span className="st2-card-note">Signed in as {user.email}</span>
               </div>
               <SecurityCard />
+              <p className="st2-legal-links">
+                <Link href="/privacy">Privacy Policy</Link> · <Link href="/terms">Terms of Service</Link>
+              </p>
               <div className="st2-divider"><span>Session</span></div>
               <div className="st2-session">
                 <p>Sign out on this device only.</p>

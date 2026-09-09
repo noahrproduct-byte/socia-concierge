@@ -119,7 +119,7 @@ export default function SignupPage() {
           Already have an account? <Link href="/login">Log in</Link>
         </span>
         <span className="tos">
-          By signing up you agree to our Terms &amp; Privacy Policy.
+          By signing up you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
         </span>
       </div>
     </AuthShell>

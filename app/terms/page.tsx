@@ -5,17 +5,6 @@ export const metadata = { title: "Terms of Service — SOCIA" };
 export default function TermsPage() {
   return (
     <main className="legal-page">
-      <style>{`
-        .legal-page { max-width: 720px; margin: 0 auto; padding: 64px 24px 96px;
-          font-size: 15.5px; line-height: 1.7; color: #1a1d24; }
-        .legal-page h1 { font-size: 32px; letter-spacing: -.5px; margin: 0 0 4px; }
-        .legal-page .legal-date { color: #6b7280; font-size: 13.5px; margin-bottom: 36px; }
-        .legal-page h2 { font-size: 19px; margin: 34px 0 10px; letter-spacing: -.2px; }
-        .legal-page p, .legal-page li { color: #3d4351; }
-        .legal-page ul { padding-left: 22px; }
-        .legal-page a { color: #2563ff; }
-      `}</style>
-
       <h1>Terms of Service</h1>
       <p className="legal-date">Last updated: September 4, 2026</p>
 
@@ -26,8 +15,8 @@ export default function TermsPage() {
 
       <h2>What SOCIA is</h2>
       <p>
-        SOCIA analyzes social media accounts you connect, scores content before
-        you post it, and helps you plan and schedule posts. SOCIA is currently
+        SOCIA analyzes social media accounts you connect, reviews content
+        before you post it, and helps you plan and schedule posts. SOCIA is currently
         in beta: features change, and some platform integrations operate in
         test modes with limitations imposed by those platforms.
       </p>
@@ -37,7 +26,7 @@ export default function TermsPage() {
         <li>You must own or have the right to manage every social account you connect.</li>
         <li>
           You keep all rights to your content. You give SOCIA permission to
-          process it — including sending it to AI services for analysis — solely
+          process it, including sending it to AI services for analysis, solely
           to provide the product to you.
         </li>
         <li>
@@ -49,9 +38,10 @@ export default function TermsPage() {
 
       <h2>Honest limitations</h2>
       <p>
-        SOCIA&apos;s scores, predictions and recommendations are estimates
-        produced by AI against published benchmarks and your own data. They are
-        decision support, not guarantees. Social platforms change their
+        SOCIA&apos;s scores and recommendations are produced from your own
+        data and from public platform data; where SOCIA cites a benchmark it
+        says where the figure comes from. They are decision support, not
+        guarantees, and SOCIA does not predict views or growth. Social platforms change their
         algorithms without notice, and no tool can promise reach or growth.
       </p>
 
