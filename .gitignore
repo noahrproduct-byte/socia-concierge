@@ -27,3 +27,6 @@ next-env.d.ts
 
 # local editor/agent settings
 .claude/settings.local.json
+
+# Local phone agent experiment; not part of the app
+phone-agent/
