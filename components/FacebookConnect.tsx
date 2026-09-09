@@ -6,7 +6,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2, RefreshCw } from "lucide-react";
+import { ArrowRight, Loader2, RefreshCw, MessageCircle, Share2, ThumbsUp } from "lucide-react";
+import type { FbPost } from "@/lib/facebookSync";
 
 const FB_LOGO = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" aria-hidden>
@@ -40,6 +41,7 @@ export default function FacebookConnect({
   picture,
   syncedAt,
   pendingPages,
+  posts = [],
 }: {
   /** OAuth outcome from ?fb= (connected/denied/nopages/error/notconfigured/choose). */
   status?: string;
@@ -51,6 +53,8 @@ export default function FacebookConnect({
   picture: string | null;
   syncedAt: string | null;
   pendingPages: FbPageOption[];
+  /** The Page's latest posts as Meta returned them (reactions, comments, shares). */
+  posts?: FbPost[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -184,6 +188,30 @@ export default function FacebookConnect({
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {connected && (
+        <div className="st3-fbposts">
+          <small className="st3-sub">Latest Page posts, as Facebook reports them</small>
+          {posts.length ? (
+            <ul>
+              {posts.map((p, i) => (
+                <li key={p.id ?? i}>
+                  <span className="st3-fbpost-text" title={p.message ?? undefined}>{(p.message ?? "").split("\n")[0] || (p.status_type ? p.status_type.replace(/_/g, " ") : "(no text)")}</span>
+                  <span className="st3-fbpost-meta">
+                    <small>{p.created_time ? new Date(p.created_time).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—"}</small>
+                    <em title="Reactions"><ThumbsUp size={11} /> {p.reactions ?? "—"}</em>
+                    <em title="Comments"><MessageCircle size={11} /> {p.comments ?? "—"}</em>
+                    <em title="Shares"><Share2 size={11} /> {p.shares ?? "—"}</em>
+                    {p.permalink_url && <a href={p.permalink_url} target="_blank" rel="noreferrer">Open</a>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="st2-ig-note">No posts synced yet. Sync now reads the Page&apos;s latest 25 posts with their reactions, comments and shares.</p>
+          )}
         </div>
       )}
 

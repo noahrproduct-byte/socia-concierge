@@ -11783,3 +11783,12 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .legal-status { border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; background: var(--surface); margin: 8px 0 24px; }
 .legal-status h2 { margin-top: 0; }
 .legal-links { margin-top: 36px; font-size: 13.5px; }
+/* Settings: the connected Facebook Page's latest posts (reactions, comments, shares as Meta reports them) */
+.st3-fbposts { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.st3-fbposts ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.st3-fbposts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; font-size: 12.5px; }
+.st3-fbpost-text { color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st3-fbpost-meta { display: inline-flex; align-items: center; gap: 10px; color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st3-fbpost-meta em { font-style: normal; display: inline-flex; align-items: center; gap: 3px; }
+.st3-fbpost-meta a { color: var(--primary-text); text-decoration: none; font-weight: 650; }
+.st3-fbpost-meta a:hover { text-decoration: underline; }

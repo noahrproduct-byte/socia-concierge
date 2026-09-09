@@ -4,6 +4,7 @@ import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
+import { getFbSnapshot } from "@/lib/facebookSync";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
 import { median } from "@/lib/metrics";
@@ -171,12 +172,28 @@ export default async function DashboardPage({
 
   const platformMetric: "views" | "engagement" = series.views.total != null ? "views" : "engagement";
   const platformTotal = platformMetric === "views" ? series.views.total : series.engagement.total;
+  // Facebook: the connected Page's own engagement (reactions + comments +
+  // shares on posts inside the range), as Meta reports it. Facebook exposes
+  // no view count for regular Page posts, so under the views metric the row
+  // is connected but unmeasured, never zero.
+  const fb = await getFbSnapshot(supabase, user.id).catch(() => null);
+  const fbConnected = fb?.status === "connected";
+  const fbSince = Date.now() - (days) * 86400000;
+  const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
+  const fbCounted = fbPosts.some((p) => p.reactions != null || p.comments != null || p.shares != null);
+  const fbEngagement = fbCounted ? fbPosts.reduce((a, p) => a + (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0), 0) : null;
+  const fbValue = platformMetric === "engagement" ? fbEngagement : null;
+  const fbRow: PlatformRow = { id: "facebook", label: "Facebook", connected: fbConnected, value: fbValue, deltaPct: null, share: 0 };
   const platforms: PlatformRow[] = [
     { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === (platformMetric === "views" ? "views" : "engagement_rate"))?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
     { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
     { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
-    { id: "facebook", label: "Facebook", connected: false, value: null, deltaPct: null, share: 0 },
+    fbRow,
   ];
+  {
+    const total = platforms.reduce((a, r) => a + (r.connected && r.value ? r.value : 0), 0);
+    for (const r of platforms) r.share = total > 0 && r.connected && r.value ? r.value / total : 0;
+  }
 
   const d: DashboardData = {
     greeting, name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,

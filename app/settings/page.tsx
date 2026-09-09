@@ -27,6 +27,7 @@ import SettingsNav from "@/components/SettingsNav";
 import ConnectionsManager from "@/components/ConnectionsManager";
 import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
+import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { getPlan, accountLimit } from "@/lib/plan";
 import type { BrandDetail } from "@/lib/profile";
@@ -70,12 +71,12 @@ export default async function SettingsPage({
     picture_url: string | null;
     connection_status: string | null;
     last_synced_at: string | null;
-    pending_pages: unknown;
+    pending_pages: unknown; media?: unknown;
   } | null = null;
   try {
     const { data } = await supabase
       .from("facebook_connections")
-      .select("page_name, username, followers_count, picture_url, connection_status, last_synced_at, pending_pages")
+      .select("page_name, username, followers_count, picture_url, connection_status, last_synced_at, pending_pages, media")
       .eq("user_id", user.id)
       .maybeSingle();
     fbConn = data;
@@ -210,6 +211,7 @@ export default async function SettingsPage({
                 picture={fbConn?.picture_url ?? null}
                 syncedAt={fbConn?.last_synced_at ?? null}
                 pendingPages={fbPages}
+                posts={Array.isArray(fbConn?.media) ? (fbConn!.media as FbPost[]).slice(0, 5) : []}
               />
               <div className="st2-divider"><span>Other platforms</span></div>
               <ConnectionsManager />
