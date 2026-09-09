@@ -570,3 +570,24 @@ begin
     create policy "Users can update their own plans" on public.plans for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Meta deauthorize / data deletion callbacks (App Review requirement).
+-- fb_user_id lets a deletion request (which carries only Meta's app-scoped
+-- user id) find the Facebook connection it refers to. meta_deletion_requests
+-- records each completed request so the status URL Meta is given can answer.
+-- The status table has no user policies: only the service role reads/writes.
+-- ---------------------------------------------------------------------------
+alter table public.facebook_connections add column if not exists fb_user_id text;
+
+create table if not exists public.meta_deletion_requests (
+  code text primary key,
+  platform text,
+  platform_user_id text,
+  removed jsonb,
+  status text not null default 'completed',
+  requested_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+alter table public.meta_deletion_requests enable row level security;
+

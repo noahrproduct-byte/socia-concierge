@@ -59,6 +59,21 @@ export async function GET(req: Request) {
     const longJson = await longRes.json().catch(() => null);
     const userToken: string = longJson?.access_token ?? shortJson.access_token;
 
+    // The app-scoped Facebook user id, so a later deauthorize or data
+    // deletion request from Meta (which carries only this id) can find the
+    // connection. Best effort: the connection works without it.
+    let fbUserId: string | null = null;
+    try {
+      const meUrl = new URL(`${BASE}/me`);
+      meUrl.searchParams.set("fields", "id");
+      meUrl.searchParams.set("access_token", userToken);
+      const meRes = await fetch(meUrl, { signal: AbortSignal.timeout(8000) });
+      const meJson = (await meRes.json().catch(() => null)) as { id?: string } | null;
+      fbUserId = meJson?.id ?? null;
+    } catch {
+      fbUserId = null;
+    }
+
     // Pages this user manages (includes a Page access token per Page).
     const pagesUrl = new URL(`${BASE}/me/accounts`);
     pagesUrl.searchParams.set("fields", "id,name,username,followers_count,fan_count,picture{url},access_token");
@@ -122,6 +137,7 @@ export async function GET(req: Request) {
           .upsert(row, { onConflict: "user_id" }));
       }
       if (error) return done("error");
+      if (fbUserId) await supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id).then(() => null, () => null);
       await syncFacebook(supabase, user.id).catch(() => null);
       return done("connected");
     }
@@ -140,6 +156,7 @@ export async function GET(req: Request) {
       { onConflict: "user_id" },
     );
     if (error) return done("error");
+    if (fbUserId) await supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id).then(() => null, () => null);
     return done("choose");
   } catch {
     return done("error");

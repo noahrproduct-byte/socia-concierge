@@ -65,8 +65,13 @@ export default function PrivacyPage() {
 
       <h2>Deleting your data</h2>
       <p>
-        Disconnecting a social account in Settings deletes its stored tokens.
-        To delete your SOCIA account and all associated data, email{" "}
+        Disconnecting a social account in Settings deletes its stored tokens,
+        the synced profile and posts, and the daily snapshots for that account.
+        Removing SOCIA from your Instagram or Facebook settings triggers the
+        same deletion automatically through Meta&apos;s deletion callback; see{" "}
+        <Link href="/data-deletion">Data deletion</Link> for the steps and to
+        check a confirmation code. To delete your SOCIA account and all
+        associated data, email{" "}
         <a href="mailto:socia.app2026@gmail.com">socia.app2026@gmail.com</a>{" "}
         from the address you signed up with and we will remove it within 30
         days.
