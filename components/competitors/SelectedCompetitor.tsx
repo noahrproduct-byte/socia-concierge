@@ -1,118 +1,150 @@
 "use client";
 
-// The selected competitor: who they are, the four-metric comparison, and at
-// most three evidence-backed reasons they are ahead.
+// The selected competitor, visual-first: a compact identity bar, the metric
+// gaps as paired bars (never a spreadsheet), the top three evidence-backed
+// reasons they're ahead, and the single next move SOCIA recommends. Every
+// number keeps its provenance; every absence keeps its reason.
 
 import Link from "next/link";
-import { CalendarDays, Check, ExternalLink, Heart, Info, Link2, Loader2, MapPin, Plus, TrendingUp, Users, Image as ImageIcon, Activity } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, Link2, Loader2, Plus, Sparkles } from "lucide-react";
 import type { LeaderRow } from "@/lib/competitorRollup";
 import { SOURCE_LABEL } from "@/lib/competitorRollup";
 import type { Comparison as Cmp } from "@/lib/similarCompetitor";
-import type { CompetitorRow, Reason } from "@/lib/competitorIntel";
-import { RangeSelect } from "./Controls";
+import type { CompetitorRow, Learning, Reason } from "@/lib/competitorIntel";
 import { Avatar, PlatformMark, cellText, classLabel, fmtN, platName } from "./shared";
 
-const ICON = { calendar: CalendarDays, reach: TrendingUp, users: Users, heart: Heart } as const;
+const fmtC = (unit: Cmp["unit"], v: number) => (unit === "pct" ? `${v.toFixed(1)}%` : unit === "perWeek" ? `${v.toFixed(1)}/wk` : fmtN(v));
 
-export function ProfileCard({ r, location, igEnabled, onTrack, tracking, similarity }: {
-  r: CompetitorRow; location: string | null; igEnabled: boolean; onTrack: (r: CompetitorRow) => void; tracking: boolean; similarity: number | null;
+/* ---------- identity bar ---------- */
+
+export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking }: {
+  r: CompetitorRow; similarity: number | null; igEnabled: boolean; onTrack: (r: CompetitorRow) => void; tracking: boolean;
 }) {
-  const local = r.location ?? (r.classification === "local_competitor" && location ? location : null);
-  const gated = r.platform !== "youtube" && !igEnabled;
-  const desc = r.description ? r.description.split("\n")[0].slice(0, 120) : r.reasons.length ? r.reasons.slice(0, 3).join(" · ") : null;
+  const gated = r.platform === "instagram" && !igEnabled;
   return (
-    <section className="ov-card cx-profile">
-      <div className="cx-profile-head">
-        <Avatar src={r.avatar} name={r.name} size={64} className="lg" />
-        <div className="cx-profile-id">
-          <h2 title={r.name}>{r.name}</h2>
-          <small><PlatformMark p={r.platform} size={11} /> @{r.handle}</small>
-          {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="ov-btn primary small cx-profile-open">View Profile <ExternalLink size={12} /></a>}
-        </div>
+    <div className="cx2-profilebar">
+      <Avatar src={r.avatar} name={r.name} size={42} />
+      <div className="cx2-profilebar-id">
+        <b title={r.name}>{r.name}</b>
+        <small><PlatformMark p={r.platform} size={10} /> @{r.handle}
+          {r.classification && <em className={`cx-chip mini ${r.classification}`}>{classLabel(r.classification)}</em>}
+        </small>
       </div>
-      <div className="cx-profile-row">
-        {r.classification && <span className={`cx-chip ${r.classification}`}>{classLabel(r.classification)}</span>}
-        {similarity != null && <b className="cx-match-big" title={r.match != null ? "SOCIA relevance: niche, market, comparable audience and verified metrics" : "Estimated from classification and audience size"}>{similarity}% <span>match</span></b>}
-      </div>
-      {desc && <p className="cx-profile-desc" title={r.description ?? undefined}>{desc}</p>}
-      <ul className="cx-profile-meta">
-        {local && <li><MapPin size={13} /> {local}{!r.location && <small title="Discovery matched this account to your market">matched</small>}</li>}
-        <li><Users size={13} /> {r.audience.state === "ok" ? `${fmtN(r.audience.value)} ${r.platform === "youtube" ? "subscribers" : "followers"}` : <span className="muted">{cellText(r.audience)}</span>}</li>
-        <li><ImageIcon size={13} /> {r.postsCount != null ? `${fmtN(r.postsCount)} ${r.platform === "youtube" ? "videos" : "posts"}` : <span className="muted">Post count not published</span>}</li>
-        <li><Activity size={13} /> {r.engagement.state === "ok" ? `${r.engagement.value!.toFixed(1)}% engagement rate` : <span className="muted">{cellText(r.engagement)}</span>}</li>
-      </ul>
-      {gated && (
-        <div className="cx-gate">
-          <Link2 size={12} /> <span>{platName(r.platform)} shares no numbers for accounts you don&apos;t own{r.platform === "instagram" ? " without a linked Facebook Page" : ""}.</span>
-          {r.platform === "instagram" && <Link href="/api/auth/facebook/start">Connect</Link>}
-        </div>
+      {similarity != null && (
+        <span className="cx2-match" title="SOCIA relevance: niche, market, comparable audience and verified metrics">
+          <b>{similarity}%</b> match
+        </span>
       )}
-      <div className="cx-profile-actions">
+      {gated && (
+        <Link href="/api/auth/facebook/start" className="cx2-gate-chip" title={`${platName(r.platform)} shares competitor numbers only through a linked Facebook Page.`}>
+          <Link2 size={11} /> Unlock data
+        </Link>
+      )}
+      <div className="cx2-profilebar-actions">
+        {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="ov-btn ghost small">Profile <ExternalLink size={11} /></a>}
         {r.tracked
-          ? <span className="cx-tracked"><Check size={12} /> Tracked</span>
-          : <button type="button" className="ov-btn ghost small" onClick={() => onTrack(r)} disabled={tracking}>{tracking ? <Loader2 size={12} className="cx-spin" /> : <Plus size={12} />} Track competitor</button>}
+          ? <span className="cx2-tracked"><Check size={12} /> Tracked</span>
+          : <button type="button" className="ov-btn primary small" onClick={() => onTrack(r)} disabled={tracking}>{tracking ? <Loader2 size={12} className="cx-spin" /> : <Plus size={12} />} Track</button>}
       </div>
+    </div>
+  );
+}
+
+/* ---------- gap bars: where you're winning / losing ---------- */
+
+const GAP_LABEL: Record<Cmp["key"], string> = { cadence: "Posting frequency", engagement: "Engagement", medianViews: "Median views", audience: "Audience" };
+const GAP_ORDER: Cmp["key"][] = ["cadence", "engagement", "medianViews", "audience"];
+
+function GapRow({ c, themName, connected, connectHref, delay }: { c: Cmp; themName: string; connected: boolean; connectHref: string; delay: number }) {
+  const yv = c.you.state === "ok" ? c.you.value : null;
+  const tv = c.them.state === "ok" ? c.them.value : null;
+  const max = Math.max(yv ?? 0, tv ?? 0, 1e-9);
+  const winning = c.diffPct != null && c.diffPct < 0; // them below you
+  return (
+    <li className="cx2-gap-row cx2-rise" style={{ animationDelay: `${delay}ms` }}>
+      <div className="cx2-gap-head">
+        <span className="cx2-gap-label">{GAP_LABEL[c.key]}</span>
+        {c.diffPct == null
+          ? <span className="cx2-delta none" title="One side isn't published, so no honest difference exists.">—</span>
+          : <span className={`cx2-delta ${winning ? "up" : "down"}`}>{winning ? "you lead" : "they lead"} {c.diffPct > 0 ? "+" : ""}{Math.round(Math.abs(c.diffPct))}%</span>}
+      </div>
+      <div className="cx2-gap-pair">
+        <div className="cx2-gap-bar">
+          <span className="cx2-gap-who">YOU</span>
+          <span className="cx2-gap-track">
+            {yv != null
+              ? <i className="you" style={{ ["--w" as string]: `${Math.max(3, (yv / max) * 100)}%` }} />
+              : <i className="absent" />}
+          </span>
+          <b className={yv != null ? "" : "none"}>
+            {yv != null ? fmtC(c.unit, yv)
+              : !connected ? <Link href={connectHref} className="ov-link">Connect</Link>
+              : cellText(c.you)}
+          </b>
+        </div>
+        <div className="cx2-gap-bar">
+          <span className="cx2-gap-who" title={themName}>THEM</span>
+          <span className="cx2-gap-track">
+            {tv != null
+              ? <i className="them" style={{ ["--w" as string]: `${Math.max(3, (tv / max) * 100)}%` }} />
+              : <i className="absent" />}
+          </span>
+          <b className={tv != null ? "" : "none"} title={c.them.source ? `${SOURCE_LABEL[c.them.source]}${c.them.sample ? ` · ${c.them.sample} posts` : ""}` : undefined}>
+            {tv != null ? fmtC(c.unit, tv) : cellText(c.them)}
+          </b>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+export function GapBars({ comparisons, themName, connected, connectHref }: {
+  comparisons: Cmp[]; themName: string; connected: boolean; connectHref: string;
+}) {
+  const ordered = GAP_ORDER.map((k) => comparisons.find((c) => c.key === k)).filter((c): c is Cmp => Boolean(c));
+  const winning = ordered.filter((c) => c.diffPct != null && c.diffPct < 0).length;
+  const comparable = ordered.filter((c) => c.diffPct != null).length;
+  return (
+    <section className="ov-card cx2-card cx2-gaps">
+      <div className="cx2-card-head">
+        <h2>Where you&apos;re winning</h2>
+        {comparable > 0 && <span className={`cx2-tag ${winning >= comparable - winning ? "up" : "down"}`}>{winning} of {comparable} metrics</span>}
+      </div>
+      <ul className="cx2-gap-list">
+        {ordered.map((c, i) => <GapRow key={c.key} c={c} themName={themName} connected={connected} connectHref={connectHref} delay={i * 70} />)}
+      </ul>
+      <small className="cx2-foot">You: authenticated Instagram data. {themName}: public platform data. A dash means one side isn&apos;t published — nothing is estimated.</small>
     </section>
   );
 }
 
-const ROW_LABEL: Record<Cmp["key"], string> = { audience: "Followers", cadence: "Posts per week", medianViews: "Median views", engagement: "Engagement rate" };
-// The reference order: size, cadence, reach, then rate.
-const ORDER: Cmp["key"][] = ["audience", "cadence", "medianViews", "engagement"];
-const fmtC = (c: Cmp, v: number) => (c.unit === "pct" ? `${v.toFixed(1)}%` : c.unit === "perWeek" ? v.toFixed(1) : fmtN(v));
+/* ---------- why they're winning ---------- */
 
-export function Comparison({ r, you, comparisons, days, connected, connectHref }: {
-  r: CompetitorRow; you: LeaderRow; comparisons: Cmp[]; days: number; connected: boolean; connectHref: string;
+export function WhyWinning({ reasons, r, connected, onEvidence }: {
+  reasons: Reason[]; r: CompetitorRow | null; connected: boolean; onEvidence: (x: Reason) => void;
 }) {
   return (
-    <section className="ov-card cx-compare">
-      <div className="ov-card-head">
-        <h2>Performance comparison <span className="cx-info" title="You: authenticated Instagram data for the selected range. Competitor: public platform data (YouTube's API, or Instagram Business Discovery through a linked Facebook Page). A dash means one side is not published, so no difference is claimed."><Info size={13} /></span></h2>
-        <RangeSelect days={days} />
-      </div>
-      <table className="cx-table">
-        <thead><tr><th>Metric</th><th>You</th><th title={r.name}>{r.name}</th><th>Difference</th></tr></thead>
-        <tbody>
-          {ORDER.map((k) => comparisons.find((c) => c.key === k)).filter((c): c is Cmp => Boolean(c)).map((c) => {
-            const label = ROW_LABEL[c.key];
-            const youText = !connected && c.you.state !== "ok" ? null : cellText(c.you, (n) => fmtC(c, n));
-            return (
-              <tr key={c.key}>
-                <td title={c.key === "audience" && r.platform === "youtube" ? "Subscribers on YouTube" : undefined}>{label}</td>
-                <td className={c.you.state === "ok" ? "" : "muted"}>{youText ?? <Link href={connectHref} className="ov-link">Connect</Link>}</td>
-                <td className={c.them.state === "ok" ? "" : "muted"} title={c.them.source ? `${SOURCE_LABEL[c.them.source]}${c.them.sample ? ` · ${c.them.sample} posts` : ""}` : undefined}>{cellText(c.them, (n) => fmtC(c, n))}</td>
-                <td>
-                  {c.diffPct == null
-                    ? <span className="cx-diff none" title="One side is not published, so no honest difference exists.">—</span>
-                    : <span className={`cx-diff ${c.diffPct > 0 ? "up" : "down"}`}>{c.diffPct > 0 ? "↑" : "↓"} {c.diffPct > 0 ? "+" : "−"}{Math.abs(Math.round(c.diffPct)).toLocaleString("en-US")}%</span>}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <small className="cx-foot-note">Green: the competitor is higher on that metric. Your side uses {you.medianViews.state === "ok" ? "Instagram insights" : "your synced posts"} for the last {days} days.</small>
-    </section>
-  );
-}
-
-export function Reasons({ reasons, r, connected, onEvidence }: { reasons: Reason[]; r: CompetitorRow | null; connected: boolean; onEvidence: (x: Reason) => void }) {
-  return (
-    <section className="ov-card cx-why">
-      <div className="ov-card-head"><h2>Why they&apos;re outperforming you</h2></div>
+    <section className="ov-card cx2-card cx2-why">
+      <div className="cx2-card-head"><h2>Why they&apos;re winning</h2><span className="cx2-micro">TOP {reasons.length || "—"} FACTORS</span></div>
       {reasons.length ? (
-        <ul className="cx-why-list">
-          {reasons.map((x) => {
-            const Icon = ICON[x.icon];
+        <div className="cx2-why-grid">
+          {reasons.map((x, i) => {
+            const yv = x.you.value, tv = x.them.value;
+            const max = Math.max(yv ?? 0, tv ?? 0, 1e-9);
             return (
-              <li key={x.key}>
-                <span className={`cx-why-ico ${x.icon}`}><Icon size={15} /></span>
-                <span className="cx-why-body"><b>{x.title}</b><p>{x.detail}</p></span>
-                <button type="button" className="ov-link cx-why-ev" onClick={() => onEvidence(x)}>See evidence →</button>
-              </li>
+              <button type="button" key={x.key} className="cx2-why-card cx2-rise" style={{ animationDelay: `${i * 90}ms` }} onClick={() => onEvidence(x)} title="See the evidence behind this">
+                <span className="cx2-why-n">{String(i + 1).padStart(2, "0")}</span>
+                <b>{x.title}</b>
+                <p>{x.detail}</p>
+                <span className="cx2-mini-pair" aria-hidden>
+                  <i className="you" style={{ ["--w" as string]: `${Math.max(4, ((yv ?? 0) / max) * 100)}%` }} />
+                  <i className="them" style={{ ["--w" as string]: `${Math.max(4, ((tv ?? 0) / max) * 100)}%` }} />
+                </span>
+                <span className="cx2-why-more">Evidence <ArrowRight size={11} /></span>
+              </button>
             );
           })}
-        </ul>
+        </div>
       ) : (
         <div className="cx-empty">
           {!r ? <p>Select a competitor to see the evidence.</p>
@@ -120,6 +152,49 @@ export function Reasons({ reasons, r, connected, onEvidence }: { reasons: Reason
             : r.postsGate === "connection_needed" ? <p>No metric is published for both accounts. Link a Facebook Page to read Instagram competitors.</p>
             : r.platform === "facebook" ? <p>Facebook publishes nothing about Pages you don&apos;t manage, so there is nothing to compare honestly.</p>
             : <p>{r.name} does not lead on any metric both accounts publish. Nothing here is guessed.</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- your next move ---------- */
+
+export function NextMove({ items, themName, onIdeas, onExamples }: {
+  items: Learning[]; themName: string | null;
+  onIdeas: (q: string) => void; onExamples: (tag: string | null, title: string) => void;
+}) {
+  if (!items.length) return null;
+  const [lead, ...rest] = items;
+  const actionEl = (l: Learning, primary: boolean) => {
+    const cls = primary ? "ov-btn primary small" : "ov-btn outline small";
+    if (l.action.kind === "plan") return <Link href={`/tool?note=${encodeURIComponent(l.action.note)}`} className={cls}>{l.action.label}</Link>;
+    if (l.action.kind === "ideas") { const q = l.action.question; return <button type="button" className={cls} onClick={() => onIdeas(q)}>{l.action.label}</button>; }
+    const tag = l.action.tag;
+    return <button type="button" className={cls} onClick={() => onExamples(tag, l.title)}>{l.action.label}</button>;
+  };
+  return (
+    <section className="ov-card cx2-card cx2-move">
+      <div className="cx2-card-head">
+        <h2><Sparkles size={14} /> Your next move</h2>
+        {themName && <span className="cx2-micro">FROM {themName.toUpperCase().slice(0, 24)}&apos;S REAL NUMBERS</span>}
+      </div>
+      <div className="cx2-move-lead cx2-rise">
+        <div className="cx2-move-body">
+          <b>{lead.title}</b>
+          <p>{lead.observed}</p>
+        </div>
+        {actionEl(lead, true)}
+      </div>
+      {rest.length > 0 && (
+        <div className="cx2-move-rest">
+          {rest.map((l) => (
+            <div key={l.n} className="cx2-move-item cx2-rise" style={{ animationDelay: `${l.n * 80}ms` }}>
+              <span className="cx2-move-n">{String(l.n).padStart(2, "0")}</span>
+              <div className="cx2-move-body"><b>{l.title}</b><p>{l.observed}</p></div>
+              {actionEl(l, false)}
+            </div>
+          ))}
         </div>
       )}
     </section>

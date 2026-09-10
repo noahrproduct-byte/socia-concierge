@@ -1,8 +1,9 @@
 "use client";
 
-// The competitor roster: the user's own card first, then the accounts SOCIA
-// compares, with the next card peeking in from the right. Native overflow
-// scrolling (trackpad), arrows, and arrow-key navigation; never autoplays.
+// The competitor selector: compact chips, your account pinned first, rank
+// badges computed from published engagement rates only. Clicking a chip
+// re-derives every section below without a reload. Native overflow scrolling,
+// arrows, and arrow-key navigation; never autoplays.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -11,8 +12,11 @@ import type { LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import { Avatar, PlatformMark, classLabel, fmtN } from "./shared";
 
-export default function Roster({ you, rows, selectedId, onSelect, connectHref }: {
-  you: LeaderRow | null; rows: CompetitorRow[]; selectedId: string | null; onSelect: (id: string) => void; connectHref: string;
+export default function Roster({ you, rows, ranks, youRank, selectedId, onSelect, connectHref }: {
+  you: LeaderRow | null; rows: CompetitorRow[];
+  /** id → rank among accounts with a published engagement rate. */
+  ranks: Record<string, number>; youRank: number | null;
+  selectedId: string | null; onSelect: (id: string) => void; connectHref: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
@@ -37,68 +41,82 @@ export default function Roster({ you, rows, selectedId, onSelect, connectHref }:
   const step = (dirn: 1 | -1) => {
     const el = ref.current;
     if (!el) return;
-    const card = el.querySelector<HTMLElement>(".cx-rcard");
-    el.scrollBy({ left: ((card?.offsetWidth ?? 236) + 12) * 2 * dirn, behavior: "smooth" });
+    const card = el.querySelector<HTMLElement>(".cx2-chip-card");
+    el.scrollBy({ left: ((card?.offsetWidth ?? 190) + 10) * 2 * dirn, behavior: "smooth" });
   };
   const onKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    const cards = [...(ref.current?.querySelectorAll<HTMLElement>(".cx-rcard[tabindex]") ?? [])];
+    const cards = [...(ref.current?.querySelectorAll<HTMLElement>(".cx2-chip-card[tabindex]") ?? [])];
     const i = cards.indexOf(document.activeElement as HTMLElement);
     const next = cards[i + (e.key === "ArrowRight" ? 1 : -1)];
     if (next) { e.preventDefault(); next.focus(); next.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" }); }
   };
 
   return (
-    <div className="cx-roster">
+    <div className="cx2-roster">
       {canLeft && <button type="button" className="cx-arrow left" onClick={() => step(-1)} aria-label="Previous competitors"><ChevronLeft size={15} /></button>}
-      <div className="cx-rscroll" ref={ref} role="listbox" aria-label="Competitors" onKeyDown={onKey}>
-        <article className="cx-rcard you" aria-label="Your account">
-          <span className="cx-rlabel">Your Account</span>
+      <div className="cx2-rscroll" ref={ref} role="listbox" aria-label="Competitors" onKeyDown={onKey}>
+        <article className="cx2-chip-card you cx2-rise" aria-label="Your account">
+          <span className="cx2-rank you">YOU</span>
           {you ? (
             <>
-              <div className="cx-rhead">
-                <Avatar src={you.avatar} name={you.handle} size={44} />
-                <span className="cx-rid"><b title={you.name}>{you.name.replace(/^@/, "")}</b><small>@{you.handle}</small></span>
+              <div className="cx2-chip-head">
+                <Avatar src={you.avatar} name={you.handle} size={34} />
+                <span className="cx2-chip-id"><b title={you.name}>{you.name.replace(/^@/, "")}</b><small>@{you.handle}</small></span>
               </div>
-              <div className="cx-rfoot">
-                <b>{you.audience.state === "ok" ? fmtN(you.audience.value) : "—"}</b> <small>followers</small>
+              <div className="cx2-chip-stats">
+                <span><b>{you.audience.state === "ok" ? fmtN(you.audience.value) : "—"}</b><small>followers</small></span>
+                <span>
+                  <b className={you.engagement.state === "ok" ? "" : "none"}>{you.engagement.state === "ok" ? `${you.engagement.value!.toFixed(1)}%` : "—"}</b>
+                  <small>{youRank != null ? `eng · #${youRank}` : "eng"}</small>
+                </span>
               </div>
             </>
           ) : (
-            <div className="cx-rconnect">
-              <Link2 size={13} /> <span>Not connected</span>
+            <div className="cx2-chip-connect">
+              <Link2 size={13} />
+              <span>Not connected</span>
               <Link href={connectHref} className="ov-link">Connect Instagram</Link>
             </div>
           )}
         </article>
 
-        {rows.map((r) => {
+        {rows.map((r, i) => {
           const selected = r.id === selectedId;
+          const rank = ranks[r.id];
           const gated = r.audience.state === "connection_needed";
           return (
             <article
               key={r.id}
-              className={`cx-rcard${selected ? " selected" : ""}`}
+              className={`cx2-chip-card cx2-rise${selected ? " selected" : ""}`}
+              style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
               role="option" aria-selected={selected} tabIndex={0}
               onClick={() => onSelect(r.id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(r.id); } }}
             >
-              <div className="cx-rhead">
-                <Avatar src={r.avatar} name={r.name} size={44} />
-                <span className="cx-rid">
+              <span className="cx2-rank" title={rank != null ? "Rank by published engagement rate on this page" : classLabel(r.classification) ?? undefined}>
+                {rank != null ? `#${rank}` : <PlatformMark p={r.platform} size={10} />}
+              </span>
+              {r.tracked && <i className="cx2-live-dot" title="Tracked" />}
+              <div className="cx2-chip-head">
+                <Avatar src={r.avatar} name={r.name} size={34} />
+                <span className="cx2-chip-id">
                   <b title={r.name}>{r.name}</b>
-                  <small title={`@${r.handle}`}><PlatformMark p={r.platform} size={10} /> @{r.handle}</small>
+                  <small title={`@${r.handle}`}><PlatformMark p={r.platform} size={9} /> @{r.handle}</small>
                 </span>
               </div>
-              <div className="cx-rchips">
-                {r.classification && <span className={`cx-chip ${r.classification}`}>{classLabel(r.classification)}</span>}
-                {r.tracked && <span className="cx-chip tracked">Tracked</span>}
-              </div>
-              <div className="cx-rmatch">{r.match != null ? <><b>{r.match}%</b> match</> : <span className="muted">Added by you</span>}</div>
-              <div className="cx-rfoot">
-                {r.audience.state === "ok"
-                  ? <><b>{fmtN(r.audience.value)}</b> <small>{r.platform === "youtube" ? "subscribers" : "followers"}</small></>
-                  : <small className="muted" title={gated ? "Needs a linked Facebook Page" : "Not published by the platform"}>{gated ? "Connection required" : "Followers not published"}</small>}
+              <div className="cx2-chip-stats">
+                <span>
+                  <b className={r.audience.state === "ok" ? "" : "none"} title={gated ? "Needs a linked Facebook Page" : undefined}>{r.audience.state === "ok" ? fmtN(r.audience.value) : "—"}</b>
+                  <small>{r.platform === "youtube" ? "subs" : "followers"}</small>
+                </span>
+                <span>
+                  {r.match != null
+                    ? <><b>{r.match}%</b><small>match</small></>
+                    : r.engagement.state === "ok"
+                      ? <><b>{r.engagement.value!.toFixed(1)}%</b><small>eng</small></>
+                      : <><b className="none">—</b><small>added</small></>}
+                </span>
               </div>
             </article>
           );

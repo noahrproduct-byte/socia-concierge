@@ -1,20 +1,19 @@
 "use client";
 
-// Content patterns (format / themes / hooks / style), top themes, and what to
-// learn from the selected competitor. Every bar is a share of the posts SOCIA
-// read; the sample size is always on screen.
+// Content intelligence for the selected competitor, drawn not written:
+// their format mix as a donut, their posting rhythm as a heatmap, and their
+// strongest real posts as cards. Every mark is a count over the posts SOCIA
+// actually read; the sample size stays on screen.
 
-import { useState } from "react";
 import Link from "next/link";
-import { Info, Link2 } from "lucide-react";
-import type { CompetitorRow, GroupedPatterns, Learning, PatternRow } from "@/lib/competitorIntel";
+import { Clock, Info, Link2, PieChart } from "lucide-react";
+import type { CompetitorRow, GroupedPatterns } from "@/lib/competitorIntel";
+import { Donut, Heatmap, postingGrid } from "./viz";
+import { fmtDate, fmtN } from "./shared";
 
-type Tab = "format" | "themes" | "hooks" | "style";
-const TABS: [Tab, string][] = [["format", "Format"], ["themes", "Themes"], ["hooks", "Hooks"], ["style", "Style"]];
-
-function gateText(r: CompetitorRow): string {
+export function gateText(r: CompetitorRow): string {
   switch (r.postsGate) {
-    case "connection_needed": return `Their posts need a linked Facebook Page to read. Instagram shares them only through Business Discovery.`;
+    case "connection_needed": return "Their posts need a linked Facebook Page to read — Instagram shares them only through Business Discovery.";
     case "not_business": return `Instagram only publishes posts for public Business and Creator accounts; ${r.name} is personal or private.`;
     case "not_found": return `The platform returned no account for @${r.handle}.`;
     case "no_permission": return "Reconnect Facebook to grant Instagram access (instagram_basic).";
@@ -23,83 +22,131 @@ function gateText(r: CompetitorRow): string {
   }
 }
 
-function Bars({ rows, empty }: { rows: PatternRow[]; empty: string }) {
-  if (!rows.length) return <p className="cx-empty small">{empty}</p>;
+function Gate({ r, height = 150 }: { r: CompetitorRow; height?: number }) {
   return (
-    <ul className="cx-bars">
-      {rows.slice(0, 5).map((p) => (
-        <li key={p.tag} title={`${p.count} of ${p.total} posts${p.medianMultiplier != null ? ` · median ${p.medianMultiplier.toFixed(1)}× their own baseline` : ""}`}>
-          <span className="cx-bar-label">{p.tag}</span>
-          <span className="cx-bar"><i style={{ width: `${Math.max(3, p.share)}%` }} /></span>
-          <b>{p.share}%</b>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-export function Patterns({ r, patterns }: { r: CompetitorRow | null; patterns: GroupedPatterns | null }) {
-  const [tab, setTab] = useState<Tab>("format");
-  const rows = patterns ? patterns[tab] : [];
-  const EMPTY: Record<Tab, string> = {
-    format: "The platform did not report a format for these posts.",
-    themes: "No theme repeats across their recent titles.",
-    hooks: "No hook structure repeats across their recent titles.",
-    style: "No presentation signal repeats across their recent titles.",
-  };
-  return (
-    <section className="ov-card cx-patterns">
-      <div className="ov-card-head"><h2>Content patterns</h2></div>
-      <div className="ov-seg cx-tabs" role="tablist" aria-label="Pattern type">
-        {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
+    <div className="cx2-locked" style={{ minHeight: height }}>
+      <div className="cx2-locked-ghost" aria-hidden />
+      <div className="cx2-locked-cta">
+        <Link2 size={13} />
+        <p>{gateText(r)}</p>
+        {r.postsGate === "connection_needed" && <Link href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</Link>}
       </div>
-      {!r ? <p className="cx-empty small">Select a competitor to analyse their posts.</p>
-        : !patterns || patterns.insufficient ? (
-          <div className="cx-empty small">
-            {r.posts.length === 0 ? <p><Link2 size={12} /> {gateText(r)}{r.postsGate === "connection_needed" && <> <Link href="/api/auth/facebook/start" className="ov-link">Connect</Link></>}</p>
-              : <p>Not enough posts to call a pattern: {r.posts.length} read, {patterns?.minSample ?? 5} needed.</p>}
-          </div>
-        ) : <Bars rows={rows} empty={EMPTY[tab]} />}
-      {patterns && !patterns.insufficient && (
-        <small className="cx-sample"><Info size={11} /> Based on their last {patterns.total} posts{tab === "format" ? ", as the platform reports them" : ", from titles and captions"}</small>
-      )}
-    </section>
+    </div>
   );
 }
 
-export function Themes({ r, patterns }: { r: CompetitorRow | null; patterns: GroupedPatterns | null }) {
+function Insufficient({ r, patterns }: { r: CompetitorRow; patterns: GroupedPatterns | null }) {
+  return <p className="cx-empty small">Not enough posts to call a pattern: {r.posts.length} read, {patterns?.minSample ?? 5} needed.</p>;
+}
+
+/* ---------- what's working for them (format mix) ---------- */
+
+export function ContentMix({ r, patterns, yourTopFormat }: { r: CompetitorRow | null; patterns: GroupedPatterns | null; yourTopFormat: string | null }) {
+  const ok = r && patterns && !patterns.insufficient;
+  const slices = ok ? patterns.format.slice(0, 4).map((f) => ({ label: f.tag, share: f.share, count: f.count })) : [];
+  const top = ok ? patterns.format[0] : null;
+  const topTheme = ok ? patterns.themes[0] : null;
+  const topHook = ok ? patterns.hooks[0] : null;
   return (
-    <section className="ov-card cx-themes">
-      <div className="ov-card-head"><h2>Top themes</h2></div>
+    <section className="ov-card cx2-card cx2-mix">
+      <div className="cx2-card-head"><h2><PieChart size={14} /> What&apos;s working for them</h2>{ok && <span className="cx2-micro">LAST {patterns.total} POSTS</span>}</div>
       {!r ? <p className="cx-empty small">Select a competitor.</p>
-        : !patterns || patterns.insufficient ? <p className="cx-empty small">{r.posts.length === 0 ? gateText(r) : `Needs at least ${patterns?.minSample ?? 5} posts; ${r.posts.length} read.`}</p>
-        : <Bars rows={patterns.themes} empty="No subject repeats across their recent titles, so no theme is claimed." />}
-      {patterns && !patterns.insufficient && <small className="cx-sample"><Info size={11} /> Share of their last {patterns.total} posts whose title shows the theme. Frequency, not performance.</small>}
-    </section>
-  );
-}
-
-export function Learn({ r, items, onIdeas, onExamples }: { r: CompetitorRow | null; items: Learning[]; onIdeas: (q: string) => void; onExamples: (tag: string | null, title: string) => void }) {
-  return (
-    <section className="ov-card cx-learn">
-      <div className="ov-card-head"><h2>What you can learn{r ? ` from them` : ""}</h2></div>
-      {items.length ? (
-        <ol className="cx-learn-list">
-          {items.map((l) => (
-            <li key={l.n}>
-              <span className="cx-learn-n">{l.n}</span>
-              <span className="cx-learn-body"><b>{l.title}</b><small>{l.observed}</small></span>
-              {l.action.kind === "plan" && <Link href={`/tool?note=${encodeURIComponent(l.action.note)}`} className="ov-btn outline small">{l.action.label}</Link>}
-              {l.action.kind === "ideas" && <button type="button" className="ov-btn outline small" onClick={() => onIdeas(l.action.kind === "ideas" ? l.action.question : "")}>{l.action.label}</button>}
-              {l.action.kind === "examples" && <button type="button" className="ov-btn outline small" onClick={() => onExamples(l.action.kind === "examples" ? l.action.tag : null, l.title)}>{l.action.label}</button>}
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <div className="cx-empty">
-          <p>{!r ? "Select a competitor." : "Recommendations appear once a comparison shows a measurable gap or their posts show a repeated pattern. Nothing generic is offered."}</p>
+        : !ok ? (r.posts.length === 0 ? <Gate r={r} /> : <Insufficient r={r} patterns={patterns} />)
+        : slices.length === 0 ? <p className="cx-empty small">The platform did not report a format for these posts.</p>
+        : (
+          <div className="cx2-mix-body">
+            <Donut slices={slices} />
+            <div className="cx2-mix-legend">
+              {slices.map((s, i) => (
+                <div key={s.label} className="cx2-legend-row">
+                  <i className={`cx2-swatch s${i}`} /> <span>{s.label}</span> <b>{s.share}%</b>
+                </div>
+              ))}
+              {top && (
+                <div className="cx2-mix-verdict">
+                  {yourTopFormat && top.tag !== yourTopFormat
+                    ? <>They lead with <b>{top.tag.toLowerCase()}</b>{top.medianMultiplier != null && top.medianMultiplier >= 1.1 ? <> at a median <b>{top.medianMultiplier.toFixed(1)}×</b> their baseline</> : null}; you post mostly {yourTopFormat.toLowerCase()}.</>
+                    : <><b>{top.count}</b> of their last {top.total} posts are {top.tag.toLowerCase()}{top.medianMultiplier != null && top.medianMultiplier >= 1.1 ? <>, at a median <b>{top.medianMultiplier.toFixed(1)}×</b> their own baseline</> : null}.</>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      {ok && (topTheme || topHook) && (
+        <div className="cx2-mix-tags">
+          {topTheme && <span className="cx2-tagchip" title={`${topTheme.count} of ${topTheme.total} posts`}>{topTheme.tag} · {topTheme.share}%</span>}
+          {topHook && <span className="cx2-tagchip" title={`${topHook.count} of ${topHook.total} titles`}>{topHook.tag} · {topHook.share}%</span>}
         </div>
       )}
+    </section>
+  );
+}
+
+/* ---------- when they post (heatmap) ---------- */
+
+export function WhenTheyPost({ r }: { r: CompetitorRow | null }) {
+  const times = (r?.posts ?? []).map((p) => (p.publishedAt ? new Date(p.publishedAt) : null)).filter((d): d is Date => Boolean(d && !Number.isNaN(d.getTime())));
+  const enough = times.length >= 5;
+  let insight: string | null = null;
+  if (enough) {
+    const { grid, total } = postingGrid(times);
+    const DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const SLOT = ["mornings", "afternoons", "evenings", "nights"];
+    let bs = 0, bd = 0, bv = -1;
+    grid.forEach((row, si) => row.forEach((v, di) => { if (v > bv) { bv = v; bs = si; bd = di; } }));
+    if (bv > 0) insight = `Most active: ${DAY[bd]} ${SLOT[bs]} — ${bv} of their last ${total} posts.`;
+  }
+  return (
+    <section className="ov-card cx2-card cx2-when">
+      <div className="cx2-card-head"><h2><Clock size={14} /> When they post</h2>{enough && <span className="cx2-micro">{times.length} DATED POSTS</span>}</div>
+      {!r ? <p className="cx-empty small">Select a competitor.</p>
+        : !enough ? (r.posts.length === 0 ? <Gate r={r} /> : <p className="cx-empty small">Needs at least 5 dated posts; {times.length} read.</p>)
+        : (
+          <>
+            <Heatmap times={times} />
+            {insight && <p className="cx2-heat-insight">{insight}</p>}
+            <small className="cx2-foot"><Info size={11} /> Posting frequency, counted from timestamps. Platforms don&apos;t publish when a competitor&apos;s engagement peaks.</small>
+          </>
+        )}
+    </section>
+  );
+}
+
+/* ---------- top content ---------- */
+
+export function TopContent({ r, onExamples }: { r: CompetitorRow | null; onExamples: (tag: string | null, title: string) => void }) {
+  if (!r || r.posts.length === 0) return null;
+  const scored = r.posts.filter((p) => (p.views ?? p.likes) != null);
+  const top = [...scored].sort((a, b) => ((b.views ?? b.likes) ?? 0) - ((a.views ?? a.likes) ?? 0)).slice(0, 3);
+  if (!top.length) return null;
+  return (
+    <section className="ov-card cx2-card cx2-top">
+      <div className="cx2-card-head">
+        <h2>Their top content</h2>
+        <button type="button" className="ov-link" onClick={() => onExamples(null, `Top posts from ${r.name}`)}>All posts →</button>
+      </div>
+      <div className="cx2-top-grid">
+        {top.map((p, i) => (
+          <a key={p.url} href={p.url} target="_blank" rel="noreferrer" className="cx2-top-card cx2-rise" style={{ animationDelay: `${i * 90}ms` }}>
+            <span className="cx2-top-thumb">
+              {p.thumb
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img src={p.thumb} alt="" loading="lazy" />
+                : <i className="ph" aria-hidden />}
+              {p.format && <em>{p.format.toUpperCase()}</em>}
+              {p.multiplier != null && p.multiplier >= 1.5 && <b className="cx2-mult">{p.multiplier.toFixed(1)}×</b>}
+            </span>
+            <b className="cx2-top-title">{p.title ?? "Untitled post"}</b>
+            <span className="cx2-top-stats">
+              {p.views != null && <span>{fmtN(p.views)} views</span>}
+              {p.likes != null && <span>{fmtN(p.likes)} likes</span>}
+              {p.comments != null && <span>{fmtN(p.comments)} comments</span>}
+              {p.publishedAt && <span className="muted">{fmtDate(p.publishedAt)}</span>}
+            </span>
+          </a>
+        ))}
+      </div>
+      {r.posts.some((p) => p.multiplier != null) && <small className="cx2-foot">× is each post against the account&apos;s own median views — their baseline, not yours.</small>}
     </section>
   );
 }
