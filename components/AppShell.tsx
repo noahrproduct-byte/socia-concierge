@@ -23,6 +23,7 @@ import { isAppearance, type Appearance } from "@/lib/appearance";
 import { createClient } from "@/lib/supabase/server";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
+import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { getPlan, type Plan } from "@/lib/plan";
 import { buildActivity, displayTitle, type Activity } from "@/lib/overview";
@@ -67,6 +68,7 @@ export default async function AppShell({
   // Shell state (best effort; the shell renders fine without any of it).
   let igUsername: string | null = null;
   let fbPageName: string | null = null;
+  let ytTitle: string | null = null;
   let platforms: string[] = [];
   let plan: Plan = "free";
   let appearance: Appearance | null = null;
@@ -78,17 +80,20 @@ export default async function AppShell({
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      const [conn, fbRes, profRes, planRes, schedRes, plansRes] = await Promise.all([
+      const [conn, fbRes, profRes, planRes, schedRes, plansRes, ytRes] = await Promise.all([
         getActiveConnection(supabase, user.id, "username, media, last_synced_at"),
         supabase.from("facebook_connections").select("page_name, connection_status").eq("user_id", user.id).maybeSingle(),
         supabase.from("profiles").select("platforms, appearance").eq("user_id", user.id).maybeSingle(),
         getPlan(supabase, user.id),
         supabase.from("scheduled_posts").select("*").eq("user_id", user.id).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
         supabase.from("plans").select("id, created_at, client_handle").eq("user_id", user.id).order("created_at", { ascending: false }).limit(3),
+        // Its own catch so a not-yet-created table never blanks the whole shell.
+        supabase.from("youtube_connections").select("title").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
       ]);
       const c = conn as { username?: string; media?: { id?: string; caption?: string; timestamp?: string; permalink?: string }[]; last_synced_at?: string } | null;
       igUsername = c?.username ?? null;
       fbPageName = fbRes.data?.connection_status === "connected" ? (fbRes.data.page_name ?? "Facebook") : null;
+      ytTitle = (ytRes.data as { title?: string } | null)?.title ?? null;
       let prof = profRes.data as { platforms?: string[]; appearance?: string } | null;
       if (profRes.error) {
         const { data } = await supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle();
@@ -123,7 +128,7 @@ export default async function AppShell({
     { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername) || platforms.includes("Instagram"), href: igUsername ? "/settings#accounts" : igConnect, icon: <Camera size={14} /> },
     { id: "fb", label: fbPageName ?? "Facebook", on: Boolean(fbPageName) || platforms.includes("Facebook"), href: fbPageName ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts", icon: FB_MARK },
     { id: "tt", label: "TikTok", on: platforms.includes("TikTok"), href: "/settings#accounts", icon: <Music2 size={14} /> },
-    { id: "yt", label: "YouTube", on: platforms.includes("YouTube"), href: "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
+    { id: "yt", label: ytTitle ?? "YouTube", on: Boolean(ytTitle) || platforms.includes("YouTube"), href: ytTitle ? "/settings#accounts" : ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
   ];
 
   return (

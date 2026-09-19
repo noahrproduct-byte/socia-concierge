@@ -27,6 +27,8 @@ import SettingsNav from "@/components/SettingsNav";
 import ConnectionsManager from "@/components/ConnectionsManager";
 import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
+import YouTubeConnect from "@/components/YouTubeConnect";
+import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { getPlan, accountLimit } from "@/lib/plan";
@@ -53,7 +55,7 @@ const PREVIEW_COMPETITORS = [
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig?: string; fb?: string }>;
+  searchParams: Promise<{ ig?: string; fb?: string; yt?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -61,7 +63,25 @@ export default async function SettingsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { ig, fb } = await searchParams;
+  const { ig, fb, yt } = await searchParams;
+
+  // YouTube channel connection (tokens never leave the server).
+  let ytConn: {
+    title: string | null;
+    handle: string | null;
+    subscribers: number | null;
+    avatar_url: string | null;
+  } | null = null;
+  try {
+    const { data } = await supabase
+      .from("youtube_connections")
+      .select("title, handle, subscribers, avatar_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    ytConn = data;
+  } catch {
+    // table may not exist yet — the card shows the disconnected state
+  }
 
   // Facebook connection state (tokens never leave the server).
   let fbConn: {
@@ -212,6 +232,15 @@ export default async function SettingsPage({
                 syncedAt={fbConn?.last_synced_at ?? null}
                 pendingPages={fbPages}
                 posts={Array.isArray(fbConn?.media) ? (fbConn!.media as FbPost[]).slice(0, 5) : []}
+              />
+              <div className="st2-divider"><span>YouTube</span></div>
+              <YouTubeConnect
+                status={yt}
+                configured={ytAuthConfigured()}
+                channelTitle={ytConn?.title ?? null}
+                handle={ytConn?.handle ?? null}
+                subscribers={ytConn?.subscribers ?? null}
+                avatar={ytConn?.avatar_url ?? null}
               />
               <div className="st2-divider"><span>Other platforms</span></div>
               <ConnectionsManager />
