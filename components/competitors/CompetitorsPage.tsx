@@ -285,7 +285,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
               <small className="cx2-foot">
                 {score.overall != null
                   ? `Computed from ${score.basis} of 4 metrics of your real data against published 2026 benchmarks. Hover each for the formula.`
-                  : d.connected ? "Fills in as your data syncs — nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <Link href={d.igConnectHref} className="ov-link">Connect</Link></>}
+                  : d.connected ? "Fills in as your data syncs — nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <a href={d.igConnectHref} className="ov-link">Connect</a></>}
               </small>
               {radarAxes.length >= 3 && (
                 <>
@@ -331,7 +331,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
         </>
       ) : roster.length ? null : (
         !d.connected && (
-          <div className="ov-empty cx-connect"><Link2 size={14} /><b>Connect Instagram to compare your own numbers</b><p>Competitor data still appears without it; the comparison needs your account.</p><Link href={d.igConnectHref} className="ov-btn primary small">Connect Instagram</Link></div>
+          <div className="ov-empty cx-connect"><Link2 size={14} /><b>Connect Instagram to compare your own numbers</b><p>Competitor data still appears without it; the comparison needs your account.</p><a href={d.igConnectHref} className="ov-btn primary small">Connect Instagram</a></div>
         )
       )}
 

@@ -51,7 +51,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
             <h2>Connect your Instagram account</h2>
             <p>Analytics fills with your real views, reach, engagement and audience the moment an account is connected, and SOCIA starts recording your follower count daily from that moment. Nothing here is estimated.</p>
           </div>
-          <Link href={igHref} className="db-connect-cta">Connect Instagram</Link>
+          {/* plain anchor: /api/auth routes must not be Link-prefetched */}
+          <a href={igHref} className="db-connect-cta">Connect Instagram</a>
         </div>
       </AppShell>
     );

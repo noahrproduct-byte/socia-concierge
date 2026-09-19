@@ -67,7 +67,8 @@ export default async function DashboardPage({
             <h2>Connect your Instagram account</h2>
             <p>See how your community grows, what content performs best, and how you compare to your competitors.</p>
           </div>
-          <Link href={igHref} className="db-connect-cta">Connect Instagram</Link>
+          {/* plain anchor: /api/auth routes must not be Link-prefetched */}
+          <a href={igHref} className="db-connect-cta">Connect Instagram</a>
         </div>
 
         {/* what you get, illustrated */}

@@ -76,7 +76,7 @@ export default function Roster({ you, rows, ranks, youRank, selectedId, onSelect
             <div className="cx2-chip-connect">
               <Link2 size={13} />
               <span>Not connected</span>
-              <Link href={connectHref} className="ov-link">Connect Instagram</Link>
+              <a href={connectHref} className="ov-link">Connect Instagram</a>
             </div>
           )}
         </article>

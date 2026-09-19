@@ -146,13 +146,19 @@ export default async function AppShell({
 
         <div className="side-sec">Social Accounts</div>
         <div className="side-channels">
-          {accounts.map((c) => (
-            <Link key={c.id} href={c.href} className="chan-row" title={c.on ? "Manage in settings" : "Connect"}>
+          {accounts.map((c) => {
+            // OAuth start routes are API endpoints, not pages: a Next <Link>
+            // tries to prefetch them as RSC and logs a fetch error on every
+            // page load. A plain anchor navigates cleanly.
+            const El = c.href.startsWith("/api/") ? "a" : Link;
+            return (
+            <El key={c.id} href={c.href} className="chan-row" title={c.on ? "Manage in settings" : "Connect"}>
               <span className={`chan-ico ${c.id}`}>{c.icon}</span>
               <span className="chan-label">{c.label}</span>
               {c.on ? <span className="chan-dot" aria-label="connected" /> : <span className="chan-add"><Plus size={12} /></span>}
-            </Link>
-          ))}
+            </El>
+            );
+          })}
           <Link href="/settings#accounts" className="side-add"><Plus size={13} /> Add Account</Link>
         </div>
 

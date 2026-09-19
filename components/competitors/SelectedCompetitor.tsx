@@ -36,9 +36,9 @@ export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking }: {
         </span>
       )}
       {gated && (
-        <Link href="/api/auth/facebook/start" className="cx2-gate-chip" title={`${platName(r.platform)} shares competitor numbers only through a linked Facebook Page.`}>
+        <a href="/api/auth/facebook/start" className="cx2-gate-chip" title={`${platName(r.platform)} shares competitor numbers only through a linked Facebook Page.`}>
           <Link2 size={11} /> Unlock data
-        </Link>
+        </a>
       )}
       <div className="cx2-profilebar-actions">
         {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="ov-btn ghost small">Profile <ExternalLink size={11} /></a>}
@@ -78,7 +78,7 @@ function GapRow({ c, themName, connected, connectHref, delay }: { c: Cmp; themNa
           </span>
           <b className={yv != null ? "" : "none"}>
             {yv != null ? fmtC(c.unit, yv)
-              : !connected ? <Link href={connectHref} className="ov-link">Connect</Link>
+              : !connected ? <a href={connectHref} className="ov-link">Connect</a>
               : cellText(c.you)}
           </b>
         </div>

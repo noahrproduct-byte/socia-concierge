@@ -270,7 +270,9 @@ export default function CalendarBoard({
             <button
               type="button"
               className="ov-btn primary"
-              onClick={() => now && openNew(now, (now.getDay() + 6) % 7)}
+              // Fallback to a fresh Date so the button never silently no-ops
+              // in the moment before hydration sets `now`.
+              onClick={() => { const n = now ?? new Date(); openNew(n, (n.getDay() + 6) % 7); }}
             >
               <Plus size={14} /> New post
             </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
@@ -18,6 +18,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+  // Already signed in? Straight to the app instead of showing a login form.
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) router.replace("/dashboard");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loginWithPassword(e: React.FormEvent) {
     e.preventDefault();

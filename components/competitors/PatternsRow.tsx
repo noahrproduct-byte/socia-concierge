@@ -29,7 +29,7 @@ function Gate({ r, height = 150 }: { r: CompetitorRow; height?: number }) {
       <div className="cx2-locked-cta">
         <Link2 size={13} />
         <p>{gateText(r)}</p>
-        {r.postsGate === "connection_needed" && <Link href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</Link>}
+        {r.postsGate === "connection_needed" && <a href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</a>}
       </div>
     </div>
   );
@@ -51,7 +51,7 @@ export function ContentUnlock({ r }: { r: CompetitorRow }) {
           <b>Unlock {r.name}&apos;s content intelligence</b>
           <p>{gateText(r)} One connection unlocks their format mix, posting rhythm and top posts.</p>
         </div>
-        {r.postsGate === "connection_needed" && <Link href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</Link>}
+        {r.postsGate === "connection_needed" && <a href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</a>}
       </div>
       <div className="cx2-unlock-feats" aria-hidden>
         <span><PieChart size={12} /> Format mix</span>

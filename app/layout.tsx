@@ -8,9 +8,11 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "SOCIA — Concierge Engine",
+  // Default for any page without its own title — user-facing, never the
+  // internal codename (it was leaking into tab titles on auth pages).
+  title: "SOCIA — Your AI Social Strategist",
   description:
-    "Generate an audit, competitor breakdown, and weekly content plan for a client account.",
+    "SOCIA studies your content, audience and competitors, then tells you what to post, why it should work, and when to publish.",
 };
 
 export default function RootLayout({
