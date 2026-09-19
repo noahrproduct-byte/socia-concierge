@@ -90,22 +90,26 @@ export default function LoginPage() {
       </div>
 
       <form onSubmit={loginWithPassword}>
-        <label>Email</label>
+        <label htmlFor="login-email">Email</label>
         <div className="field">
           <Mail size={16} className="field-ico" />
           <input
+            id="login-email"
             type="email"
+            autoComplete="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
           />
         </div>
-        <label>Password</label>
+        <label htmlFor="login-password">Password</label>
         <div className="field">
           <Lock size={16} className="field-ico" />
           <input
+            id="login-password"
             type={showPw ? "text" : "password"}
+            autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -116,15 +120,15 @@ export default function LoginPage() {
             className="field-eye"
             onClick={() => setShowPw((s) => !s)}
             aria-label={showPw ? "Hide password" : "Show password"}
+            aria-pressed={showPw}
           >
             {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
 
-        <div className="auth-row">
-          <label className="remember">
-            <input type="checkbox" defaultChecked /> Remember me
-          </label>
+        {/* Sessions always persist, so a "Remember me" box here would be a
+            control that changes nothing. Only the recovery link stays. */}
+        <div className="auth-row auth-row-end">
           <Link href="/forgot-password" className="auth-mini">Forgot password?</Link>
         </div>
 
@@ -133,12 +137,12 @@ export default function LoginPage() {
         </button>
       </form>
 
-      <button className="linkbtn" onClick={sendMagicLink} type="button">
+      <button className="linkbtn" onClick={sendMagicLink} type="button" disabled={loading}>
         Email me a magic link instead
       </button>
 
-      {msg && <div className="authmsg ok">{msg}</div>}
-      {err && <div className="authmsg err">{err}</div>}
+      {msg && <div className="authmsg ok" role="status">{msg}</div>}
+      {err && <div className="authmsg err" role="alert">{err}</div>}
 
       <div className="authfoot">
         <span>

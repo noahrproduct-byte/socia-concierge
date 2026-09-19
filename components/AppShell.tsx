@@ -119,11 +119,15 @@ export default async function AppShell({
   }
 
   const igConnect = igConfigured() ? "/api/auth/instagram/start" : "/settings";
+  // `on` means a live connection. Platforms picked during onboarding are
+  // registrations, not connections (TikTok and YouTube cannot connect yet),
+  // so they keep the add affordance instead of a "connected" dot.
+  const registered = (p: string) => platforms.includes(p);
   const accounts = [
-    { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername) || platforms.includes("Instagram"), href: igUsername ? "/settings#accounts" : igConnect, icon: <Camera size={14} /> },
-    { id: "fb", label: fbPageName ?? "Facebook", on: Boolean(fbPageName) || platforms.includes("Facebook"), href: fbPageName ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts", icon: FB_MARK },
-    { id: "tt", label: "TikTok", on: platforms.includes("TikTok"), href: "/settings#accounts", icon: <Music2 size={14} /> },
-    { id: "yt", label: "YouTube", on: platforms.includes("YouTube"), href: "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
+    { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername), registered: registered("Instagram"), href: igUsername ? "/settings#accounts" : igConnect, icon: <Camera size={14} /> },
+    { id: "fb", label: fbPageName ?? "Facebook", on: Boolean(fbPageName), registered: registered("Facebook"), href: fbPageName ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts", icon: FB_MARK },
+    { id: "tt", label: "TikTok", on: false, registered: registered("TikTok"), href: "/settings#accounts", icon: <Music2 size={14} /> },
+    { id: "yt", label: "YouTube", on: false, registered: registered("YouTube"), href: "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
   ];
 
   return (
@@ -152,10 +156,15 @@ export default async function AppShell({
             // page load. A plain anchor navigates cleanly.
             const El = c.href.startsWith("/api/") ? "a" : Link;
             return (
-            <El key={c.id} href={c.href} className="chan-row" title={c.on ? "Manage in settings" : "Connect"}>
+            <El
+              key={c.id}
+              href={c.href}
+              className="chan-row"
+              title={c.on ? "Connected. Manage in settings" : c.registered ? "Registered. Live sync arrives when the platform approves API access" : "Connect"}
+            >
               <span className={`chan-ico ${c.id}`}>{c.icon}</span>
               <span className="chan-label">{c.label}</span>
-              {c.on ? <span className="chan-dot" aria-label="connected" /> : <span className="chan-add"><Plus size={12} /></span>}
+              {c.on ? <span className="chan-dot" role="img" aria-label="Connected" /> : <span className="chan-add" aria-hidden><Plus size={12} /></span>}
             </El>
             );
           })}

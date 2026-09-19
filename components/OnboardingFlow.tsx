@@ -14,14 +14,13 @@ import {
   Briefcase,
   DollarSign,
   Rocket,
-  Wand2,
   ScanSearch,
 } from "lucide-react";
 import { NICHES } from "@/lib/niches";
 import ConnectAccounts from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 
-type Phase = "connect" | "analyzing" | "confirm" | "building" | "pricing";
+type Phase = "connect" | "analyzing" | "confirm" | "preview" | "pricing";
 
 type Extracted = {
   niche: string;
@@ -59,24 +58,16 @@ const ANALYZE_STEPS = [
   "Drafting your strategy",
 ];
 
-function buildingSteps(niche: string) {
-  const n = niche || "your niche";
-  return [
-    `Analyzing the ${n} space`,
-    "Studying what top creators are posting",
-    "Finding your best times to post",
-    "Scoring hook ideas for your audience",
-    "Writing your first week of content",
-  ];
-}
-
-function planFor(niche: string) {
+// Example ideas only, shown as examples. The real plan is generated from the
+// account's own posts and competitors on the Content Plan page; nothing here
+// is scored or predicted, so no invented numbers ride along.
+function exampleIdeas(niche: string) {
   const n = (niche || "your niche").toLowerCase();
   return [
-    { day: "Mon", format: "Reel", hook: `3 ${n} mistakes quietly killing your reach`, tag: "High hook score", score: 92 },
-    { day: "Wed", format: "Carousel", hook: `The ${n} starter kit nobody talks about`, tag: "Save-worthy", score: 88 },
-    { day: "Fri", format: "Reel", hook: `I tried this for 30 days. Here's what changed`, tag: "Story-driven", score: 90 },
-    { day: "Sun", format: "Story", hook: `Behind the scenes of my ${n} process`, tag: "Builds trust", score: 85 },
+    { day: "Mon", format: "Reel", hook: `3 ${n} mistakes quietly killing your reach` },
+    { day: "Wed", format: "Carousel", hook: `The ${n} starter kit nobody talks about` },
+    { day: "Fri", format: "Reel", hook: `I tried this for 30 days. Here's what changed` },
+    { day: "Sun", format: "Story", hook: `Behind the scenes of my ${n} process` },
   ];
 }
 
@@ -148,16 +139,13 @@ export default function OnboardingFlow({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // analyzing / building tickers
+  // analyzing ticker (runs alongside the real account read)
   const [tickIndex, setTickIndex] = useState(0);
-  const [buildIndex, setBuildIndex] = useState(0);
-  const [buildDone, setBuildDone] = useState(false);
   const analysisStarted = useRef(false);
 
   const stepIndex =
-    phase === "connect" ? 0 : phase === "analyzing" || phase === "confirm" ? 1 : phase === "building" ? 2 : 3;
-  const bSteps = useMemo(() => buildingSteps(niche), [niche]);
-  const plan = useMemo(() => planFor(niche), [niche]);
+    phase === "connect" ? 0 : phase === "analyzing" || phase === "confirm" ? 1 : phase === "preview" ? 2 : 3;
+  const ideas = useMemo(() => exampleIdeas(niche), [niche]);
   const liveIg = Boolean(igUsername) || igStatus === "connected";
 
   function toggle(id: string) {
@@ -214,19 +202,6 @@ export default function OnboardingFlow({
     });
   }, [phase]);
 
-  // ---- building phase ticker ----
-  useEffect(() => {
-    if (phase !== "building") return;
-    setBuildIndex(0);
-    setBuildDone(false);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 1; i <= bSteps.length; i++) {
-      timers.push(setTimeout(() => setBuildIndex(i), i * 1100));
-    }
-    timers.push(setTimeout(() => setBuildDone(true), bSteps.length * 1100 + 800));
-    return () => timers.forEach(clearTimeout);
-  }, [phase, bSteps.length]);
-
   function fromConnect() {
     if (liveIg) {
       setPhase("analyzing");
@@ -240,7 +215,7 @@ export default function OnboardingFlow({
     setLoading(true);
     await saveProfile();
     setLoading(false);
-    setPhase("building");
+    setPhase("preview");
   }
 
   async function finish(planId: string) {
@@ -268,8 +243,12 @@ export default function OnboardingFlow({
           </div>
           <div className="ob-steps">
             {STEPS.map((s, i) => (
-              <div key={s} className={`ob-step ${i < stepIndex ? "done" : ""} ${i === stepIndex ? "on" : ""}`}>
-                <span className="ob-step-dot">{i < stepIndex ? <Check size={12} /> : i + 1}</span>
+              <div
+                key={s}
+                className={`ob-step ${i < stepIndex ? "done" : ""} ${i === stepIndex ? "on" : ""}`}
+                aria-current={i === stepIndex ? "step" : undefined}
+              >
+                <span className="ob-step-dot" aria-hidden>{i < stepIndex ? <Check size={12} /> : i + 1}</span>
                 <span className="ob-step-label">{s}</span>
               </div>
             ))}
@@ -393,9 +372,9 @@ export default function OnboardingFlow({
             ) : null}
 
             <div className="ob-field ob-rise" style={{ animationDelay: "160ms" }}>
-              <label>{analyzed ? "Your niche (detected)" : "Your niche"}</label>
+              <label htmlFor="ob-niche">{analyzed ? "Your niche (detected)" : "Your niche"}</label>
               <div className="ob-select-wrap">
-                <select value={niche} onChange={(e) => setNiche(e.target.value)}>
+                <select id="ob-niche" value={niche} onChange={(e) => setNiche(e.target.value)}>
                   <option value="" disabled>Choose your category…</option>
                   {NICHES.map((n) => (
                     <option key={n} value={n}>{n}</option>
@@ -405,8 +384,8 @@ export default function OnboardingFlow({
             </div>
 
             <div className="ob-field ob-rise" style={{ animationDelay: "220ms" }}>
-              <label>{analyzed ? "Your goal (our best guess)" : "Your main goal"}</label>
-              <div className="ob-goalgrid">
+              <label id="ob-goal-label">{analyzed ? "Your goal (our best guess)" : "Your main goal"}</label>
+              <div className="ob-goalgrid" role="group" aria-labelledby="ob-goal-label">
                 {GOALS.map((g, i) => (
                   <button
                     key={g.id}
@@ -414,85 +393,65 @@ export default function OnboardingFlow({
                     className={`ob-goal ${goal === g.id ? "on" : ""}`}
                     style={{ animationDelay: `${240 + i * 45}ms` }}
                     onClick={() => setGoal(g.id)}
+                    aria-pressed={goal === g.id}
                   >
                     <span className="ob-goal-ico">{g.icon}</span>
                     <span>{g.label}</span>
-                    {goal === g.id && <span className="ob-goal-check"><Check size={13} /></span>}
+                    {goal === g.id && <span className="ob-goal-check" aria-hidden><Check size={13} /></span>}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="ob-field ob-rise" style={{ animationDelay: "300ms" }}>
-              <label>Account or brand name <span className="ob-opt">(optional)</span></label>
-              <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="@yourhandle or your business name" />
+              <label htmlFor="ob-brand">Account or brand name <span className="ob-opt">(optional)</span></label>
+              <input id="ob-brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="@yourhandle or your business name" autoComplete="organization" />
             </div>
 
-            {err && <div className="ob-err">{err}</div>}
+            {err && <div className="ob-err" role="alert">{err}</div>}
             <div className="ob-actions ob-rise" style={{ animationDelay: "340ms" }}>
-              <button className="ob-btn ob-btn-ghost" onClick={() => setPhase("connect")}>
+              <button className="ob-btn ob-btn-ghost" type="button" onClick={() => setPhase("connect")}>
                 <ArrowLeft size={17} /> Back
               </button>
-              <button className="ob-btn ob-btn-primary" disabled={!niche || !goal || loading} onClick={fromConfirm}>
-                {loading ? "Saving…" : "Build my plan"} {!loading && <Wand2 size={17} />}
+              <button className="ob-btn ob-btn-primary" type="button" disabled={!niche || !goal || loading} onClick={fromConfirm}>
+                {loading ? "Saving…" : "Save and continue"} {!loading && <ArrowRight size={17} />}
               </button>
             </div>
           </div>
         )}
 
-        {/* ---------- 3 · BUILDING → PLAN ---------- */}
-        {phase === "building" && !buildDone && (
-          <div className="ob-stage ob-build" key="building">
-            <div className="ob-orb">
-              <span className="ob-orb-core" />
-              <span className="ob-orb-ring" />
-              <span className="ob-orb-ring ob-orb-ring2" />
-              <Sparkles size={30} className="ob-orb-spark" />
-            </div>
-            <h1 className="ob-rise">Building your strategy…</h1>
-            <p className="ob-rise" style={{ animationDelay: "60ms" }}>
-              Your AI strategist is designing a plan for <b>{niche || "your account"}</b>.
-            </p>
-            <div className="ob-buildlist">
-              {bSteps.map((s, i) => (
-                <div key={s} className={`ob-buildrow ${i < buildIndex ? "done" : ""} ${i === buildIndex ? "active" : ""}`}>
-                  <span className="ob-buildcheck">
-                    {i < buildIndex ? <Check size={14} /> : <span className="ob-buildspin" />}
-                  </span>
-                  <span>{s}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {phase === "building" && buildDone && (
-          <div className="ob-stage" key="plan">
+        {/* ---------- 3 · PREVIEW ----------
+            Example ideas, labelled as such. The earlier version faked a
+            "building" ticker and invented hook scores; SOCIA never shows
+            numbers it did not compute. */}
+        {phase === "preview" && (
+          <div className="ob-stage" key="preview">
             <div className="ob-head ob-rise">
-              <span className="ob-eyebrow ob-eyebrow-ok"><Check size={13} /> Ready</span>
-              <h1>Your first week is ready 🎉</h1>
+              <span className="ob-eyebrow ob-eyebrow-ok"><Check size={13} /> Saved</span>
+              <h1>Here&apos;s the kind of plan you&apos;ll get</h1>
               <p>
-                A starter plan tuned for <b>{niche}</b>. This is a taste. Your full plan
-                updates daily inside SOCIA.
+                Example ideas for <b>{niche}</b>. Your real plan is built from your own posts
+                and competitors on the Content Plan page, and it keeps updating as you post.
               </p>
             </div>
             <div className="ob-plan">
-              {plan.map((p, i) => (
+              {ideas.map((p, i) => (
                 <div key={i} className="ob-plancard ob-pop" style={{ animationDelay: `${i * 90}ms` }}>
                   <div className="ob-plan-top">
                     <span className="ob-plan-day">{p.day}</span>
                     <span className="ob-plan-format">{p.format}</span>
-                    <span className="ob-plan-score">{p.score}</span>
                   </div>
-                  <p className="ob-plan-hook">"{p.hook}"</p>
-                  <span className="ob-plan-tag">{p.tag}</span>
+                  <p className="ob-plan-hook">&quot;{p.hook}&quot;</p>
+                  <span className="ob-plan-tag">Example idea</span>
                 </div>
               ))}
             </div>
             <div className="ob-actions ob-rise" style={{ animationDelay: "200ms" }}>
-              <span />
-              <button className="ob-btn ob-btn-primary" onClick={() => setPhase("pricing")}>
-                See my full plan <ArrowRight size={17} />
+              <button className="ob-btn ob-btn-ghost" type="button" onClick={() => setPhase("confirm")}>
+                <ArrowLeft size={17} /> Back
+              </button>
+              <button className="ob-btn ob-btn-primary" type="button" onClick={() => setPhase("pricing")}>
+                Continue <ArrowRight size={17} />
               </button>
             </div>
           </div>

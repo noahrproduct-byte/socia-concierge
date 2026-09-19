@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import BrandMark from "@/components/BrandMark";
 import AuthShell from "@/components/AuthShell";
 
 export default function ForgotPasswordPage() {
@@ -28,7 +29,7 @@ export default function ForgotPasswordPage() {
   return (
     <AuthShell>
       <div className="auth-mobilelogo">
-        <span className="brand-mark">S</span>SOCIA
+        <BrandMark size={32} />SOCIA
       </div>
 
       <h1>Reset your password</h1>
@@ -37,9 +38,11 @@ export default function ForgotPasswordPage() {
       </p>
 
       <form onSubmit={sendReset}>
-        <label>Email</label>
+        <label htmlFor="forgot-email">Email</label>
         <input
+          id="forgot-email"
           type="email"
+          autoComplete="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -50,8 +53,8 @@ export default function ForgotPasswordPage() {
         </button>
       </form>
 
-      {msg && <div className="authmsg ok">{msg}</div>}
-      {err && <div className="authmsg err">{err}</div>}
+      {msg && <div className="authmsg ok" role="status">{msg}</div>}
+      {err && <div className="authmsg err" role="alert">{err}</div>}
 
       <div className="authfoot">
         <Link href="/login">← Back to log in</Link>

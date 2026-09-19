@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import BrandMark from "@/components/BrandMark";
 import AuthShell from "@/components/AuthShell";
 
 export default function ResetPasswordPage() {
@@ -33,16 +34,19 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell>
       <div className="auth-mobilelogo">
-        <span className="brand-mark">S</span>SOCIA
+        <BrandMark size={32} />SOCIA
       </div>
 
       <h1>Set a new password</h1>
       <p className="auth-sub">Choose a new password for your account.</p>
 
       <form onSubmit={updatePassword}>
-        <label>New password</label>
+        <label htmlFor="reset-password">New password</label>
         <input
+          id="reset-password"
           type="password"
+          autoComplete="new-password"
+          minLength={6}
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -53,7 +57,7 @@ export default function ResetPasswordPage() {
         </button>
       </form>
 
-      {err && <div className="authmsg err">{err}</div>}
+      {err && <div className="authmsg err" role="alert">{err}</div>}
     </AuthShell>
   );
 }

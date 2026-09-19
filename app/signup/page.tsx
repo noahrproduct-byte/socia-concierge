@@ -84,22 +84,27 @@ export default function SignupPage() {
       </div>
 
       <form onSubmit={signUp}>
-        <label>Email</label>
+        <label htmlFor="signup-email">Email</label>
         <div className="field">
           <Mail size={16} className="field-ico" />
           <input
+            id="signup-email"
             type="email"
+            autoComplete="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
           />
         </div>
-        <label>Password</label>
+        <label htmlFor="signup-password">Password</label>
         <div className="field">
           <Lock size={16} className="field-ico" />
           <input
+            id="signup-password"
             type={showPw ? "text" : "password"}
+            autoComplete="new-password"
+            minLength={6}
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -110,6 +115,7 @@ export default function SignupPage() {
             className="field-eye"
             onClick={() => setShowPw((s) => !s)}
             aria-label={showPw ? "Hide password" : "Show password"}
+            aria-pressed={showPw}
           >
             {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
@@ -119,8 +125,8 @@ export default function SignupPage() {
         </button>
       </form>
 
-      {msg && <div className="authmsg ok">{msg}</div>}
-      {err && <div className="authmsg err">{err}</div>}
+      {msg && <div className="authmsg ok" role="status">{msg}</div>}
+      {err && <div className="authmsg err" role="alert">{err}</div>}
 
       <div className="authfoot">
         <span>
