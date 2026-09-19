@@ -67,7 +67,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     readDailySnapshots<Row>(supabase, user.id, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as Row[]),
     getActiveConnection(supabase, user.id, "access_token") as Promise<{ access_token?: string } | null>,
   ]);
-  const demo = await fetchDemographics(tokenRow?.access_token ?? null);
+  const demo = await fetchDemographics(tokenRow?.access_token ?? null, snap?.ig_user_id ?? null);
 
   // Baseline = the median post's interactions (likes + comments + saves + shares).
   const baseline = median(media.map(interactionsTotal));

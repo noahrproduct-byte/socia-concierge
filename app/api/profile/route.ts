@@ -73,7 +73,11 @@ export async function POST(req: Request) {
   if (typeof body.account_connected === "boolean") {
     row.account_connected = body.account_connected;
   }
-  if ("appearance" in body) row.appearance = body.appearance;
+  let appearanceSaved: boolean | undefined;
+  if ("appearance" in body) {
+    row.appearance = body.appearance;
+    appearanceSaved = true;
+  }
 
   // brand_detail is a single jsonb shared by two forms — merge, never clobber.
   let brandSaved: boolean | undefined;
@@ -95,8 +99,10 @@ export async function POST(req: Request) {
   let { error } = await supabase.from("profiles").upsert(row, { onConflict: "user_id" });
 
   if (error && "appearance" in row) {
-    // Column not migrated yet: the device copy still applies; save the rest.
+    // Column not migrated yet: the device copy still applies; save the rest
+    // and tell the client so it does not claim an account-level save.
     delete row.appearance;
+    appearanceSaved = false;
     ({ error } = await supabase.from("profiles").upsert(row, { onConflict: "user_id" }));
   }
 
@@ -109,9 +115,13 @@ export async function POST(req: Request) {
 
   if (error) {
     return NextResponse.json(
-      { error: `Couldn't save — is the profiles table created? (${error.message})` },
+      { error: `Couldn't save. Is the profiles table created? (${error.message})` },
       { status: 500 },
     );
   }
-  return NextResponse.json({ ok: true, ...(brandSaved !== undefined ? { brandSaved } : {}) });
+  return NextResponse.json({
+    ok: true,
+    ...(brandSaved !== undefined ? { brandSaved } : {}),
+    ...(appearanceSaved !== undefined ? { appearanceSaved } : {}),
+  });
 }

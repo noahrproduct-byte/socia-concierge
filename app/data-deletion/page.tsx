@@ -1,8 +1,9 @@
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
 import { createServiceClient } from "@/lib/supabase/service";
 import { readDeletionStatus } from "@/lib/metaDeletion";
 
-export const metadata = { title: "Data Deletion — SOCIA" };
+export const metadata = { title: "Data Deletion | SOCIA" };
 export const dynamic = "force-dynamic";
 
 // Meta's "User data deletion" instructions URL, and the status page its
@@ -23,6 +24,14 @@ export default async function DataDeletionPage({ searchParams }: { searchParams:
 
   return (
     <main className="legal-page">
+      <header className="legal-top">
+        <Link href="/" className="legal-brand" aria-label="SOCIA home">
+          <BrandMark size={28} />
+          <span>SOCIA</span>
+        </Link>
+        <Link href="/login" className="btn-secondary legal-login">Log in</Link>
+      </header>
+
       <h1>Data deletion</h1>
       <p className="legal-date">How to remove the data SOCIA holds about you and your connected accounts.</p>
 
@@ -50,8 +59,27 @@ export default async function DataDeletionPage({ searchParams }: { searchParams:
       <h2>Remove a connected Instagram or Facebook account</h2>
       <ul>
         <li>In SOCIA, open <Link href="/settings#accounts">Settings, Connected accounts</Link> and choose Disconnect. This deletes the stored access token, the synced profile and posts, and the daily snapshots for that account.</li>
-        <li>Or remove SOCIA from Instagram (Settings, Website permissions, Apps and websites) or from Facebook (Settings, Apps and websites). Meta then calls SOCIA&apos;s deletion endpoint and the same records are deleted automatically. Meta shows you a confirmation code; enter it in the address bar as <code>/data-deletion?code=YOURCODE</code> to see the status here.</li>
+        <li>Or remove SOCIA from Instagram (Settings, Website permissions, Apps and websites) or from Facebook (Settings, Apps and websites). Meta then calls SOCIA&apos;s deletion endpoint and the same records are deleted automatically. Meta shows you a confirmation code; enter it below to see the status of that request.</li>
       </ul>
+
+      <h2 id="check">Check a deletion request</h2>
+      <form method="get" action="/data-deletion" className="legal-form">
+        <div className="legal-form-field">
+          <label htmlFor="deletion-code">Confirmation code</label>
+          <input
+            id="deletion-code"
+            name="code"
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            spellCheck={false}
+            required
+            defaultValue={clean}
+            placeholder="20 letters and digits"
+          />
+        </div>
+        <button type="submit" className="btn-primary">Check status</button>
+      </form>
 
       <h2>Delete your whole SOCIA account</h2>
       <p>

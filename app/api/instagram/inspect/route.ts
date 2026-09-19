@@ -71,22 +71,38 @@ export async function GET() {
   if (!conn?.access_token) return NextResponse.json({ error: "No Instagram connection." }, { status: 400 });
   const token = conn.access_token as string;
 
-  // Who/what is this account?
-  const meRes = await fetch(
-    `${BASE}/me?fields=id,username,account_type,followers_count&access_token=${encodeURIComponent(token)}`,
-    { signal: AbortSignal.timeout(10000) },
-  );
-  const me = await meRes.json().catch(() => null);
+  // Who/what is this account? A network failure is a finding here, not a 500.
+  type MetaError = { error?: { message?: string } };
+  const unreachable = "Instagram couldn't be reached.";
+  let me: (MetaError & { id?: string; username?: string; account_type?: string; followers_count?: number }) | null = null;
+  let meError: string | null = null;
+  try {
+    const meRes = await fetch(
+      `${BASE}/me?fields=id,username,account_type,followers_count&access_token=${encodeURIComponent(token)}`,
+      { signal: AbortSignal.timeout(10000) },
+    );
+    me = await meRes.json().catch(() => null);
+  } catch (e) {
+    console.error("IG inspect: /me failed:", e);
+    meError = unreachable;
+  }
 
   // ---- raw media list: exactly what Instagram says the account published.
   // media_product_type distinguishes FEED / REELS / STORY; the media edge
   // itself omits stories and collab posts authored by the partner account,
   // which is the usual cause of "SOCIA missed my post". ----
-  const mediaRes = await fetch(
-    `${BASE}/me/media?fields=id,timestamp,media_type,media_product_type,caption,permalink&limit=10&access_token=${encodeURIComponent(token)}`,
-    { signal: AbortSignal.timeout(10000) },
-  );
-  const mediaJson = await mediaRes.json().catch(() => null);
+  let mediaJson: (MetaError & { data?: Record<string, unknown>[] }) | null = null;
+  let mediaError: string | null = null;
+  try {
+    const mediaRes = await fetch(
+      `${BASE}/me/media?fields=id,timestamp,media_type,media_product_type,caption,permalink&limit=10&access_token=${encodeURIComponent(token)}`,
+      { signal: AbortSignal.timeout(10000) },
+    );
+    mediaJson = await mediaRes.json().catch(() => null);
+  } catch (e) {
+    console.error("IG inspect: /me/media failed:", e);
+    mediaError = unreachable;
+  }
   const recent_media =
     mediaJson?.data?.map((m: Record<string, unknown>) => ({
       timestamp: m.timestamp ?? null,
@@ -138,13 +154,13 @@ export async function GET() {
   return NextResponse.json({
     api_version: V,
     recent_media,
-    recent_media_error: mediaJson?.error?.message ?? null,
+    recent_media_error: mediaError ?? mediaJson?.error?.message ?? null,
     account_info: {
       username: me?.username ?? null,
       ig_user_id: me?.id ?? null,
       account_type: me?.account_type ?? null,
       followers: me?.followers_count ?? null,
-      me_error: me?.error?.message ?? null,
+      me_error: meError ?? me?.error?.message ?? null,
     },
     account_insights: account,
     media_insights: mediaProbes,

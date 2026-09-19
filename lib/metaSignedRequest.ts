@@ -19,7 +19,17 @@ export type SignedPayload = {
 
 const b64url = (s: string): Buffer => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64");
 
-export function verifySignedRequest(signed: string, secrets: (string | undefined)[]): { ok: true; payload: SignedPayload; via: number } | { ok: false; reason: string } {
+/** Meta signs a request moments before delivering it. A payload dated
+ *  further from now than this (either way, to absorb clock skew) is a replay
+ *  of a captured request, not a live callback. In seconds. */
+export const SIGNED_REQUEST_MAX_AGE_S = 10 * 60;
+
+/** `nowS` (unix seconds) exists so tests can pin the clock. */
+export function verifySignedRequest(
+  signed: string,
+  secrets: (string | undefined)[],
+  nowS: number = Math.floor(Date.now() / 1000),
+): { ok: true; payload: SignedPayload; via: number } | { ok: false; reason: string } {
   const [sigPart, payloadPart] = signed.split(".", 2);
   if (!sigPart || !payloadPart) return { ok: false, reason: "malformed" };
   let payload: SignedPayload;
@@ -34,7 +44,14 @@ export function verifySignedRequest(signed: string, secrets: (string | undefined
     const secret = secrets[i];
     if (!secret) continue;
     const expected = createHmac("sha256", secret).update(payloadPart).digest();
-    if (expected.length === sig.length && timingSafeEqual(expected, sig)) return { ok: true, payload, via: i };
+    if (expected.length === sig.length && timingSafeEqual(expected, sig)) {
+      // Signature first, freshness second: a stale token is only "expired"
+      // once it is known to be Meta's at all.
+      const issued = payload.issued_at;
+      if (typeof issued !== "number" || !Number.isFinite(issued)) return { ok: false, reason: "no_issued_at" };
+      if (Math.abs(nowS - issued) > SIGNED_REQUEST_MAX_AGE_S) return { ok: false, reason: "expired" };
+      return { ok: true, payload, via: i };
+    }
   }
   return { ok: false, reason: "bad_signature" };
 }

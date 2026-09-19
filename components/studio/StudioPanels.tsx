@@ -18,8 +18,17 @@ const FIT_CLS = { strong: "success", medium: "warning", weak: "danger" } as cons
 const VERDICT = { better: ["Better", "success"], similar: ["Similar", "muted"], worse: ["Behind", "warning"], unknown: ["Not measurable", "muted"] } as const;
 
 function CopyBtn({ text }: { text: string }) {
-  const [ok, setOk] = useState(false);
-  return <button type="button" className="ov-btn ghost small" aria-label="Copy" onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200); } catch { /* no clipboard */ } }}>{ok ? <Check size={12} /> : <Copy size={12} />}</button>;
+  const [state, setState] = useState<"idle" | "ok" | "fail">("idle");
+  const label = state === "ok" ? "Copied" : state === "fail" ? "Copy failed" : "Copy";
+  return (
+    <button type="button" className="ov-btn ghost small" aria-label={label} title={label} onClick={async () => {
+      try { await navigator.clipboard.writeText(text); setState("ok"); } catch { setState("fail"); }
+      setTimeout(() => setState("idle"), 1500);
+    }}>
+      {state === "ok" ? <Check size={12} /> : state === "fail" ? "Copy failed" : <Copy size={12} />}
+      <span className="sr-only" aria-live="polite">{state === "idle" ? "" : label}</span>
+    </button>
+  );
 }
 
 export function ScoreRing({ score }: { score: number }) {
@@ -107,7 +116,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
             {a.segments.map((s, i) => (
               <li key={i} className={`st-seg ${s.rating}`}>
                 <button type="button" onClick={() => seek(s.start)}>
-                  <span className="st-seg-time">{fmtT(s.start)}–{fmtT(s.end)}</span>
+                  <span className="st-seg-time">{fmtT(s.start)} to {fmtT(s.end)}</span>
                   <span className="st-seg-body"><b>{s.label}</b><small>{s.reason}</small></span>
                   <em className={`ov-chip ${s.rating === "strong" || s.rating === "good" ? "success" : s.rating === "needs" ? "warning" : "danger"}`}>{s.rating === "needs" ? "Needs improvement" : s.rating[0].toUpperCase() + s.rating.slice(1)}</em>
                 </button>
@@ -176,7 +185,7 @@ export function ImprovePanel({ a, w, apply, seek, improve, firstFrame }: { a: St
   return (
     <div className="st-panel">
       <section className="st-block">
-        <div className="st-block-head"><h3>Hook Lab</h3><span className="ov-range-label">First 1–3 seconds</span></div>
+        <div className="st-block-head"><h3>Hook Lab</h3><span className="ov-range-label">First 1 to 3 seconds</span></div>
         <div className="st-hooklab">
           {firstFrame && (
             <div className="st-firstframe">
@@ -242,7 +251,7 @@ export function ImprovePanel({ a, w, apply, seek, improve, firstFrame }: { a: St
             <>
               <ul className="st-cuts">
                 {a.cuts.edits.map((c, i) => (
-                  <li key={i}><button type="button" onClick={() => seek(c.start)}><em className={`ov-chip ${c.type === "remove" ? "danger" : "warning"}`}>{c.type.toUpperCase()}</em><b>{fmtT1(c.start)}–{fmtT1(c.end)}</b><span>{c.reason}</span></button></li>
+                  <li key={i}><button type="button" onClick={() => seek(c.start)}><em className={`ov-chip ${c.type === "remove" ? "danger" : "warning"}`}>{c.type.toUpperCase()}</em><b>{fmtT1(c.start)} to {fmtT1(c.end)}</b><span>{c.reason}</span></button></li>
                 ))}
               </ul>
               {a.cuts.note && <p className="ov-source">{a.cuts.note}</p>}
@@ -357,7 +366,7 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
           <button type="button" className="ov-btn primary small" disabled={saving || Boolean(savedId)} onClick={onSaveDraft}><CalendarPlus size={12} /> {saving ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
           {savedId && <Link href="/calendar" className="ov-btn ghost small">Open Calendar to schedule <ArrowRight size={12} /></Link>}
         </div>
-        <p className="ov-source"><Info size={11} /> Saving uploads this file to your own media folder and creates a draft on tomorrow at your suggested hour; nothing is published until you schedule it.</p>
+        <p className="ov-source"><Info size={11} /> Saving uploads this file to your own media folder and creates a draft for tomorrow at noon; nothing is published until you schedule it.</p>
       </section>
       {a && (
         <section className="st-block">

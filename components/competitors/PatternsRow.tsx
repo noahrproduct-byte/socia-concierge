@@ -13,11 +13,11 @@ import { fmtDate, fmtN } from "./shared";
 
 export function gateText(r: CompetitorRow): string {
   switch (r.postsGate) {
-    case "connection_needed": return "Their posts need a linked Facebook Page to read — Instagram shares them only through Business Discovery.";
+    case "connection_needed": return "Their posts need a linked Facebook Page to read; Instagram shares them only through Business Discovery.";
     case "not_business": return `Instagram only publishes posts for public Business and Creator accounts; ${r.name} is personal or private.`;
     case "not_found": return `The platform returned no account for @${r.handle}.`;
     case "no_permission": return "Reconnect Facebook to grant Instagram access (instagram_basic).";
-    case "failed": return "The platform could not be reached just now.";
+    case "failed": return "Data source unavailable right now, try again later.";
     default: return r.platform === "facebook" ? "Facebook publishes nothing about Pages you don't manage." : "No posts read for this account yet.";
   }
 }
@@ -117,7 +117,7 @@ export function WhenTheyPost({ r }: { r: CompetitorRow | null }) {
     const SLOT = ["mornings", "afternoons", "evenings", "nights"];
     let bs = 0, bd = 0, bv = -1;
     grid.forEach((row, si) => row.forEach((v, di) => { if (v > bv) { bv = v; bs = si; bd = di; } }));
-    if (bv > 0) insight = `Most active: ${DAY[bd]} ${SLOT[bs]} — ${bv} of their last ${total} posts.`;
+    if (bv > 0) insight = `Most active: ${DAY[bd]} ${SLOT[bs]} (UTC), ${bv} of their last ${total} posts.`;
   }
   return (
     <section className="ov-card cx2-card cx2-when">
@@ -128,7 +128,7 @@ export function WhenTheyPost({ r }: { r: CompetitorRow | null }) {
           <>
             <Heatmap times={times} />
             {insight && <p className="cx2-heat-insight">{insight}</p>}
-            <small className="cx2-foot"><Info size={11} /> Posting frequency, counted from timestamps. Platforms don&apos;t publish when a competitor&apos;s engagement peaks.</small>
+            <small className="cx2-foot"><Info size={11} /> Posting frequency, counted from timestamps, times in UTC. Platforms don&apos;t publish when a competitor&apos;s engagement peaks.</small>
           </>
         )}
     </section>
@@ -169,7 +169,7 @@ export function TopContent({ r, onExamples }: { r: CompetitorRow | null; onExamp
           </a>
         ))}
       </div>
-      {r.posts.some((p) => p.multiplier != null) && <small className="cx2-foot">× is each post against the account&apos;s own median views — their baseline, not yours.</small>}
+      {r.posts.some((p) => p.multiplier != null) && <small className="cx2-foot">× is each post against the account&apos;s own median views: their baseline, not yours.</small>}
     </section>
   );
 }

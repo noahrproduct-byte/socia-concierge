@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { FB_GRAPH_V, FB_SCOPES, fbAppId, fbConfigId, fbConfigured, fbRedirectUri } from "@/lib/facebook";
+import {
+  FB_GRAPH_V, FB_OAUTH_STATE_COOKIE, FB_SCOPES, OAUTH_STATE_MAX_AGE, fbAppId, fbConfigId, fbConfigured, fbRedirectUri,
+  newOauthNonce, oauthStateCookie,
+} from "@/lib/facebook";
 
 export const runtime = "nodejs";
 
@@ -30,7 +33,12 @@ export async function GET(req: Request) {
   } else {
     authorize.searchParams.set("scope", FB_SCOPES);
   }
-  authorize.searchParams.set("state", "settings");
+  // A per-request nonce travels in `state` and in an HttpOnly cookie; the
+  // callback exchanges the code only when the two match (CSRF).
+  const nonce = newOauthNonce();
+  authorize.searchParams.set("state", `${nonce}.settings`);
 
-  return NextResponse.redirect(authorize.toString());
+  const res = NextResponse.redirect(authorize.toString());
+  res.cookies.set(oauthStateCookie(FB_OAUTH_STATE_COOKIE, nonce, OAUTH_STATE_MAX_AGE));
+  return res;
 }

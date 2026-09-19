@@ -1498,8 +1498,11 @@ a.hub-card:hover {
   display: inline-block;
 }
 
-/* ---------- app responsive ---------- */
-@media (max-width: 900px) {
+/* ---------- app responsive ----------
+   Same width as the shell's mobile block further down (860px): at 900 this
+   legacy block used to fire alone between 861 and 900px and left a hybrid
+   sidebar with every section crammed into one row. */
+@media (max-width: 860px) {
   .app {
     grid-template-columns: 1fr;
   }
@@ -9321,7 +9324,7 @@ a.hub-card:hover {
 }
 .st2-plat:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: 0 4px 12px rgba(var(--shadow-rgb), 0.05); }
 .st2-plat:disabled { cursor: default; opacity: 0.7; }
-.st2-plat.on { border-color: rgba(18, 183, 106, 0.35); background: var(--surface); }
+.st2-plat.on { border-color: rgba(var(--success-rgb), 0.35); background: var(--surface); }
 .st2-plat-ico { flex-shrink: 0; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line); }
 .st2-plat-meta { flex: 1; min-width: 0; }
 .st2-plat-meta b { display: block; font-size: 13px; font-weight: 650; color: var(--charcoal); }
@@ -10442,9 +10445,11 @@ button.cal2-mevent { width: 100%; text-align: left; border: none; border-left: 2
 .cal2-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 8px 0 4px; font-size: 13.5px; color: var(--slate); }
 
 /* toast */
-.cal2-notice { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100vw - 32px)); background: var(--inverse-surface); color: var(--on-primary); font-size: 13px; line-height: 1.45; border-radius: 12px; padding: 11px 12px 11px 16px; box-shadow: 0 14px 40px rgba(var(--shadow-rgb), 0.3); animation: cal2rise 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.cal2-notice button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; border: none; background: rgba(255, 255, 255, 0.12); color: var(--on-primary); cursor: pointer; flex-shrink: 0; }
-.cal2-notice button:hover { background: rgba(255, 255, 255, 0.22); }
+/* --inverse-surface flips light in dark mode, so the text must be --inverse-text
+   (it was --on-primary: white on white in dark mode) */
+.cal2-notice { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 70; display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100vw - 32px)); background: var(--inverse-surface); color: var(--inverse-text); font-size: 13px; line-height: 1.45; border-radius: 12px; padding: 11px 12px 11px 16px; box-shadow: 0 14px 40px rgba(var(--shadow-rgb), 0.3); animation: cal2rise 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.cal2-notice button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; border: none; background: color-mix(in srgb, var(--inverse-text) 12%, transparent); color: var(--inverse-text); cursor: pointer; flex-shrink: 0; }
+.cal2-notice button:hover { background: color-mix(in srgb, var(--inverse-text) 22%, transparent); }
 
 @media (max-width: 640px) {
   .cal2-preview li { grid-template-columns: 1fr 1fr; }
@@ -10487,7 +10492,7 @@ body { background: var(--background); color: var(--text-primary); }
 .side { background: var(--sidebar); border-right: 1px solid var(--sidebar-border); }
 ::selection { background: rgba(var(--primary-rgb), 0.28); }
 input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
-:where(button, a, input, select, textarea, [role="tab"], [role="radio"]):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+:where(button, a, input, select, textarea, summary, [role="tab"], [role="radio"], [role="button"], [role="option"], [role="link"], [tabindex]:not([tabindex="-1"])):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* one restrained crossfade while the theme flips (added by the provider for 260ms) */
 html.theme-switching, html.theme-switching body, html.theme-switching * {
@@ -10738,7 +10743,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .ov-donut-seg.info { stroke: var(--info); }
 .ov-donut-seg.success { stroke: var(--success); }
 .ov-donut-seg.warning { stroke: var(--warning); }
-.ov-donut-seg.danger { stroke: #ec4899; }
+.ov-donut-seg.danger { stroke: var(--danger); }
 .ov-donut-seg.muted { stroke: var(--text-muted); }
 .ov-donut-num { fill: var(--text-primary); font-size: 15px; font-weight: 750; font-family: var(--font); }
 .ov-donut-lab { fill: var(--text-muted); font-size: 6.5px; font-family: var(--font); }
@@ -10750,7 +10755,8 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .dot.info, .dot.tiktok { background: var(--info); }
 .dot.success { background: var(--success); }
 .dot.warning { background: var(--warning); }
-.dot.danger, .dot.youtube { background: #ef4444; }
+.dot.danger { background: var(--danger); }
+.dot.youtube { background: #ff0000; }
 .dot.facebook { background: #1877f2; }
 .dot.muted { background: var(--text-muted); }
 
@@ -11882,7 +11888,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2-dot-end.them { fill: var(--cx2-them); stroke: rgba(var(--info-rgb), .3); }
 @keyframes cx2endpulse { 0% { stroke-width: 2; } 50% { stroke-width: 7; } 100% { stroke-width: 2; } }
 .cx2-cursor { stroke: color-mix(in srgb, var(--text-muted) 55%, transparent); stroke-width: 1; stroke-dasharray: 2 3; }
-.cx2-tip { position: absolute; top: 8px; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 3px; background: var(--chart-tooltip-bg); color: var(--chart-tooltip-text); border-radius: 10px; padding: 8px 11px; font-size: 11.5px; box-shadow: 0 8px 24px -8px rgba(0,0,0,.45); white-space: nowrap; }
+.cx2-tip { position: absolute; top: 8px; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 3px; background: var(--chart-tooltip-bg); color: var(--chart-tooltip-text); border-radius: 10px; padding: 8px 11px; font-size: 11.5px; box-shadow: 0 8px 24px -8px rgba(var(--shadow-rgb), .45); white-space: nowrap; }
 .cx2-tip b { font-size: 11px; opacity: .75; font-weight: 700; }
 .cx2-tip span { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .cx2-tip i { width: 8px; height: 8px; border-radius: 3px; }
@@ -12096,3 +12102,70 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2-unlock-feats span { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
 @media (max-width: 700px) { .cx2-unlock-body { flex-direction: column; align-items: flex-start; } }
+
+/* ============================================================
+   Overnight audit (2026-09-19): focus, motion, touch and phone rules
+   ============================================================ */
+/* inputs that reset the outline get their ring back */
+.dv-ask input:focus-visible, .lb-sel select:focus-visible, .cx-add-form input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+.ov-barg:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* one rule for reduced motion: animations finish instantly, so `both` and
+   `forwards` fills still land on their end state and nothing stays invisible */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+/* touch: hover-revealed and sub-40px controls */
+@media (hover: none) {
+  .cal2-madd { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .cal2-nav, .cx-icon-btn, .stp-btn, .stp-btn.small, .cal2-x, .ov-x, .ov-row-nav, .cx-arrow, .tb-iconbtn, .cal2-notice button, .field-eye, .dv-ask button { min-width: 40px; min-height: 40px; }
+  .cal2-madd, .cx-ncard-save { width: 32px; height: 32px; }
+  .acct-seg button { width: 36px; height: 34px; }
+  .ov-seg button, .av-tabs button, .lb-sel { min-height: 40px; }
+  .pt-cell { height: 40px; }
+  .stp-slides button { position: relative; }
+  .stp-slides button::before, .stp-mark::before { content: ""; position: absolute; inset: -12px; }
+}
+
+/* phone widths */
+@media (max-width: 640px) {
+  .cal2-mcell { min-height: 60px; padding: 4px; }
+  .cal2-mhead span { font-size: 9px; letter-spacing: 0.04em; }
+  .ov-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tb-search { max-width: 56vw; }
+}
+@media (max-width: 480px) {
+  .dv-trackers li { grid-template-columns: 1fr 64px auto; }
+  .cx2-heat-row { grid-template-columns: 52px repeat(7, 1fr); gap: 3px; }
+  .cx2-heat-row.head span { font-size: 8.5px; letter-spacing: 0.02em; }
+  .pt-grid { grid-template-columns: 30px repeat(8, minmax(0, 1fr)); gap: 3px; }
+  .pt-rowlab, .pt-col { font-size: 9.5px; }
+}
+
+/* the calendar composer takes focus itself when it has no field yet (plan modal
+   while loading); the trap moves focus on, so no ring on the dialog box */
+.cal2-modal:focus { outline: none; }
+
+/* content plan: the previous plan stays visible, dimmed, while a new one generates */
+.cpl-stage .cpl-loading + .cpl-r { opacity: 0.55; }
+.cpl-err .ov-btn { margin-top: 8px; }
+/* studio: the keyboard "Set as cover" control sits inline in the strip note */
+.stp-note .ov-btn { vertical-align: middle; margin-left: 4px; }
+
+/* settings: a registered (not connected) platform reads neutral, not "live" green */
+.st2-plat-meta small.on { color: var(--slate); }
+/* settings: tracked-competitor chips without an avatar keep even padding */
+.st3-comp:not(:has(img)) { padding-left: 11px; }
+
+/* legal pages: brand bar and the data-deletion confirmation-code form */
+.legal-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 40px; }
+.legal-page .legal-brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -0.4px; color: var(--text-primary); text-decoration: none; }
+.legal-page .legal-login { color: var(--text-primary); text-decoration: none; }
+.legal-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 12px 0 8px; }
+.legal-form-field { flex: 1 1 240px; max-width: 340px; }
+.legal-form label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.legal-form input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 14px; }
+.legal-form input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }

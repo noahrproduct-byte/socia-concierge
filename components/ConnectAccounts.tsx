@@ -2,19 +2,22 @@
 
 import { Check } from "lucide-react";
 
-// Real OAuth to Instagram/TikTok/YouTube is gated on platform API approval.
-// Until that lands, connecting registers the account in-app (drives the
-// dashboard's connected state and tailors the AI) — live data sync arrives
-// once the platform APIs are approved.
+// Only Instagram connects live (OAuth). Every other platform is gated on API
+// approval, so its button registers the platform on the profile (which tailors
+// the AI) and nothing more: it does not mark the account as connected and no
+// data syncs until that platform's API access is approved.
 
 type Mark = (color: string, size?: number) => React.ReactNode;
 type Account = { id: string; name: string; cta: string; color: string; mark: Mark };
+
+/** Wording for the live Instagram OAuth button only; registry ctas are "Add". */
+const IG_CONNECT_CTA = "Connect an Instagram professional account";
 
 export const ACCOUNTS: Account[] = [
   {
     id: "Instagram",
     name: "Instagram",
-    cta: "Connect an Instagram professional account",
+    cta: "Add an Instagram account",
     color: "#E1306C",
     mark: (c, s = 20) => (
       <svg viewBox="0 0 24 24" width={s} height={s} fill="none" stroke={c} strokeWidth="2">
@@ -27,7 +30,7 @@ export const ACCOUNTS: Account[] = [
   {
     id: "TikTok",
     name: "TikTok",
-    cta: "Connect a TikTok account",
+    cta: "Add a TikTok account",
     color: "#111",
     mark: (c, s = 20) => (
       <svg viewBox="0 0 24 24" width={s} height={s} fill={c}>
@@ -38,7 +41,7 @@ export const ACCOUNTS: Account[] = [
   {
     id: "X",
     name: "X / Twitter",
-    cta: "Connect an X / Twitter account",
+    cta: "Add an X / Twitter account",
     color: "#111",
     mark: (c, s = 18) => (
       <svg viewBox="0 0 24 24" width={s} height={s} fill={c}>
@@ -49,7 +52,7 @@ export const ACCOUNTS: Account[] = [
   {
     id: "LinkedIn",
     name: "LinkedIn",
-    cta: "Connect a LinkedIn profile or page",
+    cta: "Add a LinkedIn profile or page",
     color: "#0A66C2",
     mark: (c, s = 20) => (
       <svg viewBox="0 0 24 24" width={s} height={s} fill={c}>
@@ -60,7 +63,7 @@ export const ACCOUNTS: Account[] = [
   {
     id: "Facebook",
     name: "Facebook",
-    cta: "Connect a Facebook page",
+    cta: "Add a Facebook page",
     color: "#1877F2",
     mark: (c, s = 20) => (
       <svg viewBox="0 0 24 24" width={s} height={s} fill={c}>
@@ -71,7 +74,7 @@ export const ACCOUNTS: Account[] = [
   {
     id: "YouTube",
     name: "YouTube",
-    cta: "Connect a YouTube channel",
+    cta: "Add a YouTube channel",
     color: "#FF0000",
     mark: (c, s = 22) => (
       <svg viewBox="0 0 24 24" width={s} height={s} fill={c}>
@@ -116,7 +119,7 @@ export default function ConnectAccounts({
                 </span>
               ) : (
                 <a className="conn-cta" style={{ background: a.color }} href={instagramHref}>
-                  <span>{a.cta}</span>
+                  <span>{IG_CONNECT_CTA}</span>
                   <span className="conn-cta-mark">{a.mark("#fff", 18)}</span>
                 </a>
               )}
@@ -137,7 +140,7 @@ export default function ConnectAccounts({
               onClick={() => onToggle(a.id)}
             >
               {on ? (
-                <><Check size={16} /> Connected. Click to remove</>
+                <><Check size={16} /> Registered. Click to remove</>
               ) : (
                 <>
                   <span>{a.cta}</span>

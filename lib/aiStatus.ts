@@ -11,7 +11,7 @@ export type AiUnavailable = "no_credit" | "no_key" | "rate_limited" | "failed";
 /** One sentence a user can act on, per failure kind. */
 export const AI_UNAVAILABLE_COPY: Record<AiUnavailable, string> = {
   no_credit:
-    "AI features are paused — the Anthropic account is out of credit. Add credit in Plans & Billing and this resumes immediately.",
+    "AI features are paused: the Anthropic account is out of credit. Add credit in Plans & Billing and this resumes immediately.",
   no_key: "AI features aren't configured on the server yet.",
   rate_limited: "The AI is rate limited right now. Try again in a moment.",
   failed: "The AI couldn't be reached right now. Try again in a moment.",

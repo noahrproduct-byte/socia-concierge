@@ -44,3 +44,8 @@ export function fbRedirectUri(reqOrigin: string) {
 export function fbConfigured() {
   return Boolean(fbAppId() && fbAppSecret());
 }
+
+// OAuth state (CSRF) for the Facebook dialog: the nonce lives in this cookie
+// and the helpers are the ones the Instagram flow uses (see lib/instagram.ts).
+export const FB_OAUTH_STATE_COOKIE = "fb_oauth_state";
+export { OAUTH_STATE_MAX_AGE, newOauthNonce, oauthStateCookie, oauthStateValid, parseOauthState } from "./instagram";

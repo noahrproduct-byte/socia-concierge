@@ -60,7 +60,7 @@ export type StudioAnalysis = {
   meta: { frames: number; hadTranscript: boolean; analyzedAt: string; version: number };
 };
 
-export const SCORE_LABEL = (s: number) => (s >= 85 ? "Strong potential" : s >= 70 ? "Solid, with clear wins" : s >= 55 ? "Needs work before posting" : "Rework the opening first");
+export const SCORE_LABEL = (s: number) => (s >= 85 ? "Strong draft" : s >= 70 ? "Solid, with clear wins" : s >= 55 ? "Needs work before posting" : "Rework the opening first");
 
 /** Structured-output schema for what the model produces. No nulls: sentinel
  *  values (-1, "", "none") are mapped on the server. */
@@ -113,7 +113,7 @@ export function analysisSummary(a: StudioAnalysis): string {
     `Score ${a.score.overall}/100 (${a.score.label}). Categories: ${cats}.`,
     `Observed: ${a.observed.summary} Subject first appears at ${a.observed.subjectAppearsAt != null ? `${a.observed.subjectAppearsAt.toFixed(1)}s` : "unknown"}; face ${a.observed.faceSeen == null ? "unknown" : a.observed.faceSeen ? "seen" : "not seen"}; on-screen text ${a.observed.onScreenText == null ? "unknown" : a.observed.onScreenText ? "present" : "absent"}; CTA ${a.observed.ctaDetected == null ? "unknown" : a.observed.ctaDetected ? "detected" : "not detected"}.`,
     `Top fixes: ${a.topFixes.map((f, i) => `${i + 1}. ${f.title} (${f.observed})`).join(" ")}`,
-    a.segments.length ? `Structure: ${a.segments.map((s) => `${fmtT(s.start)}–${fmtT(s.end)} ${s.label} [${s.rating}]`).join("; ")}.` : "",
+    a.segments.length ? `Structure: ${a.segments.map((s) => `${fmtT(s.start)} to ${fmtT(s.end)} ${s.label} [${s.rating}]`).join("; ")}.` : "",
     a.compare ? `Compared with top posts (${a.compare.basis}): ${a.compare.summary}` : "",
   ].filter(Boolean).join("\n");
 }

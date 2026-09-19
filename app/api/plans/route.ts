@@ -11,7 +11,7 @@ export async function GET() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ plans: [] });
+    if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
     const { data, error } = await supabase
       .from("plans")
@@ -19,7 +19,10 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(30);
 
-    if (error) return NextResponse.json({ plans: [] });
+    if (error) {
+      console.error("plans: list failed:", error.message);
+      return NextResponse.json({ plans: [] });
+    }
     return NextResponse.json({ plans: data ?? [] });
   } catch {
     // table may not exist yet — return empty history rather than erroring
@@ -46,7 +49,10 @@ export async function PATCH(req: Request) {
   if (readErr || !cur) return NextResponse.json({ error: "Plan not found." }, { status: 404 });
   const data = { ...(cur.data as Record<string, unknown>), weeklyPlan: body.weeklyPlan };
   const { data: rows, error } = await supabase.from("plans").update({ data }).eq("id", body.id).eq("user_id", user.id).select("id, client_handle, niche, platform, data, created_at");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("plans: update failed:", error.message);
+    return NextResponse.json({ error: "Couldn't save right now." }, { status: 500 });
+  }
   if (!rows?.length) return NextResponse.json({ error: "The change was applied on screen but could not be saved to the plan. Run the latest supabase/schema.sql (plans update policy) to enable saving." }, { status: 403 });
   return NextResponse.json({ plan: rows[0] });
 }

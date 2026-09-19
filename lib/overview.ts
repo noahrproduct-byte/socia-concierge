@@ -120,9 +120,29 @@ export type Series = {
   previous: SeriesPoint[];
   total: number | null;
   prevTotal: number | null;
+  /** Days of the period Instagram's daily series actually covered; the total
+   *  sums those days only. Set for platform daily series (views, reach). */
+  daysWithData?: number;
+  prevDaysWithData?: number;
 };
 
 const META_DAILY = "instagram_api";
+
+/** A platform daily total is only compared with the previous period when both
+ *  periods have data for a similar number of days (within 25%). Series without
+ *  a coverage count (post totals, snapshots) are always comparable. */
+export function seriesComparable(s: Series): boolean {
+  const a = s.daysWithData, b = s.prevDaysWithData;
+  if (a == null || b == null) return true;
+  return Math.abs(a - b) <= 0.25 * Math.max(a, b);
+}
+
+/** Percent change of a series total vs. the previous period, or null when
+ *  there is nothing honest to compare. */
+export function seriesDeltaPct(s: Series): number | null {
+  if (s.total == null || s.prevTotal == null || s.prevTotal <= 0 || !seriesComparable(s)) return null;
+  return ((s.total - s.prevTotal) / s.prevTotal) * 100;
+}
 
 export function buildSeries(
   metric: MetricId,
@@ -154,6 +174,7 @@ export function buildSeries(
     for (let i = pts.length - 1; i >= 0; i--) if (pts[i].value != null) return pts[i].value;
     return null;
   };
+  const covered = (pts: SeriesPoint[]): number => pts.filter((p) => p.value != null).length;
 
   if (metric === "views") {
     const metaDays = curDays.filter((d) => rows.get(d)?.views != null && rows.get(d)?.source === META_DAILY);
@@ -163,7 +184,7 @@ export function buildSeries(
         return { value: r?.source === META_DAILY ? (r.views ?? null) : null, postIds: ids(byPublishDay.get(d) ?? []) };
       };
       const current = make(curDays, pick), previous = make(prevDays, pick);
-      return { metric, label: "Views", provenance: "instagram_daily", note: "Instagram's own daily views series.", current, previous, total: sum(current), prevTotal: sum(previous) };
+      return { metric, label: "Views", provenance: "instagram_daily", note: "Instagram's own daily views series.", current, previous, total: sum(current), prevTotal: sum(previous), daysWithData: covered(current), prevDaysWithData: covered(previous) };
     }
     const anyViews = media.some((m) => m.insights?.views != null);
     if (anyViews) {
@@ -183,7 +204,9 @@ export function buildSeries(
       return { value: ms.length ? ms.reduce((s, m) => s + interactionsTotal(m), 0) : null, postIds: ids(ms) };
     };
     const current = make(curDays, pick), previous = make(prevDays, pick);
-    return { metric, label: "Engagement", provenance: "publish_totals", note: "Likes + comments + saves + shares on each post, placed on the day it was published.", current, previous, total: sum(current) ?? 0, prevTotal: sum(previous) };
+    // total stays null when no post was published in the period: "no posts",
+    // not "0 interactions".
+    return { metric, label: "Interactions", provenance: "publish_totals", note: "Likes + comments + saves + shares on each post, placed on the day it was published.", current, previous, total: sum(current), prevTotal: sum(previous) };
   }
 
   if (metric === "followers") {
@@ -206,7 +229,7 @@ export function buildSeries(
   };
   const current = make(curDays, pick), previous = make(prevDays, pick);
   const has = current.some((p) => p.value != null);
-  return { metric, label: "Reach", provenance: has ? "instagram_daily" : "unavailable", note: has ? "Accounts reached per day, Instagram's own daily series." : "Instagram hasn't returned daily reach for this account yet.", current, previous, total: sum(current), prevTotal: sum(previous) };
+  return { metric, label: "Reach", provenance: has ? "instagram_daily" : "unavailable", note: has ? "Accounts reached per day, Instagram's own daily series." : "Instagram hasn't returned daily reach for this account yet.", current, previous, total: sum(current), prevTotal: sum(previous), ...(has ? { daysWithData: covered(current), prevDaysWithData: covered(previous) } : {}) };
 }
 
 /** Sum consecutive days into ISO weeks (Mon-start) for the weekly view. */
@@ -273,10 +296,10 @@ export function bucketLabel(b: Bucket, g: Granularity): string {
   if (g === "month") return MON[+b.key.slice(5, 7) - 1];
   return b.key;
 }
-/** Tooltip title for a bucket, e.g. "Aug 17–23", "August 2026". */
+/** Tooltip title for a bucket, e.g. "Aug 17 to 23", "August 2026". */
 export function bucketTitle(b: Bucket, g: Granularity): string {
   if (g === "day") return new Date(b.start + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-  if (g === "week") { const e = new Date(new Date(b.start + "T00:00:00Z").getTime() + 6 * DAY_MS).toISOString().slice(0, 10); return `${md(b.start)}–${e.slice(0, 7) === b.start.slice(0, 7) ? +e.slice(8, 10) : md(e)}`; }
+  if (g === "week") { const e = new Date(new Date(b.start + "T00:00:00Z").getTime() + 6 * DAY_MS).toISOString().slice(0, 10); return `${md(b.start)} to ${e.slice(0, 7) === b.start.slice(0, 7) ? +e.slice(8, 10) : md(e)}`; }
   if (g === "month") return new Date(b.key + "-01T00:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   return b.key;
 }
@@ -372,8 +395,27 @@ export function buildKpis(input: {
   const ratePrev = erPrev && erPrev.method === erCur.method ? erPrev.value : null;
   const fdays = daily.filter((d) => d.followers != null).length;
 
-  const v = delta(views.total, views.prevTotal);
-  const r = delta(reach.total, reach.prevTotal);
+  // Platform daily totals (views, reach) sum only the days Instagram covered.
+  // The note carries that count, and the comparison is dropped when the two
+  // periods' coverage differs by more than 25%.
+  const none = { pct: null, text: null };
+  const suppressed = (s: Series) => s.total != null && s.prevTotal != null && !seriesComparable(s);
+  const coverage = (s: Series): string | null => (s.daysWithData != null && s.daysWithData < days ? `${s.daysWithData} of ${days} days with data` : null);
+  const noteFor = (s: Series, d: { text: string | null }): string => {
+    const cov = coverage(s);
+    if (d.text) return cov ? `${period} · ${cov}` : period;
+    if (suppressed(s)) return `${cov ?? `${days} days with data`} · previous period not comparable`;
+    return cov ?? `last ${days} days`;
+  };
+  const sourceFor = (s: Series): string => {
+    let out = s.note;
+    if (coverage(s)) out += ` Instagram's daily series covers ${s.daysWithData} of the last ${days} days; the total counts those days only.`;
+    if (suppressed(s)) out += ` The previous ${days} days have ${s.prevDaysWithData} days of data, so the two periods are not compared.`;
+    return out;
+  };
+
+  const v = suppressed(views) ? none : delta(views.total, views.prevTotal);
+  const r = suppressed(reach) ? none : delta(reach.total, reach.prevTotal);
   const f = delta(foll.total, foll.prevTotal);
   const e = delta(rateCur, ratePrev);
   const p = coversPrev || prevRange.length ? inRange.length - prevRange.length : null;
@@ -382,8 +424,8 @@ export function buildKpis(input: {
     {
       id: "views", label: "Total Views", value: views.total != null ? fmtNum(views.total) : "—", raw: views.total,
       deltaPct: v.pct, deltaText: v.text, positive: v.pct == null ? null : v.pct >= 0,
-      note: views.total == null ? "Not returned by Instagram yet" : v.text ? period : `last ${days} days`,
-      status: views.total == null ? "unavailable" : "ok", source: views.note,
+      note: views.total == null ? "Not returned by Instagram yet" : noteFor(views, v),
+      status: views.total == null ? "unavailable" : "ok", source: sourceFor(views),
     },
     {
       id: "engagement_rate", label: "Engagement Rate", value: rateCur != null ? `${rateCur.toFixed(rateCur < 1 ? 2 : 1)}%` : "—", raw: rateCur,
@@ -400,8 +442,8 @@ export function buildKpis(input: {
     {
       id: "reach", label: "Reach", value: reach.total != null ? fmtNum(reach.total) : "—", raw: reach.total,
       deltaPct: r.pct, deltaText: r.text, positive: r.pct == null ? null : r.pct >= 0,
-      note: reach.total == null ? "Daily reach not returned yet" : r.text ? period : `last ${days} days`,
-      status: reach.total == null ? "collecting" : "ok", source: reach.note,
+      note: reach.total == null ? "Daily reach not returned yet" : noteFor(reach, r),
+      status: reach.total == null ? "collecting" : "ok", source: sourceFor(reach),
     },
     {
       id: "posts", label: "Total Posts", value: String(inRange.length), raw: inRange.length,

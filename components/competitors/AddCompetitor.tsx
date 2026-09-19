@@ -10,10 +10,22 @@ import { AtSign, Check, ExternalLink, Loader2, Plus, X } from "lucide-react";
 import Drawer from "@/components/ov/Drawer";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { Tracked } from "./types";
-import { Avatar, PlatformMark, classLabel, fmtN, platName } from "./shared";
+import { Avatar, PlatformMark, cellText, classLabel, fmtDate, fmtN, platName } from "./shared";
 
 const profileUrl = (c: Tracked) =>
   c.platform === "facebook" ? `https://facebook.com/${c.handle}` : c.platform === "youtube" ? `https://youtube.com/@${c.handle}` : `https://instagram.com/${c.handle}`;
+
+/** The handle the API accepts. A pasted YouTube URL (youtube.com/@handle,
+ *  /channel/UC..., /c/name, /user/name, youtu.be/...) yields its handle or
+ *  channel id, as the server's own extraction does; anything else loses its "@". */
+const cleanHandle = (p: string, h: string): string => {
+  const raw = h.trim();
+  if (p === "youtube") {
+    const m = /(?:youtube\.com\/(?:channel\/([A-Za-z0-9_-]+)|@([A-Za-z0-9._-]+)|(?:c|user)\/([A-Za-z0-9._-]+))|youtu\.be\/@?([A-Za-z0-9._-]+))/i.exec(raw);
+    if (m) return m[1] ?? m[2] ?? m[3] ?? m[4] ?? raw;
+  }
+  return raw.replace(/^@/, "");
+};
 
 export default function AddCompetitor({ open, onClose, tracked, suggestions }: { open: boolean; onClose: () => void; tracked: Tracked[]; suggestions: CompetitorRow[] }) {
   const router = useRouter();
@@ -25,25 +37,41 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
   const isTracked = (p: string, h: string) => list.some((x) => x.platform === p && x.handle === h.toLowerCase());
 
   const track = useCallback(async (p: string, h: string) => {
-    const clean = h.trim().replace(/^@/, "");
+    const clean = cleanHandle(p, h);
     if (!clean) return;
     setBusy(`${p}:${clean}`); setErr(null);
     try {
       const res = await fetch("/api/competitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: clean, platform: p }) });
-      const j = await res.json();
-      if (!res.ok) { setErr(j.error ?? "Couldn't add that handle."); return; }
+      const j = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) { setErr(j?.error ?? "Couldn't add that handle."); return; }
       setList((xs) => isTracked(p, clean) ? xs : [...xs, { platform: p, handle: clean.toLowerCase(), added_at: new Date().toISOString() }]);
       setHandle("");
       router.refresh();
+    } catch {
+      setErr("Couldn't reach SOCIA. Check your connection and try again.");
     } finally { setBusy(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, list]);
 
+  // Optimistic: the row leaves at once and comes back, with the reason, if the server refuses.
   const remove = useCallback(async (c: Tracked) => {
+    const prev = list;
     setList((xs) => xs.filter((x) => !(x.handle === c.handle && x.platform === c.platform)));
-    await fetch("/api/competitors", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: c.handle, platform: c.platform }) });
-    router.refresh();
-  }, [router]);
+    setErr(null);
+    try {
+      const res = await fetch("/api/competitors", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: c.handle, platform: c.platform }) });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        setList(prev);
+        setErr(j?.error ?? `Couldn't stop tracking @${c.handle}.`);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setList(prev);
+      setErr("Couldn't reach SOCIA. Check your connection and try again.");
+    }
+  }, [router, list]);
 
   const untracked = suggestions.filter((s) => !isTracked(s.platform, s.handle));
 
@@ -66,7 +94,7 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
           <span className="cx-add-at"><AtSign size={13} /></span>
           <input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder={platform === "youtube" ? "@channel, URL or channel ID" : "handle"} aria-label="Competitor handle" />
           <button type="submit" className="ov-btn primary small" disabled={Boolean(busy) || !handle.trim()}>
-            {busy === `${platform}:${handle.trim().replace(/^@/, "")}` ? <Loader2 size={13} className="cx-spin" /> : <Plus size={13} />} Add
+            {busy === `${platform}:${cleanHandle(platform, handle)}` ? <Loader2 size={13} className="cx-spin" /> : <Plus size={13} />} Add
           </button>
         </form>
         {err && <p className="cx-add-err">{err}</p>}
@@ -81,7 +109,7 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
                   <span className="cx-add-id">
                     <b title={r.name}>{r.name}</b>
                     <small><PlatformMark p={r.platform} size={10} /> @{r.handle}{classLabel(r.classification) ? ` · ${classLabel(r.classification)}` : ""}{r.match != null ? ` · ${r.match}% match` : ""}</small>
-                    <small>{r.audience.state === "ok" ? `${fmtN(r.audience.value)} ${r.platform === "youtube" ? "subscribers" : "followers"}` : "Followers not published"}</small>
+                    <small>{r.audience.state === "ok" ? `${fmtN(r.audience.value)} ${r.platform === "youtube" ? "subscribers" : "followers"}` : cellText(r.audience)}</small>
                   </span>
                   <button type="button" className="ov-btn ghost small" onClick={() => track(r.platform, r.handle)} disabled={busy === `${r.platform}:${r.handle}`}>
                     {busy === `${r.platform}:${r.handle}` ? <Loader2 size={12} className="cx-spin" /> : <Plus size={12} />} Track
@@ -101,7 +129,7 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
                   <Avatar src={null} name={c.handle} size={34} />
                   <span className="cx-add-id">
                     <b>@{c.handle}</b>
-                    <small><PlatformMark p={c.platform} size={10} /> {platName(c.platform)} · since {new Date(c.added_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</small>
+                    <small><PlatformMark p={c.platform} size={10} /> {platName(c.platform)} · since {fmtDate(c.added_at)}</small>
                   </span>
                   <a href={profileUrl(c)} target="_blank" rel="noreferrer" className="cx-icon-btn" aria-label={`Open @${c.handle}`}><ExternalLink size={13} /></a>
                   <button type="button" className="cx-icon-btn" onClick={() => remove(c)} aria-label={`Stop tracking @${c.handle}`}><X size={13} /></button>

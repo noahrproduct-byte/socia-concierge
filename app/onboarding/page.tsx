@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { igConfigured } from "@/lib/instagram";
+import { getProfile } from "@/lib/profile";
 import OnboardingFlow from "@/components/OnboardingFlow";
 
 export const metadata = { title: "Welcome to SOCIA" };
@@ -21,12 +22,24 @@ export default async function OnboardingPage({
   const igConn = (await getActiveConnection(supabase, user.id, "username")) as {
     username?: string;
   } | null;
+  // Returning users edit what they saved; the wizard must not wipe it.
+  const profile = await getProfile(supabase, user.id);
 
   return (
     <OnboardingFlow
       igConfigured={igConfigured()}
       igUsername={igConn?.username ?? null}
       igStatus={ig ?? ""}
+      initial={
+        profile
+          ? {
+              niche: profile.niche,
+              goals: profile.goals,
+              brand_name: profile.brand_name,
+              platforms: profile.platforms,
+            }
+          : null
+      }
     />
   );
 }

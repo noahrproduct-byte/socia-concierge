@@ -12,27 +12,23 @@ const IG_LOGO = (
   </svg>
 );
 
-function ago(iso: string | null): string | null {
-  if (!iso) return null;
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
+async function apiError(res: Response, fallback: string): Promise<string> {
+  const j = await res.json().catch(() => null);
+  return (j && typeof j.error === "string" && j.error) || fallback;
 }
 
 export default function InstagramConnect({
   username,
   status,
-  syncedAt = null,
+  syncedAgo = null,
   followers = null,
   avatar = null,
   needsReconnect = false,
 }: {
   username: string | null;
   status?: string;
-  syncedAt?: string | null;
+  /** "Synced ..." wording computed by the server page, so it renders identically on both sides. */
+  syncedAgo?: string | null;
   followers?: number | null;
   /** Real profile picture from the connected account, when synced. */
   avatar?: string | null;
@@ -42,12 +38,17 @@ export default function InstagramConnect({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   async function disconnect() {
     setBusy(true);
+    setErr(null);
     try {
-      await fetch("/api/auth/instagram/disconnect", { method: "POST" });
+      const res = await fetch("/api/auth/instagram/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error(await apiError(res, "Couldn't disconnect Instagram, try again."));
       router.refresh();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Couldn't disconnect Instagram, try again.");
     } finally {
       setBusy(false);
     }
@@ -55,9 +56,13 @@ export default function InstagramConnect({
 
   async function syncNow() {
     setSyncing(true);
+    setErr(null);
     try {
-      await fetch("/api/instagram/sync", { method: "POST" });
+      const res = await fetch("/api/instagram/sync", { method: "POST" });
+      if (!res.ok) throw new Error(await apiError(res, "Sync failed, try again in a minute."));
       router.refresh();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Sync failed, try again in a minute.");
     } finally {
       setSyncing(false);
     }
@@ -73,8 +78,6 @@ export default function InstagramConnect({
           : status === "limit"
             ? "That's a new account beyond your plan's limit. Pro connects up to 3 Instagram accounts."
             : null;
-
-  const synced = ago(syncedAt);
 
   return (
     <div className="st2-ig">
@@ -93,13 +96,13 @@ export default function InstagramConnect({
             <>
               <small className="st2-ig-live">
                 <i className="st2-live-dot" /> Connected as @{username}
-                {followers != null && <> · {followers.toLocaleString()} followers</>}
+                {followers != null && <> · {followers.toLocaleString("en-US")} followers</>}
               </small>
-              {synced && <small className="st2-ig-sync">Synced {synced}</small>}
+              {syncedAgo && <small className="st2-ig-sync">Synced {syncedAgo}</small>}
             </>
           ) : (
             <small className="st2-ig-off">
-              Not connected — connect a professional account to pull your real insights.
+              Not connected. Connect a professional account to pull your real insights.
             </small>
           )}
         </div>
@@ -127,6 +130,7 @@ export default function InstagramConnect({
         </div>
       </div>
       {note && <p className="st2-ig-note">{note}</p>}
+      {err && <p className="st2-ig-note" role="alert">{err}</p>}
       {username && needsReconnect && (
         <p className="st2-ig-note">
           Your Instagram connection predates full analytics permissions.{" "}

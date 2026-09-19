@@ -61,7 +61,7 @@ export const IG_DISCOVERY_REASON: Record<IgDiscoveryReason, string> = {
   not_business:
     "That account is personal or private. Instagram only publishes data for public Business and Creator accounts.",
   no_permission:
-    "Reconnect Facebook to grant Instagram access — Business Discovery needs the instagram_basic permission.",
+    "Reconnect Facebook to grant Instagram access. Business Discovery needs the instagram_basic permission.",
   not_connected:
     "Connect a Facebook Page linked to your Instagram Professional account to enable Instagram competitor data.",
   failed: "Instagram couldn't be reached right now.",

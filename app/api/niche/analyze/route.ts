@@ -51,14 +51,49 @@ const schema = {
 
 const fmt = (n: number | null) => (n == null ? "not published" : n.toLocaleString("en-US"));
 
+const str = (v: unknown, max: number): string | null => (typeof v === "string" ? v.slice(0, max) : null);
+const num = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v
+  : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v)
+  : null;
+
+/** The post as the drawer sent it, reduced to the shape SOCIA stores. A
+ *  malformed field becomes null (or an empty tag list), never a crash. */
+function readPost(raw: unknown): NichePost | null {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const url = str(r.url, 800);
+  if (!url) return null;
+  return {
+    url, platform: str(r.platform, 40) ?? "unknown", accountName: str(r.accountName, 200), accountHandle: str(r.accountHandle, 200),
+    title: str(r.title, 1000), thumb: str(r.thumb, 2000), views: num(r.views), likes: num(r.likes), comments: num(r.comments),
+    publishedAt: str(r.publishedAt, 40), multiplier: num(r.multiplier), relevanceScore: num(r.relevanceScore) ?? 0,
+    tags: Array.isArray(r.tags) ? r.tags.filter((t): t is string => typeof t === "string").slice(0, 20) : [],
+    format: str(r.format, 40), why: str(r.why, 1000), dataSource: str(r.dataSource, 40) ?? "unknown",
+  };
+}
+
+// The model fetches the thumbnail itself, so only platform CDN images are
+// offered: never an arbitrary URL from the request body.
+const THUMB_HOSTS = /^(i\.ytimg\.com|yt3\.ggpht\.com|([a-z0-9-]+\.)+cdninstagram\.com|([a-z0-9-]+\.)+fbcdn\.net)$/i;
+function imageUrl(thumb: string | null): string | null {
+  if (!thumb) return null;
+  try {
+    const u = new URL(thumb);
+    return u.protocol === "https:" && THUMB_HOSTS.test(u.hostname) ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  let body: { post?: NichePost; refresh?: boolean };
-  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  const post = body.post;
-  if (!post?.url) return NextResponse.json({ error: "No post given." }, { status: 400 });
+  let raw: unknown;
+  try { raw = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+  const body = (raw && typeof raw === "object" ? raw : {}) as { post?: unknown; refresh?: unknown };
+  const post = readPost(body.post);
+  if (!post) return NextResponse.json({ error: "No post given." }, { status: 400 });
 
   const key = `analysis:${user.id}:${post.url}`.slice(0, 900);
   if (!body.refresh) {
@@ -108,7 +143,8 @@ Rules:
 
   const text = `# Observed data\n${observed}\n\n# ${account}\n\nAnalyse the post.`;
   type Block = { type: "text"; text: string } | { type: "image"; source: { type: "url"; url: string } };
-  const withImage: Block[] = post.thumb ? [{ type: "image", source: { type: "url", url: post.thumb } }, { type: "text", text }] : [{ type: "text", text }];
+  const image = imageUrl(post.thumb);
+  const withImage: Block[] = image ? [{ type: "image", source: { type: "url", url: image } }, { type: "text", text }] : [{ type: "text", text }];
 
   const call = async (content: Block[]) => {
     const params = {
@@ -128,7 +164,7 @@ Rules:
       analysis = await call(withImage);
     } catch (e) {
       // A thumbnail Anthropic cannot fetch must not sink the whole analysis.
-      if (post.thumb && !/credit|rate|overloaded|api key|authentication/i.test(String((e as Error)?.message ?? ""))) analysis = await call([{ type: "text", text }]);
+      if (image && !/credit|rate|overloaded|api key|authentication/i.test(String((e as Error)?.message ?? ""))) analysis = await call([{ type: "text", text }]);
       else throw e;
     }
     if (analysis) analysis.lessons = (analysis.lessons ?? []).slice(0, 3);
@@ -138,6 +174,7 @@ Rules:
     } catch { /* caching is best-effort */ }
     return NextResponse.json(doc);
   } catch (err) {
+    console.error("niche/analyze: model call failed:", err);
     const kind = aiFailureKind(err);
     return NextResponse.json({ durationSec, analysis: null, error: AI_UNAVAILABLE_COPY[kind], kind, cached: false } satisfies AnalyzeResponse, { status: kind === "rate_limited" ? 429 : 502 });
   }

@@ -5,7 +5,7 @@ import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanCli
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
 
-export const metadata = { title: "Content Plan — SOCIA" };
+export const metadata = { title: "Content Plan | SOCIA" };
 
 const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);

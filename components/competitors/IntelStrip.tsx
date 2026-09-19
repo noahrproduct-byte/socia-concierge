@@ -21,11 +21,14 @@ export type IntelCells = {
   connected: boolean;
 };
 
-function Cell({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Cell({ label, children, hint, caption }: { label: string; children: React.ReactNode; hint?: string; caption?: string }) {
   return (
     <div className="cx2-intel-cell" title={hint}>
       <span className="cx2-micro">{label}</span>
       <div className="cx2-intel-val">{children}</div>
+      {caption && <div className="cx2-intel-val"><small>{caption}</small></div>}
+      {/* The tooltip's reason, readable without a pointer. */}
+      {hint && <span className="sr-only">{hint}</span>}
     </div>
   );
 }
@@ -40,15 +43,19 @@ export default function IntelStrip({ c }: { c: IntelCells }) {
         <span className="cx2-micro strong">SOCIA INTELLIGENCE</span>
       </div>
 
-      <Cell label="Competitive position" hint={c.rank ? "Your engagement rate ranked against every account on this page that publishes one." : "Needs your engagement rate plus at least one competitor with a published rate."}>
+      <Cell
+        label="Competitive position"
+        hint={c.rank ? "Your engagement rate ranked against every account on this page that publishes one." : "Needs your engagement rate plus at least one competitor with a published rate."}
+        caption={c.rank ? "Rates use each platform's own denominator, see Evidence." : undefined}
+      >
         {c.rank ? <><b>#<CountNum to={c.rank.rank} /></b><small>of {c.rank.of}</small></> : none}
       </Cell>
 
-      <Cell label="Performance score" hint={c.score.overall != null ? `Computed from ${c.score.basis} of your real metrics against published 2026 benchmarks.` : c.connected ? "Needs at least two computable metrics — they fill in as data syncs." : "Connect Instagram to compute this."}>
+      <Cell label="Performance score" hint={c.score.overall != null ? `Computed from ${c.score.basis} of your real metrics against published 2026 benchmarks.` : c.connected ? "Needs at least two computable metrics; they fill in as data syncs." : "Connect Instagram to compute this."}>
         {c.score.overall != null ? <><b><CountNum to={c.score.overall} /></b><small>/100</small></> : none}
       </Cell>
 
-      <Cell label="Momentum" hint={c.momentum != null ? `Net follower change over the last ${c.days} days, from SOCIA's daily snapshots.` : "Daily snapshots build this after you connect — nothing is estimated meanwhile."}>
+      <Cell label="Momentum" hint={c.momentum != null ? `Net follower change over the last ${c.days} days, from SOCIA's daily snapshots.` : "Daily snapshots build this after you connect. Nothing is estimated meanwhile."}>
         {c.momentum != null ? (
           <span className={`cx2-mom ${c.momentum >= 0 ? "up" : "down"}`}>
             {c.momentum >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}

@@ -12,8 +12,10 @@ import { fmtN } from "./shared";
 
 export type Pt = { t: number; v: number };
 
+// Pinned to UTC: these components render on the server first, and the label
+// must not change between that render and the browser's.
 const NICE_DATE = (t: number) =>
-  new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** True once the element first scrolls into view — charts draw themselves then. */
 export function useInView<T extends Element>(): [React.RefObject<T | null>, boolean] {
@@ -56,19 +58,23 @@ export function ScoreRing({ value, size = 148, label = "PERFORMANCE" }: { value:
   );
 }
 
-/** Integer count-up used inside rings and the intelligence strip. */
+/** Integer count-up used inside rings and the intelligence strip. Re-runs
+ *  whenever `to` changes (range switch, refresh), counting from the value
+ *  last shown so the number never lags behind the mark it sits inside. */
 export function CountNum({ to, run = true, duration = 850 }: { to: number; run?: boolean; duration?: number }) {
   const [n, setN] = useState(0);
-  const done = useRef(false);
+  const shown = useRef(0);
   useEffect(() => {
-    if (!run || done.current) return;
-    done.current = true;
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(to); return; }
+    if (!run) return;
+    const from = shown.current;
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { shown.current = to; setN(to); return; }
     const start = performance.now();
     let raf = 0;
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / duration);
-      setN(Math.round(to * (1 - Math.pow(1 - t, 3))));
+      const v = Math.round(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+      shown.current = v;
+      setN(v);
       if (t < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -118,8 +124,10 @@ export function Trajectory({ you, them, themName, height = 240, unit, animateKey
     const X = (t: number) => pad.l + ((t - t0) / Math.max(1, t1 - t0)) * (w - pad.l - pad.r);
     const Y = (v: number) => pad.t + (1 - v / v1) * (height - pad.t - pad.b);
     return { t0, t1, v1, X, Y };
+    // Depends on the series themselves: same-length series with new values
+    // (a range switch) must rescale too.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [w, height, animateKey, you.length, them.length]);
+  }, [w, height, animateKey, you, them]);
 
   if (!geom || all.length < 2) {
     return <div ref={wrapRef} className="cx2-chart-empty" style={{ height }}><p>Not enough dated posts in this range to draw a trajectory.</p></div>;
@@ -221,11 +229,13 @@ const SLOTS = [
   { label: "Night", from: 22, to: 29 }, // wraps past midnight
 ];
 
+/** Buckets in UTC, the one zone the server render and the browser share; the
+ *  card's footnote says so. A runtime-zone bucket would differ between them. */
 export function postingGrid(times: Date[]): { grid: number[][]; max: number; total: number } {
   const grid = SLOTS.map(() => DAYS.map(() => 0));
   for (const d of times) {
-    const day = (d.getDay() + 6) % 7; // Mon = 0
-    const h = d.getHours();
+    const day = (d.getUTCDay() + 6) % 7; // Mon = 0
+    const h = d.getUTCHours();
     const si = SLOTS.findIndex((s) => (h >= s.from && h < Math.min(s.to, 24)) || (s.to > 24 && h < s.to - 24));
     if (si >= 0) grid[si][day]++;
   }
@@ -277,7 +287,7 @@ export function Scatter({ posts, yLabel, height = 210, unit }: { posts: ScatterP
   }, [wrapRef]);
 
   const pad = { l: 44, r: 18, t: 16, b: 24 };
-  if (posts.length < 3) return <div className="cx2-chart-empty" style={{ height }}><p>Fewer than three dated posts — no honest pattern to plot yet.</p></div>;
+  if (posts.length < 3) return <div className="cx2-chart-empty" style={{ height }}><p>Fewer than three dated posts, so no honest pattern to plot yet.</p></div>;
   const t0 = Math.min(...posts.map((p) => p.t)), t1 = Math.max(...posts.map((p) => p.t));
   const v1 = Math.max(...posts.map((p) => p.y), 1);
   const X = (t: number) => pad.l + ((t - t0) / Math.max(1, t1 - t0)) * (w - pad.l - pad.r);
@@ -287,7 +297,8 @@ export function Scatter({ posts, yLabel, height = 210, unit }: { posts: ScatterP
 
   return (
     <div ref={wrapRef} className="cx2-chart" style={{ height }}>
-      <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} role="img" aria-label="Content performance">
+      {/* role="group", not "img": the bubbles inside are focusable buttons and must stay in the accessibility tree. */}
+      <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} role="group" aria-label="Content performance">
         {[0.5].map((f) => <line key={f} x1={pad.l} x2={w - pad.r} y1={pad.t + f * (height - pad.t - pad.b)} y2={pad.t + f * (height - pad.t - pad.b)} className="cx2-grid-line" />)}
         <text x={pad.l - 8} y={pad.t + 8} className="cx2-axis" textAnchor="end">{fmtN(v1)}</text>
         <text x={pad.l - 8} y={height - pad.b} className="cx2-axis" textAnchor="end">0</text>
@@ -300,9 +311,14 @@ export function Scatter({ posts, yLabel, height = 210, unit }: { posts: ScatterP
             r={seen ? 4 + ((p.comments ?? 0) / maxC) * 6 : 0}
             className={`cx2-bubble${p === best ? " best" : ""}`}
             style={{ transitionDelay: `${i * 24}ms` }}
+            tabIndex={0} role="button"
+            aria-label={`${p.title ?? "Untitled post"}, ${unit(p.y)} ${yLabel.toLowerCase()}. Opens the post.`}
             onMouseEnter={() => setHover({ ...p, x: X(p.t), py: Y(p.y) })}
             onMouseLeave={() => setHover(null)}
+            onFocus={() => setHover({ ...p, x: X(p.t), py: Y(p.y) })}
+            onBlur={() => setHover(null)}
             onClick={() => window.open(p.url, "_blank", "noopener")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.open(p.url, "_blank", "noopener"); } }}
           />
         ))}
       </svg>

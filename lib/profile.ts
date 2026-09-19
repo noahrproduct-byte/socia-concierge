@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Brand & strategist settings, stored in profiles.brand_detail (jsonb).
@@ -31,7 +32,20 @@ export type Profile = {
 // Reads the signed-in user's profile row. Returns null if the profile hasn't
 // been created yet or the `profiles` table doesn't exist. Callers treat a null
 // (or account_connected: false) as "no account connected yet".
-export async function getProfile(
+//
+// Within one server render the row is read once per user: every caller in
+// the same request (page, shell, nested components) shares the first read,
+// whichever Supabase client instance it holds. Outside a React request
+// (route handlers) React's cache() is a pass-through and each call reads.
+const profileSlot = cache((_userId: string) => ({ read: null as Promise<Profile | null> | null }));
+
+export function getProfile(supabase: SupabaseClient, userId: string): Promise<Profile | null> {
+  const slot = profileSlot(userId);
+  if (!slot.read) slot.read = readProfile(supabase, userId);
+  return slot.read;
+}
+
+async function readProfile(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<Profile | null> {

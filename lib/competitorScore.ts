@@ -41,7 +41,7 @@ function engagementScore(rate: number | null, followers: number | null): ScoreCo
     rate >= hi ? clamp(85 + ((rate - hi) / hi) * 15)
     : rate >= lo ? clamp(50 + ((rate - lo) / (hi - lo)) * 35)
     : clamp((rate / lo) * 50);
-  return { key: "engagement", label: "Engagement", value, note: `${rate.toFixed(1)}% rate against the ${lo}–${hi}% published range for ${tier.label} accounts.` };
+  return { key: "engagement", label: "Engagement", value, note: `${rate.toFixed(1)}% rate against the ${lo} to ${hi}% published range for ${tier.label} accounts.` };
 }
 
 /** Posting cadence against the commonly cited 3–5/week guidance. */
@@ -52,13 +52,13 @@ function consistencyScore(perWeek: number | null): ScoreComponent {
     perWeek >= 3 && perWeek <= 7 ? clamp(85 + (Math.min(perWeek, 5) - 3) * 7.5)
     : perWeek > 7 ? 75
     : clamp(25 + (perWeek / 3) * 60);
-  return { key: "consistency", label: "Consistency", value, note: `${perWeek.toFixed(1)} posts/week against the 3–5/week growth guidance.` };
+  return { key: "consistency", label: "Consistency", value, note: `${perWeek.toFixed(1)} posts/week against the 3 to 5 a week growth guidance.` };
 }
 
 /** Net followers gained across the range, as a share of the audience. */
 function growthScore(gained: number | null, followers: number | null): ScoreComponent {
   if (gained == null || followers == null || followers <= 0)
-    return { key: "growth", label: "Growth", value: null, note: "Needs daily follower snapshots — they build up after connecting." };
+    return { key: "growth", label: "Growth", value: null, note: "Needs daily follower snapshots; they build up after connecting." };
   const pct = (gained / followers) * 100;
   const value =
     pct >= 2 ? 100
@@ -71,7 +71,7 @@ function growthScore(gained: number | null, followers: number | null): ScoreComp
 /** Median views relative to audience size — how far a typical post travels. */
 function reachScore(medianViews: number | null, followers: number | null): ScoreComponent {
   if (medianViews == null || followers == null || followers <= 0)
-    return { key: "reach", label: "Reach", value: null, note: medianViews == null ? "Instagram insights views are needed — they arrive with a professional account." : "Needs your follower count." };
+    return { key: "reach", label: "Reach", value: null, note: medianViews == null ? "Instagram insights views are needed; they arrive with a professional account." : "Needs your follower count." };
   const ratio = medianViews / followers;
   const value =
     ratio >= 1 ? clamp(85 + Math.min(ratio - 1, 1) * 15)

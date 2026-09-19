@@ -59,12 +59,23 @@ export function goalKind(goals: string | null | undefined): GoalKind {
   return "unknown";
 }
 
+/** The niche as free text: sub-niche and niche together. */
+const nicheText = (p: DiscoveryProfile) => `${p.subNiche ?? ""} ${p.niche ?? ""}`;
+
+/** Whether the kitchen-and-menu vocabulary in this file applies. It was
+ *  written for restaurants and would otherwise tag a gym's "stretch" video as
+ *  a kitchen process, so it is switched on only for food-service niches. */
+export function isFoodNiche(niche: string | null | undefined): boolean {
+  return /\b(foods?|restaurants?|pizzas?|pizzeria|caf[eé]s?|coffee|bakery|bar|pub|grill|kitchen|diner|eatery|catering|chefs?|cook|cooking|bbq|barbecue|tacos?|burgers?|sushi|desserts?|ice cream|bistro|deli|brewery|wine|cocktails?)\b/i.test(niche ?? "");
+}
+
 /** Search queries derived from who the user actually is. Not "niche keyword"
  *  alone — the goal and location change what is worth finding. */
 export function buildQueries(p: DiscoveryProfile): { q: string; intent: string }[] {
   const niche = (p.subNiche || p.niche || "").trim();
   if (!niche) return [];
   const loc = (p.location ?? "").trim();
+  const food = isFoodNiche(nicheText(p));
   const out: { q: string; intent: string }[] = [];
 
   // Always: the niche itself and the creators leading it.
@@ -74,7 +85,7 @@ export function buildQueries(p: DiscoveryProfile): { q: string; intent: string }
   if (loc) {
     out.push({ q: `${loc} ${niche}`, intent: "local" });
     if (p.goal === "local_awareness" || p.goal === "sales") {
-      out.push({ q: `${loc} local business food`, intent: "local" });
+      out.push({ q: `${loc} local ${niche}`, intent: "local" });
     }
   }
 
@@ -89,7 +100,7 @@ export function buildQueries(p: DiscoveryProfile): { q: string; intent: string }
       out.push({ q: `${niche} behind the scenes`, intent: "goal" });
       break;
     case "sales":
-      out.push({ q: `${niche} promotion menu`, intent: "goal" });
+      out.push({ q: `${niche} promotion${food ? " menu" : ""}`, intent: "goal" });
       break;
     default:
       break;
@@ -291,11 +302,14 @@ export type ScoredContent = ContentCandidate & {
  *  Accented and non-English words are matched where the pattern is the same
  *  word ("secondi", "levels"), but nothing is guessed from a language SOCIA
  *  cannot read — an untagged title simply contributes no pattern. */
-export function detectTrendTags(title: string | null): string[] {
+export function detectTrendTags(title: string | null, food = true): string[] {
   const t = (title ?? "").toLowerCase();
   if (!t.trim()) return [];
   const tags: string[] = [];
-  const rules: [RegExp, string][] = [
+  // Rules flagged `true` are kitchen-and-menu vocabulary; they apply only
+  // when the niche is food service (`food`, see isFoodNiche), so a gym never
+  // earns a "Menu / new item" pattern.
+  const rules: [RegExp, string, boolean?][] = [
     // Structural comparisons — extremely common and highly visual.
     [/\bvs\.?\b|\bversus\b|\bcompared? to\b/, "Comparison"],
     [/\b\d+\s*(second|sec|minute|min|hour|hr|day)s?\b.*\bvs\b|\bvs\b.*\b\d+\s*(second|sec|minute|min|hour|hr|day)s?\b/, "Time contrast"],
@@ -310,25 +324,28 @@ export function detectTrendTags(title: string | null): string[] {
     [/behind the scenes|\bbts\b|how (it|we|they) (is|are|do)|making of|\bprep\b|\bprocess\b/, "Behind the scenes"],
     [/recipe|how to make|tutorial|step by step/, "Tutorial"],
     [/\bmatch cut\b|transition|time.?lapse|slow.?mo/, "Camera technique"],
-    [/\bdough\b|\boven\b|\bbak(e|ing)\b|from scratch|\bstretch|hand.?tossed|wood.?fired|\bmaking\b/, "Kitchen / process"],
+    [/\bdough\b|\boven\b|\bbak(e|ing)\b|from scratch|\bstretch|hand.?tossed|wood.?fired|\bmaking\b/, "Kitchen / process", true],
     // People and place.
     [/\bpov\b/, "POV"],
-    [/owner|founder|chef|employee|staff|meet the|pizzaiolo|pizzaiuolo/, "People on camera"],
+    [/owner|founder|employee|staff|meet the/, "People on camera"],
+    [/chef|pizzaiolo|pizzaiuolo/, "People on camera", true],
     [/day in the life|routine|shift\b/, "Day in the life"],
     [/reaction|reacts?\b|first time|\btries\b|\btrying\b/, "Customer reactions"],
     // Reaction, judgement and stakes.
     [/review|rating|taste test|tier list|ranked|judge/, "Review / ranking"],
     [/destroy|shocked|insane|crazy|unbelievable|struggling|fail/, "High-drama framing"],
-    [/asmr|satisfying|oddly|cheese pull|crispy|gooey/, "Sensory / ASMR"],
+    [/asmr|satisfying|oddly/, "Sensory / ASMR"],
+    [/cheese pull|crispy|gooey/, "Sensory / ASMR", true],
     [/secret|nobody|never|\bstop\b|don'?t|you'?re doing it wrong/, "Contrarian hook"],
     [/\$\d|\bcheap\b|\bprice\b|\bcost\b|\bworth it\b|\bvalue\b|\bdeal\b|discount|\bbogo\b|% off|\bfree\b/, "Price / value"],
     // Business subjects a local operator can act on.
-    [/catering|party tray|large order|big order|\bbulk\b|feeds \d+|for a crowd|\bevent\b|office lunch/, "Catering / large orders"],
-    [/new menu|menu item|\bnew\b.{0,20}\b(pizza|item|special|flavou?r)\b|limited time|\bspecial\b|\blaunch/, "Menu / new item"],
-    [/delivery|take.?out|pick.?up|order online|doordash|uber ?eats|grubhub/, "Delivery / takeout"],
+    [/catering|party tray|large order|big order|\bbulk\b|feeds \d+|for a crowd|\bevent\b|office lunch/, "Catering / large orders", true],
+    [/new menu|menu item|\bnew\b.{0,20}\b(pizza|item|special|flavou?r)\b|limited time|\bspecial\b|\blaunch/, "Menu / new item", true],
+    [/delivery|take.?out|pick.?up|order online|doordash|uber ?eats|grubhub/, "Delivery / takeout", true],
     [/holiday|christmas|thanksgiving|labor day|halloween|valentine|super bowl|game day|4th of july|new year/, "Holiday / seasonal"],
   ];
-  for (const [re, label] of rules) {
+  for (const [re, label, foodOnly] of rules) {
+    if (foodOnly && !food) continue;
     if (re.test(t) && !tags.includes(label)) tags.push(label);
   }
   return tags;
@@ -424,7 +441,7 @@ export function scoreContent(c: ContentCandidate, p: DiscoveryProfile): ScoredCo
     ...c,
     relevanceScore: Math.max(0, Math.min(100, Math.round(score))),
     relevanceReasons: reasons,
-    trendTags: detectTrendTags(c.title),
+    trendTags: detectTrendTags(c.title, isFoodNiche(nicheText(p))),
   };
 }
 
@@ -433,18 +450,23 @@ export function scoreContent(c: ContentCandidate, p: DiscoveryProfile): ScoredCo
  *  several names ("Mozzarella Pizzeria" and "Mozzarella (Hermitage)"), which
  *  would otherwise accumulate as separate competitors. */
 const GENERIC_NAME_WORDS = new Set([
-  "the", "pizza", "pizzeria", "pizzas", "restaurant", "ristorante", "cafe", "caffe",
-  "kitchen", "grill", "bar", "co", "inc", "llc", "shop", "house", "of", "and",
-  "italian", "food", "eatery", "official",
+  "the", "co", "inc", "llc", "shop", "house", "of", "and", "official",
+]);
+// Trade words that are generic only in a food niche; "Kitchen" is the whole
+// name of a homeware brand.
+const FOOD_NAME_WORDS = new Set([
+  "pizza", "pizzeria", "pizzas", "restaurant", "ristorante", "cafe", "caffe",
+  "kitchen", "grill", "bar", "italian", "food", "eatery",
 ]);
 
-export function nameKey(name: string | null | undefined): string {
+/** `food` (see isFoodNiche) decides whether restaurant trade words are dropped. */
+export function nameKey(name: string | null | undefined, food = true): string {
   return (name ?? "")
     .toLowerCase()
     .replace(/\([^)]*\)/g, " ")     // drop "(Hermitage)"
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 1 && !GENERIC_NAME_WORDS.has(w))
+    .filter((w) => w.length > 1 && !GENERIC_NAME_WORDS.has(w) && !(food && FOOD_NAME_WORDS.has(w)))
     .slice(0, 2)
     .join(" ")
     .trim();
@@ -454,16 +476,18 @@ export function nameKey(name: string | null | undefined): string {
  *  record. Platform-API accounts key on their stable id. Web-research
  *  accounts have no such id, so they additionally merge on the identifying
  *  core of their name — within one local market, two results sharing that
- *  core are the same business far more often than not. */
-export function dedupeAccounts(xs: ScoredAccount[]): ScoredAccount[] {
+ *  core are the same business far more often than not. The profile, when
+ *  given, decides whether food trade words count as part of a name. */
+export function dedupeAccounts(xs: ScoredAccount[], p?: DiscoveryProfile): ScoredAccount[] {
   const by = new Map<string, ScoredAccount>();
   const nameSeen = new Map<string, string>();
+  const food = p ? isFoodNiche(nicheText(p)) : true;
 
   for (const x of xs) {
     let k = `${x.platform}:${x.platformAccountId.toLowerCase()}`;
 
     if (x.dataSource === "web_research") {
-      const nk = nameKey(x.displayName ?? x.handle);
+      const nk = nameKey(x.displayName ?? x.handle, food);
       if (nk) {
         const existing = nameSeen.get(`${x.platform}:${nk}`);
         if (existing) k = existing;

@@ -42,3 +42,46 @@ export function igRedirectUri(reqOrigin: string) {
 export function igConfigured() {
   return Boolean(igClientId() && igAppSecret());
 }
+
+// ---- OAuth state (CSRF) ----------------------------------------------------
+// Both Meta flows carry `<nonce>.<destination>` in the OAuth `state` param and
+// keep the nonce in a short-lived HttpOnly cookie. A callback only exchanges
+// its code when the two match, so an authorization code obtained by someone
+// else cannot be attached to a signed-in user's account by sending them to
+// the callback URL. The Facebook flow re-exports these from lib/facebook.ts.
+
+export const IG_OAUTH_STATE_COOKIE = "ig_oauth_state";
+
+/** Lifetime of the nonce cookie: long enough for the consent screen, no more. */
+export const OAUTH_STATE_MAX_AGE = 600;
+
+/** A fresh random nonce for one authorization round trip. */
+export const newOauthNonce = () => crypto.randomUUID();
+
+/** Cookie attributes for the nonce. A `maxAge` of 0 clears it. */
+export function oauthStateCookie(name: string, value: string, maxAge: number) {
+  return {
+    name,
+    value,
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge,
+    ...(maxAge === 0 ? { expires: new Date(0) } : {}),
+  };
+}
+
+/** Split `<nonce>.<destination>`. Either part is empty on a forged, stale or
+ *  hand-typed callback, which the nonce check then refuses. */
+export function parseOauthState(state: string | null): { nonce: string; dest: string } {
+  const s = state ?? "";
+  const i = s.indexOf(".");
+  if (i <= 0) return { nonce: "", dest: "" };
+  return { nonce: s.slice(0, i), dest: s.slice(i + 1) };
+}
+
+/** True only when the callback carries a nonce and it equals the cookie's. */
+export function oauthStateValid(nonce: string, cookie: string | null | undefined): boolean {
+  return Boolean(nonce && cookie && nonce === cookie);
+}

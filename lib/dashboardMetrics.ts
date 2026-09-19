@@ -88,7 +88,7 @@ export function getFollowerGrowth(a: AccountInput, days: number): Metric {
   if (!before.length || a.followers == null) {
     return UNAVAILABLE(
       "SOCIA daily snapshots",
-      `no exact follower snapshot from ${days}+ days ago yet — history is still building`,
+      `no exact follower snapshot from ${days}+ days ago yet; history is still building`,
     );
   }
   const baseline = before[before.length - 1].followers!;
@@ -112,7 +112,7 @@ export function getFollowersGained(a: AccountInput, days: number): Metric {
     total,
     "VERIFIED",
     "Instagram API: follower_count (period=day)",
-    `sum of ${rows.length} daily values (gains only — unfollows are not published)`,
+    `sum of ${rows.length} daily values (gains only; unfollows are not published)`,
     `last ${days} days`,
     rows.length,
   );
@@ -202,11 +202,14 @@ export type RankedPost = {
   multiplier: number | null;
 };
 
-/** Top posts, always ranked by the same metric: engagement. */
-export function getTopPosts(a: AccountInput, limit = 4): { rows: RankedPost[]; baseline: Metric } {
+/** Top posts, always ranked by the same metric: engagement. With `days`, only
+ *  posts published inside that period compete; the baseline they are measured
+ *  against stays the account-wide average. */
+export function getTopPosts(a: AccountInput, limit = 4, days?: number): { rows: RankedPost[]; baseline: Metric } {
   const baseline = getPerformanceBaseline(a);
   const base = baseline.value;
-  const rows = [...a.posts]
+  const pool = days != null ? a.posts.filter((p) => inPeriod(p, days)) : a.posts;
+  const rows = [...pool]
     .sort((x, y) => engagementOf(y) - engagementOf(x))
     .slice(0, limit)
     .map((post) => {
@@ -227,7 +230,7 @@ export function getBestPostingWindow(a: AccountInput): Metric<{
     .map((p) => ({ t: p.timestamp!, e: engagementOf(p) }));
   const win = bestWindow(timed, 5);
   if (!win)
-    return UNAVAILABLE("Instagram API: me/media timestamps", "fewer than 5 dated posts — not enough history");
+    return UNAVAILABLE("Instagram API: me/media timestamps", "fewer than 5 dated posts, not enough history");
   // Confidence needs more than one post in the winning bucket's weekday.
   const sameDay = timed.filter((p) => new Date(p.t).getDay() === win.day).length;
   return M(
@@ -268,7 +271,7 @@ export function getCompetitorActivity(): Metric {
 export function changeVsPrevious(cur: number, prev: number | null): Metric {
   if (prev == null) return UNAVAILABLE("period comparison", "no comparable previous period");
   if (prev === 0)
-    return M<number>(null, "UNAVAILABLE", "period comparison", "previous period was zero — percentage undefined", "—", null);
+    return M<number>(null, "UNAVAILABLE", "period comparison", "previous period was zero, so a percentage is undefined", "—", null);
   return M(
     Math.round(pctChange(cur, prev)! * 10) / 10,
     "CALCULATED",

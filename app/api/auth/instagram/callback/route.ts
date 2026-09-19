@@ -1,6 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/instagram";
+import {
+  IG_OAUTH_STATE_COOKIE, igAppSecret, igClientId, igConfigured, igRedirectUri,
+  oauthStateCookie, oauthStateValid, parseOauthState,
+} from "@/lib/instagram";
 import { syncInstagram } from "@/lib/instagramSync";
 import { accountLimit, getPlan } from "@/lib/plan";
 
@@ -9,12 +12,25 @@ export const runtime = "nodejs";
 // Step 2 of Instagram OAuth: Instagram redirects here with ?code=... We trade
 // the code (+ app secret) for a short-lived token, upgrade it to a 60-day
 // long-lived token, fetch the account, and save it to the user's row.
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const res = await handle(req);
+  // The nonce is single-use: cleared whatever the outcome.
+  res.cookies.set(oauthStateCookie(IG_OAUTH_STATE_COOKIE, "", 0));
+  return res;
+}
+
+async function handle(req: NextRequest): Promise<NextResponse> {
   const url = new URL(req.url);
   const origin = url.origin;
-  // The start route put the return page in the OAuth state param.
-  const dest = url.searchParams.get("state") === "onboarding" ? "onboarding" : "settings";
-  const settings = (state: string) => NextResponse.redirect(`${origin}/${dest}?ig=${state}`);
+  // The start route put `<nonce>.<return page>` in the OAuth state param.
+  const state = parseOauthState(url.searchParams.get("state"));
+  const dest = state.dest === "onboarding" ? "onboarding" : "settings";
+  const settings = (s: string) => NextResponse.redirect(`${origin}/${dest}?ig=${s}`);
+
+  // CSRF check: the nonce must be the one this browser started the flow with.
+  // Otherwise the code is someone else's authorization and is never
+  // exchanged, let alone attached to this account.
+  if (!oauthStateValid(state.nonce, req.cookies.get(IG_OAUTH_STATE_COOKIE)?.value)) return settings("error");
 
   const error = url.searchParams.get("error");
   if (error) return settings("denied");
@@ -44,6 +60,7 @@ export async function GET(req: Request) {
     const shortRes = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       body: form,
+      signal: AbortSignal.timeout(10000),
     });
     const shortJson = await shortRes.json();
     if (!shortRes.ok || !shortJson.access_token) {
@@ -57,7 +74,7 @@ export async function GET(req: Request) {
     llUrl.searchParams.set("grant_type", "ig_exchange_token");
     llUrl.searchParams.set("client_secret", igAppSecret()!);
     llUrl.searchParams.set("access_token", shortToken);
-    const llRes = await fetch(llUrl.toString());
+    const llRes = await fetch(llUrl.toString(), { signal: AbortSignal.timeout(10000) });
     const llJson = await llRes.json();
     const longToken: string = llJson.access_token ?? shortToken;
     const expiresIn: number = llJson.expires_in ?? 60 * 24 * 60 * 60;
@@ -67,7 +84,7 @@ export async function GET(req: Request) {
     const meUrl = new URL("https://graph.instagram.com/v21.0/me");
     meUrl.searchParams.set("fields", "user_id,username,account_type");
     meUrl.searchParams.set("access_token", longToken);
-    const meRes = await fetch(meUrl.toString());
+    const meRes = await fetch(meUrl.toString(), { signal: AbortSignal.timeout(10000) });
     const me = await meRes.json();
 
     // 4) Save the connection and reflect it on the profile. Reconnecting an

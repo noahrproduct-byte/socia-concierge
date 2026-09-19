@@ -17,8 +17,13 @@ const fmtC = (unit: Cmp["unit"], v: number) => (unit === "pct" ? `${v.toFixed(1)
 
 /* ---------- identity bar ---------- */
 
-export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking }: {
-  r: CompetitorRow; similarity: number | null; igEnabled: boolean; onTrack: (r: CompetitorRow) => void; tracking: boolean;
+export function ProfileBar({ r, match, igEnabled, onTrack, tracking, error }: {
+  r: CompetitorRow;
+  /** Discovery's real relevance score, or null for a hand-added account (no chip). */
+  match: number | null;
+  igEnabled: boolean; onTrack: (r: CompetitorRow) => void; tracking: boolean;
+  /** Why the last Track attempt failed, from the server. */
+  error?: string | null;
 }) {
   const gated = r.platform === "instagram" && !igEnabled;
   return (
@@ -30,9 +35,9 @@ export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking }: {
           {r.classification && <em className={`cx-chip mini ${r.classification}`}>{classLabel(r.classification)}</em>}
         </small>
       </div>
-      {similarity != null && (
-        <span className="cx2-match" title="SOCIA relevance: niche, market, comparable audience and verified metrics">
-          <b>{similarity}%</b> match
+      {match != null && (
+        <span className="cx2-match" title="SOCIA relevance from discovery: niche, market, comparable audience and verified metrics">
+          <b>{match}%</b> match
         </span>
       )}
       {gated && (
@@ -41,6 +46,7 @@ export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking }: {
         </a>
       )}
       <div className="cx2-profilebar-actions">
+        {error && <small className="cx-add-err" role="alert">{error}</small>}
         {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="ov-btn ghost small">Profile <ExternalLink size={11} /></a>}
         {r.tracked
           ? <span className="cx2-tracked"><Check size={12} /> Tracked</span>
@@ -59,14 +65,18 @@ function GapRow({ c, themName, connected, connectHref, delay }: { c: Cmp; themNa
   const yv = c.you.state === "ok" ? c.you.value : null;
   const tv = c.them.state === "ok" ? c.them.value : null;
   const max = Math.max(yv ?? 0, tv ?? 0, 1e-9);
-  const winning = c.diffPct != null && c.diffPct < 0; // them below you
+  // Under half a percent apart rounds to 0%, and "they lead +0%" is not a lead.
+  const even = c.diffPct != null && Math.abs(c.diffPct) < 0.5;
+  const winning = c.diffPct != null && !even && c.diffPct < 0; // them below you
   return (
     <li className="cx2-gap-row cx2-rise" style={{ animationDelay: `${delay}ms` }}>
       <div className="cx2-gap-head">
         <span className="cx2-gap-label">{GAP_LABEL[c.key]}</span>
         {c.diffPct == null
           ? <span className="cx2-delta none" title="One side isn't published, so no honest difference exists.">—</span>
-          : <span className={`cx2-delta ${winning ? "up" : "down"}`}>{winning ? "you lead" : "they lead"} {c.diffPct > 0 ? "+" : ""}{Math.round(Math.abs(c.diffPct))}%</span>}
+          : even
+            ? <span className="cx2-delta none" title="Within half a percent of each other.">even</span>
+            : <span className={`cx2-delta ${winning ? "up" : "down"}`}>{winning ? "you lead" : "they lead"} {c.diffPct > 0 ? "+" : ""}{Math.round(Math.abs(c.diffPct))}%</span>}
       </div>
       <div className="cx2-gap-pair">
         <div className="cx2-gap-bar">
@@ -102,7 +112,7 @@ export function GapBars({ comparisons, themName, connected, connectHref }: {
   comparisons: Cmp[]; themName: string; connected: boolean; connectHref: string;
 }) {
   const ordered = GAP_ORDER.map((k) => comparisons.find((c) => c.key === k)).filter((c): c is Cmp => Boolean(c));
-  const winning = ordered.filter((c) => c.diffPct != null && c.diffPct < 0).length;
+  const winning = ordered.filter((c) => c.diffPct != null && c.diffPct <= -0.5).length; // an even row is not a win
   const comparable = ordered.filter((c) => c.diffPct != null).length;
   return (
     <section className="ov-card cx2-card cx2-gaps">
@@ -113,7 +123,7 @@ export function GapBars({ comparisons, themName, connected, connectHref }: {
       <ul className="cx2-gap-list">
         {ordered.map((c, i) => <GapRow key={c.key} c={c} themName={themName} connected={connected} connectHref={connectHref} delay={i * 70} />)}
       </ul>
-      <small className="cx2-foot">You: authenticated Instagram data. {themName}: public platform data. A dash means one side isn&apos;t published — nothing is estimated.</small>
+      <small className="cx2-foot">You: authenticated Instagram data. {themName}: public platform data. A dash means one side isn&apos;t published; nothing is estimated.</small>
     </section>
   );
 }

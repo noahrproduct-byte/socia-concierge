@@ -31,7 +31,7 @@ export default function PlatformRows({
             className={`st2-plat${on ? " on" : ""}`}
             onClick={() => onToggle(a.id)}
             disabled={busy}
-            title={on ? `Remove ${a.name}` : `Connect ${a.name}`}
+            title={on ? `Remove ${a.name}` : `Add ${a.name}`}
           >
             <span className="st2-plat-ico" aria-hidden>
               {a.mark(a.color, 18)}
@@ -41,11 +41,9 @@ export default function PlatformRows({
               {busy ? (
                 <small>Saving…</small>
               ) : on ? (
-                <small className="on">
-                  <i className="st2-live-dot" /> Registered — tap to remove
-                </small>
+                <small className="on">Registered, tap to remove</small>
               ) : (
-                <small>Not connected</small>
+                <small>Not registered</small>
               )}
             </span>
             <span className={`st2-plat-cta${on ? " on" : ""}`}>
@@ -55,7 +53,7 @@ export default function PlatformRows({
                 <Check size={15} />
               ) : (
                 <>
-                  Connect <ArrowRight size={13} />
+                  Add <ArrowRight size={13} />
                 </>
               )}
             </span>

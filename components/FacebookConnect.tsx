@@ -15,16 +15,6 @@ const FB_LOGO = (
   </svg>
 );
 
-function ago(iso: string | null): string | null {
-  if (!iso) return null;
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
-}
-
 export type FbPageOption = {
   id: string;
   name: string;
@@ -39,7 +29,7 @@ export default function FacebookConnect({
   username,
   followers,
   picture,
-  syncedAt,
+  syncedAgo,
   pendingPages,
   posts = [],
 }: {
@@ -51,7 +41,8 @@ export default function FacebookConnect({
   username: string | null;
   followers: number | null;
   picture: string | null;
-  syncedAt: string | null;
+  /** "Synced ..." wording computed by the server page, so it renders identically on both sides. */
+  syncedAgo: string | null;
   pendingPages: FbPageOption[];
   /** The Page's latest posts as Meta returned them (reactions, comments, shares). */
   posts?: FbPost[];
@@ -70,11 +61,11 @@ export default function FacebookConnect({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
-        throw new Error(j?.error || "Something went wrong — try again.");
+        throw new Error(j?.error || "Something went wrong, try again.");
       }
       router.refresh();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Something went wrong — try again.");
+      setErr(e instanceof Error ? e.message : "Something went wrong, try again.");
     } finally {
       setBusy(null);
     }
@@ -82,18 +73,17 @@ export default function FacebookConnect({
 
   const note =
     status === "denied"
-      ? "No Facebook account was connected — you cancelled the authorization."
+      ? "No Facebook account was connected: you cancelled the authorization."
       : status === "nopages"
         ? "Facebook granted Page access but returned no Pages for this account. Check you're logged in as the account that manages the Page, and that the Page is listed under Page access."
         : status === "noperm"
-          ? "Facebook didn't grant Page permissions. This app uses Facebook Login for Business, so permissions come from the login configuration in the Meta dashboard, not from SOCIA — add pages_show_list, pages_read_engagement and instagram_basic to that configuration, then reconnect."
+          ? "Facebook didn't grant Page permissions. This app uses Facebook Login for Business, so permissions come from the login configuration in the Meta dashboard, not from SOCIA. Add pages_show_list, pages_read_engagement and instagram_basic to that configuration, then reconnect."
         : status === "notconfigured"
           ? "Facebook isn't configured on the server yet (missing app credentials)."
           : status === "error"
             ? "Something went wrong connecting Facebook. Please try again."
             : null;
 
-  const synced = ago(syncedAt);
   const connected = connectionStatus === "connected" && pageName;
   const choosing = connectionStatus === "choose_page" && pendingPages.length > 0;
   const expired = connectionStatus === "expired";
@@ -114,20 +104,20 @@ export default function FacebookConnect({
           {connected ? (
             <>
               <small className="st2-ig-live">
-                <i className="st2-live-dot" /> Connected — {pageName}
+                <i className="st2-live-dot" /> Connected as {pageName}
                 {username && <> · @{username}</>}
                 {followers != null && <> · {followers.toLocaleString("en-US")} followers</>}
               </small>
-              {synced && <small className="st2-ig-sync">Synced {synced}</small>}
+              {syncedAgo && <small className="st2-ig-sync">Synced {syncedAgo}</small>}
             </>
           ) : expired ? (
             <small className="st2-ig-off">
-              Facebook connection needs attention — the authorization expired.
+              Facebook connection needs attention: the authorization expired.
             </small>
           ) : choosing ? (
             <small className="st2-ig-off">Choose which Page to connect below.</small>
           ) : (
-            <small className="st2-ig-off">Not connected — connect a Facebook Page you manage.</small>
+            <small className="st2-ig-off">Not connected. Connect a Facebook Page you manage.</small>
           )}
         </div>
         <div className="st2-ig-actions">
@@ -216,7 +206,7 @@ export default function FacebookConnect({
       )}
 
       {note && <p className="st2-ig-note">{note}</p>}
-      {err && <p className="st2-ig-note">{err}</p>}
+      {err && <p className="st2-ig-note" role="alert">{err}</p>}
     </div>
   );
 }

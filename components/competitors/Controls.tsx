@@ -85,14 +85,32 @@ export function NicheSelect({ niche }: { niche: string | null }) {
   );
 }
 
-/** Runs discovery, then re-renders from the stored results. */
+/** Runs discovery, then re-renders from the stored results. A refused run
+ *  (rate limit, server error) shows the server's own message beside the button. */
 export function RefreshButton({ className = "cx-refresh", label = "Refresh" }: { className?: string; label?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/competitors/intel?refresh=1");
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErr(j?.error ?? `Refresh failed (${res.status}).`);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setErr("Couldn't reach SOCIA. Check your connection and try again.");
+    } finally { setBusy(false); }
+  };
   return (
-    <button type="button" className={`${className}${busy ? " busy" : ""}`} disabled={busy} aria-label="Refresh competitor and niche data"
-      onClick={async () => { setBusy(true); try { await fetch("/api/competitors/intel?refresh=1"); router.refresh(); } finally { setBusy(false); } }}>
-      <RefreshCw size={12} className={busy ? "cx-spin" : undefined} /> {busy ? "Refreshing…" : label}
-    </button>
+    <>
+      <button type="button" className={`${className}${busy ? " busy" : ""}`} disabled={busy} aria-label="Refresh competitor and niche data" onClick={run}>
+        <RefreshCw size={12} className={busy ? "cx-spin" : undefined} /> {busy ? "Refreshing…" : label}
+      </button>
+      {err && <small className="cx-add-err" role="alert">{err}</small>}
+    </>
   );
 }

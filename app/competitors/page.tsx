@@ -18,7 +18,7 @@ import { engagementRateOf, interactionsTotal } from "@/lib/engagement";
 import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 
-export const metadata = { title: "Competitors — SOCIA" };
+export const metadata = { title: "Competitors | SOCIA" };
 
 // Competitors. The honesty contract:
 //   YOU            authenticated Instagram data
@@ -153,7 +153,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   ].slice(0, 14);
   const yt = new Map<string, YtStats>();
   if (ytHandles.length && ytConfigured()) {
-    const res = await Promise.all(ytHandles.map((h) => channelStats(h).catch(() => ({ handle: h, found: false } as YtStats))));
+    const res = await Promise.all(ytHandles.map((h) => channelStats(h).catch(() => ({ handle: h, found: false, reason: "network" } as YtStats))));
     for (const r of res) yt.set(r.handle.toLowerCase(), r);
   }
 
@@ -182,7 +182,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
       return {
         id: key, platform: p, handle, name: (live?.title ?? sg?.displayName ?? `@${handle}`).replace(/\s+/g, " ").trim(),
         avatar: live?.avatar ?? sg?.profileImage ?? null, url: live?.url ?? sg?.profileUrl ?? `https://youtube.com/@${handle}`,
-        isYou: false, tracked: isTracked, classification: sg?.classification ?? (isTracked ? "direct_competitor" : null),
+        // Classification is discovery's finding; a hand-added handle has none.
+        isYou: false, tracked: isTracked, classification: sg?.classification ?? null,
         audience: live ? cell(live.subscribers ?? null, "public_api") : sg?.followers != null ? cell(sg.followers, "public_api") : absent("unknown"),
         engagement: live ? cell(live.engagementRate ?? null, "calculated", n) : absent("unknown"),
         cadence: live ? cell(live.uploadsPerWeek ?? null, "calculated", n) : absent("unknown"),
@@ -191,7 +192,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
         topFormat: postsRead.length ? (postsRead.filter((x) => x.format === "Short").length >= postsRead.length / 2 ? "Shorts" : "Videos") : null,
         description: live?.description ?? null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [],
         postsCount: live?.videoCount ?? null, posts: postsRead, postsSource: postsRead.length ? "youtube_api" : null,
-        postsGate: postsRead.length ? null : ytConfigured() ? (live ? "unavailable" : "not_found") : "unavailable",
+        // A read that failed (quota, network) is "failed", never "not_found": Google didn't answer.
+        postsGate: postsRead.length ? null : !ytConfigured() || !s ? "unavailable" : live ? (live.recentReason ? "failed" : "unavailable") : s.reason ? "failed" : "not_found",
       };
     }
     if (p === "instagram") {
@@ -203,7 +205,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
       return {
         id: key, platform: p, handle, name: (live?.displayName ?? sg?.displayName ?? `@${handle}`).replace(/\s+/g, " ").trim(),
         avatar: live?.profilePicture ?? sg?.profileImage ?? null, url: sg?.profileUrl ?? `https://instagram.com/${handle}`,
-        isYou: false, tracked: isTracked, classification: sg?.classification ?? (isTracked ? "direct_competitor" : null),
+        isYou: false, tracked: isTracked, classification: sg?.classification ?? null,
         audience: live ? cell(live.followers ?? null, "public_api") : absent(igRes.enabled ? "unknown" : "connection_needed"),
         engagement: live ? cell(live.engagementRate ?? null, "calculated", n) : absent(igRes.enabled ? "unknown" : "connection_needed"),
         cadence: live ? cell(live.postsPerWeek ?? null, "calculated", n) : absent(igRes.enabled ? "unknown" : "connection_needed"),
@@ -218,7 +220,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     return {
       id: key, platform: p, handle, name: (sg?.displayName ?? `@${handle}`).replace(/\s+/g, " ").trim(),
       avatar: sg?.profileImage ?? null, url: sg?.profileUrl ?? `https://facebook.com/${handle}`,
-      isYou: false, tracked: isTracked, classification: sg?.classification ?? (isTracked ? "direct_competitor" : null),
+      isYou: false, tracked: isTracked, classification: sg?.classification ?? null,
       audience: absent("unavailable"), engagement: absent("unavailable"), cadence: absent("unavailable"), medianViews: absent("unavailable"),
       momentum: absent("unavailable"), match: sg?.relevanceScore ?? null, topFormat: null,
       description: null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [], postsCount: null, posts: [], postsSource: null, postsGate: "unavailable",

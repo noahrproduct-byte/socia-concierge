@@ -57,7 +57,26 @@ export async function updateSession(request: NextRequest) {
   if (!user && protectedPaths.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    // Remember where they were headed so login can send them back there.
+    // /dashboard is the default destination anyway, so it is left off; that
+    // keeps first-time users on the onboarding route after a magic link.
+    const returnTo = path + request.nextUrl.search;
+    if (returnTo !== "/dashboard" && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+      url.searchParams.set("next", returnTo);
+    }
     return NextResponse.redirect(url);
+  }
+
+  // Signed-in visitors have no use for the auth forms. Redirecting here, at
+  // the edge, means the form never flashes before the client-side check runs.
+  if (user && (path === "/login" || path === "/signup")) {
+    const next = request.nextUrl.searchParams.get("next");
+    const target = next && /^\/(?![\/\\])/.test(next) ? next : "/dashboard";
+    const redirect = NextResponse.redirect(new URL(target, request.url));
+    // Carry over any tokens getUser() just refreshed so they are not lost.
+    response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+    return redirect;
   }
 
   return response;

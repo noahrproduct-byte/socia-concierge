@@ -6,7 +6,7 @@ import AppShell from "@/components/AppShell";
 import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio";
 import type { GoalId } from "@/lib/studio";
 
-export const metadata = { title: "Content Studio — SOCIA" };
+export const metadata = { title: "Content Studio | SOCIA" };
 
 // Content Studio: bring a piece of content, make it better before it goes
 // live. The server passes what SOCIA already knows (niche, goal, drafts with

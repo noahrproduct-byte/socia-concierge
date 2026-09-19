@@ -108,33 +108,49 @@ const PLANS = [
 ];
 
 function fmtCount(n: number | null): string {
-  if (n == null) return "–";
+  if (n == null) return "—";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
   return String(n);
 }
 
+/** What a returning user already saved, so the wizard edits it instead of wiping it. */
+export type OnboardingInitial = {
+  niche?: string | null;
+  goals?: string | null;
+  brand_name?: string | null;
+  platforms?: string[] | null;
+};
+
 export default function OnboardingFlow({
   igConfigured = false,
   igUsername = null,
   igStatus = "",
+  initial = null,
 }: {
   igConfigured?: boolean;
   igUsername?: string | null;
   igStatus?: string;
+  initial?: OnboardingInitial | null;
 }) {
   const router = useRouter();
   // Coming back from a successful Instagram OAuth, skip straight to analysis.
   const [phase, setPhase] = useState<Phase>(igStatus === "connected" ? "analyzing" : "connect");
-  const [connected, setConnected] = useState<string[]>(igUsername ? ["Instagram"] : []);
+  // Platforms already on the profile stay registered; a live Instagram joins them.
+  const [connected, setConnected] = useState<string[]>(() =>
+    Array.from(new Set([...(initial?.platforms ?? []), ...(igUsername ? ["Instagram"] : [])])),
+  );
   const [account, setAccount] = useState<Account>(null);
   const [extracted, setExtracted] = useState<Extracted>(null);
   const [analyzed, setAnalyzed] = useState(false);
+  // True when the account was read but has too few captioned posts to classify.
+  const [insufficient, setInsufficient] = useState(false);
 
-  // confirm-phase fields (prefilled by the AI when extraction worked)
-  const [niche, setNiche] = useState("");
-  const [goal, setGoal] = useState("");
-  const [brand, setBrand] = useState("");
+  // confirm-phase fields (seeded from the saved profile, then prefilled by the
+  // AI when extraction worked)
+  const [niche, setNiche] = useState(initial?.niche ?? "");
+  const [goal, setGoal] = useState(initial?.goals ?? "");
+  const [brand, setBrand] = useState(initial?.brand_name ?? "");
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -152,21 +168,24 @@ export default function OnboardingFlow({
     setConnected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   }
 
+  // Throws on failure so each step can show the error and stay put.
+  // account_connected is only claimed for a live Instagram connection;
+  // registered platforms alone never mark the account as connected.
   async function saveProfile() {
-    try {
-      await fetch("/api/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          niche,
-          brand_name: brand,
-          goals: goal,
-          platforms: connected,
-          account_connected: connected.length > 0 || liveIg,
-        }),
-      });
-    } catch {
-      // best effort; the wizard continues regardless
+    const res = await fetch("/api/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        niche,
+        brand_name: brand,
+        goals: goal,
+        platforms: connected,
+        ...(liveIg ? { account_connected: true } : {}),
+      }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      throw new Error(j?.error || "Couldn't save your setup. Try again.");
     }
   }
 
@@ -190,12 +209,15 @@ export default function OnboardingFlow({
       .catch(() => ({ connected: false }));
     Promise.all([run, minWait]).then(([res]) => {
       if (res?.account) setAccount(res.account);
+      setInsufficient(Boolean(res?.insufficient));
       if (res?.extracted) {
-        setExtracted(res.extracted);
-        setNiche(res.extracted.niche || "");
-        setBrand(res.extracted.brand_name || res.account?.username || "");
-        const g = GOALS.find((x) => x.id === res.extracted.goal);
-        setGoal(g ? g.id : res.extracted.goal || "");
+        const ex = res.extracted;
+        setExtracted(ex);
+        // Detected values win; an empty detection keeps what was already there.
+        setNiche((cur) => ex.niche || cur);
+        setBrand((cur) => ex.brand_name || cur || res.account?.username || "");
+        const g = GOALS.find((x) => x.id === ex.goal);
+        setGoal((cur) => (g ? g.id : ex.goal || cur));
         setAnalyzed(true);
       }
       setPhase("confirm");
@@ -204,6 +226,8 @@ export default function OnboardingFlow({
 
   function fromConnect() {
     if (liveIg) {
+      // Allow a re-run after Back; the guard only stops double starts.
+      analysisStarted.current = false;
       setPhase("analyzing");
     } else {
       // Nothing live to read; set up by hand instead of pretending to analyze.
@@ -213,9 +237,15 @@ export default function OnboardingFlow({
 
   async function fromConfirm() {
     setLoading(true);
-    await saveProfile();
-    setLoading(false);
-    setPhase("preview");
+    setErr(null);
+    try {
+      await saveProfile();
+      setPhase("preview");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Couldn't save your setup. Try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function finish(planId: string) {
@@ -227,8 +257,8 @@ export default function OnboardingFlow({
       // plan / trial intent is passed along so billing can be wired later.
       router.push(`/dashboard?welcome=1&plan=${planId}`);
       router.refresh();
-    } catch {
-      setErr("Couldn't finish setup. Try again.");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Couldn't finish setup. Try again.");
       setLoading(false);
     }
   }
@@ -339,7 +369,9 @@ export default function OnboardingFlow({
                   <h1>Tell us about your account</h1>
                   <p>
                     {liveIg
-                      ? "We couldn't read your account data yet, so set this up by hand. Takes 20 seconds."
+                      ? insufficient
+                        ? "Not enough captioned posts to detect a niche yet. Set this up by hand. Takes 20 seconds."
+                        : "We couldn't read your account data yet, so set this up by hand. Takes 20 seconds."
                       : "No live account connected yet, so set this up by hand. Takes 20 seconds."}
                   </p>
                 </>
@@ -356,7 +388,7 @@ export default function OnboardingFlow({
                 <div className="ob-acct-stats">
                   <span><b>{fmtCount(account.followers)}</b><small>Followers</small></span>
                   <span><b>{fmtCount(account.media_count)}</b><small>Posts</small></span>
-                  <span><b>{extracted?.best_format || "–"}</b><small>Top format</small></span>
+                  <span><b>{extracted?.best_format || "—"}</b><small>Top format</small></span>
                 </div>
               </div>
             )}
@@ -413,10 +445,19 @@ export default function OnboardingFlow({
               <button className="ob-btn ob-btn-ghost" type="button" onClick={() => setPhase("connect")}>
                 <ArrowLeft size={17} /> Back
               </button>
-              <button className="ob-btn ob-btn-primary" type="button" disabled={!niche || !goal || loading} onClick={fromConfirm}>
+              <button
+                className="ob-btn ob-btn-primary"
+                type="button"
+                disabled={!niche || !goal || loading}
+                aria-describedby={!niche || !goal ? "ob-confirm-hint" : undefined}
+                onClick={fromConfirm}
+              >
                 {loading ? "Saving…" : "Save and continue"} {!loading && <ArrowRight size={17} />}
               </button>
             </div>
+            {(!niche || !goal) && (
+              <p className="ob-note" id="ob-confirm-hint">Choose a niche and a goal to continue.</p>
+            )}
           </div>
         )}
 
@@ -490,7 +531,7 @@ export default function OnboardingFlow({
                 </div>
               ))}
             </div>
-            {err && <div className="ob-err">{err}</div>}
+            {err && <div className="ob-err" role="alert">{err}</div>}
             <div className="ob-skiprow ob-rise" style={{ animationDelay: "260ms" }}>
               <button className="ob-textlink" onClick={() => finish("starter")} disabled={loading}>
                 Maybe later, take me to my dashboard

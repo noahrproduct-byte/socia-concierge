@@ -44,7 +44,10 @@ function useInView<T extends HTMLElement>(threshold = 0.25): [React.RefObject<T 
       { threshold },
     );
     io.observe(el);
-    return () => io.disconnect();
+    // Fallback: reveal after 1.5s even if the observer never fires (background
+    // tab, print, some in-app browsers) so no block stays invisible.
+    const t = setTimeout(() => setInView(true), 1500);
+    return () => { io.disconnect(); clearTimeout(t); };
   }, [threshold]);
   return [ref, inView];
 }
@@ -121,23 +124,23 @@ function AskDemo() {
   }, [inView]);
 
   return (
-    <div ref={ref} className="so-chat" data-cursor="ASK">
+    <div ref={ref} className="so-chat">
       <div className="so-chat-head">
         <span className="so-chat-dot" /> SOCIA · AI Strategist
-        <span className="so-chat-live">reasoning from your data</span>
+        <span className="so-chat-live">Example</span>
       </div>
       <div className="so-chat-body">
         <div className={`so-msg user ${step >= 1 ? "in" : ""}`}>What should I post Thursday?</div>
         <div className={`so-msg ai ${step >= 2 ? "in" : ""}`}>
           Your audience is responding strongest to educational short-form content this
-          week. I recommend publishing a 20–30 second Reel between <b>6:20–7:00 PM</b>.
+          week. I recommend publishing a 20 to 30 second Reel between <b>6:20 to 7:00 PM</b>.
         </div>
         <div className={`so-msg ai ${step >= 3 ? "in" : ""}`}>
           Suggested concept: <b>&ldquo;3 content mistakes quietly killing your reach.&rdquo;</b>
         </div>
         <div className={`so-predict ${step >= 4 ? "in" : ""}`}>
           <div className="so-predict-head">
-            <span>PREDICTED PERFORMANCE</span>
+            <span>RELATIVE SCORE</span>
             <b>+31% above your average</b>
           </div>
           <div className="so-why">
@@ -193,10 +196,10 @@ const LOOP_STAGES = [
     ],
   },
   {
-    n: "04", t: "SCORE", Ico: BarChart3, short: "Predict before you post.",
-    head: ["Know the outcome", "before you post."],
+    n: "04", t: "SCORE", Ico: BarChart3, short: "Score before you post.",
+    head: ["Know what to fix", "before you post."],
     feats: [
-      [Zap, "Predicts performance", "Scores hook, clarity, pacing, and retention."],
+      [Zap, "Scores your draft before you post", "Rates hook, clarity, pacing, and retention."],
       [ScanSearch, "Flags weak points", "Shows exactly what to fix before publishing."],
       [Check, "Protects your average", "Weak posts get better. Strong posts ship."],
     ],
@@ -215,7 +218,7 @@ const LOOP_STAGES = [
     head: ["See what", "actually worked."],
     feats: [
       [PieChart, "Tracks real outcomes", "Reach, retention, saves, and follows. Not vanity."],
-      [BarChart3, "Compares result to prediction", "Every post sharpens the next forecast."],
+      [BarChart3, "Compares result to score", "Every post sharpens the next score."],
       [ScanSearch, "Surfaces the why", "Shows what actually drove the result."],
     ],
   },
@@ -360,7 +363,6 @@ function Loop() {
             <path className="so-lgarea" d="M4,50 L18,44 L30,47 L44,38 L58,42 L72,30 L86,34 L100,22 L114,26 L132,12 L146,8 L146,54 L4,54 Z" />
             <path className="so-lgline" d="M4,50 L18,44 L30,47 L44,38 L58,42 L72,30 L86,34 L100,22 L114,26 L132,12 L146,8" fill="none" />
           </svg>
-          <span className="so-lgchip">+32%</span>
         </div>
         <div className="so-lstrip-copy">
           <b>The more you post, the smarter SOCIA gets.</b>
@@ -385,7 +387,7 @@ const FAQS = [
   { q: "How does the free audit work?", a: "You connect your account and SOCIA reads it: your posts, your engagement, your niche. In under a minute you get an account health score, content opportunities, a performance breakdown, and top recommendations." },
   { q: "What platforms does SOCIA support?", a: "Instagram connects live today with real profile and post data. TikTok and YouTube register now and sync as each platform approves API access." },
   { q: "Does SOCIA create content?", a: "It plans and drafts: weekly strategies, post concepts, hooks, and scripts. You stay the voice. SOCIA does the thinking that comes before filming." },
-  { q: "Can SOCIA predict whether content will perform?", a: "It scores every idea on hook, retention, relevance, and originality against what your audience already responds to. A score is a forecast, not a promise, and SOCIA is honest about that." },
+  { q: "Can SOCIA predict whether content will perform?", a: "It scores every idea on hook, retention, relevance, and originality against what your audience already responds to. A score is a judgement of the draft, not a promise of views, and SOCIA is honest about that." },
   { q: "Does SOCIA replace a social media manager?", a: "For solo creators, it covers the strategy work a manager would do. For teams and agencies, it makes the manager faster: audits, plans, and scoring in minutes instead of afternoons." },
   { q: "How does SOCIA use my data?", a: "Your synced account data is used to build your dashboard and your plans. It stays yours, it isn't sold, and you can disconnect and delete it anytime." },
   { q: "Can I cancel anytime?", a: "Yes. Paid plans start with 7 days free, and you can cancel in one click before or after the trial ends." },
@@ -395,15 +397,27 @@ function Faq() {
   const [open, setOpen] = useState<number | null>(0);
   return (
     <div className="so-faq">
-      {FAQS.map((f, i) => (
-        <div key={i} className={`so-faq-item ${open === i ? "open" : ""}`}>
-          <button className="so-faq-q" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
-            {f.q}
-            <Plus size={17} className="so-faq-plus" />
-          </button>
-          <div className="so-faq-a"><p>{f.a}</p></div>
-        </div>
-      ))}
+      {FAQS.map((f, i) => {
+        const isOpen = open === i;
+        return (
+          <div key={i} className={`so-faq-item ${isOpen ? "open" : ""}`}>
+            <button
+              id={`faq-q-${i}`}
+              className="so-faq-q"
+              onClick={() => setOpen(isOpen ? null : i)}
+              aria-expanded={isOpen}
+              aria-controls={`faq-a-${i}`}
+            >
+              {f.q}
+              <Plus size={17} className="so-faq-plus" />
+            </button>
+            {/* Collapsed answers stay in the DOM for the height animation but are hidden from assistive tech and the tab order. */}
+            <div id={`faq-a-${i}`} className="so-faq-a" aria-hidden={!isOpen} inert={!isOpen}>
+              <p>{f.a}</p>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -490,6 +504,23 @@ export default function CinematicLanding() {
     setMenu(false);
   }, []);
 
+  /* section links are real anchors (deep-linkable, work without JS); with JS they smooth-scroll instead */
+  const go = useCallback(
+    (id: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+      e.preventDefault();
+      jump(id);
+    },
+    [jump],
+  );
+
+  /* mobile menu closes on Escape */
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
+
   return (
     <div className={`so so-theme-${theme}`}>
       <IntelligenceField mode={fieldMode} />
@@ -502,34 +533,34 @@ export default function CinematicLanding() {
       <header className={`so-nav ${theme !== "light" ? "on-dark" : "on-light"}`}>
         <Link href="/" className="so-brand"><BrandMark size={26} /> SOCIA</Link>
         <nav className="so-nav-links" aria-label="Sections">
-          <button onClick={() => jump("engine")}>Product</button>
-          <button onClick={() => jump("ask")}>Strategist</button>
-          <button onClick={() => jump("loop")}>How It Works</button>
-          <button onClick={() => jump("results")}>Results</button>
-          <button onClick={() => jump("pricing")}>Pricing</button>
+          <a href="#engine" onClick={go("engine")}>Product</a>
+          <a href="#ask" onClick={go("ask")}>Strategist</a>
+          <a href="#loop" onClick={go("loop")}>How It Works</a>
+          <a href="#results" onClick={go("results")}>Results</a>
+          <a href="#pricing" onClick={go("pricing")}>Pricing</a>
         </nav>
         <div className="so-nav-right">
           <Link href="/login" className="so-login">Log In</Link>
           <Link href="/signup" className="so-btn so-btn-blue sm">Start Free Audit <ArrowRight size={14} /></Link>
-          <button className="so-menu-btn" onClick={() => setMenu(!menu)} aria-label="Menu">
+          <button className="so-menu-btn" onClick={() => setMenu(!menu)} aria-label="Menu" aria-expanded={menu} aria-controls="so-mobile-menu">
             {menu ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </header>
       {menu && (
-        <div className="so-mobile-menu">
+        <div className="so-mobile-menu" id="so-mobile-menu">
           {[["engine", "Product"], ["ask", "Strategist"], ["loop", "How It Works"], ["results", "Results"], ["pricing", "Pricing"]].map(([id, l]) => (
-            <button key={id} onClick={() => jump(id)}>{l}</button>
+            <a key={id} href={`#${id}`} onClick={go(id)}>{l}</a>
           ))}
           <Link href="/login">Log In</Link>
           <Link href="/signup" className="so-btn so-btn-blue">Start Free Audit <ArrowRight size={15} /></Link>
         </div>
       )}
 
-      {/* chapter rail */}
+      {/* chapter rail: a decorative duplicate of the nav, so hidden from AT and the tab order */}
       <aside className="so-rail" aria-hidden>
         {CHAPTERS.map((c, i) => (
-          <button key={c.id} className={i === active ? "on" : ""} onClick={() => jump(c.id)}>
+          <button key={c.id} className={i === active ? "on" : ""} onClick={() => jump(c.id)} tabIndex={-1}>
             <i>{String(i + 1).padStart(2, "0")}</i>
             <span>{c.label}</span>
           </button>
@@ -557,21 +588,20 @@ export default function CinematicLanding() {
                 <Link href="/signup" className="so-btn so-btn-blue" data-cursor="AUDIT">
                   Start Free Audit <ArrowRight size={15} />
                 </Link>
-                <button className="so-btn so-btn-ghost play" onClick={() => jump("engine")} data-cursor="VIEW">
+                <a href="#engine" className="so-btn so-btn-ghost play" onClick={go("engine")} data-cursor="VIEW">
                   <span className="so-play"><Play size={10} fill="currentColor" /></span> See How It Works
-                </button>
+                </a>
               </div>
               <span className="so-micro">No credit card · Audit in under 60 seconds</span>
             </Rise>
           </div>
 
           {/* dimensional product interface */}
-          <div className="so-hright" data-cursor="EXPLORE">
+          <div className="so-hright">
             <div className="so-dash">
               <div className="so-dash-head">
                 <BrandMark size={18} /> <b>SOCIA</b>
-                <span className="so-dash-live"><i /> Live</span>
-                <span className="so-dash-updated">Last updated 2 min ago</span>
+                <span className="so-dash-updated">Example</span>
               </div>
               <div className="so-dash-body">
                 <aside className="so-dash-side" aria-hidden>
@@ -648,7 +678,6 @@ export default function CinematicLanding() {
                     <div className="so-dash-panel">
                       <small>CONTENT OPPORTUNITIES</small>
                       <b>3 detected</b>
-                      <span className="so-dash-link">View insights <ArrowRight size={11} /></span>
                     </div>
                   </div>
                 </div>
@@ -669,7 +698,6 @@ export default function CinematicLanding() {
                 <b>Post a behind-the-scenes video.</b>
                 <span>It&apos;s performing well for your top competitors.</span>
               </div>
-              <ArrowRight size={14} className="so-fcard-arrow" />
             </div>
           </div>
         </div>
@@ -692,22 +720,6 @@ export default function CinematicLanding() {
             <circle cx="590" cy="86" r="2" fill="rgba(139,176,255,0.5)" />
             <circle cx="1070" cy="70" r="2" fill="rgba(139,176,255,0.5)" />
           </svg>
-        </div>
-
-        {/* proof band */}
-        <div className="so-proof">
-          <small>TRUSTED BY CREATORS &amp; TEAMS</small>
-          <div className="so-prooflogos">
-            {["northloop", "Verve", "STUDIO/9", "Hatch&Co", "Meridian", "bloomtide"].map((l) => (
-              <span key={l}>{l}</span>
-            ))}
-          </div>
-          <div className="so-proofstats">
-            <div><span className="so-proof-ico"><Zap size={16} /></span><b><Num value={3.2} suffix="×" /></b><span>more engagement</span></div>
-            <div><span className="so-proof-ico"><Clock size={16} /></span><b><Num value={6} suffix="hrs" /></b><span>saved per week</span></div>
-            <div><span className="so-proof-ico"><Target size={16} /></span><b><Num value={92} suffix="%" /></b><span>score-to-hit rate</span></div>
-            <div><span className="so-proof-ico"><Users size={16} /></span><b><Num value={40} suffix="k+" /></b><span>accounts audited</span></div>
-          </div>
         </div>
       </section>
 
@@ -742,7 +754,7 @@ export default function CinematicLanding() {
                     <b className="so-mval">42%</b>
                     <span className="so-mbar"><em style={{ width: "42%" }} /></span>
                   </div>
-                  <div className="so-weekdots" aria-label="Posting activity, four weeks">
+                  <div className="so-weekdots" role="img" aria-label="Posting activity, four weeks">
                     {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
                       <span key={i} className="so-wd-day">{d}</span>
                     ))}
@@ -828,10 +840,8 @@ export default function CinematicLanding() {
                       <path className="so-draw a" d="M36,100 L66,98 L96,99 L126,95 L156,94 L186,90 L216,83 L246,71 L276,55 L306,43 L330,33 L330,108 L36,108 Z" fill="url(#sopm)" stroke="none" />
                       <path className="so-draw l" d="M36,100 L66,98 L96,99 L126,95 L156,94 L186,90 L216,83 L246,71 L276,55 L306,43 L330,33" fill="none" stroke="#4c86ff" strokeWidth="2" />
                       <line x1="276" y1="55" x2="276" y2="108" stroke="rgba(76,134,255,0.4)" strokeWidth="1" strokeDasharray="3 3" />
-                      {[[36, 100, 8], [126, 95, 13], [216, 83, 26], [276, 55, 55], [330, 33, 78]].map(([x, y, v]) => (
-                        <circle key={x} className={x === 276 ? "so-pt hot" : "so-pt"} cx={x} cy={y} r={x === 276 ? 4 : 2.5}>
-                          <title>{`+${v}% momentum`}</title>
-                        </circle>
+                      {[[36, 100], [126, 95], [216, 83], [276, 55], [330, 33]].map(([x, y]) => (
+                        <circle key={x} className={x === 276 ? "so-pt hot" : "so-pt"} cx={x} cy={y} r={x === 276 ? 4 : 2.5} />
                       ))}
                     </svg>
                     <div className="so-xaxis">
@@ -867,13 +877,13 @@ export default function CinematicLanding() {
                       <path className="so-draw l d2" d="M20,98 L70,92 L120,84 L170,72 L220,60 L270,50 L330,40" fill="none" stroke="#a78bfa" strokeWidth="2" />
                       <path className="so-draw l d3" d="M20,100 L70,98 L120,97 L170,95 L220,94 L270,92 L330,90" fill="none" stroke="#4c86ff" strokeWidth="2" />
                       {[[20, 96], [120, 74], [220, 44], [330, 18]].map(([x, y]) => (
-                        <circle key={`a${x}`} className="so-pt ga" cx={x} cy={y} r="2.5"><title>Competitor A</title></circle>
+                        <circle key={`a${x}`} className="so-pt ga" cx={x} cy={y} r="2.5" />
                       ))}
                       {[[20, 98], [120, 84], [220, 60], [330, 40]].map(([x, y]) => (
-                        <circle key={`b${x}`} className="so-pt gb" cx={x} cy={y} r="2.5"><title>Competitor B</title></circle>
+                        <circle key={`b${x}`} className="so-pt gb" cx={x} cy={y} r="2.5" />
                       ))}
                       {[[20, 100], [120, 97], [220, 94], [330, 90]].map(([x, y]) => (
-                        <circle key={`y${x}`} className="so-pt gy" cx={x} cy={y} r="2.5"><title>Your account</title></circle>
+                        <circle key={`y${x}`} className="so-pt gy" cx={x} cy={y} r="2.5" />
                       ))}
                     </svg>
                     <div className="so-xaxis three">
@@ -950,10 +960,11 @@ export default function CinematicLanding() {
 
             {/* CONTENT AUDIT */}
             <Rise className="so-eng-area e-audit">
-              <div className="so-ecard" data-cursor="VIEW">
+              <div className="so-ecard" id="content-audit">
                 <div className="so-ecard-head">
                   <span className="so-ecard-ico"><ScanSearch size={13} /></span> CONTENT AUDIT
                   <span className="so-echip up">+12 vs last week</span>
+                  <span className="so-echip">Example</span>
                 </div>
                 <div className="so-audit-flex">
                   <div className="so-audit-left">
@@ -989,8 +1000,8 @@ export default function CinematicLanding() {
 
             {/* COMPETITOR INTELLIGENCE */}
             <Rise delay={120} className="so-eng-area e-comp">
-              <div className="so-ecard" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><Radar size={13} /></span> COMPETITOR INTELLIGENCE</div>
+              <div className="so-ecard" id="competitor-intelligence">
+                <div className="so-ecard-head"><span className="so-ecard-ico"><Radar size={13} /></span> COMPETITOR INTELLIGENCE<span className="so-echip">Example</span></div>
                 <div className="so-crows">
                   <div className="so-crow">
                     <i>A</i>
@@ -1014,14 +1025,14 @@ export default function CinematicLanding() {
 
             {/* RECOMMENDATION ENGINE */}
             <Rise delay={550} className="so-eng-area e-rec">
-              <div className="so-ecard rec" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE</div>
+              <div className="so-ecard rec" id="recommendation-engine">
+                <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE<span className="so-echip">Example</span></div>
                 <span className="so-rec-tag">HIGH IMPACT</span>
                 <h3>Publish another educational Reel this week.</h3>
                 <p className="so-rec-why"><b>Why?</b> Your educational videos are generating 2.4× your average engagement.</p>
-                <div className="so-predictbox" title="Projected from your last 30 posts">
+                <div className="so-predictbox" title="Relative to your account's average">
                   <div>
-                    <small>PREDICTED PERFORMANCE</small>
+                    <small>RELATIVE SCORE</small>
                     <b>+<Num value={31} suffix="%" duration={900} /></b>
                     <span>above baseline</span>
                   </div>
@@ -1051,10 +1062,10 @@ export default function CinematicLanding() {
 
             {/* VIDEO SCORER */}
             <Rise delay={200} className="so-eng-area e-scorer">
-              <div className="so-ecard" data-cursor="PLAY">
+              <div className="so-ecard" id="video-scorer">
                 <div className="so-ecard-head">
                   <span className="so-ecard-ico"><Video size={13} /></span> VIDEO SCORER
-                  <span className="so-vplay" aria-hidden><Play size={10} fill="currentColor" /></span>
+                  <span className="so-echip">Example</span>
                 </div>
                 <div className="so-vsgrid">
                   {[["HOOK", 91, "How well the first seconds stop the scroll"], ["RETENTION", 78, "How much of the video people watch"], ["CLARITY", 86, "How easy the message is to follow"], ["PACING", 74, "How well the edit holds attention"]].map(([l, v, t]) => (
@@ -1070,7 +1081,7 @@ export default function CinematicLanding() {
                       <span className="so-radial-num dark sm">84</span>
                     </div>
                   </div>
-                  <div title="Projected retention lift after fixes"><small>PREDICTED RETENTION</small><b className="up">+17%</b></div>
+                  <div title="Retention score if the flagged fixes are applied"><small>AFTER FIXES</small><b className="up">+17</b></div>
                 </div>
                 <Link href="/signup" className="so-b-cta">Improve video <ArrowRight size={13} /></Link>
               </div>
@@ -1078,8 +1089,8 @@ export default function CinematicLanding() {
 
             {/* SMART SCHEDULING */}
             <Rise delay={280} className="so-eng-area e-sched">
-              <div className="so-ecard" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING</div>
+              <div className="so-ecard" id="smart-scheduling">
+                <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING<span className="so-echip">Example</span></div>
                 <div className="so-sweek">
                   {[["M", "", ""], ["T", "6:20", "PM"], ["W", "", ""], ["T", "6:40", "PM"], ["F", "", ""], ["S", "11:15", "AM"], ["S", "", ""]].map(([d, t, m], i) => (
                     <div key={i} className="so-sdaycol">
@@ -1092,7 +1103,7 @@ export default function CinematicLanding() {
                             <em>★</em>
                           </>
                         ) : (
-                          <span>–</span>
+                          <span>No window</span>
                         )}
                       </div>
                     </div>
@@ -1139,7 +1150,7 @@ export default function CinematicLanding() {
           </Rise>
           <div className="so-ask-stage">
             <div className="so-sources left" aria-hidden>
-              {["Instagram", "TikTok", "YouTube", "Account analytics"].map((s) => (
+              {["Instagram", "Facebook", "YouTube (public data)", "TikTok (coming)"].map((s) => (
                 <span key={s}>{s}<i /></span>
               ))}
             </div>
@@ -1223,7 +1234,7 @@ export default function CinematicLanding() {
               ["05", "Know exactly when to publish.", "Smart Calendar", CalendarDays, "Best windows from your audience activity."],
             ] as const).map(([n, t, m, Ico, d], i) => (
               <Rise key={n} delay={i * 60} className="so-story-row">
-                <div className="so-story-card" data-cursor="VIEW">
+                <div className="so-story-card">
                   <span className="so-story-num">{n}</span>
                   <span className="so-story-ico"><Ico size={17} /></span>
                   <div className="so-story-txt">
@@ -1278,7 +1289,7 @@ export default function CinematicLanding() {
           </div>
 
           {/* FAQ */}
-          <div className="so-faq-wrap">
+          <div className="so-faq-wrap" id="faq">
             <Rise><h2 className="so-h2 dark sm">Questions, answered.</h2></Rise>
             <Faq />
           </div>
@@ -1312,11 +1323,11 @@ export default function CinematicLanding() {
             </div>
             <div>
               <small>PRODUCT</small>
-              <button onClick={() => jump("engine")}>Content Audit</button>
-              <button onClick={() => jump("ask")}>AI Strategist</button>
-              <button onClick={() => jump("engine")}>Competitor Intelligence</button>
-              <button onClick={() => jump("engine")}>Video Scorer</button>
-              <button onClick={() => jump("engine")}>Calendar</button>
+              <a href="#content-audit" onClick={go("content-audit")}>Content Audit</a>
+              <a href="#ask" onClick={go("ask")}>AI Strategist</a>
+              <a href="#competitor-intelligence" onClick={go("competitor-intelligence")}>Competitor Intelligence</a>
+              <a href="#video-scorer" onClick={go("video-scorer")}>Video Scorer</a>
+              <a href="#smart-scheduling" onClick={go("smart-scheduling")}>Calendar</a>
             </div>
             <div>
               <small>ACCOUNT</small>

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
-import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
+import { anthropic, MODEL, aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
 import {
   searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
 } from "@/lib/youtube";
@@ -24,9 +23,15 @@ export const maxDuration = 120;
 // and those carry NO metrics at all — a handle and a reason, nothing invented.
 // One source failing never fails the request; each reports its own status.
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL ?? "claude-opus-5";
+// The shared client and model; ANTHROPIC_SEARCH_MODEL may still pick a
+// different model for the web-search turns alone.
+const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL || MODEL;
 const FRESH_MS = 6 * 60 * 60 * 1000;
+// A refresh spends real budget: about 500 YouTube quota units of the shared
+// 10k/day plus web-search turns on Opus. So: fifteen minutes between runs and
+// eight runs a day, per user.
+const REFRESH_MIN_MS = 15 * 60 * 1000;
+const REFRESH_PER_DAY = 8;
 
 export type IntelSources = {
   youtube: "ok" | "not_configured" | "failed";
@@ -119,6 +124,12 @@ export async function GET(req: Request) {
     }
   }
 
+  // ---- refresh throttle ---------------------------------------------------
+  if (refresh) {
+    const refusal = await refreshRefusal(supabase, user.id);
+    if (refusal) return NextResponse.json({ error: refusal }, { status: 429 });
+  }
+
   if (!niche) {
     return NextResponse.json({
       accounts: [], content: [], trends: [], ranAt: null,
@@ -126,6 +137,7 @@ export async function GET(req: Request) {
       profileGaps,
     });
   }
+  if (refresh) await countRefresh(supabase, user.id);
 
   const queries = buildQueries(profile);
   const sources: IntelSources = { youtube: "not_configured", web: "failed" };
@@ -309,7 +321,7 @@ Output ONLY this JSON, no other text:
   }
 
   // ---- score, classify, dedupe ------------------------------------------
-  const accounts = dedupeAccounts(accountCandidates.map((c) => scoreAccount(c, profile))).slice(0, 24);
+  const accounts = dedupeAccounts(accountCandidates.map((c) => scoreAccount(c, profile)), profile).slice(0, 24);
   const content = dedupeContent(contentCandidates.map((c) => scoreContent(c, profile))).slice(0, 40);
   const trends = rollUpTrends(content);
   const ranAt = new Date().toISOString();
@@ -360,16 +372,22 @@ Output ONLY this JSON, no other text:
         .eq("user_id", user.id).lt("last_checked", accountCutoff);
       await supabase.from("discovered_content").delete()
         .eq("user_id", user.id).lt("last_checked", contentCutoff);
-      await supabase.from("discovery_runs").upsert(
-        {
-          user_id: user.id, ran_at: ranAt, accounts_found: accounts.length,
-          content_found: content.length, sources,
-        },
-        { onConflict: "user_id" },
-      );
     } catch {
       /* tables may not exist yet — the response below still serves */
     }
+  }
+  // Every run is recorded, whether or not it found anything: the refresh
+  // throttle reads ran_at, and an empty run must not re-run on every page view.
+  try {
+    await supabase.from("discovery_runs").upsert(
+      {
+        user_id: user.id, ran_at: ranAt, accounts_found: accounts.length,
+        content_found: content.length, sources,
+      },
+      { onConflict: "user_id" },
+    );
+  } catch {
+    /* table may not exist yet */
   }
 
   // Return everything SOCIA knows, not just what this run happened to find —
@@ -379,6 +397,46 @@ Output ONLY this JSON, no other text:
     ? { ...merged, ranAt, sources, profileGaps }
     : { accounts, content, trends, ranAt, sources, profileGaps };
   return NextResponse.json(doc);
+}
+
+// The per-day refresh count lives under the user's key in the shared
+// niche_trends cache, the same way saved niche posts do. No new table.
+type RefreshCount = { v: 1; day: string; count: number };
+const refreshKey = (userId: string) => `refresh:${userId}`;
+const utcDay = () => new Date().toISOString().slice(0, 10);
+
+/** Why a refresh must wait, in the user's words, or null when it may run. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function refreshRefusal(supabase: any, userId: string): Promise<string | null> {
+  try {
+    const { data: run } = await supabase.from("discovery_runs").select("ran_at").eq("user_id", userId).maybeSingle();
+    const age = run?.ran_at ? Date.now() - new Date(run.ran_at).getTime() : Infinity;
+    if (age < REFRESH_MIN_MS) {
+      const mins = Math.max(1, Math.ceil((REFRESH_MIN_MS - age) / 60000));
+      return `Refresh again in ${mins} minute${mins === 1 ? "" : "s"}.`;
+    }
+    const { data } = await supabase.from("niche_trends").select("data").eq("niche", refreshKey(userId)).maybeSingle();
+    const doc = data?.data as RefreshCount | undefined;
+    if (doc?.day === utcDay() && doc.count >= REFRESH_PER_DAY) return "Daily refresh limit reached. Try again tomorrow.";
+  } catch {
+    /* tables may not exist yet: nothing to throttle against */
+  }
+  return null;
+}
+
+/** Count one refresh against today's allowance (best effort). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function countRefresh(supabase: any, userId: string): Promise<void> {
+  try {
+    const key = refreshKey(userId);
+    const { data } = await supabase.from("niche_trends").select("data").eq("niche", key).maybeSingle();
+    const doc = data?.data as RefreshCount | undefined;
+    const day = utcDay();
+    const next: RefreshCount = { v: 1, day, count: doc?.day === day ? doc.count + 1 : 1 };
+    await supabase.from("niche_trends").upsert({ niche: key, data: next, updated_at: new Date().toISOString() }, { onConflict: "niche" });
+  } catch {
+    /* best effort */
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

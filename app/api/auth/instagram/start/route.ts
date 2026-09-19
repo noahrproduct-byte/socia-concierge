@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { IG_SCOPES, igClientId, igConfigured, igRedirectUri } from "@/lib/instagram";
+import {
+  IG_OAUTH_STATE_COOKIE, IG_SCOPES, OAUTH_STATE_MAX_AGE, igClientId, igConfigured, igRedirectUri,
+  newOauthNonce, oauthStateCookie,
+} from "@/lib/instagram";
 
 export const runtime = "nodejs";
 
@@ -30,7 +33,12 @@ export async function GET(req: Request) {
   authorize.searchParams.set("redirect_uri", igRedirectUri(origin));
   authorize.searchParams.set("response_type", "code");
   authorize.searchParams.set("scope", IG_SCOPES);
-  authorize.searchParams.set("state", next);
+  // A per-request nonce travels in `state` and in an HttpOnly cookie; the
+  // callback exchanges the code only when the two match (CSRF).
+  const nonce = newOauthNonce();
+  authorize.searchParams.set("state", `${nonce}.${next}`);
 
-  return NextResponse.redirect(authorize.toString());
+  const res = NextResponse.redirect(authorize.toString());
+  res.cookies.set(oauthStateCookie(IG_OAUTH_STATE_COOKIE, nonce, OAUTH_STATE_MAX_AGE));
+  return res;
 }

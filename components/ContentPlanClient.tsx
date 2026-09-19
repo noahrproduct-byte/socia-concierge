@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AtSign,
@@ -33,7 +33,6 @@ import {
   suggestedHour,
   hourLabel,
   mondayOf,
-  DAY_MS,
   audienceWindowsText,
   type CalPost,
 } from "@/lib/audience";
@@ -99,12 +98,26 @@ function perfTone(p: string): "green" | "amber" | "blue" {
   return "blue";
 }
 
+/** The Monday "Schedule this week" targets. Thursday or later (or Sunday):
+ *  most of this week is gone, so the drafts go on next week. Calendar
+ *  arithmetic, not day-length maths, so a DST change cannot shift the week. */
+function targetWeek(now: Date): { start: Date; next: boolean } {
+  const next = now.getDay() === 0 || now.getDay() >= 4;
+  const mon = mondayOf(now);
+  return { start: next ? new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 7) : mon, next };
+}
+
 export default function ContentPlanClient({ context }: { context: PlanContext }) {
   const [form, setForm] = useState<GenerateInput>(context.prefill);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(null);
+  // `key` remounts <Report> per plan so its scheduling state and messages never leak between plans.
+  const [result, setResult] = useState<{ data: Deliverable; id: string | null; key: string } | null>(null);
   const [history, setHistory] = useState<SavedPlan[]>([]);
+  // Day edits applied on screen but not saved to the plan; regenerating would drop them.
+  const [unsaved, setUnsaved] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const runs = useRef(0);
 
   // Deep links ("Add to Content Plan" from Dashboard / Analytics insights and
   // content drawers) arrive as ?note= and land in the notes field, reviewed
@@ -144,10 +157,15 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
     );
   }
 
-  async function generate() {
+  async function generate(force = false) {
+    if (unsaved && !force) {
+      setConfirmRegen(true);
+      return;
+    }
+    setConfirmRegen(false);
     setLoading(true);
     setError(null);
-    setResult(null);
+    // The previous plan stays on screen until the new one arrives (or the request fails).
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -157,7 +175,10 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Something went wrong.");
-      setResult({ data: json.data as Deliverable, id: (json.saved as SavedPlan | null)?.id ?? null });
+      const id = (json.saved as SavedPlan | null)?.id ?? null;
+      runs.current += 1;
+      setResult({ data: json.data as Deliverable, id, key: id ?? `unsaved-${runs.current}` });
+      setUnsaved(false);
       if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -242,11 +263,11 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
             <option>LinkedIn</option>
           </select>
 
-          <small className="cpl-sec gap">Sharpen the plan — all optional</small>
+          <small className="cpl-sec gap">Sharpen the plan: all optional</small>
 
           <label className="cpl-lab">
             <span>
-              <Target size={12} /> Your goal <em>— optional</em>
+              <Target size={12} /> Your goal <em>(optional)</em>
             </span>
             <Counter value={form.goal} max={MAX.goal!} />
           </label>
@@ -258,7 +279,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
           {note("goal")}
 
           <label className="cpl-lab">
-            <span>Brand voice / notes <em>— optional</em></span>
+            <span>Brand voice / notes <em>(optional)</em></span>
             <Counter value={form.brandVoice} max={MAX.brandVoice!} />
           </label>
           <textarea
@@ -271,9 +292,9 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
           <label className="cpl-lab">
             <span>
               {onFile.posts > 0 ? (
-                <>Notes on recent posts <em>— optional</em></>
+                <>Notes on recent posts <em>(optional)</em></>
               ) : (
-                <>Recent posts &amp; how they did <em>— one per line</em></>
+                <>Recent posts &amp; how they did <em>(one per line)</em></>
               )}
             </span>
             <Counter value={form.recentPosts} max={MAX.recentPosts!} />
@@ -296,9 +317,9 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
           <label className="cpl-lab">
             <span>
               {onFile.competitors > 0 || onFile.winning > 0 ? (
-                <>Other competitors <em>— optional</em></>
+                <>Other competitors <em>(optional)</em></>
               ) : (
-                <>Competitors you watch <em>— one per line</em></>
+                <>Competitors you watch <em>(one per line)</em></>
               )}
             </span>
             <Counter value={form.competitors} max={MAX.competitors!} />
@@ -306,7 +327,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
           <textarea
             rows={3}
             placeholder={
-              "@rivalpizza — behind-the-scenes dough Reels doing 50k+\n@trendyslice — POV first-person eating clips, big saves"
+              "@rivalpizza: behind-the-scenes dough Reels doing 50k+\n@trendyslice: POV first-person eating clips, big saves"
             }
             value={form.competitors}
             onChange={(e) => set("competitors", e.target.value)}
@@ -320,7 +341,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
               {onFile.winning > 0 ? `${onFile.winning} winning videos` : ""} from your Competitors page.
             </small>
           )}
-          <button className="cpl-generate" onClick={generate} disabled={loading} type="button">
+          <button className="cpl-generate" onClick={() => generate()} disabled={loading} type="button">
             {loading ? (
               <>
                 <span className="cpl-btn-spin" aria-hidden /> Building your plan…
@@ -331,6 +352,18 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
               </>
             )}
           </button>
+
+          {confirmRegen && (
+            <div className="cpl-err" role="group" aria-label="Unsaved edits">
+              This plan has day edits that were not saved. A new plan replaces them.{" "}
+              <button type="button" className="ov-btn primary small" onClick={() => generate(true)}>
+                Generate anyway
+              </button>{" "}
+              <button type="button" className="ov-btn ghost small" onClick={() => setConfirmRegen(false)}>
+                Keep this plan
+              </button>
+            </div>
+          )}
 
           {error && <div className="cpl-err">{error}</div>}
 
@@ -343,7 +376,9 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                   className="cpl-recent-item"
                   type="button"
                   onClick={() => {
-                    setResult({ data: h.data, id: h.id });
+                    setResult({ data: h.data, id: h.id, key: h.id });
+                    setUnsaved(false);
+                    setConfirmRegen(false);
                     setError(null);
                   }}
                 >
@@ -357,8 +392,8 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
 
         {/* plan stage */}
         <section className="cpl-stage">
-          {loading ? (
-            <div className="cpl-loading">
+          {loading && (
+            <div className="cpl-loading" role="status">
               <div className="cpl-orb">
                 <Sparkles size={26} />
               </div>
@@ -368,21 +403,23 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                 {onFile.competitors > 0 ? `, ${onFile.competitors} competitors` : ""}
                 {onFile.winning > 0 ? ` and ${onFile.winning} winning videos` : ""}, then drafting
                 the week. Usually takes one to three minutes.
+                {result ? " Your previous plan stays below until the new one is ready." : ""}
               </p>
               <div className="cpl-load-bar" aria-hidden>
                 <span />
               </div>
             </div>
-          ) : result ? (
-            <Report data={result.data} planId={result.id} posts={context.posts} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
-          ) : (
+          )}
+          {result ? (
+            <Report key={result.key} data={result.data} planId={result.id} posts={context.posts} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} onUnsaved={setUnsaved} />
+          ) : loading ? null : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
                 <CalendarPlus size={34} />
               </div>
               <h2>Your plan appears here.</h2>
               <p>
-                Hit Generate and you&apos;ll get a personalized 5–7 post plan with score, timing,
+                Hit Generate and you&apos;ll get a personalized 5 to 7 post plan with score, timing,
                 hooks, content ideas, and more.
               </p>
 
@@ -392,7 +429,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                     <BarChart3 size={16} />
                   </span>
                   <b>Data-backed</b>
-                  <small>Uses your performance and niche trends</small>
+                  <small>Uses your posts and winning content in your niche</small>
                 </div>
                 <div className="cpl-cap">
                   <span className="cpl-cap-ico purple">
@@ -413,7 +450,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                     <CalendarCheck2 size={16} />
                   </span>
                   <b>Actionable plan</b>
-                  <small>5–7 posts with hooks, formats &amp; timing</small>
+                  <small>5 to 7 posts with hooks, formats &amp; timing</small>
                 </div>
               </div>
 
@@ -426,8 +463,8 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
                     <span>
                       <b>Built for your account</b>
                       <p>
-                        SOCIA analyzes your content, audience, competitors, and trends to build a
-                        plan that actually works.
+                        SOCIA builds the plan from your posts, audience windows, competitors and
+                        winning content in your niche.
                       </p>
                     </span>
                   </div>
@@ -500,10 +537,15 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   );
 }
 
-function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; onUpdate: (d: Deliverable) => void }) {
+function Report({ data, planId, posts, onUpdate, onUnsaved }: { data: Deliverable; planId: string | null; posts: CalPost[]; onUpdate: (d: Deliverable) => void; onUnsaved: (dirty: boolean) => void }) {
   // Times are SOCIA's, from the audience data, never the model's guess. The
   // same rule the Calendar uses, so the two never disagree.
   const aud = useMemo(() => buildAudience(posts), [posts]);
+  // Which week "Schedule this week" targets depends on the viewer's clock, so
+  // it is resolved after mount; the server renders the button without a date.
+  const [week, setWeek] = useState<{ start: Date; next: boolean } | null>(null);
+  useEffect(() => { setWeek(targetWeek(new Date())); }, []);
+  const weekLabel = week ? week.start.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
   // Ask SOCIA about this plan: proposals come back as a rewritten day the
   // user applies (saved to the plan when it has an id), never auto-applied.
   const [ask, setAsk] = useState<{ q: string | null; day: string | null } | null>(null);
@@ -520,8 +562,9 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
         const res = await fetch("/api/plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: planId, weeklyPlan }) });
         const j = await res.json().catch(() => ({}));
         setSaveNote(res.ok ? `${p.day} updated and saved to this plan.` : j.error ?? "Applied on screen, but the plan could not be saved.");
-      } catch { setSaveNote("Applied on screen, but the plan could not be saved."); }
-    } else setSaveNote(`${p.day} updated on screen. Generate or open a saved plan to keep changes.`);
+        onUnsaved(!res.ok);
+      } catch { setSaveNote("Applied on screen, but the plan could not be saved."); onUnsaved(true); }
+    } else { setSaveNote(`${p.day} updated on screen. Generate or open a saved plan to keep changes.`); onUnsaved(true); }
     return true;
   };
   const timeFor = (day: string): string | null => {
@@ -539,9 +582,7 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
     setSched({ busy: true, ok: false, msg: null });
     try {
       const now = new Date();
-      // Thursday or later (or Sunday): most of this week is gone, use next.
-      const nextWeek = now.getDay() === 0 || now.getDay() >= 4;
-      const weekStart = new Date(mondayOf(now).getTime() + (nextWeek ? 7 : 0) * DAY_MS);
+      const { start: weekStart } = targetWeek(now);
       const { drafts, skipped } = draftsFromPlan(data.weeklyPlan ?? [], weekStart, (wd) =>
         suggestedHour(aud, (wd + 6) % 7)
       );
@@ -751,10 +792,14 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
             onClick={scheduleWeek}
             disabled={sched.busy || sched.ok}
             type="button"
-            title="Creates a calendar draft for each day of the plan at your audience's hour"
+            title={
+              week?.next
+                ? "Most of this week has passed, so each day of the plan becomes a calendar draft next week, at your audience's hour"
+                : "Creates a calendar draft for each day of the plan at your audience's hour"
+            }
           >
             <CalendarDays size={14} />{" "}
-            {sched.busy ? "Adding to Calendar…" : sched.ok ? "Added to Calendar" : "Schedule this week"}
+            {sched.busy ? "Adding to Calendar…" : sched.ok ? "Added to Calendar" : weekLabel ? `Schedule for the week of ${weekLabel}` : "Schedule this week"}
           </button>
         )}
       </div>

@@ -86,6 +86,23 @@ describe("baseline and multipliers", () => {
   });
 });
 
+describe("top posts for a period", () => {
+  it("ranks only posts published inside the period when one is given", () => {
+    expect(getTopPosts(base(), 3).rows).toHaveLength(3);
+    const month = getTopPosts(base(), 3, 30).rows;
+    expect(month.map((r) => r.post.caption)).toEqual(["b", "a"]); // 123 then 105 engagements; "c" is 40 days old
+  });
+  it("keeps the account-wide baseline for the multiplier", () => {
+    const all = getTopPosts(base(), 3);
+    const month = getTopPosts(base(), 3, 30);
+    expect(month.baseline.value).toBe(all.baseline.value);
+    expect(month.rows[0].multiplier).toBe(all.rows[0].multiplier);
+  });
+  it("returns no rows when nothing was published in the period", () => {
+    expect(getTopPosts(base(), 3, 1).rows).toHaveLength(0);
+  });
+});
+
 describe("follower history", () => {
   it("requires a real snapshot before reporting growth", () => {
     expect(getFollowerGrowth(base(), 30).status).toBe("UNAVAILABLE");

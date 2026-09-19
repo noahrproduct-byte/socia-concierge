@@ -98,12 +98,12 @@ export default function BrandSettings({ email }: { email?: string }) {
     <form onSubmit={save} className="st2-form">
       <div className="st2-grid">
         <div className="st2-field">
-          <label><Mail size={12} /> Email</label>
-          <input type="email" value={email ?? ""} readOnly />
+          <label htmlFor="bs-email"><Mail size={12} /> Email</label>
+          <input id="bs-email" type="email" value={email ?? ""} readOnly />
         </div>
         <div className="st2-field">
-          <label><Tag size={12} /> Industry / niche</label>
-          <select value={niche} onChange={(e) => setNiche(e.target.value)} required>
+          <label htmlFor="bs-niche"><Tag size={12} /> Industry / niche</label>
+          <select id="bs-niche" value={niche} onChange={(e) => setNiche(e.target.value)} required>
             <option value="" disabled>Choose a category…</option>
             {NICHES.map((n) => (
               <option key={n} value={n}>{n}</option>
@@ -111,24 +111,27 @@ export default function BrandSettings({ email }: { email?: string }) {
           </select>
         </div>
         <div className="st2-field">
-          <label><AtSign size={12} /> Business / brand name</label>
+          <label htmlFor="bs-brand"><AtSign size={12} /> Business / brand name</label>
           <input
+            id="bs-brand"
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
             placeholder="@yourhandle or your business name"
           />
         </div>
         <div className="st2-field">
-          <label><Target size={12} /> Primary goal <em>— steers every recommendation</em></label>
+          <label htmlFor="bs-goals"><Target size={12} /> Primary goal <em>steers every recommendation</em></label>
           <input
+            id="bs-goals"
             value={goals}
             onChange={(e) => setGoals(e.target.value)}
             placeholder="e.g. grow followers, drive bookings, sell a course"
           />
         </div>
         <div className="st2-field">
-          <label><Globe size={12} /> Website <em>— optional</em></label>
+          <label htmlFor="bs-website"><Globe size={12} /> Website <em>optional</em></label>
           <input
+            id="bs-website"
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
             placeholder="https://yourbusiness.com"
@@ -136,8 +139,9 @@ export default function BrandSettings({ email }: { email?: string }) {
           />
         </div>
         <div className="st2-field">
-          <label><MapPin size={12} /> Location / market <em>— sharpens local angles</em></label>
+          <label htmlFor="bs-location"><MapPin size={12} /> Location / market <em>sharpens local angles</em></label>
           <input
+            id="bs-location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             placeholder="e.g. Hermitage, TN"
@@ -146,8 +150,9 @@ export default function BrandSettings({ email }: { email?: string }) {
       </div>
 
       <div className="st2-field st3-wide">
-        <label>Brand description <em>— one or two sentences</em></label>
+        <label htmlFor="bs-description">Brand description <em>one or two sentences</em></label>
         <textarea
+          id="bs-description"
           rows={2}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -156,8 +161,8 @@ export default function BrandSettings({ email }: { email?: string }) {
       </div>
 
       <div className="st2-field st3-wide">
-        <label>Brand voice <em>— the AI writes hooks in this tone</em></label>
-        <div className="st3-pills" role="radiogroup" aria-label="Brand voice">
+        <label id="bs-voice-label">Brand voice <em>the AI writes hooks in this tone</em></label>
+        <div className="st3-pills" role="radiogroup" aria-labelledby="bs-voice-label">
           {VOICES.map((v) => (
             <button
               key={v}
@@ -174,8 +179,9 @@ export default function BrandSettings({ email }: { email?: string }) {
       </div>
 
       <div className="st2-field st3-wide">
-        <label><Ban size={12} /> Words / topics to avoid <em>— hard rule for the AI</em></label>
+        <label htmlFor="bs-avoid"><Ban size={12} /> Words / topics to avoid <em>hard rule for the AI</em></label>
         <input
+          id="bs-avoid"
           value={avoid}
           onChange={(e) => setAvoid(e.target.value)}
           placeholder="e.g. slang, discounts talk, competitor names"

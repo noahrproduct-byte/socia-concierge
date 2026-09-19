@@ -6,7 +6,7 @@ import { brandContext } from "@/lib/prompt";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
-import { postCards, displayTitle, type PostCard } from "@/lib/overview";
+import { postCards, displayTitle, rankPosts, type PostCard } from "@/lib/overview";
 import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
 
 export const runtime = "nodejs";
@@ -53,7 +53,11 @@ export async function POST(req: Request) {
   const media: IgMediaItem[] = snap?.media ?? [];
   const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);
-  const top: PostCard[] = [...posts].sort((a, b) => (b.views ?? -1) - (a.views ?? -1)).slice(0, 6);
+  // Rank by views only when Instagram returned them; otherwise by interactions,
+  // and say which, so "top by views" is never a silent newest-first list.
+  const rankBy = posts.some((p) => p.views != null) ? "views" : "engagements";
+  const top: PostCard[] = rankPosts(posts, rankBy, 6);
+  const basisWord = rankBy === "views" ? "views" : "interactions";
   const covers = (await Promise.all(top.map((p) => (p.thumb ? fetchB64(p.thumb) : Promise.resolve(null))))).map((b, i) => ({ b64: b, post: top[i] }));
   let niche: { title: string | null; trend_tags: string[] | null; multiplier: number | null; account_name: string | null }[] = [];
   try {
@@ -62,7 +66,7 @@ export async function POST(req: Request) {
   } catch { niche = []; }
 
   const winnersText = top.length
-    ? `The account's top ${top.length} posts by views (SOCIA's real data; the images after the draft's frames are their cover frames, in this order):\n${top.map((p, i) => `W${i + 1}. ${p.format} · "${displayTitle(p.caption).slice(0, 80)}" · ${p.views != null ? `${p.views.toLocaleString("en-US")} views` : "views not returned"}, ${p.engagements.toLocaleString("en-US")} interactions${p.multiplier != null ? ` (${p.multiplier.toFixed(1)}× median)` : ""} · caption ${p.caption.length} chars${/\?/.test(p.caption) ? ", asks a question" : ""}${/order|book|dm|link|tag|save|share/i.test(p.caption) ? ", has an ask" : ""}`).join("\n")}\nDerived: ${top.filter((p) => p.format === "Reel").length} of ${top.length} are Reels; median caption length ${median(top.map((p) => p.caption.length)) ?? 0} chars.`
+    ? `The account's top ${top.length} posts by ${basisWord} (SOCIA's real data; the images after the draft's frames are their cover frames, in this order):\n${top.map((p, i) => `W${i + 1}. ${p.format} · "${displayTitle(p.caption).slice(0, 80)}" · ${p.views != null ? `${p.views.toLocaleString("en-US")} views` : "views not returned"}, ${p.engagements.toLocaleString("en-US")} interactions${p.multiplier != null ? ` (${p.multiplier.toFixed(1)}× median)` : ""} · caption ${p.caption.length} chars${/\?/.test(p.caption) ? ", asks a question" : ""}${/order|book|dm|link|tag|save|share/i.test(p.caption) ? ", has an ask" : ""}`).join("\n")}\nDerived: ${top.filter((p) => p.format === "Reel").length} of ${top.length} are Reels; median caption length ${median(top.map((p) => p.caption.length)) ?? 0} chars.`
     : "No account posts are synced, so there is nothing to compare the draft with (say so; return no compare rows).";
   const nicheText = niche.length
     ? `High-performing content SOCIA found in the niche (titles and detected features only; treat as observed patterns, not proof):\n${niche.map((n) => `- "${n.title ?? "(untitled)"}"${n.trend_tags?.length ? ` · features: ${n.trend_tags.join(", ")}` : ""}${n.multiplier != null ? ` · ${Number(n.multiplier).toFixed(1)}× the creator's median` : ""}`).join("\n")}`
@@ -150,7 +154,7 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       cuts: kind === "video" && r.cuts && Array.isArray(r.cuts.edits) && r.cuts.edits.length ? { currentSec: duration, suggestedSec: r.cuts.suggestedSec > 0 ? Math.round(r.cuts.suggestedSec) : duration, edits: r.cuts.edits.slice(0, 6), note: r.cuts.note ?? "" } : null,
       audio: r.audio ?? { observed: "", direction: { style: "", bpm: "", texture: "", why: "" }, alternative: { style: "", bpm: "", texture: "", why: "" } },
       platformFit: (r.platformFit ?? []).slice(0, 3),
-      compare: top.length && r.compare?.rows?.length ? { basis: `your top ${top.length} posts by views and their cover frames`, rows: r.compare.rows.slice(0, 7), summary: r.compare.summary ?? "", sample: top.length } : null,
+      compare: top.length && r.compare?.rows?.length ? { basis: `your top ${top.length} posts by ${basisWord} and their cover frames`, rows: r.compare.rows.slice(0, 7), summary: r.compare.summary ?? "", sample: top.length } : null,
       niche: niche.length && r.niche?.patterns?.length ? { basis: `${niche.length} high-performing posts SOCIA found in your niche`, patterns: r.niche.patterns.slice(0, 6), summary: r.niche.summary ?? "" } : null,
       caption: { current: body.caption?.trim() || null, suggestion: r.captionSuggestion || null },
       meta: { frames: body.frames.length, hadTranscript: Boolean(body.transcript?.trim()), analyzedAt: new Date().toISOString(), version: 1 },

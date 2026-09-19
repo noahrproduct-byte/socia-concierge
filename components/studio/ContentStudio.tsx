@@ -52,29 +52,41 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [pickDraft, setPickDraft] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const seekN = useRef(0);
   const playerVideo = useRef<HTMLVideoElement | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const doSeek = useCallback((t: number) => { seekN.current += 1; setSeek({ t, n: seekN.current }); }, []);
-  const notify = (s: string) => { setToast(s); setTimeout(() => setToast(null), 1800); };
+  // Errors stay up long enough to read; confirmations clear quickly.
+  const notify = useCallback((text: string, error = false) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ text, error });
+    toastTimer.current = setTimeout(() => setToast(null), error ? 5000 : 1800);
+  }, []);
   useEffect(() => () => { if (source?.file) URL.revokeObjectURL(source.url); source?.images.forEach((u) => u.startsWith("blob:") && URL.revokeObjectURL(u)); }, [source]);
+  useEffect(() => () => { abortRef.current?.abort(); if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
   const apply = useCallback((field: ApplyField, value: string) => {
     setW((cur) => field === "onscreen" ? { ...cur, onscreen: cur.onscreen.includes(value) ? cur.onscreen : [...cur.onscreen, value] } : { ...cur, [field]: value });
     notify(field === "hook" ? "Hook in use" : field === "cta" ? "CTA in use" : field === "caption" ? "Caption updated" : "Added to on-screen text");
-  }, []);
+  }, [notify]);
 
   // ---- analysis ---------------------------------------------------------
   const analyze = useCallback(async (src: Source, fr: Frames, opts?: { transcript?: string; caption?: string; goal?: GoalId | null; platform?: string | null }) => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     setPhase("analyzing"); setErr(null);
     try {
       const res = await fetch("/api/studio/analyze", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: ctrl.signal,
         body: JSON.stringify({ kind: src.kind, frames: fr.frames, frameTimes: fr.times, durationSec: fr.duration, transcript: opts?.transcript ?? transcript, caption: opts?.caption ?? w.caption, goal: opts?.goal ?? w.goal, platform: opts?.platform ?? w.platform }),
       });
       const json = await res.json().catch(() => ({}));
+      if (ctrl.signal.aborted) return;
       if (!res.ok) { setErr({ kind: res.status === 503 || res.status === 502 || res.status === 429 ? "api" : "failed", detail: json.error }); setPhase("error"); return; }
       const a = json.analysis as StudioAnalysis;
       setVersions((v) => { const next = [...v, { analysis: a, at: new Date().toISOString() }]; a.meta.version = next.length; return next; });
@@ -82,9 +94,17 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       setW((cur) => ({ ...cur, hook: cur.hook || a.hooks.current || "", cta: cur.cta || a.cta.current || "" }));
       setPhase("done"); setTab("analyze");
     } catch {
+      if (ctrl.signal.aborted) return; // cancelled by the user; cancelAnalysis restored the phase
       setErr({ kind: "api" }); setPhase("error");
     }
   }, [transcript, w.caption, w.goal, w.platform]);
+
+  // Stops the in-flight request. A previous analysis (if any) stays on screen.
+  const cancelAnalysis = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setPhase("done");
+  }, []);
 
   const load = useCallback(async (src: Source) => {
     setSource(src); setAnalysis(null); setVersions([]); setFrames(null); setErr(null); setSavedId(null); setActiveMarker(null);
@@ -158,7 +178,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       };
       const caption = [w.caption.trim(), w.cta && !w.caption.includes(w.cta) ? w.cta : ""].filter(Boolean).join("\n\n");
       if (source.draftId) {
-        await api("PATCH", { id: source.draftId, caption });
+        // keep_draft: without it the API promotes the draft to scheduled (or re-queues a failed post).
+        await api("PATCH", { id: source.draftId, caption, keep_draft: true });
         setSavedId(source.draftId);
       } else if (source.file) {
         const when = new Date(); when.setDate(when.getDate() + 1); when.setHours(12, 0, 0, 0);
@@ -174,7 +195,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       }
       notify("Draft saved to the Calendar");
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Couldn't save the draft");
+      notify(e instanceof Error ? e.message : "Couldn't save the draft", true);
     } finally { setSaving(false); }
   }, [source, w.caption, w.cta, userId]);
 
@@ -226,7 +247,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 <span className="st-file">{source.kind === "video" ? <FileVideo size={14} /> : <ImageIcon size={14} />} {source.name}{frames?.duration ? ` · ${Math.round(frames.duration)}s` : ""}</span>
                 <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => input.current?.click()}>Replace</button>
               </div>
-              <StudioPlayer url={source.url} kind={source.kind} images={source.images} thumbs={frames?.thumbs ?? []} markers={analysis?.markers ?? []} segments={analysis?.segments ?? []} seek={seek} onTime={() => null} onDuration={() => null} cover={w.cover} onCover={(i) => setW((c) => ({ ...c, cover: i }))} activeMarker={activeMarker} videoRef={playerVideo} />
+              <StudioPlayer url={source.url} kind={source.kind} images={source.images} thumbs={frames?.thumbs ?? []} markers={analysis?.markers ?? []} segments={analysis?.segments ?? []} seek={seek} cover={w.cover} onCover={(i) => setW((c) => ({ ...c, cover: i }))} activeMarker={activeMarker} videoRef={playerVideo} />
             </div>
           )}
           <div className="ov-card st-context">
@@ -260,6 +281,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 <li className={phase === "analyzing" ? "on" : ""}><i />Comparing with your top posts{connected ? "" : " (not connected)"}</li>
               </ul>
               <p className="ov-source">One request to SOCIA; usually 20 to 40 seconds. Results appear together when it finishes.</p>
+              {phase === "analyzing" && <div className="st-row-actions"><button type="button" className="ov-btn ghost small" onClick={cancelAnalysis}>Cancel</button></div>}
             </div>
           )}
           {phase === "error" && err && (
@@ -267,7 +289,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               <span className="st-error-ico"><AlertTriangle size={16} /></span>
               <div><b>{ERR_COPY[err.kind].title}</b><p>{err.detail ?? ERR_COPY[err.kind].body}</p>
                 <div className="st-row-actions">
-                  {source && frames && err.kind === "api" && <button type="button" className="ov-btn primary small" onClick={() => analyze(source, frames)}>Try again</button>}
+                  {source && frames && (err.kind === "api" || err.kind === "failed") && <button type="button" className="ov-btn primary small" onClick={() => analyze(source, frames)}>Try again</button>}
                   <button type="button" className="ov-btn ghost small" onClick={() => input.current?.click()}>Upload a different file</button>
                 </div>
               </div>
@@ -286,7 +308,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} saving={saving} savedId={savedId} planNote={planNote} />}
             </>
           )}
-          {source && !analysis && phase === "done" && <div className="ov-empty">No analysis yet.</div>}
+          {source && !analysis && phase === "done" && <div className="ov-empty">Analysis stopped. Use Analyze when you are ready.</div>}
         </div>
       </div>
       {(w.hook || w.cta || w.onscreen.length > 0) && source && (
@@ -297,7 +319,12 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
           {w.onscreen.map((o) => <span key={o}><b>Text</b> “{o}”</span>)}
         </div>
       )}
-      {toast && <div className="cal2-toast" role="status"><Check size={13} /> {toast}</div>}
+      {toast && (
+        <div className="cal2-notice" role={toast.error ? "alert" : "status"}>
+          {toast.error ? <AlertTriangle size={13} /> : <Check size={13} />} {toast.text}
+          <button type="button" aria-label="Dismiss" onClick={() => setToast(null)}><X size={13} /></button>
+        </div>
+      )}
       <div className="st-privacy"><Sparkles size={11} /> Frames are read on your device. SOCIA scores what it can see and never predicts views.</div>
     </div>
   );

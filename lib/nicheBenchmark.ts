@@ -27,10 +27,10 @@ export type Tier = {
  * global average is the most common way these tools mislead people.
  */
 export const TIERS: Tier[] = [
-  { id: "nano",  label: "Nano (1K–10K)",     min: 0,       engLow: 5.0, engHigh: 9.0 },
-  { id: "micro", label: "Micro (10K–100K)",  min: 10_000,  engLow: 4.0, engHigh: 5.5 },
-  { id: "mid",   label: "Mid (100K–500K)",   min: 100_000, engLow: 1.5, engHigh: 3.0 },
-  { id: "macro", label: "Macro (500K–1M)",   min: 500_000, engLow: 1.2, engHigh: 2.0 },
+  { id: "nano",  label: "Nano (1K to 10K)",     min: 0,       engLow: 5.0, engHigh: 9.0 },
+  { id: "micro", label: "Micro (10K to 100K)",  min: 10_000,  engLow: 4.0, engHigh: 5.5 },
+  { id: "mid",   label: "Mid (100K to 500K)",   min: 100_000, engLow: 1.5, engHigh: 3.0 },
+  { id: "macro", label: "Macro (500K to 1M)",   min: 500_000, engLow: 1.2, engHigh: 2.0 },
   { id: "mega",  label: "Mega (1M+)",        min: 1_000_000, engLow: 0.8, engHigh: 1.4 },
 ];
 
@@ -64,20 +64,20 @@ export function engagementPosition(
     return {
       tone: "up",
       text: "Above tier benchmark",
-      detail: `${rate.toFixed(1)}% is above the ${tier.engLow}–${tier.engHigh}% range typical for ${tier.label} accounts.`,
+      detail: `${rate.toFixed(1)}% is above the ${tier.engLow} to ${tier.engHigh}% range typical for ${tier.label} accounts.`,
     };
   }
   if (rate >= tier.engLow) {
     return {
       tone: "mid",
       text: "Within tier benchmark",
-      detail: `${rate.toFixed(1)}% sits inside the ${tier.engLow}–${tier.engHigh}% range typical for ${tier.label} accounts.`,
+      detail: `${rate.toFixed(1)}% sits inside the ${tier.engLow} to ${tier.engHigh}% range typical for ${tier.label} accounts.`,
     };
   }
   return {
     tone: "down",
     text: "Below tier benchmark",
-    detail: `${rate.toFixed(1)}% is under the ${tier.engLow}–${tier.engHigh}% range typical for ${tier.label} accounts.`,
+    detail: `${rate.toFixed(1)}% is under the ${tier.engLow} to ${tier.engHigh}% range typical for ${tier.label} accounts.`,
   };
 }
 
@@ -85,12 +85,12 @@ export function engagementPosition(
 export function frequencyPosition(perWeek: number | null): Position {
   if (perWeek == null) return NO_DATA;
   if (perWeek >= 3 && perWeek <= 7) {
-    return { tone: "up", text: "On cadence", detail: `${perWeek.toFixed(1)}/week is inside the commonly cited 3–5/week range.` };
+    return { tone: "up", text: "On cadence", detail: `${perWeek.toFixed(1)}/week is inside the commonly cited 3 to 5 a week range.` };
   }
   if (perWeek > 7) {
     return { tone: "mid", text: "Very high cadence", detail: `${perWeek.toFixed(1)}/week is above 5/week. Volume is fine if quality holds.` };
   }
-  return { tone: "down", text: "Under-posting", detail: `${perWeek.toFixed(1)}/week is below the commonly cited 3–5/week range.` };
+  return { tone: "down", text: "Under-posting", detail: `${perWeek.toFixed(1)}/week is below the commonly cited 3 to 5 a week range.` };
 }
 
 /**
@@ -108,14 +108,14 @@ export function benchmarkFor(
     case "Engagement rate":
       return tier
         ? {
-            value: `${tier.engLow}–${tier.engHigh}%`,
+            value: `${tier.engLow} to ${tier.engHigh}%`,
             note: `Published benchmark for ${tier.label} accounts on Reels. Not competitor data.`,
           }
         : null;
 
     case "Posting frequency":
       return {
-        value: "3–5 / week",
+        value: "3 to 5 a week",
         note: "Common growth guidance, not measured competitor data.",
       };
 
@@ -135,4 +135,4 @@ export function benchmarkFor(
 
 /** Shown once under the table so the numbers are attributable. */
 export const BENCHMARK_ATTRIBUTION =
-  "Benchmarks are published 2026 industry figures for your follower tier — not measured data from the accounts you track. Instagram exposes no analytics for accounts you don't own.";
+  "Benchmarks are published 2026 industry figures for your follower tier, not measured data from the accounts you track. Instagram exposes no analytics for accounts you don't own.";

@@ -56,7 +56,7 @@ export default function Roster({ you, rows, ranks, youRank, selectedId, onSelect
     <div className="cx2-roster">
       {canLeft && <button type="button" className="cx-arrow left" onClick={() => step(-1)} aria-label="Previous competitors"><ChevronLeft size={15} /></button>}
       <div className="cx2-rscroll" ref={ref} role="listbox" aria-label="Competitors" onKeyDown={onKey}>
-        <article className="cx2-chip-card you cx2-rise" aria-label="Your account">
+        <article className="cx2-chip-card you cx2-rise" aria-label="Your account" role="option" aria-selected={false} aria-disabled={true}>
           <span className="cx2-rank you">YOU</span>
           {you ? (
             <>

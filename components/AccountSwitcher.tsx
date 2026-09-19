@@ -31,6 +31,7 @@ export default function AccountSwitcher() {
   const [limit, setLimit] = useState(1);
   const [plan, setPlan] = useState<"free" | "pro">("free");
   const [switching, setSwitching] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -56,18 +57,23 @@ export default function AccountSwitcher() {
   async function switchTo(a: Account) {
     if (!a.ig_user_id || a.is_active || switching) return;
     setSwitching(a.ig_user_id);
+    setErr(null);
     try {
       const res = await fetch("/api/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ig_user_id: a.ig_user_id }),
       });
-      if (res.ok) {
-        setAccounts((xs) =>
-          (xs ?? []).map((x) => ({ ...x, is_active: x.ig_user_id === a.ig_user_id })),
-        );
-        router.refresh();
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error || "Couldn't switch accounts.");
       }
+      setAccounts((xs) =>
+        (xs ?? []).map((x) => ({ ...x, is_active: x.ig_user_id === a.ig_user_id })),
+      );
+      router.refresh();
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Couldn't switch accounts.");
     } finally {
       setSwitching(null);
     }
@@ -76,67 +82,70 @@ export default function AccountSwitcher() {
   const canAdd = accounts.length < limit;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="pill-btn" aria-label="Switch account">
-        {active.avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={active.avatar} alt="" width={16} height={16} className="acsw-avatar" />
-        ) : (
-          <Camera size={15} />
-        )}
-        {active.username ? `@${active.username}` : "Account"}
-        <ChevronDown size={14} className="drop-chev" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Instagram accounts</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {accounts.map((a) => (
-            <DropdownMenuItem
-              key={a.ig_user_id ?? a.username ?? "?"}
-              onClick={() => switchTo(a)}
-              className="gap-2"
-            >
-              {a.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.avatar} alt="" width={18} height={18} className="acsw-avatar" />
-              ) : (
-                <Camera size={15} />
-              )}
-              <span className="flex-1">@{a.username ?? "unknown"}</span>
-              {switching === a.ig_user_id ? (
-                <Loader2 size={14} className="acsw-spin" />
-              ) : (
-                a.is_active && <Check size={14} />
-              )}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          {canAdd ? (
-            <DropdownMenuItem
-              className="gap-2"
-              onClick={() => {
-                window.location.href = "/api/auth/instagram/start";
-              }}
-            >
-              <Plus size={15} />
-              <span className="flex-1">Add Instagram account</span>
-            </DropdownMenuItem>
+    <>
+      {err && <span className="st2-err" role="alert">{err}</span>}
+      <DropdownMenu>
+        <DropdownMenuTrigger className="pill-btn" aria-label="Switch account">
+          {active.avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={active.avatar} alt="" width={16} height={16} className="acsw-avatar" />
           ) : (
-            <DropdownMenuItem
-              className="gap-2"
-              onClick={() => {
-                window.location.href = "/settings#plan";
-              }}
-            >
-              <Gem size={14} />
-              <span className="flex-1">
-                {plan === "pro" ? `Account limit reached (${limit})` : "More accounts with Pro"}
-              </span>
-            </DropdownMenuItem>
+            <Camera size={15} />
           )}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {active.username ? `@${active.username}` : "Account"}
+          <ChevronDown size={14} className="drop-chev" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-60">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Instagram accounts</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {accounts.map((a) => (
+              <DropdownMenuItem
+                key={a.ig_user_id ?? a.username ?? "?"}
+                onClick={() => switchTo(a)}
+                className="gap-2"
+              >
+                {a.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.avatar} alt="" width={18} height={18} className="acsw-avatar" />
+                ) : (
+                  <Camera size={15} />
+                )}
+                <span className="flex-1">@{a.username ?? "unknown"}</span>
+                {switching === a.ig_user_id ? (
+                  <Loader2 size={14} className="acsw-spin" />
+                ) : (
+                  a.is_active && <Check size={14} />
+                )}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            {canAdd ? (
+              <DropdownMenuItem
+                className="gap-2"
+                onClick={() => {
+                  window.location.href = "/api/auth/instagram/start";
+                }}
+              >
+                <Plus size={15} />
+                <span className="flex-1">Add Instagram account</span>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                className="gap-2"
+                onClick={() => {
+                  window.location.href = "/settings#plan";
+                }}
+              >
+                <Gem size={14} />
+                <span className="flex-1">
+                  {plan === "pro" ? `Account limit reached (${limit})` : "More accounts with Pro"}
+                </span>
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 }

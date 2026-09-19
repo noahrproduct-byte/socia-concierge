@@ -52,9 +52,11 @@ export function leadsOn(you: LeaderRow, them: LeaderRow): number {
   return compareRows(you, them).filter((c) => c.diffPct != null && c.diffPct > 0).length;
 }
 
-/** Similarity, 0-100. The discovery score already weights niche, locality and
- *  comparable audience; a hand-tracked account has none, so it falls back to
- *  its classification and how close its audience is to the user's. */
+/** Ordering heuristic, 0-100, used only to decide which qualifier to study
+ *  first. A discovered account carries SOCIA's real relevance score; a
+ *  hand-tracked account has none, so its place in the order falls back to
+ *  classification and audience proximity. That fallback is never shown as a
+ *  number: the UI displays LeaderRow.match (real) or no match at all. */
 export function similarity(you: LeaderRow, them: LeaderRow): number {
   if (them.match != null) return them.match;
   let s =
@@ -76,6 +78,7 @@ export function similarity(you: LeaderRow, them: LeaderRow): number {
 
 export type SimilarPick = {
   row: LeaderRow;
+  /** Ordering heuristic (see similarity()); not for display. */
   similarity: number;
   leads: number;
   comparisons: Comparison[];

@@ -48,7 +48,7 @@ export default function SecurityCard() {
       await supabase.auth.signOut({ scope: "global" });
       window.location.href = "/login";
     } catch {
-      setErr("Couldn't sign out everywhere — try again.");
+      setErr("Couldn't sign out everywhere, try again.");
       setBusy(null);
     }
   }

@@ -1,10 +1,19 @@
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
 
-export const metadata = { title: "Terms of Service — SOCIA" };
+export const metadata = { title: "Terms of Service | SOCIA" };
 
 export default function TermsPage() {
   return (
     <main className="legal-page">
+      <header className="legal-top">
+        <Link href="/" className="legal-brand" aria-label="SOCIA home">
+          <BrandMark size={28} />
+          <span>SOCIA</span>
+        </Link>
+        <Link href="/login" className="btn-secondary legal-login">Log in</Link>
+      </header>
+
       <h1>Terms of Service</h1>
       <p className="legal-date">Last updated: September 4, 2026</p>
 

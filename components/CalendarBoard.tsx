@@ -7,7 +7,7 @@
 // the browser's own time zone. With too little data the intelligence simply
 // doesn't render. Nothing on this page is a sample.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Plus,
@@ -44,7 +44,6 @@ import {
   hourLabel,
   mondayOf,
   DOW,
-  DAY_MS,
   type Audience,
   type CalPost,
 } from "@/lib/audience";
@@ -77,6 +76,9 @@ const toLocalInput = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
+/** Local midnight `n` days after `d`, by calendar arithmetic. Adding N * DAY_MS
+ *  drifts by an hour across a DST change and shifts every column by a day. */
+const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 const byTime = (a: ScheduledPost, b: ScheduledPost) =>
   new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
@@ -207,8 +209,8 @@ export default function CalendarBoard({
   const thisWeek = now
     ? items.filter((p) => {
         const t = new Date(p.scheduled_at).getTime();
-        const m = mondayOf(now).getTime();
-        return t >= m && t < m + 7 * DAY_MS;
+        const m = mondayOf(now);
+        return t >= m.getTime() && t < addDays(m, 7).getTime();
       })
     : [];
   const openDays = now
@@ -337,8 +339,14 @@ export default function CalendarBoard({
         <div className="cal2-insight-body">
           <b>Optimal times, based on your audience.</b>
           <p>
+            {/* With enough posts the sentence needs the viewer's time zone, so it
+                waits for mount rather than claiming "not enough posts" meanwhile. */}
             {bestLine ??
-              "Connect your Instagram and SOCIA maps when your audience actually engages."}
+              (aud.enough
+                ? null
+                : connected
+                  ? "Not enough posts yet to map your audience windows."
+                  : "Connect your Instagram and SOCIA maps when your audience actually engages.")}
             {bestLine && openDays > 0 && (
               <> {openDays} day{openDays === 1 ? " is" : "s are"} still open this week.</>
             )}
@@ -502,12 +510,12 @@ function Toolbar({
 }) {
   let label: string;
   if (view === "week") {
-    const start = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
-    const end = new Date(start.getTime() + 6 * DAY_MS);
+    const start = addDays(mondayOf(now), weekOffset * 7);
+    const end = addDays(start, 6);
     const sameMonth = start.getMonth() === end.getMonth();
     const f = (d: Date, m: boolean) =>
       d.toLocaleDateString("en-US", { month: m ? "short" : undefined, day: "numeric" });
-    label = `${f(start, true)} – ${f(end, !sameMonth)}, ${end.getFullYear()}`;
+    label = `${f(start, true)} to ${f(end, !sameMonth)}, ${end.getFullYear()}`;
   } else {
     const m = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
     label = m.toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -537,13 +545,13 @@ function Toolbar({
         )}
       </div>
       <div className="cal2-tb-right">
-        <div className="cal2-seg" role="tablist">
+        <div className="cal2-seg" role="radiogroup" aria-label="Calendar view">
           {(["week", "month"] as const).map((v) => (
             <button
               key={v}
               type="button"
-              role="tab"
-              aria-selected={view === v}
+              role="radio"
+              aria-checked={view === v}
               className={view === v ? "on" : ""}
               onClick={() => setView(v)}
             >
@@ -587,13 +595,13 @@ function WeekGrid({
   onOpen: (p: ScheduledPost) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
-  const monday = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
+  const monday = addDays(mondayOf(now), weekOffset * 7);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   return (
     <div className="cal2-grid" key={weekOffset /* re-run entrance animation per week */}>
       {DOW.map((dow, i) => {
-        const date = new Date(monday.getTime() + i * DAY_MS);
+        const date = addDays(monday, i);
         const isToday = sameDay(date, now);
         const isPast = date.getTime() < todayStart.getTime();
         const best = aud.bestDays.includes(i);
@@ -651,7 +659,7 @@ function WeekGrid({
                         height: `${Math.max(9, Math.round(v * 100))}%`,
                         animationDelay: `${i * 40 + h * 9}ms`,
                       }}
-                      title={`${hourLabel(h)} — ${LVL_NAME[lvl(v)]} (est. from your posts)`}
+                      title={`${hourLabel(h)}: ${LVL_NAME[lvl(v)]} (est. from your posts)`}
                     />
                   ))}
                 </div>
@@ -751,6 +759,11 @@ function MonthGrid({
 
 /* ------------------------------------------------------------------ modals */
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const focusablesIn = (root: HTMLElement | null) =>
+  Array.from(root?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter((el) => el.offsetParent !== null);
+
 function Modal({
   title,
   onClose,
@@ -762,14 +775,50 @@ function Modal({
   children: React.ReactNode;
   wide?: boolean;
 }) {
+  const box = useRef<HTMLDivElement>(null);
+
+  // Focus enters the dialog on open (its first field, else the dialog itself)
+  // and returns to whatever opened it on close. Mount-only on purpose: the
+  // parent re-renders while a post is publishing and focus must not jump mid-edit.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    const first = focusablesIn(box.current).find((el) => !el.classList.contains("cal2-x")) ?? box.current;
+    first?.focus();
+    return () => opener?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return onClose();
+      if (e.key !== "Tab" || !box.current) return;
+      // Keep Tab and Shift+Tab inside the dialog.
+      const els = focusablesIn(box.current);
+      if (els.length === 0) {
+        e.preventDefault();
+        box.current.focus();
+        return;
+      }
+      const active = document.activeElement;
+      const inside = box.current.contains(active);
+      const atEdge = e.shiftKey ? active === els[0] : active === els[els.length - 1];
+      if (atEdge || !inside) {
+        e.preventDefault();
+        (e.shiftKey ? els[els.length - 1] : els[0]).focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
   return (
     <div className="cal2-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`cal2-modal${wide ? " wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div
+        className={`cal2-modal${wide ? " wide" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        ref={box}
+        tabIndex={-1}
+      >
         <div className="cal2-modal-head">
           <h2>{title}</h2>
           <button type="button" className="cal2-x" aria-label="Close" onClick={onClose}>
@@ -805,15 +854,43 @@ function Composer({
   onRemoved: (id: string) => void;
   notify: (s: string) => void;
 }) {
-  const [when, setWhen] = useState(toLocalInput(post ? new Date(post.scheduled_at) : at));
-  const [caption, setCaption] = useState(post?.caption ?? initialCaption ?? "");
-  const [mediaType, setMediaType] = useState<MediaType>(post?.media_type ?? "REELS");
+  // The composer only mounts after a click, never on the server, so its own
+  // open time is safe here. It is deliberately not the page's `now`: that is
+  // frozen at mount, and a post that got stuck while the page sat open would
+  // never be recognised as stuck.
+  const [openedAt] = useState(() => new Date());
+  const [initial] = useState(() => ({
+    when: toLocalInput(post ? new Date(post.scheduled_at) : at),
+    caption: post?.caption ?? initialCaption ?? "",
+    mediaType: (post?.media_type ?? "REELS") as MediaType,
+  }));
+  const [when, setWhen] = useState(initial.when);
+  const [caption, setCaption] = useState(initial.caption);
+  const [mediaType, setMediaType] = useState<MediaType>(initial.mediaType);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<"save" | "upload" | "publish" | "remove" | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // The row a new post became on its first save. Remembered so that a retry
+  // after a failed upload edits that row instead of creating a second one.
+  const [created, setCreated] = useState<ScheduledPost | null>(null);
+  // Inline confirmations (no window.confirm): before deleting, and before
+  // closing with unsaved edits. Focus goes to the safe option while asking.
+  const [asking, setAsking] = useState<"remove" | "discard" | null>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
+  const removeRef = useRef<HTMLButtonElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+  const wasAsking = useRef(false);
+  const formatId = useId();
 
-  const locked = post?.status === "published" || post?.status === "publishing";
-  const hasMedia = Boolean(post?.media_url) || Boolean(file);
+  const row = post ?? created;
+  // Publishing that the publisher hasn't touched in 10 minutes is most likely
+  // stuck (a Reel normally finishes well inside that). Remove becomes
+  // available; polling on the grid carries on as before.
+  const stuck =
+    row?.status === "publishing" &&
+    openedAt.getTime() - new Date(row.updated_at || row.scheduled_at).getTime() > 10 * 60_000;
+  const locked = row?.status === "published" || row?.status === "publishing";
+  const hasMedia = Boolean(row?.media_url) || Boolean(file);
   const whenDate = new Date(when);
   const whenValid = !Number.isNaN(whenDate.getTime());
   const missing = readiness({
@@ -821,14 +898,44 @@ function Composer({
     caption,
     scheduled_at: whenValid ? whenDate.toISOString() : new Date(0).toISOString(),
   }).missing;
+  const dirty =
+    file !== null || when !== initial.when || caption !== initial.caption || mediaType !== initial.mediaType;
+
+  const ask = (what: "remove" | "discard") => {
+    if (!asking) restoreRef.current = document.activeElement as HTMLElement | null;
+    setAsking(what);
+  };
+  useEffect(() => {
+    if (asking) {
+      wasAsking.current = true;
+      keepRef.current?.focus();
+      return;
+    }
+    // Not on mount: the dialog has just placed focus on its first field.
+    if (!wasAsking.current) return;
+    wasAsking.current = false;
+    const back = restoreRef.current;
+    restoreRef.current = null;
+    (back?.isConnected ? back : removeRef.current)?.focus();
+  }, [asking]);
+
+  // Escape, the backdrop and the X all come through here; a successful save
+  // closes directly. Unsaved edits get a question instead of vanishing.
+  const requestClose = () => {
+    if (dirty && busy === null) return ask("discard");
+    onClose();
+  };
 
   const persist = async (): Promise<ScheduledPost> => {
     const body = { scheduled_at: whenDate.toISOString(), caption, media_type: mediaType };
     let cur: ScheduledPost;
-    if (!post) {
+    if (!row) {
       cur = (await api<{ posts: ScheduledPost[] }>("POST", body)).posts[0];
+      // Record the new row before the upload can fail, so a retry PATCHes it.
+      setCreated(cur);
+      onSaved(cur);
     } else {
-      cur = (await api<{ post: ScheduledPost }>("PATCH", { id: post.id, ...body })).post;
+      cur = (await api<{ post: ScheduledPost }>("PATCH", { id: row.id, ...body })).post;
     }
     if (file) {
       setBusy("upload");
@@ -837,11 +944,16 @@ function Composer({
       const path = `${userId}/${cur.id}/${Date.now()}_${safe}`;
       await uploadMedia(supabase, "scheduled-media", path, file);
       const { data: pub } = supabase.storage.from("scheduled-media").getPublicUrl(path);
-      if (cur.media_path) await supabase.storage.from("scheduled-media").remove([cur.media_path]);
+      const previous = cur.media_path;
       cur = (
         await api<{ post: ScheduledPost }>("PATCH", { id: cur.id, media_path: path, media_url: pub.publicUrl })
       ).post;
+      // Only once the row points at the new file is the old one safe to drop.
+      if (previous && previous !== path) {
+        await supabase.storage.from("scheduled-media").remove([previous]).catch(() => null);
+      }
     }
+    if (!post) setCreated(cur);
     onSaved(cur);
     return cur;
   };
@@ -852,10 +964,13 @@ function Composer({
     setBusy("save");
     try {
       const cur = await persist();
+      const whenText = `${fmtDay(cur.scheduled_at)} at ${fmtTime(cur.scheduled_at)}`;
       notify(
-        cur.status === "scheduled"
-          ? `Scheduled for ${fmtDay(cur.scheduled_at)} at ${fmtTime(cur.scheduled_at)}.`
-          : `Saved as a draft. It still needs ${readiness(cur).missing.join(" and ")} before it can go out.`
+        cur.status !== "scheduled"
+          ? `Saved as a draft. It still needs ${readiness(cur).missing.join(" and ")} before it can go out.`
+          : connected
+            ? `Scheduled for ${whenText}.`
+            : `Saved for ${whenText}. It won't publish until Instagram is connected.`
       );
       onClose();
     } catch (e) {
@@ -886,16 +1001,17 @@ function Composer({
   };
 
   const removePost = async () => {
-    if (!post) return onClose();
+    if (!row) return onClose();
     setBusy("remove");
     try {
-      await api("DELETE", { id: post.id });
-      onRemoved(post.id);
+      await api("DELETE", { id: row.id });
+      onRemoved(row.id);
       notify("Post removed.");
       onClose();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Couldn't remove the post.");
       setBusy(null);
+      setAsking(null);
     }
   };
 
@@ -904,17 +1020,20 @@ function Composer({
     busy === "upload" ? "Uploading…" : busy === "publish" ? "Publishing…" : busy === "save" ? "Saving…" : null;
 
   return (
-    <Modal title={post ? "Edit post" : "New post"} onClose={onClose}>
-      {post && (
-        <div className={`cal2-status st-${post.status}`}>
-          <StatusChip p={post} />
-          {post.plan_day && <span className="cal2-from-plan">From your Content Plan · {post.plan_day}</span>}
-          {post.status === "published" && post.permalink && (
-            <a href={post.permalink} target="_blank" rel="noreferrer" className="cal2-permalink">
+    <Modal title={post ? "Edit post" : "New post"} onClose={requestClose}>
+      {row && (
+        <div className={`cal2-status st-${row.status}`}>
+          <StatusChip p={row} />
+          {row.plan_day && <span className="cal2-from-plan">From your Content Plan · {row.plan_day}</span>}
+          {row.status === "published" && row.permalink && (
+            <a href={row.permalink} target="_blank" rel="noreferrer" className="cal2-permalink">
               View on Instagram <ExternalLink size={12} />
             </a>
           )}
-          {post.status === "failed" && post.error && <p className="cal2-status-err">{post.error}</p>}
+          {row.status === "failed" && row.error && <p className="cal2-status-err">{row.error}</p>}
+          {stuck && (
+            <p className="cal2-status-err">Publishing seems stuck. You can remove this post and try again.</p>
+          )}
         </div>
       )}
 
@@ -923,20 +1042,21 @@ function Composer({
         <input
           type="datetime-local"
           value={when}
+          min={toLocalInput(openedAt)}
           disabled={locked}
           onChange={(e) => setWhen(e.target.value)}
         />
       </label>
 
       <div className="cal2-field">
-        <span>Format</span>
-        <div className="cal2-seg" role="tablist">
+        <span id={formatId}>Format</span>
+        <div className="cal2-seg" role="radiogroup" aria-labelledby={formatId}>
           {(["REELS", "IMAGE"] as MediaType[]).map((t) => (
             <button
               key={t}
               type="button"
-              role="tab"
-              aria-selected={mediaType === t}
+              role="radio"
+              aria-checked={mediaType === t}
               className={mediaType === t ? "on" : ""}
               disabled={locked}
               onClick={() => setMediaType(t)}
@@ -992,36 +1112,84 @@ function Composer({
       {err && <p className="cal2-form-err">{err}</p>}
 
       <div className="cal2-modal-actions">
-        {post && !locked && (
-          <button type="button" className="cal2-btn danger" disabled={busy !== null} onClick={removePost}>
-            <Trash2 size={13} /> Remove
-          </button>
-        )}
-        <span className="cal2-grow" />
-        {!locked && (
+        {asking === "discard" ? (
           <>
-            <button
-              type="button"
-              className="cal2-btn ghost"
-              disabled={busy !== null || !connected || !hasMedia}
-              title={!connected ? "Connect Instagram first" : !hasMedia ? "Attach a file first" : "Send this post to Instagram right now"}
-              onClick={publishNow}
-            >
-              {busy === "publish" ? <Loader2 size={13} className="cal2-spin" /> : null} Publish now
+            <span className="cal2-hint">Discard changes?</span>
+            <span className="cal2-grow" />
+            <button type="button" className="cal2-btn danger" onClick={onClose}>
+              Discard
             </button>
-            <button type="button" className="cal2-btn primary" disabled={busy !== null} onClick={save}>
-              {busyLabel ?? (missing.length === 0 ? "Schedule" : "Save draft")}
+            <button type="button" className="cal2-btn ghost" ref={keepRef} onClick={() => setAsking(null)}>
+              Keep editing
             </button>
           </>
-        )}
-        {locked && (
-          <button type="button" className="cal2-btn primary" onClick={onClose}>
-            Close
-          </button>
+        ) : (
+          <>
+            {row && (!locked || stuck) && asking === "remove" && (
+              <>
+                <span className="cal2-hint">Remove this post?</span>
+                <button
+                  type="button"
+                  className="cal2-btn danger"
+                  aria-label="Yes, remove this post"
+                  disabled={busy !== null}
+                  onClick={removePost}
+                >
+                  {busy === "remove" ? <Loader2 size={13} className="cal2-spin" /> : null} Yes
+                </button>
+                <button
+                  type="button"
+                  className="cal2-btn ghost"
+                  aria-label="Keep this post"
+                  ref={keepRef}
+                  disabled={busy !== null}
+                  onClick={() => setAsking(null)}
+                >
+                  Keep
+                </button>
+              </>
+            )}
+            {row && (!locked || stuck) && asking !== "remove" && (
+              <button
+                type="button"
+                className="cal2-btn danger"
+                ref={removeRef}
+                disabled={busy !== null}
+                onClick={() => ask("remove")}
+              >
+                <Trash2 size={13} /> Remove
+              </button>
+            )}
+            <span className="cal2-grow" />
+            {!locked && (
+              <>
+                <button
+                  type="button"
+                  className="cal2-btn ghost"
+                  disabled={busy !== null || !connected || !hasMedia}
+                  title={!connected ? "Connect Instagram first" : !hasMedia ? "Attach a file first" : "Send this post to Instagram right now"}
+                  onClick={publishNow}
+                >
+                  {busy === "publish" ? <Loader2 size={13} className="cal2-spin" /> : null} Publish now
+                </button>
+                <button type="button" className="cal2-btn primary" disabled={busy !== null} onClick={save}>
+                  {busyLabel ?? (!connected ? "Save" : missing.length === 0 ? "Schedule" : "Save draft")}
+                </button>
+              </>
+            )}
+            {locked && (
+              <button type="button" className="cal2-btn primary" onClick={requestClose}>
+                Close
+              </button>
+            )}
+          </>
         )}
       </div>
       {!locked && missing.length > 0 && (
         <p className="cal2-hint center">Needs {missing.join(" and ")} to be scheduled.</p>
+      )}
+      {!locked && missing.length === 0 && !connected && (
+        <p className="cal2-hint center">Saved posts won&apos;t publish until Instagram is connected.</p>
       )}
     </Modal>
   );
@@ -1059,6 +1227,7 @@ function PlanModal({
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const weekId = useId();
 
   useEffect(() => {
     fetch("/api/plans")
@@ -1072,7 +1241,7 @@ function PlanModal({
   }, []);
 
   const plan = plans?.find((p) => p.id === pick) ?? null;
-  const weekStart = new Date(mondayOf(now).getTime() + (week === "next" ? 7 : 0) * DAY_MS);
+  const weekStart = addDays(mondayOf(now), week === "next" ? 7 : 0);
   const { drafts, skipped } = draftsFromPlan(
     plan?.data?.weeklyPlan ?? [],
     weekStart,
@@ -1135,14 +1304,14 @@ function PlanModal({
           </div>
 
           <div className="cal2-field">
-            <span>Week</span>
-            <div className="cal2-seg" role="tablist">
+            <span id={weekId}>Week</span>
+            <div className="cal2-seg" role="radiogroup" aria-labelledby={weekId}>
               {(["this", "next"] as const).map((w) => (
                 <button
                   key={w}
                   type="button"
-                  role="tab"
-                  aria-selected={week === w}
+                  role="radio"
+                  aria-checked={week === w}
                   className={week === w ? "on" : ""}
                   onClick={() => setWeek(w)}
                 >

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWindows, inBestWindows, MIN_POSTS } from "./postingTimes";
+import { buildWindows, inBestWindows, blockLabel, MIN_POSTS } from "./postingTimes";
 
 // Local-time posts: Tue 20:00 strong, Fri 11:00 medium, others weak.
 const at = (dow: number, hour: number, i: number) => {
@@ -31,6 +31,11 @@ describe("posting windows", () => {
     expect(w.best.find((b) => b.postIds.includes("viral"))).toBeUndefined();
     const fri = w.best.find((b) => b.day === 4);
     expect(fri?.confidence).toBe("early");
+  });
+  it("labels blocks as a plain range", () => {
+    expect(blockLabel(0)).toBe("12 AM to 3 AM");
+    expect(blockLabel(3)).toBe("9 AM to 12 PM");
+    expect(blockLabel(7)).toBe("9 PM to 12 AM");
   });
   it("counts recent posts inside the best windows", () => {
     const posts = [...[0, 1, 2, 3].map((i) => mk(1, 20, 300, i, `t${i}`)), ...[0, 1, 2, 3].map((i) => mk(6, 9, 40, i, `s${i}`))];

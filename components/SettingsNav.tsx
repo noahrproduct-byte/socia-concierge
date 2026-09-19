@@ -75,7 +75,12 @@ export default function SettingsNav() {
         <div key={g.label}>
           <small className="st3-nav-group">{g.label}</small>
           {g.items.map(({ id, label, Icon }) => (
-            <a key={id} href={`#${id}`} className={`st3-nav-link${active === id ? " on" : ""}`}>
+            <a
+              key={id}
+              href={`#${id}`}
+              className={`st3-nav-link${active === id ? " on" : ""}`}
+              aria-current={active === id ? "true" : undefined}
+            >
               <Icon size={14} /> {label}
             </a>
           ))}

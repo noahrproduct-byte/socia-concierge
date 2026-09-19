@@ -43,10 +43,15 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
 
-  let body: { context?: AskContext; messages?: Msg[] };
+  let body: { context?: AskContext; messages?: Msg[] } | null;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   const ctx: AskContext = { page: "global", ...(body.context ?? {}) };
-  const messages = (body.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-12);
+  // A bounded transcript: the last 12 turns, each cut to a sane length.
+  const messages: Msg[] = (Array.isArray(body.messages) ? body.messages : [])
+    .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .slice(-12)
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 8000) }));
   while (messages.length && messages[0].role === "assistant") messages.shift();
   if (!messages.length) return NextResponse.json({ error: "No message to send." }, { status: 400 });
 

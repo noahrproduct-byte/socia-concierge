@@ -9,6 +9,7 @@ export default function ConnectionsManager() {
   const [loaded, setLoaded] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -20,25 +21,37 @@ export default function ConnectionsManager() {
       .finally(() => setLoaded(true));
   }, []);
 
-  async function persist(next: string[], id: string) {
+  // Only the platform list is sent. account_connected belongs to the live
+  // Instagram connection (its OAuth callback sets it), so registering or
+  // removing a platform here must never flip the dashboard's live view.
+  async function persist(next: string[], prev: string[], id: string) {
     setPending(id);
     setSaved(false);
+    setErr(null);
     try {
-      await fetch("/api/profile", {
+      const res = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platforms: next, account_connected: next.length > 0 }),
+        body: JSON.stringify({ platforms: next }),
       });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        throw new Error(j?.error || "Couldn't save that change.");
+      }
       setSaved(true);
+    } catch (e: unknown) {
+      setConnected(prev);
+      setErr(e instanceof Error ? e.message : "Couldn't save that change.");
     } finally {
       setPending(null);
     }
   }
 
   function toggle(id: string) {
-    const next = connected.includes(id) ? connected.filter((x) => x !== id) : [...connected, id];
+    const prev = connected;
+    const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
     setConnected(next);
-    persist(next, id);
+    persist(next, prev, id);
   }
 
   if (!loaded) return <p className="st2-loading">Loading connections…</p>;
@@ -46,12 +59,17 @@ export default function ConnectionsManager() {
   return (
     <div>
       <PlatformRows connected={connected} pending={pending} onToggle={toggle} exclude={["Instagram", "Facebook"]} />
+      {err && (
+        <p className="st2-err" role="alert" style={{ marginTop: 10 }}>
+          {err}
+        </p>
+      )}
       <p className="st2-privacy">
         <ShieldCheck size={14} />
         <span>
           {saved
-            ? "Saved — live data sync switches on as each platform approves our API access."
-            : "Connecting registers the account so your dashboard reflects it. Live data sync arrives as each platform approves our API access."}
+            ? "Saved. Nothing syncs from a registered platform until its API access is approved."
+            : "Registering a platform records it for SOCIA. Nothing syncs until that platform's API access is approved."}
         </span>
       </p>
     </div>

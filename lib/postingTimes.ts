@@ -13,7 +13,7 @@ export const BLOCK_STARTS = [0, 3, 6, 9, 12, 15, 18, 21];
 export const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export const DOW_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const hl = (h: number) => (h === 0 || h === 24 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`);
-export const blockLabel = (b: number) => `${hl(BLOCK_STARTS[b])}–${hl((BLOCK_STARTS[b] + 3) % 24)}`;
+export const blockLabel = (b: number) => `${hl(BLOCK_STARTS[b])} to ${hl((BLOCK_STARTS[b] + 3) % 24)}`;
 export const blockShort = (b: number) => hl(BLOCK_STARTS[b]).replace(" ", "");
 
 /** Minimum dated posts before SOCIA names any time at all. */

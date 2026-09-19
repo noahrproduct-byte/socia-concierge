@@ -89,6 +89,7 @@ export default function SignupPage() {
           <Mail size={16} className="field-ico" />
           <input
             id="signup-email"
+            name="email"
             type="email"
             autoComplete="email"
             required
@@ -102,6 +103,7 @@ export default function SignupPage() {
           <Lock size={16} className="field-ico" />
           <input
             id="signup-password"
+            name="password"
             type={showPw ? "text" : "password"}
             autoComplete="new-password"
             minLength={6}

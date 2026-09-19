@@ -24,6 +24,25 @@ export default function TopBar({ email, plan, index, activity }: { email?: strin
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+  const bellBtnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const bellWasOpen = useRef(false);
+
+  // Bell popover: focus moves into it on open, Escape closes it, and focus
+  // returns to the bell when it closes.
+  useEffect(() => {
+    if (bell) {
+      bellWasOpen.current = true;
+      popRef.current?.focus();
+      const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setBell(false); };
+      document.addEventListener("keydown", onKey);
+      return () => document.removeEventListener("keydown", onKey);
+    }
+    if (bellWasOpen.current) {
+      bellWasOpen.current = false;
+      bellBtnRef.current?.focus();
+    }
+  }, [bell]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,6 +80,12 @@ export default function TopBar({ email, plan, index, activity }: { email?: strin
           type="search"
           placeholder="Search anything..."
           aria-label="Search"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? "tb-search-results" : undefined}
+          aria-activedescendant={open && results[sel] ? `tb-opt-${sel}` : undefined}
           value={q}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
@@ -73,9 +98,9 @@ export default function TopBar({ email, plan, index, activity }: { email?: strin
         />
         <kbd className="tb-kbd">⌘K</kbd>
         {open && (
-          <ul className="tb-results" role="listbox">
+          <ul className="tb-results" role="listbox" id="tb-search-results" aria-label="Search results">
             {results.length ? results.map((r, i) => (
-              <li key={r.href + r.label} role="option" aria-selected={i === sel} className={i === sel ? "on" : ""} onMouseEnter={() => setSel(i)} onMouseDown={(e) => { e.preventDefault(); go(r); }}>
+              <li key={r.href + r.label} id={`tb-opt-${i}`} role="option" aria-selected={i === sel} className={i === sel ? "on" : ""} onMouseEnter={() => setSel(i)} onMouseDown={(e) => { e.preventDefault(); go(r); }}>
                 <span className={`tb-kind ${r.kind}`}>{r.kind === "page" ? "Page" : "Post"}</span>
                 <span className="tb-res-label">{r.label}</span>
                 {r.hint && <small>{r.hint}</small>}
@@ -87,12 +112,12 @@ export default function TopBar({ email, plan, index, activity }: { email?: strin
       <div className="tb-right">
         <AskHost />
         <div className="tb-bell" ref={bellRef}>
-          <button type="button" className={`tb-iconbtn${bell ? " on" : ""}`} aria-label="Recent activity" aria-expanded={bell} onClick={() => setBell((v) => !v)}>
+          <button ref={bellBtnRef} type="button" className={`tb-iconbtn${bell ? " on" : ""}`} aria-label="Recent activity" aria-haspopup="dialog" aria-expanded={bell} aria-controls={bell ? "tb-activity" : undefined} onClick={() => setBell((v) => !v)}>
             <Bell size={16} />
             {activity.some((a) => a.kind === "failed") && <span className="tb-bell-dot danger" aria-hidden />}
           </button>
           {bell && (
-            <div className="tb-pop" role="dialog" aria-label="Recent activity">
+            <div ref={popRef} id="tb-activity" tabIndex={-1} className="tb-pop" role="dialog" aria-label="Recent activity">
               <div className="tb-pop-head"><b>Recent activity</b><Link href="/calendar" onClick={() => setBell(false)}>Calendar</Link></div>
               {activity.length ? (
                 <ul className="tb-acts">

@@ -10,7 +10,7 @@ export async function GET() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ conversations: [] });
+    if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
     const { data, error } = await supabase
       .from("conversations")
@@ -18,7 +18,11 @@ export async function GET() {
       .order("updated_at", { ascending: false })
       .limit(30);
 
-    if (error) return NextResponse.json({ conversations: [] });
+    if (error) {
+      // table may not exist yet
+      console.error("conversations: list failed:", error.message);
+      return NextResponse.json({ conversations: [] });
+    }
     return NextResponse.json({ conversations: data ?? [] });
   } catch {
     return NextResponse.json({ conversations: [] });
@@ -66,7 +70,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ id: data.id });
     }
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Couldn't save.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("conversations: save failed:", e);
+    return NextResponse.json({ error: "Couldn't save right now." }, { status: 500 });
   }
 }

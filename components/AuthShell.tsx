@@ -17,11 +17,11 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
           </Link>
 
           <div className="brand-mid">
-            <h2 className="brand-head">
+            <p className="brand-head">
               Know what to post
               <br />
               <span className="grad">before you post it.</span>
-            </h2>
+            </p>
             <p className="brand-sub">
               AI-powered content ideas, scoring, and scheduling, built for
               creators and brands that grow on purpose.
@@ -53,6 +53,8 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
 
             <div className="score-card">
               <div className="score-left">
+                {/* Illustrative card: labelled so the numbers are not read as a real score. */}
+                <span className="mock-example">Example</span>
                 <div className="score-top">
                   <span>Content Score</span>
                   <span className="score-badge">Great</span>

@@ -39,7 +39,7 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
     setErr(null);
     try {
       const res = await fetch("/api/analyze-account");
-      if (!res.ok) throw new Error("Rescan failed — try again in a minute.");
+      if (!res.ok) throw new Error("Rescan failed, try again in a minute.");
       router.refresh();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Rescan failed.");
@@ -53,7 +53,7 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
       <div className="st3-intel-empty">
         <p>
           Connect your Instagram and SOCIA reads your real posts to detect your niche, audience,
-          and content signals — then keeps its intelligence fresh automatically.
+          and content signals, then keeps its intelligence fresh automatically.
         </p>
         <Link href="#accounts" className="st2-connect">
           Connect an account <ArrowRight size={13} />
@@ -81,7 +81,7 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
             </p>
           ) : (
             <p className="st3-intel-niche">
-              Niche not detected yet — <Link href="/competitors#trends">run detection</Link>
+              Niche not detected yet. <Link href="/competitors#trends">Run detection</Link>
             </p>
           )}
           <div className="st3-intel-facts">

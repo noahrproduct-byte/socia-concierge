@@ -53,6 +53,9 @@ function agoText(iso: string, now: Date): string {
 
 type Metric = "interactions" | "views" | "followers";
 
+/** One stable empty series, so a memo keyed on it doesn't recompute every render. */
+const NO_PTS: Pt[] = [];
+
 export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   const router = useRouter();
   const now = useMemo(() => new Date(d.now), [d.now]);
@@ -64,8 +67,10 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   const [openPost, setOpenPost] = useState<NichePost | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [tracking, setTracking] = useState<string | null>(null);
+  const [trackErr, setTrackErr] = useState<{ id: string; text: string } | null>(null);
   const [savedItems, setSavedItems] = useState<NichePost[]>(d.saved);
   const [saving, setSaving] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const savedSet = useMemo(() => new Set(savedItems.map((p) => p.url)), [savedItems]);
 
   // Roster: platform filter, tracked accounts first, then by match.
@@ -120,8 +125,8 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
       if (!p.publishedAt) continue;
       const t = new Date(p.publishedAt).getTime();
       if (Number.isNaN(t)) continue;
-      const inter = (p.likes ?? 0) + (p.comments ?? 0);
-      if (p.likes != null || p.comments != null) pts.interactions.push({ t, v: inter });
+      // Interactions need both counts; a post with hidden likes has no honest total.
+      if (p.likes != null && p.comments != null) pts.interactions.push({ t, v: p.likes + p.comments });
       if (p.views != null) pts.views.push({ t, v: p.views });
     }
     return pts;
@@ -134,26 +139,29 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
 
   const themName = active?.name ?? "Competitor";
   const trajYou = metric === "followers" ? followerPts : yourPts[metric];
-  const trajThem = metric === "followers" ? [] : theirPts[metric];
+  const trajThem = metric === "followers" ? NO_PTS : theirPts[metric];
   const trajNote =
     metric === "followers" ? (followerPts.length >= 2 ? `Your daily follower snapshots. ${themName}'s history isn't published by any platform.` : "Follower history builds from SOCIA's daily snapshots after you connect.")
-    : metric === "views" && trajThem.length === 0 && active?.platform === "instagram" ? `Instagram never publishes view counts for accounts you don't own — only ${themName}'s likes and comments are comparable.`
+    : metric === "views" && trajThem.length === 0 && active?.platform === "instagram" ? `Instagram never publishes view counts for accounts you don't own. Only ${themName}'s likes and comments are comparable.`
     : null;
 
   // ---- scatter ------------------------------------------------------------
+  // One unit per chart: views where the platform publishes them, else likes.
+  // Never both on one axis.
+  const scatterUnit: "views" | "likes" = useMemo(() => ((active?.posts ?? []).some((p) => p.views != null) ? "views" : "likes"), [active]);
   const scatterAll: ScatterPost[] = useMemo(() =>
     (active?.posts ?? [])
-      .filter((p) => p.publishedAt && (p.views ?? p.likes) != null)
+      .filter((p) => p.publishedAt && p[scatterUnit] != null)
       .map((p) => ({
         url: p.url, title: p.title, thumb: p.thumb, format: p.format,
-        t: new Date(p.publishedAt!).getTime(), y: (p.views ?? p.likes)!,
+        t: new Date(p.publishedAt!).getTime(), y: p[scatterUnit]!,
         comments: p.comments, multiplier: p.multiplier,
       }))
       .filter((p) => !Number.isNaN(p.t)),
-    [active]);
+    [active, scatterUnit]);
   const scatterFormats = useMemo(() => ["All", ...[...new Set(scatterAll.map((p) => p.format).filter((f): f is string => Boolean(f)))].slice(0, 3)], [scatterAll]);
   const scatterPosts = scatterFmt === "All" ? scatterAll : scatterAll.filter((p) => p.format === scatterFmt);
-  const scatterYLabel = scatterAll.some((p) => (active?.posts ?? []).find((q) => q.url === p.url)?.views != null) ? "Views" : "Likes";
+  const scatterYLabel = scatterUnit === "views" ? "Views" : "Likes";
 
   // ---- radar --------------------------------------------------------------
   const radarAxes = useMemo(() => {
@@ -180,19 +188,30 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   }, [active, pick]);
 
   const track = useCallback(async (r: CompetitorRow) => {
-    setTracking(r.id);
+    setTracking(r.id); setTrackErr(null);
     try {
-      await fetch("/api/competitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: r.handle, platform: r.platform }) });
+      const res = await fetch("/api/competitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: r.handle, platform: r.platform }) });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        setTrackErr({ id: r.id, text: j?.error ?? "Couldn't track that account." });
+        return;
+      }
       router.refresh();
+    } catch {
+      setTrackErr({ id: r.id, text: "Couldn't reach SOCIA. Check your connection and try again." });
     } finally { setTracking(null); }
   }, [router]);
 
   const toggleSave = useCallback(async (p: NichePost) => {
-    setSaving(p.url);
+    setSaving(p.url); setSaveErr(null);
     try {
       const isSaved = savedSet.has(p.url);
       const res = await fetch("/api/niche/saved", { method: isSaved ? "DELETE" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isSaved ? { url: p.url } : { item: p }) });
-      if (res.ok) { const j = await res.json(); setSavedItems(j.items ?? []); }
+      const j = (await res.json().catch(() => null)) as { items?: NichePost[]; error?: string } | null;
+      if (!res.ok) { setSaveErr(j?.error ?? (isSaved ? "Couldn't remove that post from saved." : "Couldn't save that post.")); return; }
+      if (j && Array.isArray(j.items)) setSavedItems(j.items);
+    } catch {
+      setSaveErr("Couldn't reach SOCIA. Check your connection and try again.");
     } finally { setSaving(null); }
   }, [savedSet]);
 
@@ -203,7 +222,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
     <div className="cx cx2">
       <PageHeader
         title="Competitors"
-        sub="See who's winning — and why."
+        sub="See who's winning, and why."
         status={
           <span className="ov-status cx-status">
             <i className={d.lastRun ? "live" : ""} />
@@ -242,7 +261,8 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
 
       {active && pick ? (
         <>
-          <ProfileBar r={active} similarity={pick.similarity} igEnabled={d.ig.enabled} onTrack={track} tracking={tracking === active.id} />
+          {/* The match chip shows discovery's real relevance score or nothing; pick.similarity is an ordering heuristic and is never displayed. */}
+          <ProfileBar r={active} match={active.match} igEnabled={d.ig.enabled} onTrack={track} tracking={tracking === active.id} error={trackErr?.id === active.id ? trackErr.text : null} />
 
           <div className="cx2-grid main">
             <section className="ov-card cx2-card cx2-traj">
@@ -285,7 +305,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
               <small className="cx2-foot">
                 {score.overall != null
                   ? `Computed from ${score.basis} of 4 metrics of your real data against published 2026 benchmarks. Hover each for the formula.`
-                  : d.connected ? "Fills in as your data syncs — nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <a href={d.igConnectHref} className="ov-link">Connect</a></>}
+                  : d.connected ? "Fills in as your data syncs. Nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <a href={d.igConnectHref} className="ov-link">Connect</a></>}
               </small>
               {radarAxes.length >= 3 && (
                 <>
@@ -319,7 +339,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
                 </div>
               </div>
               <Scatter posts={scatterPosts} yLabel={scatterYLabel} unit={fmtN} />
-              <small className="cx2-foot">Each bubble is one of {themName}&apos;s real posts — size is comments. Click one to open it.</small>
+              <small className="cx2-foot">Each bubble is one of {themName}&apos;s real posts; size is comments. Click one to open it.</small>
             </section>
           )}
 
@@ -338,12 +358,12 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
       <NicheSection
         d={d}
         active={active && patterns ? { name: active.name, patterns } : null}
-        saved={savedSet} savedItems={savedItems} saving={saving}
+        saved={savedSet} savedItems={savedItems} saving={saving} saveError={saveErr}
         onOpen={setOpenPost} onSave={toggleSave}
       />
 
       <EvidenceDrawer item={evidence} you={you} them={active} days={d.days} location={d.location} onClose={() => setEvidence(null)} />
-      <NicheDrawer post={openPost} saved={openPost ? savedSet.has(openPost.url) : false} saving={openPost ? saving === openPost.url : false} onToggleSave={toggleSave} onClose={() => setOpenPost(null)} />
+      <NicheDrawer post={openPost} saved={openPost ? savedSet.has(openPost.url) : false} saving={openPost ? saving === openPost.url : false} saveError={saveErr} onToggleSave={toggleSave} onClose={() => setOpenPost(null)} />
       <AddCompetitor open={addOpen} onClose={() => setAddOpen(false)} tracked={d.tracked} suggestions={d.rows.filter((r) => !r.tracked)} />
     </div>
   );

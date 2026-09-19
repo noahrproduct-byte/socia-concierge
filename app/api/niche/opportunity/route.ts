@@ -21,17 +21,27 @@ const schema = {
   required: ["concept", "hook", "shots"],
 } as const;
 
-type Body = { tag: string; why: string[]; example?: { title: string | null; accountName: string | null } | null; competitorName?: string | null; refresh?: boolean };
+type Body = { tag?: unknown; why?: unknown; example?: { title: string | null; accountName: string | null } | null; competitorName?: string | null; refresh?: boolean };
+
+// The evidence lines go straight into the prompt: at most 12, each bounded.
+const MAX_WHY = 12;
+const MAX_WHY_CHARS = 300;
 
 export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  let body: Body;
-  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  if (!body.tag) return NextResponse.json({ error: "No pattern given." }, { status: 400 });
+  let raw: unknown;
+  try { raw = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+  const body = (raw && typeof raw === "object" ? raw : {}) as Body;
+  const tag = typeof body.tag === "string" ? body.tag.trim().slice(0, 120) : "";
+  if (!tag) return NextResponse.json({ error: "No pattern given." }, { status: 400 });
+  const why = (Array.isArray(body.why) ? body.why : [])
+    .filter((w): w is string => typeof w === "string")
+    .slice(0, MAX_WHY)
+    .map((w) => w.slice(0, MAX_WHY_CHARS));
 
-  const key = `opp:${user.id}:${body.tag}`;
+  const key = `opp:${user.id}:${tag}`;
   if (!body.refresh) {
     try {
       const { data } = await supabase.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
@@ -48,8 +58,8 @@ export async function POST(req: Request) {
     `Account: ${profile?.niche ?? "niche not set"}${profile?.brand_name ? `, ${profile.brand_name}` : ""}${profile?.brand_detail?.location ? `, based in ${profile.brand_detail.location}` : ""}.`,
     profile?.goals ? `Goal: ${profile.goals}.` : "",
     brandContext(profile?.brand_detail) || "",
-    `Pattern SOCIA surfaced: "${body.tag}".`,
-    `Evidence (already measured, do not restate numbers you were not given):\n${(body.why ?? []).map((w) => `- ${w}`).join("\n")}`,
+    `Pattern SOCIA surfaced: "${tag}".`,
+    `Evidence (already measured, do not restate numbers you were not given):\n${why.map((w) => `- ${w}`).join("\n")}`,
     body.example?.title ? `A niche example: "${body.example.title}"${body.example.accountName ? ` by ${body.example.accountName}` : ""}.` : "",
     body.competitorName ? `A competitor using it: ${body.competitorName}.` : "",
   ].filter(Boolean).join("\n");
@@ -72,6 +82,7 @@ export async function POST(req: Request) {
     } catch { /* best effort */ }
     return NextResponse.json({ ...doc, cached: false });
   } catch (err) {
+    console.error("niche/opportunity: model call failed:", err);
     const kind = aiFailureKind(err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }

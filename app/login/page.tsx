@@ -1,28 +1,82 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import BrandMark from "@/components/BrandMark";
 import AuthShell, { GoogleIcon } from "@/components/AuthShell";
 
+// Plain sentences for the short codes /auth/callback sends back on failure.
+// Anything unrecognised gets the generic line, never a raw provider string.
+const CALLBACK_ERRORS: Record<string, string> = {
+  otp_expired: "That sign-in link has expired. Request a new one below.",
+  access_denied: "Sign-in was cancelled.",
+  exchange_failed: "We couldn't complete sign-in. Try again.",
+  no_code: "We couldn't complete sign-in. Try again.",
+};
+
+// Only same-site paths are honored as a return-to target. Absolute URLs and
+// protocol-relative "//host" values fall back to the dashboard.
+function safeNext(raw: string | null): string | null {
+  return raw && /^\/(?![\/\\])/.test(raw) ? raw : null;
+}
+
 export default function LoginPage() {
+  // useSearchParams has to sit under a Suspense boundary so the page can
+  // still be prerendered; the shell and heading render immediately.
+  return (
+    <AuthShell>
+      <Suspense fallback={<LoginHeader />}>
+        <LoginForm />
+      </Suspense>
+    </AuthShell>
+  );
+}
+
+function LoginHeader() {
+  return (
+    <>
+      <div className="auth-mobilelogo">
+        <BrandMark size={32} />SOCIA
+      </div>
+
+      <h1>Welcome back</h1>
+      <p className="auth-sub">Log in to your SOCIA account.</p>
+    </>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const supabase = createClient();
+
+  const next = safeNext(params.get("next"));
+  const callbackError = params.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(() =>
+    callbackError ? (CALLBACK_ERRORS[callbackError] ?? CALLBACK_ERRORS.exchange_failed) : null,
+  );
+
+  // Where a successful login lands: the page they were sent here from, or
+  // the dashboard. Callback-based logins get the same target via `next`.
+  const destination = next ?? "/dashboard";
+  function callbackUrl() {
+    const base = `${window.location.origin}/auth/callback`;
+    return next ? `${base}?next=${encodeURIComponent(next)}` : base;
+  }
 
   // Already signed in? Straight to the app instead of showing a login form.
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) router.replace("/dashboard");
+      if (data.user) router.replace(destination);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -41,7 +95,7 @@ export default function LoginPage() {
       setErr(error.message);
       return;
     }
-    router.push("/dashboard");
+    router.push(destination);
     router.refresh();
   }
 
@@ -49,7 +103,7 @@ export default function LoginPage() {
     setErr(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl() },
     });
     if (error) setErr(error.message);
   }
@@ -64,7 +118,7 @@ export default function LoginPage() {
     setMsg(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: callbackUrl() },
     });
     setLoading(false);
     if (error) setErr(error.message);
@@ -72,13 +126,8 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthShell>
-      <div className="auth-mobilelogo">
-        <BrandMark size={32} />SOCIA
-      </div>
-
-      <h1>Welcome back</h1>
-      <p className="auth-sub">Log in to your SOCIA account.</p>
+    <>
+      <LoginHeader />
 
       <button className="gbtn" onClick={loginWithGoogle} type="button">
         <GoogleIcon />
@@ -95,6 +144,7 @@ export default function LoginPage() {
           <Mail size={16} className="field-ico" />
           <input
             id="login-email"
+            name="email"
             type="email"
             autoComplete="email"
             required
@@ -108,6 +158,7 @@ export default function LoginPage() {
           <Lock size={16} className="field-ico" />
           <input
             id="login-password"
+            name="password"
             type={showPw ? "text" : "password"}
             autoComplete="current-password"
             required
@@ -149,6 +200,6 @@ export default function LoginPage() {
           No account? <Link href="/signup">Sign up</Link>
         </span>
       </div>
-    </AuthShell>
+    </>
   );
 }

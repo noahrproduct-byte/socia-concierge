@@ -15,8 +15,11 @@ import { PlatformMark, fmtDate, fmtN, platName } from "./shared";
 
 const cache = new Map<string, AnalyzeResponse>();
 
-export default function NicheDrawer({ post, saved, onToggleSave, saving, onClose }: {
-  post: NichePost | null; saved: boolean; onToggleSave: (p: NichePost) => void; saving: boolean; onClose: () => void;
+export default function NicheDrawer({ post, saved, onToggleSave, saving, saveError, onClose }: {
+  post: NichePost | null; saved: boolean; onToggleSave: (p: NichePost) => void; saving: boolean;
+  /** Why the last save or unsave failed, from the server. */
+  saveError?: string | null;
+  onClose: () => void;
 }) {
   const [res, setRes] = useState<AnalyzeResponse | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,6 +112,7 @@ export default function NicheDrawer({ post, saved, onToggleSave, saving, onClose
           <button type="button" className={`ov-btn ghost${saved ? " on" : ""}`} onClick={() => onToggleSave(post)} disabled={saving}>{saving ? <Loader2 size={13} className="cx-spin" /> : saved ? <BookmarkCheck size={13} /> : <Bookmark size={13} />} {saved ? "Saved" : "Save"}</button>
           <a href={post.url} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View original</a>
         </div>
+        {saveError && <p className="cx-add-err" role="alert">{saveError}</p>}
       </div>
     </Drawer>
   );

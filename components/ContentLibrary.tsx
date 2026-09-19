@@ -59,7 +59,8 @@ function whyQuestion(p: LibraryPost): string {
     `${p.engagements.toLocaleString("en-US")} engagements`,
     p.multiplier != null ? `${p.multiplier.toFixed(1)}× my baseline` : null,
   ].filter(Boolean);
-  const when = new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // Rendered into an href on the server and the client: UTC keeps the two identical.
+  const when = new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   return `Why did my ${p.format.toLowerCase()} "${displayTitle(p.caption)}" (${when}, ${nums.join(", ")}) perform the way it did, and what should I do next with it?`;
 }
 

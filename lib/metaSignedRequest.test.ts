@@ -10,7 +10,9 @@ const sign = (payload: object, secret: string) => {
 };
 
 describe("Meta signed_request", () => {
-  const payload = { algorithm: "HMAC-SHA256", issued_at: 1700000000, user_id: "17841400000000000" };
+  // Signed "just now": a verifier that also checks freshness must accept it.
+  const now = Math.floor(Date.now() / 1000);
+  const payload = { algorithm: "HMAC-SHA256", issued_at: now, user_id: "17841400000000000" };
   it("accepts a request signed with either configured secret and reports which", () => {
     const a = verifySignedRequest(sign(payload, "ig-secret"), ["ig-secret", "fb-secret"]);
     const b = verifySignedRequest(sign(payload, "fb-secret"), ["ig-secret", "fb-secret"]);
@@ -25,5 +27,17 @@ describe("Meta signed_request", () => {
   });
   it("skips missing secrets instead of matching an empty one", () => {
     expect(verifySignedRequest(sign(payload, ""), [undefined, "fb-secret"]).ok).toBe(false);
+  });
+  it("rejects a replayed request older than ten minutes, or one with no issue time", () => {
+    const stale = sign({ ...payload, issued_at: now - 11 * 60 }, "ig-secret");
+    expect(verifySignedRequest(stale, ["ig-secret"])).toEqual({ ok: false, reason: "expired" });
+    // Same token, clock pinned to the minute it was signed: fresh again.
+    expect(verifySignedRequest(stale, ["ig-secret"], now - 11 * 60).ok).toBe(true);
+    // Nine minutes is inside the window either way.
+    expect(verifySignedRequest(sign(payload, "ig-secret"), ["ig-secret"], now + 9 * 60).ok).toBe(true);
+    const undated = { algorithm: "HMAC-SHA256", user_id: payload.user_id };
+    expect(verifySignedRequest(sign(undated, "ig-secret"), ["ig-secret"])).toEqual({ ok: false, reason: "no_issued_at" });
+    // A bad signature is still reported as such, however old the payload.
+    expect(verifySignedRequest(stale, ["wrong"])).toEqual({ ok: false, reason: "bad_signature" });
   });
 });

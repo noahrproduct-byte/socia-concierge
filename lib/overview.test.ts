@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bucketize, bucketTitle, detectOutliers, seriesBaseline, granularityOptions, type SeriesPoint, type Series } from "./overview";
+import { bucketize, bucketTitle, detectOutliers, seriesBaseline, granularityOptions, buildKpis, buildSeries, seriesComparable, seriesDeltaPct, DAY_MS, type SeriesPoint, type Series } from "./overview";
+import type { DailySnapshot } from "./dashboardMetrics";
 
 const pts = (vals: (number | null)[], from = "2026-08-31"): SeriesPoint[] => vals.map((v, i) => {
   const d = new Date(new Date(from + "T00:00:00Z").getTime() + i * 86400000).toISOString().slice(0, 10);
@@ -25,7 +26,46 @@ describe("bucketize", () => {
     expect(bucketTitle(b[0], "month")).toBe("August 2026");
     const c = bucketize(pts([1, 1], "2026-09-06"), "month", "sum", "2026-09-07");
     expect(c[0].partial).toBe(true);
-    expect(bucketTitle(bucketize(pts([1], "2026-08-17"), "week", "sum")[0], "week")).toBe("Aug 17–23");
+    expect(bucketTitle(bucketize(pts([1], "2026-08-17"), "week", "sum")[0], "week")).toBe("Aug 17 to 23");
+  });
+});
+
+describe("coverage of platform daily totals", () => {
+  const now = new Date("2026-09-19T12:00:00Z");
+  // Meta rows for the last `cur` days of the current 30-day period and the
+  // last `prev` days of the one before it.
+  const daily = (cur: number, prev: number): DailySnapshot[] => {
+    const out: DailySnapshot[] = [];
+    for (let i = 0; i < 60; i++) {
+      const has = i < 30 ? i < cur : i - 30 < prev;
+      if (!has) continue;
+      out.push({ day: new Date(now.getTime() - i * DAY_MS).toISOString().slice(0, 10), followers: null, reach: 10, views: 100, followers_gained: null, source: "instagram_api" });
+    }
+    return out;
+  };
+  it("reports how many days the total covers and drops the comparison when coverage differs", () => {
+    const s = buildSeries("views", [], daily(12, 30), 30, now);
+    expect(s.total).toBe(1200);
+    expect(s.daysWithData).toBe(12);
+    expect(s.prevDaysWithData).toBe(30);
+    expect(seriesComparable(s)).toBe(false);
+    expect(seriesDeltaPct(s)).toBeNull();
+    const k = buildKpis({ media: [], daily: daily(12, 30), followers: 100, days: 30, now }).find((x) => x.id === "views")!;
+    expect(k.deltaText).toBeNull();
+    expect(k.note).toBe("12 of 30 days with data · previous period not comparable");
+  });
+  it("keeps the comparison when both periods are covered about equally", () => {
+    const s = buildSeries("views", [], daily(28, 30), 30, now);
+    expect(seriesComparable(s)).toBe(true);
+    expect(seriesDeltaPct(s)).toBeCloseTo(-6.67, 1);
+    const k = buildKpis({ media: [], daily: daily(28, 30), followers: 100, days: 30, now }).find((x) => x.id === "views")!;
+    expect(k.deltaText).toBe("↓ 6.7%");
+    expect(k.note).toBe("vs. previous 30 days · 28 of 30 days with data");
+    const full = buildKpis({ media: [], daily: daily(30, 30), followers: 100, days: 30, now }).find((x) => x.id === "views")!;
+    expect(full.note).toBe("vs. previous 30 days");
+  });
+  it("leaves the interactions total null when nothing was published in the period", () => {
+    expect(buildSeries("engagement", [], [], 30, now).total).toBeNull();
   });
 });
 

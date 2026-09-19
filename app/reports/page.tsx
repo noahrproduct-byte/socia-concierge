@@ -19,7 +19,7 @@ import {
 } from "@/lib/dashboardMetrics";
 import { engagementOf } from "@/lib/metrics";
 
-export const metadata = { title: "Reports — SOCIA" };
+export const metadata = { title: "Reports | SOCIA" };
 
 function Row({ label, m, format }: { label: string; m: Metric; format?: (v: number) => string }) {
   return (
@@ -32,7 +32,7 @@ function Row({ label, m, format }: { label: string; m: Metric; format?: (v: numb
       <td className="muted">
         <span className={`rep-status ${m.status.toLowerCase()}`}>{m.status}</span>
       </td>
-      <td className="muted rep-method" title={`${m.source} — ${m.method}`}>
+      <td className="muted rep-method" title={`${m.source}: ${m.method}`}>
         {m.method}
       </td>
     </tr>
@@ -79,8 +79,9 @@ export default async function ReportsPage({
   };
 
   const since = new Date(Date.now() - days * 86400000);
-  const periodLabel = `${since.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-  const top = getTopPosts(acct, 3);
+  const periodLabel = `${since.toLocaleDateString("en-US", { month: "short", day: "numeric" })} to ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  // Only posts published inside the selected range compete for "this period".
+  const top = getTopPosts(acct, 3, days);
   const fmtK = (v: number) => (v >= 1000 ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "K" : String(v));
 
   return (
@@ -101,12 +102,26 @@ export default async function ReportsPage({
                 </Link>
               ))}
             </div>
-            <a className="ov-btn ghost" href="/api/export">
-              <Download size={14} /> Export data (JSON)
+            <a className="ov-btn ghost" href="/api/export" title="Downloads your profile, plans and conversations, not this report">
+              <Download size={14} /> Export account data (JSON)
             </a>
           </>
         }
       />
+
+      {!snap && (
+        <section className="dsh-panel">
+          <div className="dsh-nodata">
+            <b>No account connected</b>
+            <p>
+              This report is built from your own Instagram numbers, so every row below is unavailable until an account is connected.{" "}
+              <Link href="/settings#accounts" className="dsh-link">
+                Connect Instagram <ArrowRight size={12} />
+              </Link>
+            </p>
+          </div>
+        </section>
+      )}
 
       <section className="dsh-panel dsh-tablewrap">
         <div className="dsh-panel-head">
@@ -185,8 +200,14 @@ export default async function ReportsPage({
               </li>
             ))}
           </ol>
-        ) : (
+        ) : !snap ? (
+          <p className="dsh-empty">
+            No account connected. <Link href="/settings#accounts">Connect Instagram</Link> to see your top posts here.
+          </p>
+        ) : !acct.posts.length ? (
           <p className="dsh-empty">No posts synced yet.</p>
+        ) : (
+          <p className="dsh-empty">No posts published in the last {days} days.</p>
         )}
       </section>
 

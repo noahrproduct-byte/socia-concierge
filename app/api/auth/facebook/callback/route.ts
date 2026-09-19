@@ -1,7 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { igAccountForPage } from "@/lib/igBusinessDiscovery";
-import { FB_GRAPH_V, fbAppId, fbAppSecret, fbRedirectUri } from "@/lib/facebook";
+import {
+  FB_GRAPH_V, FB_OAUTH_STATE_COOKIE, fbAppId, fbAppSecret, fbRedirectUri,
+  oauthStateCookie, oauthStateValid, parseOauthState,
+} from "@/lib/facebook";
 import { syncFacebook } from "@/lib/facebookSync";
 
 export const runtime = "nodejs";
@@ -21,10 +24,23 @@ type PageEntry = {
 
 // Step 2: exchange the code for a long-lived token, list the user's Pages,
 // and either connect the single Page or ask the user to choose.
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const res = await handle(req);
+  // The nonce is single-use: cleared whatever the outcome.
+  res.cookies.set(oauthStateCookie(FB_OAUTH_STATE_COOKIE, "", 0));
+  return res;
+}
+
+async function handle(req: NextRequest): Promise<NextResponse> {
   const url = new URL(req.url);
   const origin = url.origin;
   const done = (q: string) => NextResponse.redirect(`${origin}/settings?fb=${q}`);
+
+  // CSRF check: the nonce in `state` must be the one this browser started
+  // the flow with. Otherwise the code is someone else's authorization and is
+  // never exchanged, let alone attached to this account.
+  const state = parseOauthState(url.searchParams.get("state"));
+  if (!oauthStateValid(state.nonce, req.cookies.get(FB_OAUTH_STATE_COOKIE)?.value)) return done("error");
 
   if (url.searchParams.get("error_reason") === "user_denied" || url.searchParams.get("error") === "access_denied") {
     return done("denied");

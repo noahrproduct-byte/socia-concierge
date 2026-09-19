@@ -15,7 +15,14 @@ const LEVELS = [
 ] as const;
 
 const FORMATS = ["Reels", "Carousels", "Stories", "Static posts", "Lives"];
-const FREQUENCIES = ["1–2 posts / week", "3 posts / week", "4–5 posts / week", "Daily"];
+const FREQUENCIES = ["1 to 2 posts a week", "3 posts a week", "4 to 5 posts a week", "Daily"];
+
+// Earlier builds stored "1–2 posts / week"; map those onto the current options.
+function normalizeFrequency(f: string | undefined): string {
+  if (!f) return "";
+  const legacy = f.replace(/[–-]/, " to ").replace(" / week", " a week");
+  return FREQUENCIES.includes(legacy) ? legacy : f;
+}
 
 export default function StrategistSettings() {
   const [aggr, setAggr] = useState<string>("");
@@ -34,15 +41,16 @@ export default function StrategistSettings() {
       .then((r) => (r.ok ? r.json() : { profile: null }))
       .then((j) => {
         const s = ((j.profile?.brand_detail ?? {}) as BrandDetail).strategist ?? {};
+        const freq = normalizeFrequency(s.frequency);
         setAggr(s.aggressiveness ?? "");
         setFormats(s.formats ?? []);
-        setFrequency(s.frequency ?? "");
+        setFrequency(freq);
         setPrioritize(s.prioritize ?? "");
         setSnapshot(
           JSON.stringify([
             s.aggressiveness ?? "",
             [...(s.formats ?? [])].sort(),
-            s.frequency ?? "",
+            freq,
             s.prioritize ?? "",
           ])
         );
@@ -99,8 +107,8 @@ export default function StrategistSettings() {
   return (
     <form onSubmit={save} className="st2-form">
       <div className="st2-field st3-wide">
-        <label>How aggressive should recommendations be?</label>
-        <div className="st3-levels" role="radiogroup" aria-label="Recommendation appetite">
+        <label id="ss-aggr-label">How aggressive should recommendations be?</label>
+        <div className="st3-levels" role="radiogroup" aria-labelledby="ss-aggr-label">
           {LEVELS.map((l) => (
             <button
               key={l.id}
@@ -119,8 +127,8 @@ export default function StrategistSettings() {
 
       <div className="st2-grid">
         <div className="st2-field">
-          <label>Preferred content formats</label>
-          <div className="st3-pills">
+          <label id="ss-formats-label">Preferred content formats</label>
+          <div className="st3-pills" role="group" aria-labelledby="ss-formats-label">
             {FORMATS.map((f) => (
               <button
                 key={f}
@@ -135,8 +143,8 @@ export default function StrategistSettings() {
           </div>
         </div>
         <div className="st2-field">
-          <label>Content frequency target</label>
-          <select value={frequency} onChange={(e) => setFrequency(e.target.value)}>
+          <label htmlFor="ss-frequency">Content frequency target</label>
+          <select id="ss-frequency" value={frequency} onChange={(e) => setFrequency(e.target.value)}>
             <option value="">No target</option>
             {FREQUENCIES.map((f) => (
               <option key={f} value={f}>{f}</option>
@@ -146,8 +154,9 @@ export default function StrategistSettings() {
       </div>
 
       <div className="st2-field st3-wide">
-        <label>Topics to prioritize <em>— optional</em></label>
+        <label htmlFor="ss-prioritize">Topics to prioritize <em>optional</em></label>
         <input
+          id="ss-prioritize"
           value={prioritize}
           onChange={(e) => setPrioritize(e.target.value)}
           placeholder="e.g. behind-the-scenes, catering, weekly specials"

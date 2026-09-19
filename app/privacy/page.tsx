@@ -1,6 +1,7 @@
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
 
-export const metadata = { title: "Privacy Policy — SOCIA" };
+export const metadata = { title: "Privacy Policy | SOCIA" };
 
 // Required by TikTok and Meta app review, and owed to users regardless.
 // Plain-language on purpose: it describes what the app actually does today.
@@ -8,6 +9,14 @@ export const metadata = { title: "Privacy Policy — SOCIA" };
 export default function PrivacyPage() {
   return (
     <main className="legal-page">
+      <header className="legal-top">
+        <Link href="/" className="legal-brand" aria-label="SOCIA home">
+          <BrandMark size={28} />
+          <span>SOCIA</span>
+        </Link>
+        <Link href="/login" className="btn-secondary legal-login">Log in</Link>
+      </header>
+
       <h1>Privacy Policy</h1>
       <p className="legal-date">Last updated: September 4, 2026</p>
 

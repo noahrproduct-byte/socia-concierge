@@ -55,19 +55,43 @@ export function isoDurationSec(v: string | undefined | null): number | null {
 export const ytFormat = (durationSec: number | null): "Short" | "Video" | null =>
   durationSec == null ? null : durationSec <= 180 ? "Short" : "Video";
 
-async function ytFetch<T>(path: string, params: Record<string, string>): Promise<T | null> {
+/** Why a read produced nothing usable. "quota": Google refused the call
+ *  because the daily quota or a rate limit is exhausted; "http": any other
+ *  non-OK response; "network": no response at all (timeout, DNS, offline);
+ *  "not_configured": no YOUTUBE_API_KEY in the environment. A failure is
+ *  never the same thing as "this channel does not exist". */
+export type YtFailure = "quota" | "http" | "network" | "not_configured";
+type YtResult<T> = { ok: true; data: T } | { ok: false; reason: YtFailure };
+
+async function ytRequest<T>(path: string, params: Record<string, string>): Promise<YtResult<T>> {
   const key = process.env.YOUTUBE_API_KEY;
-  if (!key) return null;
+  if (!key) return { ok: false, reason: "not_configured" };
   const u = new URL(`${API}/${path}`);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   u.searchParams.set("key", key);
+  let res: Response;
   try {
-    const res = await fetch(u, { signal: AbortSignal.timeout(10000), next: { revalidate: 900 } });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
+    res = await fetch(u, { signal: AbortSignal.timeout(10000), next: { revalidate: 900 } });
   } catch {
-    return null;
+    return { ok: false, reason: "network" };
   }
+  if (!res.ok) {
+    // Google names the cause in the body: quotaExceeded, dailyLimitExceeded, rateLimitExceeded.
+    const body = (await res.json().catch(() => null)) as { error?: { errors?: { reason?: string }[] } } | null;
+    const reasons = (body?.error?.errors ?? []).map((e) => e.reason ?? "");
+    return { ok: false, reason: reasons.some((r) => /quota|limitexceeded/i.test(r)) ? "quota" : "http" };
+  }
+  try {
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return { ok: false, reason: "http" };
+  }
+}
+
+/** For readers that only need the payload; every failure reads as null. */
+async function ytFetch<T>(path: string, params: Record<string, string>): Promise<T | null> {
+  const r = await ytRequest<T>(path, params);
+  return r.ok ? r.data : null;
 }
 
 type ChannelItem = {
@@ -98,8 +122,9 @@ function toChannel(it: ChannelItem): YtChannel {
   };
 }
 
-/** Resolve "@handle", a channel URL, or a raw channel id to a channel. */
-export async function resolveChannel(input: string): Promise<YtChannel | null> {
+/** Resolve "@handle", a channel URL, or a raw channel id. `data: null` means
+ *  Google answered and knows no such channel; a failure means it didn't answer. */
+async function resolveChannelResult(input: string): Promise<YtResult<YtChannel | null>> {
   const raw = input.trim();
   let handle = raw.replace(/^@/, "");
   let channelId: string | null = null;
@@ -114,33 +139,43 @@ export async function resolveChannel(input: string): Promise<YtChannel | null> {
 
   const parts = "snippet,statistics,contentDetails";
   if (channelId) {
-    const j = await ytFetch<{ items?: ChannelItem[] }>("channels", { part: parts, id: channelId });
-    return j?.items?.[0] ? toChannel(j.items[0]) : null;
+    const j = await ytRequest<{ items?: ChannelItem[] }>("channels", { part: parts, id: channelId });
+    if (!j.ok) return j;
+    return { ok: true, data: j.data.items?.[0] ? toChannel(j.data.items[0]) : null };
   }
 
   // forHandle is the documented lookup for @handles.
-  const byHandle = await ytFetch<{ items?: ChannelItem[] }>("channels", { part: parts, forHandle: handle });
-  if (byHandle?.items?.[0]) return toChannel(byHandle.items[0]);
+  const byHandle = await ytRequest<{ items?: ChannelItem[] }>("channels", { part: parts, forHandle: handle });
+  if (!byHandle.ok) return byHandle;
+  if (byHandle.data.items?.[0]) return { ok: true, data: toChannel(byHandle.data.items[0]) };
 
   // Fall back to search when the handle doesn't resolve directly.
-  const found = await ytFetch<{ items?: { id?: { channelId?: string } }[] }>("search", {
+  const found = await ytRequest<{ items?: { id?: { channelId?: string } }[] }>("search", {
     part: "snippet", type: "channel", maxResults: "1", q: handle,
   });
-  const id = found?.items?.[0]?.id?.channelId;
-  if (!id) return null;
-  const j = await ytFetch<{ items?: ChannelItem[] }>("channels", { part: parts, id });
-  return j?.items?.[0] ? toChannel(j.items[0]) : null;
+  if (!found.ok) return found;
+  const id = found.data.items?.[0]?.id?.channelId;
+  if (!id) return { ok: true, data: null };
+  const j = await ytRequest<{ items?: ChannelItem[] }>("channels", { part: parts, id });
+  if (!j.ok) return j;
+  return { ok: true, data: j.data.items?.[0] ? toChannel(j.data.items[0]) : null };
 }
 
-/** Recent uploads with their public statistics. */
-export async function recentVideos(uploadsPlaylist: string, max = 10): Promise<YtVideo[]> {
-  const list = await ytFetch<{ items?: { contentDetails?: { videoId?: string } }[] }>("playlistItems", {
+/** Resolve "@handle", a channel URL, or a raw channel id to a channel. */
+export async function resolveChannel(input: string): Promise<YtChannel | null> {
+  const r = await resolveChannelResult(input);
+  return r.ok ? r.data : null;
+}
+
+async function recentVideosResult(uploadsPlaylist: string, max = 10): Promise<YtResult<YtVideo[]>> {
+  const list = await ytRequest<{ items?: { contentDetails?: { videoId?: string } }[] }>("playlistItems", {
     part: "contentDetails", playlistId: uploadsPlaylist, maxResults: String(Math.min(50, max)),
   });
-  const ids = (list?.items ?? []).map((i) => i.contentDetails?.videoId).filter(Boolean) as string[];
-  if (!ids.length) return [];
+  if (!list.ok) return list;
+  const ids = (list.data.items ?? []).map((i) => i.contentDetails?.videoId).filter(Boolean) as string[];
+  if (!ids.length) return { ok: true, data: [] };
 
-  const vids = await ytFetch<{
+  const vids = await ytRequest<{
     items?: {
       id: string;
       snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; high?: { url?: string } } };
@@ -148,17 +183,27 @@ export async function recentVideos(uploadsPlaylist: string, max = 10): Promise<Y
       contentDetails?: { duration?: string };
     }[];
   }>("videos", { part: "snippet,statistics,contentDetails", id: ids.join(",") });
+  if (!vids.ok) return vids;
 
-  return (vids?.items ?? []).map((v) => ({
-    videoId: v.id,
-    title: v.snippet?.title ?? "",
-    publishedAt: v.snippet?.publishedAt ?? "",
-    thumb: v.snippet?.thumbnails?.high?.url ?? v.snippet?.thumbnails?.medium?.url ?? null,
-    views: num(v.statistics?.viewCount),
-    likes: num(v.statistics?.likeCount),
-    comments: num(v.statistics?.commentCount),
-    durationSec: isoDurationSec(v.contentDetails?.duration),
-  }));
+  return {
+    ok: true,
+    data: (vids.data.items ?? []).map((v) => ({
+      videoId: v.id,
+      title: v.snippet?.title ?? "",
+      publishedAt: v.snippet?.publishedAt ?? "",
+      thumb: v.snippet?.thumbnails?.high?.url ?? v.snippet?.thumbnails?.medium?.url ?? null,
+      views: num(v.statistics?.viewCount),
+      likes: num(v.statistics?.likeCount),
+      comments: num(v.statistics?.commentCount),
+      durationSec: isoDurationSec(v.contentDetails?.duration),
+    })),
+  };
+}
+
+/** Recent uploads with their public statistics; empty when they can't be read. */
+export async function recentVideos(uploadsPlaylist: string, max = 10): Promise<YtVideo[]> {
+  const r = await recentVideosResult(uploadsPlaylist, max);
+  return r.ok ? r.data : [];
 }
 
 /** Uploads per week over the window the fetched videos actually span.
@@ -186,6 +231,11 @@ export function publicEngagementRate(videos: YtVideo[]): number | null {
 export type YtStats = {
   handle: string;
   found: boolean;
+  /** Set when `found` is false because Google could not be read (quota,
+   *  network), as opposed to Google answering that no such channel exists. */
+  reason?: YtFailure;
+  /** Set when the channel resolved but its recent uploads could not be read. */
+  recentReason?: YtFailure;
   channelId?: string;
   title?: string;
   avatar?: string | null;
@@ -212,12 +262,16 @@ function medianOf(xs: number[]): number | null {
 /** Everything the UI shows for one tracked channel, from public data only.
  *  One implementation shared by the API route and the server-rendered page. */
 export async function channelStats(handle: string): Promise<YtStats> {
-  const ch = await resolveChannel(handle);
+  const resolved = await resolveChannelResult(handle);
+  if (!resolved.ok) return { handle, found: false, reason: resolved.reason };
+  const ch = resolved.data;
   if (!ch) return { handle, found: false };
-  const vids = ch.uploadsPlaylist ? await recentVideos(ch.uploadsPlaylist, 10) : [];
+  const recent = ch.uploadsPlaylist ? await recentVideosResult(ch.uploadsPlaylist, 10) : { ok: true as const, data: [] as YtVideo[] };
+  const vids = recent.ok ? recent.data : [];
   return {
     handle,
     found: true,
+    ...(recent.ok ? {} : { recentReason: recent.reason }),
     channelId: ch.channelId,
     title: ch.title,
     avatar: ch.avatar,

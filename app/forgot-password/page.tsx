@@ -41,6 +41,7 @@ export default function ForgotPasswordPage() {
         <label htmlFor="forgot-email">Email</label>
         <input
           id="forgot-email"
+          name="email"
           type="email"
           autoComplete="email"
           required

@@ -15,7 +15,7 @@ const RATING_CLS: Record<Segment["rating"], string> = { weak: "weak", needs: "ne
 
 export default function StudioPlayer({ url, kind, images, thumbs, markers, segments, seek, onTime, onDuration, cover, onCover, activeMarker, videoRef }: {
   url: string | null; kind: StudioKind; images: string[]; thumbs: { src: string; t: number }[]; markers: Marker[]; segments: Segment[];
-  seek: SeekRequest; onTime: (t: number) => void; onDuration: (d: number) => void; cover: number | null; onCover: (i: number | null) => void; activeMarker: number | null;
+  seek: SeekRequest; onTime?: (t: number) => void; onDuration?: (d: number) => void; cover: number | null; onCover: (i: number | null) => void; activeMarker: number | null;
   /** The parent samples frames from this same element. */
   videoRef?: React.MutableRefObject<HTMLVideoElement | null>;
 }) {
@@ -52,12 +52,14 @@ export default function StudioPlayer({ url, kind, images, thumbs, markers, segme
     );
   }
   const pct = dur ? (t / dur) * 100 : 0;
+  // The sampled frame nearest the playhead: what "Set as cover" acts on.
+  const near = thumbs.length ? thumbs.reduce((best, th, i) => (Math.abs(th.t - t) < Math.abs(thumbs[best].t - t) ? i : best), 0) : null;
   return (
     <div className="stp">
       <div className="stp-stage" onClick={toggle} role="presentation">
         <video ref={video} src={url} playsInline muted={muted} preload="auto" crossOrigin={url.startsWith("blob:") ? undefined : "anonymous"}
-          onTimeUpdate={(e) => { setT(e.currentTarget.currentTime); onTime(e.currentTarget.currentTime); }}
-          onLoadedMetadata={(e) => { setDur(e.currentTarget.duration); onDuration(e.currentTarget.duration); }}
+          onTimeUpdate={(e) => { setT(e.currentTarget.currentTime); onTime?.(e.currentTarget.currentTime); }}
+          onLoadedMetadata={(e) => { setDur(e.currentTarget.duration); onDuration?.(e.currentTarget.duration); }}
           onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
         {!playing && <span className="stp-bigplay" aria-hidden><Play size={22} fill="currentColor" /></span>}
         {markers.map((m, i) => (
@@ -73,12 +75,13 @@ export default function StudioPlayer({ url, kind, images, thumbs, markers, segme
           <input type="range" min={0} max={dur || 0} step={0.05} value={Math.min(t, dur || 0)} aria-label="Seek" onChange={(e) => { const v = video.current; if (!v) return; v.currentTime = Number(e.target.value); setT(v.currentTime); }} style={{ "--p": `${pct}%` } as React.CSSProperties} />
           <div className="stp-track" aria-hidden>
             {segments.map((s, i) => (
-              <span key={i} className={`stp-seg ${RATING_CLS[s.rating]}`} style={{ left: `${dur ? (s.start / dur) * 100 : 0}%`, width: `${dur ? ((s.end - s.start) / dur) * 100 : 0}%` }} title={`${fmtT(s.start)}–${fmtT(s.end)} ${s.label}: ${s.rating}`} />
+              <span key={i} className={`stp-seg ${RATING_CLS[s.rating]}`} style={{ left: `${dur ? (s.start / dur) * 100 : 0}%`, width: `${dur ? ((s.end - s.start) / dur) * 100 : 0}%` }} title={`${fmtT(s.start)} to ${fmtT(s.end)} ${s.label}: ${s.rating}`} />
             ))}
           </div>
+          {/* Mouse-only duplicates of the Timeline insights list (which is keyboard-accessible), so they stay out of the tab order. */}
           <div className="stp-marks" aria-hidden>
             {markers.map((m, i) => (
-              <button key={i} type="button" className={`stp-mark ${m.kind}${activeMarker === i ? " on" : ""}`} style={{ left: `${dur ? (m.t / dur) * 100 : 0}%` }} title={`${fmtT(m.t)} · ${m.label}`} onClick={(e) => { e.stopPropagation(); const v = video.current; if (v) { v.currentTime = m.t; setT(m.t); } }} />
+              <button key={i} type="button" tabIndex={-1} className={`stp-mark ${m.kind}${activeMarker === i ? " on" : ""}`} style={{ left: `${dur ? (m.t / dur) * 100 : 0}%` }} title={`${fmtT(m.t)} · ${m.label}`} onClick={(e) => { e.stopPropagation(); const v = video.current; if (v) { v.currentTime = m.t; setT(m.t); } }} />
             ))}
           </div>
         </div>
@@ -97,6 +100,14 @@ export default function StudioPlayer({ url, kind, images, thumbs, markers, segme
             </button>
           ))}
         </div>
+      )}
+      {near != null && (
+        <p className="stp-note">
+          Click a frame to jump to it; double-click sets the cover.{" "}
+          <button type="button" className="ov-btn ghost small" aria-pressed={cover === near} onClick={() => onCover(cover === near ? null : near)}>
+            {cover === near ? "Clear cover" : `Set frame at ${fmtT(thumbs[near].t)} as cover`}
+          </button>
+        </p>
       )}
     </div>
   );

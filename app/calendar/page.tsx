@@ -7,7 +7,7 @@ import { PUBLISH_SCOPE } from "@/lib/igPublish";
 import { serviceConfigured } from "@/lib/supabase/service";
 import type { ScheduledPost } from "@/lib/scheduling";
 
-export const metadata = { title: "Calendar — SOCIA" };
+export const metadata = { title: "Calendar | SOCIA" };
 
 export default async function CalendarPage() {
   const supabase = await createClient();

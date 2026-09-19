@@ -144,9 +144,11 @@ function OpportunityCard({ o, onExamples }: { o: Opportunity | null; onExamples:
     autoSend: true, context: { page: "competitors" }, contextLabel: `Opportunity: ${o.tag}`,
   });
   const note = `Opportunity: ${o.tag}. ${concept?.concept ?? ""} Why: ${o.why.map((w) => w.text).join(" ")}`;
+  // The only thing pickOpportunity actually established: how many independent kinds of evidence agree.
+  const sources = new Set(o.why.map((w) => w.source)).size;
   return (
     <section className="ov-card cx-opp">
-      <div className="ov-card-head"><h2><span className="cx-opp-mark"><PlatformMark p={o.example?.platform ?? "instagram"} size={11} /></span> Opportunity for You</h2><span className="cx-chip potential">High potential</span></div>
+      <div className="ov-card-head"><h2><span className="cx-opp-mark"><PlatformMark p={o.example?.platform ?? "instagram"} size={11} /></span> Opportunity for You</h2><span className="cx-chip potential" title="Independent evidence sources pointing the same way, listed below.">{sources} sources agree</span></div>
       <div className="cx-opp-body">
         {o.example?.thumb && (
           <button type="button" className="cx-opp-media" onClick={() => onExamples(o.tag)} aria-label="See examples">
@@ -173,9 +175,12 @@ function OpportunityCard({ o, onExamples }: { o: Opportunity | null; onExamples:
   );
 }
 
-export default function NicheSection({ d, active, saved, savedItems, saving, onOpen, onSave }: {
+export default function NicheSection({ d, active, saved, savedItems, saving, saveError, onOpen, onSave }: {
   d: CompetitorsData; active: { name: string; patterns: GroupedPatterns } | null;
-  saved: Set<string>; savedItems: NichePost[]; saving: string | null; onOpen: (p: NichePost) => void; onSave: (p: NichePost) => void;
+  saved: Set<string>; savedItems: NichePost[]; saving: string | null;
+  /** Why the last save or unsave failed, from the server. */
+  saveError?: string | null;
+  onOpen: (p: NichePost) => void; onSave: (p: NichePost) => void;
 }) {
   const now = useMemo(() => new Date(d.now), [d.now]);
   const [tag, setTag] = useState<string | null>(null);
@@ -227,6 +232,7 @@ export default function NicheSection({ d, active, saved, savedItems, saving, onO
               <small>{showSaved ? "your saved posts" : rangeLabel}</small>
             </div>
           </div>
+          {saveError && <p className="cx-add-err" role="alert">{saveError}</p>}
           {shown.length ? (
             all ? (
               <div className="cx-ngrid">{shown.slice(0, 40).map((p) => <NicheCard key={p.url} p={p} saved={saved.has(p.url)} onOpen={onOpen} onSave={onSave} />)}</div>
@@ -248,7 +254,7 @@ export default function NicheSection({ d, active, saved, savedItems, saving, onO
               <OpportunityCard o={opp} onExamples={focusTag} />
             </div>
           )}
-          <p className="cx-niche-foot"><RefreshCw size={11} /> {d.lastRun ? `Discovery last ran ${new Date(d.lastRun).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No discovery run yet"}{webPaused ? ` · web research ${d.sources?.web === "no_credit" ? "paused (AI credit)" : d.sources?.web === "rate_limited" ? "rate limited" : "unavailable"}` : ""}{d.sources?.youtube === "not_configured" ? " · YouTube not configured" : ""}. {busyNote(d)}</p>
+          <p className="cx-niche-foot"><RefreshCw size={11} /> {d.lastRun ? `Discovery last ran ${fmtDate(d.lastRun)}` : "No discovery run yet"}{webPaused ? ` · web research ${d.sources?.web === "no_credit" ? "paused (AI credit)" : d.sources?.web === "rate_limited" ? "rate limited" : "unavailable"}` : ""}{d.sources?.youtube === "not_configured" ? " · YouTube not configured" : ""}. {busyNote(d)}</p>
         </>
       )}
     </section>

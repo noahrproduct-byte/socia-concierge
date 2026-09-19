@@ -32,7 +32,7 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { getPlan, accountLimit } from "@/lib/plan";
 import type { BrandDetail } from "@/lib/profile";
 
-export const metadata = { title: "Settings — SOCIA" };
+export const metadata = { title: "Settings | SOCIA" };
 
 function ago(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -43,12 +43,17 @@ function ago(iso: string): string {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
-// Preview competitor list — same labeled demo set as the Competitors page.
-const PREVIEW_COMPETITORS = [
-  { handle: "@cheese.pull.daily", avatar: "/brand/comp/a1.jpg" },
-  { handle: "@trendy.slice", avatar: "/brand/comp/a2.jpg" },
-  { handle: "@rival.pizza", avatar: "/brand/comp/a3.jpg" },
-];
+// A sync older than this is called stale on the connected-accounts card.
+const FRESH_MS = 12 * 3600_000;
+const fresh = (iso: string | null | undefined) =>
+  Boolean(iso && Date.now() - new Date(iso).getTime() < FRESH_MS);
+
+const PLATFORM_LABEL: Record<string, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  youtube: "YouTube",
+  tiktok: "TikTok",
+};
 
 export default async function SettingsPage({
   searchParams,
@@ -154,9 +159,26 @@ export default async function SettingsPage({
   }
   if (!intel.trendsAgo) intel.trendsAgo = intel.analyzedAgo;
 
-  const syncedRecently = Boolean(
-    snap?.last_synced_at && Date.now() - new Date(snap.last_synced_at).getTime() < 12 * 3600_000
-  );
+  // Health covers every live connection, not Instagram alone.
+  const fbConnected = fbConn?.connection_status === "connected" && Boolean(fbConn?.page_name);
+  const stale = [
+    !fresh(snap?.last_synced_at) ? "Instagram" : null,
+    fbConnected && !fresh(fbConn?.last_synced_at) ? "Facebook" : null,
+  ].filter((x): x is string => Boolean(x));
+
+  // The user's real tracked competitors (same table as the Competitors page).
+  let tracked: { platform: string; handle: string }[] = [];
+  try {
+    const { data, error } = await supabase
+      .from("tracked_competitors")
+      .select("platform, handle")
+      .eq("user_id", user.id)
+      .order("added_at", { ascending: true })
+      .limit(8);
+    if (!error) tracked = (data ?? []) as { platform: string; handle: string }[];
+  } catch {
+    // table may not be migrated yet; the card shows the empty state
+  }
 
   return (
     <AppShell active="settings" userEmail={user.email}>
@@ -185,18 +207,23 @@ export default async function SettingsPage({
                 <span className="st2-card-note">SOCIA runs on your live account data</span>
               </div>
               {snap && (
-                <p className={`st3-health${syncedRecently ? "" : " warn"}`}>
-                  {syncedRecently ? (
-                    <><CheckCircle2 size={13} /> Account health: all systems synced</>
+                <p className={`st3-health${stale.length ? " warn" : ""}`}>
+                  {stale.length === 0 ? (
+                    <>
+                      <CheckCircle2 size={13} /> Account health:{" "}
+                      {fbConnected ? "Instagram and Facebook synced" : "Instagram synced"}
+                    </>
                   ) : (
-                    <><AlertTriangle size={13} /> Data is getting stale — hit Sync now</>
+                    <>
+                      <AlertTriangle size={13} /> {stale.join(" and ")} data is getting stale, hit Sync now
+                    </>
                   )}
                 </p>
               )}
               <InstagramConnect
                 username={snap?.username ?? null}
                 status={ig}
-                syncedAt={snap?.last_synced_at ?? null}
+                syncedAgo={snap?.last_synced_at ? ago(snap.last_synced_at) : null}
                 followers={snap?.followers_count ?? null}
                 avatar={snap?.profile_picture_url ?? null}
                 needsReconnect={snap?.insights_ok === false}
@@ -209,7 +236,7 @@ export default async function SettingsPage({
                 username={fbConn?.username ?? null}
                 followers={fbConn?.followers_count ?? null}
                 picture={fbConn?.picture_url ?? null}
-                syncedAt={fbConn?.last_synced_at ?? null}
+                syncedAgo={fbConn?.last_synced_at ? ago(fbConn.last_synced_at) : null}
                 pendingPages={fbPages}
                 posts={Array.isArray(fbConn?.media) ? (fbConn!.media as FbPost[]).slice(0, 5) : []}
               />
@@ -232,7 +259,7 @@ export default async function SettingsPage({
               <div className="st2-card-head">
                 <span className="st2-card-ico"><Radar size={15} /></span>
                 <h3>Competitors &amp; Market</h3>
-                <span className="st2-card-note">Preview — live tracking arrives with Growth</span>
+                <span className="st2-card-note">Your market and the accounts you track</span>
               </div>
               <div className="st3-market">
                 <div>
@@ -246,17 +273,25 @@ export default async function SettingsPage({
                   )}
                 </div>
                 <div>
-                  <small className="st3-sub">Tracked competitors <em className="st3-chip">Preview</em></small>
-                  <div className="st3-comp-row">
-                    {PREVIEW_COMPETITORS.map((c) => (
-                      <span className="st3-comp" key={c.handle}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={c.avatar} alt="" width={22} height={22} /> {c.handle}
-                      </span>
-                    ))}
-                  </div>
+                  <small className="st3-sub">Tracked competitors</small>
+                  {tracked.length ? (
+                    <div className="st3-comp-row">
+                      {tracked.map((c) => (
+                        <span
+                          className="st3-comp"
+                          key={`${c.platform}:${c.handle}`}
+                          title={PLATFORM_LABEL[c.platform] ?? c.platform}
+                          style={{ paddingLeft: 11 }}
+                        >
+                          @{c.handle}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="st3-market-loc muted">No competitors tracked yet.</p>
+                  )}
                   <Link href="/competitors" className="cp3-viewmore">
-                    Manage competitors <ArrowRight size={13} />
+                    {tracked.length ? "Manage competitors" : "Track a competitor"} <ArrowRight size={13} />
                   </Link>
                 </div>
               </div>
@@ -286,7 +321,7 @@ export default async function SettingsPage({
               <div className="st2-card-head">
                 <span className="st2-card-ico"><Bell size={15} /></span>
                 <h3>Notifications &amp; Reports</h3>
-                <span className="st2-card-note">Planned — nothing to configure yet</span>
+                <span className="st2-card-note">Planned, nothing to configure yet</span>
               </div>
               <ul className="st3-planned">
                 {[
