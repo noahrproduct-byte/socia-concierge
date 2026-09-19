@@ -39,6 +39,29 @@ function Insufficient({ r, patterns }: { r: CompetitorRow; patterns: GroupedPatt
   return <p className="cx-empty small">Not enough posts to call a pattern: {r.posts.length} read, {patterns?.minSample ?? 5} needed.</p>;
 }
 
+/** One unlock banner for the whole content-intelligence row, shown instead of
+ *  two cards carrying the identical Connect Facebook message. */
+export function ContentUnlock({ r }: { r: CompetitorRow }) {
+  return (
+    <section className="ov-card cx2-card cx2-unlock">
+      <div className="cx2-locked-ghost" aria-hidden />
+      <div className="cx2-unlock-body">
+        <span className="cx2-unlock-ico"><Link2 size={16} /></span>
+        <div className="cx2-unlock-copy">
+          <b>Unlock {r.name}&apos;s content intelligence</b>
+          <p>{gateText(r)} One connection unlocks their format mix, posting rhythm and top posts.</p>
+        </div>
+        {r.postsGate === "connection_needed" && <Link href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</Link>}
+      </div>
+      <div className="cx2-unlock-feats" aria-hidden>
+        <span><PieChart size={12} /> Format mix</span>
+        <span><Clock size={12} /> When they post</span>
+        <span>★ Top content</span>
+      </div>
+    </section>
+  );
+}
+
 /* ---------- what's working for them (format mix) ---------- */
 
 export function ContentMix({ r, patterns, yourTopFormat }: { r: CompetitorRow | null; patterns: GroupedPatterns | null; yourTopFormat: string | null }) {

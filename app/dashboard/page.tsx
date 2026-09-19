@@ -76,7 +76,7 @@ export default async function DashboardPage({
             <h3>Know your audience</h3>
             <p>Track your follower growth and discover who actually watches you.</p>
             <div className="mockp">
-              <div className="mockp-head"><span className="side-mark sm">S</span> Audience · top segments</div>
+              <div className="mockp-head"><span className="side-mark sm">S</span> Audience · top segments <em className="mock-example">Example</em></div>
               <div className="mock-row"><span>18 to 24</span><span className="mock-bar"><i style={{ width: "34%" }} /></span><b>34%</b></div>
               <div className="mock-row"><span>25 to 34</span><span className="mock-bar"><i style={{ width: "42%" }} /></span><b>42%</b></div>
               <div className="mock-row"><span>35 to 44</span><span className="mock-bar"><i style={{ width: "18%" }} /></span><b>18%</b></div>
@@ -88,7 +88,7 @@ export default async function DashboardPage({
             <h3>See every format&apos;s numbers</h3>
             <p>Reach, views, and engagement for posts, reels, and stories in detail.</p>
             <div className="mockp donuts">
-              <div className="mockp-head"><span className="side-mark sm">S</span> Engagement · by format</div>
+              <div className="mockp-head"><span className="side-mark sm">S</span> Engagement · by format <em className="mock-example">Example</em></div>
               <div className="mock-donut-row">
                 <span className="mock-donut" style={{ ["--v" as string]: "42%" }}><b>4.2%</b><small>Posts</small></span>
                 <span className="mock-donut hot" style={{ ["--v" as string]: "68%" }}><b>6.8%</b><small>Reels</small></span>
@@ -102,7 +102,7 @@ export default async function DashboardPage({
             <h3>Watch your competitors</h3>
             <p>Add competitor accounts and compare their growth with yours.</p>
             <div className="mockp">
-              <div className="mockp-head"><span className="side-mark sm">S</span> Competitors · followers vs you</div>
+              <div className="mockp-head"><span className="side-mark sm">S</span> Competitors · followers vs you <em className="mock-example">Example</em></div>
               <div className="mock-row"><span>@brand_a</span><span className="mock-sub">24.1K followers</span><b className="pos">+24%</b></div>
               <div className="mock-row"><span>@brand_b</span><span className="mock-sub">18.7K followers</span><b className="pos">+12%</b></div>
               <div className="mock-row"><span>@brand_c</span><span className="mock-sub">9.4K followers</span><b className="neg">-5%</b></div>
@@ -110,6 +110,7 @@ export default async function DashboardPage({
             </div>
           </section>
         </div>
+        <p className="db-feats-note">These panels show example numbers. Your real data replaces them the moment you connect — nothing on the live dashboard is ever a sample.</p>
 
         {profile?.niche && (
           <div className="panel-grid">

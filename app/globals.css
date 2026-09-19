@@ -430,7 +430,7 @@ section.block > h3 {
   padding: 3px 8px;
   border-radius: 6px;
   background: var(--inverse-surface);
-  color: var(--on-primary);
+  color: var(--inverse-text);
 }
 .tag.fmt {
   background: var(--sky);
@@ -3000,7 +3000,7 @@ a.hub-card:hover {
   position: absolute;
   transform: translate(-50%, -135%);
   background: var(--inverse-surface);
-  color: var(--on-primary);
+  color: var(--inverse-text);
   border-radius: 9px;
   padding: 7px 11px;
   font-size: 12px;
@@ -3102,6 +3102,7 @@ a.hub-card:hover {
 }
 .plat.tt {
   background: var(--inverse-surface);
+  color: var(--inverse-text);
 }
 .plat.yt {
   background: #ff0000;
@@ -4428,16 +4429,19 @@ a.hub-card:hover {
 .db-connect-copy p { font-size: 13.5px; color: var(--slate); line-height: 1.5; max-width: 560px; }
 .db-connect-cta {
   flex-shrink: 0;
-  background: var(--inverse-surface);
+  /* Primary action of the whole page: violet in BOTH themes. The previous
+     inverse-surface background rendered white-on-white in dark mode, which
+     made the most important button in the app look disabled. */
+  background: linear-gradient(135deg, var(--primary), var(--primary-bright));
   color: var(--on-primary);
   font-size: 14px;
   font-weight: 650;
   padding: 12px 20px;
   border-radius: 11px;
-  transition: transform 0.12s, box-shadow 0.2s;
-  box-shadow: 0 6px 18px rgba(var(--shadow-rgb), 0.25);
+  transition: transform 0.12s, box-shadow 0.2s, filter 0.15s;
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
 }
-.db-connect-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(var(--shadow-rgb), 0.32); }
+.db-connect-cta:hover { transform: translateY(-2px); filter: brightness(1.07); box-shadow: 0 10px 26px rgba(var(--primary-rgb), 0.45); }
 
 .db-feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
 .db-feat {
@@ -6698,7 +6702,7 @@ a.hub-card:hover {
   position: absolute;
   transform: translate(-50%, calc(-100% - 6px));
   background: var(--inverse-surface);
-  color: var(--on-primary);
+  color: var(--inverse-text);
   font-size: 10.5px;
   font-weight: 600;
   padding: 3px 8px;
@@ -12071,3 +12075,24 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .st3-fbpost-meta em { font-style: normal; display: inline-flex; align-items: center; gap: 3px; }
 .st3-fbpost-meta a { color: var(--primary-text); text-decoration: none; font-weight: 650; }
 .st3-fbpost-meta a:hover { text-decoration: underline; }
+
+/* Example labeling on the disconnected dashboard's preview panels — the
+   honesty rule applies to illustrations too. */
+.mock-example { margin-left: auto; font-style: normal; font-size: 9px; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 99px; background: var(--warning-subtle); color: var(--warning-text); }
+.mockp-head { display: flex; align-items: center; gap: 6px; }
+.db-feats-note { margin: 10px 2px 0; font-size: 12px; color: var(--text-muted); }
+
+/* Content-intelligence unlock banner (replaces two identical gated cards) */
+.cx2-unlock { padding: 18px 20px; }
+.cx2-unlock-body { position: relative; display: flex; align-items: center; gap: 14px; }
+.cx2-unlock-ico { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center;
+  background: var(--primary-subtle); color: var(--primary-text); }
+.cx2-unlock-copy { flex: 1; min-width: 0; }
+.cx2-unlock-copy b { display: block; font-size: 14px; font-weight: 750; letter-spacing: -.15px; margin-bottom: 2px; }
+.cx2-unlock-copy p { margin: 0; font-size: 12.3px; line-height: 1.55; color: var(--text-secondary); max-width: 62ch; }
+.cx2-unlock-feats { position: relative; display: flex; gap: 14px; margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.cx2-unlock-feats span { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+@media (max-width: 700px) { .cx2-unlock-body { flex-direction: column; align-items: flex-start; } }

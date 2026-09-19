@@ -257,9 +257,9 @@ export default function CalendarBoard({
           ) : connected ? (
             <div className="cal2-live muted">Not enough posts yet to map your audience windows.</div>
           ) : (
-            <div className="cal2-live muted">
-              <Link href="/settings">Connect your Instagram</Link>&nbsp;to see your audience windows.
-            </div>
+            // The auto-publish banner below already carries the connect link;
+            // saying it twice on one screen reads like nagging.
+            <div className="cal2-live muted">Audience windows appear once your account is connected.</div>
           )
         }
         actions={

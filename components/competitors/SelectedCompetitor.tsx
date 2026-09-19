@@ -125,7 +125,7 @@ export function WhyWinning({ reasons, r, connected, onEvidence }: {
 }) {
   return (
     <section className="ov-card cx2-card cx2-why">
-      <div className="cx2-card-head"><h2>Why they&apos;re winning</h2><span className="cx2-micro">TOP {reasons.length || "—"} FACTORS</span></div>
+      <div className="cx2-card-head"><h2>Why they&apos;re winning</h2>{reasons.length > 0 && <span className="cx2-micro">TOP {reasons.length} FACTOR{reasons.length === 1 ? "" : "S"}</span>}</div>
       {reasons.length ? (
         <div className="cx2-why-grid">
           {reasons.map((x, i) => {

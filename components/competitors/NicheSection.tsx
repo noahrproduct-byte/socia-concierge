@@ -238,12 +238,16 @@ export default function NicheSection({ d, active, saved, savedItems, saving, onO
               {!showSaved && !tag && <RefreshButton className="ov-btn ghost small" label="Refresh discovery" />}
             </div>
           )}
-          <div className="cx-row cx-row-bottom">
-            <Working w={working} onTag={focusTag} />
-            <Trending m={mom} dirn="up" onTag={focusTag} />
-            <Trending m={mom} dirn="down" onTag={focusTag} />
-            <OpportunityCard o={opp} onExamples={focusTag} />
-          </div>
+          {/* Before any discovery, all four cards would only apologize in four
+              different ways — the empty state above already says it once. */}
+          {d.content.length > 0 && (
+            <div className="cx-row cx-row-bottom">
+              <Working w={working} onTag={focusTag} />
+              <Trending m={mom} dirn="up" onTag={focusTag} />
+              <Trending m={mom} dirn="down" onTag={focusTag} />
+              <OpportunityCard o={opp} onExamples={focusTag} />
+            </div>
+          )}
           <p className="cx-niche-foot"><RefreshCw size={11} /> {d.lastRun ? `Discovery last ran ${new Date(d.lastRun).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "No discovery run yet"}{webPaused ? ` · web research ${d.sources?.web === "no_credit" ? "paused (AI credit)" : d.sources?.web === "rate_limited" ? "rate limited" : "unavailable"}` : ""}{d.sources?.youtube === "not_configured" ? " · YouTube not configured" : ""}. {busyNote(d)}</p>
         </>
       )}

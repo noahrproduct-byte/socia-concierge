@@ -1,0 +1,27 @@
+{
+  "name": "socia-demo-video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "30s SOCIA product demo — Playwright captures of the live app composited with Remotion.",
+  "scripts": {
+    "capture": "tsx capture.ts",
+    "stills": "tsx capture.ts --stills-only",
+    "render": "remotion render src/index.ts SociaDemoVertical out/socia-demo-vertical.mp4 && remotion render src/index.ts SociaDemoWide out/socia-demo-wide.mp4",
+    "verify": "tsx verify.ts",
+    "studio": "remotion studio src/index.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "dotenv": "^16.4.0",
+    "playwright": "^1.49.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -23,7 +23,7 @@ import { PlatformSelect, RangeSelect, RefreshButton } from "./Controls";
 import Roster from "./Roster";
 import IntelStrip from "./IntelStrip";
 import { GapBars, NextMove, ProfileBar, WhyWinning } from "./SelectedCompetitor";
-import { ContentMix, TopContent, WhenTheyPost } from "./PatternsRow";
+import { ContentMix, ContentUnlock, TopContent, WhenTheyPost } from "./PatternsRow";
 import { Radar, Scatter, ScoreRing, Trajectory, type Pt, type ScatterPost } from "./viz";
 import NicheSection from "./NicheSection";
 import NicheDrawer from "./NicheDrawer";
@@ -298,10 +298,15 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
 
           <GapBars comparisons={pick.comparisons} themName={themName} connected={d.connected} connectHref={d.igConnectHref} />
 
-          <div className="cx2-grid duo">
-            <ContentMix r={active} patterns={patterns} yourTopFormat={d.you?.topFormat ?? null} />
-            <WhenTheyPost r={active} />
-          </div>
+          {active.posts.length === 0 ? (
+            // Both cards would gate on the identical message — say it once.
+            <ContentUnlock r={active} />
+          ) : (
+            <div className="cx2-grid duo">
+              <ContentMix r={active} patterns={patterns} yourTopFormat={d.you?.topFormat ?? null} />
+              <WhenTheyPost r={active} />
+            </div>
+          )}
 
           {scatterAll.length >= 3 && (
             <section className="ov-card cx2-card cx2-scatter">

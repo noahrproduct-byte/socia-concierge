@@ -30,3 +30,9 @@ next-env.d.ts
 
 # Local phone agent experiment; not part of the app
 phone-agent/
+
+# demo video (captures, renders, secrets)
+/demo-video/captures/
+/demo-video/out/
+/demo-video/node_modules/
+/demo-video/.env
