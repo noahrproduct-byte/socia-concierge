@@ -44,13 +44,14 @@ export default function PointDrawer({ bucket, isOutlier, granularity, series, ba
     if (driver && share != null && postTotals) observed.push(`“${driver.title.slice(0, 40)}” accounted for ${share}% of the ${period}'s measured ${unit}.`);
     if (baseline && mult != null) observed.push(`${mult >= 1 ? `${mult.toFixed(mult >= 10 ? 0 : 1)}× ` : `${Math.round(mult * 100)}% of `}your ${baseline.label.toLowerCase()} (${fmtNum(Math.round(baseline.value))} ${unit}).`);
   }
+  // Observations, not verdicts: a bucket can't show what caused its number.
   const interpretation = !b || value == null ? ""
     : isOutlier && driver && postTotals
-      ? `One post carried this ${period}. Its opening and subject reached well beyond your followers; a single post can't show which element did it, so treat it as a pattern to test rather than a rule.`
+      ? `One post carried this ${period}. A post this far above your median usually reached well beyond your followers; which element did it (the opening, the subject, the format) can't be read from a single post, so treat it as a pattern to test rather than a rule.`
       : isOutlier
         ? `Activity this ${period} ran far above your typical level. ${inBucket.length ? "The posts published in it are the likeliest reason, but Instagram's account-level number also includes older content being rediscovered." : "No post was published in it, so older content being rediscovered or shared is the likelier explanation."}`
         : mult != null && mult < 0.7
-          ? `Below your typical ${period}. ${inBucket.length ? "The posts here landed softer than your median; compare their hooks and subjects with your stronger posts before changing more." : "Nothing was published, so this is the normal decay of older posts."}`
+          ? `Below your typical ${period}. ${inBucket.length ? "The posts here landed softer than your median; compare their hooks and subjects with your stronger posts before changing more." : "Nothing was published in it; with no new post, older posts carry the number and that usually drifts down."}`
           : `Around your typical level. Useful as a control when you test a bolder post.`;
   const recommendation = !b ? "" : isOutlier && driver
     ? `Make a second ${driver.format.toLowerCase()} with the same format and opening structure as “${driver.title.slice(0, 30)}” and compare it against your ${baseline ? baseline.label.toLowerCase() : "median"}.`

@@ -65,8 +65,9 @@ export default function FollowerChart({ points, granularity = "day", height = 20
         <polygon points={area} fill="url(#fc-fill)" className={`fc-area${mounted ? " in" : ""}`} />
         <polyline points={line} fill="none" className={`ov-line${mounted ? " in" : ""}`} />
         {buckets.map((b, i) => (
-          <g key={b.key} className="ov-barg" tabIndex={0} role="button" aria-label={`${title(b, granularity)}: ${b.followers.toLocaleString("en-US")} followers${b.net != null ? `, ${b.net >= 0 ? "+" : ""}${b.net} net` : ""}`}
-            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)}>
+          // Nothing happens on click, so each point is a labelled image, not a button.
+          <g key={b.key} className="ov-barg" role="img" aria-label={`${title(b, granularity)}: ${b.followers.toLocaleString("en-US")} followers${b.net != null ? `, ${b.net >= 0 ? "+" : ""}${b.net} net` : ""}`}
+            onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
             <rect x={x(i) - (n > 1 ? plotW / (n - 1) / 2 : plotW / 2)} y={padT} width={n > 1 ? plotW / (n - 1) : plotW} height={plotH} className="ov-hit" />
             <circle cx={x(i)} cy={y(b.followers)} r={hover === i ? 5 : n > 60 ? 0 : 3} className="ov-dot" />
           </g>

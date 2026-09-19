@@ -5,13 +5,15 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
-import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
+import { getIgSnapshot, readDailySnapshots, getActiveConnection } from "@/lib/instagramSync";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
 import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
 import AppShell from "@/components/AppShell";
 import SyncCinematic from "@/components/SyncCinematic";
 import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
+import Greeting from "@/components/ov/Greeting";
+import SyncPending from "@/components/ov/SyncPending";
 import {
   RANGES, rangeDays, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
   type PlatformRow,
@@ -19,7 +21,7 @@ import {
 import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
 
-export const metadata = { title: "Dashboard — SOCIA" };
+export const metadata = { title: "Dashboard | SOCIA" };
 
 // The dashboard answers: how am I doing, what changed, what's working, what
 // needs attention, what should I do next. Every figure is computed in
@@ -37,8 +39,8 @@ export default async function DashboardPage({
 
   const { ig, range: rangeParam } = await searchParams;
   const justConnected = ig === "connected";
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  // The time-of-day greeting is the viewer's, so <Greeting> computes it after
+  // mount; the server never renders text that depends on local time.
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
 
@@ -47,29 +49,38 @@ export default async function DashboardPage({
   const snap = connected ? await getIgSnapshot(supabase, user.id) : null;
   const live = Boolean(snap && snap.followers_count != null);
 
-  if (!connected || !live) {
+  if (!live) {
+    // A connection row without a usable snapshot means the OAuth step is done
+    // but the first sync hasn't completed (or failed): offer the sync itself,
+    // not a second OAuth round.
+    const conn = (await getActiveConnection(supabase, user.id, "username")) as { username?: string | null } | null;
+    const pending = Boolean(conn);
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     return (
       <AppShell active="dashboard" userEmail={user.email}>
         <div className="dash-header">
           <div>
             <h1 className="dash-greeting">
-              {greeting}, {name} <span aria-hidden>👋</span>
+              <Greeting name={name} />
             </h1>
-            <p className="dash-context">Let&apos;s get your account set up.</p>
+            <p className="dash-context">{pending ? "One more step: sync your Instagram account." : "Let's get your account set up."}</p>
           </div>
         </div>
 
-        {/* tinted connect banner */}
-        <div className="db-connect">
-          <span className="db-connect-ico"><Link2 size={22} /></span>
-          <div className="db-connect-copy">
-            <h2>Connect your Instagram account</h2>
-            <p>See how your community grows, what content performs best, and how you compare to your competitors.</p>
+        {pending ? (
+          <SyncPending username={conn?.username ?? snap?.username ?? null} />
+        ) : (
+          /* tinted connect banner */
+          <div className="db-connect">
+            <span className="db-connect-ico"><Link2 size={22} /></span>
+            <div className="db-connect-copy">
+              <h2>Connect your Instagram account</h2>
+              <p>See how your community grows, what content performs best, and how you compare to your competitors.</p>
+            </div>
+            {/* plain anchor: /api/auth routes must not be Link-prefetched */}
+            <a href={igHref} className="db-connect-cta">Connect Instagram</a>
           </div>
-          {/* plain anchor: /api/auth routes must not be Link-prefetched */}
-          <a href={igHref} className="db-connect-cta">Connect Instagram</a>
-        </div>
+        )}
 
         {/* what you get, illustrated */}
         <div className="db-feats">
@@ -111,7 +122,7 @@ export default async function DashboardPage({
             </div>
           </section>
         </div>
-        <p className="db-feats-note">These panels show example numbers. Your real data replaces them the moment you connect — nothing on the live dashboard is ever a sample.</p>
+        <p className="db-feats-note">These panels show example numbers. Your real data replaces them {pending ? "as soon as the first sync completes" : "the moment you connect"}: nothing on the live dashboard is ever a sample.</p>
 
         {profile?.niche && (
           <div className="panel-grid">
@@ -131,17 +142,18 @@ export default async function DashboardPage({
   const days = rangeDays(rangeId);
   const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
   const media = snap!.media ?? [];
+  const now = new Date();
+  const since = now.getTime() - days * DAY_MS;
 
-  let dailyRows: DailySnapshot[] = [];
-  try {
-    dailyRows = await readDailySnapshots<DailySnapshot>(supabase, user.id, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source");
-  } catch {
-    // snapshots table may not exist yet — series render their empty states
-  }
-  const [schedRes, plansRes] = await Promise.all([
+  // None of these reads depends on another, so they run together. The daily
+  // snapshots table may not exist yet, in which case its series render their
+  // empty states; a Facebook failure only empties that platform row.
+  const [dailyRows, schedRes, plansRes, fb] = await Promise.all([
+    readDailySnapshots<DailySnapshot>(supabase, user.id, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as DailySnapshot[]),
     supabase.from("scheduled_posts").select("*").eq("user_id", user.id).neq("status", "cancelled")
-      .gte("scheduled_at", new Date(Date.now() - 30 * DAY_MS).toISOString()).order("scheduled_at", { ascending: true }).limit(200),
+      .gte("scheduled_at", new Date(now.getTime() - 30 * DAY_MS).toISOString()).order("scheduled_at", { ascending: true }).limit(200),
     supabase.from("plans").select("id, data, created_at, client_handle").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
+    getFbSnapshot(supabase, user.id).catch(() => null),
   ]);
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
@@ -150,15 +162,18 @@ export default async function DashboardPage({
   // Baseline = the median post's interactions, the same reference Analytics uses.
   const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);
-  const top = rankPosts(posts, "views", 8);
+  // Top content honours the selected range; the baseline and median views stay
+  // account-wide so a post's multiplier means the same thing everywhere.
+  const inRangePosts = posts.filter((p) => new Date(p.published).getTime() >= since);
+  const top = rankPosts(inRangePosts, "views", 8);
   const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
 
-  const kpisAll = buildKpis({ media, daily: dailyRows, followers: snap!.followers_count ?? null, days });
+  const kpisAll = buildKpis({ media, daily: dailyRows, followers: snap!.followers_count ?? null, days, now });
   const kpis = (["views", "engagement_rate", "followers", "posts"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
   const series = {
-    views: buildSeries("views", media, dailyRows, days),
-    engagement: buildSeries("engagement", media, dailyRows, days),
-    followers: buildSeries("followers", media, dailyRows, days),
+    views: buildSeries("views", media, dailyRows, days, now),
+    engagement: buildSeries("engagement", media, dailyRows, days, now),
+    followers: buildSeries("followers", media, dailyRows, days, now),
   };
   const brand = profile?.brand_detail ?? null;
   const insights = buildInsights({ media, baseline, location: brand?.location ?? null, handle: snap!.username ?? null });
@@ -178,10 +193,8 @@ export default async function DashboardPage({
   // shares on posts inside the range), as Meta reports it. Facebook exposes
   // no view count for regular Page posts, so under the views metric the row
   // is connected but unmeasured, never zero.
-  const fb = await getFbSnapshot(supabase, user.id).catch(() => null);
   const fbConnected = fb?.status === "connected";
-  const fbSince = Date.now() - (days) * 86400000;
-  const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
+  const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= since) : [];
   const fbCounted = fbPosts.some((p) => p.reactions != null || p.comments != null || p.shares != null);
   const fbEngagement = fbCounted ? fbPosts.reduce((a, p) => a + (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0), 0) : null;
   const fbValue = platformMetric === "engagement" ? fbEngagement : null;
@@ -198,7 +211,7 @@ export default async function DashboardPage({
   }
 
   const d: DashboardData = {
-    greeting, name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,
+    name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,
     insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
     timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
   };

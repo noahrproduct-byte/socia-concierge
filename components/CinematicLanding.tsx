@@ -502,6 +502,8 @@ export default function CinematicLanding() {
   const jump = useCallback((id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMenu(false);
+    // The anchor default is prevented for the smooth scroll, so keep the URL shareable by hand.
+    history.replaceState(null, "", `#${id}`);
   }, []);
 
   /* section links are real anchors (deep-linkable, work without JS); with JS they smooth-scroll instead */

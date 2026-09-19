@@ -14,8 +14,8 @@ const IG = (
   </svg>
 );
 
-export default function ContentRow({ posts, onOpen, size = "md" }: { posts: PostCard[]; onOpen: (p: PostCard) => void; size?: "md" | "lg" }) {
-  const ref = useRef<HTMLDivElement>(null);
+export default function ContentRow({ posts, onOpen, size = "md", emptyText = "No posts synced yet." }: { posts: PostCard[]; onOpen: (p: PostCard) => void; size?: "md" | "lg"; emptyText?: string }) {
+  const ref = useRef<HTMLUListElement>(null);
   const [can, setCan] = useState({ left: false, right: false });
   const update = () => {
     const el = ref.current;
@@ -34,37 +34,41 @@ export default function ContentRow({ posts, onOpen, size = "md" }: { posts: Post
   const by = (dir: 1 | -1) => ref.current?.scrollBy({ left: dir * Math.max(240, ref.current.clientWidth * 0.7), behavior: "smooth" });
 
   if (!posts.length) {
-    return <div className="ov-empty">No posts synced yet.</div>;
+    return <div className="ov-empty">{emptyText}</div>;
   }
   const haveViews = posts.some((p) => p.views != null);
   return (
     <div className={`ov-row ${size}`}>
       <button type="button" className={`ov-row-nav left${can.left ? "" : " off"}`} aria-label="Scroll left" onClick={() => by(-1)} disabled={!can.left}><ChevronLeft size={16} /></button>
-      <div className="ov-row-scroll" ref={ref} role="list" aria-label="Top performing content">
+      {/* A real list of real buttons: the li is a fixed flex item so the card
+          keeps its own width and the button keeps its role. */}
+      <ul className="ov-row-scroll" ref={ref}>
         {posts.map((p) => (
-          <button type="button" role="listitem" key={p.id} className="ov-card" onClick={() => onOpen(p)} aria-label={`${p.title}, ${haveViews && p.views != null ? `${fmtNum(p.views)} views` : `${fmtNum(p.engagements)} engagements`}`}>
-            <span className="ov-card-media">
-              {p.thumb ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.thumb} alt="" loading="lazy" />
-              ) : (
-                <span className="ov-card-ph" aria-hidden />
-              )}
-              <span className="ov-card-plat" aria-hidden>{IG}</span>
-              {p.isVideo && <span className="ov-card-play" aria-hidden><Play size={12} fill="currentColor" /></span>}
-              <span className="ov-card-stat">
-                {p.isVideo && <Play size={10} fill="currentColor" />}
-                {haveViews && p.views != null ? fmtNum(p.views) : `${fmtNum(p.engagements)} eng.`}
+          <li key={p.id} className="flex shrink-0">
+            <button type="button" className="ov-card" onClick={() => onOpen(p)} aria-label={`${p.title}, ${haveViews && p.views != null ? `${fmtNum(p.views)} views` : `${fmtNum(p.engagements)} interactions`}`}>
+              <span className="ov-card-media">
+                {p.thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.thumb} alt="" loading="lazy" />
+                ) : (
+                  <span className="ov-card-ph" aria-hidden />
+                )}
+                <span className="ov-card-plat" aria-hidden>{IG}</span>
+                {p.isVideo && <span className="ov-card-play" aria-hidden><Play size={12} fill="currentColor" /></span>}
+                <span className="ov-card-stat">
+                  {p.isVideo && <Play size={10} fill="currentColor" />}
+                  {haveViews && p.views != null ? fmtNum(p.views) : `${fmtNum(p.engagements)} interactions`}
+                </span>
               </span>
-            </span>
-            <span className="ov-card-body">
-              <span className="ov-card-title">{p.title}</span>
-              {p.multiplier != null && p.multiplier >= 1.05 && <span className="ov-card-mult">+{p.multiplier.toFixed(1)}x</span>}
-            </span>
-            <span className="ov-card-date">{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>
-          </button>
+              <span className="ov-card-body">
+                <span className="ov-card-title">{p.title}</span>
+                {p.multiplier != null && p.multiplier >= 1.05 && <span className="ov-card-mult">{p.multiplier.toFixed(1)}×</span>}
+              </span>
+              <span className="ov-card-date">{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>
+            </button>
+          </li>
         ))}
-      </div>
+      </ul>
       <button type="button" className={`ov-row-nav right${can.right ? "" : " off"}`} aria-label="Scroll right" onClick={() => by(1)} disabled={!can.right}><ChevronRight size={16} /></button>
     </div>
   );

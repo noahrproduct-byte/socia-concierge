@@ -3,15 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Calendar, ChevronDown, Check } from "lucide-react";
+import { RANGES } from "@/lib/overview";
 
 // Drives the page's real date range via ?range=, so every server-computed
-// metric recalculates. Options are limited to ranges SOCIA can honour.
-const OPTIONS: { label: string; days: string }[] = [
-  { label: "Last 7 days", days: "7" },
-  { label: "Last 30 days", days: "30" },
-  { label: "Last 90 days", days: "90" },
-  { label: "Last 12 months", days: "365" },
-];
+// metric recalculates. The options are the one list the server accepts
+// (lib/overview RANGES), so the menu can never offer a range a page ignores.
+const OPTIONS: { label: string; days: string }[] = RANGES.map((r) => ({ label: r.label, days: r.id }));
 
 export default function DateRangeSelector() {
   const router = useRouter();

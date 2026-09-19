@@ -2,7 +2,7 @@
 
 // Evidence-based insights. Every item was computed from the account's own
 // numbers (lib/overview.buildInsights); clicking one opens the evidence with
-// observed data, SOCIA's interpretation and a recommendation kept apart.
+// observed data, SOCIA's read and a recommendation kept apart.
 
 import { useState } from "react";
 import Link from "next/link";
@@ -49,20 +49,26 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
             <small className="ov-insight-tag big">{open.tag}</small>
             <h3 className="ov-drawer-title">{open.title}</h3>
             <div className="ov-why-block"><small>Observed data</small><ul>{open.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
-            <div className="ov-why-block ai"><small>SOCIA's interpretation</small><p>{open.interpretation}</p></div>
+            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{open.interpretation}</p></div>
             <div className="ov-why-block rec"><small>Recommendation</small><p>{open.recommendation}</p></div>
             {evidence.length > 0 && (
               <div className="ov-evidence">
                 <small>Relevant content</small>
-                {evidence.map((p) => (
-                  <a key={p.id} href={p.permalink ?? "#"} target="_blank" rel="noreferrer" className="ov-evidence-row">
-                    {p.thumb ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.thumb} alt="" width={40} height={40} />
-                    ) : <span className="ov-card-ph" />}
-                    <span><b>{p.title}</b><em>{p.engagements.toLocaleString("en-US")} interactions{p.views != null ? ` · ${p.views.toLocaleString("en-US")} views` : ""}</em></span>
-                  </a>
-                ))}
+                {evidence.map((p) => {
+                  const inner = (
+                    <>
+                      {p.thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.thumb} alt="" width={40} height={40} />
+                      ) : <span className="ov-card-ph" />}
+                      <span><b>{p.title}</b><em>{p.engagements.toLocaleString("en-US")} interactions{p.views != null ? ` · ${p.views.toLocaleString("en-US")} views` : ""}</em></span>
+                    </>
+                  );
+                  // Without a permalink there is nothing to open, so no link.
+                  return p.permalink
+                    ? <a key={p.id} href={p.permalink} target="_blank" rel="noreferrer" className="ov-evidence-row">{inner}</a>
+                    : <span key={p.id} className="ov-evidence-row">{inner}</span>;
+                })}
               </div>
             )}
             <div className="ov-detail-actions">

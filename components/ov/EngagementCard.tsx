@@ -20,7 +20,8 @@ export default function EngagementCard({ rate, breakdown, quality, rangeLabel }:
           <small className="eg-formula" title={rate.formula}><Info size={11} /> How SOCIA calculates engagement: {rate.formula}.</small>
         </div>
         <div className="eg-total">
-          <b>{breakdown.total ? fmtNum(breakdown.total) : "—"}</b>
+          {/* Zero interactions on real posts is a value; only "no posts" is nothing to count. */}
+          <b>{breakdown.posts > 0 ? fmtNum(breakdown.total) : "—"}</b>
           <span>Total interactions · {breakdown.posts} post{breakdown.posts === 1 ? "" : "s"} · {rangeLabel.toLowerCase()}</span>
         </div>
       </div>

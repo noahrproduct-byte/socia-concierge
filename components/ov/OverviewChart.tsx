@@ -133,7 +133,8 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
           const on = hover === i;
           const label = `${bucketTitle(b, granularity)}: ${b.value == null ? "no data" : `${fmtNum(b.value)} ${unit}`}${outliers.has(i) ? ", breakout" : ""}`;
           return (
-            <g key={i} className="ov-barg" tabIndex={0} role="button" aria-label={label}
+            // A bar is a button only where clicking it opens the detail drawer.
+            <g key={i} className="ov-barg" tabIndex={onPick ? 0 : undefined} role={onPick ? "button" : undefined} aria-label={label}
               onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)}
               onClick={() => onPick?.(b, outliers.has(i))} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && onPick) { e.preventDefault(); onPick(b, outliers.has(i)); } }}>
               <rect x={x(i) - slot / 2} y={padT} width={slot} height={plotH} className="ov-hit" />

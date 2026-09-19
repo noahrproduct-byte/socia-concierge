@@ -4,23 +4,23 @@ import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
-import { getFbSnapshot } from "@/lib/facebookSync";
 import { getIgSnapshot, readDailySnapshots, getActiveConnection, type IgMediaItem } from "@/lib/instagramSync";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
 import { median } from "@/lib/metrics";
-import { interactionsTotal, engagementRateOf, engagementBreakdown, engagementQuality } from "@/lib/engagement";
+import { interactionsTotal, engagementRateOf, engagementBreakdown, engagementQuality, type RateMethod } from "@/lib/engagement";
 import { followerPoints } from "@/lib/followers";
 import { buildGaps } from "@/lib/gaps";
 import { fetchDemographics } from "@/lib/igDemographics";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsV3, { type AnalyticsData } from "@/components/AnalyticsV3";
+import SyncPending from "@/components/ov/SyncPending";
 import type { LibraryPost } from "@/components/ContentLibrary";
 import {
-  RANGES, rangeDays, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId,
+  RANGES, rangeDays, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type MetricId,
 } from "@/lib/overview";
 
-export const metadata = { title: "Analytics — SOCIA" };
+export const metadata = { title: "Analytics | SOCIA" };
 
 // Analytics. The pipeline is fixed: platform rows → normalized posts and daily
 // snapshots → deterministic aggregation (medians, buckets, gaps) → rendered →
@@ -41,19 +41,26 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const live = Boolean(snap && snap.followers_count != null);
 
   if (!live) {
+    // A connection row without a usable snapshot: OAuth is done, the first
+    // sync isn't. Offer the sync, not a second OAuth round.
+    const conn = (await getActiveConnection(supabase, user.id, "username")) as { username?: string | null } | null;
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     return (
       <AppShell active="analytics" userEmail={user.email}>
         <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
-        <div className="db-connect">
-          <span className="db-connect-ico"><Link2 size={22} /></span>
-          <div className="db-connect-copy">
-            <h2>Connect your Instagram account</h2>
-            <p>Analytics fills with your real views, reach, engagement and audience the moment an account is connected, and SOCIA starts recording your follower count daily from that moment. Nothing here is estimated.</p>
+        {conn ? (
+          <SyncPending username={conn.username ?? snap?.username ?? null} />
+        ) : (
+          <div className="db-connect">
+            <span className="db-connect-ico"><Link2 size={22} /></span>
+            <div className="db-connect-copy">
+              <h2>Connect your Instagram account</h2>
+              <p>Analytics fills with your real views, reach, engagement and audience the moment an account is connected, and SOCIA starts recording your follower count daily from that moment. Nothing here is estimated.</p>
+            </div>
+            {/* plain anchor: /api/auth routes must not be Link-prefetched */}
+            <a href={igHref} className="db-connect-cta">Connect Instagram</a>
           </div>
-          {/* plain anchor: /api/auth routes must not be Link-prefetched */}
-          <a href={igHref} className="db-connect-cta">Connect Instagram</a>
-        </div>
+        )}
       </AppShell>
     );
   }
@@ -100,38 +107,19 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const timed = media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) }));
   const formats: Record<string, number> = {};
   for (const p of posts) formats[p.format] = (formats[p.format] ?? 0) + 1;
+  // One denominator for every row of the library, the same rule as the period
+  // rate: reach when Instagram returned it for every post, otherwise followers.
+  // It never switches from one row to the next.
+  const rateMethod: RateMethod | null = posts.length && posts.every((p) => p.reach != null && p.reach > 0) ? "reach" : followers && followers > 0 ? "followers" : null;
+  const rowRate = (p: (typeof posts)[number]): number | null =>
+    rateMethod === "reach" ? (p.engagements / p.reach!) * 100 : rateMethod === "followers" ? (p.engagements / followers!) * 100 : null;
   const library: LibraryPost[] = posts.map((p) => ({
     id: p.id, caption: p.caption, published: p.published, format: p.format, views: p.views, reach: p.reach, likes: p.likes, comments: p.comments, saves: p.saves, shares: p.shares,
-    engagements: p.engagements, engRate: p.reach ? (p.engagements / p.reach) * 100 : followers ? (p.engagements / followers) * 100 : null, multiplier: p.multiplier, thumb: p.thumb, permalink: p.permalink,
+    engagements: p.engagements, engRate: rowRate(p), multiplier: p.multiplier, thumb: p.thumb, permalink: p.permalink,
   }));
 
-  const platformMetric = series.views.total != null ? "views" : "engagement";
-  const platformTotal = platformMetric === "views" ? series.views.total : series.engagement.total;
-  // Facebook: the connected Page's own engagement (reactions + comments +
-  // shares on posts inside the range), as Meta reports it. Facebook exposes
-  // no view count for regular Page posts, so under the views metric the row
-  // is connected but unmeasured, never zero.
-  const fb = await getFbSnapshot(supabase, user.id).catch(() => null);
-  const fbConnected = fb?.status === "connected";
-  const fbSince = Date.now() - (days) * 86400000;
-  const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
-  const fbCounted = fbPosts.some((p) => p.reactions != null || p.comments != null || p.shares != null);
-  const fbEngagement = fbCounted ? fbPosts.reduce((a, p) => a + (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0), 0) : null;
-  const fbValue = platformMetric === "engagement" ? fbEngagement : null;
-  const fbRow: PlatformRow = { id: "facebook", label: "Facebook", connected: fbConnected, value: fbValue, deltaPct: null, share: 0 };
-  const platforms: PlatformRow[] = [
-    { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === "views")?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
-    { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
-    fbRow,
-    { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
-  ];
-  {
-    const total = platforms.reduce((a, r) => a + (r.connected && r.value ? r.value : 0), 0);
-    for (const r of platforms) r.share = total > 0 && r.connected && r.value ? r.value / total : 0;
-  }
-
   const d: AnalyticsData = {
-    handle: snap!.username ?? null, rangeLabel, rangeDays: days, today, firstDataDay, kpis, series, gains, insights, gaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
+    handle: snap!.username ?? null, rangeLabel, rangeDays: days, rangeStart: new Date(since).toISOString(), today, firstDataDay, kpis, series, gains, insights, gaps, posts, library, baseline, medianViews, breakdown, demo,
     timed, followers, followerPoints: fPoints, engagement, formats,
   };
 

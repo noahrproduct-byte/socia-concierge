@@ -10,7 +10,7 @@ import { bestWindow, hourHistogram, type TimedPost } from "@/lib/bestTime";
 export default function BestTime({
   posts,
   variant = "short",
-  fallback = "–",
+  fallback = "—",
   withHistogram = false,
 }: {
   posts: TimedPost[];
@@ -40,7 +40,7 @@ export default function BestTime({
               key={i}
               className={i === hot ? "hot" : ""}
               style={{ height: `${Math.max(10, (v / max) * 100)}%` }}
-              title={`${i * 2}:00 – ${i * 2 + 2}:00`}
+              title={`${i * 2}:00 to ${i * 2 + 2}:00`}
             />
           ))}
         </div>

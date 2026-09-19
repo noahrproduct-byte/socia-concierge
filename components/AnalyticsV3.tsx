@@ -27,7 +27,7 @@ import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
 import {
   rankPosts, fmtNum, audienceInsight, seriesBaseline, granularityOptions, bucketize, detectOutliers, bucketTitle,
-  type Kpi, type Series, type SeriesPoint, type MetricId, type Insight, type PostCard, type Slice, type PlatformRow, type Granularity, type Bucket,
+  type Kpi, type Series, type SeriesPoint, type MetricId, type Insight, type PostCard, type Slice, type Granularity, type Bucket,
 } from "@/lib/overview";
 import { median } from "@/lib/metrics";
 import { summarizeFollowers, inRange as followersInRange, type FollowerPoint, type FollowerGranularity } from "@/lib/followers";
@@ -40,6 +40,9 @@ export type AnalyticsData = {
   handle: string | null;
   rangeLabel: string;
   rangeDays: number;
+  /** ISO instant the selected range starts at, as the server computed it; the
+   *  content sections keep to posts published after it. */
+  rangeStart: string;
   /** UTC date the server rendered on; partial buckets are judged against it. */
   today: string;
   /** Earliest post or snapshot day, for the yearly-grouping gate. */
@@ -55,7 +58,6 @@ export type AnalyticsData = {
   baseline: number | null;
   medianViews: number | null;
   breakdown: { slices: Slice[]; metric: "views" | "engagement"; total: number };
-  platforms: PlatformRow[];
   demo: Demographics;
   timed: TimedPost[];
   followers: number | null;
@@ -87,15 +89,26 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   const [point, setPoint] = useState<{ b: Bucket; outlier: boolean } | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // The hash is the tab: read on mount, on Back/Forward and whenever an
+  // in-page #audience-style link changes it.
   useEffect(() => {
     setMounted(true);
-    const t = hashTab(window.location.hash);
-    if (t) setTabState(t);
-    if (window.location.hash === "#posts") setTimeout(() => document.getElementById("posts")?.scrollIntoView({ behavior: "smooth" }), 50);
+    const apply = () => {
+      setTabState(hashTab(window.location.hash) ?? "overview");
+      if (window.location.hash === "#posts") setTimeout(() => document.getElementById("posts")?.scrollIntoView({ behavior: "smooth" }), 50);
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    window.addEventListener("popstate", apply);
+    return () => {
+      window.removeEventListener("hashchange", apply);
+      window.removeEventListener("popstate", apply);
+    };
   }, []);
   const setTab = useCallback((t: Tab) => {
     setTabState(t);
-    history.replaceState(null, "", `#${t}`);
+    // A history entry per tab, so Back returns to the previous one.
+    if (window.location.hash !== `#${t}`) history.pushState(null, "", `#${t}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
   const jumpTab = useCallback((t: "content" | "audience" | "times" | "growth") => setTab(t), [setTab]);
@@ -123,14 +136,29 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   const fitOn = fit ?? outliers.size > 0;
   const totalDelta = series.total != null && series.prevTotal != null && series.prevTotal > 0 ? ((series.total - series.prevTotal) / series.prevTotal) * 100 : null;
 
+  // Content Performance keeps to the selected range; multipliers still compare
+  // with the account-wide median so a post reads the same on every page.
+  const rangePosts = useMemo(() => {
+    const start = new Date(d.rangeStart).getTime();
+    return d.posts.filter((p) => new Date(p.published).getTime() >= start);
+  }, [d.posts, d.rangeStart]);
   const contentPosts = useMemo(() => {
-    if (contentTab === "top") return rankPosts(d.posts, "views", 10);
-    if (contentTab === "under") return d.posts.filter((p) => p.multiplier != null && p.multiplier < 0.7).sort((a, b) => (a.multiplier ?? 0) - (b.multiplier ?? 0)).slice(0, 10);
-    if (contentTab === "breakout") return d.posts.filter((p) => p.multiplier != null && p.multiplier >= 3).sort((a, b) => (b.multiplier ?? 0) - (a.multiplier ?? 0));
+    if (contentTab === "top") return rankPosts(rangePosts, "views", 10);
+    if (contentTab === "under") return rangePosts.filter((p) => p.multiplier != null && p.multiplier < 0.7).sort((a, b) => (a.multiplier ?? 0) - (b.multiplier ?? 0)).slice(0, 10);
+    if (contentTab === "breakout") return rangePosts.filter((p) => p.multiplier != null && p.multiplier >= 3).sort((a, b) => (b.multiplier ?? 0) - (a.multiplier ?? 0));
     const seen = new Map<string, PostCard[]>();
-    for (const p of rankPosts(d.posts, "views", d.posts.length)) seen.set(p.format, [...(seen.get(p.format) ?? []), p].slice(0, 3));
+    for (const p of rankPosts(rangePosts, "views", rangePosts.length)) seen.set(p.format, [...(seen.get(p.format) ?? []), p].slice(0, 3));
     return [...seen.values()].flat();
-  }, [contentTab, d.posts]);
+  }, [contentTab, rangePosts]);
+  // Why a content view is empty: no posts at all in the range, or none that
+  // meets the view's own threshold.
+  const contentEmpty = !rangePosts.length
+    ? "No posts in this period."
+    : contentTab === "under"
+      ? "No post in this period fell below 70% of your median interactions. Nothing is underperforming by your own baseline."
+      : contentTab === "breakout"
+        ? "No post reached 3× your median interactions in this period."
+        : null;
 
   const fPoints = useMemo(() => followersInRange(d.followerPoints, d.series.followers.current[0]?.day ?? "0000", d.today), [d.followerPoints, d.series.followers.current, d.today]);
   const fSummary = useMemo(() => summarizeFollowers(fPoints, d.followerPoints), [fPoints, d.followerPoints]);
@@ -220,7 +248,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                 </div>
                 <div className="av-perf-summary">
                   <b>{series.total != null ? fmtNum(series.total) : "—"}</b>
-                  <span>{series.label.toLowerCase()} {metric === "followers" ? "now" : `in the ${d.rangeLabel.toLowerCase()}`}</span>
+                  <span>{metric === "engagement" && series.total == null ? `no posts published in the ${d.rangeLabel.toLowerCase()}` : `${series.label.toLowerCase()} ${metric === "followers" ? "now" : `in the ${d.rangeLabel.toLowerCase()}`}`}</span>
                   {totalDelta != null && <em className={totalDelta >= 0 ? "up" : "down"}>{totalDelta >= 0 ? "↑" : "↓"} {Math.abs(totalDelta).toFixed(1)}% vs. previous period</em>}
                   {series.prevTotal == null && series.total != null && <em className="muted">no comparable previous period yet</em>}
                   {baseline && <em className="muted">· {baseline.label.toLowerCase()} {fmtNum(Math.round(baseline.value))}</em>}
@@ -264,8 +292,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                   </div>
                   <button type="button" className="ov-link" onClick={() => setTab("content")}>All posts <ArrowRight size={13} /></button>
                 </div>
-                {contentTab === "under" && !contentPosts.length && <div className="ov-empty small">No post in this period fell below 70% of your median. Nothing is underperforming by your own baseline.</div>}
-                {contentTab === "breakout" && !contentPosts.length && <div className="ov-empty small">No post reached 3× your median interactions in this period.</div>}
+                {!contentPosts.length && contentEmpty && <div className="ov-empty small">{contentEmpty}</div>}
                 {contentPosts.length > 0 && <ContentRow posts={contentPosts} onOpen={setOpen} size="lg" />}
               </section>
             </div>
@@ -308,10 +335,9 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                   <button key={id} type="button" role="tab" aria-selected={contentTab === id} className={contentTab === id ? "on" : ""} onClick={() => setContentTab(id)}>{label}</button>
                 ))}
               </div>
-              <span className="ov-range-label">{d.baseline != null ? `Median post ${Math.round(d.baseline).toLocaleString("en-US")} interactions` : "No baseline yet"}</span>
+              <span className="ov-range-label">{d.rangeLabel} · {d.baseline != null ? `Median post ${Math.round(d.baseline).toLocaleString("en-US")} interactions` : "No baseline yet"}</span>
             </div>
-            {contentTab === "under" && !contentPosts.length && <div className="ov-empty small">No post fell below 70% of your median interactions.</div>}
-            {contentTab === "breakout" && !contentPosts.length && <div className="ov-empty small">No post reached 3× your median interactions.</div>}
+            {!contentPosts.length && contentEmpty && <div className="ov-empty small">{contentEmpty}</div>}
             {contentPosts.length > 0 && <ContentRow posts={contentPosts} onOpen={setOpen} size="lg" />}
           </section>
           <div className="av-two">

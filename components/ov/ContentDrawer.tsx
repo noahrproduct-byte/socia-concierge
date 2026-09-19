@@ -1,7 +1,8 @@
 "use client";
 
-// Content detail: the post, every metric Instagram returned for it, and why it
-// worked, split into observed data, SOCIA's interpretation and a recommendation.
+// Content detail: the post, every metric Instagram returned for it, and how it
+// landed, split into observed data, SOCIA's read and a recommendation. No
+// model runs here: the read is a rule applied to the account's own numbers.
 
 import Link from "next/link";
 import { ExternalLink, Sparkles, CalendarPlus, Play } from "lucide-react";
@@ -17,26 +18,29 @@ const IG = (
 
 function why(p: PostCard, baseline: number | null, medianViews: number | null) {
   const observed: string[] = [];
-  observed.push(`${p.engagements.toLocaleString("en-US")} engagements (${p.likes ?? 0} likes, ${p.comments ?? 0} comments)`);
+  // Only the parts Instagram returned are named; a missing count is not zero.
+  const parts = [p.likes != null ? `${p.likes.toLocaleString("en-US")} likes` : null, p.comments != null ? `${p.comments.toLocaleString("en-US")} comments` : null].filter(Boolean);
+  observed.push(`${p.engagements.toLocaleString("en-US")} interactions${parts.length ? ` (${parts.join(", ")})` : ""}`);
   if (p.views != null) observed.push(`${p.views.toLocaleString("en-US")} views${medianViews ? ` vs. a median of ${fmtNum(medianViews)}` : ""}`);
   if (p.reach != null) observed.push(`${p.reach.toLocaleString("en-US")} accounts reached`);
   if (p.saves != null) observed.push(`${p.saves.toLocaleString("en-US")} saves`);
   if (p.shares != null) observed.push(`${p.shares.toLocaleString("en-US")} shares`);
-  if (p.multiplier != null && baseline) observed.push(`${p.multiplier.toFixed(1)}× your median post (${Math.round(baseline)} engagements)`);
+  if (p.multiplier != null && baseline) observed.push(`${p.multiplier.toFixed(1)}× your median post (${Math.round(baseline)} interactions)`);
   const strong = p.multiplier != null && p.multiplier >= 1.5;
   const weak = p.multiplier != null && p.multiplier < 0.7;
   const viewsButLowEng = p.views != null && p.reach != null && p.reach > 0 && p.engagements / p.reach < 0.01;
+  // Observations, not verdicts: one post can't show what caused its result.
   const interpretation = strong
-    ? `${p.format === "Reel" ? "The Reel format plus this opening" : "This post's opening"} pulled well beyond your followers; when a post runs this far above your median it's usually the first seconds and the subject, not luck.`
+    ? `Far above your median. ${p.format === "Reel" ? "The Reel format, the opening and the subject" : "The opening and the subject"} are the likeliest reasons; one post can't prove which, so treat it as a pattern to test, not a conclusion.`
     : weak
-      ? "Below your own median. Posts like this typically open without a clear hook or repeat a subject the audience has already seen from you."
+      ? "Below your own median in this sample. That says how it landed, not why; compare its hook and subject with your stronger posts before drawing a conclusion."
       : "Around your median: solid, not a breakout. Useful as a control when you test a bolder version.";
   const recommendation = strong
     ? `Make a second post with the same format and hook structure as "${p.title.slice(0, 40)}" and compare it against the ${baseline ? Math.round(baseline) : "median"} baseline.`
     : viewsButLowEng
       ? "Reach is there but people aren't reacting; add a question or a clear ask in the first line next time."
       : "Re-shoot the strongest idea in this post with a spoken or on-screen hook in the first two seconds.";
-  return { observed, interpretation, recommendation };
+  return { observed, interpretation, recommendation, strong };
 }
 
 export default function ContentDrawer({ post, baseline, medianViews, onClose }: { post: PostCard | null; baseline: number | null; medianViews: number | null; onClose: () => void }) {
@@ -57,7 +61,7 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
           </div>
           <div className="ov-detail-meta">
             <span className="ov-detail-plat">{IG} Instagram {p.format}</span>
-            <span>{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+            <span>{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>
           </div>
           <p className="ov-detail-caption">{p.caption || "(no caption)"}</p>
           <dl className="ov-detail-stats">
@@ -66,20 +70,20 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
             ].map(([k, v]) => (
               <div key={k as string}><dt>{k}</dt><dd>{v == null ? "—" : fmtNum(v as number)}</dd></div>
             ))}
-            <div><dt>Engagement</dt><dd>{fmtNum(p.engagements)}</dd></div>
+            <div><dt>Interactions</dt><dd>{fmtNum(p.engagements)}</dd></div>
             <div><dt>vs. baseline</dt><dd className={p.multiplier != null ? (p.multiplier >= 1 ? "up" : "down") : ""}>{p.multiplier != null ? `${p.multiplier.toFixed(1)}×` : "—"}</dd></div>
           </dl>
           <section className="ov-why">
-            <h3>Why this worked</h3>
+            <h3>{w.strong ? "Why this worked" : "How this post landed"}</h3>
             <div className="ov-why-block"><small>Observed data</small><ul>{w.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
-            <div className="ov-why-block ai"><small>AI interpretation</small><p>{w.interpretation}</p></div>
+            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{w.interpretation}</p></div>
             <div className="ov-why-block rec"><small>Recommendation</small><p>{w.recommendation}</p></div>
           </section>
           <div className="ov-detail-actions">
             <button type="button" className="ov-btn primary" onClick={() => askSocia({ context: { page: "post", postId: p.id }, contextLabel: `Post: ${p.title.slice(0, 40)}` })}><Sparkles size={13} /> Ask SOCIA about this post</button>
             {p.permalink && <a href={p.permalink} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View original</a>}
             <Link href={`/calendar?compose=1&caption=${encodeURIComponent(p.title)}`} className="ov-btn ghost"><CalendarPlus size={13} /> Create variation</Link>
-            <Link href={`/tool?note=${encodeURIComponent(`Build on "${p.title.slice(0, 60)}" (${p.multiplier != null ? `${p.multiplier.toFixed(1)}× my median` : `${p.engagements} engagements`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add idea to Content Plan</Link>
+            <Link href={`/tool?note=${encodeURIComponent(`Build on "${p.title.slice(0, 60)}" (${p.multiplier != null ? `${p.multiplier.toFixed(1)}× my median` : `${p.engagements} interactions`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add idea to Content Plan</Link>
           </div>
         </>
       )}

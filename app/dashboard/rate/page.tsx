@@ -93,7 +93,7 @@ export default function ContentRaterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Scorecard | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
 
   async function handleRate() {
     setLoading(true);
@@ -114,7 +114,10 @@ export default function ContentRaterPage() {
         return;
       }
 
-      setResult(data as Scorecard);
+      // The route validates the model output, but a list must always be a
+      // list here too so a missing field can never take the page down.
+      const card = data as Partial<Scorecard>;
+      setResult({ ...(card as Scorecard), tips: Array.isArray(card.tips) ? card.tips : [], hashtags: Array.isArray(card.hashtags) ? card.hashtags : [] });
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
     } finally {
@@ -122,11 +125,16 @@ export default function ContentRaterPage() {
     }
   }
 
-  function copyHashtags() {
-    if (!result) return;
-    navigator.clipboard.writeText(result.hashtags.join(" "));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  async function copyHashtags() {
+    if (!result?.hashtags.length) return;
+    try {
+      await navigator.clipboard.writeText(result.hashtags.join(" "));
+      setCopyState("copied");
+    } catch {
+      // Clipboard access can be refused (permissions, insecure context, no focus).
+      setCopyState("failed");
+    }
+    setTimeout(() => setCopyState("idle"), 1500);
   }
 
   return (
@@ -137,7 +145,7 @@ export default function ContentRaterPage() {
           <h1 className="text-3xl font-bold tracking-tight">Content Rater</h1>
           <p className="mt-2 text-muted-foreground">
             Paste your caption before you post it. Get it scored on hook strength,
-            caption quality and engagement potential — plus exactly what to fix.
+            caption quality and engagement potential, plus exactly what to fix.
           </p>
         </div>
 
@@ -288,6 +296,9 @@ export default function ContentRaterPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Fix these before posting
               </h2>
+              {!result.tips.length && (
+                <p className="mt-4 text-sm text-muted-foreground">The rating came back without specific fixes.</p>
+              )}
               <div className="mt-4 space-y-3">
                 {result.tips.map((tip, i) => (
                   <div
@@ -320,12 +331,17 @@ export default function ContentRaterPage() {
                 </h2>
                 <button
                   onClick={copyHashtags}
+                  disabled={!result.hashtags.length}
                   className="rounded-lg border border-input px-3 py-1.5 text-xs font-medium
-                             text-foreground/85 transition hover:border-ring hover:text-white"
+                             text-foreground/85 transition hover:border-ring hover:text-white
+                             disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {copied ? "Copied" : "Copy all"}
+                  {copyState === "copied" ? "Copied" : copyState === "failed" ? "Couldn't copy" : "Copy all"}
                 </button>
               </div>
+              {!result.hashtags.length && (
+                <p className="mt-4 text-sm text-muted-foreground">The rating came back without hashtags.</p>
+              )}
               <div className="mt-4 flex flex-wrap gap-2">
                 {result.hashtags.map((h) => (
                   <span

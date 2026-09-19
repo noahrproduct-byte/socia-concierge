@@ -106,6 +106,40 @@ function extractJSON(text: string): unknown {
   }
 }
 
+const GRADES = ["A", "B", "C", "D", "F"] as const;
+const POTENTIALS = ["Low", "Medium", "High", "Viral Potential"] as const;
+
+/**
+ * The model's JSON is untrusted input. Lists and prose fall back to empty
+ * values so the page can never crash on a shape slip; the verdict itself
+ * (grade, scores, potential) has to be present and in range, otherwise the
+ * request fails honestly rather than inventing a number.
+ */
+function normalizeScorecard(raw: unknown): Scorecard | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  const num = (v: unknown, lo: number, hi: number): number | null =>
+    typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : null;
+  const grade = GRADES.find((g) => g === r.grade);
+  const engagementPotential = POTENTIALS.find((p) => p === r.engagementPotential);
+  const overallScore = num(r.overallScore, 0, 100);
+  const hookScore = num(r.hookScore, 0, 10);
+  const captionScore = num(r.captionScore, 0, 10);
+  if (!grade || !engagementPotential || overallScore == null || hookScore == null || captionScore == null) return null;
+  const hashtags = Array.isArray(r.hashtags) ? r.hashtags.filter((h): h is string => typeof h === "string" && h.trim().length > 0) : [];
+  const tips = Array.isArray(r.tips)
+    ? r.tips.flatMap((t) => {
+        const o = t && typeof t === "object" ? (t as Record<string, unknown>) : null;
+        return o && typeof o.title === "string" && o.title.trim() ? [{ title: o.title, detail: str(o.detail) }] : [];
+      })
+    : [];
+  return {
+    grade, overallScore, hookScore, captionScore, engagementPotential, hashtags, tips,
+    hookAnalysis: str(r.hookAnalysis), rewrittenHook: str(r.rewrittenHook), captionAnalysis: str(r.captionAnalysis), engagementReason: str(r.engagementReason),
+  };
+}
+
 export async function POST(req: NextRequest) {
   // Signed-in users only — this endpoint spends real API credits.
   const supabase = await createClient();
@@ -143,7 +177,14 @@ export async function POST(req: NextRequest) {
       throw new Error("Model returned no text content");
     }
 
-    const scorecard = extractJSON(textBlock.text) as Scorecard;
+    const scorecard = normalizeScorecard(extractJSON(textBlock.text));
+    if (!scorecard) {
+      console.error("[/api/rate] model returned an incomplete scorecard");
+      return NextResponse.json(
+        { error: "The rating came back incomplete. Please try again." },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({ ...scorecard, benchmarkVersion: BENCHMARK_VERSION });
   } catch (err) {

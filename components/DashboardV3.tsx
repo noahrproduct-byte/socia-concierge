@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sparkles, ArrowRight, Send, Target, Film, MapPin, Users, Zap, Plus, CalendarDays, Star } from "lucide-react";
 import KpiCard from "./ov/KpiCard";
 import OverviewChart from "./ov/OverviewChart";
@@ -15,12 +16,12 @@ import { InsightList } from "./ov/Insights";
 import DateRangeSelector from "./DateRangeSelector";
 import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
-import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
+import { useGreeting } from "./ov/Greeting";
+import { audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
 import { askSocia } from "@/lib/ask";
 
 export type DashboardData = {
-  greeting: string;
   name: string;
   handle: string | null;
   rangeLabel: string;
@@ -58,17 +59,16 @@ const CHIPS = [
 ];
 
 export default function DashboardV3({ d }: { d: DashboardData }) {
+  const router = useRouter();
   const [metric, setMetric] = useState<"views" | "engagement" | "followers">(d.series.views.provenance === "unavailable" ? "engagement" : "views");
   const [open, setOpen] = useState<PostCard | null>(null);
   const [ask, setAsk] = useState("");
   const series = d.series[metric];
   // Anything that depends on the viewer's clock renders after mount: the
   // server (UTC) and the browser must agree on the first paint.
-  const [greet, setGreet] = useState(d.greeting);
+  const greet = useGreeting();
   const [clock, setClock] = useState<Date | null>(null);
   useEffect(() => {
-    const h = new Date().getHours();
-    setGreet(h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
     setClock(new Date());
   }, []);
   // Timing is a client-side insight (viewer's time zone); it joins the list last.
@@ -123,7 +123,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
               <div className="dv-platforms">
                 <h3>Platform Breakdown</h3>
                 {slices.length ? (
-                  <Donut slices={slices} total={d.platformTotal ?? 0} centerLabel={d.platformMetric === "views" ? "Total Views" : "Engagement"} size={118} />
+                  <Donut slices={slices} total={d.platformTotal ?? 0} centerLabel={d.platformMetric === "views" ? "Total Views" : "Interactions"} size={118} />
                 ) : (
                   <div className="ov-empty small">No platform data for this period.</div>
                 )}
@@ -131,7 +131,8 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
                   {d.platforms.map((p) => (
                     <li key={p.id} className={p.connected ? "" : "off"}>
                       <i className={`dot ${p.id}`} /><span>{p.label}</span>
-                      <b>{p.connected ? (p.value != null ? `${Math.round(p.share * 100)}%` : "—") : <Link href="/settings#accounts">Connect</Link>}</b>
+                      {/* Only Facebook has a connect flow today; TikTok and YouTube say so instead of pretending. */}
+                      <b>{p.connected ? (p.value != null ? `${Math.round(p.share * 100)}%` : "—") : p.id === "facebook" ? <Link href="/settings#accounts">Connect</Link> : <small>Not available yet</small>}</b>
                     </li>
                   ))}
                 </ul>
@@ -147,7 +148,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
               </div>
               <Link href="/analytics#content" className="ov-link">View all <ArrowRight size={13} /></Link>
             </div>
-            <ContentRow posts={d.top} onOpen={setOpen} />
+            <ContentRow posts={d.top} onOpen={setOpen} emptyText="No posts in this period." />
           </section>
 
           <div className="dv-bottom">
@@ -159,7 +160,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
               {d.focus ? (
                 <>
                   <p className="dv-focus-line">{d.focus.headline}</p>
-                  <small className="ov-source">From your Content Plan of {new Date(d.focus.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}, built on your performance, goals and competitors.</small>
+                  <small className="ov-source">From your Content Plan of {new Date(d.focus.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}, built on your performance, goals and competitors.</small>
                   <div className="dv-tiles">
                     {d.focus.tiles.map((t, i) => {
                       const Icon = TILE_ICON[t.icon];
@@ -230,7 +231,6 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
           <section className="ov-card dv-ai" aria-labelledby="dv-ai-h">
             <div className="ov-card-head">
               <h2 id="dv-ai-h"><span className="dv-ai-mark"><Sparkles size={13} /></span> SOCIA AI</h2>
-              <span className="dv-ai-status"><i /> Online</span>
             </div>
             <p className="ov-card-sub">Your personal content strategist.</p>
             <div className="dv-ai-bubble">
@@ -238,7 +238,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
                 ? <>I looked at {d.handle ? `@${d.handle}` : "your account"}&apos;s recent performance. Here {Math.min(insights.length, 3) === 1 ? "is the key opportunity" : `are ${Math.min(insights.length, 3)} key opportunities`} for this week:</>
                 : <>I need a few more posts on {d.handle ? `@${d.handle}` : "your account"} before I can point at anything I can prove.</>}
             </div>
-            <InsightList insights={insights.slice(0, 3)} numbered posts={d.posts} compact />
+            <InsightList insights={insights.slice(0, 3)} numbered posts={d.posts} compact onTab={(t) => router.push(`/analytics#${t}`)} />
             <Link href="/tool" className="ov-btn outline full">View full strategy <ArrowRight size={13} /></Link>
             <form className="dv-ask" onSubmit={(e) => { e.preventDefault(); if (ask.trim()) { askSocia({ question: ask.trim(), autoSend: true, context: { page: "dashboard" } }); setAsk(""); } }}>
               <input value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="Ask SOCIA anything..." aria-label="Ask SOCIA" />
@@ -284,7 +284,6 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
       </div>
 
       <ContentDrawer post={open} baseline={d.baseline} medianViews={d.medianViews} onClose={() => setOpen(null)} />
-      <span className="sr-only">{fmtNum(0)}</span>
     </div>
   );
 }
