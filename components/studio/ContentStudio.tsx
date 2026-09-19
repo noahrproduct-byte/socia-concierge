@@ -14,6 +14,7 @@ import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { AnalyzePanel, ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, type Working, type ImproveOption } from "./StudioPanels";
 import { AskSociaButton } from "../AskSocia";
 import { createClient } from "@/lib/supabase/client";
+import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { extractFrames, imageFrames, analysisSummary, MAX_BYTES, MAX_SECONDS, type StudioAnalysis, type StudioKind, type Frames, type GoalId, type ApplyField } from "@/lib/studio";
 import type { AskProposal } from "@/lib/ask";
 
@@ -166,8 +167,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         const supabase = createClient();
         const safe = source.file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
         const path = `${userId}/${id}/${Date.now()}_${safe}`;
-        const { error } = await supabase.storage.from("scheduled-media").upload(path, source.file, { upsert: false, contentType: source.file.type || undefined });
-        if (error) throw new Error(`Upload failed: ${error.message}`);
+        await uploadMedia(supabase, "scheduled-media", path, source.file);
         const { data: pub } = supabase.storage.from("scheduled-media").getPublicUrl(path);
         await api("PATCH", { id, media_path: path, media_url: pub.publicUrl, keep_draft: true });
         setSavedId(id);

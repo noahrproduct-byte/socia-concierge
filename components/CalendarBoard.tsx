@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { createClient } from "@/lib/supabase/client";
+import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import {
   draftsFromPlan,
   readiness,
@@ -834,10 +835,7 @@ function Composer({
       const supabase = createClient();
       const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
       const path = `${userId}/${cur.id}/${Date.now()}_${safe}`;
-      const { error } = await supabase.storage
-        .from("scheduled-media")
-        .upload(path, file, { upsert: false, contentType: file.type || undefined });
-      if (error) throw new Error(`Upload failed: ${error.message}`);
+      await uploadMedia(supabase, "scheduled-media", path, file);
       const { data: pub } = supabase.storage.from("scheduled-media").getPublicUrl(path);
       if (cur.media_path) await supabase.storage.from("scheduled-media").remove([cur.media_path]);
       cur = (
