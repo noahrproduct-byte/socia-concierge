@@ -28,8 +28,11 @@ export const YT_SCOPES = [
 export const YT_OAUTH_STATE_COOKIE = "yt_oauth_state";
 export const YT_OAUTH_STATE_MAX_AGE = 600; // 10 minutes to finish the round trip
 
-export const ytClientId = () => process.env.GOOGLE_CLIENT_ID;
-export const ytClientSecret = () => process.env.GOOGLE_CLIENT_SECRET;
+// .trim(): pasting a client ID/secret into a dashboard often drags a trailing
+// newline along, and Google rejects "<id>\n" with invalid_client. Strip it so
+// the credential works regardless of how it was pasted.
+export const ytClientId = () => process.env.GOOGLE_CLIENT_ID?.trim();
+export const ytClientSecret = () => process.env.GOOGLE_CLIENT_SECRET?.trim();
 
 // True when the server has what it needs to run the connect flow.
 export const ytAuthConfigured = (): boolean => Boolean(ytClientId() && ytClientSecret());
