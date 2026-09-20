@@ -15,6 +15,9 @@ import { fetchDemographics } from "@/lib/igDemographics";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsV3, { type AnalyticsData } from "@/components/AnalyticsV3";
+import YouTubeAnalytics from "@/components/YouTubeAnalytics";
+import { getYouTubeAnalytics } from "@/lib/youtubeData";
+import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import type { LibraryPost } from "@/components/ContentLibrary";
 import {
   RANGES, rangeDays, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId,
@@ -39,20 +42,37 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   const [profile, snap] = await Promise.all([getProfile(supabase, user.id), getIgSnapshot(supabase, user.id)]);
   const live = Boolean(snap && snap.followers_count != null);
+  // The connected user's own YouTube channel, when they have linked one. Null
+  // when no YouTube connection exists, so the page stays multi-platform aware.
+  const yt = await getYouTubeAnalytics(supabase, user.id, days).catch(() => null);
 
   if (!live) {
+    // No Instagram, but a YouTube channel is connected: show its analytics
+    // instead of forcing an Instagram connection.
+    if (yt) {
+      return (
+        <AppShell active="analytics" userEmail={user.email}>
+          <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
+          <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} />
+        </AppShell>
+      );
+    }
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
+    const ytHref = ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings";
     return (
       <AppShell active="analytics" userEmail={user.email}>
         <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
         <div className="db-connect">
           <span className="db-connect-ico"><Link2 size={22} /></span>
           <div className="db-connect-copy">
-            <h2>Connect your Instagram account</h2>
-            <p>Analytics fills with your real views, reach, engagement and audience the moment an account is connected, and SOCIA starts recording your follower count daily from that moment. Nothing here is estimated.</p>
+            <h2>Connect an account to see your analytics</h2>
+            <p>Analytics fills with your real numbers the moment you connect a platform, and SOCIA starts recording your growth from that moment. Nothing here is estimated.</p>
           </div>
-          {/* plain anchor: /api/auth routes must not be Link-prefetched */}
-          <a href={igHref} className="db-connect-cta">Connect Instagram</a>
+          {/* plain anchors: /api/auth routes must not be Link-prefetched */}
+          <span className="db-connect-actions">
+            <a href={igHref} className="db-connect-cta">Connect Instagram</a>
+            <a href={ytHref} className="db-connect-cta ghost">Connect YouTube</a>
+          </span>
         </div>
       </AppShell>
     );
@@ -123,7 +143,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === "views")?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
     { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
     fbRow,
-    { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "youtube", label: "YouTube", connected: Boolean(yt), value: yt && platformMetric === "views" ? (yt.range?.views ?? null) : null, deltaPct: null, share: 0 },
   ];
   {
     const total = platforms.reduce((a, r) => a + (r.connected && r.value ? r.value : 0), 0);
@@ -138,6 +158,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   return (
     <AppShell active="analytics" userEmail={user.email}>
       <AnalyticsV3 d={d} />
+      {yt && <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} />}
     </AppShell>
   );
 }
