@@ -12,14 +12,16 @@
 //      URI exactly matches ytRedirectUri() in production and dev.
 //   3. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the environment.
 
-// Read-only for now: the user's own channel/videos, and their YouTube Analytics
-// (views, watch time, subscribers gained, demographics). No upload/write scope
-// yet — publishing to YouTube is a later feature and a separate Google audit,
-// and requesting a permission the product does not use is a review rejection
-// cause (the same rule we follow on the Instagram side).
+// Read (channel, videos, YouTube Analytics) plus the `youtube` write scope the
+// composer uses to upload, edit and add to playlists (videos.insert and
+// videos.update, thumbnails.set, playlistItems.insert all accept it;
+// youtube.upload alone would not cover update or playlists). Channels connected
+// before this scope was added carry only the read scopes in
+// youtube_connections.scopes and are asked to reconnect before uploading.
 export const YT_SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/yt-analytics.readonly",
+  "https://www.googleapis.com/auth/youtube",
 ];
 
 // Random per-attempt nonce lives in this cookie and must match the value echoed
