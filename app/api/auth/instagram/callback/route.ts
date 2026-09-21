@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/instagram";
 import { syncInstagram } from "@/lib/instagramSync";
-import { accountLimit, getPlan } from "@/lib/plan";
+import { createServiceClient } from "@/lib/supabase/service";
+import { activeAccounts, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
+import { recordEvent } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
 
@@ -72,18 +74,53 @@ export async function GET(req: Request) {
 
     // 4) Save the connection and reflect it on the profile. Reconnecting an
     // already-connected account is always allowed; a NEW account beyond the
-    // plan's limit is the Pro gate (free: 1, pro: 3).
+    // plan's connected-account limit (all platforms combined) is refused
+    // here, on the server, whatever the UI showed.
     const igId: string | null = me.user_id?.toString() ?? shortJson.user_id?.toString() ?? null;
-    const { data: existingRows } = await supabase
-      .from("instagram_connections")
-      .select("ig_user_id, username")
-      .eq("user_id", user.id);
-    const existing = (existingRows ?? []) as { ig_user_id: string | null; username: string | null }[];
-    const already = existing.some(
-      (r) => (igId != null && r.ig_user_id === igId) || (me.username && r.username === me.username),
+    const ent = await getEntitlements(supabase, user.id);
+    const list = await listConnectedAccounts(supabase, user.id);
+    // Extra exemption on top of canConnectAnother's id match: a row that only
+    // matches by username (pre-migration rows may lack ig_user_id) is still a
+    // reconnect, never a new slot.
+    const existing = list.find(
+      (a) => a.platform === "instagram" && ((igId != null && a.platformId === igId) || (me.username && a.handle === me.username)),
     );
-    if (!already && existing.length >= accountLimit(await getPlan(supabase, user.id))) {
-      return NextResponse.redirect(`${origin}/settings?ig=limit`);
+    const already = Boolean(existing);
+
+    if (existing?.suspended) {
+      // Reconnecting an account the plan paused is a request for a slot, so
+      // it is judged like a new account: no reconnect exemption. If it fits,
+      // un-pause it through the service role (the pause column is locked to
+      // everyone else) before the row is touched, so it never ends up active
+      // and paused at once.
+      const fit = canConnectAnother(ent, list, "instagram");
+      if (!fit.ok) {
+        recordEvent(supabase, user.id, "account_limit_reached", { platform: "instagram", plan: ent.plan, paused: true });
+        return settings("limit");
+      }
+      const svc = createServiceClient();
+      if (!svc) {
+        console.error("IG callback: cannot un-pause without a service client");
+        return settings("limit");
+      }
+      const keep = Array.from(new Set([...activeAccounts(list).map((a) => a.id), existing.id]));
+      const { error: keepErr } = await svc.rpc("socia_apply_plan_keep", {
+        p_user: user.id,
+        p_accounts: keep,
+        p_competitors: null,
+        p_account_limit: getLimit(ent, "connected_accounts"),
+        p_competitor_limit: getLimit(ent, "competitors"),
+      });
+      if (keepErr) {
+        console.error("IG callback: could not un-pause account:", keepErr.message ?? keepErr);
+        return settings("limit");
+      }
+    } else {
+      const check = canConnectAnother(ent, list, "instagram", igId);
+      if (!already && !check.ok) {
+        recordEvent(supabase, user.id, "account_limit_reached", { platform: "instagram", plan: ent.plan });
+        return settings("limit");
+      }
     }
 
     // Instagram Login returns the permissions it actually granted alongside the

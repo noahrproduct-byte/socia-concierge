@@ -13,9 +13,10 @@ import AppShell from "@/components/AppShell";
 import SyncCinematic from "@/components/SyncCinematic";
 import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
 import {
-  RANGES, rangeDays, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
+  RANGES, rangeDays, clampRangeId, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
   type PlatformRow,
 } from "@/lib/overview";
+import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
 
@@ -42,7 +43,7 @@ export default async function DashboardPage({
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
 
-  const profile = await getProfile(supabase, user.id);
+  const [profile, ent] = await Promise.all([getProfile(supabase, user.id), getEntitlements(supabase, user.id)]);
   const connected = profile?.account_connected ?? false;
   const snap = connected ? await getIgSnapshot(supabase, user.id) : null;
   const live = Boolean(snap && snap.followers_count != null);
@@ -127,7 +128,11 @@ export default async function DashboardPage({
     );
   }
 
-  const rangeId = (RANGES.some((r) => r.id === rangeParam) ? rangeParam : "30") as string;
+  // History is limited per plan here, on the server: a ?range= beyond the
+  // plan's window is served as the longest range the plan includes.
+  const maxDays = maxHistoryDays(ent);
+  const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
+  const rangeId: string = clampRangeId(requestedId, maxDays);
   const days = rangeDays(rangeId);
   const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
   const media = snap!.media ?? [];
@@ -198,7 +203,7 @@ export default async function DashboardPage({
   }
 
   const d: DashboardData = {
-    greeting, name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,
+    greeting, name, handle: snap!.username ?? null, rangeLabel, maxDays, kpis, series, platforms, platformTotal, platformMetric,
     insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
     timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
   };

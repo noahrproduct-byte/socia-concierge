@@ -3,6 +3,9 @@ import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anth
 import { createClient } from "@/lib/supabase/server";
 import { buildAskEvidence } from "@/lib/askContext";
 import { askAnswerSchema, type AskAnswer, type AskContext, type ModelAnswer, type AskProposal } from "@/lib/ask";
+import { requireUsage } from "@/lib/planGuard";
+import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { rangeDays } from "@/lib/overview";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -50,9 +53,19 @@ export async function POST(req: Request) {
   while (messages.length && messages[0].role === "assistant") messages.shift();
   if (!messages.length) return NextResponse.json({ error: "No message to send." }, { status: 400 });
 
+  // The evidence window is the client's choice, but never longer than the
+  // plan's analytics history.
+  const ent = await getEntitlements(supabase, user.id);
+  if (ctx.range && rangeDays(ctx.range) > maxHistoryDays(ent)) ctx.range = "30";
+
   const ev = await buildAskEvidence(supabase, user.id, ctx);
   const first = messages[0];
   const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
+
+  // One question per unit of the Ask SOCIA allowance; counted right before
+  // the model is called, and given back when the call produces no answer.
+  const u = await requireUsage(supabase, user.id, "ask_socia", { ent });
+  if (u.denied) return u.denied;
 
   try {
     const params = {
@@ -64,10 +77,16 @@ export async function POST(req: Request) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
-    if (res.stop_reason === "refusal") return NextResponse.json({ error: "SOCIA can't help with that one. Try rephrasing." }, { status: 422 });
+    if (res.stop_reason === "refusal") {
+      await u.release();
+      return NextResponse.json({ error: "SOCIA can't help with that one. Try rephrasing." }, { status: 422 });
+    }
     const block = res.content.find((b) => b.type === "text");
     const raw = block && "text" in block ? parseJson(block.text) : null;
-    if (!raw) return NextResponse.json({ error: "SOCIA returned something unreadable. Try again." }, { status: 502 });
+    if (!raw) {
+      await u.release();
+      return NextResponse.json({ error: "SOCIA returned something unreadable. Try again." }, { status: 502 });
+    }
 
     const post = raw.postId ? ev.posts.find((p) => p.id === raw.postId) ?? null : null;
     const proposals: AskProposal[] = [];
@@ -99,8 +118,9 @@ export async function POST(req: Request) {
       await supabase.from("conversations").insert({ user_id: user.id, title, messages: [...messages, { role: "assistant", content: answer.text }] });
     } catch { /* history is optional */ }
 
-    return NextResponse.json({ answer });
+    return NextResponse.json({ answer, usage: u.usage });
   } catch (err) {
+    await u.release();
     const kind = aiFailureKind(err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }

@@ -4312,7 +4312,7 @@ a.hub-card:hover {
 .ob-plan-tag { display: inline-block; font-size: 11.5px; font-weight: 600; color: var(--slate); background: var(--ivory); border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px; }
 
 /* pricing */
-.ob-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: stretch; margin-top: 8px; }
+.ob-plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; margin-top: 8px; }
 .ob-pricecard { position: relative; border: 1.5px solid var(--silver); border-radius: 18px; padding: 24px 20px; background: var(--surface); display: flex; flex-direction: column; transition: transform 0.2s, box-shadow 0.2s; }
 .ob-pricecard.popular { border-color: var(--accent); box-shadow: 0 16px 40px rgba(var(--primary-rgb), 0.16); transform: scale(1.03); }
 .ob-badge { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--on-primary); font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
@@ -12141,3 +12141,23 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
   .yta-vids li { grid-template-columns: 56px 1fr; }
   .yta-vid-stats { grid-column: 2; }
 }
+
+/* ---------------------------------------------------------------------------
+   Plan notices + usage lines (components/PlanNotice.tsx)
+   The contextual upgrade moment: one sentence, one CTA. Quiet by design.
+   --------------------------------------------------------------------------- */
+.pn { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-muted); color: var(--text-primary); font-size: 13px; line-height: 1.45; }
+.pn-body { min-width: 0; }
+.pn-body p { margin: 0; font-weight: 550; }
+.pn-body small { display: block; margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+.pn-cta { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 9px; background: var(--accent); color: var(--on-primary); font-size: 12.5px; font-weight: 650; text-decoration: none; white-space: nowrap; transition: background .15s ease; }
+.pn-cta:hover { background: var(--accent-strong); }
+.pn.soon { color: var(--text-secondary); }
+.pn.soon .pn-cta { background: var(--surface); color: var(--text-primary); border: 1px solid var(--border-strong); }
+.pn.compact { padding: 9px 11px; font-size: 12.5px; border-radius: 10px; }
+.pn.compact .pn-cta { padding: 5px 10px; font-size: 12px; }
+@media (max-width: 560px) { .pn { flex-direction: column; align-items: flex-start; } }
+
+.usage-line { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.usage-line.near { color: var(--warning); }
+.usage-line.out { color: var(--danger); }

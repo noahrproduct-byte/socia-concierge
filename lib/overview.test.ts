@@ -48,3 +48,19 @@ describe("outliers and baseline", () => {
     expect(granularityOptions(30, "2026-04-28", "2026-09-07").find((g) => g.id === "month")!.enabled).toBe(false);
   });
 });
+
+import { clampRangeId } from "./overview";
+
+describe("clampRangeId (plan history limit)", () => {
+  it("shrinks a range the plan cannot see to the largest one it can", () => {
+    expect(clampRangeId("90", 30)).toBe("30");
+    expect(clampRangeId("365", 30)).toBe("30");
+    expect(clampRangeId("28", 30)).toBe("28");
+    expect(clampRangeId("7", 30)).toBe("7");
+  });
+  it("leaves paid ranges alone and defaults an unknown id", () => {
+    expect(clampRangeId("90", 365)).toBe("90");
+    expect(clampRangeId("365", 365)).toBe("365");
+    expect(clampRangeId("nope", 365)).toBe("30");
+  });
+});

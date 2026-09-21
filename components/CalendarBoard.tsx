@@ -29,6 +29,8 @@ import {
   Trash2,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import PlanNotice from "@/components/PlanNotice";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import {
@@ -52,8 +54,30 @@ import {
 export type { CalPost };
 /** What the page knows about the publishing pipeline. `canPublish` is null when
  *  the connection predates scope recording — unknown, not "no". `lastRunAt` is
- *  the publisher's heartbeat; without a recent one, auto-publishing isn't "on". */
-export type PublishInfo = { canPublish: boolean | null; configured: boolean; lastRunAt: string | null };
+ *  the publisher's heartbeat; without a recent one, auto-publishing isn't "on".
+ *  `canSchedule` is the plan's answer (Free keeps drafts only); `planError` is
+ *  the sentence and CTA to show when it is false. The server enforces both. */
+export type PublishInfo = {
+  canPublish: boolean | null;
+  configured: boolean;
+  lastRunAt: string | null;
+  canSchedule: boolean;
+  planError: PlanError | null;
+};
+
+/** Fire-and-forget product event from the browser. */
+const track = (name: string, props?: Record<string, unknown>) => {
+  try {
+    void fetch("/api/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, props }),
+      keepalive: true,
+    }).catch(() => null);
+  } catch {
+    /* analytics never blocks the product */
+  }
+};
 
 const ago = (ms: number) => {
   const m = Math.round(ms / 60_000);
@@ -81,6 +105,20 @@ const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 const byTime = (a: ScheduledPost, b: ScheduledPost) =>
   new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
 
+/** A failed request, carrying the JSON body so a PlanError can be rendered
+ *  with its CTA instead of as plain text. */
+class ApiError extends Error {
+  body: unknown;
+  constructor(message: string, body: unknown) {
+    super(message);
+    this.body = body;
+  }
+}
+
+/** The plan block from a failed request, if that is what it was. */
+const planErrorOf = (e: unknown): PlanError | null =>
+  e instanceof ApiError && isPlanError(e.body) ? e.body : null;
+
 async function api<T>(method: string, body?: unknown, path = ""): Promise<T> {
   const res = await fetch(`/api/schedule${path}`, {
     method,
@@ -88,9 +126,12 @@ async function api<T>(method: string, body?: unknown, path = ""): Promise<T> {
     body: body ? JSON.stringify(body) : undefined,
   });
   const j = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(j.error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new ApiError(j.error ?? `Request failed (${res.status})`, j);
   return j;
 }
+
+/** What POST/PATCH /api/schedule say about the plan alongside the row. */
+type PlanReply = { plan?: { canSchedule: boolean; error: PlanError | null } };
 
 const lvl = (v: number) => (v <= 0.02 ? "n" : v < 0.28 ? "l" : v < 0.55 ? "m" : v < 0.8 ? "h" : "p");
 const LVL_NAME: Record<string, string> = {
@@ -238,6 +279,7 @@ export default function CalendarBoard({
   const drafts = items.filter((p) => p.status === "draft").length;
   const queued = items.filter((p) => p.status === "scheduled").length;
   const failed = items.filter((p) => p.status === "failed").length;
+  const canSchedule = publish.canSchedule;
 
   return (
     <div className="cal2">
@@ -312,6 +354,7 @@ export default function CalendarBoard({
                 weekOffset={weekOffset}
                 aud={aud}
                 items={items}
+                canSchedule={canSchedule}
                 onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
                 onNew={openNew}
               />
@@ -321,6 +364,7 @@ export default function CalendarBoard({
                 monthOffset={monthOffset}
                 aud={aud}
                 items={items}
+                canSchedule={canSchedule}
                 onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
                 onNew={openNew}
               />
@@ -370,6 +414,8 @@ export default function CalendarBoard({
           initialCaption={composer.caption}
           userId={userId}
           connected={connected}
+          canSchedule={canSchedule}
+          planError={publish.planError}
           onClose={() => setComposer(null)}
           onSaved={upsert}
           onRemoved={remove}
@@ -380,6 +426,7 @@ export default function CalendarBoard({
         <PlanModal
           aud={aud}
           now={now}
+          canSchedule={canSchedule}
           onClose={() => setPlanOpen(false)}
           onCreated={(ps) => ps.forEach(upsert)}
           notify={setNotice}
@@ -416,6 +463,32 @@ function AutoPublishStatus({
   drafts: number;
   failed: number;
 }) {
+  const counts = (
+    <span className="cal2-auto-counts">
+      {queued > 0 && <em>{queued} scheduled</em>}
+      {drafts > 0 && <em>{drafts} draft{drafts === 1 ? "" : "s"}</em>}
+      {failed > 0 && <em className="bad">{failed} failed</em>}
+    </span>
+  );
+  // The plan comes first: on a plan without scheduling, connection and cron
+  // state are not what stands between a draft and Instagram.
+  if (!publish.canSchedule) {
+    const pe = publish.planError;
+    return (
+      <div className="cal2-auto off">
+        <Info size={14} />
+        <span>
+          {pe?.error ?? "Scheduling and publishing is available on Starter."}{" "}
+          {pe && (
+            <Link href={pe.href} onClick={() => track("upgrade_clicked", { feature: "scheduling", from: "calendar" })}>
+              {pe.cta}
+            </Link>
+          )}
+        </span>
+        {counts}
+      </div>
+    );
+  }
   if (!connected) {
     return (
       <div className="cal2-auto off">
@@ -474,11 +547,7 @@ function AutoPublishStatus({
           </>
         )}
       </span>
-      <span className="cal2-auto-counts">
-        {queued > 0 && <em>{queued} scheduled</em>}
-        {drafts > 0 && <em>{drafts} draft{drafts === 1 ? "" : "s"}</em>}
-        {failed > 0 && <em className="bad">{failed} failed</em>}
-      </span>
+      {counts}
     </div>
   );
 }
@@ -577,6 +646,7 @@ function WeekGrid({
   weekOffset,
   aud,
   items,
+  canSchedule,
   onOpen,
   onNew,
 }: {
@@ -584,6 +654,7 @@ function WeekGrid({
   weekOffset: number;
   aud: Audience;
   items: ScheduledPost[];
+  canSchedule: boolean;
   onOpen: (p: ScheduledPost) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
@@ -635,7 +706,7 @@ function WeekGrid({
               {!isPast && (
                 <button type="button" className="cal2-add" onClick={() => onNew(date, i)}>
                   <Plus size={14} />
-                  <span>{dayEvents.length ? "Add another" : "Schedule post"}</span>
+                  <span>{dayEvents.length ? "Add another" : canSchedule ? "Schedule post" : "Add post"}</span>
                 </button>
               )}
             </div>
@@ -674,6 +745,7 @@ function MonthGrid({
   monthOffset,
   aud,
   items,
+  canSchedule,
   onOpen,
   onNew,
 }: {
@@ -681,6 +753,7 @@ function MonthGrid({
   monthOffset: number;
   aud: Audience;
   items: ScheduledPost[];
+  canSchedule: boolean;
   onOpen: (p: ScheduledPost) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
@@ -735,7 +808,7 @@ function MonthGrid({
                 <button
                   type="button"
                   className="cal2-madd"
-                  aria-label={`Schedule a post on ${fmtDay(d)}`}
+                  aria-label={`${canSchedule ? "Schedule" : "Add"} a post on ${fmtDay(d)}`}
                   onClick={() => onNew(d, wd)}
                 >
                   <Plus size={11} />
@@ -790,6 +863,8 @@ function Composer({
   initialCaption,
   userId,
   connected,
+  canSchedule: planCanSchedule,
+  planError: pagePlanError,
   onClose,
   onSaved,
   onRemoved,
@@ -800,6 +875,8 @@ function Composer({
   initialCaption?: string;
   userId: string;
   connected: boolean;
+  canSchedule: boolean;
+  planError: PlanError | null;
   onClose: () => void;
   onSaved: (p: ScheduledPost) => void;
   onRemoved: (id: string) => void;
@@ -811,6 +888,18 @@ function Composer({
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<"save" | "upload" | "publish" | "remove" | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // The server's answer wins over what the page knew at render time (a plan
+  // can change while the calendar is open).
+  const [serverPlanError, setServerPlanError] = useState<PlanError | null>(null);
+  const planError = serverPlanError ?? pagePlanError;
+  const canSchedule = planCanSchedule && !serverPlanError;
+  const requiredPlanName = planError?.requiredPlanName ?? "Starter";
+
+  const fail = (e: unknown, fallback: string) => {
+    const pe = planErrorOf(e);
+    if (pe) { setServerPlanError(pe); setErr(null); return; }
+    setErr(e instanceof Error ? e.message : fallback);
+  };
 
   const locked = post?.status === "published" || post?.status === "publishing";
   const hasMedia = Boolean(post?.media_url) || Boolean(file);
@@ -825,11 +914,17 @@ function Composer({
   const persist = async (): Promise<ScheduledPost> => {
     const body = { scheduled_at: whenDate.toISOString(), caption, media_type: mediaType };
     let cur: ScheduledPost;
+    let plan: PlanReply["plan"];
     if (!post) {
-      cur = (await api<{ posts: ScheduledPost[] }>("POST", body)).posts[0];
+      const j = await api<{ posts: ScheduledPost[] } & PlanReply>("POST", body);
+      cur = j.posts[0];
+      plan = j.plan;
     } else {
-      cur = (await api<{ post: ScheduledPost }>("PATCH", { id: post.id, ...body })).post;
+      const j = await api<{ post: ScheduledPost } & PlanReply>("PATCH", { id: post.id, ...body });
+      cur = j.post;
+      plan = j.plan;
     }
+    if (plan && !plan.canSchedule && plan.error) setServerPlanError(plan.error);
     if (file) {
       setBusy("upload");
       const supabase = createClient();
@@ -852,14 +947,17 @@ function Composer({
     setBusy("save");
     try {
       const cur = await persist();
+      const stillMissing = readiness(cur).missing;
       notify(
         cur.status === "scheduled"
           ? `Scheduled for ${fmtDay(cur.scheduled_at)} at ${fmtTime(cur.scheduled_at)}.`
-          : `Saved as a draft. It still needs ${readiness(cur).missing.join(" and ")} before it can go out.`
+          : stillMissing.length && canSchedule
+            ? `Saved as a draft. It still needs ${stillMissing.join(" and ")} before it can go out.`
+            : "Saved as a draft."
       );
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong.");
+      fail(e, "Something went wrong.");
     } finally {
       setBusy(null);
     }
@@ -879,7 +977,7 @@ function Composer({
       else notify(j.post.error ?? "Instagram didn't publish the post.");
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong.");
+      fail(e, "Something went wrong.");
     } finally {
       setBusy(null);
     }
@@ -990,6 +1088,13 @@ function Composer({
       </label>
 
       {err && <p className="cal2-form-err">{err}</p>}
+      {!locked && !canSchedule && planError && (
+        <PlanNotice
+          error={planError}
+          compact
+          onCta={() => track("upgrade_clicked", { feature: "scheduling", from: "calendar_composer" })}
+        />
+      )}
 
       <div className="cal2-modal-actions">
         {post && !locked && (
@@ -1003,14 +1108,22 @@ function Composer({
             <button
               type="button"
               className="cal2-btn ghost"
-              disabled={busy !== null || !connected || !hasMedia}
-              title={!connected ? "Connect Instagram first" : !hasMedia ? "Attach a file first" : "Send this post to Instagram right now"}
+              disabled={busy !== null || !canSchedule || !connected || !hasMedia}
+              title={
+                !canSchedule
+                  ? `Publishing is available on ${requiredPlanName}`
+                  : !connected
+                    ? "Connect Instagram first"
+                    : !hasMedia
+                      ? "Attach a file first"
+                      : "Send this post to Instagram right now"
+              }
               onClick={publishNow}
             >
               {busy === "publish" ? <Loader2 size={13} className="cal2-spin" /> : null} Publish now
             </button>
             <button type="button" className="cal2-btn primary" disabled={busy !== null} onClick={save}>
-              {busyLabel ?? (missing.length === 0 ? "Schedule" : "Save draft")}
+              {busyLabel ?? (canSchedule && missing.length === 0 ? "Schedule" : "Save draft")}
             </button>
           </>
         )}
@@ -1020,7 +1133,7 @@ function Composer({
           </button>
         )}
       </div>
-      {!locked && missing.length > 0 && (
+      {!locked && canSchedule && missing.length > 0 && (
         <p className="cal2-hint center">Needs {missing.join(" and ")} to be scheduled.</p>
       )}
     </Modal>
@@ -1041,12 +1154,14 @@ type PlanRow = {
 function PlanModal({
   aud,
   now,
+  canSchedule,
   onClose,
   onCreated,
   notify,
 }: {
   aud: Audience;
   now: Date;
+  canSchedule: boolean;
   onClose: () => void;
   onCreated: (ps: ScheduledPost[]) => void;
   notify: (s: string) => void;
@@ -1187,8 +1302,8 @@ function PlanModal({
                 </small>
               )}
               <small className="cal2-hint">
-                Each post is created as a draft with the plan&apos;s hook and concept as its caption. Attach a video to
-                each one and it&apos;s scheduled.
+                Each post is created as a draft with the plan&apos;s hook and concept as its caption.
+                {canSchedule && <> Attach a video to each one and it&apos;s scheduled.</>}
               </small>
             </div>
           )}

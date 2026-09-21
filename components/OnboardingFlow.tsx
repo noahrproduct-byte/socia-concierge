@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowRight,
   ArrowLeft,
@@ -18,6 +19,9 @@ import {
   ScanSearch,
 } from "lucide-react";
 import { NICHES } from "@/lib/niches";
+import { PLANS, PLAN_ORDER, LIMIT_UNIT, formatPrice, pricingHref, type PlanConfig, type PlanId } from "@/lib/plans";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
+import PlanNotice from "@/components/PlanNotice";
 import ConnectAccounts from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 
@@ -80,41 +84,17 @@ function planFor(niche: string) {
   ];
 }
 
-const PLANS = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: 0,
-    blurb: "Try the essentials",
-    features: ["1 connected account", "Weekly content ideas", "Basic scoring"],
-    cta: "Continue free",
-    popular: false,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: 29,
-    blurb: "For creators who post to grow",
-    features: [
-      "3 connected accounts",
-      "Daily AI content plans",
-      "Hook + retention scoring",
-      "Best-time-to-post engine",
-      "Competitor tracking",
-    ],
-    cta: "Start 7-day free trial",
-    popular: true,
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    price: 79,
-    blurb: "For brands scaling fast",
-    features: ["Unlimited accounts", "Everything in Pro", "Trend + virality alerts", "Priority AI + support"],
-    cta: "Start 7-day free trial",
-    popular: false,
-  },
-];
+/* Compact, real inclusions per plan, read from lib/plans.ts so this screen
+   can never promise something enforcement does not grant. */
+function planHighlights(pl: PlanConfig): string[] {
+  const accounts = pl.limits.connected_accounts;
+  const competitors = pl.limits.competitors;
+  return [
+    `${accounts} ${accounts === 1 ? LIMIT_UNIT.connected_accounts.one : LIMIT_UNIT.connected_accounts.many}`,
+    `${competitors} ${competitors === 1 ? LIMIT_UNIT.competitors.one : LIMIT_UNIT.competitors.many}`,
+    `${pl.meters.ask_socia} Ask SOCIA questions a month`,
+  ];
+}
 
 function fmtCount(n: number | null): string {
   if (n == null) return "–";
@@ -139,6 +119,9 @@ export default function OnboardingFlow({
   const [account, setAccount] = useState<Account>(null);
   const [extracted, setExtracted] = useState<Extracted>(null);
   const [analyzed, setAnalyzed] = useState(false);
+  // The audit was refused by the plan (403 PlanError): shown on the confirm
+  // step in place of the generic "couldn't read" line, manual setup still works.
+  const [planError, setPlanError] = useState<PlanError | null>(null);
 
   // confirm-phase fields (prefilled by the AI when extraction worked)
   const [niche, setNiche] = useState("");
@@ -198,7 +181,12 @@ export default function OnboardingFlow({
     analysisStarted.current = true;
     const minWait = new Promise((r) => setTimeout(r, ANALYZE_STEPS.length * 1100 + 500));
     const run = fetch("/api/analyze-account")
-      .then((r) => (r.ok ? r.json() : { connected: false }))
+      .then(async (r) => {
+        const j = await r.json().catch(() => null);
+        if (r.ok) return j ?? { connected: false };
+        if (isPlanError(j)) setPlanError(j);
+        return { connected: false };
+      })
       .catch(() => ({ connected: false }));
     Promise.all([run, minWait]).then(([res]) => {
       if (res?.account) setAccount(res.account);
@@ -243,14 +231,15 @@ export default function OnboardingFlow({
     setPhase("building");
   }
 
-  async function finish(planId: string) {
+  // Everyone starts on Free; there is no checkout here. Paid cards are links
+  // to /pricing, so the only plan that reaches this is Free and the dashboard
+  // reads nothing from the URL beyond welcome=1.
+  async function finish(_planId: PlanId) {
     setLoading(true);
     setErr(null);
     try {
       await saveProfile();
-      // Payment isn't wired yet; every path lands on the dashboard. The chosen
-      // plan / trial intent is passed along so billing can be wired later.
-      router.push(`/dashboard?welcome=1&plan=${planId}`);
+      router.push("/dashboard?welcome=1");
       router.refresh();
     } catch {
       setErr("Couldn't finish setup. Try again.");
@@ -358,11 +347,15 @@ export default function OnboardingFlow({
                 <>
                   <span className="ob-eyebrow"><Sparkles size={13} /> Quick setup</span>
                   <h1>Tell us about your account</h1>
-                  <p>
-                    {liveIg
-                      ? "We couldn't read your account data yet, so set this up by hand. Takes 20 seconds."
-                      : "No live account connected yet, so set this up by hand. Takes 20 seconds."}
-                  </p>
+                  {planError ? (
+                    <PlanNotice error={planError} compact />
+                  ) : (
+                    <p>
+                      {liveIg
+                        ? "We couldn't read your account data yet, so set this up by hand. Takes 20 seconds."
+                        : "No live account connected yet, so set this up by hand. Takes 20 seconds."}
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -503,37 +496,45 @@ export default function OnboardingFlow({
           <div className="ob-stage" key="pricing">
             <div className="ob-head ob-rise">
               <span className="ob-eyebrow"><Rocket size={13} /> Last step</span>
-              <h1>Start free for 7 days</h1>
-              <p>Full access, no charge today. Cancel anytime before the trial ends.</p>
+              <h1>Start on Free</h1>
+              <p>Compare plans anytime from Settings.</p>
             </div>
             <div className="ob-plans">
-              {PLANS.map((pl, i) => (
-                <div key={pl.id} className={`ob-pricecard ob-pop ${pl.popular ? "popular" : ""}`} style={{ animationDelay: `${i * 80}ms` }}>
-                  {pl.popular && <span className="ob-badge">Most popular</span>}
-                  <div className="ob-price-name">{pl.name}</div>
-                  <div className="ob-price-amt">
-                    {pl.price === 0 ? <b>Free</b> : (<><b>${pl.price}</b><span>/mo</span></>)}
+              {PLAN_ORDER.map((id, i) => {
+                const pl = PLANS[id];
+                const isFree = pl.priceMonthly === 0;
+                return (
+                  <div key={pl.id} className={`ob-pricecard ob-pop ${pl.popular ? "popular" : ""}`} style={{ animationDelay: `${i * 80}ms` }}>
+                    {pl.popular && <span className="ob-badge">Most popular</span>}
+                    <div className="ob-price-name">{pl.name}</div>
+                    <div className="ob-price-amt">
+                      {isFree ? <b>Free</b> : (<><b>{formatPrice(pl)}</b><span>/mo</span></>)}
+                    </div>
+                    <ul className="ob-price-feats">
+                      {planHighlights(pl).map((f) => (
+                        <li key={f}><Check size={14} /> {f}</li>
+                      ))}
+                    </ul>
+                    {isFree ? (
+                      <button
+                        className="ob-btn ob-btn-primary ob-price-cta"
+                        disabled={loading}
+                        onClick={() => finish("free")}
+                      >
+                        {loading ? "Setting up…" : "Continue free"}
+                      </button>
+                    ) : (
+                      <Link href={pricingHref(pl.id)} className="ob-btn ob-btn-outline ob-price-cta">
+                        See {pl.name}
+                      </Link>
+                    )}
                   </div>
-                  <div className="ob-price-blurb">{pl.blurb}</div>
-                  <ul className="ob-price-feats">
-                    {pl.features.map((f) => (
-                      <li key={f}><Check size={14} /> {f}</li>
-                    ))}
-                  </ul>
-                  <button
-                    className={`ob-btn ${pl.popular ? "ob-btn-primary" : "ob-btn-outline"} ob-price-cta`}
-                    disabled={loading}
-                    onClick={() => finish(pl.id)}
-                  >
-                    {loading ? "Setting up…" : pl.cta}
-                  </button>
-                  {pl.price > 0 && <span className="ob-price-note">then ${pl.price}/mo · cancel anytime</span>}
-                </div>
-              ))}
+                );
+              })}
             </div>
             {err && <div className="ob-err">{err}</div>}
             <div className="ob-skiprow ob-rise" style={{ animationDelay: "260ms" }}>
-              <button className="ob-textlink" onClick={() => finish("starter")} disabled={loading}>
+              <button className="ob-textlink" onClick={() => finish("free")} disabled={loading}>
                 Maybe later, take me to my dashboard
               </button>
             </div>

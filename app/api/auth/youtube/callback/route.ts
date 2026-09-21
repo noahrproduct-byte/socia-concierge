@@ -8,6 +8,8 @@ import {
   ytAuthConfigured,
   ytRedirectUri,
 } from "@/lib/youtubeAuth";
+import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib/entitlements";
+import { trackEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
 
@@ -52,6 +54,15 @@ export async function GET(req: Request) {
 
     const channel = await fetchMyChannel(tok.access_token);
     if (!channel) return done("nochannel");
+
+    // Plan gate, server-side, before anything is written. Reconnecting the
+    // channel already on file never counts as a new slot.
+    const ent = await getEntitlements(supabase, user.id);
+    const list = await listConnectedAccounts(supabase, user.id);
+    if (!canConnectAnother(ent, list, "youtube", channel.channelId).ok) {
+      await trackEvent(supabase, user.id, "account_limit_reached", { platform: "youtube", plan: ent.plan });
+      return done("limit");
+    }
 
     // A reconnect can return no refresh token; keep the stored one if so.
     let refreshToken = tok.refresh_token;

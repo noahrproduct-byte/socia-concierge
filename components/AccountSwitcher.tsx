@@ -16,12 +16,15 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
 } from "@/components/ui/dropdown-menu";
 
 type Account = {
   ig_user_id: string | null;
   username: string | null;
   is_active: boolean;
+  /** Paused by a plan downgrade: shown, but not switchable. */
+  suspended?: boolean;
   avatar: string | null;
 };
 
@@ -54,7 +57,8 @@ export default function AccountSwitcher() {
   const active = accounts.find((a) => a.is_active) ?? accounts[0];
 
   async function switchTo(a: Account) {
-    if (!a.ig_user_id || a.is_active || switching) return;
+    // A paused row cannot become the active account; the server refuses it too.
+    if (!a.ig_user_id || a.is_active || a.suspended || switching) return;
     setSwitching(a.ig_user_id);
     try {
       const res = await fetch("/api/accounts", {
@@ -73,7 +77,8 @@ export default function AccountSwitcher() {
     }
   }
 
-  const canAdd = accounts.length < limit;
+  // Paused rows hold no plan slot, so they do not count toward the cap here.
+  const canAdd = accounts.filter((a) => !a.suspended).length < limit;
 
   return (
     <DropdownMenu>
@@ -95,6 +100,7 @@ export default function AccountSwitcher() {
             <DropdownMenuItem
               key={a.ig_user_id ?? a.username ?? "?"}
               onClick={() => switchTo(a)}
+              disabled={Boolean(a.suspended)}
               className="gap-2"
             >
               {a.avatar ? (
@@ -104,7 +110,9 @@ export default function AccountSwitcher() {
                 <Camera size={15} />
               )}
               <span className="flex-1">@{a.username ?? "unknown"}</span>
-              {switching === a.ig_user_id ? (
+              {a.suspended ? (
+                <DropdownMenuShortcut>Paused</DropdownMenuShortcut>
+              ) : switching === a.ig_user_id ? (
                 <Loader2 size={14} className="acsw-spin" />
               ) : (
                 a.is_active && <Check size={14} />

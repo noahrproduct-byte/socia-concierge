@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { igAccountForPage } from "@/lib/igBusinessDiscovery";
 import { FB_GRAPH_V, fbAppId, fbAppSecret, fbRedirectUri } from "@/lib/facebook";
 import { syncFacebook } from "@/lib/facebookSync";
+import { activeAccounts, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
+import { trackEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -107,9 +109,19 @@ export async function GET(req: Request) {
       return done(granted.length && !granted.includes("pages_show_list") ? "noperm" : "nopages");
     }
 
+    // Plan gate, server-side, before anything is written. A Page's identity is
+    // its page id, so reconnecting the Page already on file never hits it.
+    const ent = await getEntitlements(supabase, user.id);
+    const list = await listConnectedAccounts(supabase, user.id);
+    const limitHit = async () => {
+      await trackEvent(supabase, user.id, "account_limit_reached", { platform: "facebook", plan: ent.plan });
+      return done("limit");
+    };
+
     if (pages.length === 1) {
       // Unambiguous — connect it directly.
       const p = pages[0];
+      if (!canConnectAnother(ent, list, "facebook", p.id).ok) return limitHit();
       // The Page-linked Instagram account is what unlocks Business Discovery.
       const ig = p.access_token ? await igAccountForPage(p.id, p.access_token).catch(() => null) : null;
       const row: Record<string, unknown> = {
@@ -143,6 +155,11 @@ export async function GET(req: Request) {
     }
 
     // Multiple Pages — store the list and let the user choose (never auto-pick).
+    // No Page is chosen yet, so only block when there is no Facebook Page on
+    // file to reconnect AND every slot is already taken; the select route
+    // re-checks with the chosen id.
+    const hasFbPage = list.some((a) => a.platform === "facebook");
+    if (!hasFbPage && activeAccounts(list).length >= getLimit(ent, "connected_accounts")) return limitHit();
     const { error } = await supabase.from("facebook_connections").upsert(
       {
         user_id: user.id,

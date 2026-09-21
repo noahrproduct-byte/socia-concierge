@@ -27,8 +27,11 @@ export type FbSnapshot = {
   picture_url: string | null;
   posts: FbPost[];
   last_synced_at: string | null;
-  /** connected | choose_page | expired | error */
-  status: string;
+  /**
+   * connected | choose_page | expired | suspended | error
+   * "suspended" = paused by a plan downgrade: the row is kept, nothing is read.
+   */
+  status: "connected" | "choose_page" | "expired" | "suspended" | "error";
   /** What this Page's data actually provides (capability map). */
   capabilities: {
     followers: boolean;
@@ -112,12 +115,9 @@ async function fetchPage(token: string, pageId: string): Promise<{
 
 /** Force-sync the connected Page; returns the fresh snapshot or null. */
 export async function syncFacebook(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
-  const { data: conn } = await supabase
-    .from("facebook_connections")
-    .select("access_token, page_id, connection_status")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (!conn?.access_token || !conn.page_id) return null;
+  const conn = await readFbRow(supabase, userId);
+  // A Page paused by a plan downgrade is never read, not even on a manual sync.
+  if (!conn?.access_token || !conn.page_id || conn.plan_suspended_at != null) return null;
 
   const fresh = await fetchPage(conn.access_token, conn.page_id);
   const now = new Date().toISOString();
@@ -162,18 +162,61 @@ export async function syncFacebook(supabase: Supa, userId: string): Promise<FbSn
   };
 }
 
-/** Cached snapshot, auto-syncing when stale. Returns null when no usable
- *  connection exists; a non-null result with status "expired"/"choose_page"
- *  tells the UI what attention is needed. */
-export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
-  const { data: row } = await supabase
+const FB_SNAPSHOT_COLS = "page_id, page_name, username, access_token, picture_url, followers_count, media, connection_status, last_synced_at";
+
+type FbRow = {
+  page_id?: string | null;
+  page_name?: string | null;
+  username?: string | null;
+  access_token?: string | null;
+  picture_url?: string | null;
+  followers_count?: number | null;
+  media?: unknown;
+  connection_status?: string | null;
+  last_synced_at?: string | null;
+  plan_suspended_at?: string | null;
+};
+
+/** The connection row, reading plan_suspended_at when that column exists. */
+async function readFbRow(supabase: Supa, userId: string): Promise<FbRow | null> {
+  try {
+    const { data, error } = await supabase
+      .from("facebook_connections")
+      .select(`${FB_SNAPSHOT_COLS}, plan_suspended_at`)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!error) return (data as FbRow | null) ?? null;
+  } catch {
+    /* pre-migration: retry without the column */
+  }
+  const { data } = await supabase
     .from("facebook_connections")
-    .select("page_id, page_name, username, access_token, picture_url, followers_count, media, connection_status, last_synced_at")
+    .select(FB_SNAPSHOT_COLS)
     .eq("user_id", userId)
     .maybeSingle();
+  return (data as FbRow | null) ?? null;
+}
+
+function idleStatus(row: FbRow): FbSnapshot["status"] {
+  if (row.plan_suspended_at != null) return "suspended";
+  if (row.connection_status === "choose_page" || row.connection_status === "expired") return row.connection_status;
+  return "error";
+}
+
+/** Cached snapshot, auto-syncing when stale. Returns null when no usable
+ *  connection exists; a non-null result with status "expired", "choose_page"
+ *  or "suspended" tells the UI what attention is needed. A suspended Page
+ *  (paused by a plan downgrade) is never read from Meta. */
+export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
+  const row = await readFbRow(supabase, userId);
   if (!row) return null;
 
-  if (row.connection_status === "choose_page" || row.connection_status === "expired" || !row.access_token) {
+  if (
+    row.plan_suspended_at != null ||
+    row.connection_status === "choose_page" ||
+    row.connection_status === "expired" ||
+    !row.access_token
+  ) {
     return {
       page_id: row.page_id ?? null,
       page_name: row.page_name ?? null,
@@ -182,7 +225,7 @@ export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbS
       picture_url: row.picture_url ?? null,
       posts: [],
       last_synced_at: row.last_synced_at ?? null,
-      status: row.connection_status ?? "error",
+      status: idleStatus(row),
       capabilities: caps([], null),
     };
   }
@@ -194,7 +237,7 @@ export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbS
     if (fresh) return fresh;
   }
 
-  const posts: FbPost[] = Array.isArray(row.media) ? row.media : [];
+  const posts: FbPost[] = Array.isArray(row.media) ? (row.media as FbPost[]) : [];
   return {
     page_id: row.page_id ?? null,
     page_name: row.page_name ?? null,

@@ -31,7 +31,14 @@ import YouTubeConnect from "@/components/YouTubeConnect";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
-import { getPlan, accountLimit } from "@/lib/plan";
+import {
+  getEntitlements, getUsage, listConnectedAccountsDetailed, countActiveCompetitors, computeOverLimits,
+  activeAccounts, getLimit,
+} from "@/lib/entitlements";
+import { limitError } from "@/lib/planErrors";
+import PlanNotice from "@/components/PlanNotice";
+import PlanBilling from "@/components/settings/PlanBilling";
+import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
 import type { BrandDetail } from "@/lib/profile";
 
 export const metadata = { title: "Settings — SOCIA" };
@@ -43,6 +50,39 @@ function ago(iso: string): string {
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.round(hrs / 24)}d ago`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Supa = any;
+
+/** Every tracked competitor, paused ones included, for the "choose what to keep" state. */
+async function listTrackedCompetitors(supabase: Supa, userId: string): Promise<KeepCompetitor[]> {
+  type Row = { platform: string | null; handle: string | null; is_active?: boolean | null };
+  const shape = (rows: Row[], activeKnown: boolean): KeepCompetitor[] =>
+    rows
+      .filter((r) => r.platform && r.handle)
+      .map((r) => ({ platform: r.platform as string, handle: r.handle as string, active: activeKnown ? r.is_active !== false : true }));
+  try {
+    const { data, error } = await supabase
+      .from("tracked_competitors")
+      .select("platform, handle, is_active")
+      .eq("user_id", userId)
+      .order("added_at", { ascending: true });
+    if (!error) return shape((data ?? []) as Row[], true);
+  } catch {
+    /* is_active may not exist yet */
+  }
+  try {
+    const { data, error } = await supabase
+      .from("tracked_competitors")
+      .select("platform, handle")
+      .eq("user_id", userId)
+      .order("added_at", { ascending: true });
+    if (!error) return shape((data ?? []) as Row[], false);
+  } catch {
+    /* table may not exist */
+  }
+  return [];
 }
 
 // Preview competitor list — same labeled demo set as the Competitors page.
@@ -118,7 +158,27 @@ export default async function SettingsPage({
 
   // Live account snapshot (avatar, followers, sync state) — best-effort.
   const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
-  const plan = await getPlan(supabase, user.id);
+
+  // Plan, meters and what occupies the plan's slots. Counts that cannot be
+  // read stay unknown (never 0); the over-limit state is computed from the
+  // same lists the meters render, so the two never disagree.
+  const ent = await getEntitlements(supabase, user.id);
+  const [usage, accountsResult, competitorCount] = await Promise.all([
+    getUsage(supabase, ent),
+    listConnectedAccountsDetailed(supabase, user.id),
+    countActiveCompetitors(supabase, user.id),
+  ]);
+  const accountsList = accountsResult.accounts;
+  // A platform table that could not be read makes the count unknown (not a lower bound shown as truth).
+  const activeCount = accountsResult.complete ? activeAccounts(accountsList).length : null;
+  const overLimits = computeOverLimits(ent, activeCount, competitorCount);
+  const keepCompetitors = overLimits.competitors ? await listTrackedCompetitors(supabase, user.id) : null;
+  const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit";
+  // Accounts paused by a downgrade still have rows (the cards below read those
+  // rows directly), so tell each card when its platform is paused.
+  const pausedOn = (platform: "instagram" | "facebook" | "youtube") =>
+    accountsList.some((a) => a.platform === platform && a.suspended) &&
+    !accountsList.some((a) => a.platform === platform && !a.suspended);
 
   // Intelligence state from the real detection pipeline.
   let intel: IntelState = {
@@ -204,6 +264,11 @@ export default async function SettingsPage({
                 <h3>Connected accounts</h3>
                 <span className="st2-card-note">SOCIA runs on your live account data</span>
               </div>
+              {accountLimitHit && (
+                <PlanNotice
+                  error={limitError(ent.plan, "connected_accounts", getLimit(ent, "connected_accounts"), activeCount)}
+                />
+              )}
               {snap && (
                 <p className={`st3-health${syncedRecently ? "" : " warn"}`}>
                   {syncedRecently ? (
@@ -220,6 +285,7 @@ export default async function SettingsPage({
                 followers={snap?.followers_count ?? null}
                 avatar={snap?.profile_picture_url ?? null}
                 needsReconnect={snap?.insights_ok === false}
+                paused={!snap && pausedOn("instagram")}
               />
               <div className="st2-divider"><span>Facebook</span></div>
               <FacebookConnect
@@ -232,6 +298,7 @@ export default async function SettingsPage({
                 syncedAt={fbConn?.last_synced_at ?? null}
                 pendingPages={fbPages}
                 posts={Array.isArray(fbConn?.media) ? (fbConn!.media as FbPost[]).slice(0, 5) : []}
+                paused={pausedOn("facebook")}
               />
               <div className="st2-divider"><span>YouTube</span></div>
               <YouTubeConnect
@@ -241,6 +308,7 @@ export default async function SettingsPage({
                 handle={ytConn?.handle ?? null}
                 subscribers={ytConn?.subscribers ?? null}
                 avatar={ytConn?.avatar_url ?? null}
+                paused={pausedOn("youtube")}
               />
               <div className="st2-divider"><span>Other platforms</span></div>
               <ConnectionsManager />
@@ -261,7 +329,7 @@ export default async function SettingsPage({
               <div className="st2-card-head">
                 <span className="st2-card-ico"><Radar size={15} /></span>
                 <h3>Competitors &amp; Market</h3>
-                <span className="st2-card-note">Preview — live tracking arrives with Growth</span>
+                <span className="st2-card-note">Preview</span>
               </div>
               <div className="st3-market">
                 <div>
@@ -337,26 +405,17 @@ export default async function SettingsPage({
               <div className="st2-card-head">
                 <span className="st2-card-ico"><CreditCard size={15} /></span>
                 <h3>Plan &amp; billing</h3>
-                <span className="st2-card-note">Manage your subscription and usage</span>
+                <span className="st2-card-note">Your plan and usage this period</span>
               </div>
-              <div className="st2-plan">
-                <div>
-                  <div className="st2-plan-name">
-                    {plan === "pro" ? "Pro plan" : "Free plan"} <span className="st2-badge">Current</span>
-                  </div>
-                  <p>
-                    {plan === "pro"
-                      ? `Up to ${accountLimit("pro")} Instagram accounts · full analytics`
-                      : "1 Instagram account · full analytics"}
-                  </p>
-                </div>
-                {plan !== "pro" && (
-                  <p className="st2-plan-up">
-                    <Sparkles size={14} /> Pro connects up to {accountLimit("pro")} Instagram
-                    accounts. Billing is coming soon.
-                  </p>
-                )}
-              </div>
+              <PlanBilling
+                ent={ent}
+                usage={usage}
+                accounts={accountsList}
+                activeCount={activeCount}
+                competitorCount={competitorCount}
+                competitors={keepCompetitors}
+                overLimits={overLimits}
+              />
             </section>
 
             {/* Security & session */}

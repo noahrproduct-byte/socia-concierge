@@ -8,6 +8,7 @@ import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
 import { postCards, displayTitle, type PostCard } from "@/lib/overview";
 import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
+import { requireUsage } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -104,6 +105,11 @@ Return the JSON. Requirements:
 Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly this shape:
 {"overall":0,"categories":[{"id":"hook|pacing|clarity|visual|cta|audio","assessable":true,"score":0,"explanation":"","evidence":"","fix":""}],"observed":{"subjectAppearsAt":0,"faceSeen":"yes|no|unknown","onScreenText":"yes|no|unknown","ctaDetected":"yes|no|unknown","summary":""},"markers":[{"t":0,"kind":"issue|strong|pacing|cta|text","label":""}],"segments":[{"start":0,"end":0,"label":"","rating":"weak|good|strong|needs","reason":""}],"topFixes":[{"title":"","observed":"","suggestion":"","kind":"opening|hook_text|ending|pacing|text|audio|visual|caption","t":0,"applyField":"hook|cta|caption|onscreen|none","applyValue":""}],"currentHook":"","hooks":[{"style":"curiosity|direct|local|educational|challenge|story","text":""}],"currentCta":"","ctaOptions":[""],"onScreenText":[{"t":0,"text":"","role":"opening|mid|cta"}],"cuts":{"suggestedSec":0,"edits":[{"type":"remove|trim","start":0,"end":0,"reason":""}],"note":""},"audio":{"observed":"","direction":{"style":"","bpm":"","texture":"","why":""},"alternative":{"style":"","bpm":"","texture":"","why":""}},"platformFit":[{"platform":"Instagram Reels|TikTok|YouTube Shorts","fit":"strong|medium|weak","note":""}],"compare":{"rows":[{"label":"","current":"","winners":"","verdict":"better|similar|worse|unknown"}],"summary":""},"niche":{"patterns":[""],"summary":""},"captionSuggestion":""}`;
 
+  // One analysis per unit of the Content Studio allowance; counted right
+  // before the model is called, and given back when no analysis comes back.
+  const u = await requireUsage(supabase, user.id, "content_studio");
+  if (u.denied) return u.denied;
+
   try {
     // The full analysis schema is too large for structured outputs ("compiled
     // grammar is too large"), so the shape is given in the prompt and parsed
@@ -114,7 +120,10 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       system: SYSTEM,
       messages: [{ role: "user", content: [...images, { type: "text", text }] }],
     });
-    if (res.stop_reason === "refusal") return NextResponse.json({ error: "SOCIA declined to analyse this content." }, { status: 422 });
+    if (res.stop_reason === "refusal") {
+      await u.release();
+      return NextResponse.json({ error: "SOCIA declined to analyse this content." }, { status: 422 });
+    }
     const block = res.content.find((b) => b.type === "text");
     const rawText = block && "text" in block ? block.text : "";
     let raw: Record<string, unknown>;
@@ -122,7 +131,10 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       const cleaned = rawText.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
       const s0 = cleaned.indexOf("{"), e0 = cleaned.lastIndexOf("}");
       raw = JSON.parse(s0 === -1 || e0 <= s0 ? cleaned : cleaned.slice(s0, e0 + 1));
-    } catch { return NextResponse.json({ error: "The analysis came back unreadable. Try again." }, { status: 502 }); }
+    } catch {
+      await u.release();
+      return NextResponse.json({ error: "The analysis came back unreadable. Try again." }, { status: 502 });
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = raw as any;
@@ -155,8 +167,9 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       caption: { current: body.caption?.trim() || null, suggestion: r.captionSuggestion || null },
       meta: { frames: body.frames.length, hadTranscript: Boolean(body.transcript?.trim()), analyzedAt: new Date().toISOString(), version: 1 },
     };
-    return NextResponse.json({ analysis });
+    return NextResponse.json({ analysis, usage: u.usage });
   } catch (err) {
+    await u.release();
     const kind2 = aiFailureKind(err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind2], kind: kind2 }, { status: kind2 === "rate_limited" ? 429 : 502 });
   }

@@ -17,6 +17,8 @@ import { goalKeywords } from "@/lib/gaps";
 import { engagementRateOf, interactionsTotal } from "@/lib/engagement";
 import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
+import { getEntitlements, clampDays, maxHistoryDays } from "@/lib/entitlements";
+import { listTracked } from "@/lib/trackedCompetitors";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
@@ -61,7 +63,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   if (!user) redirect("/login");
 
   const sp = await searchParams;
-  const days = sp.range === "7" ? 7 : sp.range === "90" ? 90 : 30;
+  // The range never exceeds the plan's analytics history; niche_range is discovery content, not history, so it is left alone.
+  const ent = await getEntitlements(supabase, user.id);
+  const days = clampDays(ent, sp.range === "7" ? 7 : sp.range === "90" ? 90 : 30);
   const platform: PlatformFilter = sp.platform === "instagram" || sp.platform === "youtube" || sp.platform === "facebook" ? sp.platform : "all";
   const nicheRange: NicheRange = sp.niche_range === "30" ? 30 : sp.niche_range === "all" ? 0 : 90;
   const now = new Date();
@@ -120,8 +124,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // ---- tracked + discovered accounts --------------------------------------
   let tracked: Tracked[] = [];
   try {
-    const { data, error } = await supabase.from("tracked_competitors").select("platform, handle, added_at").eq("user_id", user.id).order("added_at", { ascending: true });
-    if (!error) tracked = (data ?? []) as Tracked[];
+    tracked = await listTracked<Tracked>(supabase, user.id, "platform, handle, added_at", { byAdded: true });
   } catch { /* not migrated yet */ }
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
 
@@ -281,7 +284,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
   const data: CompetitorsData = {
     connected: Boolean(snap), igConnectHref: igConfigured() ? "/api/auth/instagram/start" : "/settings#accounts",
-    you, rows, tracked, days, platform, lastRun, sources,
+    you, rows, tracked, days, maxDays: maxHistoryDays(ent), platform, lastRun, sources,
     ig: { enabled: igRes.enabled, reason: igRes.enabled ? null : (igRes.reason ?? null) }, ytConfigured: ytConfigured(),
     niche: profile?.niche ?? null, subNiche, nicheRange, content, saved, own, youSeries, followerSeries,
     goalKeywords: goalKeywords(profile?.goals ?? null), goalText: profile?.goals ?? null, location, now: now.toISOString(),

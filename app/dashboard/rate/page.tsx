@@ -6,6 +6,8 @@
 "use client";
 
 import { useState } from "react";
+import PlanNotice from "@/components/PlanNotice";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
 
 type Scorecard = {
   grade: "A" | "B" | "C" | "D" | "F";
@@ -92,12 +94,14 @@ export default function ContentRaterPage() {
   const [niche, setNiche] = useState("Restaurant / Food");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
   const [result, setResult] = useState<Scorecard | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function handleRate() {
     setLoading(true);
     setError(null);
+    setPlanError(null);
     setResult(null);
 
     try {
@@ -110,7 +114,8 @@ export default function ContentRaterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Something went wrong.");
+        if (isPlanError(data)) setPlanError(data);
+        else setError(data.error || "Something went wrong.");
         return;
       }
 
@@ -207,7 +212,12 @@ export default function ContentRaterPage() {
             {loading ? "Analyzing…" : "Rate this post"}
           </button>
 
-          {error && (
+          {planError && (
+            <div className="mt-4">
+              <PlanNotice error={planError} compact />
+            </div>
+          )}
+          {error && !planError && (
             <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
               {error}
             </div>

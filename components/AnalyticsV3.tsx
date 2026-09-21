@@ -35,6 +35,8 @@ import { buildWindows, type TimedPost } from "@/lib/postingTimes";
 import { timingGap, type Gap } from "@/lib/gaps";
 import type { EngagementRate, Breakdown, QualityNote } from "@/lib/engagement";
 import type { Demographics } from "@/lib/igDemographics";
+import { pricingHref } from "@/lib/plans";
+import "./planRange.css";
 
 export type AnalyticsData = {
   handle: string | null;
@@ -50,6 +52,14 @@ export type AnalyticsData = {
   gains: SeriesPoint[];
   insights: Insight[];
   gaps: Gap[];
+  /**
+   * Free only: how many evidence-backed gaps the server found beyond the one
+   * in `gaps`. A real count, never an estimate. Undefined on paid plans and
+   * whenever there was nothing to hold back, so nothing extra renders.
+   */
+  lockedGaps?: number;
+  /** Longest window the viewer's plan may look back over; ranges beyond it show as locked. */
+  maxDays?: number;
   posts: PostCard[];
   library: LibraryPost[];
   baseline: number | null;
@@ -106,11 +116,15 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
     const w = audienceInsight(d.timed);
     return w ? [...d.insights, w] : d.insights;
   }, [d.insights, d.timed, mounted]);
-  const gaps = useMemo(() => {
-    if (!mounted) return d.gaps;
+  // The timing gap needs the viewer's clock, so it joins after mount. When the
+  // server held gaps back (Free), it stays held back too and is counted, so the
+  // number on the card is the real number of gaps this account is not seeing.
+  const { gaps, lockedGaps } = useMemo(() => {
+    if (!mounted) return { gaps: d.gaps, lockedGaps: d.lockedGaps ?? 0 };
     const tg = timingGap(buildWindows(d.timed), d.timed);
-    return tg ? [...d.gaps, tg].sort((a, b) => b.score - a.score).slice(0, 5) : d.gaps;
-  }, [d.gaps, d.timed, mounted]);
+    if (d.lockedGaps != null) return { gaps: d.gaps, lockedGaps: d.lockedGaps + (tg ? 1 : 0) };
+    return { gaps: tg ? [...d.gaps, tg].sort((a, b) => b.score - a.score).slice(0, 5) : d.gaps, lockedGaps: 0 };
+  }, [d.gaps, d.lockedGaps, d.timed, mounted]);
 
   const series = d.series[metric];
   const postById = useMemo(() => Object.fromEntries(d.posts.map((p) => [p.id, p])), [d.posts]);
@@ -181,7 +195,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
         <div className="dv-head-actions">
           <Mounted fallback={<span className="ov-ctl-ph" aria-hidden />}>
             <AccountSwitcher />
-            <DateRangeSelector />
+            <DateRangeSelector maxDays={d.maxDays} />
           </Mounted>
           <a href="/api/export" download className="ov-btn ghost"><Download size={14} /> Export</a>
           <button type="button" className="ov-btn primary" onClick={() => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric } })}><Sparkles size={14} /> Ask SOCIA</button>
@@ -250,6 +264,28 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
               <span className="ov-card-sub">The biggest gaps SOCIA found in your current strategy, ranked by evidence.</span>
             </div>
             <GapList gaps={gaps} onTab={jumpTab} pending={d.posts.length < 5} />
+            {lockedGaps > 0 && (
+              <div className="pn compact gap-upsell" role="status">
+                <div className="pn-body">
+                  <p>SOCIA found {lockedGaps} more {lockedGaps === 1 ? "opportunity" : "opportunities"} for this account.</p>
+                  <small>Unlock your full strategy with Starter.</small>
+                </div>
+                <Link
+                  href={pricingHref("starter")}
+                  className="pn-cta"
+                  onClick={() => {
+                    fetch("/api/events", {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ name: "upgrade_clicked", props: { from: "analytics_gaps", locked: lockedGaps } }),
+                      keepalive: true,
+                    }).catch(() => {});
+                  }}
+                >
+                  See Starter
+                </Link>
+              </div>
+            )}
           </section>
 
           <div className="av-grid">

@@ -174,11 +174,11 @@ describe("daily-series provenance", () => {
 import { accountLimit, ACCOUNT_LIMIT } from "./plan";
 
 describe("plan gating", () => {
-  it("free connects one Instagram account", () => {
+  it("free and starter connect one account, growth five, pro fifteen", () => {
     expect(accountLimit("free")).toBe(1);
-  });
-  it("pro connects up to three", () => {
-    expect(accountLimit("pro")).toBe(3);
+    expect(accountLimit("starter")).toBe(1);
+    expect(accountLimit("growth")).toBe(5);
+    expect(accountLimit("pro")).toBe(15);
   });
   it("no plan grants unlimited accounts", () => {
     for (const n of Object.values(ACCOUNT_LIMIT)) expect(Number.isFinite(n)).toBe(true);

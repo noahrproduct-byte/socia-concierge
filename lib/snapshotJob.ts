@@ -13,7 +13,7 @@ const IG_V = "v23.0";
 
 export type SnapshotRun = { day: string; accounts: number; written: number; skipped: number; errors: number };
 
-type Conn = { user_id: string; ig_user_id: string | null; access_token: string; is_active?: boolean | null };
+type Conn = { user_id: string; ig_user_id: string | null; access_token: string; is_active?: boolean | null; plan_suspended_at?: string | null };
 
 /** Upsert one day's totals, tolerating the pre-migration column set. */
 export async function writeDailySnapshot(
@@ -75,14 +75,27 @@ async function fetchTotals(token: string): Promise<{ followers: number | null; f
 export async function runDailySnapshots(supabase: Supa, now = new Date(), budgetMs = 20000): Promise<SnapshotRun> {
   const day = now.toISOString().slice(0, 10);
   const deadline = Date.now() + budgetMs;
-  let conns: Conn[] = [];
+  // Accounts paused by a plan downgrade are not read: no snapshot, no API
+  // call. Progressively narrower selects keep a pre-migration schema working.
+  let conns: Conn[] | null = null;
   try {
-    const { data, error } = await supabase.from("instagram_connections").select("user_id, ig_user_id, access_token, is_active");
+    const { data, error } = await supabase
+      .from("instagram_connections")
+      .select("user_id, ig_user_id, access_token, is_active, plan_suspended_at");
     if (error) throw error;
-    conns = ((data ?? []) as Conn[]).filter((c) => c.access_token && c.is_active !== false);
+    conns = ((data ?? []) as Conn[]).filter((c) => c.access_token && c.is_active !== false && c.plan_suspended_at == null);
   } catch {
-    const { data } = await supabase.from("instagram_connections").select("user_id, ig_user_id, access_token");
-    conns = ((data ?? []) as Conn[]).filter((c) => c.access_token);
+    conns = null;
+  }
+  if (conns == null) {
+    try {
+      const { data, error } = await supabase.from("instagram_connections").select("user_id, ig_user_id, access_token, is_active");
+      if (error) throw error;
+      conns = ((data ?? []) as Conn[]).filter((c) => c.access_token && c.is_active !== false);
+    } catch {
+      const { data } = await supabase.from("instagram_connections").select("user_id, ig_user_id, access_token");
+      conns = ((data ?? []) as Conn[]).filter((c) => c.access_token);
+    }
   }
   const run: SnapshotRun = { day, accounts: conns.length, written: 0, skipped: 0, errors: 0 };
   for (const c of conns) {

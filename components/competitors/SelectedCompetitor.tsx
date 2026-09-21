@@ -5,6 +5,7 @@
 // reasons they're ahead, and the single next move SOCIA recommends. Every
 // number keeps its provenance; every absence keeps its reason.
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, ExternalLink, Link2, Loader2, Plus, Sparkles } from "lucide-react";
 import type { LeaderRow } from "@/lib/competitorRollup";
@@ -17,11 +18,14 @@ const fmtC = (unit: Cmp["unit"], v: number) => (unit === "pct" ? `${v.toFixed(1)
 
 /* ---------- identity bar ---------- */
 
-export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking }: {
+export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking, notice }: {
   r: CompetitorRow; similarity: number | null; igEnabled: boolean; onTrack: (r: CompetitorRow) => void; tracking: boolean;
+  /** Rendered directly under the bar: the outcome of the last Track attempt (a plan notice or an error line). */
+  notice?: ReactNode;
 }) {
   const gated = r.platform === "instagram" && !igEnabled;
   return (
+    <>
     <div className="cx2-profilebar">
       <Avatar src={r.avatar} name={r.name} size={42} />
       <div className="cx2-profilebar-id">
@@ -47,6 +51,8 @@ export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking }: {
           : <button type="button" className="ov-btn primary small" onClick={() => onTrack(r)} disabled={tracking}>{tracking ? <Loader2 size={12} className="cx-spin" /> : <Plus size={12} />} Track</button>}
       </div>
     </div>
+    {notice}
+    </>
   );
 }
 

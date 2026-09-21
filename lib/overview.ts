@@ -26,6 +26,20 @@ export type RangeId = (typeof RANGES)[number]["id"];
 export const rangeDays = (id: string | undefined): number =>
   RANGES.find((r) => r.id === id)?.days ?? 30;
 
+/**
+ * The plan's history limit applied to a requested range. When the requested
+ * range looks back further than `maxDays`, the largest range that fits is
+ * returned (so "90" becomes "30" on a 30-day plan); otherwise the id itself.
+ * Enforcement lives here, on the server, not in the selector that hides it.
+ */
+export function clampRangeId(id: string, maxDays: number): RangeId {
+  const requested = RANGES.find((r) => r.id === id);
+  if (!requested) return "30";
+  if (requested.days <= maxDays) return requested.id;
+  const fits = RANGES.filter((r) => r.days <= maxDays);
+  return fits.length ? fits[fits.length - 1].id : RANGES[0].id;
+}
+
 export const fmtNum = (n: number | null | undefined): string =>
   n == null ? "—"
   : n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M"

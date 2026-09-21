@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { readiness, type MediaType, type PostStatus } from "@/lib/scheduling";
+import { getEntitlements, canUseFeature, checkFeature, type Entitlements } from "@/lib/entitlements";
+import type { PlanError } from "@/lib/planErrors";
 
 export const runtime = "nodejs";
 
@@ -9,6 +11,18 @@ export const runtime = "nodejs";
 // becomes `scheduled` only when it has media, a caption and a future time —
 // the server decides that, so the calendar can never show "scheduled" for a
 // post that could not actually go out.
+//
+// Plans: a plan without the scheduling feature (Free) keeps a calendar of
+// drafts but never gets a `scheduled` row, whatever the client asks for. The
+// response carries `plan` so the Calendar can say why a ready post stayed a
+// draft.
+
+type PlanInfo = { canSchedule: boolean; error: PlanError | null };
+
+function planInfo(ent: Entitlements): PlanInfo {
+  const check = checkFeature(ent, "scheduling");
+  return { canSchedule: canUseFeature(ent, "scheduling"), error: check.ok ? null : check.error };
+}
 
 type Body = {
   id?: string;
@@ -28,9 +42,14 @@ type Body = {
 
 const MEDIA_TYPES: MediaType[] = ["REELS", "IMAGE"];
 
-function promote(row: { media_url: string | null; scheduled_at: string; caption: string; status: PostStatus }): PostStatus {
+function promote(
+  row: { media_url: string | null; scheduled_at: string; caption: string; status: PostStatus },
+  canSchedule: boolean,
+): PostStatus {
   // Terminal / in-flight states are never rewritten by an edit.
   if (row.status === "published" || row.status === "publishing" || row.status === "cancelled") return row.status;
+  // A plan without scheduling never writes "scheduled", ready or not.
+  if (!canSchedule) return "draft";
   return readiness(row).ready ? "scheduled" : "draft";
 }
 
@@ -67,8 +86,12 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as Body | null;
   if (!body) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
-  const conn = (await getActiveConnection(supabase, user.id, "ig_user_id")) as { ig_user_id?: string } | null;
+  const [conn, ent] = await Promise.all([
+    getActiveConnection(supabase, user.id, "ig_user_id") as Promise<{ ig_user_id?: string } | null>,
+    getEntitlements(supabase, user.id),
+  ]);
   const igUserId = conn?.ig_user_id ?? null;
+  const plan = planInfo(ent);
 
   const items = body.items?.length ? body.items : [body];
   const rows = [];
@@ -90,7 +113,7 @@ export async function POST(req: Request) {
       media_url: it.media_url ?? null,
       status: "draft" as PostStatus,
     };
-    draft.status = it.keep_draft || body.keep_draft ? "draft" : promote({ ...draft, status: "draft" });
+    draft.status = it.keep_draft || body.keep_draft ? "draft" : promote({ ...draft, status: "draft" }, plan.canSchedule);
     rows.push(draft);
   }
 
@@ -112,11 +135,11 @@ export async function POST(req: Request) {
     rows.length = 0;
     rows.push(...kept);
   }
-  if (!rows.length) return NextResponse.json({ posts: [], skipped });
+  if (!rows.length) return NextResponse.json({ posts: [], skipped, plan });
 
   const { data, error } = await supabase.from("scheduled_posts").insert(rows).select("*");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ posts: data ?? [], skipped });
+  return NextResponse.json({ posts: data ?? [], skipped, plan });
 }
 
 export async function PATCH(req: Request) {
@@ -135,6 +158,8 @@ export async function PATCH(req: Request) {
     .maybeSingle();
   if (readErr || !cur) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (cur.status === "published") return NextResponse.json({ error: "Published posts can't be edited." }, { status: 409 });
+
+  const plan = planInfo(await getEntitlements(supabase, user.id));
 
   const next: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.scheduled_at) {
@@ -160,8 +185,11 @@ export async function PATCH(req: Request) {
       caption: (next.caption as string | undefined) ?? cur.caption,
       status: (cur.status === "failed" ? "draft" : cur.status) as PostStatus,
     };
-    next.status = promote(merged);
+    next.status = promote(merged, plan.canSchedule);
     if (cur.status === "failed") { next.error = null; next.container_id = null; }
+    // A draft the publisher demoted for plan reasons carries that sentence in
+    // `error`; once it can be scheduled again the note has served its purpose.
+    if (cur.status === "draft" && next.status === "scheduled" && cur.error) next.error = null;
   }
 
   const { data, error } = await supabase
@@ -172,7 +200,7 @@ export async function PATCH(req: Request) {
     .select("*")
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ post: data });
+  return NextResponse.json({ post: data, plan });
 }
 
 export async function DELETE(req: Request) {

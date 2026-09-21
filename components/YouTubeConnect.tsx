@@ -21,8 +21,9 @@ export default function YouTubeConnect({
   handle,
   subscribers,
   avatar,
+  paused = false,
 }: {
-  /** OAuth outcome from ?yt= (connected/denied/nochannel/error/notconfigured). */
+  /** OAuth outcome from ?yt= (connected/denied/nochannel/error/notconfigured/limit). */
   status?: string;
   /** Whether the server has GOOGLE_CLIENT_ID/SECRET to run the flow. */
   configured: boolean;
@@ -30,11 +31,13 @@ export default function YouTubeConnect({
   handle: string | null;
   subscribers: number | null;
   avatar: string | null;
+  /** The channel exists but is paused by a plan downgrade (not read, not counted). */
+  paused?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const connected = Boolean(channelTitle);
+  const connected = Boolean(channelTitle) && !paused;
 
   async function disconnect() {
     setErr(null);
@@ -63,6 +66,7 @@ export default function YouTubeConnect({
           : status === "error"
             ? "Something went wrong connecting YouTube. Please try again."
             : null;
+  // ?yt=limit is rendered once, by the page-level PlanNotice above the cards.
 
   return (
     <div className="st2-ig">
@@ -83,6 +87,10 @@ export default function YouTubeConnect({
               {handle && <> · {handle}</>}
               {subscribers != null && <> · {subscribers.toLocaleString("en-US")} subscribers</>}
             </small>
+          ) : paused ? (
+            <small className="st2-ig-off">
+              Paused by your plan{channelTitle ? <> ({channelTitle})</> : null}. Choose which accounts stay active in Plan &amp; billing.
+            </small>
           ) : configured ? (
             <small className="st2-ig-off">
               Not connected. Link your channel to bring in your videos and analytics.
@@ -92,7 +100,11 @@ export default function YouTubeConnect({
           )}
         </div>
         <div className="st2-ig-actions">
-          {connected ? (
+          {paused ? (
+            <a className="st2-connect" href="#plan">
+              Plan &amp; billing <ArrowRight size={13} />
+            </a>
+          ) : connected ? (
             <button className="st2-btn danger" type="button" onClick={disconnect} disabled={busy}>
               {busy ? <Loader2 size={14} className="spin" /> : "Disconnect"}
             </button>

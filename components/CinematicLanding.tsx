@@ -30,6 +30,18 @@ import {
 } from "lucide-react";
 import IntelligenceField from "./IntelligenceField";
 import BrandMark from "./BrandMark";
+import { PLANS, formatPrice, type PlanId } from "@/lib/plans";
+
+/* Landing pricing reads lib/plans.ts so the numbers here can never drift from
+   the pricing page or from enforcement. */
+const LANDING_PAID: PlanId[] = ["starter", "growth", "pro"];
+const FREE_INCLUDES: string[] = [
+  `${PLANS.free.limits.connected_accounts} connected account`,
+  "Basic analytics",
+  `${PLANS.free.meters.account_audit} account audit`,
+  `${PLANS.free.meters.ask_socia} Ask SOCIA questions a month`,
+  `${PLANS.free.limits.competitors} competitor`,
+];
 
 /* ---------------- shared hooks ---------------- */
 
@@ -1247,29 +1259,41 @@ export default function CinematicLanding() {
                     <circle cx="318" cy="97" r="2" fill="rgba(96,165,250,0.4)" />
                     <circle cx="238" cy="140" r="1.6" fill="rgba(96,165,250,0.3)" />
                   </svg>
-                  <small>FREE AUDIT</small>
-                  <p className="so-price-lead">See what SOCIA finds in your account.</p>
+                  <small>FREE</small>
+                  <p className="so-price-lead">{PLANS.free.tagline}</p>
                   <ul>
-                    {["Account health score", "Content opportunities", "Performance breakdown", "Top recommendations", "Competitor snapshot"].map((f) => (
+                    {FREE_INCLUDES.map((f) => (
                       <li key={f}><Check size={14} /> {f}</li>
                     ))}
                   </ul>
-                  <Link href="/signup" className="so-btn so-btn-blue" data-cursor="AUDIT">Start Free Audit <ArrowRight size={15} /></Link>
+                  <Link href="/signup" className="so-btn so-btn-blue" data-cursor="AUDIT">{PLANS.free.cta} <ArrowRight size={15} /></Link>
                   <span className="so-micro dark">No credit card required.</span>
                 </div>
               </Rise>
               <Rise delay={100} className="so-price paid">
                 <div className="so-price-inner">
                   <small>WHEN YOU&apos;RE READY</small>
-                  <div className="so-paid-row">
-                    <div className="so-paid-head"><b>Pro</b><span className="so-paid-price">$29<i>/mo</i></span></div>
-                    <span className="so-paid-desc">Daily AI plans, scoring, best-time engine</span>
-                  </div>
-                  <div className="so-paid-row">
-                    <div className="so-paid-head"><b>Growth</b><span className="so-paid-price">$79<i>/mo</i></span></div>
-                    <span className="so-paid-desc">Unlimited accounts, trend alerts, priority AI</span>
-                  </div>
-                  <span className="so-micro dark">Both start with 7 days free. Cancel anytime.</span>
+                  {LANDING_PAID.map((id) => {
+                    const pl = PLANS[id];
+                    return (
+                      <div key={id} className="so-paid-row">
+                        <div className="so-paid-head">
+                          <b>
+                            {pl.name}
+                            {pl.popular && (
+                              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", color: "var(--so-ink-dim)" }}>
+                                Most popular
+                              </span>
+                            )}
+                          </b>
+                          <span className="so-paid-price">{formatPrice(pl)}<i>/mo</i></span>
+                        </div>
+                        <span className="so-paid-desc">{pl.tagline}</span>
+                      </div>
+                    );
+                  })}
+                  <span className="so-micro dark">See every plan, its limits and what is included.</span>
+                  <Link href="/pricing" className="so-btn so-btn-blue sm" style={{ marginTop: 14 }}>See all plans <ArrowRight size={14} /></Link>
                 </div>
               </Rise>
             </div>
@@ -1315,6 +1339,7 @@ export default function CinematicLanding() {
               <button onClick={() => jump("engine")}>Competitor Intelligence</button>
               <button onClick={() => jump("engine")}>Video Scorer</button>
               <button onClick={() => jump("engine")}>Calendar</button>
+              <Link href="/pricing">Pricing</Link>
             </div>
             <div>
               <small>ACCOUNT</small>

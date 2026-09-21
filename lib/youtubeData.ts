@@ -47,21 +47,53 @@ type ConnRow = {
   access_token: string;
   refresh_token: string | null;
   token_expires_at: string | null;
+  /** Set when a plan downgrade paused this channel: kept, not read. */
+  plan_suspended_at?: string | null;
 };
 
+/**
+ * The user's connection row with `cols`, reading plan_suspended_at when that
+ * column exists (the migration may not have run yet). Any read error resolves
+ * to null: an unreadable row is "not connected", never a guess.
+ */
+async function readConnRow<T extends Record<string, unknown>>(
+  supabase: SupabaseClient,
+  userId: string,
+  cols: string,
+): Promise<T | null> {
+  try {
+    const { data, error } = await supabase
+      .from("youtube_connections")
+      .select(`${cols}, plan_suspended_at`)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!error) return (data as T | null) ?? null;
+  } catch {
+    /* pre-migration: retry without the column */
+  }
+  try {
+    const { data, error } = await supabase
+      .from("youtube_connections")
+      .select(cols)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) return null;
+    return (data as T | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // A valid access token, refreshing and persisting when the stored one is within
-// two minutes of expiry. Returns null only when there is no connection at all.
+// two minutes of expiry. Returns null when there is no connection at all, or
+// when the channel is paused by a plan downgrade (its data is not read).
 async function validToken(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{ token: string; channelId: string | null } | null> {
-  const { data } = await supabase
-    .from("youtube_connections")
-    .select("channel_id, access_token, refresh_token, token_expires_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-  const row = data as ConnRow | null;
+  const row = await readConnRow<ConnRow>(supabase, userId, "channel_id, access_token, refresh_token, token_expires_at");
   if (!row?.access_token) return null;
+  if (row.plan_suspended_at != null) return null;
 
   const expMs = row.token_expires_at ? new Date(row.token_expires_at).getTime() : 0;
   if (expMs - Date.now() > 120_000) return { token: row.access_token, channelId: row.channel_id };
@@ -194,13 +226,9 @@ export async function getYouTubeAnalytics(
   return { channel, range, series, topVideos, demographics, note };
 }
 
-/** Lightweight connection check for pages that only need to know it exists. */
+/** Lightweight connection check for pages that only need to know it exists.
+ *  A channel paused by a plan downgrade counts as not connected. */
 export async function hasYouTubeConnection(supabase: SupabaseClient, userId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("youtube_connections")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle()
-    .then((r) => r, () => ({ data: null }));
-  return Boolean(data);
+  const row = await readConnRow<{ user_id: string; plan_suspended_at?: string | null }>(supabase, userId, "user_id");
+  return Boolean(row) && row!.plan_suspended_at == null;
 }

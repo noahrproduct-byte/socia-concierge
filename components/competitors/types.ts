@@ -23,6 +23,8 @@ export type CompetitorsData = {
   rows: CompetitorRow[];
   tracked: Tracked[];
   days: number;
+  /** Longest range the plan may look back over; ranges above it render locked. */
+  maxDays: number;
   platform: PlatformFilter;
   lastRun: string | null;
   sources: { youtube: string; web: string } | null;

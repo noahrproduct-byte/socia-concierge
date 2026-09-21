@@ -24,6 +24,8 @@ export type DashboardData = {
   name: string;
   handle: string | null;
   rangeLabel: string;
+  /** Longest window the viewer's plan may look back over; ranges beyond it show as locked. */
+  maxDays?: number;
   kpis: Kpi[];
   series: Record<"views" | "engagement" | "followers", Series>;
   platforms: PlatformRow[];
@@ -91,7 +93,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
         <div className="dv-head-actions">
           <Mounted fallback={<span className="ov-ctl-ph" aria-hidden />}>
             <AccountSwitcher />
-            <DateRangeSelector />
+            <DateRangeSelector maxDays={d.maxDays} />
           </Mounted>
           <Link href="/tool" className="ov-btn primary"><Sparkles size={14} /> Generate Content</Link>
         </div>

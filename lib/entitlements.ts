@@ -1,0 +1,474 @@
+// Entitlement service: the only place the app asks "what may this user do?".
+//
+//   const ent = await getEntitlements(supabase, user.id)
+//   canUseFeature(ent, "scheduling")          -> boolean
+//   checkFeature(ent, "scheduling")           -> { ok } | { ok: false, error: PlanError }
+//   getLimit(ent, "connected_accounts")       -> number
+//   getUsage(supabase, ent)                   -> { ask_socia: { used, limit, remaining, resetsOn }, ... }
+//   consumeUsage(supabase, ent, "ask_socia")  -> atomic increment, refused when the period allowance is spent
+//
+// Resolution order: PLANS defaults (lib/plans.ts) <- plan_config_overrides row
+// for that plan <- profiles.entitlement_overrides for that user. All reads are
+// defensive: a missing table, column or row falls back to the code defaults,
+// and an unreadable plan resolves to Free, so nothing ever gates open by
+// accident.
+//
+// Usage periods are calendar months (UTC) until a billing provider supplies a
+// real billing cycle; getEntitlements() is the single place that will change.
+//
+// Server only. Route handlers use the wrappers in lib/planGuard.ts.
+
+import {
+  PLANS, FEATURE_STATUS, normalizePlan,
+  type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
+} from "./plans";
+import { featureError, limitError, usageError, type PlanError } from "./planErrors";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Supa = any;
+
+// ---------------------------------------------------------------------------
+// Periods
+// ---------------------------------------------------------------------------
+
+/** ISO dates; start inclusive, end exclusive. `end` is also the reset date. */
+export type UsagePeriod = { start: string; end: string };
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+export function currentPeriod(now: Date = new Date()): UsagePeriod {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  return { start: isoDay(new Date(Date.UTC(y, m, 1))), end: isoDay(new Date(Date.UTC(y, m + 1, 1))) };
+}
+
+// ---------------------------------------------------------------------------
+// Overrides
+// ---------------------------------------------------------------------------
+
+export type Overrides = {
+  limits?: Partial<Record<LimitKey, number>>;
+  meters?: Partial<Record<MeterKey, number>>;
+  features?: Partial<Record<FeatureKey, boolean>>;
+};
+
+const nonNegInt = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0 && Math.floor(v) === v;
+
+/** Keep only well-formed keys and values; ignore everything else silently. */
+export function sanitizeOverrides(v: unknown, base: PlanConfig): Overrides {
+  if (!v || typeof v !== "object") return {};
+  const o = v as Record<string, unknown>;
+  const out: Overrides = {};
+  const pick = <K extends string>(src: unknown, keys: K[], ok: (x: unknown) => boolean) => {
+    if (!src || typeof src !== "object") return undefined;
+    const r: Partial<Record<K, never>> = {};
+    for (const k of keys) {
+      const val = (src as Record<string, unknown>)[k];
+      if (ok(val)) (r as Record<string, unknown>)[k] = val;
+    }
+    return Object.keys(r).length ? r : undefined;
+  };
+  const limits = pick(o.limits, Object.keys(base.limits) as LimitKey[], nonNegInt);
+  const meters = pick(o.meters, Object.keys(base.meters) as MeterKey[], nonNegInt);
+  const features = pick(o.features, Object.keys(base.features) as FeatureKey[], (x) => typeof x === "boolean");
+  if (limits) out.limits = limits as Overrides["limits"];
+  if (meters) out.meters = meters as Overrides["meters"];
+  if (features) out.features = features as Overrides["features"];
+  return out;
+}
+
+export function mergeConfig(base: PlanConfig, ...layers: (Overrides | null | undefined)[]): PlanConfig {
+  const out: PlanConfig = { ...base, limits: { ...base.limits }, meters: { ...base.meters }, features: { ...base.features } };
+  for (const l of layers) {
+    if (!l) continue;
+    Object.assign(out.limits, l.limits ?? {});
+    Object.assign(out.meters, l.meters ?? {});
+    Object.assign(out.features, l.features ?? {});
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Resolution
+// ---------------------------------------------------------------------------
+
+export type Entitlements = {
+  userId: string;
+  plan: PlanId;
+  /** Defaults merged with any database overrides. */
+  config: PlanConfig;
+  period: UsagePeriod;
+  /** Where the plan came from. "profile" until a billing provider owns it. */
+  source: "profile";
+};
+
+async function readProfilePlan(supabase: Supa, userId: string): Promise<{ plan: PlanId; overrides: unknown }> {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("plan, entitlement_overrides")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!error) return { plan: normalizePlan(data?.plan), overrides: data?.entitlement_overrides ?? null };
+  } catch {
+    /* fall through to the narrower select */
+  }
+  try {
+    const { data, error } = await supabase.from("profiles").select("plan").eq("user_id", userId).maybeSingle();
+    if (error) return { plan: "free", overrides: null };
+    return { plan: normalizePlan(data?.plan), overrides: null };
+  } catch {
+    return { plan: "free", overrides: null };
+  }
+}
+
+async function readPlanOverrides(supabase: Supa, plan: PlanId): Promise<unknown> {
+  try {
+    const { data, error } = await supabase
+      .from("plan_config_overrides")
+      .select("limits, meters, features")
+      .eq("plan_id", plan)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function getEntitlements(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
+  const { plan, overrides: userOverrides } = await readProfilePlan(supabase, userId);
+  const base = PLANS[plan];
+  const planOverrides = await readPlanOverrides(supabase, plan);
+  const config = mergeConfig(base, sanitizeOverrides(planOverrides, base), sanitizeOverrides(userOverrides, base));
+  return { userId, plan, config, period: currentPeriod(now), source: "profile" };
+}
+
+// ---------------------------------------------------------------------------
+// Questions
+// ---------------------------------------------------------------------------
+
+export type FeatureCheck = { ok: true } | { ok: false; error: PlanError };
+
+/** True only when the feature is built AND the plan includes it. */
+export function checkFeature(ent: Entitlements, key: FeatureKey): FeatureCheck {
+  if (FEATURE_STATUS[key] === "coming_soon") return { ok: false, error: featureError(ent.plan, key) };
+  if (ent.config.features[key]) return { ok: true };
+  return { ok: false, error: featureError(ent.plan, key) };
+}
+
+export function canUseFeature(ent: Entitlements, key: FeatureKey): boolean {
+  return checkFeature(ent, key).ok;
+}
+
+export function getLimit(ent: Entitlements, key: LimitKey): number {
+  return ent.config.limits[key];
+}
+
+export function getMeterLimit(ent: Entitlements, key: MeterKey): number {
+  return ent.config.meters[key];
+}
+
+/** Longest analytics window this plan may look back over. */
+export function maxHistoryDays(ent: Entitlements): number {
+  return ent.config.limits.analytics_history_days;
+}
+
+export function clampDays(ent: Entitlements, days: number): number {
+  return Math.min(days, maxHistoryDays(ent));
+}
+
+// ---------------------------------------------------------------------------
+// Usage
+// ---------------------------------------------------------------------------
+
+export type UsageSnapshot = {
+  meter: MeterKey;
+  /** null when the counter could not be read (metering not installed), never 0. */
+  used: number | null;
+  limit: number;
+  remaining: number | null;
+  /** ISO date. */
+  resetsOn: string;
+};
+
+const METERS = Object.keys(PLANS.free.meters) as MeterKey[];
+
+function snapshot(ent: Entitlements, meter: MeterKey, used: number | null): UsageSnapshot {
+  const limit = ent.config.meters[meter];
+  return { meter, used, limit, remaining: used == null ? null : Math.max(0, limit - used), resetsOn: ent.period.end };
+}
+
+/** Every meter's usage for the current period in one query. */
+export async function getUsage(supabase: Supa, ent: Entitlements): Promise<Record<MeterKey, UsageSnapshot>> {
+  const out = {} as Record<MeterKey, UsageSnapshot>;
+  let rows: { meter: string; used: number }[] | null = null;
+  try {
+    const { data, error } = await supabase
+      .from("usage_counters")
+      .select("meter, used")
+      .eq("user_id", ent.userId)
+      .eq("period_start", ent.period.start);
+    if (!error) rows = data ?? [];
+  } catch {
+    rows = null;
+  }
+  for (const m of METERS) {
+    const used = rows == null ? null : (rows.find((r) => r.meter === m)?.used ?? 0);
+    out[m] = snapshot(ent, m, used);
+  }
+  return out;
+}
+
+export type ConsumeResult = { allowed: boolean; usage: UsageSnapshot; error: PlanError | null };
+
+/**
+ * Atomically count one use and say whether it was within the allowance.
+ * Backed by the socia_consume_usage() Postgres function (row lock, so two
+ * concurrent requests cannot both squeeze through the last slot). If the
+ * function is missing or errors, the request is allowed and the problem is
+ * logged loudly: an outage of the meter must not become an outage of SOCIA.
+ */
+export async function consumeUsage(supabase: Supa, ent: Entitlements, meter: MeterKey): Promise<ConsumeResult> {
+  const limit = ent.config.meters[meter];
+  if (limit <= 0) {
+    const usage = snapshot(ent, meter, 0);
+    return { allowed: false, usage, error: usageError(ent.plan, meter, limit, 0, ent.period.end) };
+  }
+  try {
+    const { data, error } = await supabase.rpc("socia_consume_usage", {
+      p_meter: meter,
+      p_period_start: ent.period.start,
+      p_limit: limit,
+    });
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    const used = typeof row?.used_count === "number" ? row.used_count : null;
+    const allowed = Boolean(row?.allowed);
+    const usage = snapshot(ent, meter, used);
+    return { allowed, usage, error: allowed ? null : usageError(ent.plan, meter, limit, used, ent.period.end) };
+  } catch (e) {
+    console.error(`[entitlements] usage metering unavailable for ${meter}:`, (e as Error)?.message ?? e);
+    return { allowed: true, usage: snapshot(ent, meter, null), error: null };
+  }
+}
+
+/**
+ * Give a consumed unit back because the work it paid for never happened (the
+ * model call failed). Only meaningful after a consume that actually counted;
+ * callers skip it when usage.used is null. Best-effort: a missing function
+ * (pre-migration) is logged, never thrown.
+ */
+export async function releaseUsage(supabase: Supa, ent: Entitlements, meter: MeterKey): Promise<void> {
+  if (ent.config.meters[meter] <= 0) return;
+  try {
+    const { error } = await supabase.rpc("socia_release_usage", { p_meter: meter, p_period_start: ent.period.start });
+    if (error) throw error;
+  } catch (e) {
+    console.error(`[entitlements] could not release ${meter}:`, (e as Error)?.message ?? e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Connected accounts (all platforms)
+// ---------------------------------------------------------------------------
+
+export type ConnectedPlatform = "instagram" | "facebook" | "youtube";
+
+export type ConnectedAccount = {
+  platform: ConnectedPlatform;
+  /** `${platform}:${platform id}`; stable across renames. */
+  id: string;
+  platformId: string;
+  label: string;
+  handle: string | null;
+  avatar: string | null;
+  /** "expired" = Meta reported the token dead; the slot is still held until removed. */
+  status: "connected" | "expired";
+  /** Paused by a plan downgrade: data kept, not read, not counted. */
+  suspended: boolean;
+  /** Instagram only: the account the app currently reads through. */
+  current: boolean;
+};
+
+type Row = Record<string, unknown>;
+
+/**
+ * Try progressively narrower selects so a pre-migration schema still answers.
+ * null means every shape failed: the table could not be read at all, which is
+ * not the same as the person having no rows.
+ */
+async function selectRows(supabase: Supa, table: string, userId: string, selects: string[]): Promise<Row[] | null> {
+  for (const cols of selects) {
+    try {
+      const { data, error } = await supabase.from(table).select(cols).eq("user_id", userId);
+      if (!error) return (data ?? []) as Row[];
+    } catch {
+      /* try the next shape */
+    }
+  }
+  console.error(`[entitlements] could not read ${table} for ${userId}`);
+  return null;
+}
+
+export type ConnectedAccountsResult = {
+  accounts: ConnectedAccount[];
+  /** false when at least one platform table could not be read; counts are then a lower bound. */
+  complete: boolean;
+};
+
+/** The list plus whether it is trustworthy. Use this wherever a count is shown or compared. */
+export async function listConnectedAccountsDetailed(supabase: Supa, userId: string): Promise<ConnectedAccountsResult> {
+  const [igRaw, fbRaw, ytRaw] = await Promise.all([
+    selectRows(supabase, "instagram_connections", userId, [
+      "ig_user_id, username, profile, is_active, plan_suspended_at",
+      "ig_user_id, username, profile, is_active",
+      "ig_user_id, username, profile",
+    ]),
+    selectRows(supabase, "facebook_connections", userId, [
+      "page_id, page_name, username, picture_url, connection_status, plan_suspended_at",
+      "page_id, page_name, username, picture_url, connection_status",
+    ]),
+    selectRows(supabase, "youtube_connections", userId, [
+      "channel_id, title, handle, avatar_url, plan_suspended_at",
+      "channel_id, title, handle, avatar_url",
+    ]),
+  ]);
+  const complete = igRaw != null && fbRaw != null && ytRaw != null;
+  const ig = igRaw ?? [], fb = fbRaw ?? [], yt = ytRaw ?? [];
+
+  const out: ConnectedAccount[] = [];
+  for (const r of ig) {
+    const pid = String(r.ig_user_id ?? r.username ?? "");
+    if (!pid) continue;
+    const profile = (r.profile as Row | null) ?? null;
+    out.push({
+      platform: "instagram", id: `instagram:${pid}`, platformId: pid,
+      label: r.username ? `@${r.username}` : "Instagram account",
+      handle: (r.username as string | null) ?? null,
+      avatar: (profile?.profile_picture_url as string | null) ?? null,
+      status: "connected",
+      suspended: r.plan_suspended_at != null,
+      current: r.is_active !== false,
+    });
+  }
+  for (const r of fb) {
+    // A row still choosing its Page is not an account yet; it holds no slot.
+    if (!r.page_id) continue;
+    out.push({
+      platform: "facebook", id: `facebook:${r.page_id}`, platformId: String(r.page_id),
+      label: (r.page_name as string | null) || "Facebook Page",
+      handle: (r.username as string | null) ?? null,
+      avatar: (r.picture_url as string | null) ?? null,
+      status: r.connection_status === "expired" ? "expired" : "connected",
+      suspended: r.plan_suspended_at != null,
+      current: true,
+    });
+  }
+  for (const r of yt) {
+    if (!r.channel_id) continue;
+    out.push({
+      platform: "youtube", id: `youtube:${r.channel_id}`, platformId: String(r.channel_id),
+      label: (r.title as string | null) || "YouTube channel",
+      handle: (r.handle as string | null) ?? null,
+      avatar: (r.avatar_url as string | null) ?? null,
+      status: "connected",
+      suspended: r.plan_suspended_at != null,
+      current: true,
+    });
+  }
+  return { accounts: out, complete };
+}
+
+/**
+ * The list alone. Fails open (an unreadable table reads as no accounts there),
+ * which is right for the connect flows: a database blip must not lock people
+ * out of connecting. Anything that displays or compares a count should use
+ * listConnectedAccountsDetailed() and treat an incomplete list as unknown.
+ */
+export async function listConnectedAccounts(supabase: Supa, userId: string): Promise<ConnectedAccount[]> {
+  return (await listConnectedAccountsDetailed(supabase, userId)).accounts;
+}
+
+/** Accounts that occupy a plan slot: everything connected and not paused. */
+export function activeAccounts(list: ConnectedAccount[]): ConnectedAccount[] {
+  return list.filter((a) => !a.suspended);
+}
+
+/**
+ * Whether one more account may be connected. `reconnectId` is the platform id
+ * of the account being (re)connected when it is already known, so reconnecting
+ * an existing account never hits the limit.
+ */
+export function canConnectAnother(ent: Entitlements, list: ConnectedAccount[], platform: ConnectedPlatform, reconnectId?: string | null): FeatureCheck {
+  if (reconnectId && list.some((a) => a.platform === platform && a.platformId === reconnectId)) return { ok: true };
+  const active = activeAccounts(list).length;
+  const max = getLimit(ent, "connected_accounts");
+  if (active < max) return { ok: true };
+  return { ok: false, error: limitError(ent.plan, "connected_accounts", max, active) };
+}
+
+// ---------------------------------------------------------------------------
+// Competitors
+// ---------------------------------------------------------------------------
+
+/** Active competitors, or null when the table could not be read (unknown is not zero). */
+export async function countActiveCompetitors(supabase: Supa, userId: string): Promise<number | null> {
+  try {
+    const { count, error } = await supabase
+      .from("tracked_competitors")
+      .select("handle", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_active", true);
+    if (!error) return count ?? 0;
+  } catch {
+    /* column may not exist yet */
+  }
+  try {
+    const { count, error } = await supabase
+      .from("tracked_competitors")
+      .select("handle", { count: "exact", head: true })
+      .eq("user_id", userId);
+    if (error) throw error;
+    return count ?? 0;
+  } catch (e) {
+    console.error(`[entitlements] could not count competitors for ${userId}:`, (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+/** Callers must resolve an unknown count before asking (refuse with a plain error, not a plan notice). */
+export function canAddCompetitor(ent: Entitlements, active: number): FeatureCheck {
+  const max = getLimit(ent, "competitors");
+  if (active < max) return { ok: true };
+  return { ok: false, error: limitError(ent.plan, "competitors", max, active) };
+}
+
+// ---------------------------------------------------------------------------
+// Over-limit state (after a downgrade)
+// ---------------------------------------------------------------------------
+
+export type OverLimit = { active: number; limit: number; excess: number };
+export type OverLimits = { accounts: OverLimit | null; competitors: OverLimit | null };
+
+/** null counts (unreadable) never produce an over-limit state; nothing is inferred from a failed read. */
+export function computeOverLimits(ent: Entitlements, activeAccountCount: number | null, activeCompetitorCount: number | null): OverLimits {
+  const acc = getLimit(ent, "connected_accounts");
+  const comp = getLimit(ent, "competitors");
+  return {
+    accounts: activeAccountCount != null && activeAccountCount > acc
+      ? { active: activeAccountCount, limit: acc, excess: activeAccountCount - acc }
+      : null,
+    competitors: activeCompetitorCount != null && activeCompetitorCount > comp
+      ? { active: activeCompetitorCount, limit: comp, excess: activeCompetitorCount - comp }
+      : null,
+  };
+}
+
+export async function getOverLimits(supabase: Supa, ent: Entitlements): Promise<OverLimits> {
+  const [accounts, competitors] = await Promise.all([
+    listConnectedAccountsDetailed(supabase, ent.userId),
+    countActiveCompetitors(supabase, ent.userId),
+  ]);
+  return computeOverLimits(ent, accounts.complete ? activeAccounts(accounts.accounts).length : null, competitors);
+}

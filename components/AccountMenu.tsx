@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Settings, LogOut, ChevronsUpDown, Sun, Moon, SunMoon } from "lucide-react";
 import { useTheme, type Appearance } from "@/components/ThemeProvider";
+import { PLANS, type PlanId } from "@/lib/plans";
 
 const APPEARANCES: { value: Appearance; label: string; Icon: typeof Sun }[] = [
   { value: "light", label: "Light", Icon: Sun },
@@ -18,7 +19,7 @@ export default function AccountMenu({
 }: {
   email?: string | null;
   /** The user's real plan — never assumed. */
-  plan?: "free" | "pro";
+  plan?: PlanId;
   /** Where the menu opens relative to the trigger (sidebar: above; top bar: below). */
   placement?: "above" | "below";
 }) {
@@ -79,7 +80,7 @@ export default function AccountMenu({
         <span className="acct-avatar">{initial}</span>
         <span className="acct-meta">
           <span className="acct-name">{name}</span>
-          <span className="acct-plan">{placement === "below" ? "Business Account" : plan === "pro" ? "Pro plan" : "Free plan"}</span>
+          <span className="acct-plan">{placement === "below" ? "Business Account" : `${PLANS[plan].name} plan`}</span>
         </span>
         <ChevronsUpDown size={15} className="acct-chev" />
       </button>

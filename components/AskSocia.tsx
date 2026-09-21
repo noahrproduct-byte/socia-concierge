@@ -16,6 +16,9 @@ import { usePathname } from "next/navigation";
 import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
 import Drawer from "./ov/Drawer";
 import { ASK_EVENT, ASK_PAGE_LABEL, ASK_SUGGESTIONS, pageForPath, type AskAnswer, type AskContext, type AskEvent, type AskMessage, type AskProposal } from "@/lib/ask";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
+import type { UsageSnapshot } from "@/lib/entitlements";
+import PlanNotice, { UsageLine } from "./PlanNotice";
 
 type ProposalHandler = (p: AskProposal, choice?: string) => Promise<boolean | void> | boolean | void;
 
@@ -29,15 +32,23 @@ export function contextChips(ctx: AskContext, label?: string | null): string[] {
   return out;
 }
 
-async function askApi(context: AskContext, messages: AskMessage[]): Promise<AskAnswer> {
+type AskResult =
+  | { ok: true; answer: AskAnswer; usage: UsageSnapshot | null }
+  | { ok: false; planError: PlanError };
+
+/** Throws on ordinary failures; a plan limit comes back as a result so the drawer can render the notice. */
+async function askApi(context: AskContext, messages: AskMessage[]): Promise<AskResult> {
   const res = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ context, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error ?? "SOCIA couldn't answer right now.");
-  return json.answer as AskAnswer;
+  if (!res.ok) {
+    if (isPlanError(json)) return { ok: false, planError: json };
+    throw new Error(json.error ?? "SOCIA couldn't answer right now.");
+  }
+  return { ok: true, answer: json.answer as AskAnswer, usage: (json.usage as UsageSnapshot | undefined) ?? null };
 }
 
 function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void }) {
@@ -114,6 +125,8 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
+  const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [applied, setAppliedState] = useState<Record<string, string>>({});
   const setApplied = useCallback((k: string, v: string) => setAppliedState((s) => ({ ...s, [k]: v })), []);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -125,9 +138,12 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     const q = text.trim();
     if (!q || busy) return;
     const next: AskMessage[] = [...(base ?? messages), { role: "user", content: q }];
-    setMessages(next); setInput(""); setBusy(true); setError(null);
+    setMessages(next); setInput(""); setBusy(true); setError(null); setPlanError(null);
     try {
-      const a = await askApi(context, next);
+      const r = await askApi(context, next);
+      if (!r.ok) { setPlanError(r.planError); return; }
+      const a = r.answer;
+      if (r.usage) setUsage(r.usage);
       setMessages([...next, { role: "assistant", content: a.text, answer: a }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "SOCIA couldn't answer right now.");
@@ -141,7 +157,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     const key = `${JSON.stringify(context)}|${initialQuestion ?? ""}`;
     if (key === lastKey.current) return;
     lastKey.current = key;
-    setMessages([]); setError(null); setAppliedState({});
+    setMessages([]); setError(null); setPlanError(null); setAppliedState({});
     if (initialQuestion) {
       if (autoSend) send(initialQuestion, []); else setInput(initialQuestion);
     } else setInput("");
@@ -157,6 +173,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           <span className="ask-mark"><Sparkles size={12} /></span>
           {chips.map((c) => <span key={c} className="ov-chip muted">{c}</span>)}
           <span className="ask-chips-note">answers from your verified data</span>
+          {usage && <UsageLine meter="ask_socia" used={usage.used} limit={usage.limit} />}
         </div>
         <div className="ask-thread" ref={scrollRef}>
           {messages.length === 0 && !busy && (
@@ -169,7 +186,8 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
             : <div key={i} className="ask-msg assistant"><span className="ask-avatar">S</span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} /> : <p>{m.content}</p>}</div>)}
           {busy && <div className="ask-msg assistant"><span className="ask-avatar">S</span><div className="ask-typing"><span /><span /><span /></div></div>}
-          {error && (
+          {planError && <PlanNotice error={planError} compact />}
+          {error && !planError && (
             <div className="ask-error">
               <p>{error}</p>
               {messages.length > 0 && messages[messages.length - 1].role === "user" && (
@@ -178,9 +196,9 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
             </div>
           )}
         </div>
-        <form className="ask-composer" onSubmit={(e) => { e.preventDefault(); send(input); }}>
-          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={context.page === "studio" ? "Ask SOCIA about this content…" : "Ask SOCIA…"} aria-label="Ask SOCIA" disabled={busy} />
-          <button type="submit" disabled={busy || !input.trim()} aria-label="Send"><Send size={14} /></button>
+        <form className="ask-composer" onSubmit={(e) => { e.preventDefault(); if (!planError) send(input); }}>
+          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={planError ? "Allowance used for this period" : context.page === "studio" ? "Ask SOCIA about this content…" : "Ask SOCIA…"} aria-label="Ask SOCIA" disabled={busy || Boolean(planError)} />
+          <button type="submit" disabled={busy || Boolean(planError) || !input.trim()} aria-label="Send"><Send size={14} /></button>
         </form>
         <p className="ask-disclaimer">SOCIA cites only your own data. Review before publishing.</p>
       </div>

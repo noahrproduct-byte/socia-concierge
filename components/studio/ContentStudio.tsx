@@ -11,8 +11,11 @@ import Link from "next/link";
 import { Upload, FolderOpen, FileVideo, Image as ImageIcon, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
-import { AnalyzePanel, ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, type Working, type ImproveOption } from "./StudioPanels";
+import { AnalyzePanel, ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
 import { AskSociaButton } from "../AskSocia";
+import PlanNotice, { UsageLine } from "../PlanNotice";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
+import type { UsageSnapshot } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { extractFrames, imageFrames, analysisSummary, MAX_BYTES, MAX_SECONDS, type StudioAnalysis, type StudioKind, type Frames, type GoalId, type ApplyField } from "@/lib/studio";
@@ -22,8 +25,9 @@ export type DraftItem = { id: string; caption: string; media_url: string | null;
 
 type Source = { kind: StudioKind; url: string; name: string; file: File | null; files: File[]; draftId: string | null; images: string[] };
 type Phase = "idle" | "loading" | "extracting" | "analyzing" | "done" | "error";
-type ErrKind = "unsupported" | "too_large" | "too_short" | "too_long" | "cors" | "failed" | "api";
-const ERR_COPY: Record<ErrKind, { title: string; body: string }> = {
+type ErrKind = "unsupported" | "too_large" | "too_short" | "too_long" | "cors" | "failed" | "api" | "plan";
+// "plan" renders the PlanNotice from the server's PlanError instead of copy from here.
+const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }> = {
   unsupported: { title: "Unsupported format", body: "Use an MP4 or MOV video, or a JPG/PNG image. Some codecs (HEVC from iPhone) don't decode in the browser; export as H.264." },
   too_large: { title: "File is too large", body: `Keep uploads under ${Math.round(MAX_BYTES / 1024 / 1024)} MB. Export a compressed version and try again.` },
   too_short: { title: "Video is too short", body: "SOCIA needs at least one second of video to sample frames." },
@@ -40,7 +44,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [frames, setFrames] = useState<Frames | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState({ done: 0, total: 10 });
-  const [err, setErr] = useState<{ kind: ErrKind; detail?: string } | null>(null);
+  const [err, setErr] = useState<{ kind: ErrKind; detail?: string; planError?: PlanError } | null>(null);
+  const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [analysis, setAnalysis] = useState<StudioAnalysis | null>(null);
   const [versions, setVersions] = useState<{ analysis: StudioAnalysis; at: string }[]>([]);
   const [transcript, setTranscript] = useState("");
@@ -75,7 +80,12 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         body: JSON.stringify({ kind: src.kind, frames: fr.frames, frameTimes: fr.times, durationSec: fr.duration, transcript: opts?.transcript ?? transcript, caption: opts?.caption ?? w.caption, goal: opts?.goal ?? w.goal, platform: opts?.platform ?? w.platform }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) { setErr({ kind: res.status === 503 || res.status === 502 || res.status === 429 ? "api" : "failed", detail: json.error }); setPhase("error"); return; }
+      if (!res.ok) {
+        if (isPlanError(json)) setErr({ kind: "plan", planError: json });
+        else setErr({ kind: res.status === 503 || res.status === 502 || res.status === 429 ? "api" : "failed", detail: json.error });
+        setPhase("error"); return;
+      }
+      if (json.usage) setUsage(json.usage as UsageSnapshot);
       const a = json.analysis as StudioAnalysis;
       setVersions((v) => { const next = [...v, { analysis: a, at: new Date().toISOString() }]; a.meta.version = next.length; return next; });
       setAnalysis(a);
@@ -135,7 +145,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       body: JSON.stringify({ task, summary: analysis ? analysisSummary(analysis) : "", transcript, caption: w.caption, hook: w.hook, goal: w.goal, durationSec: frames?.duration ?? null, kind: source?.kind, ...params }),
     });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(json.error ?? "SOCIA couldn't generate options.");
+    if (!res.ok) throw new ImproveFailure(json.error ?? "SOCIA couldn't generate options.", isPlanError(json) ? json : null);
     return json.options as ImproveOption[];
   }, [analysis, transcript, w.caption, w.hook, w.goal, frames, source]);
 
@@ -233,7 +243,10 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
             <label><span>Voiceover or on-screen text <small>(optional, improves accuracy a lot)</small></span>
               <textarea rows={3} value={transcript} onChange={(e) => setTranscript(e.target.value)} placeholder="Paste what's said or shown on screen…" disabled={busy} /></label>
             {source && frames && phase !== "extracting" && (
-              <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => analyze(source, frames)}><RefreshCw size={12} className={phase === "analyzing" ? "spin" : undefined} /> {analysis ? "Re-analyze as a new version" : "Analyze"}</button>
+              <div className="st-row-actions">
+                <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => analyze(source, frames)}><RefreshCw size={12} className={phase === "analyzing" ? "spin" : undefined} /> {analysis ? "Re-analyze as a new version" : "Analyze"}</button>
+                {usage && <UsageLine meter="content_studio" used={usage.used} limit={usage.limit} />}
+              </div>
             )}
           </div>
         </div>
@@ -262,7 +275,13 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               <p className="ov-source">One request to SOCIA; usually 20 to 40 seconds. Results appear together when it finishes.</p>
             </div>
           )}
-          {phase === "error" && err && (
+          {phase === "error" && err && err.kind === "plan" && err.planError && (
+            <div className="ov-card st-error">
+              <span className="st-error-ico"><AlertTriangle size={16} /></span>
+              <div><PlanNotice error={err.planError} compact /></div>
+            </div>
+          )}
+          {phase === "error" && err && err.kind !== "plan" && (
             <div className="ov-card st-error">
               <span className="st-error-ico"><AlertTriangle size={16} /></span>
               <div><b>{ERR_COPY[err.kind].title}</b><p>{err.detail ?? ERR_COPY[err.kind].body}</p>
