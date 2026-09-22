@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   ChevronLeft,
@@ -50,8 +51,28 @@ import {
   type Audience,
   type CalPost,
 } from "@/lib/audience";
+import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status";
+import { PLATFORM_LABEL, type Destination, type Platform } from "@/lib/publishing/types";
+import "./calendar-destinations.css";
 
 export type { CalPost };
+
+/** What the calendar needs of a post_destinations row. */
+export type CalDestination = Pick<
+  Destination,
+  "id" | "postId" | "platform" | "accountId" | "status" | "scheduledAt" | "errorMessage" | "permalink"
+>;
+
+/** A scheduled_posts row, plus its destinations when it was created by the
+ *  multi-platform composer. Rows without destinations are legacy Instagram
+ *  posts and keep the original modal and publish path. */
+export type CalItem = ScheduledPost & { destinations?: CalDestination[] };
+
+const isMulti = (p: CalItem): p is CalItem & { destinations: CalDestination[] } =>
+  (p.destinations?.length ?? 0) > 0;
+
+/** Where Create Post opens an existing item. */
+const createHref = (p: CalItem) => `/create?post=${encodeURIComponent(p.id)}`;
 /** What the page knows about the publishing pipeline. `canPublish` is null when
  *  the connection predates scope recording — unknown, not "no". `lastRunAt` is
  *  the publisher's heartbeat; without a recent one, auto-publishing isn't "on".
@@ -172,6 +193,108 @@ function MediaIcon({ type }: { type: MediaType }) {
   return type === "IMAGE" ? <ImageIcon size={11} /> : <Film size={11} />;
 }
 
+/* ------------------------------------------------ multi-destination pieces */
+
+/** Minimal platform glyphs (14 px by default, sized by .cd-mark in CSS). */
+function Mark({ platform }: { platform: Platform }) {
+  if (platform === "youtube") return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12 31 31 0 0 0 1 16.8a3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1c.4-1.6.5-3.2.5-4.8s-.1-3.2-.5-4.8ZM9.7 15.1V8.9l6 3.1-6 3.1Z" /></svg>
+  );
+  if (platform === "facebook") return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M13.5 21v-7h2.3l.4-2.7h-2.7V9.6c0-.8.2-1.3 1.3-1.3h1.4V5.9c-.2 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5v1.9H8.5V14h2.3v7h2.7Z" /></svg>
+  );
+  if (platform === "tiktok") return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M16.5 3c.3 2.2 1.6 3.6 3.8 3.8v3.1c-1.4 0-2.7-.4-3.8-1.2v6.2A5.7 5.7 0 1 1 10.8 9.2v3.2a2.6 2.6 0 1 0 2.6 2.6V3h3.1Z" /></svg>
+  );
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg>
+  );
+}
+
+/** One mark per destination, tinted by that destination's own status, so a
+ *  failed YouTube upload reads as failed next to a published Instagram post. */
+function Marks({ destinations }: { destinations: Pick<CalDestination, "id" | "platform" | "status">[] }) {
+  return (
+    <span className="cd-marks">
+      {destinations.map((d) => (
+        <span key={d.id} className={`cd-mark st-${d.status}`} title={`${PLATFORM_LABEL[d.platform]}: ${d.status}`} aria-label={`${PLATFORM_LABEL[d.platform]} ${d.status}`}>
+          <Mark platform={d.platform} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Marks for a ghost entry: one per platform, no status (it is shown on the item itself). */
+function PlatformMarks({ platforms }: { platforms: Platform[] }) {
+  return (
+    <span className="cd-marks">
+      {platforms.map((pl) => (
+        <span key={pl} className="cd-mark" title={PLATFORM_LABEL[pl]} aria-label={PLATFORM_LABEL[pl]}>
+          <Mark platform={pl} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** The one-line failure text: the platform's own message, prefixed with its name. */
+function failureLine(destinations: CalDestination[]): string | null {
+  const e = firstError(destinations);
+  if (!e) return null;
+  const i = e.indexOf(":");
+  const plat = e.slice(0, i) as Platform;
+  return PLATFORM_LABEL[plat] ? `${PLATFORM_LABEL[plat]}${e.slice(i)}` : e;
+}
+
+function DestinationChip({ destinations }: { destinations: CalDestination[] }) {
+  const s = summarize(destinations);
+  const st = aggregateStatus(destinations);
+  return (
+    <span className={`cal2-chip cd-sum st-${st}`}>
+      {st === "publishing" && <Loader2 size={10} className="cal2-spin" />}
+      {st === "published" && <CheckCircle2 size={10} />}
+      {st === "failed" && <AlertTriangle size={10} />}
+      {s.line}
+    </span>
+  );
+}
+
+/** Where an item sits on the grid. A legacy row sits on its scheduled_at. A
+ *  multi-destination item sits on the earliest day any destination publishes
+ *  and leaves a muted "also" ghost on every other day, so a post going to
+ *  Instagram on Tuesday and YouTube on Thursday is visible on both. */
+type DayEntry = { p: CalItem; at: Date; ghost: Platform[] | null };
+
+function placeItems(items: CalItem[]): Map<string, DayEntry[]> {
+  const byDay = new Map<string, DayEntry[]>();
+  const put = (e: DayEntry) => {
+    const k = e.at.toDateString();
+    byDay.set(k, [...(byDay.get(k) ?? []), e]);
+  };
+  for (const p of items) {
+    const timed = (p.destinations ?? []).filter((d) => d.status !== "cancelled" && d.scheduledAt);
+    if (!timed.length) {
+      put({ p, at: new Date(p.scheduled_at), ghost: null });
+      continue;
+    }
+    const days = new Map<string, { at: Date; platforms: Platform[] }>();
+    for (const d of timed) {
+      const at = new Date(d.scheduledAt!);
+      const k = at.toDateString();
+      const cur = days.get(k) ?? { at, platforms: [] };
+      if (at.getTime() < cur.at.getTime()) cur.at = at;
+      if (!cur.platforms.includes(d.platform)) cur.platforms.push(d.platform);
+      days.set(k, cur);
+    }
+    const ordered = [...days.values()].sort((a, b) => a.at.getTime() - b.at.getTime());
+    put({ p, at: ordered[0].at, ghost: null });
+    for (const g of ordered.slice(1)) put({ p, at: g.at, ghost: g.platforms });
+  }
+  for (const list of byDay.values()) list.sort((a, b) => a.at.getTime() - b.at.getTime());
+  return byDay;
+}
+
 export default function CalendarBoard({
   posts,
   igUsername,
@@ -183,10 +306,11 @@ export default function CalendarBoard({
   posts: CalPost[];
   igUsername: string | null;
   connected: boolean;
-  scheduled: ScheduledPost[];
+  scheduled: CalItem[];
   userId: string;
   publish: PublishInfo;
 }) {
+  const router = useRouter();
   // Everything date/timezone-dependent renders after mount so SSR (UTC) and the
   // browser never disagree.
   const [now, setNow] = useState<Date | null>(null);
@@ -196,7 +320,7 @@ export default function CalendarBoard({
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
 
-  const [items, setItems] = useState<ScheduledPost[]>(() => [...scheduled].sort(byTime));
+  const [items, setItems] = useState<CalItem[]>(() => [...scheduled].sort(byTime));
   const [composer, setComposer] = useState<{ post: ScheduledPost | null; at: Date; caption?: string } | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -208,8 +332,8 @@ export default function CalendarBoard({
 
   const aud = useMemo(() => buildAudience(posts), [posts]);
 
-  // Deep link from Analytics → "Follow-up": open a draft for tomorrow at the
-  // audience's hour with the original post's first line as a starting caption.
+  // Deep link from Analytics → "Follow-up": hand the starting caption to the
+  // multi-platform composer, suggesting tomorrow at the audience's hour.
   useEffect(() => {
     if (!now) return;
     const sp = new URLSearchParams(window.location.search);
@@ -217,8 +341,11 @@ export default function CalendarBoard({
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
     d.setHours(suggestedHour(aud, (d.getDay() + 6) % 7), 0, 0, 0);
-    setComposer({ post: null, at: d, caption: sp.get("caption") ?? "" });
-    window.history.replaceState(null, "", "/calendar");
+    const q = new URLSearchParams();
+    const caption = sp.get("caption");
+    if (caption) q.set("caption", caption);
+    q.set("at", d.toISOString());
+    router.replace(`/create?${q.toString()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
 
@@ -236,8 +363,15 @@ export default function CalendarBoard({
     if (!anyPublishing) return;
     const t = setInterval(async () => {
       try {
+        // The legacy list endpoint knows nothing of destinations; keep the
+        // ones the page loaded so multi-destination items do not flatten.
         const j = await api<{ posts: ScheduledPost[] }>("GET");
-        setItems([...j.posts].sort(byTime));
+        setItems((cur) => {
+          const dests = new Map(cur.map((x) => [x.id, x.destinations]));
+          return j.posts
+            .map((p): CalItem => (dests.get(p.id) ? { ...p, destinations: dests.get(p.id) } : p))
+            .sort(byTime);
+        });
       } catch {
         /* keep what we have */
       }
@@ -263,6 +397,8 @@ export default function CalendarBoard({
       ? `${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)} gets the most reach with your audience.`
       : null;
 
+  // A day's "Add post" opens Create Post at that day's suggested hour (the
+  // composer may ignore `at`; the time is a suggestion, not a commitment).
   const openNew = (date: Date, weekdayMonFirst: number) => {
     const d = new Date(date);
     d.setHours(suggestedHour(aud, weekdayMonFirst), 0, 0, 0);
@@ -273,7 +409,13 @@ export default function CalendarBoard({
       n.setHours(n.getHours() + 1);
       d.setTime(n.getTime());
     }
-    setComposer({ post: null, at: d });
+    router.push(`/create?at=${encodeURIComponent(d.toISOString())}`);
+  };
+
+  // Multi-destination items are edited in Create Post; legacy rows keep the modal.
+  const openItem = (p: CalItem) => {
+    if (isMulti(p)) router.push(createHref(p));
+    else setComposer({ post: p, at: new Date(p.scheduled_at) });
   };
 
   const drafts = items.filter((p) => p.status === "draft").length;
@@ -310,15 +452,9 @@ export default function CalendarBoard({
             <button type="button" className="ov-btn ghost" onClick={() => setPlanOpen(true)}>
               <CalendarPlus size={14} /> Schedule from Content Plan
             </button>
-            <button
-              type="button"
-              className="ov-btn primary"
-              // Fallback to a fresh Date so the button never silently no-ops
-              // in the moment before hydration sets `now`.
-              onClick={() => { const n = now ?? new Date(); openNew(n, (n.getDay() + 6) % 7); }}
-            >
+            <Link href="/create" className="ov-btn primary">
               <Plus size={14} /> New post
-            </button>
+            </Link>
           </>
         }
       />
@@ -355,7 +491,7 @@ export default function CalendarBoard({
                 aud={aud}
                 items={items}
                 canSchedule={canSchedule}
-                onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
+                onOpen={openItem}
                 onNew={openNew}
               />
             ) : (
@@ -365,7 +501,7 @@ export default function CalendarBoard({
                 aud={aud}
                 items={items}
                 canSchedule={canSchedule}
-                onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
+                onOpen={openItem}
                 onNew={openNew}
               />
             )}
@@ -625,7 +761,36 @@ function Toolbar({
   );
 }
 
-function PostCard({ p, onOpen }: { p: ScheduledPost; onOpen: (p: ScheduledPost) => void }) {
+function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platform[] | null; onOpen: (p: CalItem) => void }) {
+  if (ghost) {
+    // The same item, seen from a day where only some destinations publish.
+    return (
+      <button
+        type="button"
+        className="cal2-post cd-ghost"
+        onClick={() => onOpen(p)}
+        title={`Also publishes here: ${ghost.map((g) => PLATFORM_LABEL[g]).join(", ")}. Opens the post.`}
+      >
+        <span className="cal2-time">{fmtTime(at.toISOString())}</span>
+        <span className="cd-also">also <PlatformMarks platforms={ghost} /></span>
+        <span className="cal2-title">{firstLine(p.caption)}</span>
+      </button>
+    );
+  }
+  if (isMulti(p)) {
+    const err = failureLine(p.destinations);
+    return (
+      <button type="button" className={`cal2-post st-${p.status}`} onClick={() => onOpen(p)}>
+        <span className="cal2-time">{fmtTime(at.toISOString())}</span>
+        <span className="cal2-title">{firstLine(p.caption)}</span>
+        <span className="cal2-meta">
+          <Marks destinations={p.destinations} />
+          <DestinationChip destinations={p.destinations} />
+        </span>
+        {err && <span className="cal2-err">{err}</span>}
+      </button>
+    );
+  }
   return (
     <button type="button" className={`cal2-post st-${p.status}`} onClick={() => onOpen(p)}>
       <span className="cal2-time">{fmtTime(p.scheduled_at)}</span>
@@ -653,13 +818,14 @@ function WeekGrid({
   now: Date;
   weekOffset: number;
   aud: Audience;
-  items: ScheduledPost[];
+  items: CalItem[];
   canSchedule: boolean;
-  onOpen: (p: ScheduledPost) => void;
+  onOpen: (p: CalItem) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
   const monday = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const placed = useMemo(() => placeItems(items), [items]);
 
   return (
     <div className="cal2-grid" key={weekOffset /* re-run entrance animation per week */}>
@@ -668,7 +834,7 @@ function WeekGrid({
         const isToday = sameDay(date, now);
         const isPast = date.getTime() < todayStart.getTime();
         const best = aud.bestDays.includes(i);
-        const dayEvents = items.filter((p) => sameDay(new Date(p.scheduled_at), date));
+        const dayEvents = placed.get(date.toDateString()) ?? [];
         const bars = aud.days[i];
         const bestHour = aud.bestHour(i);
         const strength = bars[bestHour] ?? 0;
@@ -699,8 +865,8 @@ function WeekGrid({
                 </div>
               )}
 
-              {dayEvents.map((p) => (
-                <PostCard p={p} key={p.id} onOpen={onOpen} />
+              {dayEvents.map((e) => (
+                <PostCard p={e.p} at={e.at} ghost={e.ghost} key={`${e.p.id}${e.ghost ? "-also" : ""}`} onOpen={onOpen} />
               ))}
 
               {!isPast && (
@@ -752,21 +918,16 @@ function MonthGrid({
   now: Date;
   monthOffset: number;
   aud: Audience;
-  items: ScheduledPost[];
+  items: CalItem[];
   canSchedule: boolean;
-  onOpen: (p: ScheduledPost) => void;
+  onOpen: (p: CalItem) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
   const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   const lead = (first.getDay() + 6) % 7;
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  const eventByDate = new Map<string, ScheduledPost[]>();
-  for (const p of items) {
-    const k = new Date(p.scheduled_at).toDateString();
-    eventByDate.set(k, [...(eventByDate.get(k) ?? []), p]);
-  }
+  const eventByDate = useMemo(() => placeItems(items), [items]);
 
   const cells: (Date | null)[] = [
     ...Array.from({ length: lead }, () => null),
@@ -793,17 +954,35 @@ function MonthGrid({
           return (
             <div className={`cal2-mcell${best ? " best" : ""}${isPast ? " past" : ""}`} key={d.getTime()}>
               <span className={`cal2-mnum${sameDay(d, now) ? " today" : ""}`}>{d.getDate()}</span>
-              {evs.map((p) => (
-                <button
-                  type="button"
-                  className={`cal2-mevent st-${p.status}`}
-                  key={p.id}
-                  title={`${fmtTime(p.scheduled_at)} · ${firstLine(p.caption)} · ${STATUS_LABEL[p.status]}`}
-                  onClick={() => onOpen(p)}
-                >
-                  {firstLine(p.caption)}
-                </button>
-              ))}
+              {evs.map(({ p, at, ghost }) => {
+                const time = fmtTime(at.toISOString());
+                if (ghost) {
+                  return (
+                    <button
+                      type="button"
+                      className="cal2-mevent cd-ghost"
+                      key={`${p.id}-also`}
+                      title={`${time} · ${firstLine(p.caption)} · also ${ghost.map((g) => PLATFORM_LABEL[g]).join(", ")}`}
+                      onClick={() => onOpen(p)}
+                    >
+                      <PlatformMarks platforms={ghost} />also
+                    </button>
+                  );
+                }
+                const status = isMulti(p) ? summarize(p.destinations).line : STATUS_LABEL[p.status];
+                return (
+                  <button
+                    type="button"
+                    className={`cal2-mevent st-${p.status}`}
+                    key={p.id}
+                    title={`${time} · ${firstLine(p.caption)} · ${status}`}
+                    onClick={() => onOpen(p)}
+                  >
+                    {isMulti(p) && <Marks destinations={p.destinations} />}
+                    {firstLine(p.caption)}
+                  </button>
+                );
+              })}
               {!isPast && (
                 <button
                   type="button"

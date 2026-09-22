@@ -64,10 +64,14 @@ export function validateMedia(media: MediaItem[], rule: MediaRule, platformLabel
       out.push({ code: "media_kind", severity: "block", field: "media", message: `${platformLabel} needs ${rule.kinds.join(" or ")} for this format${which}.` });
       return;
     }
-    if (rule.mimes.length && !rule.mimes.includes(m.mime)) {
-      out.push({ code: "media_mime", severity: "block", field: "media", message: `${platformLabel} does not accept ${m.mime || "this file type"}${which}. Use ${rule.mimes.map((x) => x.split("/")[1].toUpperCase()).join(", ")}.` });
+    if (!m.mime) {
+      out.push({ code: "media_mime_unknown", severity: "warn", field: "media", message: `File type was not recorded${which}; ${platformLabel} will check it at upload.` });
+    } else if (rule.mimes.length && !rule.mimes.includes(m.mime)) {
+      out.push({ code: "media_mime", severity: "block", field: "media", message: `${platformLabel} does not accept ${m.mime}${which}. Use ${rule.mimes.map((x) => x.split("/")[1].toUpperCase()).join(", ")}.` });
     }
-    if (m.size > rule.maxBytes) {
+    if (m.size == null) {
+      out.push({ code: "media_size_unknown", severity: "warn", field: "media", message: `File size was not recorded${which}; ${platformLabel} will check it at upload.` });
+    } else if (m.size > rule.maxBytes) {
       out.push({ code: "media_size", severity: "block", field: "media", message: `${platformLabel} allows up to ${fmtBytes(rule.maxBytes)}${which}; this file is ${fmtBytes(m.size)}.` });
     }
     if (m.kind === "video") {

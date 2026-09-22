@@ -1,0 +1,27 @@
+/* Calendar: items that fan out to several destinations (post_destinations).
+   Only what the legacy cal2-* styles do not already cover. Prefix: cd-. */
+
+/* platform marks, one per destination, tinted by that destination's own state */
+.cd-marks { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.cd-mark { display: inline-grid; place-items: center; width: 14px; height: 14px; color: var(--slate); }
+.cd-mark svg { width: 14px; height: 14px; display: block; }
+.cd-mark.st-scheduled, .cd-mark.st-uploading, .cd-mark.st-processing { color: var(--primary-text); }
+.cd-mark.st-published { color: var(--success-text); }
+.cd-mark.st-failed { color: var(--danger-text); }
+.cd-mark.st-draft, .cd-mark.st-ready { color: var(--warning-text); }
+.cd-mark.st-cancelled { opacity: 0.45; }
+
+/* the summary chip reuses cal2-chip; only the states cal2 never had */
+.cal2-chip.st-cancelled { background: rgba(var(--shadow-rgb), 0.08); color: var(--slate); }
+.cal2-chip.cd-sum { text-transform: none; letter-spacing: 0; font-size: 9.5px; }
+
+/* week view: an item whose other destinations publish on this day */
+.cal2-post.cd-ghost { opacity: 0.62; background: transparent; border-left-style: dashed; }
+.cal2-post.cd-ghost:hover { opacity: 0.9; transform: none; box-shadow: none; }
+.cd-also { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 10px; font-weight: 600; color: var(--slate); }
+.cal2-post.cd-ghost .cal2-title { margin-top: 2px; margin-bottom: 0; font-weight: 550; color: var(--slate); }
+
+/* month view: compact marks inside the one-line event */
+.cal2-mevent .cd-marks { vertical-align: -2px; margin-right: 4px; }
+.cal2-mevent .cd-mark, .cal2-mevent .cd-mark svg { width: 11px; height: 11px; }
+.cal2-mevent.cd-ghost { opacity: 0.55; background: transparent; border-left-style: dashed; color: var(--slate); }

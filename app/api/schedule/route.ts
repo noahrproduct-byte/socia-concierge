@@ -41,6 +41,14 @@ type Body = {
 };
 
 const MEDIA_TYPES: MediaType[] = ["REELS", "IMAGE"];
+const BUCKET = "scheduled-media";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Supa = any;
+
+/** The URL Instagram fetches, derived from the stored path; a client's media_url is never accepted as sent. */
+const publicUrlFor = (supabase: Supa, path: string | null | undefined): string | null =>
+  path ? supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl : null;
 
 function promote(
   row: { media_url: string | null; scheduled_at: string; caption: string; status: PostStatus },
@@ -110,7 +118,7 @@ export async function POST(req: Request) {
       caption: (it.caption ?? "").slice(0, 2200),
       media_type: mediaType,
       media_path: it.media_path ?? null,
-      media_url: it.media_url ?? null,
+      media_url: publicUrlFor(supabase, it.media_path),
       status: "draft" as PostStatus,
     };
     draft.status = it.keep_draft || body.keep_draft ? "draft" : promote({ ...draft, status: "draft" }, plan.canSchedule);
@@ -169,8 +177,10 @@ export async function PATCH(req: Request) {
   }
   if (typeof body.caption === "string") next.caption = body.caption.slice(0, 2200);
   if (body.media_type && MEDIA_TYPES.includes(body.media_type)) next.media_type = body.media_type;
-  if (body.media_path !== undefined) next.media_path = body.media_path;
-  if (body.media_url !== undefined) next.media_url = body.media_url;
+  if (body.media_path !== undefined) {
+    next.media_path = body.media_path;
+    next.media_url = publicUrlFor(supabase, body.media_path);
+  }
   if (body.status === "cancelled") next.status = "cancelled";
 
   // Re-derive status from the facts; a failed post that gets new media or a

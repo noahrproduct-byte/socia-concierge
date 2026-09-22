@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Scissors, Clock, CalendarPlus, ArrowRight, Info } from "lucide-react";
+import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Scissors, Clock, CalendarPlus, ArrowRight, Info, Send } from "lucide-react";
 import { CATEGORY_INFO, GOALS, fmtT, fmtT1, checklist, versionDiff, type StudioAnalysis, type ApplyField, type GoalId, type ChecklistItem } from "@/lib/studio";
 import type { PlanError } from "@/lib/planErrors";
 import PlanNotice from "../PlanNotice";
@@ -348,12 +348,18 @@ export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; 
   );
 }
 
-export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, onSaveDraft, saving, savedId, planNote }: {
-  a: StudioAnalysis | null; w: Working; versions: { analysis: StudioAnalysis; at: string }[]; setGoal: (g: GoalId | null) => void; setPlatform: (p: string | null) => void; improve: Improve; onSaveDraft: () => Promise<void>; saving: boolean; savedId: string | null; planNote: string;
+export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, onSaveDraft, onPublish, saving, savedId, planNote }: {
+  a: StudioAnalysis | null; w: Working; versions: { analysis: StudioAnalysis; at: string }[]; setGoal: (g: GoalId | null) => void; setPlatform: (p: string | null) => void; improve: Improve;
+  onSaveDraft: () => Promise<unknown>;
+  /** Saves the draft (same flow as onSaveDraft) and hands it to Create Post. */
+  onPublish: () => Promise<void>;
+  saving: boolean; savedId: string | null; planNote: string;
 }) {
   const [vars, setVars] = useState<ImproveOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<PanelErr | null>(null);
+  const [handing, setHanding] = useState(false);
+  const publish = async () => { setHanding(true); try { await onPublish(); } finally { setHanding(false); } };
   const items: ChecklistItem[] = checklist(a, { caption: w.caption, platform: w.platform, hook: w.hook, cta: w.cta, cover: w.cover != null, audio: w.audioChosen });
   const done = items.filter((i) => i.done).length;
   return (
@@ -376,10 +382,11 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
         </ul>
         <div className="st-row-actions">
           <Link href={`/tool?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><Sparkles size={12} /> Add to Content Plan</Link>
-          <button type="button" className="ov-btn primary small" disabled={saving || Boolean(savedId)} onClick={onSaveDraft}><CalendarPlus size={12} /> {saving ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
-          {savedId && <Link href="/calendar" className="ov-btn ghost small">Open Calendar to schedule <ArrowRight size={12} /></Link>}
+          <button type="button" className="ov-btn ghost small" disabled={saving || handing || Boolean(savedId)} onClick={() => void onSaveDraft()}><CalendarPlus size={12} /> {saving && !handing ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
+          <button type="button" className="btn-primary sm" disabled={saving || handing} onClick={publish}><Send size={12} /> {handing ? "Opening Create Post…" : "Publish or schedule"}</button>
+          {savedId && <Link href="/calendar" className="ov-btn ghost small">Open Calendar <ArrowRight size={12} /></Link>}
         </div>
-        <p className="ov-source"><Info size={11} /> Saving uploads this file to your own media folder and creates a draft on tomorrow at your suggested hour; nothing is published until you schedule it.</p>
+        <p className="ov-source"><Info size={11} /> Both actions upload this file to your own media folder and create a draft for tomorrow at your suggested hour. Publish or schedule then opens it in Create Post, where you pick the platforms and the time; nothing is published until you confirm there.</p>
       </section>
       {a && (
         <section className="st-block">

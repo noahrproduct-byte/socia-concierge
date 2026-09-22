@@ -47,60 +47,68 @@ type ConnRow = {
   access_token: string;
   refresh_token: string | null;
   token_expires_at: string | null;
+  /** OAuth scopes Google granted at connect time; null on rows from before the column existed. */
+  scopes?: string[] | null;
   /** Set when a plan downgrade paused this channel: kept, not read. */
   plan_suspended_at?: string | null;
 };
 
 /**
- * The user's connection row with `cols`, reading plan_suspended_at when that
- * column exists (the migration may not have run yet). Any read error resolves
- * to null: an unreadable row is "not connected", never a guess.
+ * The user's connection row with `cols`, also reading scopes and
+ * plan_suspended_at when those columns exist (the migrations may not have run
+ * yet). Any read error resolves to null: an unreadable row is "not connected",
+ * never a guess.
  */
 async function readConnRow<T extends Record<string, unknown>>(
   supabase: SupabaseClient,
   userId: string,
   cols: string,
 ): Promise<T | null> {
-  try {
-    const { data, error } = await supabase
-      .from("youtube_connections")
-      .select(`${cols}, plan_suspended_at`)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (!error) return (data as T | null) ?? null;
-  } catch {
-    /* pre-migration: retry without the column */
+  const attempts = [`${cols}, scopes, plan_suspended_at`, `${cols}, plan_suspended_at`, cols];
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      const { data, error } = await supabase
+        .from("youtube_connections")
+        .select(attempts[i])
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!error) return (data as T | null) ?? null;
+      if (i === attempts.length - 1) return null;
+    } catch {
+      /* pre-migration: retry with fewer columns */
+      if (i === attempts.length - 1) return null;
+    }
   }
-  try {
-    const { data, error } = await supabase
-      .from("youtube_connections")
-      .select(cols)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) return null;
-    return (data as T | null) ?? null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
-// A valid access token, refreshing and persisting when the stored one is within
-// two minutes of expiry. Returns null when there is no connection at all, or
-// when the channel is paused by a plan downgrade (its data is not read).
-async function validToken(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<{ token: string; channelId: string | null } | null> {
+export type YouTubeAccess = {
+  token: string;
+  channelId: string | null;
+  /** Granted scopes as stored; null when the connection predates scope tracking. */
+  scopes: string[] | null;
+};
+
+/**
+ * A valid access token for the user's connected channel, refreshing and
+ * persisting when the stored one is within two minutes of expiry. Returns null
+ * when there is no connection at all, or when the channel is paused by a plan
+ * downgrade (its data is not read and nothing is published to it).
+ * Server only: the token never reaches the browser except inside a YouTube
+ * upload session the publish route hands out on purpose.
+ */
+export async function youtubeAccessToken(supabase: SupabaseClient, userId: string): Promise<YouTubeAccess | null> {
   const row = await readConnRow<ConnRow>(supabase, userId, "channel_id, access_token, refresh_token, token_expires_at");
   if (!row?.access_token) return null;
   if (row.plan_suspended_at != null) return null;
+  const scopes = Array.isArray(row.scopes) ? row.scopes : null;
 
   const expMs = row.token_expires_at ? new Date(row.token_expires_at).getTime() : 0;
-  if (expMs - Date.now() > 120_000) return { token: row.access_token, channelId: row.channel_id };
-  if (!row.refresh_token) return { token: row.access_token, channelId: row.channel_id };
+  if (expMs - Date.now() > 120_000) return { token: row.access_token, channelId: row.channel_id, scopes };
+  if (!row.refresh_token) return { token: row.access_token, channelId: row.channel_id, scopes };
 
   const tok = await refreshAccessToken(row.refresh_token);
-  if (!tok) return { token: row.access_token, channelId: row.channel_id };
+  if (!tok) return { token: row.access_token, channelId: row.channel_id, scopes };
   await supabase
     .from("youtube_connections")
     .update({
@@ -110,7 +118,16 @@ async function validToken(
     })
     .eq("user_id", userId)
     .then(() => undefined, () => undefined);
-  return { token: tok.access_token, channelId: row.channel_id };
+  return { token: tok.access_token, channelId: row.channel_id, scopes };
+}
+
+// The analytics readers only need the token and channel.
+async function validToken(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ token: string; channelId: string | null } | null> {
+  const a = await youtubeAccessToken(supabase, userId);
+  return a ? { token: a.token, channelId: a.channelId } : null;
 }
 
 async function getJson(url: string, token: string): Promise<Record<string, unknown> | null> {

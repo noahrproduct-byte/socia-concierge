@@ -22,6 +22,7 @@ export default function YouTubeConnect({
   subscribers,
   avatar,
   paused = false,
+  canUpload = true,
 }: {
   /** OAuth outcome from ?yt= (connected/denied/nochannel/error/notconfigured/limit). */
   status?: string;
@@ -33,6 +34,8 @@ export default function YouTubeConnect({
   avatar: string | null;
   /** The channel exists but is paused by a plan downgrade (not read, not counted). */
   paused?: boolean;
+  /** False when the stored OAuth scopes predate the upload scope: the composer cannot upload until a reconnect. */
+  canUpload?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -115,6 +118,11 @@ export default function YouTubeConnect({
           ) : null}
         </div>
       </div>
+      {connected && !canUpload && (
+        <p className="st2-ig-note">
+          Uploads need a reconnect. <a className="st2-connect" href="/api/auth/youtube/start">Reconnect</a>
+        </p>
+      )}
       {note && <p className="st2-ig-note">{note}</p>}
       {err && <p className="st2-ig-note">{err}</p>}
     </div>

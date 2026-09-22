@@ -95,9 +95,11 @@ export type RailProps = {
 export type ComposerPageProps = {
   userId: string;
   accounts: PickerAccount[];
+  /** false when a connections table could not be read: the list is a lower bound, not the truth. */
+  accountsComplete: boolean;
   timing: TimingInput;
-  /** Editing an existing item, or prefill from Studio / Content Plan. */
-  initial: { item: ContentItem | null; caption: string | null; planId: string | null; planDay: string | null; source: ComposerDraft["source"]; mode: "advanced" | "quick" };
+  /** Editing an existing item, or prefill from Studio / Content Plan / a calendar day (`at`, ISO). */
+  initial: { item: ContentItem | null; caption: string | null; planId: string | null; planDay: string | null; source: ComposerDraft["source"]; mode: "advanced" | "quick"; at: string | null };
   /** Whether this plan may schedule/publish at all (Free cannot); the server enforces regardless. */
   canPublish: boolean;
   planError: PlanError | null;

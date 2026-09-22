@@ -18,13 +18,18 @@ export const PLATFORM_LABEL: Record<Platform, string> = {
 
 export type MediaKind = "image" | "video";
 
-/** One uploaded file. width/height/duration are measured in the browser; null = not measured. */
+/**
+ * One uploaded file. width/height/duration are measured in the browser and
+ * size is read from the file; null = not measured or not recorded (legacy rows
+ * never stored a size). Unknown is never rendered or validated as 0.
+ */
 export type MediaItem = {
   id: string;
   kind: MediaKind;
   name: string;
+  /** "" when the type was never recorded (legacy rows); never a guess. */
   mime: string;
-  size: number;
+  size: number | null;
   width: number | null;
   height: number | null;
   /** seconds, videos only */

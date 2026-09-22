@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Upload, FolderOpen, FileVideo, Image as ImageIcon, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
@@ -58,6 +59,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const seekN = useRef(0);
   const playerVideo = useRef<HTMLVideoElement | null>(null);
@@ -156,9 +158,12 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   }, [apply]);
 
   // ---- save as a calendar draft ------------------------------------------
-  const saveDraft = useCallback(async () => {
-    if (!source) return;
+  // Resolves to the draft's id (null when nothing was saved) so the Create
+  // Post handoff can reuse the exact same flow; what is stored is unchanged.
+  const saveDraft = useCallback(async (): Promise<string | null> => {
+    if (!source) return null;
     setSaving(true);
+    let saved: string | null = null;
     try {
       const api = async <T,>(method: string, body: unknown): Promise<T> => {
         const res = await fetch("/api/schedule", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -170,6 +175,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       if (source.draftId) {
         await api("PATCH", { id: source.draftId, caption });
         setSavedId(source.draftId);
+        saved = source.draftId;
       } else if (source.file) {
         const when = new Date(); when.setDate(when.getDate() + 1); when.setHours(12, 0, 0, 0);
         const { posts } = await api<{ posts: { id: string }[] }>("POST", { scheduled_at: when.toISOString(), caption, media_type: source.kind === "video" ? "REELS" : "IMAGE", keep_draft: true });
@@ -181,12 +187,23 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         const { data: pub } = supabase.storage.from("scheduled-media").getPublicUrl(path);
         await api("PATCH", { id, media_path: path, media_url: pub.publicUrl, keep_draft: true });
         setSavedId(id);
+        saved = id;
       }
-      notify("Draft saved to the Calendar");
+      if (saved) notify("Draft saved to the Calendar");
     } catch (e) {
       notify(e instanceof Error ? e.message : "Couldn't save the draft");
     } finally { setSaving(false); }
+    return saved;
   }, [source, w.caption, w.cta, userId]);
+
+  // ---- hand the piece to Create Post ---------------------------------------
+  // Same save as above (an already saved draft is reused), then the composer
+  // opens on it so the person picks platforms and time there.
+  const publishOrSchedule = useCallback(async () => {
+    const id = savedId ?? (await saveDraft());
+    if (!id) return;
+    router.push(`/create?post=${encodeURIComponent(id)}&from=studio`);
+  }, [savedId, saveDraft, router]);
 
   const planNote = useMemo(() => {
     if (!analysis) return "Idea from Content Studio.";
@@ -302,7 +319,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               {tab === "improve" && <ImprovePanel a={analysis} w={w} apply={apply} seek={doSeek} improve={improve} firstFrame={frames?.thumbs[0]?.src ?? null} />}
               {tab === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
               {tab === "audio" && <AudioPanel a={analysis} w={w} setAudio={(b) => setW((c) => ({ ...c, audioChosen: b }))} />}
-              {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} saving={saving} savedId={savedId} planNote={planNote} />}
+              {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} />}
             </>
           )}
           {source && !analysis && phase === "done" && <div className="ov-empty">No analysis yet.</div>}

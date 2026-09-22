@@ -44,6 +44,13 @@ export type PublishContext = {
   /** Wall-clock budget in ms the adapter may spend polling before returning in-flight. */
   budgetMs: number;
   now: Date;
+  /**
+   * True when a signed-in browser is on the other end of this request and can
+   * perform a clientAction (YouTube upload). The cron sets false; an adapter
+   * that would need the browser must fail honestly instead of opening a
+   * session nobody will finish.
+   */
+  interactive: boolean;
 };
 
 export interface PublishAdapter {

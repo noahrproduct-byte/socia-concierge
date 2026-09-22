@@ -7,6 +7,7 @@ import {
   FileBarChart,
   Clapperboard,
   CalendarDays,
+  PenSquare,
   Settings,
   Camera,
   Music2,
@@ -55,6 +56,8 @@ const NAV: NavItem[] = [
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
   { href: "/studio", label: "Content Studio", Icon: Clapperboard, key: "studio" },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
+  // The multi-platform composer (/create and its sub-routes pass active="create").
+  { href: "/create", label: "Create post", Icon: PenSquare, key: "create" },
   { href: "/reports", label: "Reports", Icon: FileBarChart, key: "reports" },
 ];
 

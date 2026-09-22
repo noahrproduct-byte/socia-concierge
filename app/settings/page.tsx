@@ -29,6 +29,7 @@ import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
 import YouTubeConnect from "@/components/YouTubeConnect";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
+import { YT_WRITE_SCOPES } from "@/lib/publishing/capabilities";
 import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import {
@@ -111,17 +112,30 @@ export default async function SettingsPage({
     handle: string | null;
     subscribers: number | null;
     avatar_url: string | null;
+    scopes?: string[] | null;
   } | null = null;
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("youtube_connections")
-      .select("title, handle, subscribers, avatar_url")
+      .select("title, handle, subscribers, avatar_url, scopes")
       .eq("user_id", user.id)
       .maybeSingle();
-    ytConn = data;
+    if (!error) ytConn = data;
+    else {
+      // scopes column may not exist yet: read the card's fields without it
+      const { data: legacy } = await supabase
+        .from("youtube_connections")
+        .select("title, handle, subscribers, avatar_url")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      ytConn = legacy;
+    }
   } catch {
     // table may not exist yet — the card shows the disconnected state
   }
+  // Channels connected before the upload scope existed carry only read scopes;
+  // the card asks for a reconnect instead of pretending uploads work.
+  const ytCanUpload = Array.isArray(ytConn?.scopes) && ytConn!.scopes!.some((s) => YT_WRITE_SCOPES.includes(s));
 
   // Facebook connection state (tokens never leave the server).
   let fbConn: {
@@ -309,6 +323,7 @@ export default async function SettingsPage({
                 subscribers={ytConn?.subscribers ?? null}
                 avatar={ytConn?.avatar_url ?? null}
                 paused={pausedOn("youtube")}
+                canUpload={ytCanUpload}
               />
               <div className="st2-divider"><span>Other platforms</span></div>
               <ConnectionsManager />

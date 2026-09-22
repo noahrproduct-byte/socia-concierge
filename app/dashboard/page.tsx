@@ -6,6 +6,7 @@ import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
+import { hasYouTubeConnection } from "@/lib/youtubeData";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
 import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
@@ -183,7 +184,12 @@ export default async function DashboardPage({
   // shares on posts inside the range), as Meta reports it. Facebook exposes
   // no view count for regular Page posts, so under the views metric the row
   // is connected but unmeasured, never zero.
-  const fb = await getFbSnapshot(supabase, user.id).catch(() => null);
+  // YouTube: connected is a fact from youtube_connections; its figures are not
+  // folded into this strip yet, so the value stays null (unmeasured), never 0.
+  const [fb, ytConnected] = await Promise.all([
+    getFbSnapshot(supabase, user.id).catch(() => null),
+    hasYouTubeConnection(supabase, user.id).catch(() => false),
+  ]);
   const fbConnected = fb?.status === "connected";
   const fbSince = Date.now() - (days) * 86400000;
   const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
@@ -194,7 +200,7 @@ export default async function DashboardPage({
   const platforms: PlatformRow[] = [
     { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === (platformMetric === "views" ? "views" : "engagement_rate"))?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
     { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
-    { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "youtube", label: "YouTube", connected: ytConnected, value: null, deltaPct: null, share: 0 },
     fbRow,
   ];
   {

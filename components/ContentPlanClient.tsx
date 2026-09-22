@@ -21,6 +21,7 @@ import {
   Plug,
   Database,
   Trophy,
+  PenSquare,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { AskDrawer } from "@/components/AskSocia";
@@ -546,6 +547,16 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
     const wd = weekdayIndex(day);
     return wd == null ? null : hourLabel(suggestedHour(aud, (wd + 6) % 7));
   };
+  // One plan item into Create Post: the hook as the first line, the concept
+  // under it, both as the plan wrote them. planId only when the plan is saved.
+  const createHref = (post: { day: string; concept: string; hook: string }): string => {
+    const q = new URLSearchParams();
+    q.set("caption", `${post.hook.trim()}\n\n${post.concept.trim()}`);
+    if (planId) q.set("planId", planId);
+    q.set("planDay", post.day);
+    q.set("from", "plan");
+    return `/create?${q.toString()}`;
+  };
   const ev = data.evidenceUsed;
   const [sched, setSched] = useState<{ busy: boolean; ok: boolean; msg: string | null; planError: PlanError | null }>({
     busy: false,
@@ -755,6 +766,11 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                   <b>Why this:</b> {post.rationale}
                   <br />
                   <b>Based on:</b> {post.evidence}
+                </div>
+                <div className="cpl-postmeta">
+                  <Link href={createHref(post)} className="ov-link" title="Open Create Post with this hook and concept as the caption">
+                    <PenSquare size={11} /> Create this post
+                  </Link>
                 </div>
               </article>
             ))}

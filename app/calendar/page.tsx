@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AppShell from "@/components/AppShell";
-import CalendarBoard, { type CalPost, type PublishInfo } from "@/components/CalendarBoard";
+import CalendarBoard, { type CalPost, type CalItem, type CalDestination, type PublishInfo } from "@/components/CalendarBoard";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getIgSnapshot, getActiveConnection } from "@/lib/instagramSync";
 import { PUBLISH_SCOPE } from "@/lib/igPublish";
 import { serviceConfigured } from "@/lib/supabase/service";
@@ -9,6 +10,45 @@ import { getEntitlements, checkFeature } from "@/lib/entitlements";
 import type { ScheduledPost } from "@/lib/scheduling";
 
 export const metadata = { title: "Calendar — SOCIA" };
+
+type DestinationRow = {
+  id: string;
+  post_id: string;
+  platform: CalDestination["platform"];
+  account_id: string;
+  status: CalDestination["status"];
+  scheduled_at: string | null;
+  error_message: string | null;
+  permalink: string | null;
+};
+
+/** The destinations of these posts, grouped by post id. Before the publishing
+ *  migration the table does not exist (42P01 / PGRST205 / "schema cache"):
+ *  that, like any other failure here, yields no destinations and every row
+ *  renders through the legacy Instagram path. */
+async function loadDestinations(supabase: SupabaseClient, userId: string, postIds: string[]): Promise<Map<string, CalDestination[]>> {
+  const out = new Map<string, CalDestination[]>();
+  if (!postIds.length) return out;
+  try {
+    const { data, error } = await supabase
+      .from("post_destinations")
+      .select("id, post_id, platform, account_id, status, scheduled_at, error_message, permalink")
+      .eq("user_id", userId)
+      .in("post_id", postIds)
+      .order("scheduled_at", { ascending: true, nullsFirst: false });
+    if (error || !data) return out;
+    for (const r of data as DestinationRow[]) {
+      const d: CalDestination = {
+        id: r.id, postId: r.post_id, platform: r.platform, accountId: r.account_id, status: r.status,
+        scheduledAt: r.scheduled_at, errorMessage: r.error_message, permalink: r.permalink,
+      };
+      out.set(r.post_id, [...(out.get(r.post_id) ?? []), d]);
+    }
+  } catch {
+    // no destinations: the calendar still renders every row
+  }
+  return out;
+}
 
 export default async function CalendarPage() {
   const supabase = await createClient();
@@ -61,13 +101,21 @@ export default async function CalendarPage() {
     planError: scheduling.ok ? null : scheduling.error,
   };
 
+  // Multi-destination items carry their destination rows; legacy rows carry none.
+  const scheduledRows = (rows ?? []) as ScheduledPost[];
+  const destinations = await loadDestinations(supabase, user.id, scheduledRows.map((r) => r.id));
+  const scheduled: CalItem[] = scheduledRows.map((r) => {
+    const ds = destinations.get(r.id);
+    return ds ? { ...r, destinations: ds } : r;
+  });
+
   return (
     <AppShell active="calendar" userEmail={user.email}>
       <CalendarBoard
         posts={posts}
         igUsername={igUsername}
         connected={connected}
-        scheduled={(rows ?? []) as ScheduledPost[]}
+        scheduled={scheduled}
         userId={user.id}
         publish={publish}
       />

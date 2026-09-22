@@ -47,10 +47,11 @@ describe("media validation follows the documented limits", () => {
     expect(validateMedia([image({ width: 1080, height: 1920 })], igImage, "Instagram").map((i) => i.code)).toContain("media_aspect");
     expect(validateMedia([image()], igImage, "Instagram")).toEqual([]);
   });
-  it("warns instead of guessing when dimensions or duration were not measured", () => {
-    const issues = validateMedia([video({ width: null, height: null, duration: null })], reel, "Instagram");
+  it("warns instead of guessing when dimensions, duration, size or type were not measured", () => {
+    const issues = validateMedia([video({ width: null, height: null, duration: null, size: null, mime: "" })], reel, "Instagram");
     expect(issues.every((i) => i.severity === "warn")).toBe(true);
-    expect(issues.map((i) => i.code)).toEqual(expect.arrayContaining(["media_duration_unknown", "media_dimensions_unknown"]));
+    expect(issues.map((i) => i.code)).toEqual(expect.arrayContaining(["media_duration_unknown", "media_dimensions_unknown", "media_size_unknown", "media_mime_unknown"]));
+    expect(issues.map((i) => i.code)).not.toContain("media_size");
   });
   it("enforces carousel counts", () => {
     const car = formatSpec("instagram", "carousel")!.media;
