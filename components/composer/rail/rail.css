@@ -143,3 +143,37 @@
   .cr-check { flex-direction: column; align-items: flex-start; gap: 1px; }
   .cr-check-value { text-align: left; }
 }
+
+/* =========================================================================
+   Polish layer: the command panel comes alive as content arrives. Preview
+   crossfades between platforms, scheduling options read as premium choices,
+   controls have restrained press. Motion from the shared tokens.
+   ========================================================================= */
+
+/* Preview crossfades in on mount and when the platform tab changes (keyed). */
+.cr-phone, .cr-yt { animation: cr-fade var(--dur) var(--ease-out); }
+@keyframes cr-fade { from { opacity: 0; transform: translateY(4px) scale(0.99); } to { opacity: 1; transform: none; } }
+.cr-tab { transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out); }
+.cr-tab:active { transform: scale(0.98); }
+
+/* Scheduling: three selectable options, restrained icon + accent when chosen. */
+.cr-radio { transition: border-color var(--dur) var(--ease-out), background var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.cr-radio:not(.off):hover { border-color: var(--border-strong); }
+.cr-radio.on { border-color: rgba(var(--primary-rgb), 0.4); background: rgba(var(--primary-rgb), 0.04); box-shadow: inset 2px 0 0 var(--accent); }
+.cr-radio.on .cr-radio-body strong { color: var(--text-primary); }
+
+/* Readiness issues and status rows resolve smoothly. */
+.cr-row, .cr-status-row { transition: opacity var(--dur) var(--ease-out); }
+.cr-issue-btn, .cr-permalink, .cr-link { transition: color var(--dur-fast) var(--ease-out); }
+.cr-status-actions .btn-secondary:active:not(:disabled) { transform: scale(0.97); }
+
+/* The published check settles in rather than blinking on. */
+.cr-pill.cr-ready::before { animation: cr-pop var(--dur) var(--ease-spring); }
+@keyframes cr-pop { from { transform: scale(0.3); } to { transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-phone, .cr-yt, .cr-pill.cr-ready::before { animation: none; }
+  .cr-tab, .cr-radio, .cr-row, .cr-status-row, .cr-issue-btn, .cr-permalink, .cr-link { transition-duration: 0.01ms; }
+  .cr-tab:active, .cr-status-actions .btn-secondary:active { transform: none; }
+  .cr-progress > i { transition: none; }
+}
