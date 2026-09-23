@@ -169,6 +169,15 @@
 .cr-status-actions .btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
 .cr-permalink { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--primary-text); text-decoration: none; }
 .cr-permalink:hover { text-decoration: underline; }
+/* closed loop: what happens after publishing */
+.cr-lifecycle { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); animation: cr-fade var(--dur) var(--ease-out); }
+.cr-life-track { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.cr-life-step { font-size: 10.5px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+.cr-life-step.done { color: var(--success-text); }
+.cr-life-step.pending { color: var(--text-muted); }
+.cr-life-line { flex: 1; height: 1px; background: linear-gradient(to right, var(--success), var(--border)); }
+.cr-lifecycle p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+
 .cr-status-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .cr-status-nav .btn-secondary, .cr-status-nav .btn-primary { flex: 1; justify-content: center; }
 .cr-spin { animation: cr-spin 0.9s linear infinite; }
@@ -207,7 +216,7 @@
 @keyframes cr-pop { from { transform: scale(0.3); } to { transform: scale(1); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .cr-phone, .cr-yt, .cr-pill.cr-ready::before, .cr-fix { animation: none; }
+  .cr-phone, .cr-yt, .cr-pill.cr-ready::before, .cr-fix, .cr-lifecycle { animation: none; }
   .cr-tab, .cr-radio, .cr-row, .cr-status-row, .cr-issue-btn, .cr-permalink, .cr-link, .cr-fix-btn { transition-duration: 0.01ms; }
   .cr-tab:active, .cr-status-actions .btn-secondary:active { transform: none; }
   .cr-progress > i, .cr-meter > i { transition: none; }
