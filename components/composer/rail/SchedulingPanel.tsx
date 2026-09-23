@@ -10,6 +10,7 @@
 // server re-validates regardless.
 
 import { useEffect, useMemo } from "react";
+import { CalendarClock, Sparkles, Zap } from "lucide-react";
 import type { RailProps } from "@/components/composer/contracts";
 import { CAPABILITIES } from "@/lib/publishing/capabilities";
 import { enabledDestinations, readinessFor, type ScheduleMode } from "@/lib/publishing/composer";
@@ -78,6 +79,7 @@ export default function SchedulingPanel({ draft, accounts, dispatch, timing }: R
       <div className="cr-radios" role="radiogroup" aria-label="When to publish">
         <label className={`cr-radio${mode === "now" ? " on" : ""}`}>
           <input type="radio" name="cr-mode" checked={mode === "now"} onChange={() => setMode("now")} />
+          <span className="cr-radio-icon" aria-hidden><Zap size={15} /></span>
           <span className="cr-radio-body">
             <strong>Publish now</strong>
             <small>Every enabled platform starts as soon as you confirm.</small>
@@ -85,6 +87,7 @@ export default function SchedulingPanel({ draft, accounts, dispatch, timing }: R
         </label>
         <label className={`cr-radio${mode === "later" ? " on" : ""}`}>
           <input type="radio" name="cr-mode" checked={mode === "later"} onChange={() => setMode("later")} />
+          <span className="cr-radio-icon" aria-hidden><CalendarClock size={15} /></span>
           <span className="cr-radio-body">
             <strong>Schedule for later</strong>
             <small>Pick a date and time{zoneName ? ` in ${zoneName}` : ""}.</small>
@@ -92,8 +95,9 @@ export default function SchedulingPanel({ draft, accounts, dispatch, timing }: R
         </label>
         <label className={`cr-radio${mode === "recommended" ? " on" : ""}${canRecommend ? "" : " off"}`} aria-disabled={!canRecommend}>
           <input type="radio" name="cr-mode" checked={mode === "recommended"} disabled={!canRecommend} onChange={() => setMode("recommended")} />
+          <span className="cr-radio-icon" aria-hidden><Sparkles size={15} /></span>
           <span className="cr-radio-body">
-            <strong>Recommended time</strong>
+            <strong>Smart time</strong>
             <small>{recommendedHint}</small>
           </span>
         </label>

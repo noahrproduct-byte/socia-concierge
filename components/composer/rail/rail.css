@@ -121,7 +121,10 @@
 
 /* scheduling */
 .cr-radios { display: flex; flex-direction: column; gap: 6px; }
-.cr-radio { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.cr-radio { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.cr-radio-icon { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 8px; background: var(--surface-muted); color: var(--text-secondary); transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out); }
+.cr-radio.on .cr-radio-icon { background: var(--primary-subtle); color: var(--primary-text); }
+.cr-radio.off .cr-radio-icon { opacity: 0.6; }
 .cr-radio.on { border-color: var(--border-strong); background: var(--surface-muted); }
 .cr-radio.off { opacity: 0.6; cursor: not-allowed; }
 .cr-radio input { margin-top: 2px; accent-color: var(--primary); }
