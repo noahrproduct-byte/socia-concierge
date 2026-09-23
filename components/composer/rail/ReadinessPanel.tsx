@@ -9,8 +9,10 @@
 // own folder.
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import type { RailProps } from "@/components/composer/contracts";
-import { review } from "@/lib/publishing/composer";
+import { contentChecks } from "@/lib/publishing/precheck";
+import { publishReadiness } from "@/lib/publishing/readiness";
 import { PLATFORM_LABEL, type Platform } from "@/lib/publishing/types";
 import type { ReadinessLevel } from "@/lib/publishing/validate";
 import { viewerTimeZone } from "@/lib/publishing/timing";
@@ -70,48 +72,75 @@ export function useNow(everyMs = 30_000): Date | null {
   return now;
 }
 
+/** A deterministic readiness meter: required checks passed / total. Not a quality score. */
 export default function ReadinessPanel({ draft, accounts, onFocusField }: RailProps) {
-  const rev = review(draft, accounts);
+  const r = publishReadiness(draft, accounts, contentChecks(draft, accounts));
+  const [showSuggest, setShowSuggest] = useState(false);
+  const tone = r.destinations === 0 ? "cr-neutral" : r.percent === 100 && r.canPublish ? "cr-ready" : "cr-warning";
+
   return (
     <section className="ov-card cr-card" aria-labelledby="cr-readiness-h">
       <div className="ov-card-head">
-        <h2 id="cr-readiness-h">Platform readiness</h2>
-        {rev.total > 0 && (
-          <span className={`cr-pill ${rev.canSubmit ? "cr-ready" : "cr-neutral"}`}>{rev.readyCount} of {rev.total}</span>
-        )}
+        <h2 id="cr-readiness-h">Publish readiness</h2>
+        {r.destinations > 0 && <span className={`cr-pct ${tone}`}>{r.percent}%</span>}
       </div>
-      {rev.rows.length === 0 ? (
+
+      {r.destinations === 0 ? (
         <p className="cr-empty">Choose at least one destination on the left to see what each platform needs.</p>
       ) : (
-        <ul className="cr-rows">
-          {rev.rows.map((r) => (
-            <li key={r.key} className="cr-row">
-              <div className="cr-row-head">
-                <span className="cr-plat">
-                  <PlatformMark platform={r.platform} />
-                  {PLATFORM_LABEL[r.platform]}
-                  <small>{r.label}</small>
+        <>
+          <div className="cr-meter" role="progressbar" aria-valuenow={r.percent} aria-valuemin={0} aria-valuemax={100} aria-label="Publish readiness">
+            <i className={tone} style={{ width: `${r.percent}%` }} />
+          </div>
+
+          <ul className="cr-buckets">
+            {r.buckets.map((b) => (
+              <li key={b.id} className={`cr-bucket${b.ok ? " ok" : ""}`}>
+                <span className="cr-bucket-label">{b.label}</span>
+                <span className="cr-bucket-value">
+                  {b.ok ? <Check size={13} strokeWidth={3} aria-label="ready" /> : b.total > 1 ? `${b.done} / ${b.total}` : "Needs setup"}
                 </span>
-                <LevelPill level={r.readiness.level} />
-              </div>
-              {r.readiness.issues.length > 0 && (
-                <ul className="cr-issues">
-                  {r.readiness.issues.map((i, idx) => (
-                    <li key={`${i.code}-${idx}`} className={`cr-issue cr-${i.severity}`}>
-                      {i.field ? (
-                        <button type="button" className="cr-issue-btn" onClick={() => onFocusField(r.key, i.field!)}>
-                          {i.message}
-                        </button>
-                      ) : (
-                        <span>{i.message}</span>
+              </li>
+            ))}
+          </ul>
+
+          {r.required.length > 0 && (
+            <div className="cr-fixes" aria-label="Things to fix">
+              <h3 className="cr-fixes-head">{r.required.length === 1 ? "1 thing to fix" : `${r.required.length} things to fix`}</h3>
+              <ul>
+                {r.required.map((f) => (
+                  <li key={f.id} className="cr-fix required">
+                    <span>{f.platform ? <><PlatformMark platform={f.platform} size={13} /> </> : null}{f.message}</span>
+                    {f.field && (
+                      <button type="button" className="cr-fix-btn" onClick={() => onFocusField(f.destKey, f.field!)}>Fix</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {r.suggested.length > 0 && (
+            <div className="cr-fixes cr-suggest">
+              <button type="button" className="cr-suggest-toggle" aria-expanded={showSuggest} onClick={() => setShowSuggest((v) => !v)}>
+                {r.suggested.length === 1 ? "1 suggestion" : `${r.suggested.length} suggestions`}
+                <span className="cr-suggest-hint">Optional, does not block publishing</span>
+              </button>
+              {showSuggest && (
+                <ul>
+                  {r.suggested.map((f) => (
+                    <li key={f.id} className="cr-fix suggested">
+                      <span>{f.platform ? <><PlatformMark platform={f.platform} size={13} /> </> : null}{f.message}</span>
+                      {f.field && (
+                        <button type="button" className="cr-fix-btn" onClick={() => onFocusField(f.destKey, f.field!)}>Review</button>
                       )}
                     </li>
                   ))}
                 </ul>
               )}
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

@@ -70,8 +70,40 @@
 .cr-yt-title { margin: 0; font-size: 13px; font-weight: 650; line-height: 1.35; color: var(--text-primary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cr-yt-meta small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-muted); }
 
+/* readiness meter */
+.cr-pct { font-size: 15px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -0.3px; }
+.cr-pct.cr-ready { color: var(--success-text); }
+.cr-pct.cr-warning { color: var(--warning-text); }
+.cr-pct.cr-neutral { color: var(--text-muted); }
+.cr-meter { height: 8px; border-radius: 999px; background: var(--surface-muted); overflow: hidden; margin: 2px 0 12px; }
+.cr-meter > i { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width var(--dur-slow) var(--ease-out); }
+.cr-meter > i.cr-ready { background: var(--success); }
+.cr-meter > i.cr-warning { background: var(--warning); }
+.cr-buckets { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 14px; }
+.cr-bucket { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+.cr-bucket-label { color: var(--text-secondary); }
+.cr-bucket-value { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--warning-text); font-variant-numeric: tabular-nums; }
+.cr-bucket.ok .cr-bucket-value { color: var(--success-text); }
+
+/* things to fix / suggestions */
+.cr-fixes { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.cr-fixes-head { margin: 0 0 6px; font-size: 10.5px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); }
+.cr-fixes ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cr-fix { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; font-size: 12.5px; line-height: 1.45; animation: cr-fade var(--dur) var(--ease-out); }
+.cr-fix > span { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; color: var(--text-secondary); }
+.cr-fix > span svg { align-self: center; color: var(--text-muted); flex: none; }
+.cr-fix.required > span { color: var(--text-primary); }
+.cr-fix-btn { flex: none; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-secondary); border-radius: 7px; padding: 3px 9px; font: inherit; font-size: 11.5px; font-weight: 650; cursor: pointer; transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out); }
+.cr-fix-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.cr-suggest { border-top-style: dashed; }
+.cr-suggest-toggle { display: flex; align-items: baseline; gap: 8px; width: 100%; border: none; background: none; padding: 0; font: inherit; font-size: 12.5px; font-weight: 650; color: var(--text-secondary); cursor: pointer; }
+.cr-suggest-toggle:hover { color: var(--text-primary); }
+.cr-suggest-hint { font-weight: 500; font-size: 11px; color: var(--text-muted); }
+.cr-insight-ico { color: var(--primary-text); }
+
 /* check groups */
 .cr-group { padding-top: 10px; }
+.cr-group.cr-group-first { padding-top: 0; }
 .cr-group + .cr-group { margin-top: 8px; border-top: 1px solid var(--border); }
 .cr-group h3 { margin: 0 0 6px; font-size: 10.5px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); }
 .cr-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
@@ -172,8 +204,8 @@
 @keyframes cr-pop { from { transform: scale(0.3); } to { transform: scale(1); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .cr-phone, .cr-yt, .cr-pill.cr-ready::before { animation: none; }
-  .cr-tab, .cr-radio, .cr-row, .cr-status-row, .cr-issue-btn, .cr-permalink, .cr-link { transition-duration: 0.01ms; }
+  .cr-phone, .cr-yt, .cr-pill.cr-ready::before, .cr-fix { animation: none; }
+  .cr-tab, .cr-radio, .cr-row, .cr-status-row, .cr-issue-btn, .cr-permalink, .cr-link, .cr-fix-btn { transition-duration: 0.01ms; }
   .cr-tab:active, .cr-status-actions .btn-secondary:active { transform: none; }
-  .cr-progress > i { transition: none; }
+  .cr-progress > i, .cr-meter > i { transition: none; }
 }
