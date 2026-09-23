@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
 import { GOALS, type GoalId } from "@/lib/studio";
+import { requireUsage } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -55,6 +56,12 @@ export async function POST(req: Request) {
     variations: `Propose 5 variations of this piece as editing briefs: a 15-second version, a 6-second teaser, a TikTok-native version, a Story version, and a photo-carousel concept. label = the variation, text = one sentence on the idea, steps = 3-5 concrete editing instructions with timestamps where they apply. Do not claim any performance outcome.`,
   };
   const task = TASK[body.task] ? body.task : "hooks";
+
+  // One generation per unit of the hooks-and-captions allowance; counted
+  // right before the model is called, and given back when no options come back.
+  const u = await requireUsage(supabase, user.id, "content_generation");
+  if (u.denied) return u.denied;
+
   try {
     const params = {
       model: MODEL, max_tokens: 2500,
@@ -64,10 +71,23 @@ export async function POST(req: Request) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    if (res.stop_reason === "refusal") {
+      await u.release();
+      return NextResponse.json({ error: "SOCIA declined this one. Try rephrasing." }, { status: 422 });
+    }
     const block = res.content.find((b) => b.type === "text");
-    const raw = block && "text" in block ? JSON.parse(block.text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) : null;
-    return NextResponse.json({ options: (raw?.options ?? []).slice(0, 6) });
+    let raw: { options?: unknown[] } | null = null;
+    try {
+      raw = block && "text" in block ? JSON.parse(block.text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) : null;
+    } catch { raw = null; }
+    const options = Array.isArray(raw?.options) ? raw.options.slice(0, 6) : [];
+    if (!options.length) {
+      await u.release();
+      return NextResponse.json({ error: "SOCIA returned no options. Try again." }, { status: 502 });
+    }
+    return NextResponse.json({ options, usage: u.usage });
   } catch (err) {
+    await u.release();
     const kind = aiFailureKind(err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }

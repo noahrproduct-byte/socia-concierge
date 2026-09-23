@@ -6,6 +6,7 @@
 import type { IgMediaItem, IgSnapshot } from "./instagramSync";
 import { engagementOf, median, postsPerWeek } from "./metrics";
 import type { EvidenceUsed } from "./schema";
+import { listTracked } from "./trackedCompetitors";
 
 export type Evidence = {
   postsBlock: string;
@@ -168,8 +169,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     accounts = (data ?? []) as CompetitorRow[];
   } catch { /* none */ }
   try {
-    const { data } = await supabase.from("tracked_competitors").select("platform, handle").eq("user_id", userId).limit(20);
-    tracked = (data ?? []) as TrackedRow[];
+    tracked = await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20 });
   } catch { /* none */ }
   try {
     const { data } = await supabase

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { BENCHMARKS, BENCHMARK_VERSION } from "@/lib/benchmarks";
+import { requireUsage, type UsageGuard } from "@/lib/planGuard";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -114,6 +115,8 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
+  // Held outside the try so a failed model call can give the unit back.
+  let u: UsageGuard | null = null;
   try {
     const body = (await req.json()) as RateBody;
 
@@ -131,6 +134,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // A scorecard counts as one Content Studio analysis; counted right before
+    // the model call, and given back when the call produces no scorecard.
+    u = await requireUsage(supabase, user.id, "content_studio");
+    if (u.denied) return u.denied;
+
     const message = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 1500,
@@ -145,8 +153,12 @@ export async function POST(req: NextRequest) {
 
     const scorecard = extractJSON(textBlock.text) as Scorecard;
 
-    return NextResponse.json({ ...scorecard, benchmarkVersion: BENCHMARK_VERSION });
+    return NextResponse.json({ ...scorecard, benchmarkVersion: BENCHMARK_VERSION, usage: u.usage });
   } catch (err) {
+    // Reached after the consume only when the model threw or its output was
+    // unreadable (no text block, no JSON); the earlier validation failures
+    // return before u is set.
+    if (u) await u.release();
     console.error("[/api/rate] failed:", err);
     return NextResponse.json(
       { error: "Could not rate this content. Please try again." },

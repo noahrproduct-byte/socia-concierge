@@ -7,6 +7,7 @@ import {
   FileBarChart,
   Clapperboard,
   CalendarDays,
+  PenSquare,
   Settings,
   Camera,
   Music2,
@@ -23,8 +24,10 @@ import { isAppearance, type Appearance } from "@/lib/appearance";
 import { createClient } from "@/lib/supabase/server";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
+import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { getActiveConnection } from "@/lib/instagramSync";
-import { getPlan, type Plan } from "@/lib/plan";
+import { getEntitlements } from "@/lib/entitlements";
+import { PLANS, nextPlan, pricingHref, type PlanId } from "@/lib/plans";
 import { buildActivity, displayTitle, type Activity } from "@/lib/overview";
 import type { ScheduledPost } from "@/lib/scheduling";
 
@@ -36,6 +39,14 @@ const FB_MARK = (
 
 type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 
+// One quiet line per step up. Only what the next plan actually adds.
+const NEXT_PLAN_LINE: Record<PlanId, string> = {
+  free: "",
+  starter: "Scheduling, weekly plans and full analytics.",
+  growth: "Connect up to 5 accounts, more competitors and more AI usage.",
+  pro: "Up to 15 accounts, 25 competitors and higher AI limits.",
+};
+
 // Pages are user jobs, not technologies. SOCIA AI is not a destination: it
 // lives inside each of these pages (Ask SOCIA in the top bar and in context).
 const NAV: NavItem[] = [
@@ -45,6 +56,8 @@ const NAV: NavItem[] = [
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
   { href: "/studio", label: "Content Studio", Icon: Clapperboard, key: "studio" },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
+  // The multi-platform composer (/create and its sub-routes pass active="create").
+  { href: "/create", label: "Create post", Icon: PenSquare, key: "create" },
   { href: "/reports", label: "Reports", Icon: FileBarChart, key: "reports" },
 ];
 
@@ -67,8 +80,9 @@ export default async function AppShell({
   // Shell state (best effort; the shell renders fine without any of it).
   let igUsername: string | null = null;
   let fbPageName: string | null = null;
+  let ytTitle: string | null = null;
   let platforms: string[] = [];
-  let plan: Plan = "free";
+  let plan: PlanId = "free";
   let appearance: Appearance | null = null;
   let searchIndex: SearchItem[] = PAGES;
   let activity: Activity[] = [];
@@ -78,17 +92,21 @@ export default async function AppShell({
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      const [conn, fbRes, profRes, planRes, schedRes, plansRes] = await Promise.all([
+      const [conn, fbRes, profRes, entRes, schedRes, plansRes, ytRes] = await Promise.all([
         getActiveConnection(supabase, user.id, "username, media, last_synced_at"),
         supabase.from("facebook_connections").select("page_name, connection_status").eq("user_id", user.id).maybeSingle(),
         supabase.from("profiles").select("platforms, appearance").eq("user_id", user.id).maybeSingle(),
-        getPlan(supabase, user.id),
+        // Already defensive inside; the catch keeps an unexpected throw from blanking the shell.
+        getEntitlements(supabase, user.id).catch(() => null),
         supabase.from("scheduled_posts").select("*").eq("user_id", user.id).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
         supabase.from("plans").select("id, created_at, client_handle").eq("user_id", user.id).order("created_at", { ascending: false }).limit(3),
+        // Its own catch so a not-yet-created table never blanks the whole shell.
+        supabase.from("youtube_connections").select("title").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
       ]);
       const c = conn as { username?: string; media?: { id?: string; caption?: string; timestamp?: string; permalink?: string }[]; last_synced_at?: string } | null;
       igUsername = c?.username ?? null;
       fbPageName = fbRes.data?.connection_status === "connected" ? (fbRes.data.page_name ?? "Facebook") : null;
+      ytTitle = (ytRes.data as { title?: string } | null)?.title ?? null;
       let prof = profRes.data as { platforms?: string[]; appearance?: string } | null;
       if (profRes.error) {
         const { data } = await supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle();
@@ -96,7 +114,7 @@ export default async function AppShell({
       }
       platforms = prof?.platforms ?? [];
       appearance = isAppearance(prof?.appearance) ? prof.appearance : null;
-      plan = planRes;
+      plan = entRes?.plan ?? "free";
       const posts: SearchItem[] = (c?.media ?? [])
         .filter((m) => m.caption)
         .slice(0, 60)
@@ -118,12 +136,13 @@ export default async function AppShell({
     // sidebar still renders with default rows
   }
 
+  const next = nextPlan(plan);
   const igConnect = igConfigured() ? "/api/auth/instagram/start" : "/settings";
   const accounts = [
     { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername) || platforms.includes("Instagram"), href: igUsername ? "/settings#accounts" : igConnect, icon: <Camera size={14} /> },
     { id: "fb", label: fbPageName ?? "Facebook", on: Boolean(fbPageName) || platforms.includes("Facebook"), href: fbPageName ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts", icon: FB_MARK },
     { id: "tt", label: "TikTok", on: platforms.includes("TikTok"), href: "/settings#accounts", icon: <Music2 size={14} /> },
-    { id: "yt", label: "YouTube", on: platforms.includes("YouTube"), href: "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
+    { id: "yt", label: ytTitle ?? "YouTube", on: Boolean(ytTitle) || platforms.includes("YouTube"), href: ytTitle ? "/settings#accounts" : ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
   ];
 
   return (
@@ -163,11 +182,11 @@ export default async function AppShell({
         </div>
 
         <div className="side-bottom">
-          {plan !== "pro" && (
-            <Link href="/settings#plan" className="side-upcard">
-              <span className="side-upcard-head"><Gem size={14} /> Upgrade to Pro</span>
-              <small>Get advanced insights, more competitors and AI tools.</small>
-              <span className="side-upcard-btn">Upgrade</span>
+          {next && (
+            <Link href={pricingHref(next)} className="side-upcard">
+              <span className="side-upcard-head"><Gem size={14} /> Upgrade to {PLANS[next].name}</span>
+              <small>{NEXT_PLAN_LINE[next]}</small>
+              <span className="side-upcard-btn">See plans</span>
             </Link>
           )}
           <Link href="/settings" className={`side-link${active === "settings" ? " active" : ""}`} aria-current={active === "settings" ? "page" : undefined}>

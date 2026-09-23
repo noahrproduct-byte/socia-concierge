@@ -12,6 +12,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Link2, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import PlanNotice from "@/components/PlanNotice";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { askSocia } from "@/lib/ask";
 import { absent, type LeaderRow } from "@/lib/competitorRollup";
 import { compareRows, leadsOn, pickMostSimilar, similarity, type SimilarPick } from "@/lib/similarCompetitor";
@@ -53,6 +55,13 @@ function agoText(iso: string, now: Date): string {
 
 type Metric = "interactions" | "views" | "followers";
 
+/** Outcome of the last Track click from the profile bar, pinned to the row it was about. */
+type TrackNotice = { id: string; plan: PlanError } | { id: string; text: string };
+
+const upgradeClicked = (e: PlanError) => {
+  void fetch("/api/events", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "upgrade_clicked", props: { from: "competitors_profile", limit: e.limit ?? null, plan: e.plan } }) }).catch(() => {});
+};
+
 export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   const router = useRouter();
   const now = useMemo(() => new Date(d.now), [d.now]);
@@ -64,6 +73,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   const [openPost, setOpenPost] = useState<NichePost | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [tracking, setTracking] = useState<string | null>(null);
+  const [trackNotice, setTrackNotice] = useState<TrackNotice | null>(null);
   const [savedItems, setSavedItems] = useState<NichePost[]>(d.saved);
   const [saving, setSaving] = useState<string | null>(null);
   const savedSet = useMemo(() => new Set(savedItems.map((p) => p.url)), [savedItems]);
@@ -180,10 +190,17 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   }, [active, pick]);
 
   const track = useCallback(async (r: CompetitorRow) => {
-    setTracking(r.id);
+    setTracking(r.id); setTrackNotice(null);
     try {
-      await fetch("/api/competitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: r.handle, platform: r.platform }) });
+      const res = await fetch("/api/competitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: r.handle, platform: r.platform }) });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setTrackNotice(isPlanError(j) ? { id: r.id, plan: j } : { id: r.id, text: j.error ?? "Couldn't track that account." });
+        return;
+      }
       router.refresh();
+    } catch {
+      setTrackNotice({ id: r.id, text: "Couldn't reach SOCIA. Try again." });
     } finally { setTracking(null); }
   }, [router]);
 
@@ -215,7 +232,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
         actions={
           <>
             <PlatformSelect value={d.platform} />
-            <RangeSelect days={d.days} />
+            <RangeSelect days={d.days} maxDays={d.maxDays} />
             <button type="button" className="ov-btn primary" onClick={() => setAddOpen(true)}><Plus size={14} /> Add Competitor</button>
           </>
         }
@@ -242,7 +259,14 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
 
       {active && pick ? (
         <>
-          <ProfileBar r={active} similarity={pick.similarity} igEnabled={d.ig.enabled} onTrack={track} tracking={tracking === active.id} />
+          <ProfileBar
+            r={active} similarity={pick.similarity} igEnabled={d.ig.enabled} onTrack={track} tracking={tracking === active.id}
+            notice={trackNotice && trackNotice.id === active.id
+              ? ("plan" in trackNotice
+                ? <PlanNotice error={trackNotice.plan} compact onCta={() => upgradeClicked(trackNotice.plan)} />
+                : <p className="cx-add-err" role="alert">{trackNotice.text}</p>)
+              : null}
+          />
 
           <div className="cx2-grid main">
             <section className="ov-card cx2-card cx2-traj">

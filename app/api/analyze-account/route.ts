@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NICHES } from "@/lib/niches";
+import { requireUsage, recordEvent } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -221,6 +222,13 @@ export async function GET() {
     return NextResponse.json({ connected: true, account, extracted: null });
   }
 
+  // A full read of the account is one audit, counted right before the model
+  // call and given back when no extraction comes out of it. Denied requests
+  // answer with a 403 PlanError, the one non-200 outcome of this route
+  // besides 401.
+  const u = await requireUsage(supabase, user.id, "account_audit");
+  if (u.denied) return u.denied;
+
   const posts = media.slice(0, 20).map((m) => ({
     type: m.media_type,
     likes: m.like_count ?? null,
@@ -252,29 +260,35 @@ Allowed niches: ${NICHES.join(", ")}`;
     const block = res.content.find((b: { type: string }) => b.type === "text");
     const text = block && "text" in block ? (block as { text: string }).text : "";
     const extracted = parseJson(text) as Extracted | null;
-    if (extracted) {
-      extracted.confidence = Math.max(0, Math.min(100, Math.round(Number(extracted.confidence) || 0)));
-      extracted.signals = (extracted.signals ?? []).slice(0, 6);
-      extracted.candidates = (extracted.candidates ?? []).slice(0, 3);
-      extracted.highlights = (extracted.highlights ?? []).slice(0, 3);
+    if (!extracted) {
+      // The model answered but nothing readable came back: the audit did not happen.
+      await u.release();
+      return NextResponse.json({ connected: true, account, extracted: null });
     }
+    extracted.confidence = Math.max(0, Math.min(100, Math.round(Number(extracted.confidence) || 0)));
+    extracted.signals = (extracted.signals ?? []).slice(0, 6);
+    extracted.candidates = (extracted.candidates ?? []).slice(0, 3);
+    extracted.highlights = (extracted.highlights ?? []).slice(0, 3);
 
     // 4) Save automatically only when the model is genuinely confident.
-    if (extracted && extracted.confidence >= 75) {
+    if (extracted.confidence >= 75) {
       await saveNiche(supabase, user.id, extracted.niche, detailOf(extracted), {
         brand_name: extracted.brand_name || account.username,
         goals: extracted.goal,
         account_connected: true,
       });
     }
+    recordEvent(supabase, user.id, "free_audit_completed", { plan: u.ent.plan });
 
     return NextResponse.json({
       connected: true,
       account,
       extracted,
       analyzed: { posts: posts.length, bio: Boolean(profile.biography) },
+      usage: u.usage,
     });
   } catch (err: unknown) {
+    await u.release();
     console.error("analysis failed:", err);
     const hint = err instanceof Error ? err.message.slice(0, 160) : String(err).slice(0, 160);
     return NextResponse.json({ connected: true, account, extracted: null, error_hint: hint });
@@ -313,6 +327,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "AI is not configured." }, { status: 503 });
   }
 
+  // Structuring a description is the same AI read as a full audit; counted
+  // right before the model call and given back when nothing comes out of it.
+  const u = await requireUsage(supabase, user.id, "account_audit");
+  if (u.denied) return u.denied;
+
   try {
     const params = {
       model: MODEL,
@@ -326,14 +345,18 @@ export async function POST(req: Request) {
     const block = res.content.find((b: { type: string }) => b.type === "text");
     const text = block && "text" in block ? (block as { text: string }).text : "";
     const extracted = parseJson(text) as Extracted | null;
-    if (!extracted) return NextResponse.json({ error: "Couldn't structure that. Try again." }, { status: 502 });
+    if (!extracted) {
+      await u.release();
+      return NextResponse.json({ error: "Couldn't structure that. Try again." }, { status: 502 });
+    }
 
     await saveNiche(supabase, user.id, extracted.niche, {
       ...detailOf(extracted),
       source: "described",
     });
-    return NextResponse.json({ ok: true, extracted });
+    return NextResponse.json({ ok: true, extracted, usage: u.usage });
   } catch (err) {
+    await u.release();
     console.error("describe analysis failed:", err);
     return NextResponse.json({ error: "Analysis failed. Try again." }, { status: 502 });
   }

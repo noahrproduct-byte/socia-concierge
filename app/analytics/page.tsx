@@ -15,10 +15,14 @@ import { fetchDemographics } from "@/lib/igDemographics";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsV3, { type AnalyticsData } from "@/components/AnalyticsV3";
+import YouTubeAnalytics from "@/components/YouTubeAnalytics";
+import { getYouTubeAnalytics } from "@/lib/youtubeData";
+import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import type { LibraryPost } from "@/components/ContentLibrary";
 import {
-  RANGES, rangeDays, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId,
+  RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId,
 } from "@/lib/overview";
+import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
@@ -33,26 +37,50 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   if (!user) redirect("/login");
 
   const { range: rangeParam } = await searchParams;
-  const rangeId = (RANGES.some((r) => r.id === rangeParam) ? rangeParam : "30") as string;
+  const [profile, snap, ent] = await Promise.all([
+    getProfile(supabase, user.id),
+    getIgSnapshot(supabase, user.id),
+    getEntitlements(supabase, user.id),
+  ]);
+  // History is limited per plan here, on the server: a ?range= beyond the
+  // plan's window is served as the longest range the plan includes.
+  const maxDays = maxHistoryDays(ent);
+  const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
+  const rangeId: string = clampRangeId(requestedId, maxDays);
   const days = rangeDays(rangeId);
   const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
-
-  const [profile, snap] = await Promise.all([getProfile(supabase, user.id), getIgSnapshot(supabase, user.id)]);
   const live = Boolean(snap && snap.followers_count != null);
+  // The connected user's own YouTube channel, when they have linked one. Null
+  // when no YouTube connection exists, so the page stays multi-platform aware.
+  const yt = await getYouTubeAnalytics(supabase, user.id, days).catch(() => null);
 
   if (!live) {
+    // No Instagram, but a YouTube channel is connected: show its analytics
+    // instead of forcing an Instagram connection.
+    if (yt) {
+      return (
+        <AppShell active="analytics" userEmail={user.email}>
+          <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
+          <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} />
+        </AppShell>
+      );
+    }
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
+    const ytHref = ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings";
     return (
       <AppShell active="analytics" userEmail={user.email}>
         <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
         <div className="db-connect">
           <span className="db-connect-ico"><Link2 size={22} /></span>
           <div className="db-connect-copy">
-            <h2>Connect your Instagram account</h2>
-            <p>Analytics fills with your real views, reach, engagement and audience the moment an account is connected, and SOCIA starts recording your follower count daily from that moment. Nothing here is estimated.</p>
+            <h2>Connect an account to see your analytics</h2>
+            <p>Analytics fills with your real numbers the moment you connect a platform, and SOCIA starts recording your growth from that moment. Nothing here is estimated.</p>
           </div>
-          {/* plain anchor: /api/auth routes must not be Link-prefetched */}
-          <a href={igHref} className="db-connect-cta">Connect Instagram</a>
+          {/* plain anchors: /api/auth routes must not be Link-prefetched */}
+          <span className="db-connect-actions">
+            <a href={igHref} className="db-connect-cta">Connect Instagram</a>
+            <a href={ytHref} className="db-connect-cta ghost">Connect YouTube</a>
+          </span>
         </div>
       </AppShell>
     );
@@ -85,7 +113,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const insights = buildInsights({ media, baseline, location, handle: snap!.username ?? null });
   const freq = profile?.brand_detail?.strategist?.frequency ?? null;
   const frequencyTarget = freq ? parseInt(freq.match(/\d+/)?.[0] ?? "", 10) : NaN;
-  const gaps = buildGaps({ media, followers, goals: profile?.goals ?? null, location, frequencyTarget: Number.isFinite(frequencyTarget) ? frequencyTarget : null, now });
+  const allGaps = buildGaps({ media, followers, goals: profile?.goals ?? null, location, frequencyTarget: Number.isFinite(frequencyTarget) ? frequencyTarget : null, now });
+  // Free sees its top gap in full; the rest stay on the server and only their
+  // real count travels to the client. Paid plans get every gap, as before.
+  const holdBack = ent.plan === "free" && allGaps.length > 1;
+  const gaps = holdBack ? allGaps.slice(0, 1) : allGaps;
+  const lockedGaps = holdBack ? allGaps.length - 1 : undefined;
   const breakdown = formatBreakdown(media, days, now);
 
   const since = now.getTime() - days * DAY_MS;
@@ -123,7 +156,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === "views")?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
     { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
     fbRow,
-    { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "youtube", label: "YouTube", connected: Boolean(yt), value: yt && platformMetric === "views" ? (yt.range?.views ?? null) : null, deltaPct: null, share: 0 },
   ];
   {
     const total = platforms.reduce((a, r) => a + (r.connected && r.value ? r.value : 0), 0);
@@ -131,13 +164,14 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   }
 
   const d: AnalyticsData = {
-    handle: snap!.username ?? null, rangeLabel, rangeDays: days, today, firstDataDay, kpis, series, gains, insights, gaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
+    handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
     timed, followers, followerPoints: fPoints, engagement, formats,
   };
 
   return (
     <AppShell active="analytics" userEmail={user.email}>
       <AnalyticsV3 d={d} />
+      {yt && <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} />}
     </AppShell>
   );
 }

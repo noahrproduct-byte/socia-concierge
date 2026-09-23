@@ -6,6 +6,7 @@ import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
+import { hasYouTubeConnection } from "@/lib/youtubeData";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
 import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
@@ -13,9 +14,10 @@ import AppShell from "@/components/AppShell";
 import SyncCinematic from "@/components/SyncCinematic";
 import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
 import {
-  RANGES, rangeDays, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
+  RANGES, rangeDays, clampRangeId, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
   type PlatformRow,
 } from "@/lib/overview";
+import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
 
@@ -42,7 +44,7 @@ export default async function DashboardPage({
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
 
-  const profile = await getProfile(supabase, user.id);
+  const [profile, ent] = await Promise.all([getProfile(supabase, user.id), getEntitlements(supabase, user.id)]);
   const connected = profile?.account_connected ?? false;
   const snap = connected ? await getIgSnapshot(supabase, user.id) : null;
   const live = Boolean(snap && snap.followers_count != null);
@@ -127,7 +129,11 @@ export default async function DashboardPage({
     );
   }
 
-  const rangeId = (RANGES.some((r) => r.id === rangeParam) ? rangeParam : "30") as string;
+  // History is limited per plan here, on the server: a ?range= beyond the
+  // plan's window is served as the longest range the plan includes.
+  const maxDays = maxHistoryDays(ent);
+  const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
+  const rangeId: string = clampRangeId(requestedId, maxDays);
   const days = rangeDays(rangeId);
   const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
   const media = snap!.media ?? [];
@@ -178,7 +184,12 @@ export default async function DashboardPage({
   // shares on posts inside the range), as Meta reports it. Facebook exposes
   // no view count for regular Page posts, so under the views metric the row
   // is connected but unmeasured, never zero.
-  const fb = await getFbSnapshot(supabase, user.id).catch(() => null);
+  // YouTube: connected is a fact from youtube_connections; its figures are not
+  // folded into this strip yet, so the value stays null (unmeasured), never 0.
+  const [fb, ytConnected] = await Promise.all([
+    getFbSnapshot(supabase, user.id).catch(() => null),
+    hasYouTubeConnection(supabase, user.id).catch(() => false),
+  ]);
   const fbConnected = fb?.status === "connected";
   const fbSince = Date.now() - (days) * 86400000;
   const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
@@ -189,7 +200,7 @@ export default async function DashboardPage({
   const platforms: PlatformRow[] = [
     { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === (platformMetric === "views" ? "views" : "engagement_rate"))?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
     { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
-    { id: "youtube", label: "YouTube", connected: false, value: null, deltaPct: null, share: 0 },
+    { id: "youtube", label: "YouTube", connected: ytConnected, value: null, deltaPct: null, share: 0 },
     fbRow,
   ];
   {
@@ -198,7 +209,7 @@ export default async function DashboardPage({
   }
 
   const d: DashboardData = {
-    greeting, name, handle: snap!.username ?? null, rangeLabel, kpis, series, platforms, platformTotal, platformMetric,
+    greeting, name, handle: snap!.username ?? null, rangeLabel, maxDays, kpis, series, platforms, platformTotal, platformMetric,
     insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
     timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
   };

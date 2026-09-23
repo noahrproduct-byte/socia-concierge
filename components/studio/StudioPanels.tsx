@@ -6,12 +6,34 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Scissors, Clock, CalendarPlus, ArrowRight, Info } from "lucide-react";
+import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Scissors, Clock, CalendarPlus, ArrowRight, Info, Send } from "lucide-react";
 import { CATEGORY_INFO, GOALS, fmtT, fmtT1, checklist, versionDiff, type StudioAnalysis, type ApplyField, type GoalId, type ChecklistItem } from "@/lib/studio";
+import type { PlanError } from "@/lib/planErrors";
+import PlanNotice from "../PlanNotice";
 
 export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; platform: string | null; goal: GoalId | null; cover: number | null; audioChosen: boolean };
 export type ImproveOption = { label: string; text: string; steps: string[] };
 export type Improve = (task: "hooks" | "caption" | "cta" | "onscreen" | "variations", params?: { mode?: string; exclude?: string[] }) => Promise<ImproveOption[]>;
+
+/** Thrown by improve(); carries the PlanError when the server refused on plan grounds. */
+export class ImproveFailure extends Error {
+  planError: PlanError | null;
+  constructor(message: string, planError: PlanError | null = null) {
+    super(message);
+    this.name = "ImproveFailure";
+    this.planError = planError;
+  }
+}
+
+type PanelErr = { message: string; planError: PlanError | null };
+const toErr = (e: unknown, fallback: string): PanelErr => ({
+  message: e instanceof Error ? e.message : fallback,
+  planError: e instanceof ImproveFailure ? e.planError : null,
+});
+function ErrLine({ err }: { err: PanelErr | null }) {
+  if (!err) return null;
+  return err.planError ? <PlanNotice error={err.planError} compact /> : <p className="st-err">{err.message}</p>;
+}
 
 const CAT_TONE = (s: number | null) => (s == null ? "na" : s >= 80 ? "good" : s >= 60 ? "ok" : "low");
 const FIT_CLS = { strong: "success", medium: "warning", weak: "danger" } as const;
@@ -170,9 +192,9 @@ export function ImprovePanel({ a, w, apply, seek, improve, firstFrame }: { a: St
   const [saved, setSaved] = useState<string[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [ctas, setCtas] = useState(a.cta.options);
-  const [err, setErr] = useState<string | null>(null);
-  const more = async () => { setBusy("hooks"); setErr(null); try { const o = await improve("hooks", { exclude: hooks.map((h) => h.text) }); setHooks((cur) => [...cur, ...o]); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't generate more."); } finally { setBusy(null); } };
-  const moreCta = async () => { setBusy("cta"); setErr(null); try { const o = await improve("cta"); setCtas((cur) => [...cur, ...o.map((x) => x.text)]); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't generate more."); } finally { setBusy(null); } };
+  const [err, setErr] = useState<PanelErr | null>(null);
+  const more = async () => { setBusy("hooks"); setErr(null); try { const o = await improve("hooks", { exclude: hooks.map((h) => h.text) }); setHooks((cur) => [...cur, ...o]); } catch (e) { setErr(toErr(e, "Couldn't generate more.")); } finally { setBusy(null); } };
+  const moreCta = async () => { setBusy("cta"); setErr(null); try { const o = await improve("cta"); setCtas((cur) => [...cur, ...o.map((x) => x.text)]); } catch (e) { setErr(toErr(e, "Couldn't generate more.")); } finally { setBusy(null); } };
   return (
     <div className="st-panel">
       <section className="st-block">
@@ -251,7 +273,7 @@ export function ImprovePanel({ a, w, apply, seek, improve, firstFrame }: { a: St
           ) : <div className="ov-empty small">Nothing worth cutting was found in the sampled frames.</div>}
         </section>
       )}
-      {err && <p className="st-err">{err}</p>}
+      <ErrLine err={err} />
     </div>
   );
 }
@@ -262,8 +284,8 @@ export function CaptionPanel({ a, w, setCaption, improve }: { a: StudioAnalysis;
   const [mode, setMode] = useState<string | null>(null);
   const [opts, setOpts] = useState<ImproveOption[]>([]);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const run = async (m: string) => { setMode(m); setBusy(true); setErr(null); try { setOpts(await improve("caption", { mode: m.toLowerCase() })); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't rewrite the caption."); } finally { setBusy(false); } };
+  const [err, setErr] = useState<PanelErr | null>(null);
+  const run = async (m: string) => { setMode(m); setBusy(true); setErr(null); try { setOpts(await improve("caption", { mode: m.toLowerCase() })); } catch (e) { setErr(toErr(e, "Couldn't rewrite the caption.")); } finally { setBusy(false); } };
   return (
     <div className="st-panel">
       <section className="st-block">
@@ -281,7 +303,7 @@ export function CaptionPanel({ a, w, setCaption, improve }: { a: StudioAnalysis;
         <h3>Improve</h3>
         <div className="st-modes">{CAPTION_MODES.map((m) => <button key={m} type="button" className={`dv-chip${mode === m ? " on" : ""}`} disabled={busy} onClick={() => run(m)}>{m}</button>)}</div>
         {busy && <p className="ov-source">Rewriting {mode?.toLowerCase()}…</p>}
-        {err && <p className="st-err">{err}</p>}
+        <ErrLine err={err} />
         {opts.length > 0 && !busy && (
           <ul className="st-options captions">
             {opts.map((o, i) => (<li key={i}><span className="st-opt-style">{o.label}</span><span className="st-opt-text">{o.text}</span><span className="st-opt-actions"><button type="button" className={`ov-btn ${w.caption === o.text ? "ghost" : "primary"} small`} onClick={() => setCaption(o.text)}>{w.caption === o.text ? <><Check size={12} /> In use</> : "Use"}</button><CopyBtn text={o.text} /></span></li>))}
@@ -326,12 +348,18 @@ export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; 
   );
 }
 
-export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, onSaveDraft, saving, savedId, planNote }: {
-  a: StudioAnalysis | null; w: Working; versions: { analysis: StudioAnalysis; at: string }[]; setGoal: (g: GoalId | null) => void; setPlatform: (p: string | null) => void; improve: Improve; onSaveDraft: () => Promise<void>; saving: boolean; savedId: string | null; planNote: string;
+export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, onSaveDraft, onPublish, saving, savedId, planNote }: {
+  a: StudioAnalysis | null; w: Working; versions: { analysis: StudioAnalysis; at: string }[]; setGoal: (g: GoalId | null) => void; setPlatform: (p: string | null) => void; improve: Improve;
+  onSaveDraft: () => Promise<unknown>;
+  /** Saves the draft (same flow as onSaveDraft) and hands it to Create Post. */
+  onPublish: () => Promise<void>;
+  saving: boolean; savedId: string | null; planNote: string;
 }) {
   const [vars, setVars] = useState<ImproveOption[]>([]);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<PanelErr | null>(null);
+  const [handing, setHanding] = useState(false);
+  const publish = async () => { setHanding(true); try { await onPublish(); } finally { setHanding(false); } };
   const items: ChecklistItem[] = checklist(a, { caption: w.caption, platform: w.platform, hook: w.hook, cta: w.cta, cover: w.cover != null, audio: w.audioChosen });
   const done = items.filter((i) => i.done).length;
   return (
@@ -354,20 +382,21 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
         </ul>
         <div className="st-row-actions">
           <Link href={`/tool?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><Sparkles size={12} /> Add to Content Plan</Link>
-          <button type="button" className="ov-btn primary small" disabled={saving || Boolean(savedId)} onClick={onSaveDraft}><CalendarPlus size={12} /> {saving ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
-          {savedId && <Link href="/calendar" className="ov-btn ghost small">Open Calendar to schedule <ArrowRight size={12} /></Link>}
+          <button type="button" className="ov-btn ghost small" disabled={saving || handing || Boolean(savedId)} onClick={() => void onSaveDraft()}><CalendarPlus size={12} /> {saving && !handing ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
+          <button type="button" className="btn-primary sm" disabled={saving || handing} onClick={publish}><Send size={12} /> {handing ? "Opening Create Post…" : "Publish or schedule"}</button>
+          {savedId && <Link href="/calendar" className="ov-btn ghost small">Open Calendar <ArrowRight size={12} /></Link>}
         </div>
-        <p className="ov-source"><Info size={11} /> Saving uploads this file to your own media folder and creates a draft on tomorrow at your suggested hour; nothing is published until you schedule it.</p>
+        <p className="ov-source"><Info size={11} /> Both actions upload this file to your own media folder and create a draft for tomorrow at your suggested hour. Publish or schedule then opens it in Create Post, where you pick the platforms and the time; nothing is published until you confirm there.</p>
       </section>
       {a && (
         <section className="st-block">
-          <div className="st-block-head"><h3>Create variations</h3><button type="button" className="ov-btn ghost small" disabled={busy} onClick={async () => { setBusy(true); setErr(null); try { setVars(await improve("variations")); } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't build variations."); } finally { setBusy(false); } }}><RefreshCw size={12} className={busy ? "spin" : undefined} /> {vars.length ? "Regenerate" : "Generate"}</button></div>
+          <div className="st-block-head"><h3>Create variations</h3><button type="button" className="ov-btn ghost small" disabled={busy} onClick={async () => { setBusy(true); setErr(null); try { setVars(await improve("variations")); } catch (e) { setErr(toErr(e, "Couldn't build variations.")); } finally { setBusy(false); } }}><RefreshCw size={12} className={busy ? "spin" : undefined} /> {vars.length ? "Regenerate" : "Generate"}</button></div>
           {vars.length ? (
             <ul className="st-vars">
               {vars.map((v, i) => (<li key={i}><b>{v.label}</b><p>{v.text}</p>{v.steps.length > 0 && <ol>{v.steps.map((s, j) => <li key={j}>{s}</li>)}</ol>}</li>))}
             </ul>
           ) : <p className="ov-source">A 15-second cut, a 6-second teaser, a TikTok version, a Story version and a carousel concept, each as editing instructions. SOCIA does not render video.</p>}
-          {err && <p className="st-err">{err}</p>}
+          <ErrLine err={err} />
         </section>
       )}
       {versions.length > 1 && (

@@ -4,6 +4,7 @@ import AppShell from "@/components/AppShell";
 import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanClient";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
+import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 
 export const metadata = { title: "Content Plan — SOCIA" };
 
@@ -33,9 +34,25 @@ async function evidenceCounts(supabase: Awaited<ReturnType<typeof createClient>>
       return 0;
     }
   };
+  // Competitors paused by a plan downgrade are not attached to the brief, so
+  // they are not counted. The column is new: fall back to all rows when the
+  // database has not been migrated yet.
+  const countActiveTracked = async () => {
+    try {
+      const { count, error } = await supabase
+        .from("tracked_competitors")
+        .select("user_id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("is_active", true);
+      if (!error) return count ?? 0;
+    } catch {
+      /* column may not exist yet */
+    }
+    return count("tracked_competitors");
+  };
   const [discovered, tracked, winning] = await Promise.all([
     count("discovered_accounts"),
-    count("tracked_competitors"),
+    countActiveTracked(),
     count("discovered_content"),
   ]);
   return { competitors: Math.min(discovered, 10) + tracked, winning: Math.min(winning, 12) };
@@ -76,8 +93,10 @@ export default async function ContentPlanPage() {
       ? ((avg(media.map(engOf)) / snap.followers_count) * 100).toFixed(1) + "%"
       : null;
 
-  const counts = await evidenceCounts(supabase, user.id);
+  const [counts, ent] = await Promise.all([evidenceCounts(supabase, user.id), getEntitlements(supabase, user.id)]);
   const evidence = { posts: Math.min(media.length, 25), ...counts };
+  // Drafts are always saved; whether they can publish themselves is a plan question.
+  const canSchedule = canUseFeature(ent, "scheduling");
 
   // Recent posts and competitors are attached server-side with real numbers
   // when the account is connected; the fields become optional extra notes.
@@ -112,7 +131,7 @@ export default async function ContentPlanPage() {
 
   return (
     <AppShell active="tool" userEmail={user.email}>
-      <ContentPlanClient context={context} />
+      <ContentPlanClient context={context} canSchedule={canSchedule} />
     </AppShell>
   );
 }

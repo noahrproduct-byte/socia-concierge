@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
 import { videoDurationSec, youtubeVideoId, ytConfigured } from "@/lib/youtube";
 import type { NichePost } from "@/lib/nicheTrends";
+import { requireFeature } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -79,6 +80,11 @@ export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ durationSec, analysis: null, error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key", cached: false } satisfies AnalyzeResponse, { status: 503 });
   }
+
+  // Fresh readings are part of Niche intelligence. The cache lookup above runs
+  // first on purpose, so a reading made on a paid plan stays visible.
+  const g = await requireFeature(supabase, user.id, "niche_intelligence");
+  if (g.denied) return g.denied;
 
   const profile = await getProfile(supabase, user.id).catch(() => null);
   const observed = [

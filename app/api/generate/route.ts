@@ -6,6 +6,7 @@ import { deliverableSchema, type Deliverable, type GenerateInput } from "@/lib/s
 import { createClient } from "@/lib/supabase/server";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { loadEvidence, type Evidence } from "@/lib/planEvidence";
+import { requireUsage } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
 // Opus 5 thinks before answering; give the request room.
@@ -32,6 +33,14 @@ function parseJson(text: string): unknown {
 }
 
 export async function POST(req: Request) {
+  // Signed-in users only: a plan is the most expensive thing SOCIA generates
+  // and it counts against the Content Plan allowance.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       {
@@ -63,19 +72,19 @@ export async function POST(req: Request) {
   let brand = null;
   let evidence: Evidence | null = null;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      brand = (await getProfile(supabase, user.id))?.brand_detail ?? null;
-      const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
-      evidence = await loadEvidence(supabase, user.id, snap);
-      evidence.used.windows = Boolean(input.audienceWindows?.trim());
-    }
+    brand = (await getProfile(supabase, user.id))?.brand_detail ?? null;
+    const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+    evidence = await loadEvidence(supabase, user.id, snap);
+    evidence.used.windows = Boolean(input.audienceWindows?.trim());
   } catch {
     // generation still works without settings or evidence
   }
+
+  // Weekly plans are a Starter feature, and each one counts against the
+  // period's allowance. Counted right before the model is called, and given
+  // back when no plan comes out of the call.
+  const u = await requireUsage(supabase, user.id, "content_plan", { feature: "content_plan" });
+  if (u.denied) return u.denied;
 
   try {
     // Params are cast loosely: `output_config` (structured outputs) is a
@@ -95,6 +104,7 @@ export async function POST(req: Request) {
     const res = await anthropic.messages.create(params as any);
 
     if (res.stop_reason === "refusal") {
+      await u.release();
       return NextResponse.json(
         { error: "The model declined this request. Try rephrasing the brief." },
         { status: 422 },
@@ -104,6 +114,7 @@ export async function POST(req: Request) {
     const textBlock = res.content.find((b) => b.type === "text");
     const text = textBlock && "text" in textBlock ? textBlock.text : "";
     if (!text) {
+      await u.release();
       return NextResponse.json(
         { error: "Empty response from the model. Try again." },
         { status: 502 },
@@ -112,6 +123,7 @@ export async function POST(req: Request) {
 
     const data = parseJson(text);
     if (!data) {
+      await u.release();
       return NextResponse.json(
         { error: "Could not parse the model's response. Try again." },
         { status: 502 },
@@ -122,33 +134,28 @@ export async function POST(req: Request) {
     if (evidence) (data as Deliverable).evidenceUsed = evidence.used;
 
     // Save to the signed-in user's history. Best-effort: if the `plans` table
-    // doesn't exist yet or the user is logged out, generation still succeeds.
+    // doesn't exist yet, generation still succeeds.
     let saved = null;
     try {
-      const supabase = await createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data: row } = await supabase
-          .from("plans")
-          .insert({
-            user_id: user.id,
-            client_handle: input.clientHandle || null,
-            niche: input.niche || null,
-            platform: input.platform || null,
-            data,
-          })
-          .select("id, client_handle, niche, platform, data, created_at")
-          .single();
-        saved = row;
-      }
+      const { data: row } = await supabase
+        .from("plans")
+        .insert({
+          user_id: user.id,
+          client_handle: input.clientHandle || null,
+          niche: input.niche || null,
+          platform: input.platform || null,
+          data,
+        })
+        .select("id, client_handle, niche, platform, data, created_at")
+        .single();
+      saved = row;
     } catch {
-      // ignore save errors — the plan was still generated
+      // ignore save errors, the plan was still generated
     }
 
-    return NextResponse.json({ data, saved });
+    return NextResponse.json({ data, saved, usage: u.usage });
   } catch (err: unknown) {
+    await u.release();
     const message =
       err instanceof Error ? err.message : "Unexpected error generating the plan.";
     return NextResponse.json({ error: message }, { status: 500 });

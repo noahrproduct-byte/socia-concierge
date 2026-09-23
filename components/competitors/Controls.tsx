@@ -8,10 +8,11 @@ import { useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { NICHES } from "@/lib/niches";
+import { PLANS, minPlanWithLimit } from "@/lib/plans";
 import { PlatformMark } from "./shared";
 
 export function ParamSelect({ name, value, options, ariaLabel, icon, clearValue }: {
-  name: string; value: string; options: { value: string; label: string }[]; ariaLabel: string; icon?: React.ReactNode;
+  name: string; value: string; options: { value: string; label: string; disabled?: boolean }[]; ariaLabel: string; icon?: React.ReactNode;
   /** The option that means "unset"; the parameter is removed instead of written. */
   clearValue?: string;
 }) {
@@ -30,7 +31,7 @@ export function ParamSelect({ name, value, options, ariaLabel, icon, clearValue 
           router.push(`/competitors${q ? `?${q}` : ""}${name === "niche_range" ? "#trends" : ""}`);
         }}
       >
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        {options.map((o) => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
       </select>
     </label>
   );
@@ -46,11 +47,15 @@ export function PlatformSelect({ value }: { value: string }) {
   );
 }
 
-export function RangeSelect({ days }: { days: number }) {
-  return (
-    <ParamSelect name="range" value={String(days)} ariaLabel="Date range" clearValue="30"
-      options={[{ value: "7", label: "Last 7 days" }, { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }]} />
-  );
+// Ranges beyond the plan's analytics history stay visible but cannot be picked;
+// the server clamps regardless, this only keeps the control honest.
+export function RangeSelect({ days, maxDays }: { days: number; maxDays?: number }) {
+  const options = [7, 30, 90].map((d) => {
+    const locked = maxDays != null && d > maxDays;
+    const plan = locked ? minPlanWithLimit("analytics_history_days", d) : null;
+    return { value: String(d), label: `Last ${d} days${locked && plan ? ` (${PLANS[plan].name})` : ""}`, disabled: locked };
+  });
+  return <ParamSelect name="range" value={String(days)} ariaLabel="Date range" clearValue="30" options={options} />;
 }
 
 export function NicheRangeSelect({ value }: { value: 30 | 90 | 0 }) {

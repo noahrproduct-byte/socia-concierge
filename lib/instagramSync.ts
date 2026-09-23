@@ -283,7 +283,9 @@ export async function readDailySnapshots<T>(
 }
 
 /** The connection every read and write goes through: the active account.
- *  Tolerant of the pre-migration world where is_active doesn't exist and a
+ *  An account paused by a plan downgrade (plan_suspended_at set) is never
+ *  returned: its data is kept but not read. Tolerant of the pre-migration
+ *  worlds where plan_suspended_at, or is_active, does not exist yet and a
  *  user has exactly one row. Multiple rows only appear post-migration, where
  *  exactly one is active. */
 export async function getActiveConnection(
@@ -291,6 +293,30 @@ export async function getActiveConnection(
   userId: string,
   fields: string,
 ): Promise<Record<string, unknown> | null> {
+  // 1) Post-migration: the active, not-suspended row. When no row is flagged
+  //    active, mirror the legacy single-row fallback, still never a paused one.
+  try {
+    const { data, error } = await supabase
+      .from("instagram_connections")
+      .select(fields)
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .is("plan_suspended_at", null)
+      .limit(1);
+    if (error) throw error;
+    if (data?.length) return data[0];
+    const { data: any1, error: err1 } = await supabase
+      .from("instagram_connections")
+      .select(fields)
+      .eq("user_id", userId)
+      .is("plan_suspended_at", null)
+      .limit(1);
+    if (err1) throw err1;
+    return any1?.[0] ?? null;
+  } catch {
+    // plan_suspended_at may not exist yet: fall through
+  }
+  // 2) is_active exists but plan_suspended_at does not.
   try {
     const { data, error } = await supabase
       .from("instagram_connections")
@@ -303,6 +329,7 @@ export async function getActiveConnection(
   } catch {
     // is_active may not exist yet — fall through to the single-row world
   }
+  // 3) Pre-migration single-row world.
   const { data } = await supabase
     .from("instagram_connections")
     .select(fields)

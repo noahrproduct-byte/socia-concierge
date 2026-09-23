@@ -21,6 +21,7 @@ import {
   Plug,
   Database,
   Trophy,
+  PenSquare,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { AskDrawer } from "@/components/AskSocia";
@@ -38,6 +39,10 @@ import {
   type CalPost,
 } from "@/lib/audience";
 import { draftsFromPlan, weekdayIndex } from "@/lib/scheduling";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
+import type { UsageSnapshot } from "@/lib/entitlements";
+import { pricingHref } from "@/lib/plans";
+import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 
 // Server-assembled context: real prefill from the connected account/profile,
 // plus the live metrics shown in the preview strip. Nothing here is invented —
@@ -99,10 +104,13 @@ function perfTone(p: string): "green" | "amber" | "blue" {
   return "blue";
 }
 
-export default function ContentPlanClient({ context }: { context: PlanContext }) {
+export default function ContentPlanClient({ context, canSchedule = true }: { context: PlanContext; canSchedule?: boolean }) {
   const [form, setForm] = useState<GenerateInput>(context.prefill);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
+  // Known only after a generate response; before that nothing is rendered.
+  const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(null);
   const [history, setHistory] = useState<SavedPlan[]>([]);
 
@@ -147,6 +155,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   async function generate() {
     setLoading(true);
     setError(null);
+    setPlanError(null);
     setResult(null);
     try {
       const res = await fetch("/api/generate", {
@@ -156,7 +165,11 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
         body: JSON.stringify({ ...form, audienceWindows: audienceWindowsText(context.posts) }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Something went wrong.");
+      if (!res.ok) {
+        if (isPlanError(json)) { setPlanError(json); return; }
+        throw new Error(json.error || "Something went wrong.");
+      }
+      if (json.usage) setUsage(json.usage as UsageSnapshot);
       setResult({ data: json.data as Deliverable, id: (json.saved as SavedPlan | null)?.id ?? null });
       if (json.saved) setHistory((h) => [json.saved as SavedPlan, ...h]);
     } catch (e: unknown) {
@@ -320,6 +333,11 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
               {onFile.winning > 0 ? `${onFile.winning} winning videos` : ""} from your Competitors page.
             </small>
           )}
+          {usage && (
+            <small className="cpl-auto">
+              <UsageLine meter="content_plan" used={usage.used} limit={usage.limit} always />
+            </small>
+          )}
           <button className="cpl-generate" onClick={generate} disabled={loading} type="button">
             {loading ? (
               <>
@@ -332,7 +350,8 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
             )}
           </button>
 
-          {error && <div className="cpl-err">{error}</div>}
+          {planError && <PlanNotice error={planError} compact />}
+          {error && !planError && <div className="cpl-err">{error}</div>}
 
           {history.length > 0 && (
             <div className="cpl-recent">
@@ -374,7 +393,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
               </div>
             </div>
           ) : result ? (
-            <Report data={result.data} planId={result.id} posts={context.posts} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
+            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
           ) : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
@@ -500,7 +519,7 @@ export default function ContentPlanClient({ context }: { context: PlanContext })
   );
 }
 
-function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; onUpdate: (d: Deliverable) => void }) {
+function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; onUpdate: (d: Deliverable) => void }) {
   // Times are SOCIA's, from the audience data, never the model's guess. The
   // same rule the Calendar uses, so the two never disagree.
   const aud = useMemo(() => buildAudience(posts), [posts]);
@@ -528,15 +547,26 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
     const wd = weekdayIndex(day);
     return wd == null ? null : hourLabel(suggestedHour(aud, (wd + 6) % 7));
   };
+  // One plan item into Create Post: the hook as the first line, the concept
+  // under it, both as the plan wrote them. planId only when the plan is saved.
+  const createHref = (post: { day: string; concept: string; hook: string }): string => {
+    const q = new URLSearchParams();
+    q.set("caption", `${post.hook.trim()}\n\n${post.concept.trim()}`);
+    if (planId) q.set("planId", planId);
+    q.set("planDay", post.day);
+    q.set("from", "plan");
+    return `/create?${q.toString()}`;
+  };
   const ev = data.evidenceUsed;
-  const [sched, setSched] = useState<{ busy: boolean; ok: boolean; msg: string | null }>({
+  const [sched, setSched] = useState<{ busy: boolean; ok: boolean; msg: string | null; planError: PlanError | null }>({
     busy: false,
     ok: false,
     msg: null,
+    planError: null,
   });
 
   async function scheduleWeek() {
-    setSched({ busy: true, ok: false, msg: null });
+    setSched({ busy: true, ok: false, msg: null, planError: null });
     try {
       const now = new Date();
       // Thursday or later (or Sunday): most of this week is gone, use next.
@@ -553,7 +583,10 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
         body: JSON.stringify({ items: usable.map((d) => ({ ...d, plan_id: planId })) }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j.error || "Couldn't add the drafts.");
+      if (!res.ok) {
+        if (isPlanError(j)) { setSched({ busy: false, ok: false, msg: null, planError: j }); return; }
+        throw new Error(j.error || "Couldn't add the drafts.");
+      }
       const n = (j.posts ?? []).length;
       const already = Number(j.skipped ?? 0);
       const wk = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -561,18 +594,20 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
         skipped.length ? `${skipped.join(", ")} skipped: not a weekday` : null,
         already ? `${already} already on the calendar` : null,
       ].filter(Boolean);
+      const noteText = notes.length ? ` (${notes.join("; ")})` : "";
       setSched({
         busy: false,
         ok: true,
+        planError: null,
         msg:
           n === 0
             ? `Nothing new to add: this plan's week of ${wk} is already on your Calendar.`
-            : `${n} draft${n === 1 ? "" : "s"} added to the week of ${wk}${
-                notes.length ? ` (${notes.join("; ")})` : ""
-              }. Attach a video to each on the Calendar and they'll post themselves.`,
+            : canSchedule
+              ? `${n} draft${n === 1 ? "" : "s"} added to the week of ${wk}${noteText}. Attach a video to each on the Calendar and they'll post themselves.`
+              : `${n} draft${n === 1 ? "" : "s"} saved to the week of ${wk}${noteText}. They stay as drafts on your plan: nothing publishes by itself.`,
       });
     } catch (e) {
-      setSched({ busy: false, ok: false, msg: e instanceof Error ? e.message : "Couldn't add the drafts." });
+      setSched({ busy: false, ok: false, msg: e instanceof Error ? e.message : "Couldn't add the drafts.", planError: null });
     }
   }
 
@@ -732,6 +767,11 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
                   <br />
                   <b>Based on:</b> {post.evidence}
                 </div>
+                <div className="cpl-postmeta">
+                  <Link href={createHref(post)} className="ov-link" title="Open Create Post with this hook and concept as the caption">
+                    <PenSquare size={11} /> Create this post
+                  </Link>
+                </div>
               </article>
             ))}
           </div>
@@ -751,16 +791,23 @@ function Report({ data, planId, posts, onUpdate }: { data: Deliverable; planId: 
             onClick={scheduleWeek}
             disabled={sched.busy || sched.ok}
             type="button"
-            title="Creates a calendar draft for each day of the plan at your audience's hour"
+            title={canSchedule ? "Creates a calendar draft for each day of the plan at your audience's hour" : "Saves a calendar draft for each day of the plan; publishing needs Starter"}
           >
             <CalendarDays size={14} />{" "}
-            {sched.busy ? "Adding to Calendar…" : sched.ok ? "Added to Calendar" : "Schedule this week"}
+            {sched.busy ? "Adding to Calendar…" : sched.ok ? "Added to Calendar" : canSchedule ? "Schedule this week" : "Save week as drafts"}
           </button>
         )}
       </div>
+      {sched.planError && <PlanNotice error={sched.planError} compact />}
       {sched.msg && (
         <p className={`cpl-sched-msg${sched.ok ? " ok" : ""}`}>
           {sched.msg}
+          {sched.ok && !canSchedule && (
+            <>
+              {" "}
+              Scheduling is available on <Link href={pricingHref("starter")}>Starter</Link>.
+            </>
+          )}
           {sched.ok && (
             <>
               {" "}

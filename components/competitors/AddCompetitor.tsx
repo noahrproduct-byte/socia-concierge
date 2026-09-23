@@ -8,12 +8,18 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AtSign, Check, ExternalLink, Loader2, Plus, X } from "lucide-react";
 import Drawer from "@/components/ov/Drawer";
+import PlanNotice from "@/components/PlanNotice";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { Tracked } from "./types";
 import { Avatar, PlatformMark, classLabel, fmtN, platName } from "./shared";
 
 const profileUrl = (c: Tracked) =>
   c.platform === "facebook" ? `https://facebook.com/${c.handle}` : c.platform === "youtube" ? `https://youtube.com/@${c.handle}` : `https://instagram.com/${c.handle}`;
+
+const upgradeClicked = (e: PlanError) => {
+  void fetch("/api/events", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "upgrade_clicked", props: { from: "competitors_add", limit: e.limit ?? null, plan: e.plan } }) }).catch(() => {});
+};
 
 export default function AddCompetitor({ open, onClose, tracked, suggestions }: { open: boolean; onClose: () => void; tracked: Tracked[]; suggestions: CompetitorRow[] }) {
   const router = useRouter();
@@ -22,16 +28,20 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
   const [platform, setPlatform] = useState<"instagram" | "youtube" | "facebook">("instagram");
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
   const isTracked = (p: string, h: string) => list.some((x) => x.platform === p && x.handle === h.toLowerCase());
 
   const track = useCallback(async (p: string, h: string) => {
     const clean = h.trim().replace(/^@/, "");
     if (!clean) return;
-    setBusy(`${p}:${clean}`); setErr(null);
+    setBusy(`${p}:${clean}`); setErr(null); setPlanError(null);
     try {
       const res = await fetch("/api/competitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: clean, platform: p }) });
-      const j = await res.json();
-      if (!res.ok) { setErr(j.error ?? "Couldn't add that handle."); return; }
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (isPlanError(j)) setPlanError(j); else setErr(j.error ?? "Couldn't add that handle.");
+        return;
+      }
       setList((xs) => isTracked(p, clean) ? xs : [...xs, { platform: p, handle: clean.toLowerCase(), added_at: new Date().toISOString() }]);
       setHandle("");
       router.refresh();
@@ -69,7 +79,9 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
             {busy === `${platform}:${handle.trim().replace(/^@/, "")}` ? <Loader2 size={13} className="cx-spin" /> : <Plus size={13} />} Add
           </button>
         </form>
-        {err && <p className="cx-add-err">{err}</p>}
+        {planError
+          ? <PlanNotice error={planError} compact onCta={() => upgradeClicked(planError)} />
+          : err && <p className="cx-add-err">{err}</p>}
 
         {untracked.length > 0 && (
           <section className="cx-add-sec">
@@ -110,7 +122,7 @@ export default function AddCompetitor({ open, onClose, tracked, suggestions }: {
             </ul>
           ) : <p className="cx-empty small">No competitors tracked yet. Track one above, or pick from the discovered list.</p>}
         </section>
-        <p className="cx-add-foot"><Check size={11} /> Tracked accounts stay in the roster and are refreshed with every discovery run.</p>
+        <p className="cx-add-foot"><Check size={11} /> Tracked accounts stay in your roster and are re-read each time this page loads.</p>
       </div>
     </Drawer>
   );

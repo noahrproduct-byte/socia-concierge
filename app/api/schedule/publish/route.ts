@@ -6,6 +6,10 @@ import {
 } from "@/lib/igPublish";
 import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, type ScheduledPost } from "@/lib/scheduling";
 import { runDailySnapshots, type SnapshotRun } from "@/lib/snapshotJob";
+import { getEntitlements, checkFeature, type Entitlements } from "@/lib/entitlements";
+import { requireFeature } from "@/lib/planGuard";
+import { parentsWithDestinations } from "@/lib/publishing/db";
+import { runDueDestinations, type RunReport } from "@/lib/publishing/runner";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,6 +25,11 @@ export const maxDuration = 60;
 // Failures record Instagram's own message. A Reel that is still processing
 // when this invocation runs out of time stays `publishing` with its container
 // id and is finished on the next run — nothing is created twice.
+//
+// Plans: publishing is a Starter-and-up feature. User mode answers a 403 with
+// a PlanError; cron mode never publishes for a plan without it and instead
+// returns such rows to `draft` once, with the reason recorded, so a downgrade
+// keeps the calendar intact and nothing is mislabelled as missed.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -122,6 +131,32 @@ async function publishedLast24h(supabase: Supa, userId: string): Promise<number>
   return count ?? 0;
 }
 
+/** Per-user entitlement memo for one cron tick, so N due posts cost one read. */
+function entitlementCache(supabase: Supa) {
+  const cache = new Map<string, Promise<Entitlements>>();
+  return (userId: string): Promise<Entitlements> => {
+    let p = cache.get(userId);
+    if (!p) { p = getEntitlements(supabase, userId); cache.set(userId, p); }
+    return p;
+  };
+}
+
+/** The plan sentence when this user may not schedule, or null when they may. */
+function schedulingBlock(ent: Entitlements): string | null {
+  const c = checkFeature(ent, "scheduling");
+  return c.ok ? null : c.error.error;
+}
+
+/** Return one scheduled row to draft for plan reasons. Never deletes; the
+ *  sentence lands in `error` so the row explains itself once it can move again. */
+async function demoteForPlan(supabase: Supa, id: string, reason: string, now: Date) {
+  await supabase
+    .from("scheduled_posts")
+    .update({ status: "draft", error: reason, updated_at: now.toISOString() })
+    .eq("id", id)
+    .eq("status", "scheduled");
+}
+
 export async function GET(req: Request) { return run(req); }
 export async function POST(req: Request) { return run(req); }
 
@@ -145,7 +180,19 @@ async function run(req: Request) {
     const { data: post } = await supabase.from("scheduled_posts").select("*").eq("id", id).eq("user_id", user.id).maybeSingle();
     if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
     if (post.status === "published") return NextResponse.json({ error: "Already published." }, { status: 409 });
+    // A composer post publishes through its destinations, never through this
+    // Instagram-only path. A missing post_destinations table reads as none;
+    // any other read failure is unknown, and unknown never publishes.
+    const multi = await parentsWithDestinations(supabase, [id]);
+    if (multi == null) {
+      return NextResponse.json({ error: "SOCIA could not check this post's destinations. Try again in a moment." }, { status: 503 });
+    }
+    if (multi.has(id)) {
+      return NextResponse.json({ error: "This post publishes through its destinations. Use Publish on the post itself." }, { status: 409 });
+    }
     if (!post.media_url) return NextResponse.json({ error: "Attach media before publishing." }, { status: 400 });
+    const g = await requireFeature(supabase, user.id, "scheduling");
+    if (g.denied) return g.denied;
     if ((await publishedLast24h(supabase, user.id)) >= DAILY_PUBLISH_CAP) {
       return NextResponse.json({ error: `Daily publishing cap reached (${DAILY_PUBLISH_CAP} in 24h).` }, { status: 429 });
     }
@@ -160,18 +207,22 @@ async function run(req: Request) {
     return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set; the publisher can't run for all users." }, { status: 503 });
   }
   const now = new Date();
+  const entFor = entitlementCache(svc);
+  const results: { id: string; result: string }[] = [];
+
   // A scheduled post the publisher never reached inside the grace window is a
-  // missed post, and says so, rather than sitting "scheduled" forever.
+  // missed post, and says so, rather than sitting "scheduled" forever. Rows
+  // whose owner may not schedule any more are not missed, they are drafts
+  // again: those are demoted first, and the sweep only touches ids it examined.
   const cutoff = new Date(now.getTime() - GRACE_HOURS * 3600_000).toISOString();
-  await svc
+  const { data: stale } = await svc
     .from("scheduled_posts")
-    .update({
-      status: "failed",
-      error: `Missed its window: the publisher didn't run within ${GRACE_HOURS} hours of the scheduled time.`,
-      updated_at: now.toISOString(),
-    })
+    .select("id, user_id")
     .eq("status", "scheduled")
-    .lt("scheduled_at", cutoff);
+    .lt("scheduled_at", cutoff)
+    .order("scheduled_at", { ascending: true })
+    .limit(500);
+  const staleRows = (stale ?? []) as { id: string; user_id: string }[];
   const { data: candidates, error } = await svc
     .from("scheduled_posts")
     .select("*")
@@ -180,30 +231,86 @@ async function run(req: Request) {
     .order("scheduled_at", { ascending: true })
     .limit(20);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const candidateRows = (candidates ?? []) as ScheduledPost[];
 
-  const due = ((candidates ?? []) as ScheduledPost[]).filter((p) => p.status === "publishing" || isDue(p, now));
-  const results: { id: string; result: string }[] = [];
-  const perUserCount = new Map<string, number>();
+  // Parents with destination rows belong to the destination runner below;
+  // the legacy sweep and loop never touch them. Read once for both lists.
+  // When that read fails for a reason other than a missing table the answer
+  // is unknown, and the legacy sweep and loop sit this tick out rather than
+  // publish a composer post a second time through the Instagram-only path.
+  const multi = await parentsWithDestinations(svc, [...new Set([...staleRows.map((r) => r.id), ...candidateRows.map((p) => p.id)])]);
   const deadline = Date.now() + 50_000;
+  let due: ScheduledPost[] = [];
+
+  if (multi == null) {
+    results.push({ id: "legacy", result: "deferred: destinations unreadable" });
+  } else {
+    const missed: string[] = [];
+    for (const row of staleRows) {
+      if (multi.has(row.id)) continue;
+      const block = schedulingBlock(await entFor(row.user_id));
+      if (block) {
+        await demoteForPlan(svc, row.id, block, now);
+        results.push({ id: row.id, result: "deferred: plan" });
+      } else {
+        missed.push(row.id);
+      }
+    }
+    if (missed.length) {
+      await svc
+        .from("scheduled_posts")
+        .update({
+          status: "failed",
+          error: `Missed its window: the publisher didn't run within ${GRACE_HOURS} hours of the scheduled time.`,
+          updated_at: now.toISOString(),
+        })
+        .eq("status", "scheduled")
+        .in("id", missed);
+    }
+    due = candidateRows.filter((p) => !multi.has(p.id) && (p.status === "publishing" || isDue(p, now)));
+  }
+  const perUserCount = new Map<string, number>();
 
   for (const post of due) {
     if (Date.now() > deadline - 8_000) break;
+    // Plan gate. A row already `publishing` has a container at Instagram and
+    // is finished rather than abandoned; a `scheduled` one goes back to draft.
+    if (post.status === "scheduled") {
+      const block = schedulingBlock(await entFor(post.user_id));
+      if (block) {
+        await demoteForPlan(svc, post.id, block, now);
+        results.push({ id: post.id, result: "deferred: plan" });
+        continue;
+      }
+    }
     const used = perUserCount.get(post.user_id) ?? (await publishedLast24h(svc, post.user_id));
     if (used >= DAILY_PUBLISH_CAP) { results.push({ id: post.id, result: "deferred: daily cap" }); continue; }
     const r = await publishOne(svc, post, Math.min(40_000, deadline - Date.now() - 5_000));
     if (r.result === "published") perUserCount.set(post.user_id, used + 1);
     results.push(r);
   }
-  const published = results.filter((r) => r.result === "published").length;
+  // Multi-destination posts: one step per due destination, oldest first, with
+  // whatever time the legacy loop left. Its own sweeps (plan demotion, missed
+  // window, stale upload) live in the runner.
+  let destinations: RunReport | null = null;
+  try {
+    destinations = await runDueDestinations(svc, { now, budgetMs: deadline - Date.now() - 3_000 });
+  } catch (e) {
+    destinations = { considered: 0, results: [], unavailable: e instanceof Error ? e.message : String(e) };
+  }
+  const published =
+    results.filter((r) => r.result === "published").length +
+    (destinations?.results.filter((r) => r.result === "published").length ?? 0);
+  const considered = due.length + (destinations?.considered ?? 0);
   // Heartbeat: the calendar states when the publisher last actually ran.
   await svc
     .from("publisher_heartbeat")
-    .upsert({ id: 1, ran_at: now.toISOString(), considered: due.length, published });
+    .upsert({ id: 1, ran_at: now.toISOString(), considered, published });
   // Daily account snapshots ride on the same tick: the first run after
   // midnight UTC records each account's totals; later runs find them present.
   let snapshots: SnapshotRun | null = null;
   if (Date.now() < deadline - 5_000) {
     try { snapshots = await runDailySnapshots(svc, now, Math.max(3_000, deadline - Date.now() - 2_000)); } catch { snapshots = null; }
   }
-  return NextResponse.json({ ran_at: now.toISOString(), considered: due.length, published, results, snapshots });
+  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots });
 }

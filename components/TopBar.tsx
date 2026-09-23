@@ -10,12 +10,13 @@ import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, Re
 import AccountMenu from "@/components/AccountMenu";
 import { AskHost } from "@/components/AskSocia";
 import { relTime, type Activity } from "@/lib/overview";
+import type { PlanId } from "@/lib/plans";
 
 export type SearchItem = { kind: "page" | "post"; label: string; hint?: string; href: string };
 
 const ACT_ICON = { scheduled: CalendarCheck2, published: CheckCircle2, failed: AlertTriangle, draft: FilePen, plan: FileText, sync: RefreshCw } as const;
 
-export default function TopBar({ email, plan, index, activity }: { email?: string | null; plan: "free" | "pro"; index: SearchItem[]; activity: Activity[] }) {
+export default function TopBar({ email, plan, index, activity }: { email?: string | null; plan: PlanId; index: SearchItem[]; activity: Activity[] }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);

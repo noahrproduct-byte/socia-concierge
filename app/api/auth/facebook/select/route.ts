@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncFacebook } from "@/lib/facebookSync";
 import { igAccountForPage } from "@/lib/igBusinessDiscovery";
+import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib/entitlements";
+import { deny } from "@/lib/planGuard";
+import { trackEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -34,6 +37,18 @@ export async function POST(req: Request) {
   const p = pages.find((x) => x.id === pageId);
   if (!p?.access_token) {
     return NextResponse.json({ error: "That Page isn't in your pending list — reconnect Facebook." }, { status: 400 });
+  }
+
+  // Plan gate, server-side, before the write. Picking the Page already on
+  // file is a reconnect and never counts as a new slot. This route is called
+  // with fetch() from the Settings card, so the answer is a 403 PlanError
+  // body (rendered in the card) rather than a redirect fetch would swallow.
+  const ent = await getEntitlements(supabase, user.id);
+  const list = await listConnectedAccounts(supabase, user.id);
+  const check = canConnectAnother(ent, list, "facebook", p.id);
+  if (!check.ok) {
+    await trackEvent(supabase, user.id, "account_limit_reached", { platform: "facebook", plan: ent.plan });
+    return deny(check.error);
   }
 
   // The Page's linked Instagram Professional account is what enables

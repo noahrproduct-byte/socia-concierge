@@ -11,6 +11,8 @@ import Drawer from "@/components/ov/Drawer";
 import { askSocia } from "@/lib/ask";
 import { baselineText, type NichePost } from "@/lib/nicheTrends";
 import type { AnalyzeResponse } from "@/app/api/niche/analyze/route";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
+import PlanNotice from "@/components/PlanNotice";
 import { PlatformMark, fmtDate, fmtN, platName } from "./shared";
 
 const cache = new Map<string, AnalyzeResponse>();
@@ -19,16 +21,27 @@ export default function NicheDrawer({ post, saved, onToggleSave, saving, onClose
   post: NichePost | null; saved: boolean; onToggleSave: (p: NichePost) => void; saving: boolean; onClose: () => void;
 }) {
   const [res, setRes] = useState<AnalyzeResponse | null>(null);
+  // A plan refusal is not an analysis result: it is never cached, so the
+  // reading appears as soon as the plan allows it.
+  const [planError, setPlanError] = useState<PlanError | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!post) { setRes(null); return; }
+    if (!post) { setRes(null); setPlanError(null); return; }
+    setPlanError(null);
     const hit = cache.get(post.url);
     if (hit) { setRes(hit); return; }
     let alive = true;
     setBusy(true); setRes(null);
     fetch("/api/niche/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ post }) })
-      .then(async (r) => { const j = (await r.json()) as AnalyzeResponse; if (!alive) return; cache.set(post.url, j); setRes(j); })
+      .then(async (r) => {
+        const j = await r.json();
+        if (!alive) return;
+        if (!r.ok && isPlanError(j)) { setPlanError(j); return; }
+        const doc = j as AnalyzeResponse;
+        if (r.ok) cache.set(post.url, doc);
+        setRes(doc);
+      })
       .catch(() => { if (alive) setRes({ durationSec: null, analysis: null, error: "SOCIA couldn't analyse this post right now.", cached: false }); })
       .finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
@@ -81,7 +94,8 @@ export default function NicheDrawer({ post, saved, onToggleSave, saving, onClose
         <section className="cx-nd-sec">
           <h4>Content structure <small>read from the thumbnail and title</small></h4>
           {busy && !a && <div className="cx-nd-skel"><span /><span /><span /><span /></div>}
-          {!busy && !a && <p className="cx-empty small">{res?.error ?? "Not analysed."}</p>}
+          {!busy && !a && planError && <PlanNotice error={planError} compact />}
+          {!busy && !a && !planError && <p className="cx-empty small">{res?.error ?? "Not analysed."}</p>}
           {a && (
             <dl className="cx-nd-struct">
               {structure.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v || "—"}</dd></div>)}
@@ -90,18 +104,23 @@ export default function NicheDrawer({ post, saved, onToggleSave, saving, onClose
           )}
         </section>
 
-        <section className="cx-nd-sec ai">
-          <h4>SOCIA interpretation</h4>
-          {a ? <p className="cx-nd-interp">{a.interpretation}</p> : busy ? <div className="cx-nd-skel two"><span /><span /></div> : post.why ? <p className="cx-nd-interp">{post.why}</p> : <p className="cx-empty small">{res?.error ?? "No interpretation yet."}</p>}
-        </section>
+        {/* The notice above says it once; the reading sections below stay quiet when the plan is the reason. */}
+        {(!planError || post.why) && (
+          <section className="cx-nd-sec ai">
+            <h4>SOCIA interpretation</h4>
+            {a ? <p className="cx-nd-interp">{a.interpretation}</p> : busy ? <div className="cx-nd-skel two"><span /><span /></div> : post.why ? <p className="cx-nd-interp">{post.why}</p> : <p className="cx-empty small">{res?.error ?? "No interpretation yet."}</p>}
+          </section>
+        )}
 
-        <section className="cx-nd-sec">
-          <h4>What you can learn</h4>
-          {a?.lessons?.length ? <ol className="cx-nd-lessons">{a.lessons.map((l) => <li key={l}>{l}</li>)}</ol>
-            : busy ? <div className="cx-nd-skel two"><span /><span /></div>
-            : <p className="cx-empty small">{res?.error ?? "Lessons appear once the post is analysed."}</p>}
-          {a?.your_version && <p className="cx-nd-version"><b>Your version:</b> {a.your_version}</p>}
-        </section>
+        {!planError && (
+          <section className="cx-nd-sec">
+            <h4>What you can learn</h4>
+            {a?.lessons?.length ? <ol className="cx-nd-lessons">{a.lessons.map((l) => <li key={l}>{l}</li>)}</ol>
+              : busy ? <div className="cx-nd-skel two"><span /><span /></div>
+              : <p className="cx-empty small">{res?.error ?? "Lessons appear once the post is analysed."}</p>}
+            {a?.your_version && <p className="cx-nd-version"><b>Your version:</b> {a.your_version}</p>}
+          </section>
+        )}
 
         <div className="cx-nd-actions">
           <button type="button" className="ov-btn primary" onClick={() => askSocia({ question, autoSend: true, context: { page: "competitors", competitorName: post.accountName ?? undefined, competitorPlatform: post.platform }, contextLabel: `Post: ${(post.title ?? post.url).slice(0, 40)}` })}><Sparkles size={13} /> Create your version</button>

@@ -12,6 +12,8 @@ import { askSocia } from "@/lib/ask";
 import { momentum, pickOpportunity, rankNiche, workingNow, baselineText, type MomentumResult, type NichePost, type Opportunity, type WorkingResult } from "@/lib/nicheTrends";
 import type { GroupedPatterns } from "@/lib/competitorIntel";
 import type { OpportunityConcept } from "@/app/api/niche/opportunity/route";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
+import PlanNotice from "@/components/PlanNotice";
 import type { CompetitorsData } from "./types";
 import { NicheRangeSelect, NicheSelect, RefreshButton } from "./Controls";
 import { PlatformMark, fmtDate, fmtN } from "./shared";
@@ -119,13 +121,19 @@ function Trending({ m, dirn, onTag }: { m: MomentumResult; dirn: "up" | "down"; 
 function OpportunityCard({ o, onExamples }: { o: Opportunity | null; onExamples: (t: string) => void }) {
   const [concept, setConcept] = useState<OpportunityConcept | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!o) return;
     let alive = true;
-    setBusy(true); setErr(null); setConcept(null);
+    setBusy(true); setErr(null); setPlanError(null); setConcept(null);
     fetch("/api/niche/opportunity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag: o.tag, why: o.why.map((w) => w.text), example: o.example ? { title: o.example.title, accountName: o.example.accountName } : null, competitorName: o.competitorName }) })
-      .then(async (r) => { const j = await r.json(); if (!alive) return; if (!r.ok) setErr(j.error ?? "SOCIA couldn't draft your version right now."); else setConcept(j); })
+      .then(async (r) => {
+        const j = await r.json();
+        if (!alive) return;
+        if (!r.ok) { if (isPlanError(j)) setPlanError(j); else setErr(j.error ?? "SOCIA couldn't draft your version right now."); }
+        else setConcept(j);
+      })
       .catch(() => alive && setErr("SOCIA couldn't draft your version right now."))
       .finally(() => alive && setBusy(false));
     return () => { alive = false; };
@@ -158,7 +166,8 @@ function OpportunityCard({ o, onExamples }: { o: Opportunity | null; onExamples:
           <h3>{o.tag}</h3>
           {busy && <div className="cx-nd-skel two"><span /><span /></div>}
           {concept && <p className="cx-opp-concept">{concept.concept}</p>}
-          {!busy && err && <p className="cx-opp-err">{err}</p>}
+          {!busy && planError && <PlanNotice error={planError} compact />}
+          {!busy && err && !planError && <p className="cx-opp-err">{err}</p>}
           <small className="cx-opp-h">Why SOCIA surfaced it</small>
           <ul className="cx-opp-why">{o.why.map((w) => <li key={w.text}><i className={w.source} /> {w.text}</li>)}</ul>
           {concept?.hook && <p className="cx-opp-hook"><b>Opening line:</b> {concept.hook}</p>}

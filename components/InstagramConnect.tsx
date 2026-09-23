@@ -29,6 +29,7 @@ export default function InstagramConnect({
   followers = null,
   avatar = null,
   needsReconnect = false,
+  paused = false,
 }: {
   username: string | null;
   status?: string;
@@ -38,6 +39,8 @@ export default function InstagramConnect({
   avatar?: string | null;
   /** True when the stored token lacks the insights permission. */
   needsReconnect?: boolean;
+  /** The account exists but is paused by a plan downgrade (not read, not counted). */
+  paused?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -70,9 +73,8 @@ export default function InstagramConnect({
         ? "Instagram isn't configured on the server yet (missing app credentials)."
         : status === "error"
           ? "Something went wrong connecting Instagram. Please try again."
-          : status === "limit"
-            ? "That's a new account beyond your plan's limit. Pro connects up to 3 Instagram accounts."
-            : null;
+          : null;
+  // ?ig=limit is rendered once, by the page-level PlanNotice above the cards.
 
   const synced = ago(syncedAt);
 
@@ -97,6 +99,10 @@ export default function InstagramConnect({
               </small>
               {synced && <small className="st2-ig-sync">Synced {synced}</small>}
             </>
+          ) : paused ? (
+            <small className="st2-ig-off">
+              Paused by your plan. Choose which accounts stay active in Plan &amp; billing.
+            </small>
           ) : (
             <small className="st2-ig-off">
               Not connected — connect a professional account to pull your real insights.
@@ -104,7 +110,11 @@ export default function InstagramConnect({
           )}
         </div>
         <div className="st2-ig-actions">
-          {username ? (
+          {!username && paused ? (
+            <a className="st2-connect" href="#plan">
+              Plan &amp; billing <ArrowRight size={13} />
+            </a>
+          ) : username ? (
             <>
               <button className="st2-btn" onClick={syncNow} disabled={syncing || busy} type="button">
                 <RefreshCw size={14} className={syncing ? "spin" : undefined} />

@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Plus,
   ChevronLeft,
@@ -29,7 +30,10 @@ import {
   Trash2,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
+import PlanNotice from "@/components/PlanNotice";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
+import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import {
   draftsFromPlan,
   readiness,
@@ -47,12 +51,54 @@ import {
   type Audience,
   type CalPost,
 } from "@/lib/audience";
+import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status";
+import { PLATFORM_LABEL, type Destination, type Platform } from "@/lib/publishing/types";
+import "./calendar-destinations.css";
 
 export type { CalPost };
+
+/** What the calendar needs of a post_destinations row. */
+export type CalDestination = Pick<
+  Destination,
+  "id" | "postId" | "platform" | "accountId" | "status" | "scheduledAt" | "errorMessage" | "permalink"
+>;
+
+/** A scheduled_posts row, plus its destinations when it was created by the
+ *  multi-platform composer. Rows without destinations are legacy Instagram
+ *  posts and keep the original modal and publish path. */
+export type CalItem = ScheduledPost & { destinations?: CalDestination[] };
+
+const isMulti = (p: CalItem): p is CalItem & { destinations: CalDestination[] } =>
+  (p.destinations?.length ?? 0) > 0;
+
+/** Where Create Post opens an existing item. */
+const createHref = (p: CalItem) => `/create?post=${encodeURIComponent(p.id)}`;
 /** What the page knows about the publishing pipeline. `canPublish` is null when
  *  the connection predates scope recording — unknown, not "no". `lastRunAt` is
- *  the publisher's heartbeat; without a recent one, auto-publishing isn't "on". */
-export type PublishInfo = { canPublish: boolean | null; configured: boolean; lastRunAt: string | null };
+ *  the publisher's heartbeat; without a recent one, auto-publishing isn't "on".
+ *  `canSchedule` is the plan's answer (Free keeps drafts only); `planError` is
+ *  the sentence and CTA to show when it is false. The server enforces both. */
+export type PublishInfo = {
+  canPublish: boolean | null;
+  configured: boolean;
+  lastRunAt: string | null;
+  canSchedule: boolean;
+  planError: PlanError | null;
+};
+
+/** Fire-and-forget product event from the browser. */
+const track = (name: string, props?: Record<string, unknown>) => {
+  try {
+    void fetch("/api/events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, props }),
+      keepalive: true,
+    }).catch(() => null);
+  } catch {
+    /* analytics never blocks the product */
+  }
+};
 
 const ago = (ms: number) => {
   const m = Math.round(ms / 60_000);
@@ -80,6 +126,20 @@ const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 const byTime = (a: ScheduledPost, b: ScheduledPost) =>
   new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
 
+/** A failed request, carrying the JSON body so a PlanError can be rendered
+ *  with its CTA instead of as plain text. */
+class ApiError extends Error {
+  body: unknown;
+  constructor(message: string, body: unknown) {
+    super(message);
+    this.body = body;
+  }
+}
+
+/** The plan block from a failed request, if that is what it was. */
+const planErrorOf = (e: unknown): PlanError | null =>
+  e instanceof ApiError && isPlanError(e.body) ? e.body : null;
+
 async function api<T>(method: string, body?: unknown, path = ""): Promise<T> {
   const res = await fetch(`/api/schedule${path}`, {
     method,
@@ -87,9 +147,12 @@ async function api<T>(method: string, body?: unknown, path = ""): Promise<T> {
     body: body ? JSON.stringify(body) : undefined,
   });
   const j = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(j.error ?? `Request failed (${res.status})`);
+  if (!res.ok) throw new ApiError(j.error ?? `Request failed (${res.status})`, j);
   return j;
 }
+
+/** What POST/PATCH /api/schedule say about the plan alongside the row. */
+type PlanReply = { plan?: { canSchedule: boolean; error: PlanError | null } };
 
 const lvl = (v: number) => (v <= 0.02 ? "n" : v < 0.28 ? "l" : v < 0.55 ? "m" : v < 0.8 ? "h" : "p");
 const LVL_NAME: Record<string, string> = {
@@ -130,6 +193,108 @@ function MediaIcon({ type }: { type: MediaType }) {
   return type === "IMAGE" ? <ImageIcon size={11} /> : <Film size={11} />;
 }
 
+/* ------------------------------------------------ multi-destination pieces */
+
+/** Minimal platform glyphs (14 px by default, sized by .cd-mark in CSS). */
+function Mark({ platform }: { platform: Platform }) {
+  if (platform === "youtube") return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12 31 31 0 0 0 1 16.8a3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1c.4-1.6.5-3.2.5-4.8s-.1-3.2-.5-4.8ZM9.7 15.1V8.9l6 3.1-6 3.1Z" /></svg>
+  );
+  if (platform === "facebook") return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M13.5 21v-7h2.3l.4-2.7h-2.7V9.6c0-.8.2-1.3 1.3-1.3h1.4V5.9c-.2 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5v1.9H8.5V14h2.3v7h2.7Z" /></svg>
+  );
+  if (platform === "tiktok") return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M16.5 3c.3 2.2 1.6 3.6 3.8 3.8v3.1c-1.4 0-2.7-.4-3.8-1.2v6.2A5.7 5.7 0 1 1 10.8 9.2v3.2a2.6 2.6 0 1 0 2.6 2.6V3h3.1Z" /></svg>
+  );
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg>
+  );
+}
+
+/** One mark per destination, tinted by that destination's own status, so a
+ *  failed YouTube upload reads as failed next to a published Instagram post. */
+function Marks({ destinations }: { destinations: Pick<CalDestination, "id" | "platform" | "status">[] }) {
+  return (
+    <span className="cd-marks">
+      {destinations.map((d) => (
+        <span key={d.id} className={`cd-mark st-${d.status}`} title={`${PLATFORM_LABEL[d.platform]}: ${d.status}`} aria-label={`${PLATFORM_LABEL[d.platform]} ${d.status}`}>
+          <Mark platform={d.platform} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Marks for a ghost entry: one per platform, no status (it is shown on the item itself). */
+function PlatformMarks({ platforms }: { platforms: Platform[] }) {
+  return (
+    <span className="cd-marks">
+      {platforms.map((pl) => (
+        <span key={pl} className="cd-mark" title={PLATFORM_LABEL[pl]} aria-label={PLATFORM_LABEL[pl]}>
+          <Mark platform={pl} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** The one-line failure text: the platform's own message, prefixed with its name. */
+function failureLine(destinations: CalDestination[]): string | null {
+  const e = firstError(destinations);
+  if (!e) return null;
+  const i = e.indexOf(":");
+  const plat = e.slice(0, i) as Platform;
+  return PLATFORM_LABEL[plat] ? `${PLATFORM_LABEL[plat]}${e.slice(i)}` : e;
+}
+
+function DestinationChip({ destinations }: { destinations: CalDestination[] }) {
+  const s = summarize(destinations);
+  const st = aggregateStatus(destinations);
+  return (
+    <span className={`cal2-chip cd-sum st-${st}`}>
+      {st === "publishing" && <Loader2 size={10} className="cal2-spin" />}
+      {st === "published" && <CheckCircle2 size={10} />}
+      {st === "failed" && <AlertTriangle size={10} />}
+      {s.line}
+    </span>
+  );
+}
+
+/** Where an item sits on the grid. A legacy row sits on its scheduled_at. A
+ *  multi-destination item sits on the earliest day any destination publishes
+ *  and leaves a muted "also" ghost on every other day, so a post going to
+ *  Instagram on Tuesday and YouTube on Thursday is visible on both. */
+type DayEntry = { p: CalItem; at: Date; ghost: Platform[] | null };
+
+function placeItems(items: CalItem[]): Map<string, DayEntry[]> {
+  const byDay = new Map<string, DayEntry[]>();
+  const put = (e: DayEntry) => {
+    const k = e.at.toDateString();
+    byDay.set(k, [...(byDay.get(k) ?? []), e]);
+  };
+  for (const p of items) {
+    const timed = (p.destinations ?? []).filter((d) => d.status !== "cancelled" && d.scheduledAt);
+    if (!timed.length) {
+      put({ p, at: new Date(p.scheduled_at), ghost: null });
+      continue;
+    }
+    const days = new Map<string, { at: Date; platforms: Platform[] }>();
+    for (const d of timed) {
+      const at = new Date(d.scheduledAt!);
+      const k = at.toDateString();
+      const cur = days.get(k) ?? { at, platforms: [] };
+      if (at.getTime() < cur.at.getTime()) cur.at = at;
+      if (!cur.platforms.includes(d.platform)) cur.platforms.push(d.platform);
+      days.set(k, cur);
+    }
+    const ordered = [...days.values()].sort((a, b) => a.at.getTime() - b.at.getTime());
+    put({ p, at: ordered[0].at, ghost: null });
+    for (const g of ordered.slice(1)) put({ p, at: g.at, ghost: g.platforms });
+  }
+  for (const list of byDay.values()) list.sort((a, b) => a.at.getTime() - b.at.getTime());
+  return byDay;
+}
+
 export default function CalendarBoard({
   posts,
   igUsername,
@@ -141,10 +306,11 @@ export default function CalendarBoard({
   posts: CalPost[];
   igUsername: string | null;
   connected: boolean;
-  scheduled: ScheduledPost[];
+  scheduled: CalItem[];
   userId: string;
   publish: PublishInfo;
 }) {
+  const router = useRouter();
   // Everything date/timezone-dependent renders after mount so SSR (UTC) and the
   // browser never disagree.
   const [now, setNow] = useState<Date | null>(null);
@@ -154,7 +320,7 @@ export default function CalendarBoard({
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
 
-  const [items, setItems] = useState<ScheduledPost[]>(() => [...scheduled].sort(byTime));
+  const [items, setItems] = useState<CalItem[]>(() => [...scheduled].sort(byTime));
   const [composer, setComposer] = useState<{ post: ScheduledPost | null; at: Date; caption?: string } | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -166,8 +332,8 @@ export default function CalendarBoard({
 
   const aud = useMemo(() => buildAudience(posts), [posts]);
 
-  // Deep link from Analytics → "Follow-up": open a draft for tomorrow at the
-  // audience's hour with the original post's first line as a starting caption.
+  // Deep link from Analytics → "Follow-up": hand the starting caption to the
+  // multi-platform composer, suggesting tomorrow at the audience's hour.
   useEffect(() => {
     if (!now) return;
     const sp = new URLSearchParams(window.location.search);
@@ -175,8 +341,11 @@ export default function CalendarBoard({
     const d = new Date(now);
     d.setDate(d.getDate() + 1);
     d.setHours(suggestedHour(aud, (d.getDay() + 6) % 7), 0, 0, 0);
-    setComposer({ post: null, at: d, caption: sp.get("caption") ?? "" });
-    window.history.replaceState(null, "", "/calendar");
+    const q = new URLSearchParams();
+    const caption = sp.get("caption");
+    if (caption) q.set("caption", caption);
+    q.set("at", d.toISOString());
+    router.replace(`/create?${q.toString()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
 
@@ -194,8 +363,15 @@ export default function CalendarBoard({
     if (!anyPublishing) return;
     const t = setInterval(async () => {
       try {
+        // The legacy list endpoint knows nothing of destinations; keep the
+        // ones the page loaded so multi-destination items do not flatten.
         const j = await api<{ posts: ScheduledPost[] }>("GET");
-        setItems([...j.posts].sort(byTime));
+        setItems((cur) => {
+          const dests = new Map(cur.map((x) => [x.id, x.destinations]));
+          return j.posts
+            .map((p): CalItem => (dests.get(p.id) ? { ...p, destinations: dests.get(p.id) } : p))
+            .sort(byTime);
+        });
       } catch {
         /* keep what we have */
       }
@@ -221,6 +397,8 @@ export default function CalendarBoard({
       ? `${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)} gets the most reach with your audience.`
       : null;
 
+  // A day's "Add post" opens Create Post at that day's suggested hour (the
+  // composer may ignore `at`; the time is a suggestion, not a commitment).
   const openNew = (date: Date, weekdayMonFirst: number) => {
     const d = new Date(date);
     d.setHours(suggestedHour(aud, weekdayMonFirst), 0, 0, 0);
@@ -231,12 +409,19 @@ export default function CalendarBoard({
       n.setHours(n.getHours() + 1);
       d.setTime(n.getTime());
     }
-    setComposer({ post: null, at: d });
+    router.push(`/create?at=${encodeURIComponent(d.toISOString())}`);
+  };
+
+  // Multi-destination items are edited in Create Post; legacy rows keep the modal.
+  const openItem = (p: CalItem) => {
+    if (isMulti(p)) router.push(createHref(p));
+    else setComposer({ post: p, at: new Date(p.scheduled_at) });
   };
 
   const drafts = items.filter((p) => p.status === "draft").length;
   const queued = items.filter((p) => p.status === "scheduled").length;
   const failed = items.filter((p) => p.status === "failed").length;
+  const canSchedule = publish.canSchedule;
 
   return (
     <div className="cal2">
@@ -267,15 +452,9 @@ export default function CalendarBoard({
             <button type="button" className="ov-btn ghost" onClick={() => setPlanOpen(true)}>
               <CalendarPlus size={14} /> Schedule from Content Plan
             </button>
-            <button
-              type="button"
-              className="ov-btn primary"
-              // Fallback to a fresh Date so the button never silently no-ops
-              // in the moment before hydration sets `now`.
-              onClick={() => { const n = now ?? new Date(); openNew(n, (n.getDay() + 6) % 7); }}
-            >
+            <Link href="/create" className="ov-btn primary">
               <Plus size={14} /> New post
-            </button>
+            </Link>
           </>
         }
       />
@@ -311,7 +490,8 @@ export default function CalendarBoard({
                 weekOffset={weekOffset}
                 aud={aud}
                 items={items}
-                onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
+                canSchedule={canSchedule}
+                onOpen={openItem}
                 onNew={openNew}
               />
             ) : (
@@ -320,7 +500,8 @@ export default function CalendarBoard({
                 monthOffset={monthOffset}
                 aud={aud}
                 items={items}
-                onOpen={(p) => setComposer({ post: p, at: new Date(p.scheduled_at) })}
+                canSchedule={canSchedule}
+                onOpen={openItem}
                 onNew={openNew}
               />
             )}
@@ -369,6 +550,8 @@ export default function CalendarBoard({
           initialCaption={composer.caption}
           userId={userId}
           connected={connected}
+          canSchedule={canSchedule}
+          planError={publish.planError}
           onClose={() => setComposer(null)}
           onSaved={upsert}
           onRemoved={remove}
@@ -379,6 +562,7 @@ export default function CalendarBoard({
         <PlanModal
           aud={aud}
           now={now}
+          canSchedule={canSchedule}
           onClose={() => setPlanOpen(false)}
           onCreated={(ps) => ps.forEach(upsert)}
           notify={setNotice}
@@ -415,6 +599,32 @@ function AutoPublishStatus({
   drafts: number;
   failed: number;
 }) {
+  const counts = (
+    <span className="cal2-auto-counts">
+      {queued > 0 && <em>{queued} scheduled</em>}
+      {drafts > 0 && <em>{drafts} draft{drafts === 1 ? "" : "s"}</em>}
+      {failed > 0 && <em className="bad">{failed} failed</em>}
+    </span>
+  );
+  // The plan comes first: on a plan without scheduling, connection and cron
+  // state are not what stands between a draft and Instagram.
+  if (!publish.canSchedule) {
+    const pe = publish.planError;
+    return (
+      <div className="cal2-auto off">
+        <Info size={14} />
+        <span>
+          {pe?.error ?? "Scheduling and publishing is available on Starter."}{" "}
+          {pe && (
+            <Link href={pe.href} onClick={() => track("upgrade_clicked", { feature: "scheduling", from: "calendar" })}>
+              {pe.cta}
+            </Link>
+          )}
+        </span>
+        {counts}
+      </div>
+    );
+  }
   if (!connected) {
     return (
       <div className="cal2-auto off">
@@ -473,11 +683,7 @@ function AutoPublishStatus({
           </>
         )}
       </span>
-      <span className="cal2-auto-counts">
-        {queued > 0 && <em>{queued} scheduled</em>}
-        {drafts > 0 && <em>{drafts} draft{drafts === 1 ? "" : "s"}</em>}
-        {failed > 0 && <em className="bad">{failed} failed</em>}
-      </span>
+      {counts}
     </div>
   );
 }
@@ -555,7 +761,36 @@ function Toolbar({
   );
 }
 
-function PostCard({ p, onOpen }: { p: ScheduledPost; onOpen: (p: ScheduledPost) => void }) {
+function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platform[] | null; onOpen: (p: CalItem) => void }) {
+  if (ghost) {
+    // The same item, seen from a day where only some destinations publish.
+    return (
+      <button
+        type="button"
+        className="cal2-post cd-ghost"
+        onClick={() => onOpen(p)}
+        title={`Also publishes here: ${ghost.map((g) => PLATFORM_LABEL[g]).join(", ")}. Opens the post.`}
+      >
+        <span className="cal2-time">{fmtTime(at.toISOString())}</span>
+        <span className="cd-also">also <PlatformMarks platforms={ghost} /></span>
+        <span className="cal2-title">{firstLine(p.caption)}</span>
+      </button>
+    );
+  }
+  if (isMulti(p)) {
+    const err = failureLine(p.destinations);
+    return (
+      <button type="button" className={`cal2-post st-${p.status}`} onClick={() => onOpen(p)}>
+        <span className="cal2-time">{fmtTime(at.toISOString())}</span>
+        <span className="cal2-title">{firstLine(p.caption)}</span>
+        <span className="cal2-meta">
+          <Marks destinations={p.destinations} />
+          <DestinationChip destinations={p.destinations} />
+        </span>
+        {err && <span className="cal2-err">{err}</span>}
+      </button>
+    );
+  }
   return (
     <button type="button" className={`cal2-post st-${p.status}`} onClick={() => onOpen(p)}>
       <span className="cal2-time">{fmtTime(p.scheduled_at)}</span>
@@ -576,18 +811,21 @@ function WeekGrid({
   weekOffset,
   aud,
   items,
+  canSchedule,
   onOpen,
   onNew,
 }: {
   now: Date;
   weekOffset: number;
   aud: Audience;
-  items: ScheduledPost[];
-  onOpen: (p: ScheduledPost) => void;
+  items: CalItem[];
+  canSchedule: boolean;
+  onOpen: (p: CalItem) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
   const monday = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const placed = useMemo(() => placeItems(items), [items]);
 
   return (
     <div className="cal2-grid" key={weekOffset /* re-run entrance animation per week */}>
@@ -596,7 +834,7 @@ function WeekGrid({
         const isToday = sameDay(date, now);
         const isPast = date.getTime() < todayStart.getTime();
         const best = aud.bestDays.includes(i);
-        const dayEvents = items.filter((p) => sameDay(new Date(p.scheduled_at), date));
+        const dayEvents = placed.get(date.toDateString()) ?? [];
         const bars = aud.days[i];
         const bestHour = aud.bestHour(i);
         const strength = bars[bestHour] ?? 0;
@@ -627,14 +865,14 @@ function WeekGrid({
                 </div>
               )}
 
-              {dayEvents.map((p) => (
-                <PostCard p={p} key={p.id} onOpen={onOpen} />
+              {dayEvents.map((e) => (
+                <PostCard p={e.p} at={e.at} ghost={e.ghost} key={`${e.p.id}${e.ghost ? "-also" : ""}`} onOpen={onOpen} />
               ))}
 
               {!isPast && (
                 <button type="button" className="cal2-add" onClick={() => onNew(date, i)}>
                   <Plus size={14} />
-                  <span>{dayEvents.length ? "Add another" : "Schedule post"}</span>
+                  <span>{dayEvents.length ? "Add another" : canSchedule ? "Schedule post" : "Add post"}</span>
                 </button>
               )}
             </div>
@@ -673,26 +911,23 @@ function MonthGrid({
   monthOffset,
   aud,
   items,
+  canSchedule,
   onOpen,
   onNew,
 }: {
   now: Date;
   monthOffset: number;
   aud: Audience;
-  items: ScheduledPost[];
-  onOpen: (p: ScheduledPost) => void;
+  items: CalItem[];
+  canSchedule: boolean;
+  onOpen: (p: CalItem) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
 }) {
   const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   const lead = (first.getDay() + 6) % 7;
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  const eventByDate = new Map<string, ScheduledPost[]>();
-  for (const p of items) {
-    const k = new Date(p.scheduled_at).toDateString();
-    eventByDate.set(k, [...(eventByDate.get(k) ?? []), p]);
-  }
+  const eventByDate = useMemo(() => placeItems(items), [items]);
 
   const cells: (Date | null)[] = [
     ...Array.from({ length: lead }, () => null),
@@ -719,22 +954,40 @@ function MonthGrid({
           return (
             <div className={`cal2-mcell${best ? " best" : ""}${isPast ? " past" : ""}`} key={d.getTime()}>
               <span className={`cal2-mnum${sameDay(d, now) ? " today" : ""}`}>{d.getDate()}</span>
-              {evs.map((p) => (
-                <button
-                  type="button"
-                  className={`cal2-mevent st-${p.status}`}
-                  key={p.id}
-                  title={`${fmtTime(p.scheduled_at)} · ${firstLine(p.caption)} · ${STATUS_LABEL[p.status]}`}
-                  onClick={() => onOpen(p)}
-                >
-                  {firstLine(p.caption)}
-                </button>
-              ))}
+              {evs.map(({ p, at, ghost }) => {
+                const time = fmtTime(at.toISOString());
+                if (ghost) {
+                  return (
+                    <button
+                      type="button"
+                      className="cal2-mevent cd-ghost"
+                      key={`${p.id}-also`}
+                      title={`${time} · ${firstLine(p.caption)} · also ${ghost.map((g) => PLATFORM_LABEL[g]).join(", ")}`}
+                      onClick={() => onOpen(p)}
+                    >
+                      <PlatformMarks platforms={ghost} />also
+                    </button>
+                  );
+                }
+                const status = isMulti(p) ? summarize(p.destinations).line : STATUS_LABEL[p.status];
+                return (
+                  <button
+                    type="button"
+                    className={`cal2-mevent st-${p.status}`}
+                    key={p.id}
+                    title={`${time} · ${firstLine(p.caption)} · ${status}`}
+                    onClick={() => onOpen(p)}
+                  >
+                    {isMulti(p) && <Marks destinations={p.destinations} />}
+                    {firstLine(p.caption)}
+                  </button>
+                );
+              })}
               {!isPast && (
                 <button
                   type="button"
                   className="cal2-madd"
-                  aria-label={`Schedule a post on ${fmtDay(d)}`}
+                  aria-label={`${canSchedule ? "Schedule" : "Add"} a post on ${fmtDay(d)}`}
                   onClick={() => onNew(d, wd)}
                 >
                   <Plus size={11} />
@@ -789,6 +1042,8 @@ function Composer({
   initialCaption,
   userId,
   connected,
+  canSchedule: planCanSchedule,
+  planError: pagePlanError,
   onClose,
   onSaved,
   onRemoved,
@@ -799,6 +1054,8 @@ function Composer({
   initialCaption?: string;
   userId: string;
   connected: boolean;
+  canSchedule: boolean;
+  planError: PlanError | null;
   onClose: () => void;
   onSaved: (p: ScheduledPost) => void;
   onRemoved: (id: string) => void;
@@ -810,6 +1067,18 @@ function Composer({
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<"save" | "upload" | "publish" | "remove" | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // The server's answer wins over what the page knew at render time (a plan
+  // can change while the calendar is open).
+  const [serverPlanError, setServerPlanError] = useState<PlanError | null>(null);
+  const planError = serverPlanError ?? pagePlanError;
+  const canSchedule = planCanSchedule && !serverPlanError;
+  const requiredPlanName = planError?.requiredPlanName ?? "Starter";
+
+  const fail = (e: unknown, fallback: string) => {
+    const pe = planErrorOf(e);
+    if (pe) { setServerPlanError(pe); setErr(null); return; }
+    setErr(e instanceof Error ? e.message : fallback);
+  };
 
   const locked = post?.status === "published" || post?.status === "publishing";
   const hasMedia = Boolean(post?.media_url) || Boolean(file);
@@ -824,20 +1093,23 @@ function Composer({
   const persist = async (): Promise<ScheduledPost> => {
     const body = { scheduled_at: whenDate.toISOString(), caption, media_type: mediaType };
     let cur: ScheduledPost;
+    let plan: PlanReply["plan"];
     if (!post) {
-      cur = (await api<{ posts: ScheduledPost[] }>("POST", body)).posts[0];
+      const j = await api<{ posts: ScheduledPost[] } & PlanReply>("POST", body);
+      cur = j.posts[0];
+      plan = j.plan;
     } else {
-      cur = (await api<{ post: ScheduledPost }>("PATCH", { id: post.id, ...body })).post;
+      const j = await api<{ post: ScheduledPost } & PlanReply>("PATCH", { id: post.id, ...body });
+      cur = j.post;
+      plan = j.plan;
     }
+    if (plan && !plan.canSchedule && plan.error) setServerPlanError(plan.error);
     if (file) {
       setBusy("upload");
       const supabase = createClient();
       const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
       const path = `${userId}/${cur.id}/${Date.now()}_${safe}`;
-      const { error } = await supabase.storage
-        .from("scheduled-media")
-        .upload(path, file, { upsert: false, contentType: file.type || undefined });
-      if (error) throw new Error(`Upload failed: ${error.message}`);
+      await uploadMedia(supabase, "scheduled-media", path, file);
       const { data: pub } = supabase.storage.from("scheduled-media").getPublicUrl(path);
       if (cur.media_path) await supabase.storage.from("scheduled-media").remove([cur.media_path]);
       cur = (
@@ -854,14 +1126,17 @@ function Composer({
     setBusy("save");
     try {
       const cur = await persist();
+      const stillMissing = readiness(cur).missing;
       notify(
         cur.status === "scheduled"
           ? `Scheduled for ${fmtDay(cur.scheduled_at)} at ${fmtTime(cur.scheduled_at)}.`
-          : `Saved as a draft. It still needs ${readiness(cur).missing.join(" and ")} before it can go out.`
+          : stillMissing.length && canSchedule
+            ? `Saved as a draft. It still needs ${stillMissing.join(" and ")} before it can go out.`
+            : "Saved as a draft."
       );
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong.");
+      fail(e, "Something went wrong.");
     } finally {
       setBusy(null);
     }
@@ -881,7 +1156,7 @@ function Composer({
       else notify(j.post.error ?? "Instagram didn't publish the post.");
       onClose();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Something went wrong.");
+      fail(e, "Something went wrong.");
     } finally {
       setBusy(null);
     }
@@ -992,6 +1267,13 @@ function Composer({
       </label>
 
       {err && <p className="cal2-form-err">{err}</p>}
+      {!locked && !canSchedule && planError && (
+        <PlanNotice
+          error={planError}
+          compact
+          onCta={() => track("upgrade_clicked", { feature: "scheduling", from: "calendar_composer" })}
+        />
+      )}
 
       <div className="cal2-modal-actions">
         {post && !locked && (
@@ -1005,14 +1287,22 @@ function Composer({
             <button
               type="button"
               className="cal2-btn ghost"
-              disabled={busy !== null || !connected || !hasMedia}
-              title={!connected ? "Connect Instagram first" : !hasMedia ? "Attach a file first" : "Send this post to Instagram right now"}
+              disabled={busy !== null || !canSchedule || !connected || !hasMedia}
+              title={
+                !canSchedule
+                  ? `Publishing is available on ${requiredPlanName}`
+                  : !connected
+                    ? "Connect Instagram first"
+                    : !hasMedia
+                      ? "Attach a file first"
+                      : "Send this post to Instagram right now"
+              }
               onClick={publishNow}
             >
               {busy === "publish" ? <Loader2 size={13} className="cal2-spin" /> : null} Publish now
             </button>
             <button type="button" className="cal2-btn primary" disabled={busy !== null} onClick={save}>
-              {busyLabel ?? (missing.length === 0 ? "Schedule" : "Save draft")}
+              {busyLabel ?? (canSchedule && missing.length === 0 ? "Schedule" : "Save draft")}
             </button>
           </>
         )}
@@ -1022,7 +1312,7 @@ function Composer({
           </button>
         )}
       </div>
-      {!locked && missing.length > 0 && (
+      {!locked && canSchedule && missing.length > 0 && (
         <p className="cal2-hint center">Needs {missing.join(" and ")} to be scheduled.</p>
       )}
     </Modal>
@@ -1043,12 +1333,14 @@ type PlanRow = {
 function PlanModal({
   aud,
   now,
+  canSchedule,
   onClose,
   onCreated,
   notify,
 }: {
   aud: Audience;
   now: Date;
+  canSchedule: boolean;
   onClose: () => void;
   onCreated: (ps: ScheduledPost[]) => void;
   notify: (s: string) => void;
@@ -1189,8 +1481,8 @@ function PlanModal({
                 </small>
               )}
               <small className="cal2-hint">
-                Each post is created as a draft with the plan&apos;s hook and concept as its caption. Attach a video to
-                each one and it&apos;s scheduled.
+                Each post is created as a draft with the plan&apos;s hook and concept as its caption.
+                {canSchedule && <> Attach a video to each one and it&apos;s scheduled.</>}
               </small>
             </div>
           )}

@@ -8,6 +8,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2, RefreshCw, MessageCircle, Share2, ThumbsUp } from "lucide-react";
 import type { FbPost } from "@/lib/facebookSync";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
+import PlanNotice from "@/components/PlanNotice";
 
 const FB_LOGO = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" aria-hidden>
@@ -42,8 +44,9 @@ export default function FacebookConnect({
   syncedAt,
   pendingPages,
   posts = [],
+  paused = false,
 }: {
-  /** OAuth outcome from ?fb= (connected/denied/nopages/error/notconfigured/choose). */
+  /** OAuth outcome from ?fb= (connected/denied/nopages/noperm/error/notconfigured/choose/limit). */
   status?: string;
   /** connected | choose_page | expired | null (no connection row). */
   connectionStatus: string | null;
@@ -55,13 +58,17 @@ export default function FacebookConnect({
   pendingPages: FbPageOption[];
   /** The Page's latest posts as Meta returned them (reactions, comments, shares). */
   posts?: FbPost[];
+  /** The Page exists but is paused by a plan downgrade (not read, not counted). */
+  paused?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
 
   async function call(path: string, body?: unknown) {
     setErr(null);
+    setPlanError(null);
     try {
       const res = await fetch(path, {
         method: "POST",
@@ -70,6 +77,12 @@ export default function FacebookConnect({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
+        // A plan limit answers with a PlanError body; the card renders it in
+        // place with the right upgrade CTA instead of a bare error line.
+        if (isPlanError(j)) {
+          setPlanError(j);
+          return;
+        }
         throw new Error(j?.error || "Something went wrong — try again.");
       }
       router.refresh();
@@ -92,11 +105,14 @@ export default function FacebookConnect({
           : status === "error"
             ? "Something went wrong connecting Facebook. Please try again."
             : null;
+  // ?fb=limit is rendered once, by the page-level PlanNotice above the cards.
+  // The in-card PlanNotice below covers the fetch-based select route's 403,
+  // which has no page-level notice.
 
   const synced = ago(syncedAt);
-  const connected = connectionStatus === "connected" && pageName;
-  const choosing = connectionStatus === "choose_page" && pendingPages.length > 0;
-  const expired = connectionStatus === "expired";
+  const connected = connectionStatus === "connected" && pageName && !paused;
+  const choosing = connectionStatus === "choose_page" && pendingPages.length > 0 && !paused;
+  const expired = connectionStatus === "expired" && !paused;
 
   return (
     <div className="st2-ig">
@@ -120,6 +136,10 @@ export default function FacebookConnect({
               </small>
               {synced && <small className="st2-ig-sync">Synced {synced}</small>}
             </>
+          ) : paused ? (
+            <small className="st2-ig-off">
+              Paused by your plan{pageName ? <> ({pageName})</> : null}. Choose which accounts stay active in Plan &amp; billing.
+            </small>
           ) : expired ? (
             <small className="st2-ig-off">
               Facebook connection needs attention — the authorization expired.
@@ -131,7 +151,11 @@ export default function FacebookConnect({
           )}
         </div>
         <div className="st2-ig-actions">
-          {connected ? (
+          {paused ? (
+            <a className="st2-connect" href="#plan">
+              Plan &amp; billing <ArrowRight size={13} />
+            </a>
+          ) : connected ? (
             <>
               <button
                 className="st2-btn"
@@ -216,7 +240,7 @@ export default function FacebookConnect({
       )}
 
       {note && <p className="st2-ig-note">{note}</p>}
-      {err && <p className="st2-ig-note">{err}</p>}
+      {planError ? <PlanNotice error={planError} compact /> : err ? <p className="st2-ig-note">{err}</p> : null}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, RefreshCw, Loader2, ArrowRight, Sparkle } from "lucide-react";
+import PlanNotice from "@/components/PlanNotice";
+import { isPlanError, type PlanError } from "@/lib/planErrors";
 
 export type IntelState = {
   niche: string | null;
@@ -33,13 +35,19 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
   const router = useRouter();
   const [scanning, setScanning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
 
   async function rescan() {
     setScanning(true);
     setErr(null);
+    setPlanError(null);
     try {
       const res = await fetch("/api/analyze-account");
-      if (!res.ok) throw new Error("Rescan failed — try again in a minute.");
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        if (isPlanError(j)) { setPlanError(j); return; }
+        throw new Error(typeof j?.error === "string" ? j.error : "Rescan failed. Try again in a minute.");
+      }
       router.refresh();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Rescan failed.");
@@ -81,7 +89,7 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
             </p>
           ) : (
             <p className="st3-intel-niche">
-              Niche not detected yet — <Link href="/competitors#trends">run detection</Link>
+              Niche not detected yet. <Link href="/competitors#trends">Run detection</Link>
             </p>
           )}
           <div className="st3-intel-facts">
@@ -110,7 +118,8 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
           )}
         </button>
       </div>
-      {err && <p className="st2-err" style={{ marginTop: 8 }}>{err}</p>}
+      {planError && <div style={{ marginTop: 8 }}><PlanNotice error={planError} compact /></div>}
+      {err && !planError && <p className="st2-err" style={{ marginTop: 8 }}>{err}</p>}
 
       {intel.signals.length > 0 && (
         <div className="st3-signals">

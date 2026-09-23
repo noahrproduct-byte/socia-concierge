@@ -3,6 +3,7 @@ import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anth
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
+import { requireFeature } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -42,6 +43,10 @@ export async function POST(req: Request) {
     } catch { /* no cache */ }
   }
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
+
+  // A fresh concept is part of Niche intelligence; cached ones above stay free.
+  const g = await requireFeature(supabase, user.id, "niche_intelligence");
+  if (g.denied) return g.denied;
 
   const profile = await getProfile(supabase, user.id).catch(() => null);
   const ctx = [

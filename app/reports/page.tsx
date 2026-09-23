@@ -18,8 +18,18 @@ import {
   type Metric,
 } from "@/lib/dashboardMetrics";
 import { engagementOf } from "@/lib/metrics";
+import { clampRangeId, rangeDays } from "@/lib/overview";
+import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { PLANS, minPlanWithLimit, pricingHref } from "@/lib/plans";
+import "@/components/planRange.css";
 
 export const metadata = { title: "Reports — SOCIA" };
+
+const REPORT_RANGES = [
+  { id: "7", label: "7D", days: 7 },
+  { id: "30", label: "30D", days: 30 },
+  { id: "90", label: "90D", days: 90 },
+] as const;
 
 function Row({ label, m, format }: { label: string; m: Metric; format?: (v: number) => string }) {
   return (
@@ -53,9 +63,16 @@ export default async function ReportsPage({
   if (!user) redirect("/login");
 
   const { range } = await searchParams;
-  const days = range === "7" ? 7 : range === "90" ? 90 : 30;
-
-  const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+  const [snap, ent] = await Promise.all([
+    getIgSnapshot(supabase, user.id).catch(() => null),
+    getEntitlements(supabase, user.id),
+  ]);
+  // History is limited per plan here, on the server: a ?range= beyond the
+  // plan's window is served as the longest range the plan includes.
+  const maxDays = maxHistoryDays(ent);
+  const requestedId = REPORT_RANGES.some((r) => r.id === range) ? (range as string) : "30";
+  const rangeId: string = clampRangeId(requestedId, maxDays);
+  const days = rangeDays(rangeId);
   let daily: DailySnapshot[] = [];
   try {
     daily = await readDailySnapshots<DailySnapshot>(
@@ -91,15 +108,24 @@ export default async function ReportsPage({
         actions={
           <>
             <div className="ov-seg" role="group" aria-label="Date range">
-              {[
-                { id: "7", label: "7D" },
-                { id: "30", label: "30D" },
-                { id: "90", label: "90D" },
-              ].map((r) => (
-                <Link key={r.id} href={`/reports?range=${r.id}`} className={String(days) === r.id ? "on" : ""}>
-                  {r.label}
-                </Link>
-              ))}
+              {REPORT_RANGES.map((r) => {
+                if (r.days > maxDays) {
+                  // Locked on this plan: shown, not navigable, and honest about where it lives.
+                  const required = minPlanWithLimit("analytics_history_days", r.days);
+                  const planName = required ? PLANS[required].name : "a custom plan";
+                  return (
+                    <span key={r.id} className="range-locked" aria-disabled="true" title={`${r.days} days is available on ${planName}`}>
+                      {r.label}
+                      <Link href={pricingHref(required)}>{planName}</Link>
+                    </span>
+                  );
+                }
+                return (
+                  <Link key={r.id} href={`/reports?range=${r.id}`} className={rangeId === r.id ? "on" : ""}>
+                    {r.label}
+                  </Link>
+                );
+              })}
             </div>
             <a className="ov-btn ghost" href="/api/export">
               <Download size={14} /> Export data (JSON)

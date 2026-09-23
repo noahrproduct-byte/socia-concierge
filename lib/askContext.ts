@@ -16,6 +16,7 @@ import { followerPoints, summarizeFollowers } from "./followers";
 import { buildGaps } from "./gaps";
 import { postCards, buildKpis, buildSeries, buildInsights, bucketize, bucketTitle, detectOutliers, displayTitle, formatOf, rangeDays, fmtNum, type PostCard } from "./overview";
 import { competitorsBlock } from "./planEvidence";
+import { listTracked } from "./trackedCompetitors";
 import type { SavedPlan } from "./schema";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -141,7 +142,7 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     let tracked: { platform: string; handle: string }[] = [];
     let winning: { platform: string; account_name: string | null; title: string | null; views: number | null; likes: number | null; comments: number | null; multiplier: number | null; trend_tags: string[] | null; why_recommended: string | null; published_at: string | null }[] = [];
     try { const { data } = await supabase.from("discovered_accounts").select("platform, platform_account_id, handle, display_name, followers, location, category, classification, relevance_score").eq("user_id", userId).order("relevance_score", { ascending: false, nullsFirst: false }).limit(12); accounts = data ?? []; } catch { /* none */ }
-    try { const { data } = await supabase.from("tracked_competitors").select("platform, handle").eq("user_id", userId).limit(20); tracked = data ?? []; } catch { /* none */ }
+    try { tracked = await listTracked<{ platform: string; handle: string }>(supabase, userId, "platform, handle", { limit: 20 }); } catch { /* none */ }
     try { const { data } = await supabase.from("discovered_content").select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at").eq("user_id", userId).order("multiplier", { ascending: false, nullsFirst: false }).limit(30); winning = data ?? []; } catch { /* none */ }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const block = competitorsBlock(accounts as any, tracked as any, winning as any);
