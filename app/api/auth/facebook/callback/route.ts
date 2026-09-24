@@ -106,7 +106,13 @@ export async function GET(req: Request) {
       } catch {
         /* fall through to the generic message */
       }
-      return done(granted.length && !granted.includes("pages_show_list") ? "noperm" : "nopages");
+      // Diagnostic: /me/accounts returned no Pages. Surface what Facebook
+      // actually granted so a missing pages_show_list in the login
+      // configuration is distinguishable from an account with no Page. Names
+      // only, no tokens. Remove once the connect path is confirmed.
+      console.error("[fb connect] no pages returned. granted=", granted, " accountsRaw=", JSON.stringify(pagesJson).slice(0, 400));
+      const reason = granted.length && !granted.includes("pages_show_list") ? "noperm" : "nopages";
+      return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(granted.join(",") || "none")}`);
     }
 
     // Plan gate, server-side, before anything is written. A Page's identity is
