@@ -31,12 +31,26 @@ export type AllAccounts = {
   audiencePlatforms: string[];
 };
 
-export function aggregateAccounts(accounts: NormalizedAccountAnalytics[]): AllAccounts {
+export function aggregateAccounts(accounts: NormalizedAccountAnalytics[], rangeDays?: number, now: Date = new Date()): AllAccounts {
   const totals: Partial<Record<MetricKey, number | null>> = {};
   for (const k of ADDITIVE) {
     if (!isCrossPlatformAdditive(k)) continue;
-    const vals = accounts.map((a) => a.kpis[k]?.value ?? null).filter((v): v is number => v != null);
+    if (k === "posts") continue; // period-consistent count computed below, not summed from mixed KPIs
+    // A metric's period total may live on the KPI (views) or only on the series
+    // (Instagram engagement). Prefer the KPI, fall back to the series total.
+    const vals = accounts.map((a) => a.kpis[k]?.value ?? a.series[k]?.total ?? null).filter((v): v is number => v != null);
     totals[k] = vals.length ? vals.reduce((s, v) => s + v, 0) : null;
+  }
+  // Content published in the period, counted from each account's own posts so
+  // platforms with different "posts" semantics (YouTube's KPI is lifetime video
+  // count) are never mixed into one period total.
+  if (rangeDays != null) {
+    const since = now.getTime() - rangeDays * 86400000;
+    const inRange = accounts.reduce((s, a) => s + a.posts.filter((p) => p.publishedAt && new Date(p.publishedAt).getTime() >= since).length, 0);
+    totals.posts = inRange;
+  } else {
+    const vals = accounts.map((a) => a.kpis.posts?.value ?? null).filter((v): v is number => v != null);
+    totals.posts = vals.length ? vals.reduce((s, v) => s + v, 0) : null;
   }
   // Combined audience — the sum of followers/subscribers, explicitly not unique.
   const aud = accounts.map((a) => a.kpis.followers?.value ?? null).filter((v): v is number => v != null);
