@@ -9,11 +9,12 @@
 import type { FbPost, FbSnapshot } from "../../facebookSync";
 import { platformCapability } from "../capabilities";
 import { computeBaselines, multiplierFor } from "../baseline";
+import { snapshotSeries } from "../derive";
 import { facebookFormat } from "../format";
 import { displayTitle } from "../../overview";
 import type { Metric, NormalizedAccountAnalytics, NormalizedPost } from "../types";
 
-export type FacebookAdapterInput = { snap: FbSnapshot; days: number; now?: Date };
+export type FacebookAdapterInput = { snap: FbSnapshot; days: number; now?: Date; history?: { day: string; followers: number | null }[] };
 
 function knownSum(parts: (number | null | undefined)[]): number | null {
   const known = parts.filter((x): x is number => x != null);
@@ -94,9 +95,15 @@ export function adaptFacebook(input: FacebookAdapterInput): NormalizedAccountAna
       syncedAt: snap.last_synced_at,
     },
     kpis,
-    // No daily series: Facebook exposes none, and SOCIA hasn't recorded follower
-    // history for it yet. Empty is correct here — never a fabricated line.
-    series: {},
+    // Facebook exposes no daily series; the only series it can have is the
+    // follower history SOCIA records itself, once enough days exist.
+    series: (() => {
+      if (input.history?.length) {
+        const fs = snapshotSeries(input.history.map((h) => ({ day: h.day, value: h.followers })), days, now, "followers", "Followers", "Followers, recorded daily by SOCIA from connect onward.");
+        if (fs.trueSeries) return { followers: fs };
+      }
+      return {};
+    })(),
     posts,
     demographics: { status: "unavailable", reason: "Facebook doesn't provide audience demographics on these permissions.", basis: "", dimensions: {} },
     baseline: baselines,

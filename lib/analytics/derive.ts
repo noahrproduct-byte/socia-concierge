@@ -6,7 +6,22 @@
 import { median } from "../metrics";
 import { buildWindows, type TimedPost, type Windows } from "../postingTimes";
 import { formatLabel, formatLabelPlural } from "./format";
-import type { ContentFormat, MetricKey, NormalizedPost } from "./types";
+import type { ContentFormat, MetricKey, NormalizedSeries, NormalizedPost, SeriesPoint } from "./types";
+
+const DAY_MS = 86400000;
+
+/** Build a level (line) series from SOCIA-recorded daily snapshots — the
+ *  follower/subscriber history for platforms that don't provide one. A day with
+ *  no snapshot is a gap (null), never 0; the total is the most recent level. */
+export function snapshotSeries(history: { day: string; value: number | null }[], days: number, now: Date, metric: MetricKey, label: string, note: string): NormalizedSeries {
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const dayKeys = Array.from({ length: days }, (_, i) => new Date(end.getTime() - (days - i) * DAY_MS).toISOString().slice(0, 10));
+  const map = new Map(history.filter((h) => h.value != null).map((h) => [h.day, h.value as number]));
+  const current: SeriesPoint[] = dayKeys.map((d) => ({ day: d, value: map.get(d) ?? null, postIds: [] }));
+  const has = current.some((p) => p.value != null);
+  const last = (pts: SeriesPoint[]): number | null => { for (let i = pts.length - 1; i >= 0; i--) if (pts[i].value != null) return pts[i].value; return null; };
+  return { metric, label, unit: "count", provenance: has ? "snapshot" : "unavailable", trueSeries: has, render: "line", note, current, previous: [], total: last(current), prevTotal: null };
+}
 
 /** Which metric a content breakdown should use: views when every post has one,
  *  otherwise engagement (the same honest fallback the IG page uses). */

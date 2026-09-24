@@ -200,3 +200,22 @@ describe("Instagram adapter", () => {
     expect(n.posts.every((p) => p.multiplier === null)).toBe(true);
   });
 });
+
+describe("snapshot history → follower/subscriber series", () => {
+  const fbSnap: FbSnapshot = {
+    page_id: "123", page_name: "Salvo's", username: "salvos", followers_count: 800, picture_url: null,
+    posts: [], last_synced_at: NOW.toISOString(), status: "connected",
+    capabilities: { followers: true, reactions: true, comments: true, shares: true, posts: true, views: false },
+  };
+  it("builds a Facebook follower history line from recorded snapshots", () => {
+    const history = [{ day: "2026-09-22", followers: 790 }, { day: "2026-09-23", followers: 800 }];
+    const n = adaptFacebook({ snap: fbSnap, days: 30, now: NOW, history });
+    expect(n.series.followers?.trueSeries).toBe(true);
+    expect(n.series.followers?.provenance).toBe("snapshot");
+    expect(n.series.followers?.total).toBe(800); // most recent level
+  });
+  it("no follower series until history exists", () => {
+    const n = adaptFacebook({ snap: fbSnap, days: 30, now: NOW });
+    expect(n.series.followers).toBeUndefined();
+  });
+});

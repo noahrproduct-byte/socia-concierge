@@ -9,6 +9,7 @@ import type { YouTubeAnalytics, YtDaily } from "../../youtubeData";
 import type { YtVideo } from "../../youtube";
 import { platformCapability } from "../capabilities";
 import { computeBaselines, multiplierFor } from "../baseline";
+import { snapshotSeries } from "../derive";
 import { youtubeFormat } from "../format";
 import type {
   Metric,
@@ -18,7 +19,7 @@ import type {
   SeriesPoint,
 } from "../types";
 
-export type YouTubeAdapterInput = { data: YouTubeAnalytics; days: number };
+export type YouTubeAdapterInput = { data: YouTubeAnalytics; days: number; history?: { day: string; followers: number | null }[]; now?: Date };
 
 function knownSum(parts: (number | null | undefined)[]): number | null {
   const known = parts.filter((x): x is number => x != null);
@@ -101,6 +102,13 @@ export function adaptYouTube(input: YouTubeAdapterInput): NormalizedAccountAnaly
     : {
         views: { metric: "views", label: "Views", unit: "count", provenance: "unavailable", trueSeries: false, render: "bar", note: emptyNote, current: [], previous: [], total: null, prevTotal: null },
       };
+
+  // Subscriber history from SOCIA's own daily snapshots (YouTube gives no level
+  // series), once enough days have been recorded.
+  if (input.history?.length) {
+    const fs = snapshotSeries(input.history.map((h) => ({ day: h.day, value: h.followers })), input.days, input.now ?? new Date(), "followers", "Subscribers", "Subscribers, recorded daily by SOCIA from connect onward.");
+    if (fs.trueSeries) series.followers = fs;
+  }
 
   // ---- KPIs ----
   const kpis: NormalizedAccountAnalytics["kpis"] = {

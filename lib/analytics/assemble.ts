@@ -13,6 +13,7 @@ import type { DailySnapshot } from "../dashboardMetrics";
 import { fetchDemographics, type Demographics } from "../igDemographics";
 import { getFbSnapshot } from "../facebookSync";
 import { getYouTubeAnalytics } from "../youtubeData";
+import { readPlatformSnapshots, recordPlatformSnapshot } from "../platformSnapshot";
 import { adaptFacebook, adaptInstagram, adaptYouTube } from "./adapters";
 import type { NormalizedAccountAnalytics, Platform } from "./types";
 
@@ -41,6 +42,8 @@ export async function assembleAnalytics(
 
   const accounts: NormalizedAccountAnalytics[] = [];
   const connected: Platform[] = [];
+  const day = now.toISOString().slice(0, 10);
+  const sinceDay = new Date(now.getTime() - days * 86400000).toISOString().slice(0, 10);
 
   // Instagram — needs its daily snapshot rows and (for demographics) the token.
   if (snap && snap.followers_count != null) {
@@ -55,14 +58,22 @@ export async function assembleAnalytics(
   }
 
   // YouTube — the analytics reader already returns the live bundle or null.
+  // Record today's subscriber/view level so a real history builds over time,
+  // and read prior days back for the subscriber-history series.
   if (yt) {
-    accounts.push(adaptYouTube({ data: yt, days }));
+    const accountId = yt.channel.handle ?? "";
+    await recordPlatformSnapshot(supabase, userId, "youtube", accountId, day, { followers: yt.channel.subscribers, views: yt.channel.totalViews });
+    const history = await readPlatformSnapshots(supabase, userId, "youtube", accountId, sinceDay);
+    accounts.push(adaptYouTube({ data: yt, days, history, now }));
     connected.push("youtube");
   }
 
   // Facebook — only when a Page is actually connected (not choosing/expired).
   if (fb && fb.status === "connected") {
-    accounts.push(adaptFacebook({ snap: fb, days, now }));
+    const accountId = fb.page_id ?? "";
+    await recordPlatformSnapshot(supabase, userId, "facebook", accountId, day, { followers: fb.followers_count });
+    const history = await readPlatformSnapshots(supabase, userId, "facebook", accountId, sinceDay);
+    accounts.push(adaptFacebook({ snap: fb, days, now, history }));
     connected.push("facebook");
   }
 
