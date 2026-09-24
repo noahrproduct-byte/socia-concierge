@@ -43,7 +43,11 @@
 .cp-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .cp-section-head h2 { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: var(--text-primary); }
 .cp-section-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
-.cp-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--primary-subtle); color: var(--primary-text); font-size: 12px; font-weight: 700; }
+.cp-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; background: var(--surface-muted); color: var(--text-secondary); font-size: 12px; font-weight: 700; transition: background var(--dur) var(--ease-out), color var(--dur) var(--ease-out); }
+.cp-section.is-active .cp-num { background: var(--primary-subtle); color: var(--primary-text); }
+.cp-num.done { background: var(--success-subtle); color: var(--success-text); }
+.cp-num-check { animation: cp-check var(--dur) var(--ease-spring); }
+@keyframes cp-check { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* Platform marks */
 .cp-mark { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 9px; font-weight: 750; letter-spacing: 0.02em; color: var(--text-secondary); background: var(--surface-muted); border: 1px solid var(--border); }
@@ -97,6 +101,17 @@
 .cp-icon-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text-primary); }
 .cp-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .cp-icon-btn.danger:hover:not(:disabled) { color: var(--danger-text); border-color: rgba(var(--danger-rgb), 0.4); }
+.cp-compat { animation: cp-rise var(--dur) var(--ease-out); }
+.cp-compat-head { font-size: 10.5px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; }
+.cp-compat ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.cp-compat-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); min-width: 0; }
+.cp-compat-name { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-compat-status { display: inline-flex; align-items: center; gap: 4px; flex: none; font-size: 11.5px; font-weight: 650; }
+.cp-compat-ready .cp-compat-status { color: var(--success-text); }
+.cp-compat-warning { border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }
+.cp-compat-warning .cp-compat-status { color: var(--warning-text); }
+.cp-compat-blocked { border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
+.cp-compat-blocked .cp-compat-status { color: var(--danger-text); }
 .cp-issues { display: flex; flex-direction: column; gap: 8px; }
 .cp-issue-group { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; background: var(--surface-muted); }
 .cp-issue-label { font-size: 11.5px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
@@ -232,4 +247,61 @@
   .cp-head .cal2-seg { flex: 1; }
   .cp-head .cal2-seg button { flex: 1; }
   .cp-section { padding: 14px; }
+}
+
+/* =========================================================================
+   Polish layer: surface depth, living progress, the command panel, and
+   microinteractions. Three surface levels (app bg < working section < active /
+   command), motion from the shared tokens, all reduced-motion aware.
+   ========================================================================= */
+
+/* Left sections read as one journey: the working level recedes, the active step
+   lifts with a restrained accent edge, completed steps quiet down. */
+.cp-section { transition: border-color var(--dur) var(--ease-out), background var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out); }
+.cp-section.is-active { border-color: rgba(var(--primary-rgb), 0.35); background: var(--surface-elevated); box-shadow: inset 3px 0 0 var(--accent), 0 1px 2px rgba(var(--shadow-rgb), 0.05); }
+.cp-section.is-done { background: color-mix(in srgb, var(--surface) 60%, var(--background)); border-color: var(--border); }
+.cp-section.is-done .cp-section-head h2 { color: var(--text-secondary); }
+
+/* The right rail is one command centre: children keep their headings, the panel
+   owns the surface and the dividers between them. */
+.cp-command { display: flex; flex-direction: column; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 16px; overflow: clip; box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.04); }
+.cp-command > .ov-card { border: none; border-radius: 0; background: transparent; box-shadow: none; }
+.cp-command > .ov-card + .ov-card { border-top: 1px solid var(--border); margin-top: 0; }
+.cp-command > .pn { margin: 0 14px 14px; }
+.cp-command.cp-inline-rail { gap: 0; }
+
+/* Destination rows become premium selectable cards. */
+.cp-dest-row { transition: border-color var(--dur) var(--ease-out), background var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.cp-dest-row:not(.disabled):active { transform: scale(0.994); }
+.cp-dest-row.on { box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.05); }
+.cp-dest-row.on .cp-mark { border-color: rgba(var(--primary-rgb), 0.3); }
+.cp-check { transition: transform var(--dur) var(--ease-spring); }
+.cp-dest-row.on .cp-check { transform: scale(1.08); }
+
+/* Compact "publishing to" summary of the selected destinations. */
+.cp-dest-summary { display: flex; align-items: center; gap: 10px; padding: 4px 2px 2px; }
+.cp-dest-summary-marks { display: inline-flex; }
+.cp-dest-summary-marks > * { margin-left: -6px; box-shadow: 0 0 0 2px var(--surface); border-radius: 9px; }
+.cp-dest-summary-marks > *:first-child { margin-left: 0; }
+.cp-dest-summary-count { font-size: 12px; font-weight: 650; color: var(--text-secondary); }
+
+/* Buttons and actions: restrained press + consistent hover. */
+.cp-action, .cp-icon-btn, .cp-use, .cp-tab, .cp-radio { transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.cp-action:active:not(:disabled), .cp-icon-btn:active:not(:disabled), .cp-use:active:not(:disabled) { transform: scale(0.97); }
+.cp-tab.on { transition: color var(--dur) var(--ease-out); }
+
+/* Media and suggestions enter softly rather than popping in. */
+.cp-media-card, .cp-suggest, .cp-issues { animation: cp-rise var(--dur) var(--ease-out); }
+.cp-suggest-item { animation: cp-rise var(--dur) var(--ease-out) both; }
+@keyframes cp-rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.cp-drop { transition: border-color var(--dur) var(--ease-out), background var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.cp-drop.over { transform: scale(1.005); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-num, .cp-num-check, .cp-section, .cp-dest-row, .cp-check, .cp-action, .cp-icon-btn,
+  .cp-use, .cp-tab, .cp-radio, .cp-media-card, .cp-suggest, .cp-suggest-item, .cp-issues, .cp-compat, .cp-drop {
+    animation: none;
+    transition-duration: 0.01ms;
+  }
+  .cp-dest-row:active, .cp-drop.over, .cp-action:active, .cp-icon-btn:active, .cp-use:active { transform: none; }
 }

@@ -5,10 +5,10 @@
 // rail its props. Desktop is two columns, tablet one, phone a five-step flow.
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import PlanNotice from "@/components/PlanNotice";
 import { PreviewRail, ReadinessPanel, PrePublishCheck, SchedulingPanel, ReviewPublish, PublishingStatus } from "@/components/composer/rail";
-import { enabledDestinations, type DraftDestination } from "@/lib/publishing/composer";
+import { enabledDestinations, readinessFor, type DraftDestination } from "@/lib/publishing/composer";
 import { PLATFORM_LABEL, type DestinationSettings } from "@/lib/publishing/types";
 import { byteLength, formatIdFor } from "@/lib/publishing/validate";
 import { formatSpec } from "@/lib/publishing/capabilities";
@@ -62,6 +62,18 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
   const activeDest: DraftDestination | null = tab === GENERAL_TAB ? null : draft.destinations.find((d) => d.key === tab) ?? null;
   const enabled = enabledDestinations(draft);
   const tracking = submission.phase === "tracking" || submission.phase === "done";
+
+  // Living progress: each left section reports done, and the first not-done one
+  // is active. The head shows a check instead of a number and the active card
+  // gets a restrained accent. Deterministic; nothing here scrolls the user.
+  const sectionDone = [
+    enabled.length > 0,
+    draft.media.length > 0 && draft.media.every((m) => m.url),
+    draft.masterCaption.trim().length > 0,
+    enabled.length > 0 && enabled.every((d) => readinessFor(draft, d, accounts).level !== "blocked"),
+  ];
+  const activeSection = sectionDone.findIndex((d) => !d);
+  const secState = (i: number): SecState => (sectionDone[i] ? "done" : i === activeSection ? "active" : "todo");
 
   // Focus requests from the rail: switch tab / step, then focus the field.
   useEffect(() => {
@@ -142,22 +154,22 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
   }
 
   // ---- sections -----------------------------------------------------------------
-  const sectionDestinations = (n: number | null) => (
-    <section className="ov-card cp-section" aria-labelledby="cp-s1">
-      <SectionHead n={n} id="cp-s1" title="Post to" sub="Only accounts SOCIA can publish to right now have a checkbox." />
+  const sectionDestinations = (n: number | null, st: SecState = "todo") => (
+    <section className={secClass(st)} aria-labelledby="cp-s1">
+      <SectionHead n={n} st={st} id="cp-s1" title="Post to" sub="Only accounts SOCIA can publish to right now have a checkbox." />
       <DestinationPicker draft={draft} accounts={accounts} accountsComplete={accountsComplete} dispatch={dispatch} />
     </section>
   );
-  const sectionMedia = (n: number | null) => (
-    <section className="ov-card cp-section" aria-labelledby="cp-s2">
-      <SectionHead n={n} id="cp-s2" title="Add media" sub="Measured in your browser; anything not measured is checked at upload." />
+  const sectionMedia = (n: number | null, st: SecState = "todo") => (
+    <section className={secClass(st)} aria-labelledby="cp-s2">
+      <SectionHead n={n} st={st} id="cp-s2" title="Add media" sub="Measured in your browser; anything not measured is checked at upload." />
       <MediaSection draft={draft} accounts={accounts} dispatch={dispatch} userId={userId} registerFile={c.registerFile} fileFor={c.fileFor} ensurePostId={c.ensurePostId} />
     </section>
   );
-  const sectionContent = (n: number | null) => (
-    <section className="ov-card cp-section" aria-labelledby="cp-s3">
+  const sectionContent = (n: number | null, st: SecState = "todo") => (
+    <section className={secClass(st)} aria-labelledby="cp-s3">
       <SectionHead
-        n={n} id="cp-s3" title="Write your content"
+        n={n} st={st} id="cp-s3" title="Write your content"
         right={
           !quick && (
             <label className="cp-switch">
@@ -175,9 +187,9 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
       )}
     </section>
   );
-  const sectionSettings = (n: number | null) => (
-    <section className="ov-card cp-section" aria-labelledby="cp-s4">
-      <SectionHead n={n} id="cp-s4" title="Platform settings" sub={activeDest ? `${PLATFORM_LABEL[activeDest.platform]}${accountFor(activeDest, accounts)?.label ? ` · ${accountFor(activeDest, accounts)!.label}` : ""}` : undefined} />
+  const sectionSettings = (n: number | null, st: SecState = "todo") => (
+    <section className={secClass(st)} aria-labelledby="cp-s4">
+      <SectionHead n={n} st={st} id="cp-s4" title="Platform settings" sub={activeDest ? `${PLATFORM_LABEL[activeDest.platform]}${accountFor(activeDest, accounts)?.label ? ` · ${accountFor(activeDest, accounts)!.label}` : ""}` : undefined} />
       {activeDest ? (
         activeDest.platform === "instagram" ? <InstagramSettingsForm dest={activeDest} draft={draft} dispatch={dispatch} fileFor={c.fileFor} />
         : activeDest.platform === "youtube" ? <YouTubeSettingsForm dest={activeDest} draft={draft} dispatch={dispatch} />
@@ -200,15 +212,19 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
 
   const status = <PublishingStatus {...rail} onNew={c.startNew} />;
   const reviewCard = <ReviewPublish {...rail} accountsComplete={accountsComplete} />;
-  const railFull = tracking ? status : (
-    <>
+  // The rail is one command panel, not five detached cards: the children keep
+  // their own headings but the panel supplies the surface and internal dividers.
+  const railFull = tracking ? (
+    <div className="cp-command cp-command-live">{status}</div>
+  ) : (
+    <div className="cp-command">
       <PreviewRail {...rail} />
       <ReadinessPanel {...rail} />
       <PrePublishCheck {...rail} />
       {planLine}
       <SchedulingPanel {...rail} />
       {reviewCard}
-    </>
+    </div>
   );
 
   // ---- quick mode ---------------------------------------------------------------
@@ -222,7 +238,7 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
             {sectionDestinations(null)}
             {sectionMedia(null)}
             {sectionContent(null)}
-            <div className="cp-inline-rail">
+            <div className="cp-command cp-inline-rail">
               {planLine}
               <SchedulingPanel {...rail} />
               {reviewCard}
@@ -277,10 +293,10 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
       {restoreBar}
       <div className="cp-grid">
         <div className="cp-main">
-          {sectionDestinations(1)}
-          {sectionMedia(2)}
-          {sectionContent(3)}
-          {sectionSettings(4)}
+          {sectionDestinations(1, secState(0))}
+          {sectionMedia(2, secState(1))}
+          {sectionContent(3, secState(2))}
+          {sectionSettings(4, secState(3))}
         </div>
         <aside className="cp-rail">{railFull}</aside>
       </div>
@@ -290,11 +306,25 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
 
 // ---------------------------------------------------------------------------
 
-function SectionHead({ n, id, title, sub, right }: { n: number | null; id: string; title: string; sub?: string; right?: React.ReactNode }) {
+type SecState = "todo" | "active" | "done";
+
+/** Section surface + progress state class. Active and done get the accent/recede treatment in composer.css. */
+function secClass(st: SecState): string {
+  return `ov-card cp-section${st === "active" ? " is-active" : st === "done" ? " is-done" : ""}`;
+}
+
+function SectionHead({ n, st = "todo", id, title, sub, right }: { n: number | null; st?: SecState; id: string; title: string; sub?: string; right?: React.ReactNode }) {
   return (
     <div className="cp-section-head">
       <div>
-        <h2 id={id}>{n != null && <span className="cp-num">{n}</span>}{title}</h2>
+        <h2 id={id}>
+          {n != null && (
+            <span className={`cp-num${st === "done" ? " done" : ""}`} aria-hidden>
+              {st === "done" ? <Check size={13} strokeWidth={3} className="cp-num-check" /> : n}
+            </span>
+          )}
+          {title}
+        </h2>
         {sub && <p className="cp-section-sub">{sub}</p>}
       </div>
       {right}

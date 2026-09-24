@@ -19,7 +19,12 @@
 
 export const FB_GRAPH_V = "v23.0";
 
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "instagram_basic"].join(",");
+// business_management lets the callback read Pages that live in a Business
+// Portfolio / New Pages Experience, which do NOT come back from /me/accounts
+// even for a direct Page admin. Needs Advanced Access for public users (App
+// Review); works now for app admins/testers. See the /me/businesses fallback
+// in the callback.
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "instagram_basic", "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

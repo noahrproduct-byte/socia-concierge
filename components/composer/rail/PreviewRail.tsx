@@ -135,11 +135,14 @@ export default function PreviewRail({ draft, accounts }: RailProps) {
               })}
             </div>
           )}
-          {active.platform === "instagram" ? (
-            <InstagramPreview d={active} draft={draft} account={accountFor(active, accounts)} />
-          ) : (
-            <YouTubePreview d={active} draft={draft} account={accountFor(active, accounts)} />
-          )}
+          {/* Keyed so switching platform remounts the frame and the crossfade fires. */}
+          <div key={active.key} className="cr-preview-stage">
+            {active.platform === "instagram" ? (
+              <InstagramPreview d={active} draft={draft} account={accountFor(active, accounts)} />
+            ) : (
+              <YouTubePreview d={active} draft={draft} account={accountFor(active, accounts)} />
+            )}
+          </div>
           <small className="cr-note">Preview is approximate; each platform renders differently.</small>
         </>
       )}

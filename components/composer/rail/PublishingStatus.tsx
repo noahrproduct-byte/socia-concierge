@@ -143,6 +143,17 @@ export default function PublishingStatus({ accounts, submission, onRetry, onEdit
         </ul>
       )}
 
+      {!inFlight && summary.published > 0 && (
+        <div className="cr-lifecycle" role="status">
+          <div className="cr-life-track" aria-hidden>
+            <span className="cr-life-step done">Published</span>
+            <span className="cr-life-line" />
+            <span className="cr-life-step pending">Learning</span>
+          </div>
+          <p>SOCIA measures this against your account median once its analytics arrive, then it feeds back into your Content Plan.</p>
+        </div>
+      )}
+
       {!inFlight && (
         <div className="cr-status-nav">
           <Link href="/calendar" className="btn-secondary">Back to calendar</Link>

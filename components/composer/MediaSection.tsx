@@ -8,7 +8,7 @@
 // are owned and revoked by useComposer, which outlives this section.
 
 import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
-import { ArrowDown, ArrowUp, Loader2, RefreshCw, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Check, Loader2, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { CAPABILITIES, formatSpec } from "@/lib/publishing/capabilities";
@@ -16,7 +16,7 @@ import { enabledDestinations, readinessFor, suggestInstagramFormat, type Compose
 import { PLATFORM_LABEL, type InstagramSettings, type MediaItem, type Platform } from "@/lib/publishing/types";
 import { aspectLabel, fmtBytes, fmtDuration, measure, type MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
 import type { ComposerAction } from "./contracts";
-import { accountFor } from "./DestinationPicker";
+import { accountFor, PlatformMark } from "./DestinationPicker";
 
 const BUCKET = "scheduled-media";
 
@@ -160,12 +160,18 @@ export default function MediaSection({
     void addFiles(ok);
   };
 
-  // Media-related readiness per enabled destination.
-  const issues = enabledDestinations(draft).map((d) => ({
-    key: d.key,
-    label: `${PLATFORM_LABEL[d.platform]}${accountFor(d, accounts)?.handle ? ` · @${accountFor(d, accounts)!.handle!.replace(/^@/, "")}` : ""}`,
-    items: readinessFor(draft, d, accounts).issues.filter((i) => i.code.startsWith("media_")),
-  })).filter((g) => g.items.length);
+  // Media-only readiness per enabled destination: a compatibility summary plus
+  // the detailed reasons. Level is deterministic from the media_* issues.
+  const compat = enabledDestinations(draft).map((d) => {
+    const items = readinessFor(draft, d, accounts).issues.filter((i) => i.code.startsWith("media_"));
+    const level: "ready" | "warning" | "blocked" = items.some((i) => i.severity === "block") ? "blocked" : items.length ? "warning" : "ready";
+    return {
+      key: d.key, platform: d.platform, level, items,
+      label: `${PLATFORM_LABEL[d.platform]}${accountFor(d, accounts)?.handle ? ` · @${accountFor(d, accounts)!.handle!.replace(/^@/, "")}` : ""}`,
+    };
+  });
+  const issues = compat.filter((g) => g.items.length);
+  const COMPAT_LABEL = { ready: "Ready", warning: "Check", blocked: "Unsupported" } as const;
 
   return (
     <div className="cp-media" data-field="media">
@@ -263,6 +269,24 @@ export default function MediaSection({
             );
           })}
         </ul>
+      )}
+
+      {media.length > 0 && compat.length > 0 && (
+        <div className="cp-compat" aria-label="Platform compatibility">
+          <div className="cp-compat-head">Compatibility</div>
+          <ul>
+            {compat.map((c) => (
+              <li key={c.key} className={`cp-compat-row cp-compat-${c.level}`}>
+                <PlatformMark platform={c.platform} size={18} />
+                <span className="cp-compat-name">{c.label}</span>
+                <span className="cp-compat-status">
+                  {c.level === "ready" ? <Check size={13} strokeWidth={3} /> : c.level === "warning" ? <AlertTriangle size={12} /> : <X size={13} strokeWidth={3} />}
+                  {COMPAT_LABEL[c.level]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {issues.length > 0 && (

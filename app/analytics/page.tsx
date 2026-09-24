@@ -22,21 +22,23 @@ import type { LibraryPost } from "@/components/ContentLibrary";
 import {
   RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId,
 } from "@/lib/overview";
-import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { canUseFeature, getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { assembleAnalytics } from "@/lib/analytics/assemble";
+import UniversalAnalytics from "@/components/analytics/UniversalAnalytics";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
 // Analytics. The pipeline is fixed: platform rows → normalized posts and daily
 // snapshots → deterministic aggregation (medians, buckets, gaps) → rendered →
 // AI only ever explains. Nothing on this page is estimated.
-export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; v?: string }> }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { range: rangeParam } = await searchParams;
+  const { range: rangeParam, v: version } = await searchParams;
   const [profile, snap, ent] = await Promise.all([
     getProfile(supabase, user.id),
     getIgSnapshot(supabase, user.id),
@@ -49,6 +51,43 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const rangeId: string = clampRangeId(requestedId, maxDays);
   const days = rangeDays(rangeId);
   const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
+
+  // Universal Analytics shell (dev preview behind ?v=2). Renders every connected
+  // platform through the normalized adapter bundle. The live 5-tab Instagram
+  // page below is untouched until the shell reaches parity.
+  if (version === "2") {
+    const { accounts } = await assembleAnalytics(supabase, user.id, days);
+    if (!accounts.length) {
+      return (
+        <AppShell active="analytics" userEmail={user.email}>
+          <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
+          <div className="db-connect">
+            <span className="db-connect-ico"><Link2 size={22} /></span>
+            <div className="db-connect-copy">
+              <h2>Connect an account to see your analytics</h2>
+              <p>Analytics fills with your real numbers the moment you connect a platform. Nothing here is estimated.</p>
+            </div>
+            <span className="db-connect-actions">
+              <a href={igConfigured() ? "/api/auth/instagram/start" : "/settings"} className="db-connect-cta">Connect Instagram</a>
+              <a href={ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings"} className="db-connect-cta ghost">Connect YouTube</a>
+            </span>
+          </div>
+        </AppShell>
+      );
+    }
+    return (
+      <AppShell active="analytics" userEmail={user.email}>
+        <UniversalAnalytics
+          accounts={accounts}
+          rangeLabel={rangeLabel}
+          rangeDays={days}
+          maxDays={maxDays}
+          canCrossPlatform={canUseFeature(ent, "cross_platform_analytics")}
+        />
+      </AppShell>
+    );
+  }
+
   const live = Boolean(snap && snap.followers_count != null);
   // The connected user's own YouTube channel, when they have linked one. Null
   // when no YouTube connection exists, so the page stays multi-platform aware.

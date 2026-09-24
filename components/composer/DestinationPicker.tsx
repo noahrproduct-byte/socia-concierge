@@ -36,9 +36,20 @@ export default function DestinationPicker({
 }) {
   const available = draft.destinations.filter((d) => availabilityOf(d, accounts).state === "available");
   const allOn = available.length > 0 && available.every((d) => d.enabled);
+  const enabled = draft.destinations.filter((d) => d.enabled);
 
   return (
     <div className="cp-dest" data-field="destinations">
+      {enabled.length > 0 && (
+        <div className="cp-dest-summary" role="status" aria-label={`Publishing to ${enabled.length} ${enabled.length === 1 ? "destination" : "destinations"}`}>
+          <span className="cp-dest-summary-marks">
+            {enabled.map((d) => <PlatformMark key={d.key} platform={d.platform} size={22} />)}
+          </span>
+          <span className="cp-dest-summary-count">
+            Publishing to {enabled.length} {enabled.length === 1 ? "destination" : "destinations"}
+          </span>
+        </div>
+      )}
       {!accountsComplete && (
         <p className="cp-empty" role="status">
           {ACCOUNTS_UNKNOWN_SENTENCE} You can keep writing and save a draft; scheduling waits until the list is complete.
