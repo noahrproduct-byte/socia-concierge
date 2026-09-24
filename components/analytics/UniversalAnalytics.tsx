@@ -154,13 +154,14 @@ function PostingTimesPanel({ account }: { account: NormalizedAccountAnalytics })
 }
 
 export default function UniversalAnalytics({
-  accounts, rangeLabel, rangeDays, maxDays, canCrossPlatform = false, tiktokComingSoon = true,
+  accounts, rangeLabel, rangeDays, maxDays, canCrossPlatform = false, tiktokComingSoon = true, initialPlatform,
 }: {
   accounts: NormalizedAccountAnalytics[];
-  rangeLabel: string; rangeDays: number; maxDays?: number; canCrossPlatform?: boolean; tiktokComingSoon?: boolean;
+  rangeLabel: string; rangeDays: number; maxDays?: number; canCrossPlatform?: boolean; tiktokComingSoon?: boolean; initialPlatform?: Platform;
 }) {
   const showAllOption = canCrossPlatform && accounts.length > 1;
-  const [sel, setSel] = useState<number | "all">(showAllOption ? "all" : 0);
+  const initialIdx = initialPlatform ? accounts.findIndex((a) => a.account.platform === initialPlatform) : -1;
+  const [sel, setSel] = useState<number | "all">(initialIdx >= 0 ? initialIdx : showAllOption ? "all" : 0);
   const [selOpen, setSelOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
   const [mode, setMode] = useState<GraphMode>("trend");

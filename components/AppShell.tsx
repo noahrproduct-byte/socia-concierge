@@ -139,10 +139,10 @@ export default async function AppShell({
   const next = nextPlan(plan);
   const igConnect = igConfigured() ? "/api/auth/instagram/start" : "/settings";
   const accounts = [
-    { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername) || platforms.includes("Instagram"), href: igUsername ? "/settings#accounts" : igConnect, icon: <Camera size={14} /> },
-    { id: "fb", label: fbPageName ?? "Facebook", on: Boolean(fbPageName) || platforms.includes("Facebook"), href: fbPageName ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts", icon: FB_MARK },
+    { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername) || platforms.includes("Instagram"), href: igUsername ? "/analytics?account=instagram" : igConnect, icon: <Camera size={14} /> },
+    { id: "fb", label: fbPageName ?? "Facebook", on: Boolean(fbPageName) || platforms.includes("Facebook"), href: fbPageName ? "/analytics?account=facebook" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts", icon: FB_MARK },
     { id: "tt", label: "TikTok", on: platforms.includes("TikTok"), href: "/settings#accounts", icon: <Music2 size={14} /> },
-    { id: "yt", label: ytTitle ?? "YouTube", on: Boolean(ytTitle) || platforms.includes("YouTube"), href: ytTitle ? "/settings#accounts" : ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
+    { id: "yt", label: ytTitle ?? "YouTube", on: Boolean(ytTitle) || platforms.includes("YouTube"), href: ytTitle ? "/analytics?account=youtube" : ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings#accounts", icon: <Play size={14} fill="currentColor" /> },
   ];
 
   return (
