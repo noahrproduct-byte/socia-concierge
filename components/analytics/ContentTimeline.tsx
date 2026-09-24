@@ -20,7 +20,7 @@ function metricOf(p: NormalizedPost, metric: MetricKey): number | null {
   return p.metrics[metric] ?? (metric === "views" ? null : p.engagement);
 }
 
-export default function ContentTimeline({ posts, metric, rangeDays, display = "raw", height = 260 }: { posts: NormalizedPost[]; metric: MetricKey; rangeDays: number; display?: "raw" | "typical"; height?: number }) {
+export default function ContentTimeline({ posts, metric, rangeDays, display = "raw", height = 260, onOpen }: { posts: NormalizedPost[]; metric: MetricKey; rangeDays: number; display?: "raw" | "typical"; height?: number; onOpen?: (p: NormalizedPost) => void }) {
   const [hover, setHover] = useState<number | null>(null);
   const typical = display === "typical";
 
@@ -50,7 +50,7 @@ export default function ContentTimeline({ posts, metric, rangeDays, display = "r
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} role="img" aria-label={`Content by publish date, ${metric}`} onMouseLeave={() => setHover(null)}>
         {[0.25, 0.5, 0.75, 1].map((f) => <line key={f} x1={padX} x2={W - padX} y1={padTop + innerH * (1 - f)} y2={padTop + innerH * (1 - f)} className="uni-grid" />)}
         {items.map((it, i) => (
-          <rect key={i} x={x(i) - bw / 2} y={y(it.v)} width={bw} height={Math.max(1, padTop + innerH - y(it.v))} rx={2.5} fill={TINT[it.p.platform]} opacity={hover == null || hover === i ? 1 : 0.45} onMouseEnter={() => setHover(i)}>
+          <rect key={i} x={x(i) - bw / 2} y={y(it.v)} width={bw} height={Math.max(1, padTop + innerH - y(it.v))} rx={2.5} fill={TINT[it.p.platform]} opacity={hover == null || hover === i ? 1 : 0.45} style={onOpen ? { cursor: "pointer" } : undefined} onMouseEnter={() => setHover(i)} onClick={onOpen ? () => onOpen(it.p) : undefined}>
             <title>{`${platformCapability(it.p.platform).label} · ${md(it.p.publishedAt)}: ${typical ? fmtMult(it.v) : fmtN(it.v)}`}</title>
           </rect>
         ))}

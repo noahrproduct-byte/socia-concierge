@@ -17,6 +17,8 @@ import UniTrend from "./UniTrend";
 import MultiTrend, { type TrendLine } from "./MultiTrend";
 import ContentTimeline from "./ContentTimeline";
 import ContentTable from "./ContentTable";
+import ContentDrawer from "./ContentDrawer";
+import Heatmap from "./Heatmap";
 import { median } from "@/lib/metrics";
 import { metricCapability, metricLabel, platformCapability } from "@/lib/analytics/capabilities";
 import { breakdownMetric, engagementSplit, filterPosts, formatBreakdown, formatTable, postingWindows, type PostFilter } from "@/lib/analytics/derive";
@@ -37,8 +39,6 @@ const MODES: [GraphMode, string][] = [["trend", "Trend"], ["content", "Content"]
 type Tab = "overview" | "content" | "audience" | "times" | "growth";
 const TABS: [Tab, string][] = [["overview", "Overview"], ["content", "Content Performance"], ["audience", "Audience"], ["times", "Posting Times"], ["growth", "Growth"]];
 const SERIES_PREF: MetricKey[] = ["views", "engagement", "watch_time", "net_followers", "reach", "followers"];
-const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const BLOCKS = ["12–3a", "3–6a", "6–9a", "9a–12p", "12–3p", "3–6p", "6–9p", "9p–12a"];
 
 type Unit = "count" | "percent" | "minutes" | "seconds";
 function fmtValue(v: number | null, unit: Unit = "count"): string {
@@ -135,6 +135,24 @@ function PlatformDonut({ slices, total, label }: { slices: { platform: Platform;
   );
 }
 
+function PostingTimesPanel({ account }: { account: NormalizedAccountAnalytics }) {
+  const w = postingWindows(account.posts);
+  const label = platformCapability(account.account.platform).label;
+  return (
+    <section className="uni-panel">
+      <div className="uni-panel-head"><h3>{label} posting times</h3><span className="uni-sub">medians vs its typical post · {w.posts} dated posts</span></div>
+      {w.enough ? (
+        <>
+          {w.best.length ? (
+            <div className="uni-windows">{w.best.map((win) => <div key={`${win.day}-${win.block}`} className="uni-window"><span className="uni-window-label">{win.label}</span><span className={`uni-window-rel${win.rel >= 1 ? " up" : ""}`}>{relText(win.rel)}</span><span className="uni-window-n">{win.n} posts{win.confidence === "early" ? " · early signal" : ""}</span></div>)}</div>
+          ) : <Empty>No single window stands out above its typical yet.</Empty>}
+          <div style={{ marginTop: 16 }}><Heatmap windows={w} /></div>
+        </>
+      ) : <Empty>Not enough dated posts yet to find a reliable posting time for {label} — {w.posts} so far.</Empty>}
+    </section>
+  );
+}
+
 export default function UniversalAnalytics({
   accounts, rangeLabel, rangeDays, maxDays, canCrossPlatform = false, tiktokComingSoon = true,
 }: {
@@ -148,6 +166,7 @@ export default function UniversalAnalytics({
   const [mode, setMode] = useState<GraphMode>("trend");
   const [display, setDisplay] = useState<"raw" | "typical">("raw");
   const [visible, setVisible] = useState<Set<number>>(() => new Set(accounts.map((_, i) => i)));
+  const [openPost, setOpenPost] = useState<NormalizedPost | null>(null);
   const isAll = sel === "all";
   const acc = accounts[isAll ? 0 : (sel as number)];
   const platform = acc.account.platform;
@@ -217,10 +236,17 @@ export default function UniversalAnalytics({
   const [pf, setPf] = useState<PostFilter>("top");
   const breakdown = useMemo(() => formatBreakdown(acc.posts, breakdownMetric(acc.posts)), [acc]);
   const table = useMemo(() => formatTable(acc.posts), [acc]);
-  const windows = useMemo(() => postingWindows(acc.posts), [acc]);
   const split = useMemo(() => engagementSplit(acc.posts), [acc]);
   const demoDims = acc.demographics.status === "ok" ? acc.demographics.dimensions : {};
   const hasDemo = acc.demographics.status === "ok" && Object.values(demoDims).some((d) => d && d.length);
+
+  // Baseline lookup for the content drawer (each post is scored vs its own account).
+  const accByPlatform = useMemo(() => new Map(accounts.map((a) => [a.account.platform, a])), [accounts]);
+  const openBaseline = openPost ? (accByPlatform.get(openPost.platform)?.baseline[openPost.format] ?? accByPlatform.get(openPost.platform)?.baseline.all ?? null) : null;
+
+  // A newly-connected / barely-active single account: show a useful low-data
+  // state rather than a giant empty chart.
+  const lowData = !isAll && acc.posts.length < 2 && !Object.values(acc.series).some((s) => s && s.current.some((p) => p.value != null));
 
   return (
     <div className="uni">
@@ -299,6 +325,18 @@ export default function UniversalAnalytics({
             )}
           </div>
 
+          {lowData ? (
+            <section className="uni-panel uni-lowdata">
+              <h3>Limited activity</h3>
+              <p>SOCIA needs more activity on {acc.account.name ?? cap.label} before it can calculate a meaningful trend.</p>
+              <div className="uni-lowdata-stats">
+                {kpiCards.filter((k) => k.value != null).map((k) => (
+                  <span key={k.key} className="uni-lowdata-stat"><b>{fmtValue(k.value, k.unit)}</b> {k.label.toLowerCase()}</span>
+                ))}
+              </div>
+              <p className="uni-chart-note">As {cap.label} activity grows, this fills into full analytics.</p>
+            </section>
+          ) : (
           <div className="uni-grid">
             {/* left column */}
             <div className="uni-col-main">
@@ -313,7 +351,7 @@ export default function UniversalAnalytics({
                 </div>
 
                 {mode === "trend" && (lines.length ? <MultiTrend lines={lines} /> : <Empty>No time-series for {metricLabel(platform, activeMetric).toLowerCase()} on the selected accounts. It may only exist as content totals — try Content mode.</Empty>)}
-                {mode === "content" && <ContentTimeline posts={graphPosts} metric={activeMetric} rangeDays={rangeDays} display={display} />}
+                {mode === "content" && <ContentTimeline posts={graphPosts} metric={activeMetric} rangeDays={rangeDays} display={display} onOpen={setOpenPost} />}
                 {mode === "compare" && (compareData.length ? (
                   <div className="uni-compare">
                     {compareData.map((r) => (
@@ -340,7 +378,7 @@ export default function UniversalAnalytics({
 
               <section className="uni-panel">
                 <div className="uni-panel-head"><h3>Recent Content Performance</h3></div>
-                <ContentTable posts={ctxPosts} />
+                <ContentTable posts={ctxPosts} onOpen={setOpenPost} />
               </section>
             </div>
 
@@ -373,6 +411,7 @@ export default function UniversalAnalytics({
               )}
             </div>
           </div>
+          )}
         </>
       )}
 
@@ -381,7 +420,7 @@ export default function UniversalAnalytics({
         <>
           <section className="uni-panel">
             <div className="uni-panel-head"><h3>Recent Content Performance</h3></div>
-            <ContentTable posts={ctxPosts} />
+            <ContentTable posts={ctxPosts} onOpen={setOpenPost} />
           </section>
           {!isAll && (
             <>
@@ -420,7 +459,35 @@ export default function UniversalAnalytics({
 
       {/* ================= AUDIENCE ================= */}
       {tab === "audience" && (isAll ? (
-        <section className="uni-panel"><Empty>Pick a single account above to see its audience — audiences aren&apos;t combined across platforms.</Empty></section>
+        <>
+          <div className="uni-kpis">
+            <div className="uni-kpi" title="Followers and subscribers on different platforms are different people, not one unique audience.">
+              <span className="uni-kpi-label">Total audience</span>
+              <span className="uni-kpi-value">{fmtValue(all.totals.followers ?? null, "count")}</span>
+              <span className="uni-kpi-foot"><span className="uni-kpi-period">across {all.audiencePlatforms.length} platform{all.audiencePlatforms.length === 1 ? "" : "s"} · not unique people</span></span>
+            </div>
+          </div>
+          <section className="uni-panel">
+            <div className="uni-panel-head"><h3>Audience by platform</h3></div>
+            {accounts.some((a) => a.kpis.followers?.value != null) ? (
+              <Bars items={accounts.filter((a) => a.kpis.followers?.value != null).sort((a, b) => (b.kpis.followers!.value! - a.kpis.followers!.value!)).map((a) => ({ label: `${platformCapability(a.account.platform).label} · ${a.account.audienceLabel}`, value: a.kpis.followers!.value!, share: all.totals.followers ? a.kpis.followers!.value! / all.totals.followers : 0, sub: fmtN(a.kpis.followers!.value) }))} />
+            ) : <Empty>No audience counts returned yet.</Empty>}
+          </section>
+          <section className="uni-panel">
+            <div className="uni-panel-head"><h3>Audience change this period</h3></div>
+            {accounts.some((a) => a.series.net_followers?.total != null) ? (
+              <div className="uni-changes">
+                {accounts.filter((a) => a.series.net_followers?.total != null).map((a) => { const net = a.series.net_followers!.total!; return (
+                  <div key={a.account.platform} className="uni-change">
+                    <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />
+                    <span className="uni-change-lbl">{platformCapability(a.account.platform).label}</span>
+                    <span className={`uni-change-val ${net >= 0 ? "up" : "down"}`}>{net >= 0 ? "+" : ""}{fmtN(net)} {a.account.audienceLabel.toLowerCase()}</span>
+                  </div>
+                ); })}
+              </div>
+            ) : <Empty>No audience-change series yet — SOCIA records it daily from connect onward.</Empty>}
+          </section>
+        </>
       ) : (
         <>
           <section className="uni-panel">
@@ -442,25 +509,41 @@ export default function UniversalAnalytics({
 
       {/* ================= POSTING TIMES ================= */}
       {tab === "times" && (
-        <section className="uni-panel">
-          <div className="uni-panel-head"><h3>Posting times</h3><span className="uni-sub">medians vs your typical post, {windows.posts} dated posts{isAll ? " (selected account)" : ""}</span></div>
-          {windows.enough ? (
-            <>
-              {windows.best.length ? (
-                <div className="uni-windows">{windows.best.map((w) => <div key={`${w.day}-${w.block}`} className="uni-window"><span className="uni-window-label">{w.label}</span><span className={`uni-window-rel${w.rel >= 1 ? " up" : ""}`}>{relText(w.rel)}</span><span className="uni-window-n">{w.n} posts{w.confidence === "early" ? " · early signal" : ""}</span></div>)}</div>
-              ) : <Empty>No single window stands out above your typical yet.</Empty>}
-              <div className="uni-demo" style={{ marginTop: 16 }}>
-                <div className="uni-demo-col"><h4>By weekday</h4><Bars items={windows.byDay.filter((r) => r.n > 0).map((r) => ({ label: DOW[r.index], value: r.rel ?? 0, share: r.rel != null && windows.maxRel > 0 ? Math.min(1, r.rel / windows.maxRel) : 0, sub: r.rel != null ? relText(r.rel) : `${r.n} posts` }))} /></div>
-                <div className="uni-demo-col"><h4>By time of day</h4><Bars items={windows.byBlock.filter((r) => r.n > 0).map((r) => ({ label: BLOCKS[r.index], value: r.rel ?? 0, share: r.rel != null && windows.maxRel > 0 ? Math.min(1, r.rel / windows.maxRel) : 0, sub: r.rel != null ? relText(r.rel) : `${r.n} posts` }))} /></div>
-              </div>
-            </>
-          ) : <Empty>Not enough dated posts yet to find a reliable posting time — this account has {windows.posts}.</Empty>}
-        </section>
+        isAll ? (
+          <>
+            <p className="uni-sub uni-times-intro">Posting times are specific to each platform — SOCIA never invents one universal &quot;best time.&quot;</p>
+            {accounts.map((a) => <PostingTimesPanel key={a.account.platform} account={a} />)}
+          </>
+        ) : (
+          <PostingTimesPanel account={acc} />
+        )
       )}
 
       {/* ================= GROWTH ================= */}
       {tab === "growth" && (isAll ? (
-        <section className="uni-panel"><Empty>Pick a single account above to see its growth detail.</Empty></section>
+        <section className="uni-panel">
+          <div className="uni-panel-head"><h3>Growth by account</h3><span className="uni-sub">{rangeLabel}</span></div>
+          <table className="uni-table">
+            <thead><tr><th>Account</th><th>Net audience</th><th>Views</th><th>Posts</th></tr></thead>
+            <tbody>
+              {accounts.map((a) => {
+                const net = a.series.net_followers?.total ?? null;
+                const views = a.kpis.views?.value ?? null;
+                const since = Date.now() - rangeDays * 86400000;
+                const posts = a.posts.filter((p) => p.publishedAt && new Date(p.publishedAt).getTime() >= since).length;
+                return (
+                  <tr key={a.account.platform}>
+                    <td className="l"><span className="uni-ct-plat"><span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />{platformCapability(a.account.platform).label}</span></td>
+                    <td>{net == null ? "—" : <span className={net >= 0 ? "uni-ct-mult up" : "uni-ct-mult down"}>{net >= 0 ? "+" : ""}{fmtN(net)}</span>}</td>
+                    <td>{fmtN(views)}</td>
+                    <td>{posts}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="uni-chart-note">Net audience is each platform&apos;s own followers/subscribers gained this period, where it reports a daily series. Views and posts are period totals per account.</p>
+        </section>
       ) : (
         <>
           <section className="uni-panel">
@@ -473,6 +556,8 @@ export default function UniversalAnalytics({
           </section>
         </>
       ))}
+
+      <ContentDrawer post={openPost} baseline={openBaseline} onClose={() => setOpenPost(null)} />
     </div>
   );
 }

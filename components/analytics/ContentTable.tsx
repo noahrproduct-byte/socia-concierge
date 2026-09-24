@@ -15,7 +15,7 @@ const fmtN = (v: number | null | undefined): string => (v == null ? "—" : v >=
 const fmtMult = (x: number) => `${x >= 10 ? x.toFixed(0) : x.toFixed(1)}×`;
 type Sort = "views" | "recent" | "typical";
 
-export default function ContentTable({ posts }: { posts: NormalizedPost[] }) {
+export default function ContentTable({ posts, onOpen }: { posts: NormalizedPost[]; onOpen?: (p: NormalizedPost) => void }) {
   const platforms = useMemo(() => Array.from(new Set(posts.map((p) => p.platform))), [posts]);
   const [filter, setFilter] = useState<Platform | "all">("all");
   const [sort, setSort] = useState<Sort>("views");
@@ -58,12 +58,12 @@ export default function ContentTable({ posts }: { posts: NormalizedPost[] }) {
         </thead>
         <tbody>
           {rows.map((p) => (
-            <tr key={`${p.platform}-${p.id}`}>
+            <tr key={`${p.platform}-${p.id}`} className={onOpen ? "uni-ct-clickable" : undefined} onClick={onOpen ? () => onOpen(p) : undefined}>
               <td className="l">
-                <a className="uni-ct-content" href={p.permalink ?? undefined} target="_blank" rel="noreferrer">
+                <span className="uni-ct-content">
                   <span className="uni-ct-thumb" style={{ backgroundImage: p.thumb ? `url(${p.thumb})` : undefined }} />
                   <span className="uni-ct-title">{p.title || "(no caption)"}</span>
-                </a>
+                </span>
               </td>
               <td className="l"><span className="uni-ct-plat"><span className="uni-legend-dot" style={{ background: TINT[p.platform] }} />{platformCapability(p.platform).label}</span></td>
               <td className="l">{new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
