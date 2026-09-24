@@ -20,6 +20,7 @@ import MasterContent from "./MasterContent";
 import PlatformTabs, { GENERAL_TAB, tabsFor } from "./PlatformTabs";
 import InstagramSettingsForm from "./settings/InstagramSettingsForm";
 import YouTubeSettingsForm from "./settings/YouTubeSettingsForm";
+import TikTokSettingsForm from "./settings/TikTokSettingsForm";
 import UnavailablePlatform from "./settings/UnavailablePlatform";
 import "./composer.css";
 
@@ -180,6 +181,7 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
       {activeDest ? (
         activeDest.platform === "instagram" ? <InstagramSettingsForm dest={activeDest} draft={draft} dispatch={dispatch} fileFor={c.fileFor} />
         : activeDest.platform === "youtube" ? <YouTubeSettingsForm dest={activeDest} draft={draft} dispatch={dispatch} />
+        : activeDest.platform === "tiktok" ? <TikTokSettingsForm dest={activeDest} draft={draft} dispatch={dispatch} fileFor={c.fileFor} />
         : <UnavailablePlatform platform={activeDest.platform} />
       ) : enabled.length === 0 ? (
         <p className="cp-muted">Choose where to post in step 1; each platform&apos;s settings appear here.</p>
