@@ -21,6 +21,39 @@ type PageEntry = {
   access_token?: string;
 };
 
+// Pages a person reaches through a Business Portfolio. New Pages Experience /
+// Business-owned Pages do NOT come back from /me/accounts even for a direct
+// admin, so when that edge is empty we look through the person's Businesses.
+// Needs business_management on the token.
+async function pagesViaBusiness(base: string, token: string): Promise<PageEntry[]> {
+  const out: PageEntry[] = [];
+  const seen = new Set<string>();
+  try {
+    const bizUrl = new URL(`${base}/me/businesses`);
+    bizUrl.searchParams.set("fields", "id,name");
+    bizUrl.searchParams.set("limit", "25");
+    bizUrl.searchParams.set("access_token", token);
+    const bizRes = await fetch(bizUrl, { signal: AbortSignal.timeout(10000) });
+    const bizJson = (await bizRes.json().catch(() => null)) as { data?: { id: string }[] } | null;
+    for (const b of bizJson?.data ?? []) {
+      for (const edge of ["owned_pages", "client_pages"] as const) {
+        const pUrl = new URL(`${base}/${b.id}/${edge}`);
+        pUrl.searchParams.set("fields", "id,name,username,followers_count,fan_count,picture{url},access_token");
+        pUrl.searchParams.set("limit", "50");
+        pUrl.searchParams.set("access_token", token);
+        const pRes = await fetch(pUrl, { signal: AbortSignal.timeout(10000) });
+        const pJson = (await pRes.json().catch(() => null)) as { data?: PageEntry[] } | null;
+        for (const p of pJson?.data ?? []) {
+          if (p?.id && !seen.has(p.id)) { seen.add(p.id); out.push(p); }
+        }
+      }
+    }
+  } catch {
+    /* return whatever was collected */
+  }
+  return out;
+}
+
 // Step 2: exchange the code for a long-lived token, list the user's Pages,
 // and either connect the single Page or ask the user to choose.
 export async function GET(req: Request) {
@@ -84,7 +117,15 @@ export async function GET(req: Request) {
     const pagesRes = await fetch(pagesUrl, { signal: AbortSignal.timeout(10000) });
     const pagesJson = await pagesRes.json().catch(() => null);
     if (!pagesRes.ok) return done("error");
-    const pages: PageEntry[] = pagesJson?.data ?? [];
+    let pages: PageEntry[] = pagesJson?.data ?? [];
+    // New Pages Experience / Business-owned Pages are invisible to /me/accounts;
+    // fall back to the person's Businesses before giving up.
+    let viaBusiness = 0;
+    if (!pages.length) {
+      const bizPages = await pagesViaBusiness(BASE, userToken);
+      viaBusiness = bizPages.length;
+      if (bizPages.length) pages = bizPages;
+    }
     if (!pages.length) {
       // An empty Page list has two very different causes, and the user cannot
       // act until they know which. Ask Facebook what it actually granted:
@@ -110,9 +151,9 @@ export async function GET(req: Request) {
       // actually granted so a missing pages_show_list in the login
       // configuration is distinguishable from an account with no Page. Names
       // only, no tokens. Remove once the connect path is confirmed.
-      console.error("[fb connect] no pages returned. granted=", granted, " accountsRaw=", JSON.stringify(pagesJson).slice(0, 400));
+      console.error("[fb connect] no pages returned. granted=", granted, " viaBusiness=", viaBusiness, " accountsRaw=", JSON.stringify(pagesJson).slice(0, 400));
       const reason = granted.length && !granted.includes("pages_show_list") ? "noperm" : "nopages";
-      return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(granted.join(",") || "none")}`);
+      return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(granted.join(",") || "none")}&fbbiz=${viaBusiness}`);
     }
 
     // Plan gate, server-side, before anything is written. A Page's identity is
