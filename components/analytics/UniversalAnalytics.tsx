@@ -10,12 +10,14 @@
 // behind ?v=2 until it reaches parity with the live page.
 
 import { useMemo, useState } from "react";
-import { Clock, Download, Flame, Lightbulb, Sparkles, TrendingDown, TrendingUp, Zap, type LucideIcon } from "lucide-react";
+import { ChevronDown, Clock, Download, Flame, Lightbulb, Sparkles, TrendingDown, TrendingUp, Zap, type LucideIcon } from "lucide-react";
 import { askSocia } from "@/lib/ask";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import UniTrend from "./UniTrend";
 import MultiTrend, { type TrendLine } from "./MultiTrend";
+import ContentTimeline from "./ContentTimeline";
 import ContentTable from "./ContentTable";
+import { median } from "@/lib/metrics";
 import { metricCapability, metricLabel, platformCapability } from "@/lib/analytics/capabilities";
 import { breakdownMetric, engagementSplit, filterPosts, formatBreakdown, formatTable, postingWindows, type PostFilter } from "@/lib/analytics/derive";
 import { accountInsights, crossPlatformInsights, type AnalyticsInsight, type InsightKind } from "@/lib/analytics/insights";
@@ -30,6 +32,8 @@ const STATUS_CHIP: Record<Status, { label: string; cls: string } | null> = {
 };
 const INSIGHT_ICON: Record<InsightKind, LucideIcon> = { breakout: Flame, format: Lightbulb, timing: Clock, trend: TrendingUp, cadence: TrendingDown, platform: Zap };
 
+type GraphMode = "trend" | "content" | "compare";
+const MODES: [GraphMode, string][] = [["trend", "Trend"], ["content", "Content"], ["compare", "Compare"]];
 type Tab = "overview" | "content" | "audience" | "times" | "growth";
 const TABS: [Tab, string][] = [["overview", "Overview"], ["content", "Content Performance"], ["audience", "Audience"], ["times", "Posting Times"], ["growth", "Growth"]];
 const SERIES_PREF: MetricKey[] = ["views", "engagement", "watch_time", "net_followers", "reach", "followers"];
@@ -139,7 +143,11 @@ export default function UniversalAnalytics({
 }) {
   const showAllOption = canCrossPlatform && accounts.length > 1;
   const [sel, setSel] = useState<number | "all">(showAllOption ? "all" : 0);
+  const [selOpen, setSelOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
+  const [mode, setMode] = useState<GraphMode>("trend");
+  const [display, setDisplay] = useState<"raw" | "typical">("raw");
+  const [visible, setVisible] = useState<Set<number>>(() => new Set(accounts.map((_, i) => i)));
   const isAll = sel === "all";
   const acc = accounts[isAll ? 0 : (sel as number)];
   const platform = acc.account.platform;
@@ -149,15 +157,36 @@ export default function UniversalAnalytics({
   const all = useMemo(() => aggregateAccounts(accounts, rangeDays), [accounts, rangeDays]);
   const insights = useMemo(() => (isAll ? crossPlatformInsights(accounts) : accountInsights(acc)), [isAll, accounts, acc]);
 
-  // Chart metric: series available across the current context.
+  // Which accounts feed the GRAPH: in All-Accounts the visible (toggled) ones,
+  // otherwise just the selected account. Visibility only affects the graph —
+  // KPIs, donut and ranks always reflect every account.
+  const graphIdx = useMemo(() => (isAll ? accounts.map((_, i) => i).filter((i) => visible.has(i)) : [sel as number]), [isAll, accounts, visible, sel]);
+  const graphAccounts = graphIdx.map((i) => accounts[i]);
+
   const chartMetrics = useMemo(() => {
     const present = new Set<MetricKey>();
-    for (const a of ctx) for (const k of Object.keys(a.series) as MetricKey[]) if (a.series[k]) present.add(k);
+    for (const a of graphAccounts) for (const k of Object.keys(a.series) as MetricKey[]) if (a.series[k]) present.add(k);
+    (["views", "engagement"] as MetricKey[]).forEach((k) => present.add(k)); // content mode can chart these even without a series
     return SERIES_PREF.filter((k) => present.has(k)).concat([...present].filter((k) => !SERIES_PREF.includes(k)));
-  }, [ctx]);
+  }, [graphAccounts]);
   const [metric, setMetric] = useState<MetricKey | null>(null);
-  const activeMetric: MetricKey | null = metric && chartMetrics.includes(metric) ? metric : (chartMetrics[0] ?? null);
-  const lines: TrendLine[] = activeMetric ? ctx.filter((a) => a.series[activeMetric]).map((a) => ({ platform: a.account.platform, label: platformCapability(a.account.platform).label, series: a.series[activeMetric]! })) : [];
+  const activeMetric: MetricKey = (metric && chartMetrics.includes(metric) ? metric : chartMetrics[0]) ?? "views";
+  const lines: TrendLine[] = graphAccounts.filter((a) => a.series[activeMetric]).map((a) => ({ platform: a.account.platform, label: platformCapability(a.account.platform).label, series: a.series[activeMetric]! }));
+  const graphPosts = useMemo(() => graphAccounts.flatMap((a) => a.posts), [graphAccounts]);
+
+  // COMPARE mode: each account vs its OWN typical — median multiplier of its
+  // posts in the period (multiplier = post ÷ that account's baseline).
+  const compareData = useMemo(() => {
+    const since = Date.now() - rangeDays * 86400000;
+    return graphAccounts
+      .map((a) => {
+        const per = a.posts.filter((p) => p.multiplier != null && p.publishedAt && new Date(p.publishedAt).getTime() >= since);
+        const m = median(per.map((p) => p.multiplier!));
+        return { platform: a.account.platform, mult: m, n: per.length };
+      })
+      .filter((r): r is { platform: Platform; mult: number; n: number } => r.mult != null)
+      .sort((a, b) => b.mult - a.mult);
+  }, [graphAccounts, rangeDays]);
 
   // Content across the current context.
   const ctxPosts = useMemo(() => ctx.flatMap((a) => a.posts), [ctx]);
@@ -193,23 +222,6 @@ export default function UniversalAnalytics({
   const demoDims = acc.demographics.status === "ok" ? acc.demographics.dimensions : {};
   const hasDemo = acc.demographics.status === "ok" && Object.values(demoDims).some((d) => d && d.length);
 
-  const AccountChips = (
-    <div className="uni-ctxbar" role="tablist" aria-label="Accounts">
-      {showAllOption && (
-        <button role="tab" aria-selected={isAll} className={`uni-ctx${isAll ? " on" : ""}`} onClick={() => setSel("all")}>
-          <span className="uni-ctx-ico">∑</span> All Accounts ({accounts.length})
-        </button>
-      )}
-      {accounts.map((a, i) => (
-        <button key={`${a.account.platform}-${a.account.accountId}`} role="tab" aria-selected={sel === i} className={`uni-ctx${sel === i ? " on" : ""}`} onClick={() => { setSel(i); setMetric(null); setPf("top"); }}>
-          <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />
-          {a.account.handle ? `@${a.account.handle.replace(/^@/, "")}` : a.account.name ?? platformCapability(a.account.platform).label}
-        </button>
-      ))}
-      {tiktokComingSoon && <span className="uni-ctx uni-ctx-soon">TikTok · soon</span>}
-    </div>
-  );
-
   return (
     <div className="uni">
       {/* ---- title header ---- */}
@@ -219,6 +231,33 @@ export default function UniversalAnalytics({
           <p>See what happened, understand why, and find what your strategy is missing.</p>
         </div>
         <div className="uni-controls">
+          <div className="uni-acctsel">
+            <button className="uni-acctsel-btn" onClick={() => setSelOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={selOpen}>
+              {isAll ? <><span className="uni-ctx-ico">∑</span> All Accounts</> : <><span className="uni-legend-dot" style={{ background: TINT[acc.account.platform] }} /> {acc.account.handle ? `@${acc.account.handle.replace(/^@/, "")}` : acc.account.name}</>}
+              <ChevronDown size={14} />
+            </button>
+            {selOpen && (
+              <>
+                <div className="uni-acctsel-scrim" onClick={() => setSelOpen(false)} />
+                <div className="uni-acctsel-menu" role="listbox">
+                  {showAllOption && (
+                    <button role="option" aria-selected={isAll} className={`uni-acctsel-item${isAll ? " on" : ""}`} onClick={() => { setSel("all"); setSelOpen(false); }}>
+                      <span className="uni-ctx-ico">∑</span><span className="uni-acctsel-name">All Accounts</span><span className="uni-acctsel-sub">{accounts.length} connected</span>
+                    </button>
+                  )}
+                  {accounts.map((a, i) => (
+                    <button key={`${a.account.platform}-${a.account.accountId}`} role="option" aria-selected={sel === i} className={`uni-acctsel-item${sel === i ? " on" : ""}`} onClick={() => { setSel(i); setMetric(null); setPf("top"); setSelOpen(false); }}>
+                      <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />
+                      <span className="uni-acctsel-name">{a.account.name ?? a.account.handle ?? platformCapability(a.account.platform).label}</span>
+                      <span className="uni-acctsel-sub">{platformCapability(a.account.platform).label}{a.account.handle ? ` · @${a.account.handle.replace(/^@/, "")}` : ""}</span>
+                    </button>
+                  ))}
+                  {tiktokComingSoon && <span className="uni-acctsel-item soon"><span className="uni-legend-dot" style={{ background: TINT.tiktok }} /><span className="uni-acctsel-name">TikTok</span><span className="uni-acctsel-sub">Coming soon</span></span>}
+                  <a href="/settings" className="uni-acctsel-item add">+ Connect account</a>
+                </div>
+              </>
+            )}
+          </div>
           <DateRangeSelector maxDays={maxDays} />
           {!isAll && platform === "instagram" && <a href="/api/export" download className="uni-btn ghost"><Download size={14} /> Export</a>}
           <button type="button" className="uni-btn primary" onClick={() => askSocia({ context: { page: "analytics", range: String(rangeDays), metric: activeMetric ?? undefined } })}><Sparkles size={14} /> Ask SOCIA</button>
@@ -264,18 +303,39 @@ export default function UniversalAnalytics({
             {/* left column */}
             <div className="uni-col-main">
               <section className="uni-panel">
-                <div className="uni-panel-head">
+                <div className="uni-panel-head uni-perf-head">
                   <h3>Performance Over Time</h3>
-                  {chartMetrics.length > 1 && (
-                    <div className="uni-seg">
-                      {chartMetrics.map((k) => (
-                        <button key={k} className={`uni-seg-b${k === activeMetric ? " on" : ""}`} onClick={() => setMetric(k)}>{metricLabel(platform, k)}</button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="uni-perf-ctrls">
+                    <div className="uni-seg">{MODES.map(([m, l]) => <button key={m} className={`uni-seg-b${mode === m ? " on" : ""}`} onClick={() => setMode(m)}>{l}</button>)}</div>
+                    {mode !== "compare" && chartMetrics.length > 1 && <div className="uni-seg">{chartMetrics.map((k) => <button key={k} className={`uni-seg-b${k === activeMetric ? " on" : ""}`} onClick={() => setMetric(k)}>{metricLabel(platform, k)}</button>)}</div>}
+                    {mode === "content" && <div className="uni-seg">{(["raw", "typical"] as const).map((d) => <button key={d} className={`uni-seg-b${display === d ? " on" : ""}`} onClick={() => setDisplay(d)}>{d === "raw" ? "Raw" : "vs. Typical"}</button>)}</div>}
+                  </div>
                 </div>
-                {lines.length ? <MultiTrend lines={lines} /> : <Empty>No trend data for this metric in this period.</Empty>}
-                {AccountChips}
+
+                {mode === "trend" && (lines.length ? <MultiTrend lines={lines} /> : <Empty>No time-series for {metricLabel(platform, activeMetric).toLowerCase()} on the selected accounts. It may only exist as content totals — try Content mode.</Empty>)}
+                {mode === "content" && <ContentTimeline posts={graphPosts} metric={activeMetric} rangeDays={rangeDays} display={display} />}
+                {mode === "compare" && (compareData.length ? (
+                  <div className="uni-compare">
+                    {compareData.map((r) => (
+                      <div key={r.platform} className="uni-rank">
+                        <span className="uni-rank-top"><span className="uni-rank-mult">{fmtMult(r.mult)}</span> <span className="uni-rank-lbl">{platformCapability(r.platform).label} · vs. its typical · {r.n} post{r.n === 1 ? "" : "s"}</span></span>
+                        <span className="uni-rank-track"><span className="uni-rank-fill" style={{ width: `${Math.max(6, Math.min(100, Math.round((r.mult / (compareData[0]?.mult || 1)) * 100)))}%`, background: TINT[r.platform] }} /></span>
+                      </div>
+                    ))}
+                    <p className="uni-chart-note">Each account&apos;s median post this period against its own baseline. 1× is typical; above 1× is outperforming its own norm.</p>
+                  </div>
+                ) : <Empty>Not enough posts with a baseline to compare accounts yet.</Empty>)}
+
+                {isAll && (
+                  <div className="uni-ctxbar">
+                    {accounts.map((a, i) => (
+                      <button key={`${a.account.platform}-${a.account.accountId}`} className={`uni-ctx uni-vischip${visible.has(i) ? " on" : ""}`} onClick={() => setVisible((v) => { const n = new Set(v); if (n.has(i)) { if (n.size > 1) n.delete(i); } else n.add(i); return n; })}>
+                        <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />{visible.has(i) ? "✓ " : ""}{platformCapability(a.account.platform).label}
+                      </button>
+                    ))}
+                    {tiktokComingSoon && <span className="uni-ctx uni-ctx-soon">TikTok · soon</span>}
+                  </div>
+                )}
               </section>
 
               <section className="uni-panel">
