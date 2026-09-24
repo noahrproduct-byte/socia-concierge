@@ -16,6 +16,8 @@ import DateRangeSelector from "@/components/DateRangeSelector";
 import UniTrend from "./UniTrend";
 import { metricCapability, metricLabel, platformCapability } from "@/lib/analytics/capabilities";
 import { breakdownMetric, engagementSplit, filterPosts, formatBreakdown, formatTable, postingWindows, type PostFilter } from "@/lib/analytics/derive";
+import { accountInsights, crossPlatformInsights, type AnalyticsInsight } from "@/lib/analytics/insights";
+import { aggregateAccounts } from "@/lib/analytics/aggregate";
 import { relText } from "@/lib/postingTimes";
 import type { MetricKey, NormalizedAccountAnalytics, NormalizedPost, NormalizedSeries, Platform, Status } from "@/lib/analytics/types";
 import "./universal.css";
@@ -101,24 +103,42 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="uni-chart-note uni-empty-block">{children}</p>;
 }
 
+function InsightCard({ ins }: { ins: AnalyticsInsight }) {
+  return (
+    <div className={`uni-insight tone-${ins.tone}`}>
+      <span className="uni-insight-tag">{ins.tag}</span>
+      <h4 className="uni-insight-title">{ins.title}</h4>
+      <p className="uni-insight-body">{ins.body}</p>
+      {ins.recommendation && <p className="uni-insight-rec">→ {ins.recommendation}</p>}
+    </div>
+  );
+}
+
 export default function UniversalAnalytics({
   accounts,
   rangeLabel,
   rangeDays,
   maxDays,
+  canCrossPlatform = false,
   tiktokComingSoon = true,
 }: {
   accounts: NormalizedAccountAnalytics[];
   rangeLabel: string;
   rangeDays: number;
   maxDays?: number;
+  canCrossPlatform?: boolean;
   tiktokComingSoon?: boolean;
 }) {
-  const [sel, setSel] = useState(0);
+  const showAllOption = canCrossPlatform && accounts.length > 1;
+  const [sel, setSel] = useState<number | "all">(0);
   const [tab, setTab] = useState<Tab>("overview");
-  const acc = accounts[sel];
+  const isAll = sel === "all";
+  const acc = accounts[isAll ? 0 : (sel as number)];
   const platform = acc.account.platform;
   const cap = platformCapability(platform);
+  const insights = useMemo(() => accountInsights(acc), [acc]);
+  const all = useMemo(() => (isAll ? aggregateAccounts(accounts) : null), [isAll, accounts]);
+  const xInsights = useMemo(() => (isAll ? crossPlatformInsights(accounts) : []), [isAll, accounts]);
 
   const seriesKeys = useMemo(() => {
     const present = (Object.keys(acc.series) as MetricKey[]).filter((k) => acc.series[k]);
@@ -190,6 +210,12 @@ export default function UniversalAnalytics({
       {/* ---- header ---- */}
       <div className="uni-head">
         <div className="uni-accounts" role="tablist" aria-label="Connected accounts">
+          {showAllOption && (
+            <button className={`uni-acct${isAll ? " on" : ""}`} role="tab" aria-selected={isAll} onClick={() => setSel("all")}>
+              <span className="uni-acct-av uni-acct-av-ph uni-all-av">∑</span>
+              <span className="uni-acct-meta"><span className="uni-acct-name">All accounts</span><span className="uni-acct-plat">{accounts.length} connected</span></span>
+            </button>
+          )}
           {accounts.map((a, i) => (
             <button key={`${a.account.platform}-${a.account.accountId}`} className={`uni-acct${i === sel ? " on" : ""}`} role="tab" aria-selected={i === sel} onClick={() => { setSel(i); setMetric(null); setPf("top"); }}>
               {a.account.avatar ? (
@@ -218,6 +244,61 @@ export default function UniversalAnalytics({
         </div>
       </div>
 
+      {isAll && all ? (
+        <>
+          <div className="uni-idline">
+            <span className="uni-badge" style={{ background: "var(--primary)" }}>All accounts</span>
+            <span className="uni-idname">Everything you&apos;ve connected</span>
+            <span className="uni-idrange">{rangeLabel}</span>
+            <span className="uni-depth">Totals combine only what&apos;s comparable across platforms; audiences are counted per platform, not as unique people.</span>
+          </div>
+
+          <div className="uni-kpis">
+            {([["views", "Total views", "count"], ["watch_time", "Watch time", "minutes"], ["engagement", "Interactions", "count"], ["net_followers", "Net audience", "count"], ["posts", "Posts", "count"]] as [MetricKey, string, "count" | "minutes"][]).map(([k, label, unit]) =>
+              all.totals[k] == null ? null : (
+                <div key={k} className="uni-kpi">
+                  <span className="uni-kpi-label">{label}</span>
+                  <span className="uni-kpi-value">{fmtValue(all.totals[k] ?? null, unit)}</span>
+                  <span className="uni-kpi-foot"><span className="uni-tag obs">Observed</span><span className="uni-kpi-period">summed across platforms</span></span>
+                </div>
+              ),
+            )}
+            {all.totals.followers != null && (
+              <div className="uni-kpi" title="Followers and subscribers on different platforms are different people, not one unique audience.">
+                <span className="uni-kpi-label">Combined audience</span>
+                <span className="uni-kpi-value">{fmtValue(all.totals.followers, "count")}</span>
+                <span className="uni-kpi-foot"><span className="uni-kpi-period">≠ unique people</span></span>
+              </div>
+            )}
+          </div>
+
+          {xInsights.length > 0 && (
+            <section className="uni-panel">
+              <div className="uni-panel-head"><h3>SOCIA insights</h3></div>
+              <div className="uni-insights">{xInsights.map((ins) => <InsightCard key={ins.id} ins={ins} />)}</div>
+            </section>
+          )}
+
+          <section className="uni-panel">
+            <div className="uni-panel-head"><h3>Platform breakdown</h3><span className="uni-sub">views · {rangeLabel}</span></div>
+            {all.platforms.some((p) => p.views != null) ? (
+              <Bars items={all.platforms.filter((p) => p.views != null).map((p) => ({ label: p.label, value: p.views!, share: p.share, sub: `${fmtN(p.views!)} · ${Math.round(p.share * 100)}%` }))} />
+            ) : (
+              <Empty>No platform reported views for this period.</Empty>
+            )}
+          </section>
+
+          <section className="uni-panel">
+            <div className="uni-panel-head"><h3>Top content across platforms</h3></div>
+            {all.posts.length ? (
+              <div className="uni-content">{all.posts.slice(0, 12).map((p) => <PostCard key={`${p.platform}-${p.id}`} post={p} />)}</div>
+            ) : (
+              <Empty>No posts synced yet.</Empty>
+            )}
+          </section>
+        </>
+      ) : (
+      <>
       {/* ---- account id line ---- */}
       <div className="uni-idline">
         <PlatformBadge platform={platform} />
@@ -255,6 +336,12 @@ export default function UniversalAnalytics({
               );
             })}
           </div>
+          {insights.length > 0 && (
+            <section className="uni-panel">
+              <div className="uni-panel-head"><h3>SOCIA insights</h3></div>
+              <div className="uni-insights">{insights.map((ins) => <InsightCard key={ins.id} ins={ins} />)}</div>
+            </section>
+          )}
           <TrendPanel />
           <section className="uni-panel">
             <div className="uni-panel-head"><h3>Top content</h3>{acc.posts.length > 6 && <button className="uni-link" onClick={() => setTab("content")}>See all</button>}</div>
@@ -387,6 +474,8 @@ export default function UniversalAnalytics({
             ) : <Empty>{cap.label} didn&apos;t return an interaction breakdown for these posts.</Empty>}
           </section>
         </>
+      )}
+      </>
       )}
     </div>
   );

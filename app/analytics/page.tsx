@@ -22,7 +22,7 @@ import type { LibraryPost } from "@/components/ContentLibrary";
 import {
   RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId,
 } from "@/lib/overview";
-import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { canUseFeature, getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 import { assembleAnalytics } from "@/lib/analytics/assemble";
 import UniversalAnalytics from "@/components/analytics/UniversalAnalytics";
 
@@ -77,7 +77,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     }
     return (
       <AppShell active="analytics" userEmail={user.email}>
-        <UniversalAnalytics accounts={accounts} rangeLabel={rangeLabel} rangeDays={days} maxDays={maxDays} />
+        <UniversalAnalytics
+          accounts={accounts}
+          rangeLabel={rangeLabel}
+          rangeDays={days}
+          maxDays={maxDays}
+          canCrossPlatform={canUseFeature(ent, "cross_platform_analytics")}
+        />
       </AppShell>
     );
   }
