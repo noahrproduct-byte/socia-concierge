@@ -45,7 +45,7 @@ export default function ConnectionsManager() {
 
   return (
     <div>
-      <PlatformRows connected={connected} pending={pending} onToggle={toggle} exclude={["Instagram", "Facebook", "YouTube"]} />
+      <PlatformRows connected={connected} pending={pending} onToggle={toggle} exclude={["Instagram", "Facebook", "YouTube", "TikTok"]} />
       <p className="st2-privacy">
         <ShieldCheck size={14} />
         <span>

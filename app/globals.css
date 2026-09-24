@@ -9915,6 +9915,7 @@ html { scroll-behavior: smooth; }
 .chan-ico.fb { background: #1877f2; color: var(--sidebar-text-strong); }
 .st2-ig-logo.fb { background: #1877f2; }
 .st2-ig-logo.yt { background: #ff0000; }
+.st2-ig-logo.tt { background: #000; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
 .st3-fbpages { margin-top: 14px; display: grid; gap: 8px; }
 .st3-fbpage { display: flex; align-items: center; gap: 11px; background: var(--surface-muted); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .st3-fbpage img { width: 34px; height: 34px; border-radius: 999px; object-fit: cover; flex: none; }

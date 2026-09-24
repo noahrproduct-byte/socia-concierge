@@ -133,7 +133,7 @@ export default function InstagramSettingsForm({
 
 // ---------------------------------------------------------------------------
 
-function CoverPicker({
+export function CoverPicker({
   video, file, valueMs, onChange,
 }: {
   video: MediaItemWithPreview | null;

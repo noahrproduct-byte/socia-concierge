@@ -15,11 +15,14 @@ const image = (over: Partial<MediaItem> = {}): MediaItem => ({
 const future = new Date(Date.now() + 3600_000).toISOString();
 
 describe("capabilities", () => {
-  it("only Instagram and YouTube are implemented; Facebook needs approval; TikTok is coming soon", () => {
+  it("Instagram, YouTube and TikTok are implemented; Facebook needs approval", () => {
     expect(CAPABILITIES.instagram.implemented).toBe(true);
     expect(CAPABILITIES.youtube.implemented).toBe(true);
+    expect(CAPABILITIES.tiktok.implemented).toBe(true);
     expect(availabilityFor("facebook", { status: "connected", suspended: false, scopes: [] }).state).toBe("needs_approval");
-    expect(availabilityFor("tiktok", null).state).toBe("coming_soon");
+    expect(availabilityFor("tiktok", null).state).toBe("not_connected");
+    expect(availabilityFor("tiktok", { status: "connected", suspended: false, scopes: ["user.info.basic"] }).state).toBe("needs_scope");
+    expect(availabilityFor("tiktok", { status: "connected", suspended: false, scopes: ["user.info.basic", "video.upload"] }).state).toBe("available");
   });
   it("asks for a reconnect when the stored scopes cannot publish", () => {
     expect(availabilityFor("youtube", { status: "connected", suspended: false, scopes: ["https://www.googleapis.com/auth/youtube.readonly"] }).state).toBe("needs_scope");

@@ -206,12 +206,12 @@ const FACEBOOK: PlatformCapabilities = {
 const TIKTOK: PlatformCapabilities = {
   platform: "tiktok",
   label: "TikTok",
-  implemented: false,
+  implemented: true,
   formats: [
     {
       id: "video",
       label: "Video",
-      implemented: false,
+      implemented: true,
       media: {
         kinds: ["video"], mimes: ["video/mp4", "video/quicktime", "video/webm"], maxBytes: 4 * 1024 * MB, minItems: 1, maxItems: 1,
         maxDurationSec: 10 * 60, minWidth: 360, maxWidth: 4096,
@@ -227,7 +227,10 @@ const TIKTOK: PlatformCapabilities = {
     description: "unsupported", thumbnail: "unsupported", nativeScheduling: "unsupported", shareToFeed: "unsupported",
   },
   fields: {},
-  notes: ["TikTok is not connected to SOCIA yet. TikTok requires its own app review and a content-posting audit before posts can be public."],
+  notes: [
+    "Videos are uploaded to your TikTok inbox as drafts: you finish and post them in the TikTok app. Direct posting switches on once TikTok approves SOCIA's video.publish scope.",
+    "Until TikTok completes its audit of SOCIA, videos posted directly are limited to private visibility.",
+  ],
   sources: ["https://developers.tiktok.com/doc/content-posting-api-get-started", "https://developers.tiktok.com/doc/content-sharing-guidelines"],
 };
 
@@ -254,6 +257,10 @@ export type Availability =
   | { state: "coming_soon"; reason: string; notes: string[] };
 
 export const IG_PUBLISH_SCOPE = "instagram_business_content_publish";
+/** Content Posting API: upload to the creator's inbox (drafts). */
+export const TT_UPLOAD_SCOPE = "video.upload";
+/** Content Posting API: post directly to the profile. */
+export const TT_PUBLISH_SCOPE = "video.publish";
 /** Any of these lets SOCIA upload; `youtube` also allows editing and playlists. */
 export const YT_WRITE_SCOPES = [
   "https://www.googleapis.com/auth/youtube",
@@ -266,10 +273,7 @@ export function availabilityFor(
   account: { status: "connected" | "expired"; suspended: boolean; scopes: string[] | null } | null,
 ): Availability {
   const caps = CAPABILITIES[platform];
-  if (!caps.implemented) {
-    if (platform === "tiktok") return { state: "coming_soon", reason: "TikTok is not connected to SOCIA yet.", notes: caps.notes };
-    return { state: "needs_approval", reason: caps.notes[0], notes: caps.notes };
-  }
+  if (!caps.implemented) return { state: "needs_approval", reason: caps.notes[0], notes: caps.notes };
   if (!account) return { state: "not_connected", reason: `Connect ${caps.label} in Settings to publish there.`, notes: caps.notes };
   if (account.suspended) return { state: "not_connected", reason: `This ${caps.label} account is paused by your plan.`, notes: caps.notes };
   if (account.status === "expired") return { state: "needs_scope", reason: `${caps.label} needs to be reconnected.`, action: "reconnect", notes: caps.notes };
@@ -283,6 +287,13 @@ export function availabilityFor(
   if (platform === "youtube") {
     if (!account.scopes || !account.scopes.some((s) => YT_WRITE_SCOPES.includes(s))) {
       return { state: "needs_scope", reason: "Reconnect YouTube to allow uploads.", action: "reconnect", notes: caps.notes };
+    }
+    return { state: "available", notes: caps.notes };
+  }
+  if (platform === "tiktok") {
+    // Either posting scope lets SOCIA upload; the adapter picks inbox vs direct.
+    if (account.scopes && !account.scopes.includes(TT_UPLOAD_SCOPE) && !account.scopes.includes(TT_PUBLISH_SCOPE)) {
+      return { state: "needs_scope", reason: "Reconnect TikTok to allow uploads.", action: "reconnect", notes: caps.notes };
     }
     return { state: "available", notes: caps.notes };
   }

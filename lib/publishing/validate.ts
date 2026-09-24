@@ -7,7 +7,7 @@
 // Client-safe: no server imports.
 
 import { CAPABILITIES, formatSpec, type FormatId, type MediaRule, type CaptionRule } from "./capabilities";
-import type { MediaItem, Platform, DestinationSettings, InstagramSettings, YouTubeSettings } from "./types";
+import type { MediaItem, Platform, DestinationSettings, InstagramSettings, YouTubeSettings, TikTokSettings } from "./types";
 
 export type Severity = "block" | "warn";
 
@@ -181,6 +181,16 @@ export function validateDestination(input: DestinationInput): Readiness {
     const tagChars = s.tags.reduce((n, t) => n + (t.includes(" ") ? t.length + 2 : t.length) + 1, 0);
     if (caps.fields.tags && tagChars > caps.fields.tags.maxTotalChars) issues.push({ code: "tags_long", severity: "block", field: "tags", message: `Tags are limited to ${caps.fields.tags.maxTotalChars} characters in total.` });
     if (s.tags.some((t) => t.includes("<") || t.includes(">"))) issues.push({ code: "tags_chars", severity: "block", field: "tags", message: "Tags cannot contain < or >." });
+  }
+
+  if (input.platform === "tiktok") {
+    const s = input.settings as TikTokSettings;
+    if (s.brandContent && s.privacy === "SELF_ONLY") {
+      issues.push({ code: "tiktok_brand_private", severity: "block", field: "privacy", message: "TikTok does not allow branded content on a private (only me) video." });
+    }
+    if (s.coverTimestampMs != null && input.media[0]?.duration != null && s.coverTimestampMs > input.media[0].duration * 1000) {
+      issues.push({ code: "cover_out_of_range", severity: "block", field: "coverTimestampMs", message: "The cover frame is past the end of the video." });
+    }
   }
 
   if (input.requireFutureTime) {

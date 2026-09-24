@@ -273,7 +273,7 @@ export async function releaseUsage(supabase: Supa, ent: Entitlements, meter: Met
 // Connected accounts (all platforms)
 // ---------------------------------------------------------------------------
 
-export type ConnectedPlatform = "instagram" | "facebook" | "youtube";
+export type ConnectedPlatform = "instagram" | "facebook" | "youtube" | "tiktok";
 
 export type ConnectedAccount = {
   platform: ConnectedPlatform;
@@ -319,7 +319,7 @@ export type ConnectedAccountsResult = {
 
 /** The list plus whether it is trustworthy. Use this wherever a count is shown or compared. */
 export async function listConnectedAccountsDetailed(supabase: Supa, userId: string): Promise<ConnectedAccountsResult> {
-  const [igRaw, fbRaw, ytRaw] = await Promise.all([
+  const [igRaw, fbRaw, ytRaw, ttRaw] = await Promise.all([
     selectRows(supabase, "instagram_connections", userId, [
       "ig_user_id, username, profile, is_active, plan_suspended_at",
       "ig_user_id, username, profile, is_active",
@@ -333,9 +333,15 @@ export async function listConnectedAccountsDetailed(supabase: Supa, userId: stri
       "channel_id, title, handle, avatar_url, plan_suspended_at",
       "channel_id, title, handle, avatar_url",
     ]),
+    selectRows(supabase, "tiktok_connections", userId, [
+      "open_id, display_name, username, avatar_url, plan_suspended_at",
+      "open_id, display_name, username, avatar_url",
+    ]),
   ]);
+  // TikTok's table is newer than the others: an account with no rows there
+  // (or a project that has not run the migration) must not read as incomplete.
   const complete = igRaw != null && fbRaw != null && ytRaw != null;
-  const ig = igRaw ?? [], fb = fbRaw ?? [], yt = ytRaw ?? [];
+  const ig = igRaw ?? [], fb = fbRaw ?? [], yt = ytRaw ?? [], tt = ttRaw ?? [];
 
   const out: ConnectedAccount[] = [];
   for (const r of ig) {
@@ -371,6 +377,18 @@ export async function listConnectedAccountsDetailed(supabase: Supa, userId: stri
       platform: "youtube", id: `youtube:${r.channel_id}`, platformId: String(r.channel_id),
       label: (r.title as string | null) || "YouTube channel",
       handle: (r.handle as string | null) ?? null,
+      avatar: (r.avatar_url as string | null) ?? null,
+      status: "connected",
+      suspended: r.plan_suspended_at != null,
+      current: true,
+    });
+  }
+  for (const r of tt) {
+    if (!r.open_id) continue;
+    out.push({
+      platform: "tiktok", id: `tiktok:${r.open_id}`, platformId: String(r.open_id),
+      label: (r.display_name as string | null) || (r.username ? `@${r.username}` : "TikTok account"),
+      handle: r.username ? `@${r.username}` : null,
       avatar: (r.avatar_url as string | null) ?? null,
       status: "connected",
       suspended: r.plan_suspended_at != null,

@@ -28,6 +28,8 @@ import ConnectionsManager from "@/components/ConnectionsManager";
 import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
 import YouTubeConnect from "@/components/YouTubeConnect";
+import TikTokConnect from "@/components/TikTokConnect";
+import { ttAuthConfigured } from "@/lib/tiktokAuth";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { YT_WRITE_SCOPES } from "@/lib/publishing/capabilities";
 import type { FbPost } from "@/lib/facebookSync";
@@ -96,7 +98,7 @@ const PREVIEW_COMPETITORS = [
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig?: string; fb?: string; yt?: string }>;
+  searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -104,7 +106,7 @@ export default async function SettingsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { ig, fb, yt } = await searchParams;
+  const { ig, fb, yt, tt } = await searchParams;
 
   // YouTube channel connection (tokens never leave the server).
   let ytConn: {
@@ -136,6 +138,26 @@ export default async function SettingsPage({
   // Channels connected before the upload scope existed carry only read scopes;
   // the card asks for a reconnect instead of pretending uploads work.
   const ytCanUpload = Array.isArray(ytConn?.scopes) && ytConn!.scopes!.some((s) => YT_WRITE_SCOPES.includes(s));
+
+  // TikTok connection (tokens never leave the server).
+  let ttConn: {
+    display_name: string | null;
+    username: string | null;
+    follower_count: number | null;
+    avatar_url: string | null;
+    scopes?: string[] | null;
+  } | null = null;
+  try {
+    const { data } = await supabase
+      .from("tiktok_connections")
+      .select("display_name, username, follower_count, avatar_url, scopes")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    ttConn = data;
+  } catch {
+    // table may not exist yet — the card shows the disconnected state
+  }
+  const ttDirect = Array.isArray(ttConn?.scopes) && ttConn!.scopes!.includes("video.publish");
 
   // Facebook connection state (tokens never leave the server).
   let fbConn: {
@@ -187,10 +209,10 @@ export default async function SettingsPage({
   const activeCount = accountsResult.complete ? activeAccounts(accountsList).length : null;
   const overLimits = computeOverLimits(ent, activeCount, competitorCount);
   const keepCompetitors = overLimits.competitors ? await listTrackedCompetitors(supabase, user.id) : null;
-  const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit";
+  const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit" || tt === "limit";
   // Accounts paused by a downgrade still have rows (the cards below read those
   // rows directly), so tell each card when its platform is paused.
-  const pausedOn = (platform: "instagram" | "facebook" | "youtube") =>
+  const pausedOn = (platform: "instagram" | "facebook" | "youtube" | "tiktok") =>
     accountsList.some((a) => a.platform === platform && a.suspended) &&
     !accountsList.some((a) => a.platform === platform && !a.suspended);
 
@@ -324,6 +346,17 @@ export default async function SettingsPage({
                 avatar={ytConn?.avatar_url ?? null}
                 paused={pausedOn("youtube")}
                 canUpload={ytCanUpload}
+              />
+              <div className="st2-divider"><span>TikTok</span></div>
+              <TikTokConnect
+                status={tt}
+                configured={ttAuthConfigured()}
+                displayName={ttConn?.display_name ?? null}
+                username={ttConn?.username ?? null}
+                followers={ttConn?.follower_count ?? null}
+                avatar={ttConn?.avatar_url ?? null}
+                paused={pausedOn("tiktok")}
+                canPublishDirect={ttDirect}
               />
               <div className="st2-divider"><span>Other platforms</span></div>
               <ConnectionsManager />

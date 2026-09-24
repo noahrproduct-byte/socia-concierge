@@ -515,10 +515,11 @@ export type PickerAccountsResult = {
  * /api/publishing/accounts, /api/posts and the composer page.
  */
 export async function loadPickerAccountsDetailed(supabase: Supa, userId: string): Promise<PickerAccountsResult> {
-  const [{ accounts, complete }, igScopes, ytScopes] = await Promise.all([
+  const [{ accounts, complete }, igScopes, ytScopes, ttScopes] = await Promise.all([
     listConnectedAccountsDetailed(supabase, userId),
     scopesByAccount(supabase, "instagram_connections", "ig_user_id", userId),
     scopesByAccount(supabase, "youtube_connections", "channel_id", userId),
+    scopesByAccount(supabase, "tiktok_connections", "open_id", userId),
   ]);
   return {
     complete,
@@ -530,7 +531,11 @@ export async function loadPickerAccountsDetailed(supabase: Supa, userId: string)
       avatar: a.avatar,
       status: a.status,
       suspended: a.suspended,
-      scopes: a.platform === "instagram" ? igScopes.get(a.platformId) ?? null : a.platform === "youtube" ? ytScopes.get(a.platformId) ?? null : null,
+      scopes:
+        a.platform === "instagram" ? igScopes.get(a.platformId) ?? null
+        : a.platform === "youtube" ? ytScopes.get(a.platformId) ?? null
+        : a.platform === "tiktok" ? ttScopes.get(a.platformId) ?? null
+        : null,
     })),
   };
 }

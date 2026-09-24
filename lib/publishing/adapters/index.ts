@@ -5,10 +5,12 @@
 import { adapterFor, registerAdapter } from "../adapter";
 import { instagramAdapter } from "./instagram";
 import { youtubeAdapter } from "./youtube";
+import { tiktokAdapter } from "./tiktok";
 
 export function ensureAdapters(): void {
   if (!adapterFor("instagram")) registerAdapter(instagramAdapter);
   if (!adapterFor("youtube")) registerAdapter(youtubeAdapter);
+  if (!adapterFor("tiktok")) registerAdapter(tiktokAdapter);
 }
 
 ensureAdapters();
