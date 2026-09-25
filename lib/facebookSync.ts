@@ -67,7 +67,10 @@ async function fetchPage(token: string, pageId: string): Promise<{
     pageUrl.searchParams.set("fields", "id,name,username,followers_count,fan_count,picture{url},link");
     pageUrl.searchParams.set("access_token", token);
 
-    const postsUrl = new URL(`${BASE}/${pageId}/posts`);
+    // published_posts (the Page's OWN posts) needs only pages_read_engagement,
+    // which SOCIA requests. /posts reads all content incl. visitor posts and
+    // needs pages_read_user_content (error #10), so we don't use it.
+    const postsUrl = new URL(`${BASE}/${pageId}/published_posts`);
     postsUrl.searchParams.set(
       "fields",
       "id,message,created_time,permalink_url,full_picture,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)",
@@ -85,8 +88,8 @@ async function fetchPage(token: string, pageId: string): Promise<{
       return { page: {}, posts: [], authExpired: code === 190 };
     }
     let posts: FbPost[] = [];
+    const mJson = await mRes.json().catch(() => null);
     if (mRes.ok) {
-      const mJson = await mRes.json().catch(() => null);
       type Raw = {
         id?: string; message?: string; created_time?: string; permalink_url?: string;
         full_picture?: string; status_type?: string;
@@ -107,6 +110,12 @@ async function fetchPage(token: string, pageId: string): Promise<{
         ...(r.shares?.count != null ? { shares: r.shares.count } : {}),
       }));
     }
+    // Diagnostic (temporary): the Page fields call succeeds with basic access,
+    // but reading the Page's posts needs pages_read_engagement — when it's
+    // missing, /posts errors and we'd silently store zero posts. Surface the
+    // exact status/error so we can tell "no permission" from "no posts". No
+    // tokens are logged. Remove once Facebook post data is confirmed working.
+    console.error("[fb-diag]", postsUrl.pathname, JSON.stringify({ status: mRes.status, ok: mRes.ok, stored: posts.length, apiCount: Array.isArray(mJson?.data) ? mJson.data.length : null, error: mRes.ok ? null : (mJson?.error ?? null) }));
     return { page: pJson ?? {}, posts, authExpired: false };
   } catch {
     return null;
