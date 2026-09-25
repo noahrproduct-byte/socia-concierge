@@ -20,7 +20,7 @@ import { getYouTubeAnalytics, type YtDaily } from "@/lib/youtubeData";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import type { LibraryPost } from "@/components/ContentLibrary";
 import {
-  RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId, type Series, type GraphAccount, type GraphSeries,
+  RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId, type Series, type SeriesPoint, type GraphAccount, type GraphSeries,
 } from "@/lib/overview";
 import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 
@@ -187,7 +187,28 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       series: { views: mk((dd) => dd.views, "Views", "Daily views, YouTube Analytics."), watch_time: mk((dd) => dd.minutes, "Watch time", "Daily watch time (minutes), YouTube Analytics."), net_followers: mk((dd) => dd.subs, "New subscribers", "Subscribers gained per day, YouTube Analytics.") },
     });
   }
-  if (fbConnected) graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb!.page_name ?? "Facebook", series: {} });
+  if (fbConnected) {
+    // Facebook has no daily series, but its per-post engagement (reactions +
+    // comments + shares) can be plotted by publish date — content totals on the
+    // day posted, exactly like Instagram's Engagement series. Unknown post
+    // metrics are excluded (a day with only unknown counts stays null, not 0).
+    const fbDayEng = new Map<string, number>();
+    for (const p of fb!.posts) {
+      if (!p.created_time) continue;
+      const parts = [p.reactions, p.comments, p.shares].filter((v): v is number => v != null);
+      if (!parts.length) continue;
+      const day = new Date(p.created_time).toISOString().slice(0, 10);
+      fbDayEng.set(day, (fbDayEng.get(day) ?? 0) + parts.reduce((a, b) => a + b, 0));
+    }
+    const fbEngPoints: SeriesPoint[] = series.engagement.current.map((pt) => ({ day: pt.day, value: fbDayEng.has(pt.day) ? fbDayEng.get(pt.day)! : null, postIds: [] }));
+    const fbHasEng = fbEngPoints.some((p) => p.value != null);
+    graphAccounts.push({
+      id: "facebook:me", platform: "facebook", label: fb!.page_name ?? "Facebook",
+      series: fbHasEng
+        ? { engagement: { points: fbEngPoints, label: "Engagement", provenance: "publish_totals", trueSeries: false, mode: "sum", note: "Reactions + comments + shares on each Facebook post, placed on the day it was published." } }
+        : {},
+    });
+  }
   try {
     const { data: tt } = await supabase.from("tiktok_connections").select("*").eq("user_id", user.id).maybeSingle();
     if (tt) graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: tt.username ? `@${tt.username}` : (tt.display_name || "TikTok"), series: {} });

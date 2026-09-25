@@ -316,7 +316,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                     <MultiLineChart lines={overlayLines} granularity={gran} height={260} unit={GRAPH_METRIC_LABEL[gmActive].toLowerCase()} today={d.today} />
                     <p className="ov-source">
                       {overlayLines.length ? `${GRAPH_METRIC_LABEL[gmActive]} across ${overlayLines.length} account${overlayLines.length === 1 ? "" : "s"}, ${d.rangeLabel.toLowerCase()}.` : "None of the selected accounts report this metric as a daily series."}
-                      {overlayImpure ? " Instagram lines by publish date are per-post totals on the day posted, not a daily account series; YouTube lines are true daily values." : ""}
+                      {overlayImpure ? " Publish-date lines show each post's totals on the day it was posted, not a daily account series; YouTube shows true daily values." : ""}
                       {missingAccts.length ? ` ${missingAccts.map((a) => a.label).join(", ")}: no daily ${GRAPH_METRIC_LABEL[gmActive].toLowerCase()} series.` : ""}
                     </p>
                   </>
