@@ -70,7 +70,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   niche_intelligence: "available",
   extended_history: "available",
   performance_reports: "coming_soon",
-  cross_platform_analytics: "available",
+  cross_platform_analytics: "coming_soon",
   custom_date_ranges: "coming_soon",
   daily_recommendations: "coming_soon",
   trend_alerts: "coming_soon",
