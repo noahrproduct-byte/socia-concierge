@@ -1,13 +1,14 @@
 // The plan comparison table, generated from lib/plans.ts so the pricing page
 // can never say something PLANS does not. Every number comes from a limit or a
 // meter; every availability comes from FEATURE_STATUS plus the plan's feature
-// list. Rows for things that have no feature key yet are marked "soon"
-// explicitly and never "yes": nothing here claims a feature that is not built.
+// list. A feature that is not built renders "soon" and never "yes": nothing
+// here claims a feature that does not exist.
 //
 // Client-safe: no server imports.
 
 import {
-  PLANS, PLAN_ORDER, FEATURE_STATUS, isAtLeast,
+  PLANS, PLAN_ORDER, FEATURE_STATUS, FEATURE_LABEL, METER_PERIOD, PLATFORM_NAME, WORKSPACE_PLATFORMS,
+  formatHistory,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
 } from "./plans";
 
@@ -19,7 +20,7 @@ export type Cell =
 
 export type ComparisonRow = {
   label: string;
-  /** Small print under the label, for "team features are coming soon" style caveats. */
+  /** Small print under the label, for caveats and definitions (rendered as a tooltip or note). */
   note?: string;
   cells: Record<PlanId, Cell>;
 };
@@ -47,11 +48,6 @@ function featureCell(key: FeatureKey): Record<PlanId, Cell> {
   return perPlan((p) => (p.features[key] ? (featureSoon(key) ? SOON : YES) : NO));
 }
 
-/** The same cell for every plan at or above `min`, "no" below it. */
-function fromPlan(min: PlanId, cell: Cell): Record<PlanId, Cell> {
-  return perPlan((p) => (isAtLeast(p.id, min) ? cell : NO));
-}
-
 function all(cell: Cell): Record<PlanId, Cell> {
   return perPlan(() => cell);
 }
@@ -60,118 +56,128 @@ function limitCell(key: LimitKey, fmt: (n: number) => string = String): Record<P
   return perPlan((p) => text(fmt(p.limits[key])));
 }
 
-/** "50 / month"; a zero allowance is simply "no". */
+/** "50 / month" or "3 / week"; a zero allowance is simply "no". */
 function meterCell(key: MeterKey): Record<PlanId, Cell> {
-  return perPlan((p) => (p.meters[key] > 0 ? text(`${p.meters[key]} / month`) : NO));
+  const per = METER_PERIOD[key];
+  return perPlan((p) => (p.meters[key] > 0 ? text(`${p.meters[key]} / ${per}`) : NO));
 }
 
-/** "30 days" or "12 months" from the analytics history limit. */
-export function formatHistory(days: number): string {
-  if (days >= 60) return `${Math.round(days / 30.4)} months`;
-  return `${days} days`;
+/** A feature row whose label is the feature's own label. */
+function feature(key: FeatureKey, note?: string): ComparisonRow {
+  return { label: FEATURE_LABEL[key], note, cells: featureCell(key) };
 }
 
-/** Built platforms; TikTok has its own "soon" row until it connects. */
-export const CONNECTED_PLATFORMS = "Instagram, Facebook, YouTube";
+/** Every platform a workspace can hold, as prose. */
+export const CONNECTED_PLATFORMS = WORKSPACE_PLATFORMS.map((p) => PLATFORM_NAME[p]).join(", ");
+
+/**
+ * Platforms SOCIA can publish to today. Facebook publishing waits on Meta's
+ * pages_manage_posts review, so it is not listed until it is real.
+ */
+export const PUBLISHING_PLATFORMS = "Instagram, YouTube, TikTok";
 
 export const COMPARISON: ComparisonCategory[] = [
   {
-    category: "Accounts",
+    category: "Workspaces & platforms",
     rows: [
-      { label: "Connected accounts", cells: limitCell("connected_accounts") },
-      { label: "Connected platforms", cells: all(text(CONNECTED_PLATFORMS)) },
-      { label: "TikTok", cells: all(SOON) },
+      {
+        label: "Brand Workspaces",
+        note: "One workspace is one brand, business, location or client. Each holds up to one account per platform.",
+        cells: limitCell("workspaces"),
+      },
+      { label: "Platforms per workspace", cells: all(text(CONNECTED_PLATFORMS)) },
     ],
   },
   {
     category: "Analytics",
     rows: [
-      { label: "Account analytics", cells: all(YES) },
-      { label: "Analytics history", cells: limitCell("analytics_history_days", formatHistory) },
-      { label: "Custom date ranges", cells: featureCell("custom_date_ranges") },
-      { label: "Cross-platform analytics", cells: featureCell("cross_platform_analytics") },
-      { label: "Multi-account comparison", cells: featureCell("cross_platform_analytics") },
+      { label: "Core metrics and recent content performance", cells: all(YES) },
+      {
+        label: "Analytics history",
+        note: "The window you can look back over. A plan never creates history: only what SOCIA has collected or the platform provides is shown.",
+        cells: limitCell("analytics_history_days", formatHistory),
+      },
+      feature("posting_time_analysis"),
+      feature("growth_analysis"),
+      feature("period_comparison"),
+      { label: "What Changed", cells: featureCell("deeper_insights") },
+      { label: "What's Working", cells: featureCell("deeper_insights") },
+      { label: "What's Missing", cells: featureCell("deeper_insights") },
+      { label: "What To Do Next", cells: featureCell("deeper_insights") },
+      feature("cross_platform_analytics", "Compare platforms and accounts where the numbers are comparable; combined insights across them."),
+      feature("cross_brand_analytics", "Compare performance across your Brand Workspaces."),
     ],
   },
   {
-    category: "AI & Strategy",
+    category: "SOCIA intelligence",
     rows: [
       { label: "Ask SOCIA questions", cells: meterCell("ask_socia") },
-      { label: "Account audits", cells: meterCell("account_audit") },
-      { label: "Weekly Content Plan", cells: contentPlanCells() },
-      { label: "What To Do Next recommendations", cells: featureCell("content_plan") },
-      { label: "Daily recommendations", cells: featureCell("daily_recommendations") },
+      { label: "Content ideas", note: "Quick recommendations built from your recent performance.", cells: meterCell("content_ideas") },
+      { label: "Full weekly Content Plan", cells: contentPlanCells() },
+      feature("daily_recommendations", "When enough new data has arrived since the last set."),
+      feature("repurposing"),
     ],
   },
   {
-    category: "Content Studio",
+    category: "Content creation",
     rows: [
-      { label: "Content Studio analyses and Content Rater scorecards", cells: meterCell("content_studio") },
+      { label: "Content Studio analyses", cells: meterCell("content_studio") },
       { label: "Hooks, captions and CTAs", cells: meterCell("content_generation") },
+      { label: "Account audits", cells: meterCell("account_audit") },
     ],
   },
   {
-    category: "Competitors",
+    category: "Competitors & trends",
     rows: [
-      { label: "Tracked competitors", cells: limitCell("competitors") },
-    ],
-  },
-  {
-    category: "Trends",
-    rows: [
-      { label: "Niche intelligence", cells: featureCell("niche_intelligence") },
-      // No feature key yet: stays "soon" until the trends work ships.
-      { label: "Advanced trend intelligence", cells: fromPlan("growth", SOON) },
-      { label: "Trend alerts", cells: featureCell("trend_alerts") },
-    ],
-  },
-  {
-    category: "Planning",
-    rows: [
-      { label: "Content calendar", cells: all(YES) },
+      { label: "Tracked competitors", note: "Pooled across all your workspaces.", cells: limitCell("competitors") },
+      { label: "Niche and trend discovery", cells: all(YES) },
+      feature("niche_intelligence", "Working-now patterns, momentum, opportunities and SOCIA readings of top posts."),
+      feature("weekly_trend_roundup"),
     ],
   },
   {
     category: "Publishing",
     rows: [
-      { label: "Direct publishing and scheduling", cells: publishingCells() },
-      { label: "TikTok, YouTube and Facebook publishing", cells: perPlan((p) => (p.features.scheduling ? SOON : NO)) },
+      { label: "Scheduling and direct publishing", note: `On ${PUBLISHING_PLATFORMS} today.`, cells: publishingCells() },
     ],
   },
   {
-    category: "Reporting",
+    category: "Alerts",
     rows: [
-      { label: "Monthly performance summary", cells: featureCell("performance_reports") },
-      { label: "Weekly and advanced reports", cells: featureCell("advanced_reports") },
-      { label: "Analytics exports (CSV)", cells: featureCell("analytics_exports") },
-      { label: "Data export (JSON)", cells: all(YES) },
+      feature("breakout_alerts", "When a post performs well above your recent median for its format."),
+      feature("performance_change_alerts"),
+      feature("trend_alerts"),
+      feature("opportunity_alerts"),
+      feature("competitor_alerts"),
+      feature("cross_platform_alerts"),
+    ],
+  },
+  {
+    category: "Reports",
+    rows: [
+      feature("monthly_summary"),
+      feature("weekly_summary"),
+      feature("custom_date_ranges"),
+      feature("platform_reports"),
+      feature("report_exports"),
+      feature("client_reports"),
+      { label: "Account data export (JSON)", cells: all(YES) },
     ],
   },
   {
     category: "Team",
     rows: [
-      {
-        label: "Team seats",
-        note: "Team features are coming soon.",
-        cells: limitCell("team_seats"),
-      },
-      { label: "Invite teammates", cells: featureCell("team") },
-    ],
-  },
-  {
-    category: "Professional features",
-    rows: [
-      { label: "Multi-brand and client management", cells: featureCell("multi_brand") },
-      { label: "Approval workflow", cells: featureCell("approval_workflow") },
-      { label: "White-label reports", cells: featureCell("white_label_reports") },
-      { label: "API access", cells: featureCell("api_access") },
+      { label: "Team members", note: "Including you.", cells: limitCell("team_members") },
+      feature("team", "Invite people to a workspace as Admin or Member."),
+      feature("approval_workflow"),
     ],
   },
   {
     category: "Support",
     rows: [
-      { label: "Priority support", cells: featureCell("priority_support") },
-      { label: "Dedicated onboarding", cells: featureCell("dedicated_onboarding") },
+      { label: "Help and email support", cells: all(YES) },
+      feature("priority_support"),
+      feature("dedicated_onboarding"),
     ],
   },
 ];
@@ -185,10 +191,16 @@ function contentPlanCells(): Record<PlanId, Cell> {
   });
 }
 
-/** Publishing is Instagram only today; other platforms have their own "soon" row. */
 function publishingCells(): Record<PlanId, Cell> {
-  return perPlan((p) => {
-    if (!p.features.scheduling) return NO;
-    return featureSoon("scheduling") ? SOON : text("Instagram");
-  });
+  return perPlan((p) => (p.features.scheduling ? (featureSoon("scheduling") ? SOON : YES) : NO));
+}
+
+/** Features a plan lists that are not built yet, for a separate "coming soon" list. Never mixed into the included list. */
+export function comingSoonFor(plan: PlanId): FeatureKey[] {
+  return (Object.keys(FEATURE_STATUS) as FeatureKey[]).filter((k) => PLANS[plan].features[k] && featureSoon(k));
+}
+
+/** Features a plan includes that are real today (available or policy). */
+export function includedFor(plan: PlanId): FeatureKey[] {
+  return (Object.keys(FEATURE_STATUS) as FeatureKey[]).filter((k) => PLANS[plan].features[k] && !featureSoon(k));
 }

@@ -171,19 +171,6 @@ describe("daily-series provenance", () => {
   });
 });
 
-import { accountLimit, ACCOUNT_LIMIT } from "./plan";
-
-describe("plan gating", () => {
-  it("free and starter connect one account, growth five, pro fifteen", () => {
-    expect(accountLimit("free")).toBe(1);
-    expect(accountLimit("starter")).toBe(1);
-    expect(accountLimit("growth")).toBe(5);
-    expect(accountLimit("pro")).toBe(15);
-  });
-  it("no plan grants unlimited accounts", () => {
-    for (const n of Object.values(ACCOUNT_LIMIT)) expect(Number.isFinite(n)).toBe(true);
-  });
-});
 
 import { aiFailureKind, AI_UNAVAILABLE_COPY } from "./anthropic";
 

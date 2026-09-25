@@ -36,7 +36,7 @@ import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import {
   getEntitlements, getUsage, listConnectedAccountsDetailed, countActiveCompetitors, computeOverLimits,
-  activeAccounts, getLimit,
+  activeAccounts, activeByPlatform, workspacesInUse, getLimit,
 } from "@/lib/entitlements";
 import { limitError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
@@ -207,7 +207,7 @@ export default async function SettingsPage({
   const accountsList = accountsResult.accounts;
   // A platform table that could not be read makes the count unknown (not a lower bound shown as truth).
   const activeCount = accountsResult.complete ? activeAccounts(accountsList).length : null;
-  const overLimits = computeOverLimits(ent, activeCount, competitorCount);
+  const overLimits = computeOverLimits(ent, accountsResult.complete ? activeByPlatform(accountsList) : null, competitorCount);
   const keepCompetitors = overLimits.competitors ? await listTrackedCompetitors(supabase, user.id) : null;
   const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit" || tt === "limit";
   // Accounts paused by a downgrade still have rows (the cards below read those
@@ -302,7 +302,7 @@ export default async function SettingsPage({
               </div>
               {accountLimitHit && (
                 <PlanNotice
-                  error={limitError(ent.plan, "connected_accounts", getLimit(ent, "connected_accounts"), activeCount)}
+                  error={limitError(ent.plan, "workspaces", getLimit(ent, "workspaces"), activeCount == null ? null : workspacesInUse(accountsList))}
                 />
               )}
               {snap && (

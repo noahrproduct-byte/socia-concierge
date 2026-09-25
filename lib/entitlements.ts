@@ -3,9 +3,14 @@
 //   const ent = await getEntitlements(supabase, user.id)
 //   canUseFeature(ent, "scheduling")          -> boolean
 //   checkFeature(ent, "scheduling")           -> { ok } | { ok: false, error: PlanError }
-//   getLimit(ent, "connected_accounts")       -> number
+//   getLimit(ent, "workspaces")               -> number
 //   getUsage(supabase, ent)                   -> { ask_socia: { used, limit, remaining, resetsOn }, ... }
 //   consumeUsage(supabase, ent, "ask_socia")  -> atomic increment, refused when the period allowance is spent
+//
+// Until Brand Workspaces exist as rows, "one account per platform per
+// workspace" is enforced as: active accounts on a platform <= workspaces limit.
+// That is the same rule (a workspace holds at most one account per platform),
+// counted from the accounts themselves.
 //
 // Resolution order: PLANS defaults (lib/plans.ts) <- plan_config_overrides row
 // for that plan <- profiles.entitlement_overrides for that user. All reads are
@@ -15,14 +20,15 @@
 // cannot be read or written, the metered request is refused (503), never
 // silently allowed.
 //
-// Usage periods are calendar months (UTC) until a billing provider supplies a
-// real billing cycle; getEntitlements() is the single place that will change.
+// Usage periods are UTC calendar months (and UTC Monday-to-Monday weeks for
+// weekly meters); getEntitlements() is the single place that would change if
+// a billing anchor were ever wanted instead.
 //
 // Server only. Route handlers use the wrappers in lib/planGuard.ts.
 
 import {
-  PLANS, FEATURE_STATUS, normalizePlan,
-  type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
+  PLANS, FEATURE_STATUS, METER_PERIOD, normalizePlan,
+  type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey, type MeterPeriod,
 } from "./plans";
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
 import { createServiceClient } from "./supabase/service";
@@ -43,6 +49,18 @@ export function currentPeriod(now: Date = new Date()): UsagePeriod {
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth();
   return { start: isoDay(new Date(Date.UTC(y, m, 1))), end: isoDay(new Date(Date.UTC(y, m + 1, 1))) };
+}
+
+/** UTC week, Monday to Monday; `end` is the reset date. */
+export function currentWeekPeriod(now: Date = new Date()): UsagePeriod {
+  const day = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const sinceMonday = (now.getUTCDay() + 6) % 7;
+  const start = day - sinceMonday * 86400000;
+  return { start: isoDay(new Date(start)), end: isoDay(new Date(start + 7 * 86400000)) };
+}
+
+export function currentPeriods(now: Date = new Date()): Record<MeterPeriod, UsagePeriod> {
+  return { month: currentPeriod(now), week: currentWeekPeriod(now) };
 }
 
 // ---------------------------------------------------------------------------
@@ -100,10 +118,18 @@ export type Entitlements = {
   plan: PlanId;
   /** Defaults merged with any database overrides. */
   config: PlanConfig;
+  /** The monthly period. Most meters run on it; kept as `period` for older call sites. */
   period: UsagePeriod;
+  /** Every period a meter can run on (see METER_PERIOD in lib/plans.ts). */
+  periods: Record<MeterPeriod, UsagePeriod>;
   /** Where the plan came from. "profile" until a billing provider owns it. */
   source: "profile";
 };
+
+/** The period a given meter counts in. */
+export function meterPeriod(ent: Entitlements, meter: MeterKey): UsagePeriod {
+  return ent.periods[METER_PERIOD[meter]];
+}
 
 async function readProfilePlan(supabase: Supa, userId: string): Promise<{ plan: PlanId; overrides: unknown }> {
   try {
@@ -144,7 +170,8 @@ export async function getEntitlements(supabase: Supa, userId: string, now: Date 
   const base = PLANS[plan];
   const planOverrides = await readPlanOverrides(supabase, plan);
   const config = mergeConfig(base, sanitizeOverrides(planOverrides, base), sanitizeOverrides(userOverrides, base));
-  return { userId, plan, config, period: currentPeriod(now), source: "profile" };
+  const periods = currentPeriods(now);
+  return { userId, plan, config, period: periods.month, periods, source: "profile" };
 }
 
 // ---------------------------------------------------------------------------
@@ -199,25 +226,27 @@ const METERS = Object.keys(PLANS.free.meters) as MeterKey[];
 
 function snapshot(ent: Entitlements, meter: MeterKey, used: number | null): UsageSnapshot {
   const limit = ent.config.meters[meter];
-  return { meter, used, limit, remaining: used == null ? null : Math.max(0, limit - used), resetsOn: ent.period.end };
+  return { meter, used, limit, remaining: used == null ? null : Math.max(0, limit - used), resetsOn: meterPeriod(ent, meter).end };
 }
 
-/** Every meter's usage for the current period in one query. */
+/** Every meter's usage for its current period (monthly or weekly) in one query. */
 export async function getUsage(supabase: Supa, ent: Entitlements): Promise<Record<MeterKey, UsageSnapshot>> {
   const out = {} as Record<MeterKey, UsageSnapshot>;
-  let rows: { meter: string; used: number }[] | null = null;
+  let rows: { meter: string; used: number; period_start: string }[] | null = null;
   try {
+    const starts = Array.from(new Set(Object.values(ent.periods).map((p) => p.start)));
     const { data, error } = await supabase
       .from("usage_counters")
-      .select("meter, used")
+      .select("meter, used, period_start")
       .eq("user_id", ent.userId)
-      .eq("period_start", ent.period.start);
+      .in("period_start", starts);
     if (!error) rows = data ?? [];
   } catch {
     rows = null;
   }
   for (const m of METERS) {
-    const used = rows == null ? null : (rows.find((r) => r.meter === m)?.used ?? 0);
+    const start = meterPeriod(ent, m).start;
+    const used = rows == null ? null : (rows.find((r) => r.meter === m && String(r.period_start).slice(0, 10) === start)?.used ?? 0);
     out[m] = snapshot(ent, m, used);
   }
   return out;
@@ -241,14 +270,15 @@ export type ConsumeResult = {
  */
 export async function consumeUsage(supabase: Supa, ent: Entitlements, meter: MeterKey): Promise<ConsumeResult> {
   const limit = ent.config.meters[meter];
+  const period = meterPeriod(ent, meter);
   if (limit <= 0) {
     const usage = snapshot(ent, meter, 0);
-    return { allowed: false, usage, error: usageError(ent.plan, meter, limit, 0, ent.period.end) };
+    return { allowed: false, usage, error: usageError(ent.plan, meter, limit, 0, period.end) };
   }
   try {
     const { data, error } = await supabase.rpc("socia_consume_usage", {
       p_meter: meter,
-      p_period_start: ent.period.start,
+      p_period_start: period.start,
       p_limit: limit,
     });
     if (error) throw error;
@@ -256,7 +286,7 @@ export async function consumeUsage(supabase: Supa, ent: Entitlements, meter: Met
     const used = typeof row?.used_count === "number" ? row.used_count : null;
     const allowed = Boolean(row?.allowed);
     const usage = snapshot(ent, meter, used);
-    return { allowed, usage, error: allowed ? null : usageError(ent.plan, meter, limit, used, ent.period.end) };
+    return { allowed, usage, error: allowed ? null : usageError(ent.plan, meter, limit, used, period.end) };
   } catch (e) {
     console.error(`[entitlements] usage metering unavailable for ${meter}, refusing:`, (e as Error)?.message ?? e);
     return { allowed: false, usage: snapshot(ent, meter, null), error: null, unavailable: true };
@@ -279,7 +309,7 @@ export async function releaseUsage(_supabase: Supa, ent: Entitlements, meter: Me
     return;
   }
   try {
-    const { error } = await svc.rpc("socia_release_usage", { p_user: ent.userId, p_meter: meter, p_period_start: ent.period.start });
+    const { error } = await svc.rpc("socia_release_usage", { p_user: ent.userId, p_meter: meter, p_period_start: meterPeriod(ent, meter).start });
     if (error) throw error;
   } catch (e) {
     console.error(`[entitlements] could not release ${meter}:`, (e as Error)?.message ?? e);
@@ -430,17 +460,35 @@ export function activeAccounts(list: ConnectedAccount[]): ConnectedAccount[] {
   return list.filter((a) => !a.suspended);
 }
 
+/** Active accounts per platform. Each is "how many workspaces' worth of that platform" is in use. */
+export function activeByPlatform(list: ConnectedAccount[]): Record<ConnectedPlatform, number> {
+  const out: Record<ConnectedPlatform, number> = { instagram: 0, facebook: 0, youtube: 0, tiktok: 0 };
+  for (const a of activeAccounts(list)) out[a.platform] += 1;
+  return out;
+}
+
 /**
- * Whether one more account may be connected. `reconnectId` is the platform id
- * of the account being (re)connected when it is already known, so reconnecting
- * an existing account never hits the limit.
+ * How many Brand Workspaces the connected accounts occupy: a workspace holds at
+ * most one account per platform, so it is the platform with the most active
+ * accounts. Two Instagram accounts and one YouTube channel = 2 workspaces.
+ */
+export function workspacesInUse(list: ConnectedAccount[]): number {
+  return Math.max(0, ...Object.values(activeByPlatform(list)));
+}
+
+/**
+ * Whether one more account may be connected on `platform`. The rule is one
+ * account per platform per workspace, so the check is that platform's active
+ * count against the workspaces limit. `reconnectId` is the platform id of the
+ * account being (re)connected when it is already known, so reconnecting an
+ * existing account never hits the limit.
  */
 export function canConnectAnother(ent: Entitlements, list: ConnectedAccount[], platform: ConnectedPlatform, reconnectId?: string | null): FeatureCheck {
   if (reconnectId && list.some((a) => a.platform === platform && a.platformId === reconnectId)) return { ok: true };
-  const active = activeAccounts(list).length;
-  const max = getLimit(ent, "connected_accounts");
-  if (active < max) return { ok: true };
-  return { ok: false, error: limitError(ent.plan, "connected_accounts", max, active) };
+  const onPlatform = activeByPlatform(list)[platform];
+  const max = getLimit(ent, "workspaces");
+  if (onPlatform < max) return { ok: true };
+  return { ok: false, error: limitError(ent.plan, "workspaces", max, onPlatform) };
 }
 
 // ---------------------------------------------------------------------------
@@ -484,16 +532,39 @@ export function canAddCompetitor(ent: Entitlements, active: number): FeatureChec
 // ---------------------------------------------------------------------------
 
 export type OverLimit = { active: number; limit: number; excess: number };
-export type OverLimits = { accounts: OverLimit | null; competitors: OverLimit | null };
+/**
+ * Accounts over the workspaces limit. `limit` is per platform (one account per
+ * platform per workspace), `active` the busiest platform's count, `excess` the
+ * total number of accounts that must be paused, `byPlatform` which platforms
+ * are over and by how many active accounts.
+ */
+export type AccountsOverLimit = OverLimit & { byPlatform: Partial<Record<ConnectedPlatform, number>> };
+export type OverLimits = { accounts: AccountsOverLimit | null; competitors: OverLimit | null };
 
 /** null counts (unreadable) never produce an over-limit state; nothing is inferred from a failed read. */
-export function computeOverLimits(ent: Entitlements, activeAccountCount: number | null, activeCompetitorCount: number | null): OverLimits {
-  const acc = getLimit(ent, "connected_accounts");
+export function computeOverLimits(
+  ent: Entitlements,
+  accountsByPlatform: Record<ConnectedPlatform, number> | null,
+  activeCompetitorCount: number | null,
+): OverLimits {
+  const ws = getLimit(ent, "workspaces");
   const comp = getLimit(ent, "competitors");
+  let accounts: AccountsOverLimit | null = null;
+  if (accountsByPlatform) {
+    const byPlatform: Partial<Record<ConnectedPlatform, number>> = {};
+    let excess = 0;
+    let active = 0;
+    for (const [p, n] of Object.entries(accountsByPlatform) as [ConnectedPlatform, number][]) {
+      active = Math.max(active, n);
+      if (n > ws) {
+        byPlatform[p] = n;
+        excess += n - ws;
+      }
+    }
+    if (excess > 0) accounts = { active, limit: ws, excess, byPlatform };
+  }
   return {
-    accounts: activeAccountCount != null && activeAccountCount > acc
-      ? { active: activeAccountCount, limit: acc, excess: activeAccountCount - acc }
-      : null,
+    accounts,
     competitors: activeCompetitorCount != null && activeCompetitorCount > comp
       ? { active: activeCompetitorCount, limit: comp, excess: activeCompetitorCount - comp }
       : null,
@@ -505,5 +576,5 @@ export async function getOverLimits(supabase: Supa, ent: Entitlements): Promise<
     listConnectedAccountsDetailed(supabase, ent.userId),
     countActiveCompetitors(supabase, ent.userId),
   ]);
-  return computeOverLimits(ent, accounts.complete ? activeAccounts(accounts.accounts).length : null, competitors);
+  return computeOverLimits(ent, accounts.complete ? activeByPlatform(accounts.accounts) : null, competitors);
 }

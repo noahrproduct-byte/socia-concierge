@@ -1,18 +1,15 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { PLANS } from "./plans";
-import { consumeUsage, releaseUsage, mergeConfig, type Entitlements } from "./entitlements";
+import { consumeUsage, releaseUsage, mergeConfig, currentPeriods, type Entitlements } from "./entitlements";
 
 // The two properties of the meter that must never regress:
 //   1. a broken counter REFUSES the request (fail closed), it never lets it through;
 //   2. a refund never goes through the caller's own session (that RPC is service-role only).
 
-const ent = (plan: keyof typeof PLANS): Entitlements => ({
-  userId: "u1",
-  plan,
-  config: mergeConfig(PLANS[plan]),
-  period: { start: "2026-09-01", end: "2026-10-01" },
-  source: "profile",
-});
+const ent = (plan: keyof typeof PLANS): Entitlements => {
+  const periods = currentPeriods(new Date("2026-09-25T12:00:00Z"));
+  return { userId: "u1", plan, config: mergeConfig(PLANS[plan]), period: periods.month, periods, source: "profile" };
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const client = (rpc: (...args: any[]) => Promise<{ data: unknown; error: unknown }>) => ({ rpc });
@@ -60,6 +57,13 @@ describe("metering fails closed", () => {
     const r = await consumeUsage(client(rpc), ent("free"), "content_plan");
     expect(r.allowed).toBe(false);
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("counts a weekly meter in its week, not the month", async () => {
+    const rpc = vi.fn(async () => ({ data: [{ allowed: true, used_count: 1 }], error: null }));
+    const r = await consumeUsage(client(rpc), ent("free"), "content_ideas");
+    expect(rpc).toHaveBeenCalledWith("socia_consume_usage", { p_meter: "content_ideas", p_period_start: "2026-09-21", p_limit: 3 });
+    expect(r.usage.resetsOn).toBe("2026-09-28");
   });
 });
 

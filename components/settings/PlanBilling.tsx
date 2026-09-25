@@ -7,15 +7,18 @@
 
 import Link from "next/link";
 import "@/app/settings/plan-billing.css";
-import { METER_LABEL, PRICING_PATH, checkoutAvailable, contactHref, formatPrice, type MeterKey } from "@/lib/plans";
+import {
+  FEATURE_STATUS, METER_LABEL, METER_PERIOD, PRICING_PATH, checkoutAvailable, contactHref, formatHistory, formatPrice,
+  type MeterKey,
+} from "@/lib/plans";
 import { formatResetDate } from "@/lib/planErrors";
 import {
-  getLimit,
+  getLimit, workspacesInUse,
   type ConnectedAccount, type Entitlements, type OverLimits, type UsageSnapshot,
 } from "@/lib/entitlements";
 import PlanKeepChooser, { type KeepAccount, type KeepCompetitor } from "./PlanKeepChooser";
 
-const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_generation", "account_audit", "content_plan"];
+const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_ideas", "content_plan", "content_generation", "account_audit"];
 
 function Meter({
   label,
@@ -23,7 +26,7 @@ function Meter({
   limit,
   note,
   unknownTitle = "Not recorded yet",
-  soon = false,
+  plain,
 }: {
   label: string;
   /** null = could not be read. Never invented. */
@@ -31,12 +34,8 @@ function Meter({
   limit: number;
   note?: string;
   unknownTitle?: string;
-  /**
-   * The limit belongs to a feature that is not built yet: show what the plan
-   * will include as plain text, with no count and no bar. Distinct from an
-   * unknown count (which is a real meter whose value could not be read).
-   */
-  soon?: boolean;
+  /** Render this text instead of a count and bar (a limit with no live counter yet). */
+  plain?: string;
 }) {
   const notIncluded = limit <= 0;
   const unknown = used == null;
@@ -45,8 +44,8 @@ function Meter({
   return (
     <li className="pb-meter">
       <span className="pb-meter-label">{label}</span>
-      {soon ? (
-        <span className="pb-meter-val">{limit} {limit === 1 ? "seat" : "seats"} when available</span>
+      {plain ? (
+        <span className="pb-meter-val">{plain}</span>
       ) : notIncluded ? (
         <span className="pb-meter-val">Not included</span>
       ) : unknown ? (
@@ -54,7 +53,7 @@ function Meter({
       ) : (
         <span className="pb-meter-val">{used} / {limit}</span>
       )}
-      {!soon && !notIncluded && (
+      {!plain && !notIncluded && (
         <span className="pb-bar" aria-hidden>
           <span className={`pb-bar-fill${tone}`} style={{ width: `${Math.round(ratio * 100)}%` }} />
         </span>
@@ -85,14 +84,20 @@ export default function PlanBilling({
   overLimits: OverLimits;
 }) {
   const cfg = ent.config;
-  const accountLimit = getLimit(ent, "connected_accounts");
+  const workspaceLimit = getLimit(ent, "workspaces");
   const competitorLimit = getLimit(ent, "competitors");
-  const seats = getLimit(ent, "team_seats");
+  const memberLimit = getLimit(ent, "team_members");
+  const historyDays = getLimit(ent, "analytics_history_days");
+  // Workspaces in use is derived from the accounts (a workspace holds one
+  // account per platform); unknown when a platform table could not be read.
+  const workspacesUsed = activeCount == null ? null : workspacesInUse(accounts);
+  const teamSoon = FEATURE_STATUS.team === "coming_soon";
 
   const keepAccounts = overLimits.accounts
     ? {
         limit: overLimits.accounts.limit,
         active: overLimits.accounts.active,
+        byPlatform: overLimits.accounts.byPlatform,
         items: accounts.map<KeepAccount>((a) => ({
           id: a.id, label: a.label, handle: a.handle, platform: a.platform, suspended: a.suspended, current: a.current,
         })),
@@ -101,6 +106,9 @@ export default function PlanBilling({
   const keepCompetitors = overLimits.competitors && competitors
     ? { limit: overLimits.competitors.limit, active: overLimits.competitors.active, items: competitors }
     : null;
+
+  const weekly = METER_ORDER.filter((m) => METER_PERIOD[m] === "week" && usage[m].limit > 0);
+  const weekReset = weekly.length ? usage[weekly[0]].resetsOn : null;
 
   return (
     <>
@@ -118,14 +126,30 @@ export default function PlanBilling({
       )}
 
       <ul className="pb-meters">
-        <Meter label="Connected accounts" used={activeCount} limit={accountLimit} unknownTitle="Could not be read" />
+        <Meter
+          label="Brand Workspaces"
+          used={workspacesUsed}
+          limit={workspaceLimit}
+          unknownTitle="Could not be read"
+          note="One workspace holds one account on each platform."
+        />
+        <Meter label="Team members" used={teamSoon ? null : 1} limit={memberLimit} plain={teamSoon ? `1 of ${memberLimit} (invites coming soon)` : undefined} />
         <Meter label="Competitors" used={competitorCount} limit={competitorLimit} unknownTitle="Could not be read" />
+        <Meter label="Analytics history" used={null} limit={historyDays} plain={formatHistory(historyDays)} />
         {METER_ORDER.map((m) => (
-          <Meter key={m} label={METER_LABEL[m]} used={usage[m].used} limit={usage[m].limit} />
+          <Meter
+            key={m}
+            label={METER_LABEL[m]}
+            used={usage[m].used}
+            limit={usage[m].limit}
+            note={METER_PERIOD[m] === "week" ? "Per week" : undefined}
+          />
         ))}
-        <Meter label="Team seats" used={null} limit={seats} soon note="Team features are coming soon" />
       </ul>
-      <p className="pb-reset">Usage resets on {formatResetDate(ent.period.end)}.</p>
+      <p className="pb-reset">
+        Monthly usage resets on {formatResetDate(ent.periods.month.end)}.
+        {weekReset ? ` Weekly usage resets on ${formatResetDate(weekReset)}.` : ""}
+      </p>
 
       <div className="pb-actions">
         <Link href={PRICING_PATH} className="btn-secondary">Compare plans</Link>

@@ -81,7 +81,9 @@
   font-variant-numeric: tabular-nums;
 }
 .pr-price-per { font-size: 13px; color: var(--so-dimmer); }
-.pr-tagline { font-size: 13.5px; line-height: 1.55; color: var(--so-dim); min-height: 3.1em; margin-bottom: 18px; }
+.pr-tagline { font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--so-text); margin-bottom: 6px; }
+.pr-audience { font-size: 12.5px; line-height: 1.5; color: var(--so-dim); min-height: 2.9em; margin-bottom: 18px; }
+.pr-everything { font-size: 12px; font-weight: 600; color: var(--so-dim); margin: 16px 0 8px; }
 .pr-cta { margin-bottom: 20px; }
 .pr-cta .so-btn { width: 100%; justify-content: center; }
 .pr-cta-current, .pr-cta-muted {
@@ -115,6 +117,8 @@
   white-space: nowrap;
 }
 .pr-list .pr-soon { margin-top: 2px; }
+.pr-coming { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--so-border, rgba(127, 127, 127, 0.2)); font-size: 12px; line-height: 1.5; color: var(--so-dim); }
+.pr-coming-label { font-weight: 600; }
 
 .pr-note { margin: 22px auto 0; text-align: center; font-size: 13.5px; color: var(--so-dim); max-width: 560px; }
 .pr-note a, .pr-custom a { color: var(--so-cyan); text-decoration: underline; text-underline-offset: 3px; }

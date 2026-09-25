@@ -22,7 +22,7 @@ import type { LibraryPost } from "@/components/ContentLibrary";
 import {
   RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId, type Series, type SeriesPoint, type GraphAccount, type GraphSeries,
 } from "@/lib/overview";
-import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { canUseFeature, getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
@@ -114,9 +114,10 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const freq = profile?.brand_detail?.strategist?.frequency ?? null;
   const frequencyTarget = freq ? parseInt(freq.match(/\d+/)?.[0] ?? "", 10) : NaN;
   const allGaps = buildGaps({ media, followers, goals: profile?.goals ?? null, location, frequencyTarget: Number.isFinite(frequencyTarget) ? frequencyTarget : null, now });
-  // Free sees its top gap in full; the rest stay on the server and only their
-  // real count travels to the client. Paid plans get every gap, as before.
-  const holdBack = ent.plan === "free" && allGaps.length > 1;
+  // Without the deeper-insights feature (Free) the person sees their top gap in
+  // full; the rest stay on the server and only their real count travels to the
+  // client. Plans with the feature get every gap.
+  const holdBack = !canUseFeature(ent, "deeper_insights") && allGaps.length > 1;
   const gaps = holdBack ? allGaps.slice(0, 1) : allGaps;
   const lockedGaps = holdBack ? allGaps.length - 1 : undefined;
   const breakdown = formatBreakdown(media, days, now);
