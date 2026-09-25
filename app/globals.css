@@ -10941,6 +10941,24 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .av-perf-summary em.up { color: var(--success-text); }
 .av-perf-summary em.down { color: var(--danger-text); }
 .av-perf-summary em.muted { color: var(--text-muted); font-weight: 500; }
+
+/* Multi-account overlay: account selector chips + overlay legend/insights */
+.av-accts { display: flex; flex-wrap: wrap; gap: 7px; margin: 2px 0 10px; }
+.av-acct { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease; }
+.av-acct:hover { border-color: var(--border-strong); }
+.av-acct.on { border-color: var(--primary); background: var(--primary-subtle); color: var(--text-primary); }
+.av-acct-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.mlc-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 8px 46px; }
+.mlc-leg { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.mlc-leg.off { opacity: 0.5; }
+.mlc-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.mlc-tip-row { display: flex; align-items: center; gap: 6px; }
+.mlc-tip-row b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.av-ginsights { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.av-gins { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; padding-left: 12px; border-left: 2px solid var(--border-strong); }
+.av-gins.up { border-left-color: var(--success); color: var(--text-primary); }
+.av-gins.info { border-left-color: var(--primary); }
+.av-gins.muted { border-left-color: var(--text-muted); color: var(--text-muted); }
 .av-growth-num { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .av-growth-num b { font-size: 24px; font-weight: 750; letter-spacing: -0.6px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .av-growth-num span { font-size: 12.5px; color: var(--text-secondary); }

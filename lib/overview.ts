@@ -136,6 +136,40 @@ export type Series = {
   prevTotal: number | null;
 };
 
+// ---- multi-account overlay (Performance Over Time only) ----
+// A connected account and the time-series it can honestly contribute to the
+// shared Performance graph. Only platforms with a real per-day series
+// (Instagram, YouTube) carry series entries; Facebook/TikTok are listed so the
+// user can select them, but with no series — the graph says so rather than
+// inventing a line. Nothing here changes the rest of the Analytics page.
+export type GraphMetric = "views" | "engagement" | "followers" | "reach" | "watch_time" | "net_followers";
+export type GraphSeries = {
+  points: SeriesPoint[];
+  label: string;
+  /** provenance string incl. "youtube_daily"; drives the honesty note. */
+  provenance: string;
+  /** true only for a genuine per-day series (chartable as a real trend). */
+  trueSeries: boolean;
+  /** flow metrics sum into buckets; a level (followers) takes the last value. */
+  mode: "sum" | "last";
+  note: string;
+};
+export type GraphAccount = {
+  id: string;
+  platform: "instagram" | "youtube" | "facebook" | "tiktok";
+  label: string;
+  series: Partial<Record<GraphMetric, GraphSeries>>;
+};
+
+export const GRAPH_METRIC_LABEL: Record<GraphMetric, string> = {
+  views: "Views",
+  engagement: "Engagement",
+  followers: "Followers",
+  reach: "Reach",
+  watch_time: "Watch time",
+  net_followers: "New followers",
+};
+
 const META_DAILY = "instagram_api";
 
 export function buildSeries(

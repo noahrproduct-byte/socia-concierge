@@ -16,11 +16,11 @@ import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsV3, { type AnalyticsData } from "@/components/AnalyticsV3";
 import YouTubeAnalytics from "@/components/YouTubeAnalytics";
-import { getYouTubeAnalytics } from "@/lib/youtubeData";
+import { getYouTubeAnalytics, type YtDaily } from "@/lib/youtubeData";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import type { LibraryPost } from "@/components/ContentLibrary";
 import {
-  RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId,
+  RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId, type Series, type GraphAccount, type GraphSeries,
 } from "@/lib/overview";
 import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 
@@ -163,9 +163,39 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     for (const r of platforms) r.share = total > 0 && r.connected && r.value ? r.value / total : 0;
   }
 
+  // Connected accounts the Performance Over Time graph can overlay. Only
+  // Instagram and YouTube carry real per-day series; Facebook/TikTok are listed
+  // (so they're selectable) but with no series — the graph says "no daily trend"
+  // rather than inventing a line. Built from data already fetched above.
+  const gs = (s: Series): GraphSeries => ({ points: s.current, label: s.label, provenance: s.provenance, trueSeries: s.provenance === "instagram_daily" || s.provenance === "snapshot", mode: s.metric === "followers" ? "last" : "sum", note: s.note });
+  const igHasGains = gains.some((g) => g.value != null);
+  const graphAccounts: GraphAccount[] = [
+    {
+      id: `instagram:${snap!.ig_user_id ?? "me"}`,
+      platform: "instagram",
+      label: snap!.username ? `@${snap!.username}` : "Instagram",
+      series: {
+        views: gs(series.views), engagement: gs(series.engagement), followers: gs(series.followers), reach: gs(series.reach),
+        net_followers: { points: gains, label: "New followers", provenance: igHasGains ? "instagram_daily" : "unavailable", trueSeries: igHasGains, mode: "sum", note: "New followers per day, as Instagram reports it." },
+      },
+    },
+  ];
+  if (yt && yt.series?.length) {
+    const mk = (pick: (row: YtDaily) => number, label: string, note: string): GraphSeries => ({ points: yt.series.map((dd) => ({ day: dd.day, value: pick(dd), postIds: [] })), label, provenance: "youtube_daily", trueSeries: true, mode: "sum", note });
+    graphAccounts.push({
+      id: "youtube:me", platform: "youtube", label: yt.channel.title ?? "YouTube",
+      series: { views: mk((dd) => dd.views, "Views", "Daily views, YouTube Analytics."), watch_time: mk((dd) => dd.minutes, "Watch time", "Daily watch time (minutes), YouTube Analytics."), net_followers: mk((dd) => dd.subs, "New subscribers", "Subscribers gained per day, YouTube Analytics.") },
+    });
+  }
+  if (fbConnected) graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb!.page_name ?? "Facebook", series: {} });
+  try {
+    const { data: tt } = await supabase.from("tiktok_connections").select("*").eq("user_id", user.id).maybeSingle();
+    if (tt) graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: tt.username ? `@${tt.username}` : (tt.display_name || "TikTok"), series: {} });
+  } catch { /* tiktok_connections may not exist yet */ }
+
   const d: AnalyticsData = {
     handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
-    timed, followers, followerPoints: fPoints, engagement, formats,
+    timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts,
   };
 
   return (
