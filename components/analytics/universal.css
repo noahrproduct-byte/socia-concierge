@@ -3,8 +3,8 @@
 .uni {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  max-width: 1120px;
+  gap: 14px;
+  max-width: 1200px;
   margin: 0 auto;
   width: 100%;
 }
@@ -110,10 +110,18 @@
   padding: 13px 15px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
-.uni-kpi-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
-.uni-kpi-value { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+.uni-kpi-top { display: flex; align-items: center; gap: 9px; }
+.uni-kpi-ico {
+  width: 30px; height: 30px; flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: var(--primary-subtle); color: var(--primary-text);
+}
+.uni-kpi-ico.hot { background: var(--warning-subtle); color: var(--warning-text); }
+.uni-kpi-label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; }
+.uni-kpi-value { font-size: 25px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 8px; line-height: 1.1; }
+.uni-kpi-sub { font-size: 11px; color: var(--text-muted); }
 .uni-kpi-foot { display: flex; align-items: center; gap: 6px; }
 .uni-kpi-period { font-size: 11px; color: var(--text-muted); }
 .uni-tag {
@@ -132,8 +140,8 @@
 .uni-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 16px 18px;
+  border-radius: 12px;
+  padding: 14px 16px;
 }
 .uni-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .uni-panel-head h3 { font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0; }
@@ -318,7 +326,7 @@
 .uni-top-stat { font-size: 12px; color: var(--text-secondary); }
 
 /* ---- two-column grid ---- */
-.uni-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.uni-grid { display: grid; grid-template-columns: minmax(0, 1fr) 316px; gap: 14px; align-items: start; }
 .uni-col-main, .uni-col-rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 /* ---- context (account) chips ---- */
@@ -407,13 +415,31 @@
 .uni-acctsel-item.add { color: var(--primary-text); font-weight: 600; grid-template-columns: 1fr; border-top: 1px solid var(--border); margin-top: 3px; padding-top: 11px; }
 
 /* ---- performance controls ---- */
-.uni-perf-head { align-items: flex-start; flex-wrap: wrap; }
-.uni-perf-ctrls { display: flex; gap: 8px; flex-wrap: wrap; }
+.uni-perf-head { align-items: center; flex-wrap: wrap; gap: 10px; }
+.uni-perf-ctrls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
+.uni-perf-right { display: flex; gap: 8px; align-items: center; }
 
-/* ---- visibility chips ---- */
-.uni-vischip { }
-.uni-vischip:not(.on) { opacity: 0.5; }
-.uni-vischip.on { border-color: var(--primary); background: var(--primary-subtle); color: var(--text-primary); }
+/* Raw-performance dropdown */
+.uni-disp { position: relative; }
+.uni-disp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); background: var(--surface); border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.uni-disp-btn:hover { border-color: var(--border-strong); }
+.uni-disp-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 41; min-width: 170px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 28px rgba(var(--shadow-rgb), 0.16); padding: 5px; display: flex; flex-direction: column; gap: 2px; }
+.uni-disp-item { text-align: left; border: none; background: transparent; border-radius: 7px; padding: 8px 10px; font-size: 12.5px; color: var(--text-primary); cursor: pointer; }
+.uni-disp-item:hover { background: var(--surface-muted); }
+.uni-disp-item.on { background: var(--primary-subtle); color: var(--primary-text); font-weight: 600; }
+
+/* ---- account chips row (below the graph) ---- */
+.uni-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 12px; }
+.uni-acctsel-btn.chip { padding: 6px 11px; border-radius: 999px; font-size: 12.5px; }
+.uni-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.uni-chip:hover { border-color: var(--border-strong); }
+.uni-chip:not(.on) { opacity: 0.5; }
+.uni-chip.on { opacity: 1; border-color: var(--border-strong); color: var(--text-primary); }
+.uni-chip.soon { opacity: 0.5; cursor: default; }
+.uni-chip-add { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--primary-text); text-decoration: none; padding: 6px 11px; }
+
+/* chart info chip (methodology tooltip) */
+.uni-chart-info { font-size: 11px; color: var(--text-muted); cursor: help; }
 
 /* ---- compare mode ---- */
 .uni-compare { display: flex; flex-direction: column; gap: 14px; padding: 8px 0; }

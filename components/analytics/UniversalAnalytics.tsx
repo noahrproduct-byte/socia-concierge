@@ -10,7 +10,7 @@
 // behind ?v=2 until it reaches parity with the live page.
 
 import { useMemo, useState } from "react";
-import { ChevronDown, Clock, Download, Flame, Lightbulb, Sparkles, TrendingDown, TrendingUp, Zap, type LucideIcon } from "lucide-react";
+import { ChevronDown, Clock, Download, Eye, FileText, Flame, Heart, Lightbulb, TrendingDown, TrendingUp, Users, Zap, type LucideIcon } from "lucide-react";
 import { askSocia } from "@/lib/ask";
 import DateRangeSelector from "@/components/DateRangeSelector";
 import UniTrend from "./UniTrend";
@@ -21,21 +21,17 @@ import ContentDrawer from "./ContentDrawer";
 import Heatmap from "./Heatmap";
 import { median } from "@/lib/metrics";
 import { metricCapability, metricLabel, platformCapability } from "@/lib/analytics/capabilities";
-import { breakdownMetric, engagementSplit, filterPosts, formatBreakdown, formatTable, postingWindows, type PostFilter } from "@/lib/analytics/derive";
+import { breakdownMetric, bucketSeries, engagementSplit, filterPosts, formatBreakdown, formatTable, postingWindows, type PostFilter } from "@/lib/analytics/derive";
 import { accountInsights, crossPlatformInsights, type AnalyticsInsight, type InsightKind } from "@/lib/analytics/insights";
 import { aggregateAccounts } from "@/lib/analytics/aggregate";
 import { relText } from "@/lib/postingTimes";
-import type { MetricKey, NormalizedAccountAnalytics, NormalizedPost, NormalizedSeries, Platform, Status } from "@/lib/analytics/types";
+import type { MetricKey, NormalizedAccountAnalytics, NormalizedPost, NormalizedSeries, Platform } from "@/lib/analytics/types";
 import "./universal.css";
 
 const TINT: Record<Platform, string> = { instagram: "#d6357a", youtube: "#e0332a", facebook: "#1877f2", tiktok: "#22d3ee" };
-const STATUS_CHIP: Record<Status, { label: string; cls: string } | null> = {
-  VERIFIED: { label: "Observed", cls: "obs" }, CALCULATED: { label: "Derived", cls: "der" }, AI_DERIVED: { label: "AI", cls: "ai" }, UNAVAILABLE: null,
-};
 const INSIGHT_ICON: Record<InsightKind, LucideIcon> = { breakout: Flame, format: Lightbulb, timing: Clock, trend: TrendingUp, cadence: TrendingDown, platform: Zap };
+const KPI_ICON: Record<string, LucideIcon> = { views: Eye, engagement: Heart, engagement_rate: Heart, followers: Users, posts: FileText, watch_time: Clock, net_followers: Users };
 
-type GraphMode = "trend" | "content" | "compare";
-const MODES: [GraphMode, string][] = [["trend", "Trend"], ["content", "Content"], ["compare", "Compare"]];
 type Tab = "overview" | "content" | "audience" | "times" | "growth";
 const TABS: [Tab, string][] = [["overview", "Overview"], ["content", "Content Performance"], ["audience", "Audience"], ["times", "Posting Times"], ["growth", "Growth"]];
 const SERIES_PREF: MetricKey[] = ["views", "engagement", "watch_time", "net_followers", "reach", "followers"];
@@ -164,8 +160,10 @@ export default function UniversalAnalytics({
   const [sel, setSel] = useState<number | "all">(initialIdx >= 0 ? initialIdx : showAllOption ? "all" : 0);
   const [selOpen, setSelOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("overview");
-  const [mode, setMode] = useState<GraphMode>("trend");
+  const [metricTab, setMetricTab] = useState<"views" | "engagement" | "followers" | "content">("views");
+  const [gran, setGran] = useState<"day" | "week" | "month">("day");
   const [display, setDisplay] = useState<"raw" | "typical">("raw");
+  const [dispOpen, setDispOpen] = useState(false);
   const [visible, setVisible] = useState<Set<number>>(() => new Set(accounts.map((_, i) => i)));
   const [openPost, setOpenPost] = useState<NormalizedPost | null>(null);
   const isAll = sel === "all";
@@ -183,15 +181,11 @@ export default function UniversalAnalytics({
   const graphIdx = useMemo(() => (isAll ? accounts.map((_, i) => i).filter((i) => visible.has(i)) : [sel as number]), [isAll, accounts, visible, sel]);
   const graphAccounts = graphIdx.map((i) => accounts[i]);
 
-  const chartMetrics = useMemo(() => {
-    const present = new Set<MetricKey>();
-    for (const a of graphAccounts) for (const k of Object.keys(a.series) as MetricKey[]) if (a.series[k]) present.add(k);
-    (["views", "engagement"] as MetricKey[]).forEach((k) => present.add(k)); // content mode can chart these even without a series
-    return SERIES_PREF.filter((k) => present.has(k)).concat([...present].filter((k) => !SERIES_PREF.includes(k)));
-  }, [graphAccounts]);
-  const [metric, setMetric] = useState<MetricKey | null>(null);
-  const activeMetric: MetricKey = (metric && chartMetrics.includes(metric) ? metric : chartMetrics[0]) ?? "views";
-  const lines: TrendLine[] = graphAccounts.filter((a) => a.series[activeMetric]).map((a) => ({ platform: a.account.platform, label: platformCapability(a.account.platform).label, series: a.series[activeMetric]! }));
+  // The metric-pill → series metric for TREND. "Followers" prefers the level
+  // series, falling back to net-followers where that's all a platform has.
+  const trendMetric: MetricKey = metricTab === "engagement" ? "engagement" : metricTab === "followers" ? (graphAccounts.some((a) => a.series.followers) ? "followers" : "net_followers") : "views";
+  const activeMetric: MetricKey = metricTab === "content" ? "views" : trendMetric;
+  const lines: TrendLine[] = graphAccounts.filter((a) => a.series[trendMetric]).map((a) => ({ platform: a.account.platform, label: platformCapability(a.account.platform).label, series: bucketSeries(a.series[trendMetric]!, gran) }));
   const graphPosts = useMemo(() => graphAccounts.flatMap((a) => a.posts), [graphAccounts]);
 
   // COMPARE mode: each account vs its OWN typical — median multiplier of its
@@ -222,17 +216,20 @@ export default function UniversalAnalytics({
     .sort((a, b) => b.mult - a.mult), [accounts]);
   const maxRank = platformRanks[0]?.mult ?? 1;
 
-  // KPI cards for the current context.
-  const kpiCards: { key: string; label: string; value: number | null; unit: Unit; delta: Delta; note?: string; status: Status }[] = isAll
+  // KPI cards for the current context. Icons + real deltas; no provenance chips
+  // (provenance lives in the source tooltip). All-Accounts engagement rate is
+  // total interactions ÷ total views — both additive, so it's defensible.
+  const allEngRate = all.totals.views && all.totals.engagement != null ? (all.totals.engagement / all.totals.views) * 100 : null;
+  const kpiCards: { key: string; label: string; value: number | null; unit: Unit; delta: Delta; note?: string; icon: LucideIcon }[] = isAll
     ? [
-        { key: "views", label: "Total Views", value: all.totals.views ?? null, unit: "count", delta: sumSeriesDelta(accounts, "views"), status: "VERIFIED" },
-        { key: "engagement", label: "Interactions", value: all.totals.engagement ?? null, unit: "count", delta: null, status: "CALCULATED" },
-        { key: "followers", label: "Total Audience", value: all.totals.followers ?? null, unit: "count", delta: null, note: `across ${all.audiencePlatforms.length} platform${all.audiencePlatforms.length === 1 ? "" : "s"}`, status: "VERIFIED" },
-        { key: "posts", label: "Content Published", value: all.totals.posts ?? null, unit: "count", delta: null, status: "CALCULATED" },
+        { key: "views", label: "Total Views", value: all.totals.views ?? null, unit: "count", delta: sumSeriesDelta(accounts, "views"), icon: Eye },
+        { key: "engagement_rate", label: "Engagement Rate", value: allEngRate, unit: "percent", delta: null, note: "interactions ÷ views", icon: Heart },
+        { key: "followers", label: "Total Audience", value: all.totals.followers ?? null, unit: "count", delta: null, note: `across ${all.audiencePlatforms.length} platform${all.audiencePlatforms.length === 1 ? "" : "s"}`, icon: Users },
+        { key: "posts", label: "Content Published", value: all.totals.posts ?? null, unit: "count", delta: null, note: "in this period", icon: FileText },
       ]
     : (["views", "engagement_rate", "followers", "posts"] as MetricKey[])
         .filter((k) => acc.kpis[k])
-        .map((k) => ({ key: k, label: metricLabel(platform, k) === "Followers" || metricLabel(platform, k) === "Subscribers" ? metricLabel(platform, k) : metricLabel(platform, k), value: acc.kpis[k]!.value, unit: metricCapability(platform, k)?.unit ?? "count", delta: sumSeriesDelta([acc], k), note: acc.kpis[k]!.period, status: acc.kpis[k]!.status }));
+        .map((k) => ({ key: k, label: metricLabel(platform, k), value: acc.kpis[k]!.value, unit: metricCapability(platform, k)?.unit ?? "count", delta: sumSeriesDelta([acc], k), note: acc.kpis[k]!.period, icon: KPI_ICON[k] ?? Eye }));
 
   const [pf, setPf] = useState<PostFilter>("top");
   const breakdown = useMemo(() => formatBreakdown(acc.posts, breakdownMetric(acc.posts)), [acc]);
@@ -258,36 +255,8 @@ export default function UniversalAnalytics({
           <p>See what happened, understand why, and find what your strategy is missing.</p>
         </div>
         <div className="uni-controls">
-          <div className="uni-acctsel">
-            <button className="uni-acctsel-btn" onClick={() => setSelOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={selOpen}>
-              {isAll ? <><span className="uni-ctx-ico">∑</span> All Accounts</> : <><span className="uni-legend-dot" style={{ background: TINT[acc.account.platform] }} /> {acc.account.handle ? `@${acc.account.handle.replace(/^@/, "")}` : acc.account.name}</>}
-              <ChevronDown size={14} />
-            </button>
-            {selOpen && (
-              <>
-                <div className="uni-acctsel-scrim" onClick={() => setSelOpen(false)} />
-                <div className="uni-acctsel-menu" role="listbox">
-                  {showAllOption && (
-                    <button role="option" aria-selected={isAll} className={`uni-acctsel-item${isAll ? " on" : ""}`} onClick={() => { setSel("all"); setSelOpen(false); }}>
-                      <span className="uni-ctx-ico">∑</span><span className="uni-acctsel-name">All Accounts</span><span className="uni-acctsel-sub">{accounts.length} connected</span>
-                    </button>
-                  )}
-                  {accounts.map((a, i) => (
-                    <button key={`${a.account.platform}-${a.account.accountId}`} role="option" aria-selected={sel === i} className={`uni-acctsel-item${sel === i ? " on" : ""}`} onClick={() => { setSel(i); setMetric(null); setPf("top"); setSelOpen(false); }}>
-                      <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />
-                      <span className="uni-acctsel-name">{a.account.name ?? a.account.handle ?? platformCapability(a.account.platform).label}</span>
-                      <span className="uni-acctsel-sub">{platformCapability(a.account.platform).label}{a.account.handle ? ` · @${a.account.handle.replace(/^@/, "")}` : ""}</span>
-                    </button>
-                  ))}
-                  {tiktokComingSoon && <span className="uni-acctsel-item soon"><span className="uni-legend-dot" style={{ background: TINT.tiktok }} /><span className="uni-acctsel-name">TikTok</span><span className="uni-acctsel-sub">Coming soon</span></span>}
-                  <a href="/settings" className="uni-acctsel-item add">+ Connect account</a>
-                </div>
-              </>
-            )}
-          </div>
           <DateRangeSelector maxDays={maxDays} />
-          {!isAll && platform === "instagram" && <a href="/api/export" download className="uni-btn ghost"><Download size={14} /> Export</a>}
-          <button type="button" className="uni-btn primary" onClick={() => askSocia({ context: { page: "analytics", range: String(rangeDays), metric: activeMetric ?? undefined } })}><Sparkles size={14} /> Ask SOCIA</button>
+          <a href="/api/export" download className="uni-btn ghost"><Download size={14} /> Export</a>
         </div>
       </div>
 
@@ -303,18 +272,24 @@ export default function UniversalAnalytics({
         <>
           {/* KPI row */}
           <div className="uni-kpis uni-kpis-lg">
-            {kpiCards.map((k) => (
-              <div key={k.key} className="uni-kpi">
-                <span className="uni-kpi-label">{k.label}</span>
-                <span className="uni-kpi-value">{fmtValue(k.value, k.unit)}
-                  {k.delta && <span className={`uni-kpi-delta ${k.delta.up ? "up" : "down"}`}>{k.delta.text}</span>}
-                </span>
-                <span className="uni-kpi-foot">{STATUS_CHIP[k.status] && k.value != null && <span className={`uni-tag ${STATUS_CHIP[k.status]!.cls}`}>{STATUS_CHIP[k.status]!.label}</span>}<span className="uni-kpi-period">{k.note ?? (k.delta ? "vs. previous period" : "")}</span></span>
-              </div>
-            ))}
+            {kpiCards.map((k) => {
+              const Icon = k.icon;
+              return (
+                <div key={k.key} className="uni-kpi" title={!isAll ? acc.kpis[k.key as MetricKey]?.source : undefined}>
+                  <span className="uni-kpi-top">
+                    <span className="uni-kpi-ico"><Icon size={15} /></span>
+                    <span className="uni-kpi-label">{k.label}</span>
+                  </span>
+                  <span className="uni-kpi-value">{fmtValue(k.value, k.unit)}
+                    {k.delta && <span className={`uni-kpi-delta ${k.delta.up ? "up" : "down"}`}>{k.delta.text}</span>}
+                  </span>
+                  <span className="uni-kpi-sub">{k.value == null ? "not available" : k.delta ? "vs. previous 30 days" : (k.note ?? "")}</span>
+                </div>
+              );
+            })}
             {topPerformer && (
               <div className="uni-kpi uni-top">
-                <span className="uni-kpi-label"><Flame size={13} /> Top Performer</span>
+                <span className="uni-kpi-top"><span className="uni-kpi-ico hot"><Flame size={14} /></span><span className="uni-kpi-label">Top Performer</span></span>
                 <div className="uni-top-body">
                   <span className="uni-top-thumb" style={{ backgroundImage: topPerformer.thumb ? `url(${topPerformer.thumb})` : undefined }} />
                   <div className="uni-top-meta">
@@ -345,36 +320,88 @@ export default function UniversalAnalytics({
                 <div className="uni-panel-head uni-perf-head">
                   <h3>Performance Over Time</h3>
                   <div className="uni-perf-ctrls">
-                    <div className="uni-seg">{MODES.map(([m, l]) => <button key={m} className={`uni-seg-b${mode === m ? " on" : ""}`} onClick={() => setMode(m)}>{l}</button>)}</div>
-                    {mode !== "compare" && chartMetrics.length > 1 && <div className="uni-seg">{chartMetrics.map((k) => <button key={k} className={`uni-seg-b${k === activeMetric ? " on" : ""}`} onClick={() => setMetric(k)}>{metricLabel(platform, k)}</button>)}</div>}
-                    {mode === "content" && <div className="uni-seg">{(["raw", "typical"] as const).map((d) => <button key={d} className={`uni-seg-b${display === d ? " on" : ""}`} onClick={() => setDisplay(d)}>{d === "raw" ? "Raw" : "vs. Typical"}</button>)}</div>}
+                    <div className="uni-seg">
+                      {([["views", "Views"], ["engagement", "Engagement"], ["followers", "Followers"], ["content", "Content"]] as const).map(([m, l]) => (
+                        <button key={m} className={`uni-seg-b${metricTab === m ? " on" : ""}`} onClick={() => setMetricTab(m)}>{l}</button>
+                      ))}
+                    </div>
+                    <div className="uni-perf-right">
+                      {metricTab !== "content" && display === "raw" && (
+                        <div className="uni-seg">
+                          {([["day", "Daily"], ["week", "Weekly"], ["month", "Monthly"]] as const).map(([g, l]) => (
+                            <button key={g} className={`uni-seg-b${gran === g ? " on" : ""}`} onClick={() => setGran(g)}>{l}</button>
+                          ))}
+                        </div>
+                      )}
+                      <div className="uni-disp">
+                        <button className="uni-disp-btn" onClick={() => setDispOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={dispOpen}>
+                          {display === "raw" ? "Raw performance" : "vs. Typical"} <ChevronDown size={13} />
+                        </button>
+                        {dispOpen && (
+                          <>
+                            <div className="uni-acctsel-scrim" onClick={() => setDispOpen(false)} />
+                            <div className="uni-disp-menu" role="listbox">
+                              <button className={`uni-disp-item${display === "raw" ? " on" : ""}`} onClick={() => { setDisplay("raw"); setDispOpen(false); }}>Raw performance</button>
+                              <button className={`uni-disp-item${display === "typical" ? " on" : ""}`} onClick={() => { setDisplay("typical"); setDispOpen(false); }}>vs. Typical</button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {mode === "trend" && (lines.length ? <MultiTrend lines={lines} /> : <Empty>No time-series for {metricLabel(platform, activeMetric).toLowerCase()} on the selected accounts. It may only exist as content totals — try Content mode.</Empty>)}
-                {mode === "content" && <ContentTimeline posts={graphPosts} metric={activeMetric} rangeDays={rangeDays} display={display} onOpen={setOpenPost} />}
-                {mode === "compare" && (compareData.length ? (
-                  <div className="uni-compare">
-                    {compareData.map((r) => (
-                      <div key={r.platform} className="uni-rank">
-                        <span className="uni-rank-top"><span className="uni-rank-mult">{fmtMult(r.mult)}</span> <span className="uni-rank-lbl">{platformCapability(r.platform).label} · vs. its typical · {r.n} post{r.n === 1 ? "" : "s"}</span></span>
-                        <span className="uni-rank-track"><span className="uni-rank-fill" style={{ width: `${Math.max(6, Math.min(100, Math.round((r.mult / (compareData[0]?.mult || 1)) * 100)))}%`, background: TINT[r.platform] }} /></span>
-                      </div>
-                    ))}
-                    <p className="uni-chart-note">Each account&apos;s median post this period against its own baseline. 1× is typical; above 1× is outperforming its own norm.</p>
-                  </div>
-                ) : <Empty>Not enough posts with a baseline to compare accounts yet.</Empty>)}
-
-                {isAll && (
-                  <div className="uni-ctxbar">
-                    {accounts.map((a, i) => (
-                      <button key={`${a.account.platform}-${a.account.accountId}`} className={`uni-ctx uni-vischip${visible.has(i) ? " on" : ""}`} onClick={() => setVisible((v) => { const n = new Set(v); if (n.has(i)) { if (n.size > 1) n.delete(i); } else n.add(i); return n; })}>
-                        <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />{visible.has(i) ? "✓ " : ""}{platformCapability(a.account.platform).label}
-                      </button>
-                    ))}
-                    {tiktokComingSoon && <span className="uni-ctx uni-ctx-soon">TikTok · soon</span>}
-                  </div>
+                {display === "typical" ? (
+                  compareData.length ? (
+                    <div className="uni-compare">
+                      {compareData.map((r) => (
+                        <div key={r.platform} className="uni-rank">
+                          <span className="uni-rank-top"><span className="uni-rank-mult">{fmtMult(r.mult)}</span> <span className="uni-rank-lbl">{platformCapability(r.platform).label} · vs. its typical · {r.n} post{r.n === 1 ? "" : "s"}</span></span>
+                          <span className="uni-rank-track"><span className="uni-rank-fill" style={{ width: `${Math.max(6, Math.min(100, Math.round((r.mult / (compareData[0]?.mult || 1)) * 100)))}%`, background: TINT[r.platform] }} /></span>
+                        </div>
+                      ))}
+                      <p className="uni-chart-note">Each account&apos;s median post this period vs its own baseline. 1× is typical; above 1× is outperforming its norm.</p>
+                    </div>
+                  ) : <Empty>Not enough posts with a baseline to compare accounts yet.</Empty>
+                ) : metricTab === "content" ? (
+                  <ContentTimeline posts={graphPosts} metric={activeMetric} rangeDays={rangeDays} onOpen={setOpenPost} />
+                ) : (
+                  lines.length ? <MultiTrend lines={lines} height={240} /> : <Empty>No {metricLabel(platform, trendMetric).toLowerCase()} time-series on the selected accounts — try the Content view.</Empty>
                 )}
+
+                {/* account chips row */}
+                <div className="uni-chips">
+                  <div className="uni-acctsel">
+                    <button className="uni-acctsel-btn chip" onClick={() => setSelOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={selOpen}>
+                      {isAll ? <><span className="uni-ctx-ico">∑</span> All Accounts ({accounts.length})</> : <><span className="uni-legend-dot" style={{ background: TINT[acc.account.platform] }} /> {acc.account.handle ? `@${acc.account.handle.replace(/^@/, "")}` : acc.account.name}</>}
+                      <ChevronDown size={13} />
+                    </button>
+                    {selOpen && (
+                      <>
+                        <div className="uni-acctsel-scrim" onClick={() => setSelOpen(false)} />
+                        <div className="uni-acctsel-menu" role="listbox">
+                          {showAllOption && <button role="option" aria-selected={isAll} className={`uni-acctsel-item${isAll ? " on" : ""}`} onClick={() => { setSel("all"); setSelOpen(false); }}><span className="uni-ctx-ico">∑</span><span className="uni-acctsel-name">All Accounts</span><span className="uni-acctsel-sub">{accounts.length} connected</span></button>}
+                          {accounts.map((a, i) => (
+                            <button key={`${a.account.platform}-${a.account.accountId}`} role="option" aria-selected={sel === i} className={`uni-acctsel-item${sel === i ? " on" : ""}`} onClick={() => { setSel(i); setPf("top"); setSelOpen(false); }}>
+                              <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />
+                              <span className="uni-acctsel-name">{a.account.name ?? a.account.handle ?? platformCapability(a.account.platform).label}</span>
+                              <span className="uni-acctsel-sub">{platformCapability(a.account.platform).label}{a.account.handle ? ` · @${a.account.handle.replace(/^@/, "")}` : ""}</span>
+                            </button>
+                          ))}
+                          {tiktokComingSoon && <span className="uni-acctsel-item soon"><span className="uni-legend-dot" style={{ background: TINT.tiktok }} /><span className="uni-acctsel-name">TikTok</span><span className="uni-acctsel-sub">Coming soon</span></span>}
+                          <a href="/settings#accounts" className="uni-acctsel-item add">+ Connect account</a>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {isAll && accounts.map((a, i) => (
+                    <button key={`${a.account.platform}-${a.account.accountId}`} className={`uni-chip${visible.has(i) ? " on" : ""}`} onClick={() => setVisible((v) => { const n = new Set(v); if (n.has(i)) { if (n.size > 1) n.delete(i); } else n.add(i); return n; })} title="Toggle on the graph">
+                      <span className="uni-legend-dot" style={{ background: TINT[a.account.platform] }} />{a.account.handle ? `@${a.account.handle.replace(/^@/, "")}` : platformCapability(a.account.platform).label}
+                    </button>
+                  ))}
+                  {isAll && tiktokComingSoon && <span className="uni-chip soon">TikTok · soon</span>}
+                  <a href="/settings#accounts" className="uni-chip-add">+ Add account</a>
+                </div>
               </section>
 
               <section className="uni-panel">

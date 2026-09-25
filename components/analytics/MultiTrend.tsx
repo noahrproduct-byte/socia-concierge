@@ -24,7 +24,7 @@ const md = (day: string) => { const M = ["Jan", "Feb", "Mar", "Apr", "May", "Jun
 
 export type TrendLine = { platform: Platform; label: string; series: NormalizedSeries };
 
-export default function MultiTrend({ lines, height = 260 }: { lines: TrendLine[]; height?: number }) {
+export default function MultiTrend({ lines, height = 240 }: { lines: TrendLine[]; height?: number }) {
   const gid = useId();
   const [hover, setHover] = useState<number | null>(null);
 
@@ -95,9 +95,11 @@ export default function MultiTrend({ lines, height = 260 }: { lines: TrendLine[]
           })}
         </div>
       )}
-      <figcaption className="uni-chart-foot">
-        {impure && <span className="uni-chart-note">Lines marked by publish date show each post&apos;s totals on the day it went out, not a daily account series.</span>}
-      </figcaption>
+      {impure && (
+        <figcaption className="uni-chart-foot">
+          <span className="uni-chart-info" title="Lines marked by publish date show each post's totals on the day it went out, not a daily account series.">ⓘ About this data</span>
+        </figcaption>
+      )}
     </figure>
   );
 }

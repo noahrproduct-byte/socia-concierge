@@ -10,6 +10,31 @@ import type { ContentFormat, MetricKey, NormalizedSeries, NormalizedPost, Series
 
 const DAY_MS = 86400000;
 
+/** Bucket a daily series into weeks (Mon-start) or months. Flow metrics (bar)
+ *  sum; level metrics (line, e.g. followers) take the last value in the bucket.
+ *  A bucket with no data stays null. */
+export function bucketSeries(series: NormalizedSeries, gran: "day" | "week" | "month"): NormalizedSeries {
+  if (gran === "day") return series;
+  const mode: "sum" | "last" = series.render === "line" ? "last" : "sum";
+  const keyOf = (day: string) => {
+    if (gran === "month") return `${day.slice(0, 7)}-01`;
+    const d = new Date(day + "T00:00:00Z");
+    return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * DAY_MS).toISOString().slice(0, 10);
+  };
+  const roll = (pts: SeriesPoint[]): SeriesPoint[] => {
+    const out: SeriesPoint[] = [];
+    for (const p of pts) {
+      const key = keyOf(p.day);
+      let b = out[out.length - 1];
+      if (!b || b.day !== key) { b = { day: key, value: null, postIds: [] }; out.push(b); }
+      if (p.value != null) b.value = mode === "last" ? p.value : (b.value ?? 0) + p.value;
+      b.postIds.push(...p.postIds);
+    }
+    return out;
+  };
+  return { ...series, current: roll(series.current), previous: roll(series.previous) };
+}
+
 /** Build a level (line) series from SOCIA-recorded daily snapshots — the
  *  follower/subscriber history for platforms that don't provide one. A day with
  *  no snapshot is a gap (null), never 0; the total is the most recent level. */
