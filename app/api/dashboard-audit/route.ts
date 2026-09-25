@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getEntitlements, clampDays } from "@/lib/entitlements";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import { computeContentScore } from "@/lib/contentScore";
 import {
@@ -31,7 +32,10 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  const days = Number(new URL(req.url).searchParams.get("range") ?? 30);
+  // Same history window as every rendered page: the plan's limit, never the query string's.
+  const ent = await getEntitlements(supabase, user.id);
+  const requested = Number(new URL(req.url).searchParams.get("range") ?? 30);
+  const days = clampDays(ent, Number.isFinite(requested) ? Math.max(1, Math.min(365, Math.floor(requested))) : 30);
   const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
 
   let daily: DailySnapshot[] = [];

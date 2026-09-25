@@ -11,7 +11,9 @@
 // for that plan <- profiles.entitlement_overrides for that user. All reads are
 // defensive: a missing table, column or row falls back to the code defaults,
 // and an unreadable plan resolves to Free, so nothing ever gates open by
-// accident.
+// accident. Metering is the one place that fails CLOSED: if the usage counter
+// cannot be read or written, the metered request is refused (503), never
+// silently allowed.
 //
 // Usage periods are calendar months (UTC) until a billing provider supplies a
 // real billing cycle; getEntitlements() is the single place that will change.
@@ -23,6 +25,7 @@ import {
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
 } from "./plans";
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
+import { createServiceClient } from "./supabase/service";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -220,14 +223,21 @@ export async function getUsage(supabase: Supa, ent: Entitlements): Promise<Recor
   return out;
 }
 
-export type ConsumeResult = { allowed: boolean; usage: UsageSnapshot; error: PlanError | null };
+export type ConsumeResult = {
+  allowed: boolean;
+  usage: UsageSnapshot;
+  error: PlanError | null;
+  /** The counter could not be read or written (function missing, DB error). The request must be refused. */
+  unavailable?: boolean;
+};
 
 /**
  * Atomically count one use and say whether it was within the allowance.
  * Backed by the socia_consume_usage() Postgres function (row lock, so two
  * concurrent requests cannot both squeeze through the last slot). If the
- * function is missing or errors, the request is allowed and the problem is
- * logged loudly: an outage of the meter must not become an outage of SOCIA.
+ * function is missing or errors the request is REFUSED (unavailable: true) and
+ * the problem is logged loudly. Failing open here would make every AI meter
+ * unlimited whenever metering breaks, which is a billing hole, not resilience.
  */
 export async function consumeUsage(supabase: Supa, ent: Entitlements, meter: MeterKey): Promise<ConsumeResult> {
   const limit = ent.config.meters[meter];
@@ -248,21 +258,28 @@ export async function consumeUsage(supabase: Supa, ent: Entitlements, meter: Met
     const usage = snapshot(ent, meter, used);
     return { allowed, usage, error: allowed ? null : usageError(ent.plan, meter, limit, used, ent.period.end) };
   } catch (e) {
-    console.error(`[entitlements] usage metering unavailable for ${meter}:`, (e as Error)?.message ?? e);
-    return { allowed: true, usage: snapshot(ent, meter, null), error: null };
+    console.error(`[entitlements] usage metering unavailable for ${meter}, refusing:`, (e as Error)?.message ?? e);
+    return { allowed: false, usage: snapshot(ent, meter, null), error: null, unavailable: true };
   }
 }
 
 /**
  * Give a consumed unit back because the work it paid for never happened (the
  * model call failed). Only meaningful after a consume that actually counted;
- * callers skip it when usage.used is null. Best-effort: a missing function
- * (pre-migration) is logged, never thrown.
+ * callers skip it when usage.used is null. Refunds go through the service-role
+ * client on purpose: socia_release_usage() is not callable by a signed-in
+ * session, otherwise a browser could reset its own counters in a loop.
+ * Best-effort: no service key or a missing function is logged, never thrown.
  */
-export async function releaseUsage(supabase: Supa, ent: Entitlements, meter: MeterKey): Promise<void> {
+export async function releaseUsage(_supabase: Supa, ent: Entitlements, meter: MeterKey): Promise<void> {
   if (ent.config.meters[meter] <= 0) return;
+  const svc = createServiceClient();
+  if (!svc) {
+    console.error(`[entitlements] could not release ${meter}: SUPABASE_SERVICE_ROLE_KEY is not set`);
+    return;
+  }
   try {
-    const { error } = await supabase.rpc("socia_release_usage", { p_meter: meter, p_period_start: ent.period.start });
+    const { error } = await svc.rpc("socia_release_usage", { p_user: ent.userId, p_meter: meter, p_period_start: ent.period.start });
     if (error) throw error;
   } catch (e) {
     console.error(`[entitlements] could not release ${meter}:`, (e as Error)?.message ?? e);

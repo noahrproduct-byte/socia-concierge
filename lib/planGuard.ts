@@ -30,6 +30,17 @@ export function deny(error: PlanError, status: number = PLAN_DENIED_STATUS): Nex
 }
 
 /**
+ * The usage counter could not be read or written. This is an operations
+ * problem, not a plan decision, so it is a 503 with a plain message rather
+ * than a PlanError (no upgrade CTA, nothing about the person's plan).
+ */
+export const METERING_UNAVAILABLE_COPY = "Usage metering is unavailable right now. Please try again in a moment.";
+
+export function denyMeteringUnavailable(): NextResponse {
+  return NextResponse.json({ error: METERING_UNAVAILABLE_COPY, code: "metering_unavailable" }, { status: 503 });
+}
+
+/**
  * Record a product event without delaying the response and without losing it
  * when the serverless function is frozen after the response: after() runs the
  * insert once the response has been sent.
@@ -84,8 +95,11 @@ export async function requireUsage(
     }
   }
   const r = await consumeUsage(supabase, ent, meter);
+  if (r.unavailable) {
+    return { ent, usage: r.usage, denied: denyMeteringUnavailable(), release: noop };
+  }
   if (r.allowed) {
-    // Only a consume that really counted can be released; the fail-open path (used null) never is.
+    // Only a consume that really counted can be released.
     const release = r.usage.used == null ? noop : () => releaseUsage(supabase, ent, meter);
     return { ent, usage: r.usage, denied: null, release };
   }

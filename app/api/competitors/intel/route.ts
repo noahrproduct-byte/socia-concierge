@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
+import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
 import {
   searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
@@ -26,7 +27,12 @@ export const maxDuration = 120;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL ?? "claude-opus-5";
+// A run is reused for six hours. A manual refresh (Niche intelligence, Starter
+// and up) may force a new run at most once an hour; on Free the button is
+// honoured only once the run is stale. Each run spends model web searches and
+// YouTube quota, so the cache and the cooldown are enforced here, never in the UI.
 const FRESH_MS = 6 * 60 * 60 * 1000;
+const REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
 
 export type IntelSources = {
   youtube: "ok" | "not_configured" | "failed";
@@ -60,7 +66,7 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  const refresh = new URL(req.url).searchParams.get("refresh") === "1";
+  const wantsRefresh = new URL(req.url).searchParams.get("refresh") === "1";
 
   // ---- profile: who the user actually is -------------------------------
   let niche: string | null = null;
@@ -111,12 +117,20 @@ export async function GET(req: Request) {
     goal: goalKind(goalText), ownHandle, ownFollowers, ownFormats,
   };
 
-  // ---- cached results, unless a refresh was asked for -------------------
-  if (!refresh) {
-    const cached = await readStored(supabase, user.id);
-    if (cached && cached.ranAt && Date.now() - new Date(cached.ranAt).getTime() < FRESH_MS) {
-      return NextResponse.json({ ...cached, profileGaps });
+  // ---- cached results, unless a permitted refresh was asked for ----------
+  const cached = await readStored(supabase, user.id);
+  const ageMs = cached?.ranAt ? Date.now() - new Date(cached.ranAt).getTime() : Infinity;
+  let refresh = false;
+  let nextRefreshAt: string | null = null;
+  if (wantsRefresh && cached?.ranAt) {
+    const ent = await getEntitlements(supabase, user.id);
+    if (canUseFeature(ent, "niche_intelligence")) {
+      if (ageMs >= REFRESH_COOLDOWN_MS) refresh = true;
+      else nextRefreshAt = new Date(new Date(cached.ranAt).getTime() + REFRESH_COOLDOWN_MS).toISOString();
     }
+  }
+  if (!refresh && cached && ageMs < FRESH_MS) {
+    return NextResponse.json({ ...cached, profileGaps, nextRefreshAt });
   }
 
   if (!niche) {
