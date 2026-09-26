@@ -298,7 +298,7 @@ grant execute on function public.socia_add_competitor(uuid, text, text, integer)
 
 -- Apply a "choose what to keep" decision after a downgrade. Service role only.
 -- p_accounts: ids like 'instagram:<ig_user_id>', 'facebook:<page_id>',
--- 'youtube:<channel_id>'. p_competitors: 'platform:handle'. Pass null to
+-- 'youtube:<channel_id>', 'tiktok:<open_id>'. p_competitors: 'platform:handle'. Pass null to
 -- leave that group untouched. Everything not kept is paused, never deleted.
 create or replace function public.socia_apply_plan_keep(
   p_user uuid,
@@ -328,7 +328,8 @@ begin
       from unnest(p_accounts) as k
       where not exists (select 1 from public.instagram_connections c where c.user_id = p_user and 'instagram:' || c.ig_user_id = k)
         and not exists (select 1 from public.facebook_connections c where c.user_id = p_user and 'facebook:' || c.page_id = k)
-        and not exists (select 1 from public.youtube_connections c where c.user_id = p_user and 'youtube:' || c.channel_id = k);
+        and not exists (select 1 from public.youtube_connections c where c.user_id = p_user and 'youtube:' || c.channel_id = k)
+        and not exists (select 1 from public.tiktok_connections c where c.user_id = p_user and 'tiktok:' || c.open_id = k);
     if v_bad > 0 then
       raise exception 'unknown account' using errcode = '22023';
     end if;
@@ -342,6 +343,9 @@ begin
     update public.youtube_connections c
       set plan_suspended_at = case when 'youtube:' || c.channel_id = any(p_accounts) then null else coalesce(c.plan_suspended_at, v_now) end
       where c.user_id = p_user;
+    update public.tiktok_connections c
+      set plan_suspended_at = case when 'tiktok:' || c.open_id = any(p_accounts) then null else coalesce(c.plan_suspended_at, v_now) end
+      where c.user_id = p_user and c.open_id is not null;
 
     -- The app reads Instagram through the one is_active row; make sure it is a kept one.
     if not exists (select 1 from public.instagram_connections c where c.user_id = p_user and c.is_active and c.plan_suspended_at is null) then

@@ -12,7 +12,7 @@ export type KeepAccount = {
   id: string;
   label: string;
   handle: string | null;
-  platform: "instagram" | "facebook" | "youtube";
+  platform: "instagram" | "facebook" | "youtube" | "tiktok";
   suspended: boolean;
   /** Instagram only: the account the app currently reads through. */
   current: boolean;
@@ -26,7 +26,7 @@ export type KeepCompetitor = {
 
 export type KeepSection<T> = { limit: number; active: number; items: T[] };
 
-const PLATFORM_NAME: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube" };
+const PLATFORM_NAME: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok" };
 
 const compKey = (c: KeepCompetitor) => `${c.platform}:${c.handle}`;
 

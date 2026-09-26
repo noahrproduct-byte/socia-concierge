@@ -177,10 +177,22 @@ async function tiktok<T>(path: string, token: string, body: unknown, timeoutMs =
   } catch (e) {
     return { ok: false, status: 0, error: { code: "network", message: e instanceof Error ? e.message : "TikTok could not be reached.", retryable: true } };
   }
-  const j = (await res.json().catch(() => null)) as Envelope<T> | null;
+  const j = parseTikTokJson<T>(await res.text().catch(() => ""));
   const code = j?.error?.code;
   if (!res.ok || (code && code !== "ok")) return { ok: false, status: res.status, error: describeError(res.status, code, j?.error?.message) };
   return { ok: true, data: (j?.data ?? {}) as T };
+}
+
+/**
+ * TikTok documents publicaly_available_post_id as int64. JSON.parse would round
+ * a 19-digit id to the nearest double, so those numbers are quoted before
+ * parsing and arrive as exact strings. Pure, unit-tested.
+ */
+export function parseTikTokJson<T>(text: string): Envelope<T> | null {
+  if (!text) return null;
+  const quoted = text.replace(/("publicaly_available_post_id"\s*:\s*\[)([^\]]*)(\])/g, (_m, open: string, inner: string, close: string) =>
+    `${open}${inner.replace(/(^|,)(\s*)(\d{1,20})(?=\s*(,|$))/g, '$1$2"$3"')}${close}`);
+  try { return JSON.parse(quoted) as Envelope<T>; } catch { return null; }
 }
 
 const authFailure = (e: ReturnType<typeof describeError>, status: number): PublishOutcome | null => {
