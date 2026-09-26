@@ -18,6 +18,9 @@ export async function GET(req: Request) {
   // Where to land after the callback: settings (default) or onboarding, carried
   // through Google in the second half of the state value.
   const dest = url.searchParams.get("next") === "onboarding" ? "onboarding" : "settings";
+  // Opt-in publishing: only this path requests the (unverified) write scope, so
+  // an ordinary analytics connect never triggers the "unverified app" warning.
+  const write = url.searchParams.get("publish") === "1";
 
   if (!ytAuthConfigured()) {
     return NextResponse.redirect(`${origin}/${dest}?yt=notconfigured`);
@@ -32,7 +35,7 @@ export async function GET(req: Request) {
   // CSRF nonce: stored HttpOnly and echoed in `state`; the callback rejects any
   // response whose state does not match this cookie.
   const nonce = crypto.randomUUID();
-  const res = NextResponse.redirect(ytAuthUrl(`${nonce}.${dest}`, ytRedirectUri(origin)));
+  const res = NextResponse.redirect(ytAuthUrl(`${nonce}.${dest}`, ytRedirectUri(origin), { write }));
   res.cookies.set(YT_OAUTH_STATE_COOKIE, nonce, {
     httpOnly: true,
     sameSite: "lax",

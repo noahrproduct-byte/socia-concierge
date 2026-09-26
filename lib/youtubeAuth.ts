@@ -12,17 +12,28 @@
 //      URI exactly matches ytRedirectUri() in production and dev.
 //   3. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the environment.
 
-// Read (channel, videos, YouTube Analytics) plus the `youtube` write scope the
-// composer uses to upload, edit and add to playlists (videos.insert and
-// videos.update, thumbnails.set, playlistItems.insert all accept it;
-// youtube.upload alone would not cover update or playlists). Channels connected
-// before this scope was added carry only the read scopes in
-// youtube_connections.scopes and are asked to reconnect before uploading.
-export const YT_SCOPES = [
+// Read scopes only: channel + videos (youtube.readonly) and YouTube Analytics
+// (yt-analytics.readonly). These two are registered and VERIFIED on the OAuth
+// project, so connecting a channel shows no "unverified app" warning. This is
+// the default connect, and it powers everything SOCIA reads.
+export const YT_READ_SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
   "https://www.googleapis.com/auth/yt-analytics.readonly",
-  "https://www.googleapis.com/auth/youtube",
 ];
+
+// The `youtube` write scope the composer needs to upload, edit and add to
+// playlists (videos.insert/update, thumbnails.set, playlistItems.insert;
+// youtube.upload alone would not cover update or playlists). It is NOT yet
+// registered/verified on the OAuth project, so requesting it makes Google show
+// the "app isn't verified" warning. It is therefore requested only on an
+// explicit opt-in (the "enable YouTube publishing" path, /start?publish=1),
+// via incremental auth, so ordinary analytics connects stay clean. Submit this
+// scope for verification before YouTube publishing goes public.
+export const YT_WRITE_SCOPE = "https://www.googleapis.com/auth/youtube";
+
+// Full set (read + write), for the publish-enabled connect. Channels connected
+// with only the read scopes are asked to reconnect via that path before uploading.
+export const YT_SCOPES = [...YT_READ_SCOPES, YT_WRITE_SCOPE];
 
 // Random per-attempt nonce lives in this cookie and must match the value echoed
 // back in the OAuth `state`, so a stray callback cannot attach someone else's
@@ -49,12 +60,14 @@ export function ytRedirectUri(reqOrigin: string): string {
 // The Google consent URL. access_type=offline + prompt=consent so Google always
 // returns a refresh token (even when the user reconnects an already-granted
 // channel), which we need to keep reading after the 1-hour access token expires.
-export function ytAuthUrl(state: string, redirectUri: string): string {
+export function ytAuthUrl(state: string, redirectUri: string, opts: { write?: boolean } = {}): string {
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.searchParams.set("client_id", ytClientId()!);
   u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("response_type", "code");
-  u.searchParams.set("scope", YT_SCOPES.join(" "));
+  // Default: verified read scopes only (no warning). The unverified write scope
+  // is added only when publishing is explicitly requested.
+  u.searchParams.set("scope", (opts.write ? YT_SCOPES : YT_READ_SCOPES).join(" "));
   u.searchParams.set("access_type", "offline");
   u.searchParams.set("prompt", "consent");
   u.searchParams.set("include_granted_scopes", "true");
