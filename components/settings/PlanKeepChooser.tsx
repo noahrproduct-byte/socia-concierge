@@ -17,11 +17,7 @@ export type KeepAccount = {
   id: string;
   label: string;
   handle: string | null;
-<<<<<<< HEAD
-  platform: "instagram" | "facebook" | "youtube" | "tiktok";
-=======
   platform: WorkspacePlatform;
->>>>>>> bdb53ec0343586aa78319c081a9987dde779e021
   suspended: boolean;
   /** Instagram only: the account the app currently reads through. */
   current: boolean;
@@ -34,15 +30,10 @@ export type KeepCompetitor = {
 };
 
 export type KeepSection<T> = { limit: number; active: number; items: T[] };
-<<<<<<< HEAD
-
-const PLATFORM_NAME: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok" };
-=======
 export type KeepAccountsSection = KeepSection<KeepAccount> & {
   /** Platforms that are over the limit, with their active counts. */
   byPlatform: Partial<Record<WorkspacePlatform, number>>;
 };
->>>>>>> bdb53ec0343586aa78319c081a9987dde779e021
 
 const compKey = (c: KeepCompetitor) => `${c.platform}:${c.handle}`;
 
