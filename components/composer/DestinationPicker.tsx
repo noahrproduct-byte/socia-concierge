@@ -142,7 +142,7 @@ function PlatformRow({
     <div className={`cp-dest-row disabled state-${av.state}`} aria-disabled>
       {body}
       <span className="cp-dest-action">
-        {av.state === "needs_scope" && <a href={`/api/auth/${platform}/start`}>Reconnect</a>}
+        {av.state === "needs_scope" && <a href={`/api/auth/${platform}/start${platform === "youtube" ? "?publish=1" : ""}`}>Reconnect</a>}
         {av.state === "not_connected" && CAPABILITIES[platform].implemented && <Link href="/settings#accounts">Connect in Settings</Link>}
       </span>
     </div>

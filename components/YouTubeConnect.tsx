@@ -120,7 +120,8 @@ export default function YouTubeConnect({
       </div>
       {connected && !canUpload && (
         <p className="st2-ig-note">
-          Uploads need a reconnect. <a className="st2-connect" href="/api/auth/youtube/start">Reconnect</a>
+          Publishing to YouTube needs an extra permission. <a className="st2-connect" href="/api/auth/youtube/start?publish=1">Enable uploads</a>.
+          Google may show an &quot;unverified app&quot; screen until this permission is reviewed; choose Advanced then continue to grant it.
         </p>
       )}
       {note && <p className="st2-ig-note">{note}</p>}

@@ -249,7 +249,7 @@ export default function YouTubeSettingsForm({
 
 function OptionsFallback({ state, what }: { state: OptionsState; what: string }) {
   if (state.status === "loading") return <div className="cp-ghost"><Loader2 size={12} className="cp-spin" /> Loading {what} from your channel</div>;
-  if (state.status === "needs_scope") return <div className="cp-ghost"><a href="/api/auth/youtube/start">Reconnect YouTube</a> to load {what}.</div>;
+  if (state.status === "needs_scope") return <div className="cp-ghost"><a href="/api/auth/youtube/start?publish=1">Enable YouTube uploads</a> to load {what}.</div>;
   if (state.status === "error") return <div className="cp-ghost">{state.message}</div>;
   return null;
 }
