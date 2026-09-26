@@ -41,8 +41,11 @@ import {
 import { limitError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
 import PlanBilling from "@/components/settings/PlanBilling";
+import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
 import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
 import type { BrandDetail } from "@/lib/profile";
+import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces } from "@/lib/workspaces";
+import { Briefcase } from "lucide-react";
 
 export const metadata = { title: "Settings — SOCIA" };
 
@@ -208,6 +211,20 @@ export default async function SettingsPage({
   // A platform table that could not be read makes the count unknown (not a lower bound shown as truth).
   const activeCount = accountsResult.complete ? activeAccounts(accountsList).length : null;
   const overLimits = computeOverLimits(ent, accountsResult.complete ? activeByPlatform(accountsList) : null, competitorCount);
+
+  // Brand Workspaces (only once the migration has run; before that the section is hidden).
+  const wsEnabled = await workspacesEnabled(supabase);
+  let workspaceRows: WorkspaceRow[] = [];
+  let workspaceUsed = 0;
+  if (wsEnabled) {
+    const [wsList, wsActive] = await Promise.all([
+      listWorkspaces(supabase, user.id),
+      getActiveWorkspace(supabase, user.id),
+    ]);
+    workspaceRows = wsList.map((w) => ({ id: w.id, name: w.name, isDefault: w.isDefault, suspended: w.suspended, active: wsActive?.id === w.id }));
+    workspaceUsed = activeWorkspaces(wsList).length;
+  }
+  const workspaceLimit = getLimit(ent, "workspaces");
   const keepCompetitors = overLimits.competitors ? await listTrackedCompetitors(supabase, user.id) : null;
   const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit" || tt === "limit";
   // Accounts paused by a downgrade still have rows (the cards below read those
@@ -292,6 +309,18 @@ export default async function SettingsPage({
               </div>
               <BrandSettings email={user.email ?? ""} />
             </section>
+
+            {/* 1b — Brand Workspaces */}
+            {wsEnabled && (
+              <section className="st2-card" id="workspaces">
+                <div className="st2-card-head">
+                  <span className="st2-card-ico"><Briefcase size={15} /></span>
+                  <h3>Brand Workspaces</h3>
+                  <span className="st2-card-note">One brand, one workspace, one account per platform</span>
+                </div>
+                <WorkspacesManager workspaces={workspaceRows} limit={workspaceLimit} used={workspaceUsed} planName={ent.config.name} />
+              </section>
+            )}
 
             {/* 2 — Connected Accounts */}
             <section className="st2-card" id="accounts">

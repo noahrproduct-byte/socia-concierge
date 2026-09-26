@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
+import WorkspaceSwitcher from "@/components/WorkspaceSwitcher";
 import TopBar, { type SearchItem } from "@/components/TopBar";
 import { ThemeSync } from "@/components/ThemeProvider";
 import { isAppearance, type Appearance } from "@/lib/appearance";
@@ -163,6 +164,8 @@ export default async function AppShell({
           <BrandMark size={30} />
           <span className="side-word">SOCIA</span>
         </Link>
+
+        <WorkspaceSwitcher />
 
         <nav className="side-nav" aria-label="Main">
           {NAV.map(({ href, label, Icon, key }) => (
