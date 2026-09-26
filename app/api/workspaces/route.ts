@@ -63,13 +63,12 @@ export async function POST(req: Request) {
 
   const ent = await getEntitlements(supabase, user.id);
   const limit = getLimit(ent, "workspaces");
-  const res = await createWorkspace(user.id, name, limit);
+  const res = await createWorkspace(supabase, user.id, name, limit);
   if (!res.ok) {
     if (res.reason === "limit") {
       recordEvent(supabase, user.id, "feature_locked", { limit: "workspaces", plan: ent.plan });
       return NextResponse.json(limitError(ent.plan, "workspaces", limit), { status: 403 });
     }
-    if (res.reason === "not_configured") return NextResponse.json({ error: res.error }, { status: 503 });
     return NextResponse.json({ error: res.error }, { status: 500 });
   }
   return NextResponse.json({ ok: true, id: res.id });

@@ -152,23 +152,47 @@ export async function setActiveWorkspace(supabase: Supa, workspaceId: string): P
 }
 
 /**
- * Create a workspace within the plan's limit, atomically (service role). The
- * caller resolves the limit from entitlements; this only carries it through.
+ * Create a workspace within the plan's limit. The atomic, plan-aware path is
+ * the service-role function; where no service key is configured (local dev, or
+ * a self-host without it) it falls back to a count-then-insert through the
+ * caller's own session, exactly like the competitor add. The caller resolves
+ * the limit from entitlements; this only carries it through.
  */
 export async function createWorkspace(
+  supabase: Supa,
   userId: string,
   name: string,
   limit: number,
-): Promise<{ ok: true; id: string } | { ok: false; reason: "limit" | "not_configured" | "error"; error: string }> {
+): Promise<{ ok: true; id: string } | { ok: false; reason: "limit" | "error"; error: string }> {
   const svc = createServiceClient();
-  if (!svc) return { ok: false, reason: "not_configured", error: "SOCIA is not configured to create workspaces on this server." };
-  const { data, error } = await svc.rpc("socia_create_workspace", { p_user: userId, p_name: name, p_limit: limit });
-  if (error) {
-    const code = (error as { code?: string }).code;
-    if (code === "22023") return { ok: false, reason: "limit", error: "Your plan's workspace limit is reached." };
-    return { ok: false, reason: "error", error: error.message };
+  if (svc) {
+    const { data, error } = await svc.rpc("socia_create_workspace", { p_user: userId, p_name: name, p_limit: limit });
+    if (error) {
+      const code = (error as { code?: string }).code;
+      if (code === "22023") return { ok: false, reason: "limit", error: "Your plan's workspace limit is reached." };
+      return { ok: false, reason: "error", error: error.message };
+    }
+    return { ok: true, id: String(data) };
   }
-  return { ok: true, id: String(data) };
+
+  // Fallback: no service client. Count then insert through the owner's session
+  // (the RLS insert policy is owner-scoped). Not atomic, but a single user
+  // creating their own workspaces does not race meaningfully.
+  const { data: existing, error: readErr } = await supabase
+    .from("workspaces").select("id, plan_suspended_at").eq("owner_id", userId);
+  if (readErr) return { ok: false, reason: "error", error: readErr.message };
+  const rows = (existing ?? []) as { id: string; plan_suspended_at: string | null }[];
+  if (rows.filter((r) => r.plan_suspended_at == null).length >= limit) {
+    return { ok: false, reason: "limit", error: "Your plan's workspace limit is reached." };
+  }
+  const isFirst = rows.length === 0;
+  const { data, error } = await supabase
+    .from("workspaces").insert({ owner_id: userId, name: name.trim() || "My brand", is_default: isFirst })
+    .select("id").maybeSingle();
+  if (error || !data) return { ok: false, reason: "error", error: error?.message ?? "Could not create the workspace." };
+  const id = String((data as { id: string }).id);
+  if (isFirst) await supabase.from("profiles").update({ active_workspace_id: id }).eq("user_id", userId).then(() => undefined, () => undefined);
+  return { ok: true, id };
 }
 
 export type WorkspacePatch = Partial<Pick<Workspace, "name" | "niche" | "brand_name" | "goals" | "brand_detail" | "niche_detail" | "niche_analyzed_at">>;
