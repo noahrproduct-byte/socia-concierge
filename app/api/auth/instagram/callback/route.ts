@@ -4,6 +4,7 @@ import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/inst
 import { syncInstagram } from "@/lib/instagramSync";
 import { createServiceClient } from "@/lib/supabase/service";
 import { activeAccounts, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
+import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
 import { PLATFORMS_PER_WORKSPACE } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
 
@@ -132,7 +133,12 @@ export async function GET(req: Request) {
       : typeof shortJson.permissions === "string"
         ? String(shortJson.permissions).split(",").map((x) => x.trim()).filter(Boolean)
         : [];
-    const connRow = {
+    // Brand Workspaces: the account joins the active workspace (one Instagram
+    // account per workspace). is_active still marks the account the app reads
+    // through; stamping workspace_id keeps the two in step. Inert before the
+    // migration (workspace_id column absent, so it is dropped on the fallback).
+    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
+    const connRow: Record<string, unknown> = {
       user_id: user.id,
       ig_user_id: igId,
       scopes: grantedScopes,
@@ -142,6 +148,7 @@ export async function GET(req: Request) {
       token_expires_at: expiresAt,
       connected_at: new Date().toISOString(),
     };
+    if (ws) connRow.workspace_id = ws.id;
     // The freshly connected account becomes the one every page reads.
     // Deactivate the others FIRST: a partial unique index enforces one active
     // row per user, so activating before deactivating would violate it.

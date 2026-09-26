@@ -4,6 +4,7 @@ import { igAccountForPage } from "@/lib/igBusinessDiscovery";
 import { FB_GRAPH_V, fbAppId, fbAppSecret, fbRedirectUri } from "@/lib/facebook";
 import { syncFacebook } from "@/lib/facebookSync";
 import { activeByPlatform, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
+import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
@@ -160,6 +161,13 @@ export async function GET(req: Request) {
     // its page id, so reconnecting the Page already on file never hits it.
     const ent = await getEntitlements(supabase, user.id);
     const list = await listConnectedAccounts(supabase, user.id);
+    // Brand Workspaces: the Page belongs to the active workspace (one per
+    // workspace), so writes conflict on workspace_id and the fb_user_id update
+    // is scoped to that row. Before the migration it stays one row per user.
+    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
+    const onConflict = ws ? "workspace_id" : "user_id";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const scopeFb = (q: any) => (ws ? q.eq("workspace_id", ws.id) : q);
     const limitHit = async () => {
       await trackEvent(supabase, user.id, "account_limit_reached", { platform: "facebook", plan: ent.plan });
       return done("limit");
@@ -184,19 +192,20 @@ export async function GET(req: Request) {
         ig_business_id: ig?.id ?? null,
         ig_business_username: ig?.username ?? null,
       };
+      if (ws) row.workspace_id = ws.id;
       let { error } = await supabase
         .from("facebook_connections")
-        .upsert(row, { onConflict: "user_id" });
+        .upsert(row, { onConflict });
       if (error) {
         // ig_business_* columns may not exist yet — connect without them.
         delete row.ig_business_id;
         delete row.ig_business_username;
         ({ error } = await supabase
           .from("facebook_connections")
-          .upsert(row, { onConflict: "user_id" }));
+          .upsert(row, { onConflict }));
       }
       if (error) return done("error");
-      if (fbUserId) await supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id).then(() => null, () => null);
+      if (fbUserId) await scopeFb(supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id)).then(() => null, () => null);
       await syncFacebook(supabase, user.id).catch(() => null);
       return done("connected");
     }
@@ -207,20 +216,19 @@ export async function GET(req: Request) {
     // re-checks with the chosen id.
     const hasFbPage = list.some((a) => a.platform === "facebook");
     if (!hasFbPage && activeByPlatform(list).facebook >= getLimit(ent, "workspaces")) return limitHit();
-    const { error } = await supabase.from("facebook_connections").upsert(
-      {
-        user_id: user.id,
-        page_id: null,
-        page_name: null,
-        username: null,
-        access_token: null,
-        connection_status: "choose_page",
-        pending_pages: pages,
-      },
-      { onConflict: "user_id" },
-    );
+    const pendingRow: Record<string, unknown> = {
+      user_id: user.id,
+      page_id: null,
+      page_name: null,
+      username: null,
+      access_token: null,
+      connection_status: "choose_page",
+      pending_pages: pages,
+    };
+    if (ws) pendingRow.workspace_id = ws.id;
+    const { error } = await supabase.from("facebook_connections").upsert(pendingRow, { onConflict });
     if (error) return done("error");
-    if (fbUserId) await supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id).then(() => null, () => null);
+    if (fbUserId) await scopeFb(supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id)).then(() => null, () => null);
     return done("choose");
   } catch {
     return done("error");

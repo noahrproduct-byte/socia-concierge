@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshAccessToken } from "./youtubeAuth";
 import { recentVideos, type YtVideo } from "./youtube";
+import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
 
 const DATA = "https://www.googleapis.com/youtube/v3";
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
@@ -64,15 +65,16 @@ async function readConnRow<T extends Record<string, unknown>>(
   userId: string,
   cols: string,
 ): Promise<T | null> {
+  // When Brand Workspaces are enabled, a user may hold one channel per
+  // workspace; read the active workspace's row. Otherwise the one row per user.
+  const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
   const attempts = [`${cols}, scopes, plan_suspended_at`, `${cols}, plan_suspended_at`, cols];
   for (let i = 0; i < attempts.length; i++) {
     try {
-      const { data, error } = await supabase
-        .from("youtube_connections")
-        .select(attempts[i])
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (!error) return (data as T | null) ?? null;
+      let q = supabase.from("youtube_connections").select(attempts[i]).eq("user_id", userId);
+      if (wsId) q = q.eq("workspace_id", wsId);
+      const { data, error } = await q.limit(1);
+      if (!error) return ((data as unknown as T[] | null) ?? [])[0] ?? null;
       if (i === attempts.length - 1) return null;
     } catch {
       /* pre-migration: retry with fewer columns */

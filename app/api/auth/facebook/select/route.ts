@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { syncFacebook } from "@/lib/facebookSync";
 import { igAccountForPage } from "@/lib/igBusinessDiscovery";
 import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib/entitlements";
+import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
 import { deny } from "@/lib/planGuard";
 import { trackEvent } from "@/lib/events";
 
@@ -24,11 +25,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const { data: row } = await supabase
-    .from("facebook_connections")
-    .select("pending_pages")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  // Scope the pending row to the active workspace when Brand Workspaces are on
+  // (a user may then have a Facebook row per workspace).
+  const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
+  let pendingQ = supabase.from("facebook_connections").select("pending_pages").eq("user_id", user.id);
+  if (ws) pendingQ = pendingQ.eq("workspace_id", ws.id);
+  const { data: rows } = await pendingQ.limit(1);
+  const row = ((rows as { pending_pages?: unknown }[] | null) ?? [])[0] ?? null;
   type PageEntry = {
     id: string; name?: string; username?: string; followers_count?: number;
     fan_count?: number; picture?: { data?: { url?: string } }; access_token?: string;
@@ -56,22 +59,21 @@ export async function POST(req: Request) {
   // it just can't provide Instagram competitor data.
   const igAccount = await igAccountForPage(p.id, p.access_token).catch(() => null);
 
-  const { error } = await supabase.from("facebook_connections").upsert(
-    {
-      user_id: user.id,
-      page_id: p.id,
-      ig_business_id: igAccount?.id ?? null,
-      ig_business_username: igAccount?.username ?? null,
-      page_name: p.name ?? null,
-      username: p.username ?? null,
-      followers_count: p.followers_count ?? p.fan_count ?? null,
-      picture_url: p.picture?.data?.url ?? null,
-      access_token: p.access_token,
-      connection_status: "connected",
-      pending_pages: null,
-    },
-    { onConflict: "user_id" },
-  );
+  const selectRow: Record<string, unknown> = {
+    user_id: user.id,
+    page_id: p.id,
+    ig_business_id: igAccount?.id ?? null,
+    ig_business_username: igAccount?.username ?? null,
+    page_name: p.name ?? null,
+    username: p.username ?? null,
+    followers_count: p.followers_count ?? p.fan_count ?? null,
+    picture_url: p.picture?.data?.url ?? null,
+    access_token: p.access_token,
+    connection_status: "connected",
+    pending_pages: null,
+  };
+  if (ws) selectRow.workspace_id = ws.id;
+  const { error } = await supabase.from("facebook_connections").upsert(selectRow, { onConflict: ws ? "workspace_id" : "user_id" });
   if (error) return NextResponse.json({ error: "Couldn't save the connection." }, { status: 500 });
 
   await syncFacebook(supabase, user.id).catch(() => null);

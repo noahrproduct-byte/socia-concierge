@@ -4,6 +4,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchMyProfile, fetchMyVideos, refreshAccessToken, type TtProfile, type TtVideo } from "./tiktokAuth";
+import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
 
 export type TikTokAccess = {
   token: string;
@@ -21,16 +22,19 @@ type ConnRow = {
 };
 
 async function readConnRow(supabase: SupabaseClient, userId: string): Promise<ConnRow | null> {
+  // Active workspace scoping when Brand Workspaces are enabled (one TikTok
+  // account per workspace); otherwise the one row per user.
+  const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
   const full = "open_id, access_token, refresh_token, token_expires_at, scopes, plan_suspended_at";
-  const { data, error } = await supabase.from("tiktok_connections").select(full).eq("user_id", userId).maybeSingle();
-  if (!error) return (data as ConnRow | null) ?? null;
+  let q = supabase.from("tiktok_connections").select(full).eq("user_id", userId);
+  if (wsId) q = q.eq("workspace_id", wsId);
+  const { data, error } = await q.limit(1);
+  if (!error) return ((data as ConnRow[] | null) ?? [])[0] ?? null;
   // Pre-migration schema (no plan_suspended_at / scopes): read what exists.
-  const { data: legacy } = await supabase
-    .from("tiktok_connections")
-    .select("open_id, access_token, refresh_token, token_expires_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-  return (legacy as ConnRow | null) ?? null;
+  let lq = supabase.from("tiktok_connections").select("open_id, access_token, refresh_token, token_expires_at").eq("user_id", userId);
+  if (wsId) lq = lq.eq("workspace_id", wsId);
+  const { data: legacy } = await lq.limit(1);
+  return ((legacy as ConnRow[] | null) ?? [])[0] ?? null;
 }
 
 /**

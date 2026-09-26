@@ -9,6 +9,7 @@ import {
   ytRedirectUri,
 } from "@/lib/youtubeAuth";
 import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib/entitlements";
+import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
@@ -75,7 +76,12 @@ export async function GET(req: Request) {
       refreshToken = (prev as { refresh_token?: string | null } | null)?.refresh_token ?? null;
     }
 
-    const row = {
+    // When Brand Workspaces are enabled, the channel belongs to the active
+    // workspace (one channel per workspace); the upsert conflicts on
+    // workspace_id so reconnecting replaces that workspace's channel. Before
+    // the migration it stays one row per user, conflicting on user_id.
+    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
+    const row: Record<string, unknown> = {
       user_id: user.id,
       channel_id: channel.channelId,
       title: channel.title,
@@ -88,9 +94,10 @@ export async function GET(req: Request) {
       token_expires_at: new Date(Date.now() + tok.expiresIn * 1000).toISOString(),
       connected_at: new Date().toISOString(),
     };
+    if (ws) row.workspace_id = ws.id;
     const { error: upErr } = await supabase
       .from("youtube_connections")
-      .upsert(row, { onConflict: "user_id" });
+      .upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
     if (upErr) {
       console.error("YouTube connection upsert failed:", upErr.message);
       return done("error");

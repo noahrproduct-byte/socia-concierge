@@ -11,6 +11,7 @@ import {
 } from "@/lib/tiktokAuth";
 import { profileColumns } from "@/lib/tiktokData";
 import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib/entitlements";
+import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
@@ -71,6 +72,10 @@ export async function GET(req: Request) {
     // account) still connects.
     const videos = await fetchMyVideos(tok.access_token, 20).catch(() => null);
 
+    // Brand Workspaces: the account belongs to the active workspace (one per
+    // workspace, upsert conflicts on workspace_id). Before the migration it is
+    // one row per user.
+    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
     const now = Date.now();
     const row: Record<string, unknown> = {
       user_id: user.id,
@@ -87,7 +92,8 @@ export async function GET(req: Request) {
       // of a paused account must not fail on it. New rows start un-paused.
       connected_at: new Date(now).toISOString(),
     };
-    const { error: upErr } = await supabase.from("tiktok_connections").upsert(row, { onConflict: "user_id" });
+    if (ws) row.workspace_id = ws.id;
+    const { error: upErr } = await supabase.from("tiktok_connections").upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
     if (upErr) {
       console.error("TikTok connection upsert failed:", upErr.message);
       return done("error");

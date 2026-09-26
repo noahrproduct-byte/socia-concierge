@@ -3,6 +3,7 @@
 // provide it, never zero. Tokens stay server-side.
 
 import { FB_GRAPH_V } from "./facebook";
+import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -188,24 +189,29 @@ type FbRow = {
   plan_suspended_at?: string | null;
 };
 
-/** The connection row, reading plan_suspended_at when that column exists. */
+/**
+ * The connection row, reading plan_suspended_at when that column exists. When
+ * Brand Workspaces are enabled the row is scoped to the active workspace (a
+ * user may then hold one Facebook Page per workspace); otherwise it is the one
+ * row per user. Reads take the first matching row rather than maybeSingle, so a
+ * user with several workspaces never trips "multiple rows returned".
+ */
 async function readFbRow(supabase: Supa, userId: string): Promise<FbRow | null> {
+  const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scope = (q: any) => (wsId ? q.eq("workspace_id", wsId) : q);
   try {
-    const { data, error } = await supabase
-      .from("facebook_connections")
-      .select(`${FB_SNAPSHOT_COLS}, plan_suspended_at`)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (!error) return (data as FbRow | null) ?? null;
+    const { data, error } = await scope(
+      supabase.from("facebook_connections").select(`${FB_SNAPSHOT_COLS}, plan_suspended_at`).eq("user_id", userId),
+    ).limit(1);
+    if (!error) return ((data as FbRow[] | null) ?? [])[0] ?? null;
   } catch {
     /* pre-migration: retry without the column */
   }
-  const { data } = await supabase
-    .from("facebook_connections")
-    .select(FB_SNAPSHOT_COLS)
-    .eq("user_id", userId)
-    .maybeSingle();
-  return (data as FbRow | null) ?? null;
+  const { data } = await scope(
+    supabase.from("facebook_connections").select(FB_SNAPSHOT_COLS).eq("user_id", userId),
+  ).limit(1);
+  return ((data as FbRow[] | null) ?? [])[0] ?? null;
 }
 
 function idleStatus(row: FbRow): FbSnapshot["status"] {
