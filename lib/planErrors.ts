@@ -7,7 +7,7 @@
 // thing they want lives. Never a bare "Forbidden". No em dashes.
 
 import {
-  PLANS, FEATURE_LABEL, FEATURE_STATUS, LIMIT_UNIT, METER_LABEL, PRICING_PATH,
+  PLANS, FEATURE_LABEL, FEATURE_STATUS, LIMIT_UNIT, METER_LABEL, METER_PERIOD, PRICING_PATH, PLATFORM_NAME, WORKSPACE_PLATFORMS,
   minPlanWithFeature, minPlanWithLimit, minPlanWithMeter, pricingHref,
   type PlanId, type FeatureKey, type LimitKey, type MeterKey,
 } from "./plans";
@@ -43,6 +43,7 @@ export const METER_PHRASE: Record<MeterKey, string> = {
   content_generation: "hook and caption generations",
   account_audit: "account audits",
   content_plan: "Content Plan generations",
+  content_ideas: "content ideas",
 };
 
 const CUSTOM_HREF = `${PRICING_PATH}#custom`;
@@ -79,13 +80,19 @@ export function featureError(plan: PlanId, feature: FeatureKey): PlanError {
   };
 }
 
-/** A hard cap (accounts, competitors, seats) is full. */
+/** A hard cap (workspaces, competitors, team members) is full. */
 export function limitError(plan: PlanId, limit: LimitKey, max: number, used?: number | null): PlanError {
   const unit = max === 1 ? LIMIT_UNIT[limit].one : LIMIT_UNIT[limit].many;
   const required = minPlanWithLimit(limit, max + 1);
   const { cta, href } = upgradeCta(required, "View");
+  const platforms = WORKSPACE_PLATFORMS.map((p) => PLATFORM_NAME[p]).join(", ");
+  const error = limit === "workspaces"
+    ? `${PLANS[plan].name} includes ${max} ${unit}. Each workspace holds one account on each of ${platforms}.`
+    : used != null
+      ? `You are using ${used} of ${max} ${unit} on ${PLANS[plan].name}.`
+      : `${PLANS[plan].name} includes ${max} ${unit}.`;
   return {
-    error: `${PLANS[plan].name} includes ${max} ${unit}.`,
+    error,
     code: "limit_reached", plan, planName: PLANS[plan].name,
     requiredPlan: required, requiredPlanName: required ? PLANS[required].name : null,
     limit, max, used: used ?? undefined, cta, href,
@@ -96,9 +103,10 @@ export function limitError(plan: PlanId, limit: LimitKey, max: number, used?: nu
 export function usageError(plan: PlanId, meter: MeterKey, max: number, used: number | null, resetsOn: string): PlanError {
   const required = minPlanWithMeter(meter, max);
   const { cta, href } = upgradeCta(required, "Upgrade to");
+  const period = METER_PERIOD[meter] === "week" ? "this week" : "this month";
   const error = max === 0
     ? `${METER_LABEL[meter]} is not included in ${PLANS[plan].name}.`
-    : `You've used all ${max} ${METER_PHRASE[meter]} included in ${PLANS[plan].name} this billing period.`;
+    : `You've used all ${max} ${METER_PHRASE[meter]} included in ${PLANS[plan].name} ${period}.`;
   return {
     error, code: "usage_exhausted", plan, planName: PLANS[plan].name,
     requiredPlan: required, requiredPlanName: required ? PLANS[required].name : null,

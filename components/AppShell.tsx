@@ -39,13 +39,23 @@ const FB_MARK = (
 
 type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 
-// One quiet line per step up. Only what the next plan actually adds.
-const NEXT_PLAN_LINE: Record<PlanId, string> = {
-  free: "",
-  starter: "Scheduling, weekly plans and full analytics.",
-  growth: "Connect up to 5 accounts, more competitors and more AI usage.",
-  pro: "Up to 15 accounts, 25 competitors and higher AI limits.",
-};
+// One quiet line per step up, read from the plan config so the numbers never
+// drift from what the plan actually includes. Only built features are named.
+function nextPlanLine(p: PlanId): string {
+  const L = PLANS[p].limits;
+  const M = PLANS[p].meters;
+  const ws = `${L.workspaces} Brand ${L.workspaces === 1 ? "Workspace" : "Workspaces"}`;
+  switch (p) {
+    case "starter":
+      return `${ws}, deeper analytics, the full weekly Content Plan and ${M.ask_socia} Ask SOCIA questions a month.`;
+    case "growth":
+      return `${ws}, cross-platform analytics, ${L.competitors} competitors and ${M.ask_socia} Ask SOCIA questions a month.`;
+    case "pro":
+      return `${ws}, ${L.competitors} competitors, ${L.team_members} team members and ${M.ask_socia} Ask SOCIA questions a month.`;
+    default:
+      return "";
+  }
+}
 
 // Pages are user jobs, not technologies. SOCIA AI is not a destination: it
 // lives inside each of these pages (Ask SOCIA in the top bar and in context).
@@ -185,7 +195,7 @@ export default async function AppShell({
           {next && (
             <Link href={pricingHref(next)} className="side-upcard">
               <span className="side-upcard-head"><Gem size={14} /> Upgrade to {PLANS[next].name}</span>
-              <small>{NEXT_PLAN_LINE[next]}</small>
+              <small>{nextPlanLine(next)}</small>
               <span className="side-upcard-btn">See plans</span>
             </Link>
           )}

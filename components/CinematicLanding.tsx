@@ -36,11 +36,12 @@ import { PLANS, formatPrice, type PlanId } from "@/lib/plans";
    the pricing page or from enforcement. */
 const LANDING_PAID: PlanId[] = ["starter", "growth", "pro"];
 const FREE_INCLUDES: string[] = [
-  `${PLANS.free.limits.connected_accounts} connected account`,
-  "Basic analytics",
-  `${PLANS.free.meters.account_audit} account audit`,
+  `${PLANS.free.limits.workspaces} Brand Workspace: Instagram, Facebook, TikTok and YouTube`,
+  `${PLANS.free.limits.analytics_history_days} days of analytics`,
   `${PLANS.free.meters.ask_socia} Ask SOCIA questions a month`,
-  `${PLANS.free.limits.competitors} competitor`,
+  `${PLANS.free.meters.content_studio} Content Studio analyses a month`,
+  `${PLANS.free.limits.competitors} competitors`,
+  "Scheduling and publishing included",
 ];
 
 /* ---------------- shared hooks ---------------- */

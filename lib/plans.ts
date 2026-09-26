@@ -4,6 +4,12 @@
 // background jobs all read from here, so adding a feature to a plan is a
 // one-line change in this file (or a row in plan_config_overrides, no deploy).
 //
+// The unit of a plan is the BRAND WORKSPACE: one creator, business, location,
+// brand or client. Inside a workspace a person connects up to one account on
+// each supported platform (Instagram, Facebook, TikTok, YouTube); those four
+// together are still one workspace. Plans cap the number of workspaces, never
+// the number of platforms.
+//
 // Two independent layers, kept separate on purpose:
 //   1. FEATURE_STATUS: does the feature exist in the product TODAY? This is the
 //      truth layer. A feature that is not built is "coming_soon" no matter what
@@ -20,97 +26,170 @@ export type PlanId = "free" | "starter" | "growth" | "pro";
 /** Ascending order; used for "requires Growth or higher" comparisons. */
 export const PLAN_ORDER: PlanId[] = ["free", "starter", "growth", "pro"];
 
-/** Hard caps on how many of something a plan may have active at once. */
-export type LimitKey = "connected_accounts" | "competitors" | "team_seats" | "analytics_history_days";
+/** The platforms a workspace can hold, one account each. Not a plan knob. */
+export const WORKSPACE_PLATFORMS = ["instagram", "facebook", "tiktok", "youtube"] as const;
+export type WorkspacePlatform = (typeof WORKSPACE_PLATFORMS)[number];
+export const PLATFORMS_PER_WORKSPACE = WORKSPACE_PLATFORMS.length;
+
+export const PLATFORM_NAME: Record<WorkspacePlatform, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+};
 
 /**
- * Metered AI operations, counted per billing period and reset each period.
- *   ask_socia          one Ask SOCIA question
- *   content_studio     one Content Studio analysis or Content Rater scorecard
- *   content_generation one hook / caption / CTA / variation generation
- *   account_audit      one full account audit (niche extraction)
- *   content_plan       one weekly Content Plan generation
+ * Hard caps on how many of something a plan may have active at once.
+ *   workspaces             Brand Workspaces (each holds one account per platform)
+ *   competitors            tracked competitors, pooled across all workspaces
+ *   team_members           people with access, the owner included
+ *   analytics_history_days longest analytics window; HISTORY_ALL_RETAINED = no cap
  */
-export type MeterKey = "ask_socia" | "content_studio" | "content_generation" | "account_audit" | "content_plan";
+export type LimitKey = "workspaces" | "competitors" | "team_members" | "analytics_history_days";
+
+/**
+ * "All retained history": the plan applies no window of its own, the person
+ * sees everything SOCIA has actually collected. A plan never manufactures
+ * history; if tracking started 20 days ago there are 20 days, on any plan.
+ */
+export const HISTORY_ALL_RETAINED = 3650;
+export const isAllHistory = (days: number) => days >= HISTORY_ALL_RETAINED;
+
+/**
+ * Metered AI operations, counted per period and reset each period.
+ *   ask_socia          one Ask SOCIA question                       (per month)
+ *   content_studio     one Content Studio analysis or Rater scorecard (per month)
+ *   content_generation one hook / caption / CTA / variation generation (per month)
+ *   account_audit      one full account audit (niche extraction)     (per month)
+ *   content_plan       one full weekly Content Plan generation       (per month)
+ *   content_ideas      one batch of quick content ideas              (per week)
+ */
+export type MeterKey = "ask_socia" | "content_studio" | "content_generation" | "account_audit" | "content_plan" | "content_ideas";
+
+export type MeterPeriod = "month" | "week";
+
+export const METER_PERIOD: Record<MeterKey, MeterPeriod> = {
+  ask_socia: "month",
+  content_studio: "month",
+  content_generation: "month",
+  account_audit: "month",
+  content_plan: "month",
+  content_ideas: "week",
+};
+
+/** Meters that appear on pricing cards and in the comparison table. The rest are real but shown only in Settings. */
+export const HEADLINE_METERS: MeterKey[] = ["ask_socia", "content_studio"];
 
 export type FeatureKey =
-  // Core loop
+  // Every plan
   | "scheduling"
+  | "breakout_alerts"
+  | "monthly_summary"
+  // Starter
+  | "posting_time_analysis"
+  | "growth_analysis"
+  | "period_comparison"
+  | "deeper_insights"
   | "content_plan"
   | "niche_intelligence"
-  | "extended_history"
-  | "performance_reports"
+  | "weekly_trend_roundup"
+  | "performance_change_alerts"
+  | "weekly_summary"
+  | "team"
   // Growth
   | "cross_platform_analytics"
-  | "custom_date_ranges"
   | "daily_recommendations"
+  | "repurposing"
+  | "custom_date_ranges"
+  | "platform_reports"
+  | "report_exports"
   | "trend_alerts"
-  | "advanced_reports"
-  | "analytics_exports"
-  | "team"
+  | "opportunity_alerts"
+  | "competitor_alerts"
+  | "cross_platform_alerts"
   | "priority_support"
   // Pro
-  | "multi_brand"
+  | "cross_brand_analytics"
+  | "client_reports"
   | "approval_workflow"
-  | "white_label_reports"
-  | "api_access"
   | "dedicated_onboarding";
 
 /**
  * "available": built and working in production today.
  * "coming_soon": planned for the plan(s) that list it, but not built. The UI
- *   never renders a working-looking control for these.
+ *   never renders a working-looking control for these, and the pricing cards
+ *   never list them as included: they live in a separate "coming soon" list.
  * "policy": a service commitment (support tier, onboarding) rather than code.
  */
 export type FeatureStatus = "available" | "coming_soon" | "policy";
 
 export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   scheduling: "available",
+  breakout_alerts: "coming_soon",
+  monthly_summary: "coming_soon",
+  posting_time_analysis: "available",
+  growth_analysis: "available",
+  period_comparison: "available",
+  deeper_insights: "available",
   content_plan: "available",
   niche_intelligence: "available",
-  extended_history: "available",
-  performance_reports: "coming_soon",
-  cross_platform_analytics: "available",
-  custom_date_ranges: "coming_soon",
-  daily_recommendations: "coming_soon",
-  trend_alerts: "coming_soon",
-  advanced_reports: "coming_soon",
-  analytics_exports: "coming_soon",
+  weekly_trend_roundup: "coming_soon",
+  performance_change_alerts: "coming_soon",
+  weekly_summary: "coming_soon",
   team: "coming_soon",
+  cross_platform_analytics: "available",
+  daily_recommendations: "coming_soon",
+  repurposing: "coming_soon",
+  custom_date_ranges: "coming_soon",
+  platform_reports: "coming_soon",
+  report_exports: "coming_soon",
+  trend_alerts: "coming_soon",
+  opportunity_alerts: "coming_soon",
+  competitor_alerts: "coming_soon",
+  cross_platform_alerts: "coming_soon",
   priority_support: "policy",
-  multi_brand: "coming_soon",
+  cross_brand_analytics: "coming_soon",
+  client_reports: "coming_soon",
   approval_workflow: "coming_soon",
-  white_label_reports: "coming_soon",
-  api_access: "coming_soon",
   dedicated_onboarding: "policy",
 };
 
 /** Human labels for feature keys, shared by pricing, Settings and limit notices. */
 export const FEATURE_LABEL: Record<FeatureKey, string> = {
   scheduling: "Scheduling and publishing",
-  content_plan: "Weekly Content Plan",
-  niche_intelligence: "Niche intelligence",
-  extended_history: "90-day and 1-year analytics",
-  performance_reports: "Monthly performance summary",
+  breakout_alerts: "Breakout alerts",
+  monthly_summary: "Monthly performance summary",
+  posting_time_analysis: "Posting-time analysis",
+  growth_analysis: "Growth analysis",
+  period_comparison: "Previous-period comparisons",
+  deeper_insights: "What Changed, What's Working, What's Missing and What To Do Next",
+  content_plan: "Full weekly Content Plan",
+  niche_intelligence: "Full niche intelligence",
+  weekly_trend_roundup: "Weekly trend roundup",
+  performance_change_alerts: "Performance-change alerts",
+  weekly_summary: "Weekly performance summary",
+  team: "Invite team members",
   cross_platform_analytics: "Cross-platform analytics",
-  custom_date_ranges: "Custom date ranges",
   daily_recommendations: "Daily recommendations",
+  repurposing: "Cross-platform content and repurposing recommendations",
+  custom_date_ranges: "Custom date-range reports",
+  platform_reports: "Platform-specific reports",
+  report_exports: "Report exports",
   trend_alerts: "Trend alerts",
-  advanced_reports: "Advanced reports",
-  analytics_exports: "Analytics exports",
-  team: "Team seats",
+  opportunity_alerts: "Opportunity alerts",
+  competitor_alerts: "Competitor alerts",
+  cross_platform_alerts: "Cross-platform performance alerts",
   priority_support: "Priority support",
-  multi_brand: "Multi-brand and client management",
-  approval_workflow: "Approval workflow",
-  white_label_reports: "White-label reports",
-  api_access: "API access",
+  cross_brand_analytics: "Cross-brand analytics",
+  client_reports: "Client-ready reports",
+  approval_workflow: "Approval workflows",
   dedicated_onboarding: "Dedicated onboarding",
 };
 
 export const LIMIT_LABEL: Record<LimitKey, string> = {
-  connected_accounts: "Connected accounts",
+  workspaces: "Brand Workspaces",
   competitors: "Competitors",
-  team_seats: "Team seats",
+  team_members: "Team members",
   analytics_history_days: "Analytics history",
 };
 
@@ -120,6 +199,7 @@ export const METER_LABEL: Record<MeterKey, string> = {
   content_generation: "Hooks and captions",
   account_audit: "Account audits",
   content_plan: "Content Plans",
+  content_ideas: "Content ideas",
 };
 
 /** Unit word for a meter, for "3 analyses left" style copy. */
@@ -129,13 +209,14 @@ export const METER_UNIT: Record<MeterKey, { one: string; many: string }> = {
   content_generation: { one: "generation", many: "generations" },
   account_audit: { one: "audit", many: "audits" },
   content_plan: { one: "plan", many: "plans" },
+  content_ideas: { one: "idea", many: "ideas" },
 };
 
-/** Unit word for a hard limit, for "Starter includes 1 connected account" copy. */
+/** Unit word for a hard limit, for "Starter includes 2 Brand Workspaces" copy. */
 export const LIMIT_UNIT: Record<LimitKey, { one: string; many: string }> = {
-  connected_accounts: { one: "connected account", many: "connected accounts" },
+  workspaces: { one: "Brand Workspace", many: "Brand Workspaces" },
   competitors: { one: "competitor", many: "competitors" },
-  team_seats: { one: "team seat", many: "team seats" },
+  team_members: { one: "team member", many: "team members" },
   analytics_history_days: { one: "day of analytics history", many: "days of analytics history" },
 };
 
@@ -144,12 +225,15 @@ export type PlanConfig = {
   name: string;
   /** USD per month. 0 for Free. */
   priceMonthly: number;
+  /** The one-line story: what this plan is for. */
   tagline: string;
+  /** "Best for" line. */
   audience: string;
   limits: Record<LimitKey, number>;
-  /** Per billing period. Never "unlimited": AI has a real marginal cost. */
+  /** Per period (see METER_PERIOD). Never "unlimited": AI has a real marginal cost. */
   meters: Record<MeterKey, number>;
   features: Record<FeatureKey, boolean>;
+  /** Button label once a checkout exists. Until then paid plans say "Contact us". */
   cta: string;
   popular?: boolean;
 };
@@ -160,15 +244,23 @@ const F = (on: FeatureKey[]): Record<FeatureKey, boolean> => {
   return out;
 };
 
-const STARTER_FEATURES: FeatureKey[] = ["scheduling", "content_plan", "niche_intelligence", "extended_history", "custom_date_ranges", "performance_reports"];
+const FREE_FEATURES: FeatureKey[] = ["scheduling", "breakout_alerts", "monthly_summary"];
+const STARTER_FEATURES: FeatureKey[] = [
+  ...FREE_FEATURES,
+  "posting_time_analysis", "growth_analysis", "period_comparison", "deeper_insights",
+  "content_plan", "niche_intelligence", "weekly_trend_roundup",
+  "performance_change_alerts", "weekly_summary", "team",
+];
 const GROWTH_FEATURES: FeatureKey[] = [
   ...STARTER_FEATURES,
-  "cross_platform_analytics", "daily_recommendations", "trend_alerts",
-  "advanced_reports", "analytics_exports", "team", "priority_support",
+  "cross_platform_analytics", "daily_recommendations", "repurposing",
+  "custom_date_ranges", "platform_reports", "report_exports",
+  "trend_alerts", "opportunity_alerts", "competitor_alerts", "cross_platform_alerts",
+  "priority_support",
 ];
 const PRO_FEATURES: FeatureKey[] = [
   ...GROWTH_FEATURES,
-  "multi_brand", "approval_workflow", "white_label_reports", "api_access", "dedicated_onboarding",
+  "cross_brand_analytics", "client_reports", "approval_workflow", "dedicated_onboarding",
 ];
 
 export const PLANS: Record<PlanId, PlanConfig> = {
@@ -176,21 +268,21 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "free",
     name: "Free",
     priceMonthly: 0,
-    tagline: "See what SOCIA can uncover about your social media.",
-    audience: "Try SOCIA and see whether it understands your account.",
-    limits: { connected_accounts: 1, competitors: 1, team_seats: 1, analytics_history_days: 30 },
-    meters: { ask_socia: 5, content_studio: 3, content_generation: 6, account_audit: 1, content_plan: 0 },
-    features: F([]),
-    cta: "Start Free",
+    tagline: "Understand one brand.",
+    audience: "People trying SOCIA and managing one brand.",
+    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30 },
+    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 0, content_ideas: 3 },
+    features: F(FREE_FEATURES),
+    cta: "Get started free",
   },
   starter: {
     id: "starter",
     name: "Starter",
     priceMonthly: 29,
-    tagline: "Everything you need to understand, plan, improve, and publish your content.",
-    audience: "Individual creators and small businesses.",
-    limits: { connected_accounts: 1, competitors: 3, team_seats: 1, analytics_history_days: 365 },
-    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4 },
+    tagline: "Run up to two brands with SOCIA.",
+    audience: "Creators and small businesses managing one or two brands.",
+    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90 },
+    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 3 },
     features: F(STARTER_FEATURES),
     cta: "Start Starter",
   },
@@ -198,25 +290,25 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "growth",
     name: "Growth",
     priceMonthly: 79,
-    tagline: "Understand and grow all of your social platforms together.",
-    audience: "Growing creators, small businesses, and anyone managing several platforms.",
-    limits: { connected_accounts: 5, competitors: 10, team_seats: 2, analytics_history_days: 365 },
-    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12 },
+    tagline: "Grow multiple brands across every platform.",
+    audience: "Growing creators and businesses managing multiple brands and social platforms.",
+    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365 },
+    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 3 },
     features: F(GROWTH_FEATURES),
-    cta: "Choose Growth",
+    cta: "Start Growth",
     popular: true,
   },
   pro: {
     id: "pro",
     name: "Pro",
     priceMonthly: 179,
-    tagline: "Manage multiple brands, clients, and social accounts from one intelligent workspace.",
-    audience: "Agencies, social media teams, brands, and multi-location businesses.",
-    limits: { connected_accounts: 15, competitors: 25, team_seats: 5, analytics_history_days: 365 },
+    tagline: "Manage brands, clients, and teams at scale.",
+    audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
+    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED },
     // Deliberately higher, deliberately finite. Tune in plan_config_overrides.
-    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40 },
+    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 3 },
     features: F(PRO_FEATURES),
-    cta: "Choose Pro",
+    cta: "Start Pro",
   },
 };
 
@@ -263,6 +355,13 @@ export function nextPlan(p: PlanId): PlanId | null {
 
 export function formatPrice(p: PlanConfig): string {
   return p.priceMonthly === 0 ? "$0" : `$${p.priceMonthly}`;
+}
+
+/** "30 days", "90 days", "1 year" or "All retained history" from the history limit. */
+export function formatHistory(days: number): string {
+  if (isAllHistory(days)) return "All retained history";
+  if (days >= 365) return days === 365 ? "1 year" : `${Math.round(days / 365)} years`;
+  return `${days} days`;
 }
 
 /** Where every "upgrade" moment sends people. One place to change when checkout lands. */

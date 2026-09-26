@@ -34,6 +34,11 @@ export async function GET(req: Request) {
     authorize.searchParams.set("config_id", configId);
   } else {
     authorize.searchParams.set("scope", FB_SCOPES);
+    // Force Facebook to show the consent dialog again. When a user is already
+    // connected, Facebook skips it and returns the EXISTING permissions, so a
+    // newly-added scope (pages_read_user_content) is never granted on reconnect.
+    // rerequest re-prompts for the missing/declined permissions.
+    authorize.searchParams.set("auth_type", "rerequest");
   }
   authorize.searchParams.set("state", "settings");
 

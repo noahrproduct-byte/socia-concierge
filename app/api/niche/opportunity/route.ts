@@ -10,9 +10,12 @@ export const maxDuration = 60;
 
 // "Your version" of the opportunity the page surfaced. The evidence arrives
 // already computed (real counts and medians); the model only adapts the
-// observed pattern to this account. Cached per user and pattern for a week.
+// observed pattern to this account. Cached per user and pattern for a week; a
+// "refresh" regenerates at most once an hour so the button cannot become an
+// unbounded number of model calls.
 
 const TTL_MS = 7 * 86400000;
+const REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
 
 export type OpportunityConcept = { concept: string; hook: string; shots: string[] };
 
@@ -33,15 +36,14 @@ export async function POST(req: Request) {
   if (!body.tag) return NextResponse.json({ error: "No pattern given." }, { status: 400 });
 
   const key = `opp:${user.id}:${body.tag}`;
-  if (!body.refresh) {
-    try {
-      const { data } = await supabase.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
-      const doc = data?.data as OpportunityConcept | undefined;
-      if (doc?.concept && data?.updated_at && Date.now() - new Date(data.updated_at).getTime() < TTL_MS) {
-        return NextResponse.json({ ...doc, cached: true });
-      }
-    } catch { /* no cache */ }
-  }
+  try {
+    const { data } = await supabase.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
+    const doc = data?.data as OpportunityConcept | undefined;
+    const ageMs = data?.updated_at ? Date.now() - new Date(data.updated_at).getTime() : Infinity;
+    if (doc?.concept && ageMs < TTL_MS && (!body.refresh || ageMs < REFRESH_COOLDOWN_MS)) {
+      return NextResponse.json({ ...doc, cached: true });
+    }
+  } catch { /* no cache */ }
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
 
   // A fresh concept is part of Niche intelligence; cached ones above stay free.

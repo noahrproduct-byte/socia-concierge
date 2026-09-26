@@ -48,7 +48,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           <span className="so-label">Plans</span>
           <h2 className="so-h2">Know what to do next.</h2>
           <p className="so-lead">
-            Start free with an account audit, then choose the plan that matches how many accounts you run and how much you want SOCIA to do each month.
+            Start free with one brand, then choose the plan that matches how many brands you run and how much you want SOCIA to do each month.
           </p>
           {!checkout && (
             <p className="pr-note">
@@ -70,7 +70,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         <section id="custom" className="so-wrap pr-custom" aria-labelledby="custom-heading">
           <h3 id="custom-heading" className="pr-section-title">Need more?</h3>
           <p>
-            Need more than {pro.connected_accounts} accounts, {pro.team_seats} seats or larger usage limits?{" "}
+            Need more than {pro.workspaces} Brand Workspaces, {pro.team_members} team members or larger usage limits?{" "}
             <a href={contactHref("SOCIA custom pricing")}>Contact us</a> for custom pricing.
           </p>
         </section>

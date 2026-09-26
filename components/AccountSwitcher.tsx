@@ -1,9 +1,10 @@
 "use client";
 
-// The account switcher — real, not a mock. It lists the Instagram accounts
-// actually connected to this user, switches which one is active (every page
-// reads through the active account, so a switch changes the whole app), and
-// gates adding accounts by plan: free = 1, pro = 3.
+// The account switcher. It lists the Instagram accounts actually connected to
+// this user, switches which one is active (every page reads through the
+// active account, so a switch changes the whole app), and gates adding
+// accounts by the plan's Brand Workspace limit (one Instagram account per
+// workspace). The limit and plan names come from /api/accounts, never from here.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -32,7 +33,7 @@ export default function AccountSwitcher() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [limit, setLimit] = useState(1);
-  const [plan, setPlan] = useState<"free" | "pro">("free");
+  const [nextPlanName, setNextPlanName] = useState<string | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export default function AccountSwitcher() {
         if (!alive || !j) return;
         setAccounts(j.accounts ?? []);
         setLimit(j.limit ?? 1);
-        setPlan(j.plan === "pro" ? "pro" : "free");
+        setNextPlanName(typeof j.nextPlanName === "string" ? j.nextPlanName : null);
       })
       .catch(() => alive && setAccounts([]));
     return () => {
@@ -139,7 +140,7 @@ export default function AccountSwitcher() {
             >
               <Gem size={14} />
               <span className="flex-1">
-                {plan === "pro" ? `Account limit reached (${limit})` : "More accounts with Pro"}
+                {nextPlanName ? `More workspaces with ${nextPlanName}` : `Workspace limit reached (${limit})`}
               </span>
             </DropdownMenuItem>
           )}

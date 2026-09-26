@@ -3,7 +3,14 @@
 // Requires the "Facebook Login" product on the Meta app, with the callback
 // registered under Valid OAuth Redirect URIs. Permissions used:
 //   pages_show_list       -> list the Pages the user manages
-//   pages_read_engagement -> Page profile, posts, reactions/comments/shares
+//   pages_read_engagement -> Page profile + reactions/comments/shares summaries
+//   pages_read_user_content -> read the Page's own posts. In Graph API v23 the
+//                            /posts and /published_posts edges return error #10
+//                            ("requires pages_read_user_content or Page Public
+//                            Content Access") without it, so without this scope
+//                            SOCIA gets the follower count but zero posts.
+//                            Advanced Access (App Review) for public users;
+//                            granted for app admins/testers in Development Mode.
 //   instagram_basic       -> the IG Professional account linked to a Page,
 //                            which is what unlocks Business Discovery: real
 //                            public follower/media counts for OTHER public
@@ -24,7 +31,7 @@ export const FB_GRAPH_V = "v23.0";
 // even for a direct Page admin. Needs Advanced Access for public users (App
 // Review); works now for app admins/testers. See the /me/businesses fallback
 // in the callback.
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "instagram_basic", "business_management"].join(",");
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "instagram_basic", "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

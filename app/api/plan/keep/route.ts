@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { getEntitlements, getLimit, getOverLimits, listConnectedAccounts } from "@/lib/entitlements";
+import { getEntitlements, getLimit, getOverLimits, listConnectedAccounts, type ConnectedPlatform } from "@/lib/entitlements";
 import { recordEvent } from "@/lib/planGuard";
+import { PLATFORMS_PER_WORKSPACE, PLATFORM_NAME } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
@@ -65,18 +66,28 @@ export async function POST(req: Request) {
 
   const ent = await getEntitlements(supabase, user.id);
   const list = await listConnectedAccounts(supabase, user.id);
-  const accountLimit = getLimit(ent, "connected_accounts");
+  // One account per platform per workspace: the per-platform cap is the
+  // workspaces limit, the total cap (passed to the database as a coarse guard)
+  // is that times the number of platforms.
+  const workspaceLimit = getLimit(ent, "workspaces");
+  const accountLimit = workspaceLimit * PLATFORMS_PER_WORKSPACE;
   const competitorLimit = getLimit(ent, "competitors");
 
   // ---- Validate before touching anything --------------------------------
   if (accounts) {
-    const known = new Set(list.map((a) => a.id));
-    if (accounts.some((id) => !known.has(id))) {
+    const byId = new Map(list.map((a) => [a.id, a]));
+    if (accounts.some((id) => !byId.has(id))) {
       return NextResponse.json({ error: "One of those accounts is not connected to SOCIA." }, { status: 400 });
     }
-    if (accounts.length > accountLimit) {
+    const perPlatform: Partial<Record<ConnectedPlatform, number>> = {};
+    for (const id of accounts) {
+      const p = byId.get(id)!.platform;
+      perPlatform[p] = (perPlatform[p] ?? 0) + 1;
+    }
+    const over = (Object.entries(perPlatform) as [ConnectedPlatform, number][]).find(([, n]) => n > workspaceLimit);
+    if (over) {
       return NextResponse.json(
-        { error: `${ent.config.name} supports ${accountLimit} connected ${accountLimit === 1 ? "account" : "accounts"}. Choose ${accountLimit} to keep.` },
+        { error: `${ent.config.name} includes ${workspaceLimit} Brand ${workspaceLimit === 1 ? "Workspace" : "Workspaces"}, so up to ${workspaceLimit} ${PLATFORM_NAME[over[0]]} ${workspaceLimit === 1 ? "account" : "accounts"} can stay active. Choose which to keep.` },
         { status: 400 },
       );
     }

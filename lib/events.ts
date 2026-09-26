@@ -3,6 +3,8 @@
 // No third-party vendor; rows land in product_events and are queried in SQL.
 // Best-effort: never throws, never blocks the request that emitted it.
 
+import { createServiceClient } from "./supabase/service";
+
 export type ProductEventName =
   | "free_audit_completed"
   | "pricing_viewed"
@@ -42,7 +44,13 @@ export function isClientEventName(v: unknown): v is (typeof CLIENT_EVENT_NAMES)[
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
-/** Insert one event for a signed-in user. Anonymous events are dropped (RLS requires an owner). */
+/**
+ * Insert one event for a signed-in user. Anonymous events are dropped.
+ * Writes go through the service-role client: product_events has no browser
+ * insert policy, so a session cannot forge limit or subscription events by
+ * inserting rows directly. The user client is only a fallback for local
+ * setups without a service key (the insert then simply fails, silently).
+ */
 export async function trackEvent(
   supabase: Supa,
   userId: string | null | undefined,
@@ -51,7 +59,8 @@ export async function trackEvent(
 ): Promise<void> {
   if (!userId) return;
   try {
-    await supabase.from("product_events").insert({ user_id: userId, name, props: props ?? null });
+    const client = createServiceClient() ?? supabase;
+    await client.from("product_events").insert({ user_id: userId, name, props: props ?? null });
   } catch {
     /* the table may not exist yet; analytics must never break the product */
   }

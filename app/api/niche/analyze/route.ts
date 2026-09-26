@@ -16,9 +16,12 @@ export const maxDuration = 60;
 //   read       what SOCIA can see in the real thumbnail and title, labelled
 //              as a reading; then an interpretation, at most three lessons
 //              and one concept for the user's own account
-// Cached per user and post for a week in the shared niche_trends cache.
+// Cached per user and post for a week in the shared niche_trends cache. A
+// "refresh" re-reads the post at most once an hour: the cache is the only
+// thing between a button and an unbounded number of model calls.
 
 const TTL_MS = 7 * 86400000;
+const REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
 
 export type PostAnalysis = {
   structure: {
@@ -62,15 +65,15 @@ export async function POST(req: Request) {
   if (!post?.url) return NextResponse.json({ error: "No post given." }, { status: 400 });
 
   const key = `analysis:${user.id}:${post.url}`.slice(0, 900);
-  if (!body.refresh) {
-    try {
-      const { data } = await supabase.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
-      const doc = data?.data as AnalyzeResponse | undefined;
-      if (doc?.analysis && data?.updated_at && Date.now() - new Date(data.updated_at).getTime() < TTL_MS) {
-        return NextResponse.json({ ...doc, cached: true });
-      }
-    } catch { /* no cache */ }
-  }
+  try {
+    const { data } = await supabase.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
+    const doc = data?.data as AnalyzeResponse | undefined;
+    const ageMs = data?.updated_at ? Date.now() - new Date(data.updated_at).getTime() : Infinity;
+    // Serve the cached reading unless it expired, or a refresh was asked for AND the cooldown has passed.
+    if (doc?.analysis && ageMs < TTL_MS && (!body.refresh || ageMs < REFRESH_COOLDOWN_MS)) {
+      return NextResponse.json({ ...doc, cached: true });
+    }
+  } catch { /* no cache */ }
 
   // Video length is public and cheap to read; it is observed data, not a reading.
   let durationSec: number | null = null;

@@ -1,78 +1,73 @@
 import { Check } from "lucide-react";
-import { PLANS, PLAN_ORDER, formatPrice, type PlanId, type PlanConfig } from "@/lib/plans";
-import { featureSoon } from "@/lib/pricingTable";
+import { PLANS, PLAN_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
+import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 
-// Four plan cards. The sentences are written here, but every number is read
-// from PLANS so a limit changed in lib/plans.ts changes the card with it, and
-// every "Soon" tag is read from FEATURE_STATUS so a feature that ships stops
-// being "soon" without anyone editing copy.
-
-type Bullet = { text: string; soon?: boolean };
+// Four plan cards. Each card carries the handful of reasons someone picks that
+// plan, not the whole feature list (the comparison table below has that).
+// Every number is read from PLANS so a limit changed in lib/plans.ts changes
+// the card with it. Only features that exist today appear in the list; what a
+// plan will include later sits in a separate, quieter "coming soon" line and
+// is never sold as included.
 
 const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-function bulletsFor(p: PlanConfig): Bullet[] {
+function highlightsFor(p: PlanConfig): (string | null)[] {
   const L = p.limits;
   const M = p.meters;
-  const askSocia = { text: `${M.ask_socia} Ask SOCIA questions/month` };
-  const studio = { text: `${M.content_studio} Content Studio analyses/month` };
-  const competitors = { text: n(L.competitors, "competitor", "competitors") };
+  const workspaces = n(L.workspaces, "Brand Workspace", "Brand Workspaces");
+  const askSocia = `${M.ask_socia} Ask SOCIA questions/month`;
+  const studio = `${M.content_studio} Content Studio analyses/month`;
+  const competitors = n(L.competitors, "competitor", "competitors");
+  // Team members are a headline only once invites exist; until then the seat
+  // count would be a promise about a feature that is not built, so it lives in
+  // the card's "coming soon" line instead.
+  const members = FEATURE_STATUS.team === "coming_soon" ? null : n(L.team_members, "team member", "team members");
 
   switch (p.id) {
     case "free":
       return [
-        { text: n(L.connected_accounts, "connected account", "connected accounts") },
-        { text: "Basic analytics" },
-        { text: n(M.account_audit, "account audit", "account audits") },
+        workspaces,
+        "Connect Instagram, Facebook, TikTok and YouTube",
+        `${formatHistory(L.analytics_history_days)} of analytics`,
+        `${M.content_ideas} content ideas/week`,
         askSocia,
         studio,
         competitors,
-        { text: "Basic content calendar" },
+        "Scheduling and publishing included",
       ];
     case "starter":
       return [
-        { text: n(L.connected_accounts, "connected account", "connected accounts") },
-        { text: "Full analytics" },
-        { text: "Weekly Content Plan", soon: featureSoon("content_plan") },
-        { text: "What To Do Next recommendations", soon: featureSoon("content_plan") },
+        workspaces,
+        `${formatHistory(L.analytics_history_days)} of analytics, posting-time and growth analysis`,
+        "What Changed, What's Working, What's Missing, What To Do Next",
+        `Full weekly Content Plan (${M.content_plan}/month)`,
         askSocia,
         studio,
         competitors,
-        { text: "Niche intelligence", soon: featureSoon("niche_intelligence") },
-        { text: "Scheduling and publishing (Instagram)", soon: featureSoon("scheduling") },
-        { text: "Performance reports", soon: featureSoon("performance_reports") },
+        "Full niche intelligence",
+        members,
       ];
     case "growth":
       return [
-        { text: `Up to ${n(L.connected_accounts, "connected account", "connected accounts")}` },
-        { text: `Everything in ${PLANS.starter.name}` },
-        { text: "Cross-platform analytics", soon: featureSoon("cross_platform_analytics") },
-        { text: "Daily recommendations", soon: featureSoon("daily_recommendations") },
+        workspaces,
+        `${formatHistory(L.analytics_history_days)} of analytics`,
+        "Cross-platform analytics",
         askSocia,
         studio,
         competitors,
-        // No feature key yet; stays "soon" until the trends work ships.
-        { text: "Advanced trend intelligence", soon: true },
-        { text: "Trend alerts", soon: featureSoon("trend_alerts") },
-        { text: "Advanced reporting", soon: featureSoon("advanced_reports") },
-        { text: n(L.team_seats, "team seat", "team seats"), soon: featureSoon("team") },
-        { text: "Priority support" },
+        members,
+        "Priority support",
       ];
     case "pro":
       return [
-        { text: `Up to ${n(L.connected_accounts, "connected account", "connected accounts")}` },
-        { text: `Everything in ${PLANS.growth.name}` },
-        { text: "Multi-brand and client management", soon: featureSoon("multi_brand") },
-        competitors,
-        { text: n(L.team_seats, "team seat", "team seats"), soon: featureSoon("team") },
-        { text: "White-label reports", soon: featureSoon("white_label_reports") },
-        { text: "Approval workflows", soon: featureSoon("approval_workflow") },
-        { text: "Advanced exports", soon: featureSoon("analytics_exports") },
+        workspaces,
+        formatHistory(L.analytics_history_days),
         askSocia,
         studio,
-        { text: "Priority support" },
-        { text: "Dedicated onboarding" },
+        competitors,
+        members,
+        "Priority support and dedicated onboarding",
       ];
   }
 }
@@ -94,6 +89,9 @@ export default function PricingCards({
       {PLAN_ORDER.map((id) => {
         const p = PLANS[id];
         const cls = ["pr-card", p.popular ? "popular" : "", highlight === id ? "highlight" : ""].filter(Boolean).join(" ");
+        // Only what this plan adds over the one below, so the line stays short.
+        const below = PLAN_ORDER[PLAN_ORDER.indexOf(id) - 1];
+        const soon = comingSoonFor(id).filter((k) => !below || !PLANS[below].features[k]);
         return (
           <article key={id} id={`plan-${id}`} className={cls} aria-labelledby={`plan-${id}-name`}>
             <div className="pr-card-head">
@@ -105,16 +103,22 @@ export default function PricingCards({
               <span className="pr-price-per">/month</span>
             </div>
             <p className="pr-tagline">{p.tagline}</p>
+            <p className="pr-audience">{p.audience}</p>
             <PlanCta plan={id} currentPlan={currentPlan} signedIn={signedIn} checkout={checkout} highlighted={highlight === id} />
+            {below && <p className="pr-everything">Everything in {PLANS[below].name}, plus:</p>}
             <ul className="pr-list">
-              {bulletsFor(p).map((b) => (
-                <li key={b.text}>
+              {highlightsFor(p).filter((t): t is string => Boolean(t)).map((text) => (
+                <li key={text}>
                   <Check size={14} aria-hidden />
-                  <span>{b.text}</span>
-                  {b.soon && <span className="pr-soon">Soon</span>}
+                  <span>{text}</span>
                 </li>
               ))}
             </ul>
+            {soon.length > 0 && (
+              <p className="pr-coming">
+                <span className="pr-coming-label">Coming soon on {p.name}:</span> {soon.map((k) => FEATURE_LABEL[k]).join(", ")}.
+              </p>
+            )}
           </article>
         );
       })}

@@ -4,6 +4,7 @@ import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/inst
 import { syncInstagram } from "@/lib/instagramSync";
 import { createServiceClient } from "@/lib/supabase/service";
 import { activeAccounts, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
+import { PLATFORMS_PER_WORKSPACE } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
@@ -74,8 +75,8 @@ export async function GET(req: Request) {
 
     // 4) Save the connection and reflect it on the profile. Reconnecting an
     // already-connected account is always allowed; a NEW account beyond the
-    // plan's connected-account limit (all platforms combined) is refused
-    // here, on the server, whatever the UI showed.
+    // plan's Brand Workspace limit (one Instagram account per workspace) is
+    // refused here, on the server, whatever the UI showed.
     const igId: string | null = me.user_id?.toString() ?? shortJson.user_id?.toString() ?? null;
     const ent = await getEntitlements(supabase, user.id);
     const list = await listConnectedAccounts(supabase, user.id);
@@ -108,7 +109,8 @@ export async function GET(req: Request) {
         p_user: user.id,
         p_accounts: keep,
         p_competitors: null,
-        p_account_limit: getLimit(ent, "connected_accounts"),
+        // Total guard only; the per-platform rule was checked by canConnectAnother above.
+        p_account_limit: getLimit(ent, "workspaces") * PLATFORMS_PER_WORKSPACE,
         p_competitor_limit: getLimit(ent, "competitors"),
       });
       if (keepErr) {

@@ -87,10 +87,10 @@ function planFor(niche: string) {
 /* Compact, real inclusions per plan, read from lib/plans.ts so this screen
    can never promise something enforcement does not grant. */
 function planHighlights(pl: PlanConfig): string[] {
-  const accounts = pl.limits.connected_accounts;
+  const workspaces = pl.limits.workspaces;
   const competitors = pl.limits.competitors;
   return [
-    `${accounts} ${accounts === 1 ? LIMIT_UNIT.connected_accounts.one : LIMIT_UNIT.connected_accounts.many}`,
+    `${workspaces} ${workspaces === 1 ? LIMIT_UNIT.workspaces.one : LIMIT_UNIT.workspaces.many}`,
     `${competitors} ${competitors === 1 ? LIMIT_UNIT.competitors.one : LIMIT_UNIT.competitors.many}`,
     `${pl.meters.ask_socia} Ask SOCIA questions a month`,
   ];

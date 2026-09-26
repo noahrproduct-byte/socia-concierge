@@ -67,26 +67,37 @@ async function fetchPage(token: string, pageId: string): Promise<{
     pageUrl.searchParams.set("fields", "id,name,username,followers_count,fan_count,picture{url},link");
     pageUrl.searchParams.set("access_token", token);
 
-    const postsUrl = new URL(`${BASE}/${pageId}/posts`);
-    postsUrl.searchParams.set(
-      "fields",
-      "id,message,created_time,permalink_url,full_picture,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)",
-    );
-    postsUrl.searchParams.set("limit", "25");
-    postsUrl.searchParams.set("access_token", token);
+    // The Page's own posts (/published_posts). Reactions/comments summaries
+    // need pages_read_user_content (Advanced Access via App Review); requesting
+    // them when the app lacks it makes the WHOLE call fail with error #10, so
+    // zero posts would be stored. Try the full field set, then fall back to the
+    // fields pages_read_engagement allows (posts + shares) — so posts always
+    // sync, and reactions/comments fill in automatically once
+    // pages_read_user_content is granted.
+    const POST_FIELDS_FULL = "id,message,created_time,permalink_url,full_picture,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)";
+    const POST_FIELDS_SAFE = "id,message,created_time,permalink_url,full_picture,status_type,shares";
+    const getPosts = async (fields: string) => {
+      const u = new URL(`${BASE}/${pageId}/published_posts`);
+      u.searchParams.set("fields", fields);
+      u.searchParams.set("limit", "25");
+      u.searchParams.set("access_token", token);
+      const r = await fetch(u, { signal: AbortSignal.timeout(10000) });
+      return { r, j: (await r.json().catch(() => null)) as { data?: unknown[] } | null };
+    };
 
-    const [pRes, mRes] = await Promise.all([
-      fetch(pageUrl, { signal: AbortSignal.timeout(10000) }),
-      fetch(postsUrl, { signal: AbortSignal.timeout(10000) }),
-    ]);
+    const pRes = await fetch(pageUrl, { signal: AbortSignal.timeout(10000) });
     const pJson = await pRes.json().catch(() => null);
     if (!pRes.ok) {
       const code = pJson?.error?.code;
       return { page: {}, posts: [], authExpired: code === 190 };
     }
+
+    let postsResp = await getPosts(POST_FIELDS_FULL);
+    if (!postsResp.r.ok) postsResp = await getPosts(POST_FIELDS_SAFE);
+    const mRes = postsResp.r;
+    const mJson = postsResp.j;
     let posts: FbPost[] = [];
     if (mRes.ok) {
-      const mJson = await mRes.json().catch(() => null);
       type Raw = {
         id?: string; message?: string; created_time?: string; permalink_url?: string;
         full_picture?: string; status_type?: string;

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { activeAccounts, getEntitlements, getLimit, listConnectedAccountsDetailed } from "@/lib/entitlements";
+import { activeByPlatform, getEntitlements, getLimit, listConnectedAccountsDetailed } from "@/lib/entitlements";
 import { limitError } from "@/lib/planErrors";
 import { deny } from "@/lib/planGuard";
+import { PLANS, nextPlan } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
@@ -60,10 +61,13 @@ export async function GET() {
   const ent = await getEntitlements(supabase, user.id);
   const rows = await readRows(supabase, user.id);
 
+  const next = nextPlan(ent.plan);
   return NextResponse.json({
     plan: ent.plan,
-    // All platforms combined; the switcher only lists Instagram rows.
-    limit: getLimit(ent, "connected_accounts"),
+    planName: ent.config.name,
+    nextPlanName: next ? PLANS[next].name : null,
+    // One Instagram account per Brand Workspace, so the switcher's cap is the workspaces limit.
+    limit: getLimit(ent, "workspaces"),
     accounts: rows.map((r) => ({
       ig_user_id: r.ig_user_id,
       username: r.username,
@@ -113,8 +117,8 @@ export async function POST(req: Request) {
   if (target[0].plan_suspended_at != null) {
     const ent = await getEntitlements(supabase, user.id);
     const detailed = await listConnectedAccountsDetailed(supabase, user.id);
-    const activeCount = detailed.complete ? activeAccounts(detailed.accounts).length : null;
-    return deny(limitError(ent.plan, "connected_accounts", getLimit(ent, "connected_accounts"), activeCount));
+    const activeIg = detailed.complete ? activeByPlatform(detailed.accounts).instagram : null;
+    return deny(limitError(ent.plan, "workspaces", getLimit(ent, "workspaces"), activeIg));
   }
 
   // Deactivate first: a partial unique index allows one active row per user.

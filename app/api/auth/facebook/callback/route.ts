@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { igAccountForPage } from "@/lib/igBusinessDiscovery";
 import { FB_GRAPH_V, fbAppId, fbAppSecret, fbRedirectUri } from "@/lib/facebook";
 import { syncFacebook } from "@/lib/facebookSync";
-import { activeAccounts, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
+import { activeByPlatform, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
 import { trackEvent } from "@/lib/events";
 
 export const runtime = "nodejs";
@@ -206,7 +206,7 @@ export async function GET(req: Request) {
     // file to reconnect AND every slot is already taken; the select route
     // re-checks with the chosen id.
     const hasFbPage = list.some((a) => a.platform === "facebook");
-    if (!hasFbPage && activeAccounts(list).length >= getLimit(ent, "connected_accounts")) return limitHit();
+    if (!hasFbPage && activeByPlatform(list).facebook >= getLimit(ent, "workspaces")) return limitHit();
     const { error } = await supabase.from("facebook_connections").upsert(
       {
         user_id: user.id,

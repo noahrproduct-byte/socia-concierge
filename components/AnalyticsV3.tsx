@@ -25,9 +25,11 @@ import AudienceBars from "./ov/AudienceBars";
 import DateRangeSelector from "./DateRangeSelector";
 import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
+import MultiLineChart, { type OverlayLine } from "./ov/MultiLineChart";
 import {
   rankPosts, fmtNum, audienceInsight, seriesBaseline, granularityOptions, bucketize, detectOutliers, bucketTitle,
-  type Kpi, type Series, type SeriesPoint, type MetricId, type Insight, type PostCard, type Slice, type PlatformRow, type Granularity, type Bucket,
+  GRAPH_METRIC_LABEL,
+  type Kpi, type Series, type SeriesPoint, type MetricId, type Insight, type PostCard, type Slice, type PlatformRow, type Granularity, type Bucket, type GraphAccount, type GraphMetric,
 } from "@/lib/overview";
 import { median } from "@/lib/metrics";
 import { summarizeFollowers, inRange as followersInRange, type FollowerPoint, type FollowerGranularity } from "@/lib/followers";
@@ -72,7 +74,14 @@ export type AnalyticsData = {
   followerPoints: FollowerPoint[];
   engagement: { rate: EngagementRate; breakdown: Breakdown; quality: QualityNote[] };
   formats: Record<string, number>;
+  /** Connected accounts the Performance graph can overlay (IG first). Instagram
+   *  and YouTube carry real per-day series; Facebook/TikTok are listed but with
+   *  no series, so the graph reports "no daily trend" instead of faking a line. */
+  graphAccounts: GraphAccount[];
 };
+
+const OVERLAY_METRIC_ORDER: GraphMetric[] = ["views", "engagement", "reach", "followers", "watch_time", "net_followers"];
+const PLATFORM_TINT: Record<GraphAccount["platform"], string> = { instagram: "#d6357a", youtube: "#e0332a", facebook: "#1877f2", tiktok: "#22d3ee" };
 
 type Tab = "overview" | "content" | "audience" | "times" | "growth";
 const TABS: [Tab, string][] = [["overview", "Overview"], ["content", "Content Performance"], ["audience", "Audience"], ["times", "Posting Times"], ["growth", "Growth"]];
@@ -96,6 +105,12 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   const [open, setOpen] = useState<PostCard | null>(null);
   const [point, setPoint] = useState<{ b: Bucket; outlier: boolean } | null>(null);
   const [mounted, setMounted] = useState(false);
+  // Multi-account overlay for the Performance graph. Default = the Instagram
+  // account alone, so the section behaves exactly as before until the user picks
+  // more accounts.
+  const igId = d.graphAccounts[0]?.id ?? "";
+  const [acctSel, setAcctSel] = useState<string[]>(igId ? [igId] : []);
+  const [gm, setGm] = useState<GraphMetric>("views");
 
   useEffect(() => {
     setMounted(true);
@@ -127,6 +142,34 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   }, [d.gaps, d.lockedGaps, d.timed, mounted]);
 
   const series = d.series[metric];
+  // ---- multi-account overlay derivations ----
+  const selectedGA = useMemo(() => d.graphAccounts.filter((a) => acctSel.includes(a.id)), [d.graphAccounts, acctSel]);
+  const isSingleIg = acctSel.length === 1 && acctSel[0] === igId;
+  const overlayMetrics = useMemo(() => {
+    const keys = new Set<GraphMetric>();
+    for (const a of selectedGA) for (const k of Object.keys(a.series) as GraphMetric[]) keys.add(k);
+    return OVERLAY_METRIC_ORDER.filter((k) => keys.has(k));
+  }, [selectedGA]);
+  const gmActive: GraphMetric = overlayMetrics.includes(gm) ? gm : (overlayMetrics[0] ?? "views");
+  const overlayLines: OverlayLine[] = useMemo(
+    () => selectedGA.filter((a) => a.series[gmActive]).map((a) => { const s = a.series[gmActive]!; return { id: a.id, platform: a.platform, label: a.label, points: s.points, mode: s.mode, trueSeries: s.trueSeries }; }),
+    [selectedGA, gmActive],
+  );
+  const missingAccts = useMemo(() => selectedGA.filter((a) => !a.series[gmActive]), [selectedGA, gmActive]);
+  const overlayImpure = overlayLines.some((l) => !l.trueSeries);
+  const graphInsights = useMemo(() => {
+    if (isSingleIg) return [] as { tone: string; text: string }[];
+    const unit = GRAPH_METRIC_LABEL[gmActive].toLowerCase();
+    const totals = overlayLines
+      .map((l) => ({ label: l.label, total: l.points.reduce((s, p) => s + (p.value ?? 0), 0), has: l.points.some((p) => p.value != null) }))
+      .filter((t) => t.has)
+      .sort((a, b) => b.total - a.total);
+    const out: { tone: string; text: string }[] = [];
+    if (totals.length >= 2) out.push({ tone: "up", text: `${totals[0].label} led ${unit} this period.` });
+    for (const t of totals) out.push({ tone: "info", text: `${t.label}: ${fmtNum(t.total)} ${unit} in the ${d.rangeLabel.toLowerCase()}.` });
+    for (const a of missingAccts) out.push({ tone: "muted", text: `${a.label} has no daily ${unit} series${a.platform === "facebook" ? " — Facebook doesn't provide one" : a.platform === "tiktok" ? " — TikTok isn't connected to time-series data yet" : ""}.` });
+    return out;
+  }, [isSingleIg, overlayLines, missingAccts, gmActive, d.rangeLabel]);
   const postById = useMemo(() => Object.fromEntries(d.posts.map((p) => [p.id, p])), [d.posts]);
   const postValues = useMemo(() => d.posts.map((p) => (metric === "views" ? p.views : p.engagements)).filter((v): v is number => v != null), [d.posts, metric]);
   const baseline = useMemo(() => seriesBaseline(series, postValues), [series, postValues]);
@@ -220,9 +263,13 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                 <div className="ov-card-head wrap">
                   <h2 id="av-perf-h">Performance Over Time</h2>
                   <div className="ov-seg" role="tablist" aria-label="Metric">
-                    {METRICS.map((m) => (
-                      <button key={m} type="button" role="tab" aria-selected={metric === m} className={metric === m ? "on" : ""} disabled={d.series[m].provenance === "unavailable"} title={d.series[m].note} onClick={() => setMetric(m)}>{d.series[m].label}</button>
-                    ))}
+                    {isSingleIg
+                      ? METRICS.map((m) => (
+                          <button key={m} type="button" role="tab" aria-selected={metric === m} className={metric === m ? "on" : ""} disabled={d.series[m].provenance === "unavailable"} title={d.series[m].note} onClick={() => setMetric(m)}>{d.series[m].label}</button>
+                        ))
+                      : overlayMetrics.map((m) => (
+                          <button key={m} type="button" role="tab" aria-selected={gmActive === m} className={gmActive === m ? "on" : ""} onClick={() => setGm(m)}>{GRAPH_METRIC_LABEL[m]}</button>
+                        ))}
                   </div>
                   <div className="av-controls">
                     <div className="ov-seg" role="group" aria-label="Group by">
@@ -232,19 +279,48 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                     </div>
                   </div>
                 </div>
-                <div className="av-perf-summary">
-                  <b>{series.total != null ? fmtNum(series.total) : "—"}</b>
-                  <span>{series.label.toLowerCase()} {metric === "followers" ? "now" : `in the ${d.rangeLabel.toLowerCase()}`}</span>
-                  {totalDelta != null && <em className={totalDelta >= 0 ? "up" : "down"}>{totalDelta >= 0 ? "↑" : "↓"} {Math.abs(totalDelta).toFixed(1)}% vs. previous period</em>}
-                  {series.prevTotal == null && series.total != null && <em className="muted">no comparable previous period yet</em>}
-                  {baseline && <em className="muted">· {baseline.label.toLowerCase()} {fmtNum(Math.round(baseline.value))}</em>}
-                  <span className="av-perf-ctl">
-                    <button type="button" className={`ov-toggle${compare ? " on" : ""}`} aria-pressed={compare} onClick={() => setCompare((v) => !v)}>vs. previous</button>
-                    {outliers.size > 0 && <button type="button" className={`ov-toggle${fitOn ? " on" : ""}`} aria-pressed={fitOn} title="Scale the axis to your typical range; breakout bars stay visible with their value" onClick={() => setFit(!fitOn)}>Fit typical range</button>}
-                  </span>
-                </div>
-                <OverviewChart series={series} granularity={gran} showPrevious={compare} height={260} fitScale={fitOn} baseline={baseline} postById={postById} today={d.today} onPick={(b, o) => setPoint({ b, outlier: o })} />
-                <p className="ov-source">{series.note}{outliers.size > 0 ? ` ${outliers.size} breakout ${gran}${outliers.size === 1 ? "" : "s"} marked; click a bar to see what drove it.` : " Click a bar to inspect it."}</p>
+
+                {d.graphAccounts.length > 1 && (
+                  <div className="av-accts" role="group" aria-label="Accounts on the graph">
+                    <button type="button" className={`av-acct${acctSel.length === d.graphAccounts.length ? " on" : ""}`} onClick={() => setAcctSel(d.graphAccounts.map((a) => a.id))}>All accounts</button>
+                    {d.graphAccounts.map((a) => {
+                      const on = acctSel.includes(a.id);
+                      return (
+                        <button key={a.id} type="button" className={`av-acct${on ? " on" : ""}`} aria-pressed={on}
+                          onClick={() => setAcctSel((sel) => (sel.includes(a.id) ? (sel.length > 1 ? sel.filter((x) => x !== a.id) : sel) : [...sel, a.id]))}>
+                          <span className="av-acct-dot" style={{ background: PLATFORM_TINT[a.platform] }} />{a.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {isSingleIg ? (
+                  <>
+                    <div className="av-perf-summary">
+                      <b>{series.total != null ? fmtNum(series.total) : "—"}</b>
+                      <span>{series.label.toLowerCase()} {metric === "followers" ? "now" : `in the ${d.rangeLabel.toLowerCase()}`}</span>
+                      {totalDelta != null && <em className={totalDelta >= 0 ? "up" : "down"}>{totalDelta >= 0 ? "↑" : "↓"} {Math.abs(totalDelta).toFixed(1)}% vs. previous period</em>}
+                      {series.prevTotal == null && series.total != null && <em className="muted">no comparable previous period yet</em>}
+                      {baseline && <em className="muted">· {baseline.label.toLowerCase()} {fmtNum(Math.round(baseline.value))}</em>}
+                      <span className="av-perf-ctl">
+                        <button type="button" className={`ov-toggle${compare ? " on" : ""}`} aria-pressed={compare} onClick={() => setCompare((v) => !v)}>vs. previous</button>
+                        {outliers.size > 0 && <button type="button" className={`ov-toggle${fitOn ? " on" : ""}`} aria-pressed={fitOn} title="Scale the axis to your typical range; breakout bars stay visible with their value" onClick={() => setFit(!fitOn)}>Fit typical range</button>}
+                      </span>
+                    </div>
+                    <OverviewChart series={series} granularity={gran} showPrevious={compare} height={260} fitScale={fitOn} baseline={baseline} postById={postById} today={d.today} onPick={(b, o) => setPoint({ b, outlier: o })} />
+                    <p className="ov-source">{series.note}{outliers.size > 0 ? ` ${outliers.size} breakout ${gran}${outliers.size === 1 ? "" : "s"} marked; click a bar to see what drove it.` : " Click a bar to inspect it."}</p>
+                  </>
+                ) : (
+                  <>
+                    <MultiLineChart lines={overlayLines} granularity={gran} height={260} unit={GRAPH_METRIC_LABEL[gmActive].toLowerCase()} today={d.today} />
+                    <p className="ov-source">
+                      {overlayLines.length ? `${GRAPH_METRIC_LABEL[gmActive]} across ${overlayLines.length} account${overlayLines.length === 1 ? "" : "s"}, ${d.rangeLabel.toLowerCase()}.` : "None of the selected accounts report this metric as a daily series."}
+                      {overlayImpure ? " Publish-date lines show each post's totals on the day it was posted, not a daily account series; YouTube shows true daily values." : ""}
+                      {missingAccts.length ? ` ${missingAccts.map((a) => a.label).join(", ")}: no daily ${GRAPH_METRIC_LABEL[gmActive].toLowerCase()} series.` : ""}
+                    </p>
+                  </>
+                )}
               </section>
             </div>
             <aside className="av-side">
@@ -253,7 +329,15 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                   <h2 id="av-ins-h"><span className="ov-h-ico primary"><Lightbulb size={14} /></span> Key Insights</h2>
                   <button type="button" className="ov-link" onClick={() => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric }, question: "What am I missing?" })}>Ask</button>
                 </div>
-                <InsightList insights={insights.slice(0, 5)} posts={d.posts} compact onTab={jumpTab} />
+                {isSingleIg ? (
+                  <InsightList insights={insights.slice(0, 5)} posts={d.posts} compact onTab={jumpTab} />
+                ) : graphInsights.length ? (
+                  <ul className="av-ginsights">
+                    {graphInsights.map((g, i) => <li key={i} className={`av-gins ${g.tone}`}>{g.text}</li>)}
+                  </ul>
+                ) : (
+                  <p className="ov-source">Select accounts to see cross-account insights.</p>
+                )}
               </section>
             </aside>
           </div>

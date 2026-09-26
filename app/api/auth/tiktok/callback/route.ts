@@ -82,7 +82,9 @@ export async function GET(req: Request) {
       refresh_expires_at: tok.refreshExpiresIn != null ? new Date(now + tok.refreshExpiresIn * 1000).toISOString() : null,
       videos: videos ?? null,
       last_synced_at: new Date(now).toISOString(),
-      plan_suspended_at: null,
+      // plan_suspended_at is deliberately not written: the column is locked by
+      // a trigger (only SOCIA billing may pause or un-pause), and a reconnect
+      // of a paused account must not fail on it. New rows start un-paused.
       connected_at: new Date(now).toISOString(),
     };
     const { error: upErr } = await supabase.from("tiktok_connections").upsert(row, { onConflict: "user_id" });

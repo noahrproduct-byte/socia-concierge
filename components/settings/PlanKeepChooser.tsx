@@ -3,16 +3,25 @@
 // After a downgrade the person may have more active accounts or competitors
 // than the plan allows. This lets them choose which stay active; everything
 // else is paused, not deleted. Enforcement is in /api/plan/keep, not here.
+//
+// Accounts are capped PER PLATFORM: a Brand Workspace holds one account on
+// each platform, so a plan with N workspaces keeps up to N accounts on
+// Instagram, N on YouTube, and so on.
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PLATFORM_NAME, type WorkspacePlatform } from "@/lib/plans";
 
 export type KeepAccount = {
   /** ConnectedAccount.id, `${platform}:${platformId}`. */
   id: string;
   label: string;
   handle: string | null;
+<<<<<<< HEAD
   platform: "instagram" | "facebook" | "youtube" | "tiktok";
+=======
+  platform: WorkspacePlatform;
+>>>>>>> bdb53ec0343586aa78319c081a9987dde779e021
   suspended: boolean;
   /** Instagram only: the account the app currently reads through. */
   current: boolean;
@@ -25,15 +34,35 @@ export type KeepCompetitor = {
 };
 
 export type KeepSection<T> = { limit: number; active: number; items: T[] };
+<<<<<<< HEAD
 
 const PLATFORM_NAME: Record<string, string> = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok" };
+=======
+export type KeepAccountsSection = KeepSection<KeepAccount> & {
+  /** Platforms that are over the limit, with their active counts. */
+  byPlatform: Partial<Record<WorkspacePlatform, number>>;
+};
+>>>>>>> bdb53ec0343586aa78319c081a9987dde779e021
 
 const compKey = (c: KeepCompetitor) => `${c.platform}:${c.handle}`;
 
-function defaultAccounts(s: KeepSection<KeepAccount>): Set<string> {
-  const live = s.items.filter((a) => !a.suspended);
-  live.sort((a, b) => Number(b.current) - Number(a.current));
-  return new Set(live.slice(0, s.limit).map((a) => a.id));
+function countOn(sel: Set<string>, items: KeepAccount[], platform: WorkspacePlatform): number {
+  return items.filter((a) => a.platform === platform && sel.has(a.id)).length;
+}
+
+/** Up to `limit` per platform, the account the app currently reads through first. */
+function defaultAccounts(s: KeepAccountsSection): Set<string> {
+  const out = new Set<string>();
+  const live = s.items.filter((a) => !a.suspended).sort((a, b) => Number(b.current) - Number(a.current));
+  const per: Partial<Record<WorkspacePlatform, number>> = {};
+  for (const a of live) {
+    const n = per[a.platform] ?? 0;
+    if (n < s.limit) {
+      out.add(a.id);
+      per[a.platform] = n + 1;
+    }
+  }
+  return out;
 }
 
 function defaultCompetitors(s: KeepSection<KeepCompetitor>): Set<string> {
@@ -50,7 +79,7 @@ export default function PlanKeepChooser({
   competitors,
 }: {
   planName: string;
-  accounts: KeepSection<KeepAccount> | null;
+  accounts: KeepAccountsSection | null;
   competitors: KeepSection<KeepCompetitor> | null;
 }) {
   const router = useRouter();
@@ -61,12 +90,22 @@ export default function PlanKeepChooser({
 
   if (!accounts && !competitors) return null;
 
-  const toggle = (set: Set<string>, key: string, limit: number, apply: (s: Set<string>) => void) => {
-    const next = new Set(set);
-    if (next.has(key)) next.delete(key);
-    else if (next.size < limit) next.add(key);
+  const toggleAccount = (a: KeepAccount) => {
+    if (!accounts) return;
+    const next = new Set(selA);
+    if (next.has(a.id)) next.delete(a.id);
+    else if (countOn(next, accounts.items, a.platform) < accounts.limit) next.add(a.id);
     else return;
-    apply(next);
+    setSelA(next);
+  };
+
+  const toggleCompetitor = (key: string) => {
+    if (!competitors) return;
+    const next = new Set(selC);
+    if (next.has(key)) next.delete(key);
+    else if (next.size < competitors.limit) next.add(key);
+    else return;
+    setSelC(next);
   };
 
   async function submit() {
@@ -94,7 +133,9 @@ export default function PlanKeepChooser({
     }
   }
 
-  const chosenWord = (limit: number) => (limit === 1 ? "the one" : `the ${limit}`);
+  const overPlatforms = accounts
+    ? (Object.entries(accounts.byPlatform) as [WorkspacePlatform, number][]).map(([p, n]) => `${n} on ${PLATFORM_NAME[p]}`)
+    : [];
 
   return (
     <div className="pb-keep" role="group" aria-label="Choose what to keep active">
@@ -102,13 +143,14 @@ export default function PlanKeepChooser({
         <>
           <h4>Choose which accounts stay active</h4>
           <p>
-            You currently have {countWord(accounts.active, "connected account", "connected accounts")}. {planName} supports{" "}
-            {accounts.limit}. Choose {chosenWord(accounts.limit)} you want to keep active.
+            {planName} includes {countWord(accounts.limit, "Brand Workspace", "Brand Workspaces")}, and a workspace holds one account per
+            platform, so up to {accounts.limit} {accounts.limit === 1 ? "account" : "accounts"} on each platform can stay active. You have{" "}
+            {overPlatforms.join(" and ")}. Choose which to keep.
           </p>
           <ul className="pb-keep-list">
             {accounts.items.map((a) => {
               const on = selA.has(a.id);
-              const full = !on && selA.size >= accounts.limit;
+              const full = !on && countOn(selA, accounts.items, a.platform) >= accounts.limit;
               return (
                 <li key={a.id}>
                   <label className={`pb-keep-item${full ? " off" : ""}`}>
@@ -116,7 +158,7 @@ export default function PlanKeepChooser({
                       type="checkbox"
                       checked={on}
                       disabled={full || saving}
-                      onChange={() => toggle(selA, a.id, accounts.limit, setSelA)}
+                      onChange={() => toggleAccount(a)}
                     />
                     <span>{a.label}</span>
                     {a.handle && a.label !== `@${a.handle}` && <span className="pb-keep-meta">@{a.handle}</span>}
@@ -134,8 +176,8 @@ export default function PlanKeepChooser({
         <>
           <h4>Choose which competitors stay tracked</h4>
           <p>
-            You currently have {countWord(competitors.active, "competitor", "competitors")}. {planName} supports{" "}
-            {competitors.limit}. Choose {chosenWord(competitors.limit)} you want to keep.
+            You are tracking {countWord(competitors.active, "competitor", "competitors")}. {planName} includes{" "}
+            {competitors.limit}. Choose {competitors.limit === 1 ? "the one" : `the ${competitors.limit}`} you want to keep.
           </p>
           <ul className="pb-keep-list">
             {competitors.items.map((c) => {
@@ -149,10 +191,10 @@ export default function PlanKeepChooser({
                       type="checkbox"
                       checked={on}
                       disabled={full || saving}
-                      onChange={() => toggle(selC, key, competitors.limit, setSelC)}
+                      onChange={() => toggleCompetitor(key)}
                     />
                     <span>@{c.handle}</span>
-                    <span className="pb-keep-meta">{PLATFORM_NAME[c.platform] ?? c.platform}</span>
+                    <span className="pb-keep-meta">{PLATFORM_NAME[c.platform as WorkspacePlatform] ?? c.platform}</span>
                     {!c.active && <span className="pb-keep-tag">Paused</span>}
                   </label>
                 </li>
@@ -167,7 +209,7 @@ export default function PlanKeepChooser({
           {saving ? "Saving" : "Keep selected"}
         </button>
         <span className="pb-keep-count">
-          {accounts && `${selA.size} / ${accounts.limit} accounts`}
+          {accounts && `${selA.size} ${selA.size === 1 ? "account" : "accounts"} kept`}
           {accounts && competitors && " · "}
           {competitors && `${selC.size} / ${competitors.limit} competitors`}
         </span>
