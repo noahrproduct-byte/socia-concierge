@@ -71,6 +71,7 @@ export default function PlanBilling({
   competitorCount,
   competitors,
   overLimits,
+  teamUsed = null,
 }: {
   ent: Entitlements;
   usage: Record<MeterKey, UsageSnapshot>;
@@ -82,6 +83,8 @@ export default function PlanBilling({
   /** Every tracked competitor, including paused ones. Only needed in the over-limit state. */
   competitors: KeepCompetitor[] | null;
   overLimits: OverLimits;
+  /** Team seats in use (you + distinct members across your workspaces); null when unknown. */
+  teamUsed?: number | null;
 }) {
   const cfg = ent.config;
   const workspaceLimit = getLimit(ent, "workspaces");
@@ -133,7 +136,14 @@ export default function PlanBilling({
           unknownTitle="Could not be read"
           note="One workspace holds one account on each platform."
         />
-        <Meter label="Team members" used={teamSoon ? null : 1} limit={memberLimit} plain={teamSoon ? `1 of ${memberLimit} (invites coming soon)` : undefined} />
+        <Meter
+          label="Team members"
+          used={teamSoon ? null : teamUsed}
+          limit={memberLimit}
+          plain={teamSoon ? `1 of ${memberLimit} (invites coming soon)` : undefined}
+          unknownTitle="Could not be read"
+          note={teamSoon ? undefined : "You included, across all your workspaces."}
+        />
         <Meter label="Competitors" used={competitorCount} limit={competitorLimit} unknownTitle="Could not be read" />
         <Meter label="Analytics history" used={null} limit={historyDays} plain={formatHistory(historyDays)} />
         {METER_ORDER.map((m) => (

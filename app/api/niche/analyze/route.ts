@@ -6,6 +6,7 @@ import { brandContext } from "@/lib/prompt";
 import { videoDurationSec, youtubeVideoId, ytConfigured } from "@/lib/youtube";
 import type { NichePost } from "@/lib/nicheTrends";
 import { requireFeature } from "@/lib/planGuard";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,9 +17,10 @@ export const maxDuration = 60;
 //   read       what SOCIA can see in the real thumbnail and title, labelled
 //              as a reading; then an interpretation, at most three lessons
 //              and one concept for the user's own account
-// Cached per user and post for a week in the shared niche_trends cache. A
-// "refresh" re-reads the post at most once an hour: the cache is the only
-// thing between a button and an unbounded number of model calls.
+// Cached per workspace owner and post for a week in the shared niche_trends
+// cache (the key carries the owner's id, so a guest reads through the service
+// client). A "refresh" re-reads the post at most once an hour: the cache is the
+// only thing between a button and an unbounded number of model calls.
 
 const TTL_MS = 7 * 86400000;
 const REFRESH_COOLDOWN_MS = 60 * 60 * 1000;
@@ -59,14 +61,15 @@ export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
   let body: { post?: NichePost; refresh?: boolean };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
   const post = body.post;
   if (!post?.url) return NextResponse.json({ error: "No post given." }, { status: 400 });
 
-  const key = `analysis:${user.id}:${post.url}`.slice(0, 900);
+  const key = `analysis:${ctx.ownerId}:${post.url}`.slice(0, 900);
   try {
-    const { data } = await supabase.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
+    const { data } = await ctx.client.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
     const doc = data?.data as AnalyzeResponse | undefined;
     const ageMs = data?.updated_at ? Date.now() - new Date(data.updated_at).getTime() : Infinity;
     // Serve the cached reading unless it expired, or a refresh was asked for AND the cooldown has passed.
@@ -84,12 +87,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ durationSec, analysis: null, error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key", cached: false } satisfies AnalyzeResponse, { status: 503 });
   }
 
-  // Fresh readings are part of Niche intelligence. The cache lookup above runs
-  // first on purpose, so a reading made on a paid plan stays visible.
-  const g = await requireFeature(supabase, user.id, "niche_intelligence");
+  // Fresh readings are part of Niche intelligence on the workspace owner's
+  // plan. The cache lookup above runs first on purpose, so a reading made on a
+  // paid plan stays visible.
+  const g = await requireFeature(ctx.client, ctx.ownerId, "niche_intelligence");
   if (g.denied) return g.denied;
 
-  const profile = await getProfile(supabase, user.id).catch(() => null);
+  const profile = await getProfile(ctx.client, ctx.ownerId).catch(() => null);
   const observed = [
     `Platform: ${post.platform}${post.format ? ` (${post.format})` : ""}`,
     `Creator: ${post.accountName ?? "unknown"}`,
@@ -143,7 +147,7 @@ Rules:
     if (analysis) analysis.lessons = (analysis.lessons ?? []).slice(0, 3);
     const doc: AnalyzeResponse = { durationSec, analysis, cached: false };
     try {
-      await supabase.from("niche_trends").upsert({ niche: key, data: doc, updated_at: new Date().toISOString() }, { onConflict: "niche" });
+      await ctx.client.from("niche_trends").upsert({ niche: key, data: doc, updated_at: new Date().toISOString() }, { onConflict: "niche" });
     } catch { /* caching is best-effort */ }
     return NextResponse.json(doc);
   } catch (err) {

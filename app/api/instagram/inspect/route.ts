@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 import { getActiveConnection } from "@/lib/instagramSync";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-// Diagnostic: probes the real Instagram Insights endpoints for the signed-in
-// user's connected account, one metric at a time, and reports the raw Meta
+// Diagnostic: probes the real Instagram Insights endpoints for the ACTIVE
+// Brand Workspace's connected account, one metric at a time, and reports the raw Meta
 // responses (values, or the exact error). Never returns tokens. Used to
 // establish exactly which metrics this account/token/API version provides,
 // instead of assuming.
@@ -66,8 +67,9 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
 
-  const conn = await getActiveConnection(supabase, user.id, "access_token, username, media");
+  const conn = await getActiveConnection(ctx.client, ctx.ownerId, "access_token, username, media");
   if (!conn?.access_token) return NextResponse.json({ error: "No Instagram connection." }, { status: 400 });
   const token = conn.access_token as string;
 

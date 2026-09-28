@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   UserRound,
   Briefcase,
+  Users,
   Share2,
   Sparkle,
   Radar,
@@ -26,6 +27,7 @@ const GROUPS: Group[] = [
     items: [
       { id: "brand", label: "Profile & Brand", Icon: UserRound },
       { id: "workspaces", label: "Brand Workspaces", Icon: Briefcase },
+      { id: "team", label: "Team", Icon: Users },
       { id: "accounts", label: "Connected Accounts", Icon: Share2 },
       { id: "intel", label: "SOCIA Intelligence", Icon: Sparkle },
       { id: "market", label: "Competitors & Market", Icon: Radar },

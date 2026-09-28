@@ -4,9 +4,10 @@ import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/inst
 import { syncInstagram } from "@/lib/instagramSync";
 import { createServiceClient } from "@/lib/supabase/service";
 import { activeAccounts, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
-import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
+import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { PLATFORMS_PER_WORKSPACE } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
+import { resolveContext, can } from "@/lib/context";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,14 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${origin}/login?next=/settings`);
+
+  // The person acts inside their ACTIVE Brand Workspace, which may belong to
+  // someone who invited them as an Admin. Connecting is owner/admin only, and
+  // the connection row belongs to the workspace OWNER (ctx.ownerId), written
+  // through ctx.client. Auth, the OAuth state and event attribution stay on
+  // the viewer. Refused before the code is exchanged.
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "connect")) return settings("forbidden");
 
   const redirectUri = igRedirectUri(origin);
 
@@ -79,8 +88,9 @@ export async function GET(req: Request) {
     // plan's Brand Workspace limit (one Instagram account per workspace) is
     // refused here, on the server, whatever the UI showed.
     const igId: string | null = me.user_id?.toString() ?? shortJson.user_id?.toString() ?? null;
-    const ent = await getEntitlements(supabase, user.id);
-    const list = await listConnectedAccounts(supabase, user.id);
+    // The plan gate judges the OWNER's entitlements and accounts.
+    const ent = await getEntitlements(ctx.client, ctx.ownerId);
+    const list = await listConnectedAccounts(ctx.client, ctx.ownerId);
     // Extra exemption on top of canConnectAnother's id match: a row that only
     // matches by username (pre-migration rows may lack ig_user_id) is still a
     // reconnect, never a new slot.
@@ -107,7 +117,7 @@ export async function GET(req: Request) {
       }
       const keep = Array.from(new Set([...activeAccounts(list).map((a) => a.id), existing.id]));
       const { error: keepErr } = await svc.rpc("socia_apply_plan_keep", {
-        p_user: user.id,
+        p_user: ctx.ownerId,
         p_accounts: keep,
         p_competitors: null,
         // Total guard only; the per-platform rule was checked by canConnectAnother above.
@@ -133,13 +143,14 @@ export async function GET(req: Request) {
       : typeof shortJson.permissions === "string"
         ? String(shortJson.permissions).split(",").map((x) => x.trim()).filter(Boolean)
         : [];
-    // Brand Workspaces: the account joins the active workspace (one Instagram
-    // account per workspace). is_active still marks the account the app reads
-    // through; stamping workspace_id keeps the two in step. Inert before the
-    // migration (workspace_id column absent, so it is dropped on the fallback).
-    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
+    // Brand Workspaces: the account joins the OWNER's active workspace (one
+    // Instagram account per workspace). is_active still marks the account the
+    // app reads through; stamping workspace_id keeps the two in step. Inert
+    // before the migration (ensureDefaultWorkspace returns null, so the
+    // column is never written).
+    const ws = ctx.workspace ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId));
     const connRow: Record<string, unknown> = {
-      user_id: user.id,
+      user_id: ctx.ownerId,
       ig_user_id: igId,
       scopes: grantedScopes,
       username: me.username ?? null,
@@ -153,14 +164,14 @@ export async function GET(req: Request) {
     // Deactivate the others FIRST: a partial unique index enforces one active
     // row per user, so activating before deactivating would violate it.
     // (Errors ignored pre-migration, where is_active doesn't exist.)
-    await supabase
+    await ctx.client
       .from("instagram_connections")
       .update({ is_active: false })
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .then(() => undefined, () => undefined);
     // Post-migration identity is (user_id, ig_user_id); pre-migration it is
     // user_id alone, so fall back when the composite constraint isn't there.
-    const { error: upsertErr } = await supabase
+    const { error: upsertErr } = await ctx.client
       .from("instagram_connections")
       .upsert({ ...connRow, is_active: true }, { onConflict: "user_id,ig_user_id" });
     if (upsertErr) {
@@ -168,20 +179,21 @@ export async function GET(req: Request) {
       // pre-migration shape without the new column.
       const { scopes: _scopes, ...legacy } = connRow;
       void _scopes;
-      await supabase.from("instagram_connections").upsert(legacy, { onConflict: "user_id" });
+      await ctx.client.from("instagram_connections").upsert(legacy, { onConflict: "user_id" });
     }
 
-    await supabase
+    // The OWNER's profile reflects the connection.
+    await ctx.client
       .from("profiles")
       .upsert(
-        { user_id: user.id, account_connected: true, updated_at: new Date().toISOString() },
+        { user_id: ctx.ownerId, account_connected: true, updated_at: new Date().toISOString() },
         { onConflict: "user_id" },
       );
 
     // 5) First sync, immediately — profile + recent posts are cached before
     // the user even lands back in the app, so the dashboard is live at once.
     try {
-      await syncInstagram(supabase, user.id);
+      await syncInstagram(ctx.client, ctx.ownerId);
     } catch {
       // pages self-heal with a stale-triggered sync
     }

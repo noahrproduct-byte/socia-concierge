@@ -5,6 +5,7 @@ import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanCli
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
+import { resolveContext, type Ctx } from "@/lib/context";
 
 export const metadata = { title: "Content Plan — SOCIA" };
 
@@ -22,7 +23,7 @@ function ago(iso: string): string {
 
 /** Rows on file that the generator attaches to the brief by itself. Counted
  *  here so the form can say so truthfully; zero when a table doesn't exist. */
-async function evidenceCounts(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+async function evidenceCounts(supabase: Ctx["client"], userId: string) {
   const count = async (table: string) => {
     try {
       const { count, error } = await supabase
@@ -64,6 +65,9 @@ export default async function ContentPlanPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Everything below reads the active Brand Workspace's owner (the viewer,
+  // unless they were invited into someone else's workspace).
+  const ctx = await resolveContext(supabase, user.id);
 
   // Prefill everything SOCIA already knows (all best-effort).
   let brandName: string | null = null;
@@ -72,10 +76,10 @@ export default async function ContentPlanPage() {
   let goal: string | null = null;
   let platform: string | null = null;
   try {
-    const { data: prof } = await supabase
+    const { data: prof } = await ctx.client
       .from("profiles")
       .select("brand_name, niche, niche_detail, goals, platforms")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .maybeSingle();
     brandName = prof?.brand_name ?? null;
     niche = prof?.niche ?? null;
@@ -86,14 +90,16 @@ export default async function ContentPlanPage() {
     // profile columns may be mid-migration; the form still works blank
   }
 
-  const snap = await getIgSnapshot(supabase, user.id);
+  const snap = await getIgSnapshot(ctx.client, ctx.ownerId);
   const media = snap?.media ?? [];
   const engRate =
     snap?.followers_count && media.length
       ? ((avg(media.map(engOf)) / snap.followers_count) * 100).toFixed(1) + "%"
       : null;
 
-  const [counts, ent] = await Promise.all([evidenceCounts(supabase, user.id), getEntitlements(supabase, user.id)]);
+  // Entitlements are the workspace owner's: a member's plans count against
+  // the owner's allowance.
+  const [counts, ent] = await Promise.all([evidenceCounts(ctx.client, ctx.ownerId), getEntitlements(ctx.client, ctx.ownerId)]);
   const evidence = { posts: Math.min(media.length, 25), ...counts };
   // Drafts are always saved; whether they can publish themselves is a plan question.
   const canSchedule = canUseFeature(ent, "scheduling");

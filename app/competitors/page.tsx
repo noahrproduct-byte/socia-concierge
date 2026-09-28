@@ -19,6 +19,7 @@ import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 import { getEntitlements, clampDays, maxHistoryDays } from "@/lib/entitlements";
 import { listTracked } from "@/lib/trackedCompetitors";
+import { resolveContext } from "@/lib/context";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
@@ -61,26 +62,29 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Everything below reads the ACTIVE Brand Workspace, which may belong to
+  // someone who invited this person: data helpers take (ctx.client, ctx.ownerId).
+  const ctx = await resolveContext(supabase, user.id);
 
   const sp = await searchParams;
   // The range never exceeds the plan's analytics history; niche_range is discovery content, not history, so it is left alone.
-  const ent = await getEntitlements(supabase, user.id);
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const days = clampDays(ent, sp.range === "7" ? 7 : sp.range === "90" ? 90 : 30);
   const platform: PlatformFilter = sp.platform === "instagram" || sp.platform === "youtube" || sp.platform === "facebook" ? sp.platform : "all";
   const nicheRange: NicheRange = sp.niche_range === "30" ? 30 : sp.niche_range === "all" ? 0 : 90;
   const now = new Date();
 
   // ---- the user -----------------------------------------------------------
-  const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+  const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
   const all: IgMediaItem[] = snap?.media ?? [];
   const cutoff = now.getTime() - days * 86400000;
   const posts = all.filter((p) => p.timestamp && new Date(p.timestamp).getTime() >= cutoff);
   const followers = snap?.followers_count ?? null;
-  const profile = await getProfile(supabase, user.id).catch(() => null);
+  const profile = await getProfile(ctx.client, ctx.ownerId).catch(() => null);
   const location = profile?.brand_detail?.location ?? null;
   let subNiche: string | null = null;
   try {
-    const { data } = await supabase.from("profiles").select("niche_detail").eq("user_id", user.id).maybeSingle();
+    const { data } = await ctx.client.from("profiles").select("niche_detail").eq("user_id", ctx.ownerId).maybeSingle();
     subNiche = (data?.niche_detail as { sub_niche?: string } | null)?.sub_niche ?? null;
   } catch { /* optional */ }
 
@@ -88,7 +92,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   let followerSeries: FollowerPoint[] = [];
   try {
     const rows = await readDailySnapshots<{ day: string; followers: number | null; followers_gained: number | null; source: string | null }>(
-      supabase, user.id, snap?.ig_user_id ?? null, "day, followers, followers_gained, source",
+      ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, followers_gained, source",
     );
     const from = localDayStr(new Date(cutoff));
     const series = rows.filter((r) => r.day >= from && r.followers != null && isChartableDay(r, localDayStr(now)));
@@ -124,16 +128,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // ---- tracked + discovered accounts --------------------------------------
   let tracked: Tracked[] = [];
   try {
-    tracked = await listTracked<Tracked>(supabase, user.id, "platform, handle, added_at", { byAdded: true });
+    tracked = await listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true });
   } catch { /* not migrated yet */ }
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
 
   let suggested: Suggested[] = [];
   try {
-    const { data } = await supabase
+    const { data } = await ctx.client
       .from("discovered_accounts")
       .select("platform, handle, display_name, profile_image, profile_url, followers, location, classification, relevance_score, relevance_reasons")
-      .eq("user_id", user.id).order("relevance_score", { ascending: false }).limit(40);
+      .eq("user_id", ctx.ownerId).order("relevance_score", { ascending: false }).limit(40);
     const seenName = new Set<string>();
     suggested = ((data ?? []) as Record<string, unknown>[])
       .map((r) => ({
@@ -165,7 +169,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     ...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle),
     ...suggested.filter((s) => s.platform === "instagram" && s.handle).map((s) => s.handle!),
   ].slice(0, 8);
-  const igRes = await igCompetitorRows(supabase, user.id, igHandles).catch(() => ({ enabled: false, reason: null as string | null, competitors: [] as IgCompetitor[] }));
+  const igRes = await igCompetitorRows(ctx.client, ctx.ownerId, igHandles).catch(() => ({ enabled: false, reason: null as string | null, competitors: [] as IgCompetitor[] }));
   const ig = new Map(igRes.competitors.map((c) => [c.handle.toLowerCase(), c]));
   const igGate = (c: IgCompetitor | undefined): PostsGate => !igRes.enabled ? "connection_needed" : !c ? "unavailable" : c.found ? "unavailable" : (c.reasonKind === "no_permission" ? "no_permission" : c.reasonKind === "not_business" ? "not_business" : c.reasonKind === "not_found" ? "not_found" : "failed");
 
@@ -242,7 +246,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   let lastRun: string | null = null;
   let sources: { youtube: string; web: string } | null = null;
   try {
-    const { data } = await supabase.from("discovery_runs").select("ran_at, sources").eq("user_id", user.id).maybeSingle();
+    const { data } = await ctx.client.from("discovery_runs").select("ran_at, sources").eq("user_id", ctx.ownerId).maybeSingle();
     lastRun = data?.ran_at ?? null;
     sources = (data?.sources as { youtube: string; web: string } | null) ?? null;
   } catch { /* no run recorded */ }
@@ -251,10 +255,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   const FORMAT: Record<string, string> = { short: "Short", video: "Video", reel: "Reel" };
   let content: NichePost[] = [];
   try {
-    const { data } = await supabase
+    const { data } = await ctx.client
       .from("discovered_content")
       .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, why_recommended, data_source")
-      .eq("user_id", user.id).order("relevance_score", { ascending: false }).limit(200);
+      .eq("user_id", ctx.ownerId).order("relevance_score", { ascending: false }).limit(200);
     content = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
       url: String(r.content_url), platform: String(r.platform), accountName: (r.account_name as string) ?? null, accountHandle: (r.account_handle as string) ?? null,
       title: (r.title as string) ?? null, thumb: (r.thumbnail_url as string) ?? null,
@@ -270,7 +274,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
   let saved: NichePost[] = [];
   try {
-    const { data } = await supabase.from("niche_trends").select("data").eq("niche", `saved:${user.id}`).maybeSingle();
+    // Keyed by the owner; the service client is what lets a guest read it.
+    const { data } = await ctx.client.from("niche_trends").select("data").eq("niche", `saved:${ctx.ownerId}`).maybeSingle();
     const doc = data?.data as { v: number; items: NichePost[] } | undefined;
     if (doc?.v === 1 && Array.isArray(doc.items)) saved = doc.items;
   } catch { /* none */ }

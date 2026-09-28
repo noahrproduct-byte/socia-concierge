@@ -11,8 +11,22 @@ import type { ComposerPageProps } from "@/components/composer/contracts";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import ComposerPage from "@/components/composer/ComposerPage";
+import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { PLANS, type PlanId } from "@/lib/plans";
+import type { PlanError } from "@/lib/planErrors";
 
 export const metadata = { title: "Create post — SOCIA" };
+
+/** A Member's answer in the shape the composer already renders for a plan
+ *  answer: the sentence, then one quiet link. Publishing is owner/admin only. */
+function roleNotice(plan: PlanId): PlanError {
+  return {
+    error: forbiddenCopy("publish"),
+    code: "feature_locked", plan, planName: PLANS[plan].name,
+    requiredPlan: null, requiredPlanName: null,
+    cta: "Workspace settings", href: "/settings",
+  };
+}
 
 // Create Post. The server decides what this person may do (plan, connected
 // accounts, whether the publishing tables exist) and hands the client the
@@ -35,6 +49,9 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // The active Brand Workspace: its owner's accounts, plan and history, read
+  // through ctx.client. Uploads still land in the viewer's own storage folder.
+  const ctx = await resolveContext(supabase, user.id);
 
   const sp = await searchParams;
   const postId = one(sp.post);
@@ -47,21 +64,24 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
   const mode: "quick" | "advanced" = one(sp.mode) === "quick" ? "quick" : "advanced";
 
   const [ent, snap, accountsRes, ready] = await Promise.all([
-    getEntitlements(supabase, user.id),
-    getIgSnapshot(supabase, user.id).catch(() => null),
+    getEntitlements(ctx.client, ctx.ownerId),
+    getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
     // A read failure means the list is a lower bound (complete: false), never "no accounts".
-    loadPickerAccountsDetailed(supabase, user.id).then(
+    loadPickerAccountsDetailed(ctx.client, ctx.ownerId).then(
       (r) => ({ accounts: r.accounts as PickerAccount[], complete: r.complete }),
       () => ({ accounts: [] as PickerAccount[], complete: false }),
     ),
     // The publishing migration may not have run yet: a missing table is a calm notice, not a crash.
     // Any other error (network, permissions) keeps the composer open and lets the API routes answer.
-    hasDestinationsTable(supabase),
+    hasDestinationsTable(ctx.client),
   ]);
 
-  const canPublish = canUseFeature(ent, "scheduling");
+  // The owner's plan first, then the viewer's role: a Member drafts, the
+  // owner or an admin publishes. POST /api/posts enforces both again.
+  const roleOk = can(ctx, "publish");
+  const canPublish = canUseFeature(ent, "scheduling") && roleOk;
   const check = checkFeature(ent, "scheduling");
-  const planError = check.ok ? null : check.error;
+  const planError = !check.ok ? check.error : roleOk ? null : roleNotice(ent.plan);
 
   // Real posting history for the scheduling suggestions. null = SOCIA holds no Instagram snapshot.
   let timing: ComposerPageProps["timing"] = { instagram: null };

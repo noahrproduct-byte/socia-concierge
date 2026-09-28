@@ -5,12 +5,15 @@ import { loadItem, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing
 import { loadAdapter, persistOutcome } from "@/lib/publishing/runner";
 import type { PublishOutcome } from "@/lib/publishing/adapter";
 import { CAPABILITIES } from "@/lib/publishing/capabilities";
+import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 
 export const runtime = "nodejs";
 
 // POST /api/posts/:id/destinations/:did/complete: the browser finished an
 // upload the server handed it (YouTube resumable session) and reports the
-// external id, or reports that the upload itself failed.
+// external id, or reports that the upload itself failed. Owner/admin only
+// (only they could have started the upload); the post and its accounts are
+// the active Brand Workspace owner's.
 //
 //   { externalPostId }  the adapter confirms the id with the platform and says
 //                       what is next. When only the confirmation fails, the id
@@ -42,6 +45,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
   const { id, did } = await params;
 
   const body = (await req.json().catch(() => null)) as { externalPostId?: unknown; error?: unknown } | null;
@@ -50,14 +55,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!externalPostId && !uploadError) return NextResponse.json({ error: "externalPostId is required." }, { status: 400 });
   if (externalPostId.length > 200) return NextResponse.json({ error: "externalPostId is not valid." }, { status: 400 });
 
-  const item = await loadItem(supabase, id, user.id);
+  const item = await loadItem(ctx.client, id, ctx.ownerId);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   const dest = item.destinations.find((d) => d.id === did);
   if (!dest) return NextResponse.json({ error: "Destination not found." }, { status: 404 });
   if (dest.status === "published") return NextResponse.json({ item });
   if (dest.status !== "uploading" && dest.status !== "processing") return NextResponse.json({ error: NO_UPLOAD }, { status: 409 });
 
-  const g = await requireFeature(supabase, user.id, "scheduling");
+  const g = await requireFeature(ctx.client, ctx.ownerId, "scheduling");
   if (g.denied) return g.denied;
 
   try {
@@ -68,9 +73,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // confirmed by polling instead.
     if (!externalPostId) {
       if (dest.status === "uploading" && !dest.externalPostId) {
-        await persistOutcome(supabase, dest, { status: "failed", errorCode: "client_upload_failed", errorMessage: uploadError, retryable: true }, now);
+        await persistOutcome(ctx.client, dest, { status: "failed", errorCode: "client_upload_failed", errorMessage: uploadError, retryable: true }, now);
       }
-      const after = (await loadItem(supabase, id, user.id)) ?? item;
+      const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
       return NextResponse.json({ item: after });
     }
 
@@ -80,7 +85,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     let outcome: PublishOutcome;
     try {
-      outcome = await adapter.complete({ supabase, userId: user.id, item, destination: dest, budgetMs: 15_000, now, interactive: true }, { externalPostId });
+      outcome = await adapter.complete({ supabase: ctx.client, userId: ctx.ownerId, item, destination: dest, budgetMs: 15_000, now, interactive: true }, { externalPostId });
     } catch (e) {
       outcome = { status: "failed", errorCode: "exception", errorMessage: e instanceof Error ? e.message : "The platform could not be reached.", retryable: true };
     }
@@ -90,8 +95,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (outcome.status === "failed" && !outcome.externalPostId && keepsVideo(outcome)) {
       outcome = { status: "processing", externalPostId, errorCode: outcome.errorCode ?? null, errorMessage: outcome.errorMessage ?? null };
     }
-    await persistOutcome(supabase, dest, outcome, now);
-    const after = (await loadItem(supabase, id, user.id)) ?? item;
+    await persistOutcome(ctx.client, dest, outcome, now);
+    const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
     return NextResponse.json({ item: after });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });

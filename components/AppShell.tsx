@@ -23,6 +23,7 @@ import TopBar, { type SearchItem } from "@/components/TopBar";
 import { ThemeSync } from "@/components/ThemeProvider";
 import { isAppearance, type Appearance } from "@/lib/appearance";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
@@ -103,28 +104,30 @@ export default async function AppShell({
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      const [conn, fbRes, profRes, entRes, schedRes, plansRes, ytRes] = await Promise.all([
-        getActiveConnection(supabase, user.id, "username, media, last_synced_at"),
-        supabase.from("facebook_connections").select("page_name, connection_status").eq("user_id", user.id).maybeSingle(),
-        supabase.from("profiles").select("platforms, appearance").eq("user_id", user.id).maybeSingle(),
-        // Already defensive inside; the catch keeps an unexpected throw from blanking the shell.
+      // The sidebar describes the ACTIVE Brand Workspace (the owner's accounts,
+      // activity and posts when the viewer is an invited team member). Theme and
+      // the plan behind the "Upgrade to …" card are the viewer's own.
+      const ctx = await resolveContext(supabase, user.id);
+      const [conn, fbRes, platRes, appRes, entRes, schedRes, plansRes, ytRes] = await Promise.all([
+        getActiveConnection(ctx.client, ctx.ownerId, "username, media, last_synced_at"),
+        ctx.client.from("facebook_connections").select("page_name, connection_status").eq("user_id", ctx.ownerId).maybeSingle(),
+        ctx.client.from("profiles").select("platforms").eq("user_id", ctx.ownerId).maybeSingle(),
+        // Viewer's theme. The appearance column may not exist yet: a failed read is simply "no preference".
+        supabase.from("profiles").select("appearance").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
+        // Viewer's plan. Already defensive inside; the catch keeps an unexpected throw from blanking the shell.
         getEntitlements(supabase, user.id).catch(() => null),
-        supabase.from("scheduled_posts").select("*").eq("user_id", user.id).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
-        supabase.from("plans").select("id, created_at, client_handle").eq("user_id", user.id).order("created_at", { ascending: false }).limit(3),
+        ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
+        ctx.client.from("plans").select("id, created_at, client_handle").eq("user_id", ctx.ownerId).order("created_at", { ascending: false }).limit(3),
         // Its own catch so a not-yet-created table never blanks the whole shell.
-        supabase.from("youtube_connections").select("title").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
+        ctx.client.from("youtube_connections").select("title").eq("user_id", ctx.ownerId).maybeSingle().then((r) => r, () => ({ data: null })),
       ]);
       const c = conn as { username?: string; media?: { id?: string; caption?: string; timestamp?: string; permalink?: string }[]; last_synced_at?: string } | null;
       igUsername = c?.username ?? null;
       fbPageName = fbRes.data?.connection_status === "connected" ? (fbRes.data.page_name ?? "Facebook") : null;
       ytTitle = (ytRes.data as { title?: string } | null)?.title ?? null;
-      let prof = profRes.data as { platforms?: string[]; appearance?: string } | null;
-      if (profRes.error) {
-        const { data } = await supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle();
-        prof = data as { platforms?: string[] } | null;
-      }
-      platforms = prof?.platforms ?? [];
-      appearance = isAppearance(prof?.appearance) ? prof.appearance : null;
+      platforms = (platRes.data as { platforms?: string[] } | null)?.platforms ?? [];
+      const appRaw = (appRes.data as { appearance?: string } | null)?.appearance;
+      appearance = isAppearance(appRaw) ? appRaw : null;
       plan = entRes?.plan ?? "free";
       const posts: SearchItem[] = (c?.media ?? [])
         .filter((m) => m.caption)

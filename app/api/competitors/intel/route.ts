@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
+import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import {
   searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
 } from "@/lib/youtube";
@@ -24,6 +25,11 @@ export const maxDuration = 120;
 // Web research finds Instagram/Facebook accounts and posts that no API exposes,
 // and those carry NO metrics at all — a handle and a reason, nothing invented.
 // One source failing never fails the request; each reports its own status.
+//
+// The run belongs to the ACTIVE Brand Workspace: the profile, the Instagram
+// connection and the stored results are the workspace owner's (lib/context).
+// Any role may read (and trigger the first run); forcing a refresh is for the
+// owner and admins, and the feature check is against the owner's plan.
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL ?? "claude-opus-5";
@@ -65,10 +71,14 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
 
   const wantsRefresh = new URL(req.url).searchParams.get("refresh") === "1";
+  if (wantsRefresh && !can(ctx, "manage_workspace")) {
+    return NextResponse.json({ error: forbiddenCopy("manage_workspace") }, { status: 403 });
+  }
 
-  // ---- profile: who the user actually is -------------------------------
+  // ---- profile: who the workspace owner actually is ----------------------
   let niche: string | null = null;
   let subNiche: string | null = null;
   let brandName: string | null = null;
@@ -76,10 +86,10 @@ export async function GET(req: Request) {
   let description: string | null = null;
   let goalText: string | null = null;
   try {
-    const { data: prof } = await supabase
+    const { data: prof } = await ctx.client
       .from("profiles")
       .select("niche, brand_name, goals, niche_detail, brand_detail")
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.ownerId)
       .maybeSingle();
     niche = prof?.niche ?? null;
     brandName = prof?.brand_name ?? null;
@@ -96,7 +106,7 @@ export async function GET(req: Request) {
   let ownFollowers: number | null = null;
   let ownFormats: string[] = [];
   try {
-    const conn = await getActiveConnection(supabase, user.id, "username, followers_count, media");
+    const conn = await getActiveConnection(ctx.client, ctx.ownerId, "username, followers_count, media");
     const c = conn as { username?: string; followers_count?: number; media?: unknown } | null;
     ownHandle = c?.username ?? null;
     ownFollowers = c?.followers_count ?? null;
@@ -118,12 +128,13 @@ export async function GET(req: Request) {
   };
 
   // ---- cached results, unless a permitted refresh was asked for ----------
-  const cached = await readStored(supabase, user.id);
+  const cached = await readStored(ctx.client, ctx.ownerId);
   const ageMs = cached?.ranAt ? Date.now() - new Date(cached.ranAt).getTime() : Infinity;
   let refresh = false;
   let nextRefreshAt: string | null = null;
   if (wantsRefresh && cached?.ranAt) {
-    const ent = await getEntitlements(supabase, user.id);
+    // The owner's plan decides, whoever pressed the button.
+    const ent = await getEntitlements(ctx.client, ctx.ownerId);
     if (canUseFeature(ent, "niche_intelligence")) {
       if (ageMs >= REFRESH_COOLDOWN_MS) refresh = true;
       else nextRefreshAt = new Date(new Date(cached.ranAt).getTime() + REFRESH_COOLDOWN_MS).toISOString();
@@ -337,9 +348,9 @@ Output ONLY this JSON, no other text:
       // Rows accumulate and last_checked carries their freshness; stale ones
       // are pruned below by age, not by absence from one run.
       if (accounts.length) {
-        await supabase.from("discovered_accounts").upsert(
+        await ctx.client.from("discovered_accounts").upsert(
           accounts.map((a) => ({
-            user_id: user.id, platform: a.platform, platform_account_id: a.platformAccountId,
+            user_id: ctx.ownerId, platform: a.platform, platform_account_id: a.platformAccountId,
             handle: a.handle, display_name: a.displayName, profile_image: a.profileImage,
             profile_url: a.profileUrl, followers: a.followers, location: a.location,
             category: a.category, classification: a.classification,
@@ -350,9 +361,9 @@ Output ONLY this JSON, no other text:
         );
       }
       if (content.length) {
-        await supabase.from("discovered_content").upsert(
+        await ctx.client.from("discovered_content").upsert(
           content.map((c) => ({
-            user_id: user.id, content_url: c.contentUrl, platform: c.platform,
+            user_id: ctx.ownerId, content_url: c.contentUrl, platform: c.platform,
             account_handle: c.accountHandle, account_name: c.accountName,
             account_image: c.accountImage, thumbnail_url: c.thumbnailUrl, title: c.title,
             published_at: c.publishedAt, content_type: c.contentType, views: c.views,
@@ -370,13 +381,13 @@ Output ONLY this JSON, no other text:
       // "winning post" goes stale faster than a competitor does.
       const accountCutoff = new Date(Date.now() - 30 * 86400000).toISOString();
       const contentCutoff = new Date(Date.now() - 14 * 86400000).toISOString();
-      await supabase.from("discovered_accounts").delete()
-        .eq("user_id", user.id).lt("last_checked", accountCutoff);
-      await supabase.from("discovered_content").delete()
-        .eq("user_id", user.id).lt("last_checked", contentCutoff);
-      await supabase.from("discovery_runs").upsert(
+      await ctx.client.from("discovered_accounts").delete()
+        .eq("user_id", ctx.ownerId).lt("last_checked", accountCutoff);
+      await ctx.client.from("discovered_content").delete()
+        .eq("user_id", ctx.ownerId).lt("last_checked", contentCutoff);
+      await ctx.client.from("discovery_runs").upsert(
         {
-          user_id: user.id, ran_at: ranAt, accounts_found: accounts.length,
+          user_id: ctx.ownerId, ran_at: ranAt, accounts_found: accounts.length,
           content_found: content.length, sources,
         },
         { onConflict: "user_id" },
@@ -388,7 +399,7 @@ Output ONLY this JSON, no other text:
 
   // Return everything SOCIA knows, not just what this run happened to find —
   // otherwise a refresh visibly loses accounts it had already discovered.
-  const merged = await readStored(supabase, user.id);
+  const merged = await readStored(ctx.client, ctx.ownerId);
   const doc: IntelDoc = merged
     ? { ...merged, ranAt, sources, profileGaps }
     : { accounts, content, trends, ranAt, sources, profileGaps };

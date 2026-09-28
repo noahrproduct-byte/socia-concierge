@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 
 export const runtime = "nodejs";
 
 // Removes the stored Facebook connection (tokens included). Touches nothing else.
+//
+// The person acts inside their active Brand Workspace, which may belong to
+// someone who invited them as an Admin: the row removed is the OWNER's, in
+// that workspace, through ctx.client. Disconnecting is owner/admin only.
 export async function POST() {
   const supabase = await createClient();
   const {
@@ -11,6 +16,19 @@ export async function POST() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  await supabase.from("facebook_connections").delete().eq("user_id", user.id);
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "connect")) return NextResponse.json({ error: forbiddenCopy("connect") }, { status: 403 });
+
+  // One Page per workspace, so the workspace id names the row. A failed
+  // filter (column missing) falls back to the pre-workspaces owner-wide delete.
+  if (ctx.workspace) {
+    const { error } = await ctx.client
+      .from("facebook_connections")
+      .delete()
+      .eq("user_id", ctx.ownerId)
+      .eq("workspace_id", ctx.workspace.id);
+    if (!error) return NextResponse.json({ ok: true });
+  }
+  await ctx.client.from("facebook_connections").delete().eq("user_id", ctx.ownerId);
   return NextResponse.json({ ok: true });
 }

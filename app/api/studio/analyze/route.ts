@@ -9,6 +9,7 @@ import { interactionsTotal } from "@/lib/engagement";
 import { postCards, displayTitle, type PostCard } from "@/lib/overview";
 import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
 import { requireUsage } from "@/lib/planGuard";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -41,6 +42,8 @@ export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // Account context and the allowance are the active workspace owner's.
+  const ctx = await resolveContext(supabase, user.id);
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
 
   // Account context: profile + top posts + their cover frames (real content).
-  const [profile, snap] = await Promise.all([getProfile(supabase, user.id).catch(() => null), getIgSnapshot(supabase, user.id).catch(() => null)]);
+  const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null)]);
   const media: IgMediaItem[] = snap?.media ?? [];
   const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
   const covers = (await Promise.all(top.map((p) => (p.thumb ? fetchB64(p.thumb) : Promise.resolve(null))))).map((b, i) => ({ b64: b, post: top[i] }));
   let niche: { title: string | null; trend_tags: string[] | null; multiplier: number | null; account_name: string | null }[] = [];
   try {
-    const { data } = await supabase.from("discovered_content").select("title, trend_tags, multiplier, account_name").eq("user_id", user.id).order("multiplier", { ascending: false, nullsFirst: false }).limit(8);
+    const { data } = await ctx.client.from("discovered_content").select("title, trend_tags, multiplier, account_name").eq("user_id", ctx.ownerId).order("multiplier", { ascending: false, nullsFirst: false }).limit(8);
     niche = data ?? [];
   } catch { niche = []; }
 
@@ -107,7 +110,7 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
 
   // One analysis per unit of the Content Studio allowance; counted right
   // before the model is called, and given back when no analysis comes back.
-  const u = await requireUsage(supabase, user.id, "content_studio");
+  const u = await requireUsage(ctx.client, ctx.ownerId, "content_studio");
   if (u.denied) return u.denied;
 
   try {

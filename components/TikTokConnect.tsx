@@ -67,7 +67,9 @@ export default function TikTokConnect({
           ? "TikTok is not configured on the server yet."
           : status === "error"
             ? "Something went wrong connecting TikTok. Please try again."
-            : null;
+            : status === "forbidden"
+              ? "Only the workspace owner or an admin can connect or disconnect accounts."
+              : null;
   // ?tt=limit is rendered once, by the page-level PlanNotice above the cards.
 
   return (

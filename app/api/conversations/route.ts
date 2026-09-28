@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 
-// List the user's saved chats (newest first).
+// List the active workspace's saved chats (newest first). The explicit
+// user_id filter matters: a member reads through the service-role client,
+// where Row Level Security does not narrow the rows for them.
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -11,10 +14,12 @@ export async function GET() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ conversations: [] });
+    const ctx = await resolveContext(supabase, user.id);
 
-    const { data, error } = await supabase
+    const { data, error } = await ctx.client
       .from("conversations")
       .select("id, title, messages, updated_at")
+      .eq("user_id", ctx.ownerId)
       .order("updated_at", { ascending: false })
       .limit(30);
 
@@ -32,6 +37,8 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // Chats are saved to the active workspace owner's history.
+  const ctx = await resolveContext(supabase, user.id);
 
   let body: { id?: string; title?: string; messages?: unknown[] };
   try {
@@ -44,18 +51,18 @@ export async function POST(req: Request) {
 
   try {
     if (body.id) {
-      const { error } = await supabase
+      const { error } = await ctx.client
         .from("conversations")
         .update({ title: body.title ?? null, messages: body.messages ?? [], updated_at: now })
         .eq("id", body.id)
-        .eq("user_id", user.id);
+        .eq("user_id", ctx.ownerId);
       if (error) throw error;
       return NextResponse.json({ id: body.id });
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await ctx.client
         .from("conversations")
         .insert({
-          user_id: user.id,
+          user_id: ctx.ownerId,
           title: body.title ?? null,
           messages: body.messages ?? [],
           updated_at: now,

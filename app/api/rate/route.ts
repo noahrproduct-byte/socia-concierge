@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { BENCHMARKS, BENCHMARK_VERSION } from "@/lib/benchmarks";
 import { requireUsage, type UsageGuard } from "@/lib/planGuard";
+import { resolveContext } from "@/lib/context";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -114,6 +115,8 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // The scorecard is charged to the active workspace owner's allowance.
+  const ctx = await resolveContext(supabase, user.id);
 
   // Held outside the try so a failed model call can give the unit back.
   let u: UsageGuard | null = null;
@@ -136,7 +139,7 @@ export async function POST(req: NextRequest) {
 
     // A scorecard counts as one Content Studio analysis; counted right before
     // the model call, and given back when the call produces no scorecard.
-    u = await requireUsage(supabase, user.id, "content_studio");
+    u = await requireUsage(ctx.client, ctx.ownerId, "content_studio");
     if (u.denied) return u.denied;
 
     const message = await anthropic.messages.create({

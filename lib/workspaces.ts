@@ -23,6 +23,8 @@ export type Workspace = {
   isDefault: boolean;
   /** Paused by a plan downgrade: kept, not read. */
   suspended: boolean;
+  /** The viewer's role in it: "owner" for their own, else what they were invited as. */
+  role?: "owner" | "admin" | "member";
   niche: string | null;
   brand_name: string | null;
   goals: string | null;
@@ -78,7 +80,31 @@ export async function listWorkspaces(supabase: Supa, userId: string): Promise<Wo
   if (!(await workspacesEnabled(supabase))) return [];
   const { data, error } = await supabase.from("workspaces").select(COLS).eq("owner_id", userId).order("created_at", { ascending: true });
   if (error) return [];
-  return ((data ?? []) as Row[]).map(toWorkspace);
+  return ((data ?? []) as Row[]).map((r) => ({ ...toWorkspace(r), role: "owner" as const }));
+}
+
+/**
+ * Every workspace the person can act in: the ones they own, then the ones
+ * they were invited into (with their role). The membership table may not
+ * exist yet; then it is just the owned ones.
+ */
+export async function listAccessibleWorkspaces(supabase: Supa, userId: string): Promise<Workspace[]> {
+  const owned = await listWorkspaces(supabase, userId);
+  if (!owned.length && !(await workspacesEnabled(supabase))) return [];
+  let memberships: { workspace_id: string; role: "admin" | "member" }[] = [];
+  try {
+    const { data, error } = await supabase.from("workspace_members").select("workspace_id, role").eq("user_id", userId);
+    if (!error) memberships = (data ?? []) as typeof memberships;
+  } catch {
+    /* pre-migration: no memberships */
+  }
+  const ids = memberships.map((m) => m.workspace_id).filter((id) => !owned.some((w) => w.id === id));
+  if (!ids.length) return owned;
+  const { data, error } = await supabase.from("workspaces").select(COLS).in("id", ids).order("created_at", { ascending: true });
+  if (error) return owned;
+  const roleOf = new Map(memberships.map((m) => [m.workspace_id, m.role]));
+  const guest = ((data ?? []) as Row[]).map((r) => ({ ...toWorkspace(r), role: roleOf.get(r.id) ?? ("member" as const) }));
+  return [...owned, ...guest];
 }
 
 export async function getWorkspace(supabase: Supa, userId: string, workspaceId: string): Promise<Workspace | null> {
@@ -89,10 +115,11 @@ export async function getWorkspace(supabase: Supa, userId: string, workspaceId: 
 }
 
 /**
- * The workspace the app currently reads through: profiles.active_workspace_id,
- * else the default, else the oldest. Never a paused one. null when workspaces
- * are not enabled yet, or the person has none (a brand-new account before its
- * first workspace is created by ensureDefaultWorkspace()).
+ * The workspace the app currently reads through: profiles.active_workspace_id
+ * (which may be a workspace the person was invited into), else their own
+ * default, else their oldest. Never a paused one. null when workspaces are not
+ * enabled yet, or the person has none (a brand-new account before its first
+ * workspace is created by ensureDefaultWorkspace()).
  */
 export async function getActiveWorkspace(supabase: Supa, userId: string): Promise<Workspace | null> {
   if (!(await workspacesEnabled(supabase))) return null;
@@ -103,9 +130,10 @@ export async function getActiveWorkspace(supabase: Supa, userId: string): Promis
   } catch {
     /* column may be missing mid-migration */
   }
-  const all = await listWorkspaces(supabase, userId);
+  const all = await listAccessibleWorkspaces(supabase, userId);
   const live = all.filter((w) => !w.suspended);
-  return live.find((w) => w.id === activeId) ?? live.find((w) => w.isDefault) ?? live[0] ?? null;
+  const own = live.filter((w) => w.role === "owner");
+  return live.find((w) => w.id === activeId) ?? own.find((w) => w.isDefault) ?? own[0] ?? live[0] ?? null;
 }
 
 /**

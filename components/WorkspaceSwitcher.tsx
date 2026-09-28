@@ -15,7 +15,7 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
-type WS = { id: string; name: string; isDefault: boolean; suspended: boolean; active: boolean };
+type WS = { id: string; name: string; isDefault: boolean; suspended: boolean; active: boolean; role?: "owner" | "admin" | "member" };
 type Data = { enabled: boolean; workspaces?: WS[]; activeId?: string | null; canCreate?: boolean; limit?: number; used?: number };
 
 export default function WorkspaceSwitcher() {
@@ -68,6 +68,7 @@ export default function WorkspaceSwitcher() {
             <DropdownMenuItem key={w.id} onClick={() => switchTo(w)} disabled={w.suspended} className="gap-2">
               <Briefcase size={14} />
               <span className="flex-1">{w.name}</span>
+              {w.role && w.role !== "owner" && <span className="ws-tag muted">{w.role === "admin" ? "Admin" : "Member"}</span>}
               {w.suspended ? (
                 <span className="ws-tag">Paused</span>
               ) : switching === w.id ? (

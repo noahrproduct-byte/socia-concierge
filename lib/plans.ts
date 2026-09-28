@@ -136,7 +136,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   weekly_trend_roundup: "coming_soon",
   performance_change_alerts: "coming_soon",
   weekly_summary: "coming_soon",
-  team: "coming_soon",
+  team: "available",
   cross_platform_analytics: "available",
   daily_recommendations: "coming_soon",
   repurposing: "coming_soon",

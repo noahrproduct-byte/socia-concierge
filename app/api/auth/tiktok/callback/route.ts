@@ -11,8 +11,9 @@ import {
 } from "@/lib/tiktokAuth";
 import { profileColumns } from "@/lib/tiktokData";
 import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib/entitlements";
-import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
+import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
+import { resolveContext, can } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -52,6 +53,14 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${origin}/login?next=/${dest}`);
 
+  // The person acts inside their ACTIVE Brand Workspace, which may belong to
+  // someone who invited them as an Admin. Connecting is owner/admin only, and
+  // the account row belongs to the workspace OWNER (ctx.ownerId), written
+  // through ctx.client. Auth, the state nonce and event attribution stay on
+  // the viewer. Refused before the code is exchanged.
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "connect")) return done("forbidden");
+
   try {
     const tok = await exchangeCode(code, ttRedirectUri(origin));
     if (!tok) return done("error");
@@ -59,10 +68,11 @@ export async function GET(req: Request) {
     const profile = await fetchMyProfile(tok.access_token);
     if (!profile) return done("noprofile");
 
-    // Plan gate, server-side, before anything is written. Reconnecting the
-    // account already on file never counts as a new slot.
-    const ent = await getEntitlements(supabase, user.id);
-    const list = await listConnectedAccounts(supabase, user.id);
+    // Plan gate, server-side, before anything is written, judged on the
+    // OWNER's entitlements and accounts. Reconnecting the account already on
+    // file never counts as a new slot.
+    const ent = await getEntitlements(ctx.client, ctx.ownerId);
+    const list = await listConnectedAccounts(ctx.client, ctx.ownerId);
     if (!canConnectAnother(ent, list, "tiktok", profile.openId).ok) {
       await trackEvent(supabase, user.id, "account_limit_reached", { platform: "tiktok", plan: ent.plan });
       return done("limit");
@@ -72,13 +82,13 @@ export async function GET(req: Request) {
     // account) still connects.
     const videos = await fetchMyVideos(tok.access_token, 20).catch(() => null);
 
-    // Brand Workspaces: the account belongs to the active workspace (one per
-    // workspace, upsert conflicts on workspace_id). Before the migration it is
-    // one row per user.
-    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
+    // Brand Workspaces: the account belongs to the OWNER's active workspace
+    // (one per workspace, upsert conflicts on workspace_id). Before the
+    // migration it is one row per user (ensureDefaultWorkspace returns null).
+    const ws = ctx.workspace ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId));
     const now = Date.now();
     const row: Record<string, unknown> = {
-      user_id: user.id,
+      user_id: ctx.ownerId,
       ...profileColumns(profile),
       access_token: tok.access_token,
       refresh_token: tok.refresh_token,
@@ -93,22 +103,23 @@ export async function GET(req: Request) {
       connected_at: new Date(now).toISOString(),
     };
     if (ws) row.workspace_id = ws.id;
-    const { error: upErr } = await supabase.from("tiktok_connections").upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
+    const { error: upErr } = await ctx.client.from("tiktok_connections").upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
     if (upErr) {
       console.error("TikTok connection upsert failed:", upErr.message);
       return done("error");
     }
 
-    // Reflect it on the profile platform list so the sidebar and settings agree.
+    // Reflect it on the OWNER's profile platform list so the sidebar and
+    // settings agree.
     try {
-      const { data: prof } = await supabase.from("profiles").select("platforms").eq("user_id", user.id).maybeSingle();
+      const { data: prof } = await ctx.client.from("profiles").select("platforms").eq("user_id", ctx.ownerId).maybeSingle();
       const platforms = Array.isArray((prof as { platforms?: string[] } | null)?.platforms)
         ? (prof as { platforms: string[] }).platforms
         : [];
       if (!platforms.includes("TikTok")) {
-        await supabase
+        await ctx.client
           .from("profiles")
-          .upsert({ user_id: user.id, platforms: [...platforms, "TikTok"], updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+          .upsert({ user_id: ctx.ownerId, platforms: [...platforms, "TikTok"], updated_at: new Date().toISOString() }, { onConflict: "user_id" });
       }
     } catch {
       // cosmetic

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 import { getEntitlements, clampDays } from "@/lib/entitlements";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import { computeContentScore } from "@/lib/contentScore";
@@ -31,18 +32,21 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // Audits the ACTIVE Brand Workspace's account (the owner's, for a team member).
+  const ctx = await resolveContext(supabase, user.id);
 
-  // Same history window as every rendered page: the plan's limit, never the query string's.
-  const ent = await getEntitlements(supabase, user.id);
+  // Same history window as every rendered page: the workspace owner's plan
+  // limit, never the query string's.
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const requested = Number(new URL(req.url).searchParams.get("range") ?? 30);
   const days = clampDays(ent, Number.isFinite(requested) ? Math.max(1, Math.min(365, Math.floor(requested))) : 30);
-  const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+  const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
 
   let daily: DailySnapshot[] = [];
   try {
     daily = await readDailySnapshots<DailySnapshot>(
-      supabase,
-      user.id,
+      ctx.client,
+      ctx.ownerId,
       snap?.ig_user_id ?? null,
       "day, followers, reach, views, followers_gained, source",
     );

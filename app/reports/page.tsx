@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Download, FileText, ShieldCheck, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
@@ -61,11 +62,14 @@ export default async function ReportsPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // The report is for the ACTIVE Brand Workspace (the owner's account when the
+  // viewer is an invited team member).
+  const ctx = await resolveContext(supabase, user.id);
 
   const { range } = await searchParams;
   const [snap, ent] = await Promise.all([
-    getIgSnapshot(supabase, user.id).catch(() => null),
-    getEntitlements(supabase, user.id),
+    getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
+    getEntitlements(ctx.client, ctx.ownerId),
   ]);
   // History is limited per plan here, on the server: a ?range= beyond the
   // plan's window is served as the longest range the plan includes.
@@ -76,8 +80,8 @@ export default async function ReportsPage({
   let daily: DailySnapshot[] = [];
   try {
     daily = await readDailySnapshots<DailySnapshot>(
-      supabase,
-      user.id,
+      ctx.client,
+      ctx.ownerId,
       snap?.ig_user_id ?? null,
       "day, followers, reach, views, followers_gained, source",
     );

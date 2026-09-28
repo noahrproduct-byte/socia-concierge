@@ -73,7 +73,9 @@ export default function InstagramConnect({
         ? "Instagram isn't configured on the server yet (missing app credentials)."
         : status === "error"
           ? "Something went wrong connecting Instagram. Please try again."
-          : null;
+          : status === "forbidden"
+            ? "Only the workspace owner or an admin can connect or disconnect accounts."
+            : null;
   // ?ig=limit is rendered once, by the page-level PlanNotice above the cards.
 
   const synced = ago(syncedAt);

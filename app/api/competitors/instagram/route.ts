@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getEntitlements, getLimit } from "@/lib/entitlements";
 import { igCompetitorRows } from "@/lib/igCompetitorData";
 import { listTracked } from "@/lib/trackedCompetitors";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,17 +24,19 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // The roster, the cap and the Page token all belong to the active workspace's owner.
+  const ctx = await resolveContext(supabase, user.id);
 
   const url = new URL(req.url);
   const refresh = url.searchParams.get("refresh") === "1";
   const one = url.searchParams.get("handle")?.trim().replace(/^@/, "").toLowerCase() || null;
 
-  const ent = await getEntitlements(supabase, user.id);
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const limit = getLimit(ent, "competitors");
 
   let handles: string[] = [];
   try {
-    const rows = await listTracked<{ handle: string }>(supabase, user.id, "handle", { platform: "instagram", limit });
+    const rows = await listTracked<{ handle: string }>(ctx.client, ctx.ownerId, "handle", { platform: "instagram", limit });
     handles = rows.map((r) => r.handle);
   } catch {
     handles = [];
@@ -41,5 +44,5 @@ export async function GET(req: Request) {
   // A single handle is served only when it is inside the capped roster.
   if (one) handles = handles.filter((h) => h.toLowerCase() === one);
 
-  return NextResponse.json(await igCompetitorRows(supabase, user.id, handles, refresh));
+  return NextResponse.json(await igCompetitorRows(ctx.client, ctx.ownerId, handles, refresh));
 }

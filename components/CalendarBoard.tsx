@@ -1072,7 +1072,12 @@ function Composer({
   const [serverPlanError, setServerPlanError] = useState<PlanError | null>(null);
   const planError = serverPlanError ?? pagePlanError;
   const canSchedule = planCanSchedule && !serverPlanError;
-  const requiredPlanName = planError?.requiredPlanName ?? "Starter";
+  // Why publishing is locked: a plan step-up names the plan; a role restriction
+  // (team member in someone's workspace) carries no required plan, so its own
+  // sentence is shown instead of a plan name.
+  const publishLockedReason = planError && !planError.requiredPlan
+    ? planError.error
+    : `Publishing is available on ${planError?.requiredPlanName ?? "Starter"}`;
 
   const fail = (e: unknown, fallback: string) => {
     const pe = planErrorOf(e);
@@ -1290,7 +1295,7 @@ function Composer({
               disabled={busy !== null || !canSchedule || !connected || !hasMedia}
               title={
                 !canSchedule
-                  ? `Publishing is available on ${requiredPlanName}`
+                  ? publishLockedReason
                   : !connected
                     ? "Connect Instagram first"
                     : !hasMedia

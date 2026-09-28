@@ -36,12 +36,16 @@ import type { FbPost } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import {
   getEntitlements, getUsage, listConnectedAccountsDetailed, countActiveCompetitors, computeOverLimits,
-  activeAccounts, activeByPlatform, workspacesInUse, getLimit,
+  activeAccounts, activeByPlatform, workspacesInUse, getLimit, canUseFeature,
 } from "@/lib/entitlements";
 import { limitError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
 import PlanBilling from "@/components/settings/PlanBilling";
 import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
+import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
+import { resolveContext, can } from "@/lib/context";
+import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
+import { Users } from "lucide-react";
 import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
 import type { BrandDetail } from "@/lib/profile";
 import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces } from "@/lib/workspaces";
@@ -225,6 +229,40 @@ export default async function SettingsPage({
     workspaceUsed = activeWorkspaces(wsList).length;
   }
   const workspaceLimit = getLimit(ent, "workspaces");
+
+  // Team of the ACTIVE workspace (may be one the person was invited into).
+  const tmEnabled = wsEnabled && (await teamEnabled(supabase));
+  let team: {
+    workspaceName: string; role: "owner" | "admin" | "member"; members: TeamMemberRow[]; invites: TeamInviteRow[];
+    seats: { used: number | null; limit: number }; canInvite: boolean; teamIncluded: boolean; planName: string;
+  } | null = null;
+  let teamUsed: number | null = null;
+  if (tmEnabled) {
+    const ctx = await resolveContext(supabase, user.id);
+    if (ctx.workspace) {
+      const ownerEnt = ctx.isOwner ? ent : await getEntitlements(ctx.client, ctx.ownerId);
+      const [members, invites] = await Promise.all([
+        listMembers(supabase, ctx.workspace.id),
+        can(ctx, "invite") ? listInvites(supabase, ctx.workspace.id) : Promise.resolve([]),
+      ]);
+      const ownedIds = workspaceRows.map((w) => w.id);
+      teamUsed = await seatsUsed(supabase, ownedIds, user.id);
+      const seatUsedForOwner = ctx.isOwner ? teamUsed : null;
+      team = {
+        workspaceName: ctx.workspace.name,
+        role: ctx.role,
+        members: [
+          { userId: ctx.ownerId, role: "owner", email: ctx.isOwner ? (user.email ?? null) : null, createdAt: null, isYou: ctx.isOwner },
+          ...members.map((m) => ({ userId: m.userId, role: m.role, email: m.email, createdAt: m.createdAt, isYou: m.userId === user.id })),
+        ],
+        invites: invites.map((i) => ({ id: i.id, role: i.role, email: i.email, expiresAt: i.expiresAt })),
+        seats: { used: seatUsedForOwner, limit: getLimit(ownerEnt, "team_members") },
+        canInvite: can(ctx, "invite"),
+        teamIncluded: canUseFeature(ownerEnt, "team"),
+        planName: ownerEnt.config.name,
+      };
+    }
+  }
   const keepCompetitors = overLimits.competitors ? await listTrackedCompetitors(supabase, user.id) : null;
   const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit" || tt === "limit";
   // Accounts paused by a downgrade still have rows (the cards below read those
@@ -319,6 +357,18 @@ export default async function SettingsPage({
                   <span className="st2-card-note">One brand, one workspace, one account per platform</span>
                 </div>
                 <WorkspacesManager workspaces={workspaceRows} limit={workspaceLimit} used={workspaceUsed} planName={ent.config.name} />
+              </section>
+            )}
+
+            {/* 1c — Team */}
+            {team && (
+              <section className="st2-card" id="team">
+                <div className="st2-card-head">
+                  <span className="st2-card-ico"><Users size={15} /></span>
+                  <h3>Team</h3>
+                  <span className="st2-card-note">Who can work in this workspace</span>
+                </div>
+                <TeamManager {...team} youId={user.id} />
               </section>
             )}
 
@@ -492,6 +542,7 @@ export default async function SettingsPage({
                 competitorCount={competitorCount}
                 competitors={keepCompetitors}
                 overLimits={overLimits}
+                teamUsed={teamUsed}
               />
             </section>
 

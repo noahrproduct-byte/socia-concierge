@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { youtubeAccessToken } from "@/lib/youtubeData";
 import { YT_WRITE_SCOPES } from "@/lib/publishing/capabilities";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// The composer's YouTube options: the connected channel's own playlists and the
-// video categories YouTube lets a video be assigned to. Read live on every
-// call; nothing is cached, so a playlist made a minute ago shows up.
+// The composer's YouTube options: the active Brand Workspace's channel's own
+// playlists and the video categories YouTube lets a video be assigned to. The
+// token is the workspace owner's, used here and never returned. Read live on
+// every call; nothing is cached, so a playlist made a minute ago shows up.
 
 const DATA = "https://www.googleapis.com/youtube/v3";
 
@@ -27,8 +29,9 @@ export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
 
-  const auth = await youtubeAccessToken(supabase, user.id);
+  const auth = await youtubeAccessToken(ctx.client, ctx.ownerId);
   if (!auth) return NextResponse.json({ error: "YouTube is not connected." }, { status: 404 });
   if (!auth.scopes || !auth.scopes.some((s) => YT_WRITE_SCOPES.includes(s))) {
     return NextResponse.json({ error: "Reconnect YouTube to allow uploads.", code: "needs_scope" }, { status: 409 });

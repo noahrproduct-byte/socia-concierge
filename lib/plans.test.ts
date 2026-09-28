@@ -87,7 +87,7 @@ describe("plan configuration", () => {
     const available = FEATURES.filter((k) => FEATURE_STATUS[k] === "available");
     expect(available.sort()).toEqual([
       "content_plan", "cross_platform_analytics", "deeper_insights", "growth_analysis",
-      "niche_intelligence", "period_comparison", "posting_time_analysis", "scheduling",
+      "niche_intelligence", "period_comparison", "posting_time_analysis", "scheduling", "team",
     ].sort());
   });
 

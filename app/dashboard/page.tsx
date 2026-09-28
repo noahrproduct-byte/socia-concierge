@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
@@ -36,6 +37,10 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Everything below reads the ACTIVE Brand Workspace: the viewer's own data,
+  // or the owner's when they were invited into someone else's workspace. The
+  // greeting stays the viewer's.
+  const ctx = await resolveContext(supabase, user.id);
 
   const { ig, range: rangeParam } = await searchParams;
   const justConnected = ig === "connected";
@@ -44,9 +49,9 @@ export default async function DashboardPage({
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
 
-  const [profile, ent] = await Promise.all([getProfile(supabase, user.id), getEntitlements(supabase, user.id)]);
+  const [profile, ent] = await Promise.all([getProfile(ctx.client, ctx.ownerId), getEntitlements(ctx.client, ctx.ownerId)]);
   const connected = profile?.account_connected ?? false;
-  const snap = connected ? await getIgSnapshot(supabase, user.id) : null;
+  const snap = connected ? await getIgSnapshot(ctx.client, ctx.ownerId) : null;
   const live = Boolean(snap && snap.followers_count != null);
 
   if (!connected || !live) {
@@ -140,14 +145,14 @@ export default async function DashboardPage({
 
   let dailyRows: DailySnapshot[] = [];
   try {
-    dailyRows = await readDailySnapshots<DailySnapshot>(supabase, user.id, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source");
+    dailyRows = await readDailySnapshots<DailySnapshot>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source");
   } catch {
     // snapshots table may not exist yet — series render their empty states
   }
   const [schedRes, plansRes] = await Promise.all([
-    supabase.from("scheduled_posts").select("*").eq("user_id", user.id).neq("status", "cancelled")
+    ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled")
       .gte("scheduled_at", new Date(Date.now() - 30 * DAY_MS).toISOString()).order("scheduled_at", { ascending: true }).limit(200),
-    supabase.from("plans").select("id, data, created_at, client_handle").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1),
+    ctx.client.from("plans").select("id, data, created_at, client_handle").eq("user_id", ctx.ownerId).order("created_at", { ascending: false }).limit(1),
   ]);
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
@@ -187,8 +192,8 @@ export default async function DashboardPage({
   // YouTube: connected is a fact from youtube_connections; its figures are not
   // folded into this strip yet, so the value stays null (unmeasured), never 0.
   const [fb, ytConnected] = await Promise.all([
-    getFbSnapshot(supabase, user.id).catch(() => null),
-    hasYouTubeConnection(supabase, user.id).catch(() => false),
+    getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null),
+    hasYouTubeConnection(ctx.client, ctx.ownerId).catch(() => false),
   ]);
   const fbConnected = fb?.status === "connected";
   const fbSince = Date.now() - (days) * 86400000;

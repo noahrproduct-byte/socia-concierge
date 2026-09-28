@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { loadEvidence, type Evidence } from "@/lib/planEvidence";
 import { requireUsage } from "@/lib/planGuard";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 // Opus 5 thinks before answering; give the request room.
@@ -40,6 +41,9 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // The plan is built from, saved to, and charged against the active Brand
+  // Workspace's owner (the viewer, unless they were invited into it).
+  const ctx = await resolveContext(supabase, user.id);
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -72,9 +76,9 @@ export async function POST(req: Request) {
   let brand = null;
   let evidence: Evidence | null = null;
   try {
-    brand = (await getProfile(supabase, user.id))?.brand_detail ?? null;
-    const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
-    evidence = await loadEvidence(supabase, user.id, snap);
+    brand = (await getProfile(ctx.client, ctx.ownerId))?.brand_detail ?? null;
+    const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
+    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap);
     evidence.used.windows = Boolean(input.audienceWindows?.trim());
   } catch {
     // generation still works without settings or evidence
@@ -83,7 +87,7 @@ export async function POST(req: Request) {
   // Weekly plans are a Starter feature, and each one counts against the
   // period's allowance. Counted right before the model is called, and given
   // back when no plan comes out of the call.
-  const u = await requireUsage(supabase, user.id, "content_plan", { feature: "content_plan" });
+  const u = await requireUsage(ctx.client, ctx.ownerId, "content_plan", { feature: "content_plan" });
   if (u.denied) return u.denied;
 
   try {
@@ -133,21 +137,36 @@ export async function POST(req: Request) {
     // Record what the plan was built from, so the report and history can say so.
     if (evidence) (data as Deliverable).evidenceUsed = evidence.used;
 
-    // Save to the signed-in user's history. Best-effort: if the `plans` table
-    // doesn't exist yet, generation still succeeds.
+    // Save to the workspace owner's history, tagged with the workspace it was
+    // built in. Best-effort: if the `plans` table doesn't exist yet, generation
+    // still succeeds; if only the `workspace_id` column is missing (workspaces
+    // migration not run yet), the row is saved without it.
     let saved = null;
     try {
-      const { data: row } = await supabase
-        .from("plans")
-        .insert({
-          user_id: user.id,
-          client_handle: input.clientHandle || null,
-          niche: input.niche || null,
-          platform: input.platform || null,
-          data,
-        })
-        .select("id, client_handle, niche, platform, data, created_at")
-        .single();
+      const SAVED_COLS = "id, client_handle, niche, platform, data, created_at";
+      const base = {
+        user_id: ctx.ownerId,
+        client_handle: input.clientHandle || null,
+        niche: input.niche || null,
+        platform: input.platform || null,
+        data,
+      };
+      let row = null;
+      if (ctx.workspace) {
+        const withWs = await ctx.client
+          .from("plans")
+          .insert({ ...base, workspace_id: ctx.workspace.id })
+          .select(SAVED_COLS)
+          .single();
+        row = withWs.error ? null : withWs.data;
+        if (withWs.error) {
+          const plain = await ctx.client.from("plans").insert(base).select(SAVED_COLS).single();
+          row = plain.error ? null : plain.data;
+        }
+      } else {
+        const plain = await ctx.client.from("plans").insert(base).select(SAVED_COLS).single();
+        row = plain.error ? null : plain.data;
+      }
       saved = row;
     } catch {
       // ignore save errors, the plan was still generated

@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getEntitlements, getLimit, countActiveCompetitors, canAddCompetitor } from "@/lib/entitlements";
 import { deny, recordEvent } from "@/lib/planGuard";
 import { listTracked, trackedState } from "@/lib/trackedCompetitors";
+import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,10 @@ export const runtime = "nodejs";
 // function checks the cap and inserts under one per-user lock, and the
 // browser insert policy is gone post-migration. Without a service key (local
 // dev) or before the migration, the legacy check-then-upsert runs instead.
+//
+// The roster belongs to the ACTIVE Brand Workspace: every read and write is
+// scoped to its owner (lib/context). Any role may read it; adding and removing
+// is for the owner and admins.
 
 const HANDLE_RE = /^[a-zA-Z0-9._]{1,30}$/;
 // YouTube handles/ids allow hyphens and are longer than Instagram's.
@@ -43,11 +48,12 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
 
-  const ent = await getEntitlements(supabase, user.id);
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const limit = getLimit(ent, "competitors");
   try {
-    const competitors = await listTracked(supabase, user.id, "platform, handle, added_at", { byAdded: true });
+    const competitors = await listTracked(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true });
     return NextResponse.json({ competitors, limit, active: competitors.length });
   } catch {
     // Table may not exist yet. The count is unknown, not zero.
@@ -61,6 +67,8 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "manage_workspace")) return NextResponse.json({ error: forbiddenCopy("manage_workspace") }, { status: 403 });
 
   const body = (await req.json().catch(() => null)) as { handle?: string; platform?: string } | null;
   const handle = (body?.handle ?? "").trim().replace(/^@/, "");
@@ -71,11 +79,12 @@ export async function POST(req: Request) {
   }
   const key = handle.toLowerCase();
 
-  const ent = await getEntitlements(supabase, user.id);
+  // The cap is the workspace owner's plan.
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const limit = getLimit(ent, "competitors");
 
   // Unknown is not zero: a list that cannot be read is neither full nor empty.
-  const active = await countActiveCompetitors(supabase, user.id);
+  const active = await countActiveCompetitors(ctx.client, ctx.ownerId);
   if (active == null) return NextResponse.json({ error: UNREADABLE_MESSAGE }, { status: 503 });
 
   const limitReached = (count: number) => {
@@ -83,6 +92,7 @@ export async function POST(req: Request) {
     // The function refused but the count it reported is under the cap: a race
     // it could not resolve, not a plan decision. Say so plainly.
     if (c.ok) return NextResponse.json({ error: UNREADABLE_MESSAGE }, { status: 503 });
+    // Attributed to the person who pressed the button, not the workspace owner.
     recordEvent(supabase, user.id, "competitor_limit_reached", { plan: ent.plan, limit });
     return deny(c.error);
   };
@@ -91,7 +101,7 @@ export async function POST(req: Request) {
   const svc = createServiceClient();
   if (svc) {
     const { data, error } = await svc.rpc("socia_add_competitor", {
-      p_user: user.id,
+      p_user: ctx.ownerId,
       p_platform: platform,
       p_handle: key,
       p_limit: limit,
@@ -111,7 +121,7 @@ export async function POST(req: Request) {
   // Idempotent: re-adding a handle that is already counted never hits the cap.
   let state: Awaited<ReturnType<typeof trackedState>> = { exists: false };
   try {
-    state = await trackedState(supabase, user.id, platform, key);
+    state = await trackedState(ctx.client, ctx.ownerId, platform, key);
   } catch {
     /* table may not exist yet; the upsert below reports that */
   }
@@ -120,13 +130,13 @@ export async function POST(req: Request) {
   const c = canAddCompetitor(ent, active);
   if (!c.ok) return limitReached(active);
 
-  const row = { user_id: user.id, platform, handle: key };
-  const { error } = await supabase
+  const row = { user_id: ctx.ownerId, platform, handle: key };
+  const { error } = await ctx.client
     .from("tracked_competitors")
     .upsert({ ...row, is_active: true }, { onConflict: "user_id,platform,handle" });
   if (error) {
     // Pre-migration schema: no is_active column, and no inactive rows either.
-    const { error: e2 } = await supabase.from("tracked_competitors").upsert(row, { onConflict: "user_id,platform,handle" });
+    const { error: e2 } = await ctx.client.from("tracked_competitors").upsert(row, { onConflict: "user_id,platform,handle" });
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
@@ -138,16 +148,18 @@ export async function DELETE(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "manage_workspace")) return NextResponse.json({ error: forbiddenCopy("manage_workspace") }, { status: 403 });
 
   const body = (await req.json().catch(() => null)) as { handle?: string; platform?: string } | null;
   const handle = (body?.handle ?? "").trim().replace(/^@/, "").toLowerCase();
   if (!handle) return NextResponse.json({ error: "handle required." }, { status: 400 });
 
   // An explicit removal is a hard delete, active or not.
-  const { error } = await supabase
+  const { error } = await ctx.client
     .from("tracked_competitors")
     .delete()
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .eq("platform", platformOf(body?.platform))
     .eq("handle", handle);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
 import { GOALS, type GoalId } from "@/lib/studio";
 import { requireUsage } from "@/lib/planGuard";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,12 +33,14 @@ export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // The account voice and the allowance are the active workspace owner's.
+  const ctx = await resolveContext(supabase, user.id);
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  const profile = await getProfile(supabase, user.id).catch(() => null);
+  const profile = await getProfile(ctx.client, ctx.ownerId).catch(() => null);
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
-  const ctx = [
+  const promptCtx = [
     `Account: ${profile?.niche ?? "niche not set"}${profile?.brand_detail?.location ? `, ${profile.brand_detail.location}` : ""}${profile?.goals ? `; overall goal: ${profile.goals}` : ""}.`,
     goal ? `Goal for this piece: ${goal.label} (prioritise ${goal.focus}).` : "",
     body.kind ? `Content: ${body.kind}${body.durationSec ? `, ${Math.round(body.durationSec)}s` : ""}.` : "",
@@ -59,7 +62,7 @@ export async function POST(req: Request) {
 
   // One generation per unit of the hooks-and-captions allowance; counted
   // right before the model is called, and given back when no options come back.
-  const u = await requireUsage(supabase, user.id, "content_generation");
+  const u = await requireUsage(ctx.client, ctx.ownerId, "content_generation");
   if (u.denied) return u.denied;
 
   try {
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
       model: MODEL, max_tokens: 2500,
       system: `You are SOCIA's content editor. Options only, in the account's voice, specific to this content. Never predict performance, never mention algorithms as rules, never invent facts about the business. Plain text, no markdown, no surrounding quotes.`,
       output_config: { format: { type: "json_schema", schema } },
-      messages: [{ role: "user", content: `${ctx}\n\n# Task\n${TASK[task]}` }],
+      messages: [{ role: "user", content: `${promptCtx}\n\n# Task\n${TASK[task]}` }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);

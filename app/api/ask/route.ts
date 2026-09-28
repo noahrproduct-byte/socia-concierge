@@ -6,6 +6,7 @@ import { askAnswerSchema, type AskAnswer, type AskContext, type ModelAnswer, typ
 import { requireUsage } from "@/lib/planGuard";
 import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 import { rangeDays } from "@/lib/overview";
+import { resolveContext } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -44,27 +45,31 @@ export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // Evidence, the plan's history window and the allowance are the active
+  // workspace owner's; a member's question is answered from, and charged to,
+  // the workspace they are in.
+  const ctx = await resolveContext(supabase, user.id);
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
 
   let body: { context?: AskContext; messages?: Msg[] };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  const ctx: AskContext = { page: "global", ...(body.context ?? {}) };
+  const askCtx: AskContext = { page: "global", ...(body.context ?? {}) };
   const messages = (body.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-12);
   while (messages.length && messages[0].role === "assistant") messages.shift();
   if (!messages.length) return NextResponse.json({ error: "No message to send." }, { status: 400 });
 
   // The evidence window is the client's choice, but never longer than the
   // plan's analytics history.
-  const ent = await getEntitlements(supabase, user.id);
-  if (ctx.range && rangeDays(ctx.range) > maxHistoryDays(ent)) ctx.range = "30";
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
+  if (askCtx.range && rangeDays(askCtx.range) > maxHistoryDays(ent)) askCtx.range = "30";
 
-  const ev = await buildAskEvidence(supabase, user.id, ctx);
+  const ev = await buildAskEvidence(ctx.client, ctx.ownerId, askCtx);
   const first = messages[0];
   const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
 
   // One question per unit of the Ask SOCIA allowance; counted right before
   // the model is called, and given back when the call produces no answer.
-  const u = await requireUsage(supabase, user.id, "ask_socia", { ent });
+  const u = await requireUsage(ctx.client, ctx.ownerId, "ask_socia", { ent });
   if (u.denied) return u.denied;
 
   try {
@@ -91,7 +96,7 @@ export async function POST(req: Request) {
     const post = raw.postId ? ev.posts.find((p) => p.id === raw.postId) ?? null : null;
     const proposals: AskProposal[] = [];
     for (const p of raw.proposals ?? []) {
-      if (p.kind === "plan_day" && ctx.page === "plan" && ev.plan && ev.plan.data.weeklyPlan?.[p.index]) {
+      if (p.kind === "plan_day" && askCtx.page === "plan" && ev.plan && ev.plan.data.weeklyPlan?.[p.index]) {
         const cur = ev.plan.data.weeklyPlan[p.index];
         proposals.push({ kind: "plan_day", planId: ev.plan.id, index: p.index, day: cur.day, current: { concept: cur.concept, hook: cur.hook, format: cur.format, rationale: cur.rationale }, proposed: { concept: p.concept, hook: p.hook, format: p.format || cur.format, rationale: p.rationale }, why: p.why });
       } else if (p.kind === "text" && p.field !== "none" && p.options?.length) {
@@ -112,10 +117,11 @@ export async function POST(req: Request) {
       post: post ? { id: post.id, title: post.title, thumb: post.thumb, stat: post.views != null ? `${post.views.toLocaleString("en-US")} views` : `${post.engagements.toLocaleString("en-US")} interactions`, permalink: post.permalink } : null,
     };
 
-    // Keep a record (best-effort), so nothing the strategist said is lost.
+    // Keep a record in the workspace's history (best-effort), so nothing the
+    // strategist said is lost.
     try {
-      const title = `${ctx.page}: ${first.content.slice(0, 44)}`;
-      await supabase.from("conversations").insert({ user_id: user.id, title, messages: [...messages, { role: "assistant", content: answer.text }] });
+      const title = `${askCtx.page}: ${first.content.slice(0, 44)}`;
+      await ctx.client.from("conversations").insert({ user_id: ctx.ownerId, title, messages: [...messages, { role: "assistant", content: answer.text }] });
     } catch { /* history is optional */ }
 
     return NextResponse.json({ answer, usage: u.usage });

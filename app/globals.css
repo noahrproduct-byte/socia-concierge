@@ -10601,6 +10601,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .ws-switch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-switch .drop-chev { color: var(--sidebar-muted); flex-shrink: 0; }
 .ws-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--warning-text); }
+.ws-tag.muted { color: var(--sidebar-muted, var(--muted-text)); }
 
 /* Settings -> Brand Workspaces manager */
 .ws-mgr-lead { font-size: 13px; line-height: 1.55; color: var(--muted-text); margin: 0 0 14px; }
@@ -10623,6 +10624,22 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .ws-mgr-full { font-size: 12.5px; color: var(--muted-text); margin: 4px 0 0; }
 .ws-mgr-full a { color: var(--primary); font-weight: 600; }
 .ws-mgr-err { font-size: 12.5px; color: var(--danger-text, #dc2626); margin: 10px 0 0; }
+
+/* Settings -> Team */
+.tm-lead { font-size: 13px; line-height: 1.55; color: var(--muted-text); margin: 0 0 14px; }
+.tm-list { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tm-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--border); background: var(--panel); }
+.tm-ico { color: var(--muted-text); flex-shrink: 0; }
+.tm-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.tm-exp { font-size: 11.5px; font-weight: 500; color: var(--muted-text); }
+.tm-role { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--input-bg, var(--panel)); color: var(--text); font-size: 12.5px; }
+.tm-invite { padding-top: 14px; border-top: 1px solid var(--border); }
+.tm-invite h4 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
+.tm-invite-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tm-invite-row .ws-mgr-input { flex: 1 1 220px; }
+.tm-link { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.tm-fine { font-size: 12px; line-height: 1.5; color: var(--muted-text); margin: 10px 0 0; }
+.tm-pending { margin-top: 14px; }
 
 .app-main { padding: 0; max-width: none; }
 .app-content { padding: 20px 28px 40px; max-width: 1560px; }

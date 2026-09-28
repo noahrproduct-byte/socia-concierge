@@ -104,7 +104,9 @@ export default function FacebookConnect({
           ? "Facebook isn't configured on the server yet (missing app credentials)."
           : status === "error"
             ? "Something went wrong connecting Facebook. Please try again."
-            : null;
+            : status === "forbidden"
+              ? "Only the workspace owner or an admin can connect or disconnect accounts."
+              : null;
   // ?fb=limit is rendered once, by the page-level PlanNotice above the cards.
   // The in-card PlanNotice below covers the fetch-based select route's 403,
   // which has no page-level notice.

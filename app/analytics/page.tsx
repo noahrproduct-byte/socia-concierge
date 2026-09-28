@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
@@ -35,12 +36,15 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Everything below reads the ACTIVE Brand Workspace: the viewer's own data,
+  // or the owner's when they were invited into someone else's workspace.
+  const ctx = await resolveContext(supabase, user.id);
 
   const { range: rangeParam } = await searchParams;
   const [profile, snap, ent] = await Promise.all([
-    getProfile(supabase, user.id),
-    getIgSnapshot(supabase, user.id),
-    getEntitlements(supabase, user.id),
+    getProfile(ctx.client, ctx.ownerId),
+    getIgSnapshot(ctx.client, ctx.ownerId),
+    getEntitlements(ctx.client, ctx.ownerId),
   ]);
   // History is limited per plan here, on the server: a ?range= beyond the
   // plan's window is served as the longest range the plan includes.
@@ -52,7 +56,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const live = Boolean(snap && snap.followers_count != null);
   // The connected user's own YouTube channel, when they have linked one. Null
   // when no YouTube connection exists, so the page stays multi-platform aware.
-  const yt = await getYouTubeAnalytics(supabase, user.id, days).catch(() => null);
+  const yt = await getYouTubeAnalytics(ctx.client, ctx.ownerId, days).catch(() => null);
 
   if (!live) {
     // No Instagram, but a YouTube channel is connected: show its analytics
@@ -92,8 +96,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const followers = snap!.followers_count ?? null;
   type Row = DailySnapshot & { followers_gained: number | null };
   const [dailyRows, tokenRow] = await Promise.all([
-    readDailySnapshots<Row>(supabase, user.id, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as Row[]),
-    getActiveConnection(supabase, user.id, "access_token") as Promise<{ access_token?: string } | null>,
+    readDailySnapshots<Row>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as Row[]),
+    getActiveConnection(ctx.client, ctx.ownerId, "access_token") as Promise<{ access_token?: string } | null>,
   ]);
   const demo = await fetchDemographics(tokenRow?.access_token ?? null);
 
@@ -145,7 +149,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // shares on posts inside the range), as Meta reports it. Facebook exposes
   // no view count for regular Page posts, so under the views metric the row
   // is connected but unmeasured, never zero.
-  const fb = await getFbSnapshot(supabase, user.id).catch(() => null);
+  const fb = await getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null);
   const fbConnected = fb?.status === "connected";
   const fbSince = Date.now() - (days) * 86400000;
   const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
@@ -211,7 +215,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     });
   }
   try {
-    const { data: tt } = await supabase.from("tiktok_connections").select("*").eq("user_id", user.id).maybeSingle();
+    const { data: tt } = await ctx.client.from("tiktok_connections").select("username, display_name").eq("user_id", ctx.ownerId).maybeSingle();
     if (tt) graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: tt.username ? `@${tt.username}` : (tt.display_name || "TikTok"), series: {} });
   } catch { /* tiktok_connections may not exist yet */ }
 

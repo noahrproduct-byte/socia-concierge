@@ -68,7 +68,9 @@ export default function YouTubeConnect({
           ? "YouTube is not configured on the server yet."
           : status === "error"
             ? "Something went wrong connecting YouTube. Please try again."
-            : null;
+            : status === "forbidden"
+              ? "Only the workspace owner or an admin can connect or disconnect accounts."
+              : null;
   // ?yt=limit is rendered once, by the page-level PlanNotice above the cards.
 
   return (

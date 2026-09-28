@@ -9,8 +9,9 @@ import {
   ytRedirectUri,
 } from "@/lib/youtubeAuth";
 import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib/entitlements";
-import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
+import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
+import { resolveContext, can } from "@/lib/context";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,14 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${origin}/login?next=/${dest}`);
 
+  // The person acts inside their ACTIVE Brand Workspace, which may belong to
+  // someone who invited them as an Admin. Connecting is owner/admin only, and
+  // the channel row belongs to the workspace OWNER (ctx.ownerId), written
+  // through ctx.client. Auth, the state nonce and event attribution stay on
+  // the viewer. Refused before the code is exchanged.
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "connect")) return done("forbidden");
+
   try {
     const tok = await exchangeCode(code, ytRedirectUri(origin));
     if (!tok) return done("error");
@@ -56,33 +65,36 @@ export async function GET(req: Request) {
     const channel = await fetchMyChannel(tok.access_token);
     if (!channel) return done("nochannel");
 
-    // Plan gate, server-side, before anything is written. Reconnecting the
-    // channel already on file never counts as a new slot.
-    const ent = await getEntitlements(supabase, user.id);
-    const list = await listConnectedAccounts(supabase, user.id);
+    // Plan gate, server-side, before anything is written, judged on the
+    // OWNER's entitlements and accounts. Reconnecting the channel already on
+    // file never counts as a new slot.
+    const ent = await getEntitlements(ctx.client, ctx.ownerId);
+    const list = await listConnectedAccounts(ctx.client, ctx.ownerId);
     if (!canConnectAnother(ent, list, "youtube", channel.channelId).ok) {
       await trackEvent(supabase, user.id, "account_limit_reached", { platform: "youtube", plan: ent.plan });
       return done("limit");
     }
 
-    // A reconnect can return no refresh token; keep the stored one if so.
+    // When Brand Workspaces are enabled, the channel belongs to the OWNER's
+    // active workspace (one channel per workspace); the upsert conflicts on
+    // workspace_id so reconnecting replaces that workspace's channel. Before
+    // the migration it stays one row per user, conflicting on user_id
+    // (ensureDefaultWorkspace returns null).
+    const ws = ctx.workspace ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId));
+
+    // A reconnect can return no refresh token; keep the stored one if so —
+    // the one on this workspace's row, since the owner may have a channel in
+    // each workspace.
     let refreshToken = tok.refresh_token;
     if (!refreshToken) {
-      const { data: prev } = await supabase
-        .from("youtube_connections")
-        .select("refresh_token")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      let prevQ = ctx.client.from("youtube_connections").select("refresh_token").eq("user_id", ctx.ownerId);
+      if (ws) prevQ = prevQ.eq("workspace_id", ws.id);
+      const { data: prev } = await prevQ.maybeSingle();
       refreshToken = (prev as { refresh_token?: string | null } | null)?.refresh_token ?? null;
     }
 
-    // When Brand Workspaces are enabled, the channel belongs to the active
-    // workspace (one channel per workspace); the upsert conflicts on
-    // workspace_id so reconnecting replaces that workspace's channel. Before
-    // the migration it stays one row per user, conflicting on user_id.
-    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
     const row: Record<string, unknown> = {
-      user_id: user.id,
+      user_id: ctx.ownerId,
       channel_id: channel.channelId,
       title: channel.title,
       handle: channel.handle,
@@ -95,7 +107,7 @@ export async function GET(req: Request) {
       connected_at: new Date().toISOString(),
     };
     if (ws) row.workspace_id = ws.id;
-    const { error: upErr } = await supabase
+    const { error: upErr } = await ctx.client
       .from("youtube_connections")
       .upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
     if (upErr) {
@@ -103,22 +115,23 @@ export async function GET(req: Request) {
       return done("error");
     }
 
-    // Reflect it on the profile platform list so the sidebar and settings agree.
-    // Best effort: the connection is already saved even if this write fails.
+    // Reflect it on the OWNER's profile platform list so the sidebar and
+    // settings agree. Best effort: the connection is already saved even if
+    // this write fails.
     try {
-      const { data: prof } = await supabase
+      const { data: prof } = await ctx.client
         .from("profiles")
         .select("platforms")
-        .eq("user_id", user.id)
+        .eq("user_id", ctx.ownerId)
         .maybeSingle();
       const platforms = Array.isArray((prof as { platforms?: string[] } | null)?.platforms)
         ? (prof as { platforms: string[] }).platforms
         : [];
       if (!platforms.includes("YouTube")) {
-        await supabase
+        await ctx.client
           .from("profiles")
           .upsert(
-            { user_id: user.id, platforms: [...platforms, "YouTube"], updated_at: new Date().toISOString() },
+            { user_id: ctx.ownerId, platforms: [...platforms, "YouTube"], updated_at: new Date().toISOString() },
             { onConflict: "user_id" },
           );
       }

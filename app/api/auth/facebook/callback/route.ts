@@ -4,8 +4,9 @@ import { igAccountForPage } from "@/lib/igBusinessDiscovery";
 import { FB_GRAPH_V, fbAppId, fbAppSecret, fbRedirectUri } from "@/lib/facebook";
 import { syncFacebook } from "@/lib/facebookSync";
 import { activeByPlatform, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
-import { ensureDefaultWorkspace, workspacesEnabled } from "@/lib/workspaces";
+import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
+import { resolveContext, can } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -73,6 +74,14 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${origin}/login?next=/settings`);
+
+  // The person acts inside their ACTIVE Brand Workspace, which may belong to
+  // someone who invited them as an Admin. Connecting is owner/admin only, and
+  // the Page row belongs to the workspace OWNER (ctx.ownerId), written through
+  // ctx.client. Auth and event attribution stay on the viewer. Refused before
+  // the code is exchanged.
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "connect")) return done("forbidden");
 
   try {
     // code -> short-lived user token
@@ -157,14 +166,16 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(granted.join(",") || "none")}&fbbiz=${viaBusiness}`);
     }
 
-    // Plan gate, server-side, before anything is written. A Page's identity is
-    // its page id, so reconnecting the Page already on file never hits it.
-    const ent = await getEntitlements(supabase, user.id);
-    const list = await listConnectedAccounts(supabase, user.id);
-    // Brand Workspaces: the Page belongs to the active workspace (one per
-    // workspace), so writes conflict on workspace_id and the fb_user_id update
-    // is scoped to that row. Before the migration it stays one row per user.
-    const ws = (await workspacesEnabled(supabase)) ? await ensureDefaultWorkspace(supabase, user.id) : null;
+    // Plan gate, server-side, before anything is written, judged on the
+    // OWNER's entitlements and accounts. A Page's identity is its page id, so
+    // reconnecting the Page already on file never hits it.
+    const ent = await getEntitlements(ctx.client, ctx.ownerId);
+    const list = await listConnectedAccounts(ctx.client, ctx.ownerId);
+    // Brand Workspaces: the Page belongs to the OWNER's active workspace (one
+    // per workspace), so writes conflict on workspace_id and the fb_user_id
+    // update is scoped to that row. Before the migration it stays one row per
+    // user (ensureDefaultWorkspace returns null).
+    const ws = ctx.workspace ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId));
     const onConflict = ws ? "workspace_id" : "user_id";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scopeFb = (q: any) => (ws ? q.eq("workspace_id", ws.id) : q);
@@ -180,7 +191,7 @@ export async function GET(req: Request) {
       // The Page-linked Instagram account is what unlocks Business Discovery.
       const ig = p.access_token ? await igAccountForPage(p.id, p.access_token).catch(() => null) : null;
       const row: Record<string, unknown> = {
-        user_id: user.id,
+        user_id: ctx.ownerId,
         page_id: p.id,
         page_name: p.name ?? null,
         username: p.username ?? null,
@@ -193,20 +204,20 @@ export async function GET(req: Request) {
         ig_business_username: ig?.username ?? null,
       };
       if (ws) row.workspace_id = ws.id;
-      let { error } = await supabase
+      let { error } = await ctx.client
         .from("facebook_connections")
         .upsert(row, { onConflict });
       if (error) {
         // ig_business_* columns may not exist yet — connect without them.
         delete row.ig_business_id;
         delete row.ig_business_username;
-        ({ error } = await supabase
+        ({ error } = await ctx.client
           .from("facebook_connections")
           .upsert(row, { onConflict }));
       }
       if (error) return done("error");
-      if (fbUserId) await scopeFb(supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id)).then(() => null, () => null);
-      await syncFacebook(supabase, user.id).catch(() => null);
+      if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
+      await syncFacebook(ctx.client, ctx.ownerId).catch(() => null);
       return done("connected");
     }
 
@@ -217,7 +228,7 @@ export async function GET(req: Request) {
     const hasFbPage = list.some((a) => a.platform === "facebook");
     if (!hasFbPage && activeByPlatform(list).facebook >= getLimit(ent, "workspaces")) return limitHit();
     const pendingRow: Record<string, unknown> = {
-      user_id: user.id,
+      user_id: ctx.ownerId,
       page_id: null,
       page_name: null,
       username: null,
@@ -226,9 +237,9 @@ export async function GET(req: Request) {
       pending_pages: pages,
     };
     if (ws) pendingRow.workspace_id = ws.id;
-    const { error } = await supabase.from("facebook_connections").upsert(pendingRow, { onConflict });
+    const { error } = await ctx.client.from("facebook_connections").upsert(pendingRow, { onConflict });
     if (error) return done("error");
-    if (fbUserId) await scopeFb(supabase.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", user.id)).then(() => null, () => null);
+    if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
     return done("choose");
   } catch {
     return done("error");

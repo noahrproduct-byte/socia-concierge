@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext } from "@/lib/context";
 import { getActiveConnection } from "@/lib/instagramSync";
 
 export const runtime = "nodejs";
@@ -8,15 +9,17 @@ export const maxDuration = 60;
 const V = "v23.0";
 
 // Diagnostic: what does Meta actually return for a period=day series, and
-// what's currently stored in account_snapshots? No tokens in the response.
+// what's currently stored in account_snapshots for the ACTIVE Brand Workspace?
+// No tokens in the response.
 export async function GET() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
 
-  const conn = await getActiveConnection(supabase, user.id, "access_token");
+  const conn = await getActiveConnection(ctx.client, ctx.ownerId, "access_token");
   if (!conn?.access_token) return NextResponse.json({ error: "No connection." }, { status: 400 });
   const token = conn.access_token as string;
 
@@ -98,10 +101,10 @@ export async function GET() {
     attempt("reach day no range", { metric: "reach", period: "day" }),
   ]);
 
-  const { data: snaps, error: snapErr } = await supabase
+  const { data: snaps, error: snapErr } = await ctx.client
     .from("account_snapshots")
     .select("day, followers, views, reach")
-    .eq("user_id", user.id)
+    .eq("user_id", ctx.ownerId)
     .order("day", { ascending: false })
     .limit(10);
 

@@ -4,7 +4,7 @@ import { getEntitlements, getLimit } from "@/lib/entitlements";
 import { recordEvent } from "@/lib/planGuard";
 import { limitError } from "@/lib/planErrors";
 import {
-  workspacesEnabled, listWorkspaces, getActiveWorkspace, createWorkspace, activeWorkspaces,
+  workspacesEnabled, listWorkspaces, listAccessibleWorkspaces, getActiveWorkspace, createWorkspace, activeWorkspaces,
 } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -23,13 +23,15 @@ export async function GET() {
 
   if (!(await workspacesEnabled(supabase))) return NextResponse.json({ enabled: false });
 
-  const [ent, list, active] = await Promise.all([
+  const [ent, owned, all, active] = await Promise.all([
     getEntitlements(supabase, user.id),
     listWorkspaces(supabase, user.id),
+    listAccessibleWorkspaces(supabase, user.id),
     getActiveWorkspace(supabase, user.id),
   ]);
   const limit = getLimit(ent, "workspaces");
-  const used = activeWorkspaces(list).length;
+  // The plan counts the workspaces the person OWNS; ones they were invited into are free.
+  const used = activeWorkspaces(owned).length;
   return NextResponse.json({
     enabled: true,
     planName: ent.config.name,
@@ -37,12 +39,13 @@ export async function GET() {
     used,
     canCreate: used < limit,
     activeId: active?.id ?? null,
-    workspaces: list.map((w) => ({
+    workspaces: all.map((w) => ({
       id: w.id,
       name: w.name,
       isDefault: w.isDefault,
       suspended: w.suspended,
       active: active?.id === w.id,
+      role: w.role ?? "owner",
     })),
   });
 }

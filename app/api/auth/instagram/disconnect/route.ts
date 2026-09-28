@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 
 export const runtime = "nodejs";
 
 // Remove a stored Instagram connection. With no ig_user_id in the body the
-// ACTIVE account is removed (the pre-multi-account behavior). If another
-// account remains, it is promoted to active so the app never points nowhere.
+// account in the ACTIVE workspace is removed (pre-workspaces: the active
+// account). If another account remains, it is promoted to active so the app
+// never points nowhere.
+//
+// The person acts inside their active Brand Workspace, which may belong to
+// someone who invited them as an Admin: the row removed is the OWNER's, in
+// that workspace, through ctx.client. Disconnecting is owner/admin only.
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -13,50 +19,88 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
+  const ctx = await resolveContext(supabase, user.id);
+  if (!can(ctx, "connect")) return NextResponse.json({ error: forbiddenCopy("connect") }, { status: 403 });
+  const db = ctx.client;
+  const ownerId = ctx.ownerId;
+  const wsId = ctx.workspace?.id ?? null;
+
   const body = (await req.json().catch(() => null)) as { ig_user_id?: string } | null;
 
   // Which account ids are about to go, so their daily snapshots go with them
-  // (the Privacy Policy promises exactly that). Read before deleting.
+  // (the Privacy Policy promises exactly that). Read before deleting. The
+  // read is scoped to the active workspace when one is known; if that filter
+  // fails (column missing) it falls back to the owner's rows as a whole.
   const gone: string[] = [];
   try {
-    let q = supabase.from("instagram_connections").select("ig_user_id, is_active").eq("user_id", user.id);
-    if (body?.ig_user_id) q = q.eq("ig_user_id", body.ig_user_id);
-    const { data } = await q;
+    const read = (withWs: boolean) => {
+      let q = db.from("instagram_connections").select("ig_user_id, is_active").eq("user_id", ownerId);
+      if (withWs && wsId) q = q.eq("workspace_id", wsId);
+      if (body?.ig_user_id) q = q.eq("ig_user_id", body.ig_user_id);
+      return q;
+    };
+    let scoped = Boolean(wsId);
+    let { data, error } = await read(true);
+    if (error && scoped) {
+      scoped = false;
+      ({ data, error } = await read(false));
+    }
     const rows = (data ?? []) as { ig_user_id: string | null; is_active?: boolean | null }[];
-    const target = body?.ig_user_id ? rows : rows.some((r) => r.is_active) ? rows.filter((r) => r.is_active) : rows;
+    // A given id, or a workspace's (single) row, names the target exactly;
+    // otherwise it is the active row, else every row (single-row world).
+    const target = body?.ig_user_id || scoped ? rows : rows.some((r) => r.is_active) ? rows.filter((r) => r.is_active) : rows;
     for (const r of target) if (r.ig_user_id) gone.push(r.ig_user_id);
   } catch {
     /* older schema without is_active: the deletes below still run */
   }
   const dropSnapshots = async () => {
     for (const id of gone) {
-      await supabase.from("account_snapshots").delete().eq("user_id", user.id).eq("ig_user_id", id).then(() => null, () => null);
+      await db.from("account_snapshots").delete().eq("user_id", ownerId).eq("ig_user_id", id).then(() => null, () => null);
     }
   };
+  const finish = async () => {
+    await dropSnapshots();
+    await promoteRemaining(db, ownerId);
+    return NextResponse.json({ ok: true });
+  };
 
-  let del = supabase.from("instagram_connections").delete().eq("user_id", user.id);
   if (body?.ig_user_id) {
-    del = del.eq("ig_user_id", body.ig_user_id);
-  } else {
-    // Delete only the active row when the column exists; a failed filter
-    // falls through to the single-row world below.
-    const activeDel = await supabase
-      .from("instagram_connections")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("is_active", true);
-    if (!activeDel.error) {
-      await dropSnapshots();
-      await promoteRemaining(supabase, user.id);
-      return NextResponse.json({ ok: true });
+    // A named account, in the active workspace when one is known. A failed
+    // workspace filter (column missing) falls back to the owner-wide delete.
+    if (wsId) {
+      const scopedDel = await db
+        .from("instagram_connections")
+        .delete()
+        .eq("user_id", ownerId)
+        .eq("workspace_id", wsId)
+        .eq("ig_user_id", body.ig_user_id);
+      if (!scopedDel.error) return finish();
     }
+    const { error } = await db.from("instagram_connections").delete().eq("user_id", ownerId).eq("ig_user_id", body.ig_user_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return finish();
   }
 
-  const { error } = await del;
+  // No id: the account in the active workspace. One Instagram row per
+  // workspace, so workspace_id alone names it (is_active follows the OWNER's
+  // own active workspace, which may differ from the one an invited admin is
+  // acting in). A failed filter falls through to the pre-workspaces paths.
+  if (wsId) {
+    const wsDel = await db.from("instagram_connections").delete().eq("user_id", ownerId).eq("workspace_id", wsId);
+    if (!wsDel.error) return finish();
+  }
+  // Delete only the active row when the column exists; a failed filter
+  // falls through to the single-row world below.
+  const activeDel = await db
+    .from("instagram_connections")
+    .delete()
+    .eq("user_id", ownerId)
+    .eq("is_active", true);
+  if (!activeDel.error) return finish();
+
+  const { error } = await db.from("instagram_connections").delete().eq("user_id", ownerId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  await dropSnapshots();
-  await promoteRemaining(supabase, user.id);
-  return NextResponse.json({ ok: true });
+  return finish();
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -10,6 +10,7 @@ import { getEntitlements, checkFeature, type Entitlements } from "@/lib/entitlem
 import { requireFeature } from "@/lib/planGuard";
 import { parentsWithDestinations } from "@/lib/publishing/db";
 import { runDueDestinations, type RunReport } from "@/lib/publishing/runner";
+import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,7 +20,9 @@ export const maxDuration = 60;
 // Two callers:
 //   • the cron (Vercel Cron, or any pinger) with `Authorization: Bearer
 //     <CRON_SECRET>` — runs every user's due posts via the service role
-//   • a signed-in user with ?id=<post> — "Publish now" for one of their own
+//   • a signed-in user with ?id=<post> — "Publish now" for a post of the
+//     active Brand Workspace (the owner's, read as the owner through
+//     ctx.client); owner and admins only, a Member is answered 403
 //
 // A post is only ever marked published when Instagram returns a media id.
 // Failures record Instagram's own message. A Reel that is still processing
@@ -175,15 +178,17 @@ async function run(req: Request) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    const ctx = await resolveContext(supabase, user.id);
+    if (!can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
     const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required." }, { status: 400 });
-    const { data: post } = await supabase.from("scheduled_posts").select("*").eq("id", id).eq("user_id", user.id).maybeSingle();
+    const { data: post } = await ctx.client.from("scheduled_posts").select("*").eq("id", id).eq("user_id", ctx.ownerId).maybeSingle();
     if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
     if (post.status === "published") return NextResponse.json({ error: "Already published." }, { status: 409 });
     // A composer post publishes through its destinations, never through this
     // Instagram-only path. A missing post_destinations table reads as none;
     // any other read failure is unknown, and unknown never publishes.
-    const multi = await parentsWithDestinations(supabase, [id]);
+    const multi = await parentsWithDestinations(ctx.client, [id]);
     if (multi == null) {
       return NextResponse.json({ error: "SOCIA could not check this post's destinations. Try again in a moment." }, { status: 503 });
     }
@@ -191,13 +196,13 @@ async function run(req: Request) {
       return NextResponse.json({ error: "This post publishes through its destinations. Use Publish on the post itself." }, { status: 409 });
     }
     if (!post.media_url) return NextResponse.json({ error: "Attach media before publishing." }, { status: 400 });
-    const g = await requireFeature(supabase, user.id, "scheduling");
+    const g = await requireFeature(ctx.client, ctx.ownerId, "scheduling");
     if (g.denied) return g.denied;
-    if ((await publishedLast24h(supabase, user.id)) >= DAILY_PUBLISH_CAP) {
+    if ((await publishedLast24h(ctx.client, ctx.ownerId)) >= DAILY_PUBLISH_CAP) {
       return NextResponse.json({ error: `Daily publishing cap reached (${DAILY_PUBLISH_CAP} in 24h).` }, { status: 429 });
     }
-    const r = await publishOne(supabase, post as ScheduledPost, 45_000);
-    const { data: after } = await supabase.from("scheduled_posts").select("*").eq("id", id).maybeSingle();
+    const r = await publishOne(ctx.client, post as ScheduledPost, 45_000);
+    const { data: after } = await ctx.client.from("scheduled_posts").select("*").eq("id", id).maybeSingle();
     return NextResponse.json({ result: r.result, post: after });
   }
 

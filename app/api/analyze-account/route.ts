@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { anthropic, MODEL } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { NICHES } from "@/lib/niches";
 import { requireUsage, recordEvent } from "@/lib/planGuard";
+import { resolveContext, type Ctx } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -104,10 +104,11 @@ function parseJson(text: string): unknown {
   }
 }
 
-// Save the niche (and hierarchy detail where the columns exist). The detail
-// columns are additive schema — fall back to the base row if they're missing.
+// Save the niche (and hierarchy detail where the columns exist) onto the
+// workspace owner's profile. The detail columns are additive schema — fall
+// back to the base row if they're missing.
 async function saveNiche(
-  supabase: SupabaseClient,
+  supabase: Ctx["client"],
   userId: string,
   niche: string,
   detail: Record<string, unknown> | null,
@@ -155,9 +156,12 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // The connection read, the audit allowance and the saved niche all belong
+  // to the active workspace owner. The token never leaves this function.
+  const ctx = await resolveContext(supabase, user.id);
 
-  // 1) Do they have a live Instagram connection with a token?
-  const conn = (await getActiveConnection(supabase, user.id, "username, access_token")) as {
+  // 1) Does the workspace have a live Instagram connection with a token?
+  const conn = (await getActiveConnection(ctx.client, ctx.ownerId, "username, access_token")) as {
     username?: string;
     access_token?: string;
   } | null;
@@ -226,7 +230,7 @@ export async function GET() {
   // call and given back when no extraction comes out of it. Denied requests
   // answer with a 403 PlanError, the one non-200 outcome of this route
   // besides 401.
-  const u = await requireUsage(supabase, user.id, "account_audit");
+  const u = await requireUsage(ctx.client, ctx.ownerId, "account_audit");
   if (u.denied) return u.denied;
 
   const posts = media.slice(0, 20).map((m) => ({
@@ -272,12 +276,13 @@ Allowed niches: ${NICHES.join(", ")}`;
 
     // 4) Save automatically only when the model is genuinely confident.
     if (extracted.confidence >= 75) {
-      await saveNiche(supabase, user.id, extracted.niche, detailOf(extracted), {
+      await saveNiche(ctx.client, ctx.ownerId, extracted.niche, detailOf(extracted), {
         brand_name: extracted.brand_name || account.username,
         goals: extracted.goal,
         account_connected: true,
       });
     }
+    // Product events stay attributed to the person who clicked.
     recordEvent(supabase, user.id, "free_audit_completed", { plan: u.ent.plan });
 
     return NextResponse.json({
@@ -303,6 +308,9 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  // Writes land on the active workspace owner's profile; the AI read is
+  // charged to the owner's allowance.
+  const ctx = await resolveContext(supabase, user.id);
 
   let body: { describe?: string; choose?: { niche?: string } };
   try {
@@ -314,7 +322,7 @@ export async function POST(req: Request) {
   // Direct pick from the category list.
   if (body.choose?.niche) {
     const niche = NICHES.includes(body.choose.niche) ? body.choose.niche : "Other";
-    await saveNiche(supabase, user.id, niche, { source: "manual" });
+    await saveNiche(ctx.client, ctx.ownerId, niche, { source: "manual" });
     return NextResponse.json({ ok: true, niche });
   }
 
@@ -329,7 +337,7 @@ export async function POST(req: Request) {
 
   // Structuring a description is the same AI read as a full audit; counted
   // right before the model call and given back when nothing comes out of it.
-  const u = await requireUsage(supabase, user.id, "account_audit");
+  const u = await requireUsage(ctx.client, ctx.ownerId, "account_audit");
   if (u.denied) return u.denied;
 
   try {
@@ -350,7 +358,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Couldn't structure that. Try again." }, { status: 502 });
     }
 
-    await saveNiche(supabase, user.id, extracted.niche, {
+    await saveNiche(ctx.client, ctx.ownerId, extracted.niche, {
       ...detailOf(extracted),
       source: "described",
     });

@@ -276,11 +276,22 @@ export async function consumeUsage(supabase: Supa, ent: Entitlements, meter: Met
     return { allowed: false, usage, error: usageError(ent.plan, meter, limit, 0, period.end) };
   }
   try {
-    const { data, error } = await supabase.rpc("socia_consume_usage", {
+    let { data, error } = await supabase.rpc("socia_consume_usage", {
       p_meter: meter,
       p_period_start: period.start,
       p_limit: limit,
     });
+    // No session behind this client (a member acting as the workspace owner
+    // through the service role): count against the owner explicitly, via the
+    // service-role-only function. Never reached for an ordinary signed-in owner.
+    if (error && /not signed in|42501/.test(`${error.code ?? ""} ${error.message ?? ""}`)) {
+      const svc = createServiceClient();
+      if (svc) {
+        ({ data, error } = await svc.rpc("socia_consume_usage_for", {
+          p_user: ent.userId, p_meter: meter, p_period_start: period.start, p_limit: limit,
+        }));
+      }
+    }
     if (error) throw error;
     const row = Array.isArray(data) ? data[0] : data;
     const used = typeof row?.used_count === "number" ? row.used_count : null;
