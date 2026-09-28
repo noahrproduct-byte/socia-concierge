@@ -130,14 +130,20 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
 
-  const parsed = parsePayload(await req.json().catch(() => null));
+  const raw = await req.json().catch(() => null);
+
+  // Role gate BEFORE validating the payload shape: scheduling and publishing
+  // are owner/admin actions, so a Member gets a clear 403 rather than a 400
+  // about payload details they are not allowed to act on. Drafts are welcome
+  // for every role; nothing of a Member's ever leaves the calendar.
+  const rawAction = raw && typeof raw === "object" ? (raw as { action?: unknown }).action : null;
+  const wantsPublish = rawAction === "schedule" || rawAction === "publish";
+  if (wantsPublish && !can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
+
+  const parsed = parsePayload(raw);
   if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const payload = parsed.payload;
   const isDraft = payload.action === "draft";
-
-  // Role gate: scheduling and publishing are owner/admin actions. A Member's
-  // drafts are welcome; nothing of theirs leaves the calendar.
-  if (!isDraft && !can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
 
   // Media must live in the scheduled-media bucket under the uploader's own
   // folder (storage RLS writes only there): the viewer's, or the workspace
