@@ -131,11 +131,30 @@ export async function revokeInvite(supabase: Supa, workspaceId: string, inviteId
 
 export type AcceptFailure = "invite_invalid" | "invite_revoked" | "invite_used" | "invite_expired" | "invite_owner" | "seat_limit" | "not_configured" | "error";
 
-/** Look up an invite by token through the service role (for the accept page). */
-export async function inviteByToken(token: string): Promise<{
+export type InvitePreview = {
   workspaceId: string; workspaceName: string; ownerId: string; role: MemberRole;
   status: "open" | "revoked" | "used" | "expired";
-} | null> {
+};
+
+/**
+ * The public facts about an invite, for the landing page: which workspace,
+ * which role, still open? Uses socia_invite_preview() through the signed-in
+ * person's own session (the invitee cannot read the row directly), falling
+ * back to a service-role read where the function is not installed yet.
+ */
+export async function inviteByToken(supabase: Supa, token: string): Promise<InvitePreview | null> {
+  try {
+    const { data, error } = await supabase.rpc("socia_invite_preview", { p_token: token });
+    if (!error) {
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | { workspace_id: string; workspace_name: string; owner_id: string; role: MemberRole; status: InvitePreview["status"] }
+        | null;
+      if (!row) return null;
+      return { workspaceId: row.workspace_id, workspaceName: row.workspace_name, ownerId: row.owner_id, role: row.role, status: row.status };
+    }
+  } catch {
+    /* function may not exist yet: fall through */
+  }
   const svc = createServiceClient();
   if (!svc) return null;
   const { data, error } = await svc

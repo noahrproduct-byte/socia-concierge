@@ -16,7 +16,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   if (!user) return NextResponse.json({ error: "Sign in to accept this invite." }, { status: 401 });
   if (!(await teamEnabled(supabase))) return NextResponse.json({ error: "Team features are not available yet." }, { status: 409 });
 
-  const inv = await inviteByToken(token);
+  const inv = await inviteByToken(supabase, token);
   if (!inv) return NextResponse.json({ error: ACCEPT_FAILURE_COPY.invite_invalid, reason: "invite_invalid" }, { status: 404 });
 
   // The seat limit is the owner's plan.

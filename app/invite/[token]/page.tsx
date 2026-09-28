@@ -19,7 +19,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   if (!user) redirect(`/login?next=${encodeURIComponent(`/invite/${token}`)}`);
 
   const enabled = await teamEnabled(supabase);
-  const inv = enabled ? await inviteByToken(token) : null;
+  const inv = enabled ? await inviteByToken(supabase, token) : null;
 
   let body: React.ReactNode;
   if (!enabled) {

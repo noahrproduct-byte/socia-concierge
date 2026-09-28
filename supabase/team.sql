@@ -163,6 +163,33 @@ revoke all on function public.socia_accept_invite(text, uuid, integer) from publ
 grant execute on function public.socia_accept_invite(text, uuid, integer) to service_role;
 
 -- ---------------------------------------------------------------------------
+-- 4b. Invite preview for the landing page (any signed-in user)
+-- ---------------------------------------------------------------------------
+-- The person opening an invite link is not (yet) allowed to read the invite
+-- row, so the landing page asks this function for the public facts: which
+-- workspace, which role, and whether the link is still open. Knowing the
+-- token is the only requirement; nothing beyond these five columns is exposed.
+create or replace function public.socia_invite_preview(p_token text)
+returns table (workspace_id uuid, workspace_name text, owner_id uuid, role text, status text)
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select i.workspace_id, w.name, w.owner_id, i.role,
+         case when i.revoked_at is not null then 'revoked'
+              when i.accepted_at is not null then 'used'
+              when i.expires_at < now() then 'expired'
+              else 'open' end
+    from public.workspace_invites i
+    join public.workspaces w on w.id = i.workspace_id
+   where i.token = p_token and auth.uid() is not null;
+$fn$;
+
+revoke all on function public.socia_invite_preview(text) from public, anon;
+grant execute on function public.socia_invite_preview(text) to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
 -- 5. Usage charged to the workspace owner (service role)
 -- ---------------------------------------------------------------------------
 -- Same contract as socia_consume_usage(), for a given user: when a member uses
