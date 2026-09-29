@@ -11,7 +11,7 @@ const ICON: Record<Kpi["id"], { Icon: LucideIcon; tone: string }> = {
 
 /** One KPI tile: label, number, change, comparison period. Unavailable data
  *  renders as "—" with the reason underneath, never as a zero. */
-export default function KpiCard({ kpi, iconLeft = false }: { kpi: Kpi; iconLeft?: boolean }) {
+export default function KpiCard({ kpi, iconLeft = false, showDelta = true }: { kpi: Kpi; iconLeft?: boolean; showDelta?: boolean }) {
   const { Icon, tone } = ICON[kpi.id];
   return (
     <div className={`ov-kpi${iconLeft ? " icon-left" : ""}`} title={kpi.source}>
@@ -22,11 +22,11 @@ export default function KpiCard({ kpi, iconLeft = false }: { kpi: Kpi; iconLeft?
         <span className="ov-kpi-label">{kpi.label}</span>
         <span className="ov-kpi-row">
           <b className={`ov-kpi-value${kpi.status === "unavailable" ? " dim" : ""}`}>{kpi.value}</b>
-          {kpi.deltaText && (
+          {showDelta && kpi.deltaText && (
             <em className={`ov-kpi-delta ${kpi.positive === false ? "down" : "up"}`}>{kpi.deltaText}</em>
           )}
         </span>
-        <small className="ov-kpi-note">{kpi.note}</small>
+        <small className="ov-kpi-note">{showDelta ? kpi.note : "vs. previous period on Starter"}</small>
       </div>
     </div>
   );

@@ -37,8 +37,46 @@ import { buildWindows, type TimedPost } from "@/lib/postingTimes";
 import { timingGap, type Gap } from "@/lib/gaps";
 import type { EngagementRate, Breakdown, QualityNote } from "@/lib/engagement";
 import type { Demographics } from "@/lib/igDemographics";
-import { pricingHref } from "@/lib/plans";
+import { pricingHref, PLANS, type PlanId } from "@/lib/plans";
+import { Lock } from "lucide-react";
 import "./planRange.css";
+
+/** Which analytics sections the viewer's plan unlocks. A PlanId means the
+ *  section is LOCKED and names the plan that opens it; null/absent means open.
+ *  Computed on the server from the workspace owner's entitlements. */
+export type AnalyticsGate = {
+  postingTimes: PlanId | null;
+  growth: PlanId | null;
+  comparison: PlanId | null;
+  deeperInsights: PlanId | null;
+  crossPlatform: PlanId | null;
+};
+
+/** A tasteful locked panel: what the section is, and the plan that unlocks it.
+ *  Never an empty box; the person always sees the feature exists and its value. */
+function Locked({ plan, title, blurb, from }: { plan: PlanId; title: string; blurb: string; from: string }) {
+  return (
+    <div className="av-locked" role="group" aria-label={`${title} (locked)`}>
+      <span className="av-locked-ico"><Lock size={16} /></span>
+      <div className="av-locked-body">
+        <b>{title}</b>
+        <p>{blurb}</p>
+      </div>
+      <Link
+        href={pricingHref(plan)}
+        className="av-locked-cta"
+        onClick={() => {
+          fetch("/api/events", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name: "upgrade_clicked", props: { from } }), keepalive: true,
+          }).catch(() => {});
+        }}
+      >
+        Unlock with {PLANS[plan].name}
+      </Link>
+    </div>
+  );
+}
 
 export type AnalyticsData = {
   handle: string | null;
@@ -78,7 +116,11 @@ export type AnalyticsData = {
    *  and YouTube carry real per-day series; Facebook/TikTok are listed but with
    *  no series, so the graph reports "no daily trend" instead of faking a line. */
   graphAccounts: GraphAccount[];
+  /** Which sections the plan unlocks. Absent = everything open (e.g. legacy callers). */
+  gate?: AnalyticsGate;
 };
+
+const OPEN_GATE: AnalyticsGate = { postingTimes: null, growth: null, comparison: null, deeperInsights: null, crossPlatform: null };
 
 const OVERLAY_METRIC_ORDER: GraphMetric[] = ["views", "engagement", "reach", "followers", "watch_time", "net_followers"];
 const PLATFORM_TINT: Record<GraphAccount["platform"], string> = { instagram: "#d6357a", youtube: "#e0332a", facebook: "#1877f2", tiktok: "#22d3ee" };
@@ -95,6 +137,7 @@ const hashTab = (h: string): Tab | null => {
 };
 
 export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
+  const gate = d.gate ?? OPEN_GATE;
   const [tab, setTabState] = useState<Tab>("overview");
   const [metric, setMetric] = useState<MetricId>(d.series.views.provenance === "unavailable" ? "engagement" : "views");
   const [compare, setCompare] = useState(true);
@@ -255,7 +298,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
       {tab === "overview" && (
         <>
           <div className="ov-kpis four">
-            {d.kpis.map((k) => <KpiCard key={k.id} kpi={k} iconLeft />)}
+            {d.kpis.map((k) => <KpiCard key={k.id} kpi={k} iconLeft showDelta={!gate.comparison} />)}
           </div>
           <div className="av-grid">
             <div className="av-main">
@@ -280,7 +323,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                   </div>
                 </div>
 
-                {d.graphAccounts.length > 1 && (
+                {d.graphAccounts.length > 1 && !gate.crossPlatform && (
                   <div className="av-accts" role="group" aria-label="Accounts on the graph">
                     <button type="button" className={`av-acct${acctSel.length === d.graphAccounts.length ? " on" : ""}`} onClick={() => setAcctSel(d.graphAccounts.map((a) => a.id))}>All accounts</button>
                     {d.graphAccounts.map((a) => {
@@ -295,20 +338,24 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                   </div>
                 )}
 
+                {d.graphAccounts.length > 1 && gate.crossPlatform && (
+                  <p className="av-xplat-hint"><Lock size={12} /> Overlay and compare your accounts on one graph with {PLANS[gate.crossPlatform].name}. <Link href={pricingHref(gate.crossPlatform)}>See {PLANS[gate.crossPlatform].name}</Link></p>
+                )}
+
                 {isSingleIg ? (
                   <>
                     <div className="av-perf-summary">
                       <b>{series.total != null ? fmtNum(series.total) : "—"}</b>
                       <span>{series.label.toLowerCase()} {metric === "followers" ? "now" : `in the ${d.rangeLabel.toLowerCase()}`}</span>
-                      {totalDelta != null && <em className={totalDelta >= 0 ? "up" : "down"}>{totalDelta >= 0 ? "↑" : "↓"} {Math.abs(totalDelta).toFixed(1)}% vs. previous period</em>}
-                      {series.prevTotal == null && series.total != null && <em className="muted">no comparable previous period yet</em>}
+                      {!gate.comparison && totalDelta != null && <em className={totalDelta >= 0 ? "up" : "down"}>{totalDelta >= 0 ? "↑" : "↓"} {Math.abs(totalDelta).toFixed(1)}% vs. previous period</em>}
+                      {!gate.comparison && series.prevTotal == null && series.total != null && <em className="muted">no comparable previous period yet</em>}
                       {baseline && <em className="muted">· {baseline.label.toLowerCase()} {fmtNum(Math.round(baseline.value))}</em>}
                       <span className="av-perf-ctl">
-                        <button type="button" className={`ov-toggle${compare ? " on" : ""}`} aria-pressed={compare} onClick={() => setCompare((v) => !v)}>vs. previous</button>
+                        {!gate.comparison && <button type="button" className={`ov-toggle${compare ? " on" : ""}`} aria-pressed={compare} onClick={() => setCompare((v) => !v)}>vs. previous</button>}
                         {outliers.size > 0 && <button type="button" className={`ov-toggle${fitOn ? " on" : ""}`} aria-pressed={fitOn} title="Scale the axis to your typical range; breakout bars stay visible with their value" onClick={() => setFit(!fitOn)}>Fit typical range</button>}
                       </span>
                     </div>
-                    <OverviewChart series={series} granularity={gran} showPrevious={compare} height={260} fitScale={fitOn} baseline={baseline} postById={postById} today={d.today} onPick={(b, o) => setPoint({ b, outlier: o })} />
+                    <OverviewChart series={series} granularity={gran} showPrevious={compare && !gate.comparison} height={260} fitScale={fitOn} baseline={baseline} postById={postById} today={d.today} onPick={(b, o) => setPoint({ b, outlier: o })} />
                     <p className="ov-source">{series.note}{outliers.size > 0 ? ` ${outliers.size} breakout ${gran}${outliers.size === 1 ? "" : "s"} marked; click a bar to see what drove it.` : " Click a bar to inspect it."}</p>
                   </>
                 ) : (
@@ -329,7 +376,12 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                   <h2 id="av-ins-h"><span className="ov-h-ico primary"><Lightbulb size={14} /></span> Key Insights</h2>
                   <button type="button" className="ov-link" onClick={() => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric }, question: "What am I missing?" })}>Ask</button>
                 </div>
-                {isSingleIg ? (
+                {gate.deeperInsights ? (
+                  <>
+                    {insights.length > 0 && <InsightList insights={insights.slice(0, 1)} posts={d.posts} compact onTab={jumpTab} />}
+                    <Locked plan={gate.deeperInsights} title="What's working, and what to do next" blurb={`SOCIA found ${Math.max(insights.length - 1, 0) || "more"} more ${insights.length - 1 === 1 ? "insight" : "insights"} in your data. See every one, plus What Changed and What To Do Next.`} from="analytics_insights" />
+                  </>
+                ) : isSingleIg ? (
                   <InsightList insights={insights.slice(0, 5)} posts={d.posts} compact onTab={jumpTab} />
                 ) : graphInsights.length ? (
                   <ul className="av-ginsights">
@@ -406,11 +458,15 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
               <section className="ov-card" aria-labelledby="av-times-h">
                 <div className="ov-card-head">
                   <h2 id="av-times-h">Best Times to Post</h2>
-                  <button type="button" className="ov-link" onClick={() => setTab("times")}>Full heatmap</button>
+                  {!gate.postingTimes && <button type="button" className="ov-link" onClick={() => setTab("times")}>Full heatmap</button>}
                 </div>
-                <Mounted fallback={<div className="ov-empty small">Computing in your time zone…</div>}>
-                  <BestTimes posts={d.timed} />
-                </Mounted>
+                {gate.postingTimes ? (
+                  <Locked plan={gate.postingTimes} title="Know when to post" blurb="See the weekday-and-hour windows where your own posts have performed best, with the sample size behind every claim." from="analytics_besttimes" />
+                ) : (
+                  <Mounted fallback={<div className="ov-empty small">Computing in your time zone…</div>}>
+                    <BestTimes posts={d.timed} />
+                  </Mounted>
+                )}
               </section>
             </aside>
           </div>
@@ -528,14 +584,24 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
             <h2 id="pt-h">Posting Times</h2>
             <span className="ov-card-sub">When your own posts have performed best, with the sample behind every claim.</span>
           </div>
-          <Mounted fallback={<div className="ov-empty small">Computing in your time zone…</div>}>
-            <PostingHeatmap posts={d.timed} formats={d.formats} />
-          </Mounted>
+          {gate.postingTimes ? (
+            <Locked plan={gate.postingTimes} title="Posting-time analysis" blurb="A full weekday-by-hour heatmap of your own performance, and the best window per format, each backed by its real sample size." from="analytics_times_tab" />
+          ) : (
+            <Mounted fallback={<div className="ov-empty small">Computing in your time zone…</div>}>
+              <PostingHeatmap posts={d.timed} formats={d.formats} />
+            </Mounted>
+          )}
         </section>
       )}
 
       {/* ================================================== GROWTH */}
-      {tab === "growth" && (
+      {tab === "growth" && gate.growth && (
+        <section className="ov-card" aria-labelledby="gr-lock-h">
+          <div className="ov-card-head"><h2 id="gr-lock-h">Growth</h2><span className="ov-card-sub">How your reach, views, followers and engagement are trending.</span></div>
+          <Locked plan={gate.growth} title="Growth analysis" blurb="Trend cards for followers, reach, views and engagement, your strong and weak weeks against your typical week, and milestones as they happen." from="analytics_growth_tab" />
+        </section>
+      )}
+      {tab === "growth" && !gate.growth && (
         <>
           <div className="gr-grid">
             {(["followers", "reach", "views", "engagement"] as MetricId[]).map((m) => {

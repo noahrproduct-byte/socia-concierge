@@ -11,3 +11,16 @@
 .ov-seg > .range-locked a:hover { color: var(--text-primary); border-color: var(--border-strong); }
 
 .gap-upsell { margin-top: 12px; }
+
+/* Locked analytics section: a calm panel, never an empty box. */
+.av-locked { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-radius: 12px; border: 1px dashed var(--border-strong, var(--border)); background: var(--surface-muted, rgba(127,127,127,0.06)); }
+.av-locked-ico { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: rgba(var(--primary-rgb), 0.12); color: var(--primary); flex-shrink: 0; }
+.av-locked-body { flex: 1; min-width: 0; }
+.av-locked-body b { display: block; font-size: 13.5px; font-weight: 650; color: var(--text-primary, var(--text)); }
+.av-locked-body p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary, var(--muted-text)); }
+.av-locked-cta { flex-shrink: 0; align-self: center; font-size: 12px; font-weight: 650; color: var(--on-primary, #fff); background: var(--primary); border-radius: 8px; padding: 8px 13px; text-decoration: none; white-space: nowrap; }
+.av-locked-cta:hover { background: var(--primary-hover, var(--primary)); }
+.av-xplat-hint { display: flex; align-items: center; gap: 6px; margin: 2px 0 10px; font-size: 12px; color: var(--text-secondary, var(--muted-text)); }
+.av-xplat-hint svg { color: var(--text-muted); flex-shrink: 0; }
+.av-xplat-hint a { color: var(--primary); font-weight: 650; text-decoration: none; }
+.av-xplat-hint a:hover { text-decoration: underline; }

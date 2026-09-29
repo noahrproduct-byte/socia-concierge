@@ -15,7 +15,7 @@ import { buildGaps } from "@/lib/gaps";
 import { fetchDemographics } from "@/lib/igDemographics";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
-import AnalyticsV3, { type AnalyticsData } from "@/components/AnalyticsV3";
+import AnalyticsV3, { type AnalyticsData, type AnalyticsGate } from "@/components/AnalyticsV3";
 import YouTubeAnalytics from "@/components/YouTubeAnalytics";
 import { getYouTubeAnalytics, type YtDaily } from "@/lib/youtubeData";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
@@ -24,6 +24,7 @@ import {
   RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId, type Series, type SeriesPoint, type GraphAccount, type GraphSeries,
 } from "@/lib/overview";
 import { canUseFeature, getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { minPlanWithFeature, type PlanId } from "@/lib/plans";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
@@ -219,9 +220,22 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     if (tt) graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: tt.username ? `@${tt.username}` : (tt.display_name || "TikTok"), series: {} });
   } catch { /* tiktok_connections may not exist yet */ }
 
+  // Which analytics sections the plan unlocks. A locked section names the plan
+  // that opens it (from FEATURE_STATUS's truth layer via minPlanWithFeature) so
+  // the card can say "Unlock with Starter"; open sections are null.
+  const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null =>
+    canUseFeature(ent, feature) ? null : (minPlanWithFeature(feature) ?? "starter");
+  const gate: AnalyticsGate = {
+    postingTimes: lockedTo("posting_time_analysis"),
+    growth: lockedTo("growth_analysis"),
+    comparison: lockedTo("period_comparison"),
+    deeperInsights: lockedTo("deeper_insights"),
+    crossPlatform: lockedTo("cross_platform_analytics"),
+  };
+
   const d: AnalyticsData = {
     handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
-    timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts,
+    timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts, gate,
   };
 
   return (
