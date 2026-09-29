@@ -1,228 +1,210 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Download, FileText, ShieldCheck, ArrowRight } from "lucide-react";
+import { Download, ShieldCheck, ArrowRight, Lock, Printer, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
-import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
-import {
-  getFollowers,
-  getFollowersGained,
-  getReach,
-  getPostsPublished,
-  getEngagementRate,
-  getPerformanceBaseline,
-  getTopPosts,
-  type AccountInput,
-  type DailySnapshot,
-  type Metric,
-} from "@/lib/dashboardMetrics";
-import { engagementOf } from "@/lib/metrics";
-import { clampRangeId, rangeDays } from "@/lib/overview";
-import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
-import { PLANS, minPlanWithLimit, pricingHref } from "@/lib/plans";
+import BrandMark from "@/components/BrandMark";
+import CustomRange from "@/components/reports/CustomRange";
+import AutoPrint from "@/components/reports/AutoPrint";
+import { getEntitlements, maxHistoryDays, clampDays, canUseFeature } from "@/lib/entitlements";
+import { PLANS, PLAN_ORDER, planRank, minPlanWithFeature, pricingHref, type FeatureKey, type PlanId } from "@/lib/plans";
+import { getActiveWorkspace } from "@/lib/workspaces";
+import { loadReport } from "@/lib/reportData";
+import { presetPeriod, customPeriod, type Report, type ReportSection, type ReportPlatform } from "@/lib/reports";
+import "./reports.css";
 import "@/components/planRange.css";
 
 export const metadata = { title: "Reports — SOCIA" };
 
-const REPORT_RANGES = [
-  { id: "7", label: "7D", days: 7 },
-  { id: "30", label: "30D", days: 30 },
-  { id: "90", label: "90D", days: 90 },
-] as const;
+type Search = { range?: string; from?: string; to?: string; platform?: string; print?: string };
 
-function Row({ label, m, format }: { label: string; m: Metric; format?: (v: number) => string }) {
+const PRESETS = [
+  { id: "week", label: "This week", days: 7, feature: "weekly_summary" as FeatureKey },
+  { id: "month", label: "This month", days: 30, feature: "monthly_summary" as FeatureKey },
+  { id: "90", label: "90 days", days: 90, feature: "monthly_summary" as FeatureKey },
+];
+
+const lockPlan = (feature: FeatureKey): PlanId => minPlanWithFeature(feature) ?? "starter";
+/** The cheapest plan whose history window reaches `days`. */
+const planForDays = (days: number): PlanId => PLAN_ORDER.find((id) => PLANS[id].limits.analytics_history_days >= days) ?? "pro";
+/** The higher-rank of two plans. */
+const higherPlan = (a: PlanId, b: PlanId): PlanId => (planRank(a) >= planRank(b) ? a : b);
+
+function MetricGrid({ section }: { section: ReportSection }) {
   return (
-    <tr>
-      <td>{label}</td>
-      <td className="num">
-        {m.value != null ? (format ? format(m.value) : m.value.toLocaleString("en-US")) : "—"}
-      </td>
-      <td className="muted">{m.value != null ? m.period : "unavailable"}</td>
-      <td className="muted">
-        <span className={`rep-status ${m.status.toLowerCase()}`}>{m.status}</span>
-      </td>
-      <td className="muted rep-method" title={`${m.source} — ${m.method}`}>
-        {m.method}
-      </td>
-    </tr>
+    <div className="rep-metrics">
+      {section.metrics.map((m) => (
+        <div key={m.label} className="rep-metric">
+          <span className="rep-metric-label">{m.label}</span>
+          <b className={m.raw == null ? " dim" : ""}>{m.value}</b>
+          <span className="rep-metric-note">
+            {m.deltaText && <em className={m.positive === false ? "down" : "up"}>{m.deltaText}</em>} {m.note}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
-// A period report built from the same central metrics the dashboard uses,
-// with each row's provenance shown. Nothing here is generated prose.
-export default async function ReportsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ range?: string }>;
-}) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  // The report is for the ACTIVE Brand Workspace (the owner's account when the
-  // viewer is an invited team member).
-  const ctx = await resolveContext(supabase, user.id);
+function TopPosts({ section }: { section: ReportSection }) {
+  if (!section.topPosts.length) return null;
+  return (
+    <ol className="rep-top">
+      {section.topPosts.map((p, i) => (
+        <li key={i}>
+          <span className="rep-top-rank">{String(i + 1).padStart(2, "0")}</span>
+          <span className="rep-top-meta">
+            <b>{p.caption}</b>
+            <small>{p.date ? new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""} · {p.engagements.toLocaleString("en-US")} engagements</small>
+          </span>
+          {p.multiplier != null && <em className={p.multiplier >= 1 ? "up" : "down"}>{p.multiplier}× vs typical</em>}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
-  const { range } = await searchParams;
-  const [snap, ent] = await Promise.all([
-    getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
-    getEntitlements(ctx.client, ctx.ownerId),
-  ]);
-  // History is limited per plan here, on the server: a ?range= beyond the
-  // plan's window is served as the longest range the plan includes.
+function ReportBody({ report }: { report: Report }) {
+  return (
+    <>
+      <section className="rep-summary-card">
+        <div className="rep-card-head"><h2><TrendingUp size={15} /> Summary</h2><span>{report.periodLabel}</span></div>
+        {report.summary.length ? (
+          <ul className="rep-summary">{report.summary.map((s, i) => <li key={i}>{s}</li>)}</ul>
+        ) : (
+          <p className="rep-empty">Not enough history yet for a period-over-period summary. It fills in as SOCIA records more days.</p>
+        )}
+      </section>
+
+      {report.sections.length ? report.sections.map((sec) => (
+        <section key={sec.platform} className="rep-section">
+          <div className="rep-card-head"><h2>{sec.label}</h2></div>
+          <MetricGrid section={sec} />
+          {sec.topPosts.length > 0 && (
+            <>
+              <h3 className="rep-sub">Top posts</h3>
+              <TopPosts section={sec} />
+            </>
+          )}
+        </section>
+      )) : (
+        <section className="rep-section"><p className="rep-empty">Connect a platform to see its report. Everything here is measured from your real numbers.</p></section>
+      )}
+    </>
+  );
+}
+
+export default async function ReportsPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const ctx = await resolveContext(supabase, user.id);
+  const [ent, ws] = await Promise.all([getEntitlements(ctx.client, ctx.ownerId), getActiveWorkspace(supabase, user.id)]);
+  const sp = await searchParams;
+
   const maxDays = maxHistoryDays(ent);
-  const requestedId = REPORT_RANGES.some((r) => r.id === range) ? (range as string) : "30";
-  const rangeId: string = clampRangeId(requestedId, maxDays);
-  const days = rangeDays(rangeId);
-  let daily: DailySnapshot[] = [];
-  try {
-    daily = await readDailySnapshots<DailySnapshot>(
-      ctx.client,
-      ctx.ownerId,
-      snap?.ig_user_id ?? null,
-      "day, followers, reach, views, followers_gained, source",
+  const gate = {
+    weekly: canUseFeature(ent, "weekly_summary"),
+    custom: canUseFeature(ent, "custom_date_ranges"),
+    platform: canUseFeature(ent, "platform_reports"),
+    export: canUseFeature(ent, "report_exports"),
+    client: canUseFeature(ent, "client_reports"),
+  };
+  const wsName = ws?.name ?? "My brand";
+
+  // Resolve the platform filter (Growth+). Locked plans see the combined report.
+  const reqPlatform = sp.platform === "instagram" || sp.platform === "youtube" ? (sp.platform as ReportPlatform) : "all";
+  const platform: ReportPlatform | "all" = gate.platform ? reqPlatform : "all";
+
+  // Resolve the period. Custom (Growth+) wins when valid; otherwise a preset,
+  // with a week request on a plan without weekly_summary falling back to month.
+  const now = new Date();
+  let period = presetPeriod(sp.range === "week" && !gate.weekly ? "month" : (sp.range ?? "month"), now);
+  let customActive = false;
+  if (sp.from && sp.to && gate.custom) {
+    const c = customPeriod(sp.from, sp.to, now);
+    if (c) { period = c; customActive = true; }
+  }
+  period = { ...period, days: clampDays(ent, period.days) };
+
+  const report = await loadReport(ctx.client, ctx.ownerId, wsName, period, platform);
+
+  // ---- Client-ready print view (Pro): a clean, branded document, no shell ----
+  if (sp.print === "1" && gate.client) {
+    return (
+      <main className="rep-print">
+        <AutoPrint />
+        <header className="rep-print-head">
+          <div className="rep-print-brand"><BrandMark size={26} /><span>{wsName}</span></div>
+          <div className="rep-print-meta"><b>Performance report</b><span>{report.periodLabel}</span></div>
+        </header>
+        <ReportBody report={report} />
+        <footer className="rep-print-foot">Generated by SOCIA on {new Date(report.generatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}. Every figure is measured from the account&apos;s own data; anything a platform did not provide is omitted, never shown as zero.</footer>
+      </main>
     );
-  } catch {
-    /* report still renders with what exists */
   }
 
-  const acct: AccountInput = {
-    followers: snap?.followers_count ?? null,
-    lifetimePosts: snap?.media_count ?? null,
-    posts: snap?.media ?? [],
-    daily,
-    syncedAt: snap?.last_synced_at ?? null,
-    platform: "instagram",
-    handle: snap?.username ?? null,
-  };
+  const printHref = `/reports?print=1${customActive ? `&from=${sp.from}&to=${sp.to}` : `&range=${period.id}`}${platform !== "all" ? `&platform=${platform}` : ""}`;
+  const exportHref = `/api/reports/export?${customActive ? `from=${sp.from}&to=${sp.to}` : `range=${period.id}`}${platform !== "all" ? `&platform=${platform}` : ""}`;
 
-  const since = new Date(Date.now() - days * 86400000);
-  const periodLabel = `${since.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-  const top = getTopPosts(acct, 3);
-  const fmtK = (v: number) => (v >= 1000 ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "K" : String(v));
+  const PlatformTab = ({ id, label }: { id: ReportPlatform | "all"; label: string }) => (
+    <Link href={`/reports?platform=${id}${customActive ? `&from=${sp.from}&to=${sp.to}` : `&range=${period.id}`}`} className={platform === id ? "on" : ""}>{label}</Link>
+  );
 
   return (
     <AppShell active="reports" userEmail={user.email}>
       <PageHeader
         title="Reports"
-        sub={<>Period summary for {snap?.username ? `@${snap.username}` : "your account"} · {periodLabel}</>}
+        sub={<>Performance summary for {wsName} · {report.periodLabel}</>}
         actions={
-          <>
-            <div className="ov-seg" role="group" aria-label="Date range">
-              {REPORT_RANGES.map((r) => {
-                if (r.days > maxDays) {
-                  // Locked on this plan: shown, not navigable, and honest about where it lives.
-                  const required = minPlanWithLimit("analytics_history_days", r.days);
-                  const planName = required ? PLANS[required].name : "a custom plan";
+          <div className="rep-actions">
+            <div className="ov-seg" role="group" aria-label="Report period">
+              {PRESETS.map((p) => {
+                const featureLocked = !canUseFeature(ent, p.feature);
+                const historyLocked = p.days > maxDays;
+                if (featureLocked || historyLocked) {
+                  const plan = higherPlan(featureLocked ? lockPlan(p.feature) : "free", historyLocked ? planForDays(p.days) : "free");
+                  const planName = PLANS[plan].name;
                   return (
-                    <span key={r.id} className="range-locked" aria-disabled="true" title={`${r.days} days is available on ${planName}`}>
-                      {r.label}
-                      <Link href={pricingHref(required)}>{planName}</Link>
+                    <span key={p.id} className="range-locked" aria-disabled title={`${p.label} on ${planName}`}>
+                      {p.label}<Link href={pricingHref(plan)}>{planName}</Link>
                     </span>
                   );
                 }
-                return (
-                  <Link key={r.id} href={`/reports?range=${r.id}`} className={rangeId === r.id ? "on" : ""}>
-                    {r.label}
-                  </Link>
-                );
+                return <Link key={p.id} href={`/reports?range=${p.id}`} className={!customActive && period.id === p.id ? "on" : ""}>{p.label}</Link>;
               })}
             </div>
-            <a className="ov-btn ghost" href="/api/export">
-              <Download size={14} /> Export data (JSON)
-            </a>
-          </>
+
+            {gate.custom
+              ? <CustomRange from={customActive ? sp.from : undefined} to={customActive ? sp.to : undefined} platform={platform} maxDays={maxDays} />
+              : <Link href={pricingHref(lockPlan("custom_date_ranges"))} className="rep-lockchip"><Lock size={12} /> Custom range · {PLANS[lockPlan("custom_date_ranges")].name}</Link>}
+
+            {gate.export
+              ? <a className="ov-btn ghost" href={exportHref}><Download size={14} /> Export CSV</a>
+              : <Link href={pricingHref(lockPlan("report_exports"))} className="rep-lockchip"><Lock size={12} /> Export · {PLANS[lockPlan("report_exports")].name}</Link>}
+
+            {gate.client
+              ? <a className="ov-btn ghost" href={printHref} target="_blank" rel="noopener"><Printer size={14} /> Client report</a>
+              : <Link href={pricingHref(lockPlan("client_reports"))} className="rep-lockchip"><Lock size={12} /> Client report · {PLANS[lockPlan("client_reports")].name}</Link>}
+          </div>
         }
       />
 
-      <section className="dsh-panel dsh-tablewrap">
-        <div className="dsh-panel-head">
-          <h2>
-            <FileText size={14} />
-            Metric report
-          </h2>
-          <span className="lib-totals">Every row shows how the value was produced</span>
+      {gate.platform && (
+        <div className="ov-seg rep-platforms" role="group" aria-label="Platform">
+          <PlatformTab id="all" label="All platforms" />
+          <PlatformTab id="instagram" label="Instagram" />
+          <PlatformTab id="youtube" label="YouTube" />
         </div>
-        <div className="dsh-tablescroll">
-          <table className="dsh-table rep-table">
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th className="num">Value</th>
-                <th>Period</th>
-                <th>Status</th>
-                <th>How it was calculated</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Row label="Followers" m={getFollowers(acct)} />
-              <Row label="New followers" m={getFollowersGained(acct, days)} />
-              <Row label="Accounts reached" m={getReach(acct, days)} format={fmtK} />
-              <Row label="Posts published" m={getPostsPublished(acct, days)} />
-              <Row
-                label="Engagement rate"
-                m={getEngagementRate(acct)}
-                format={(v) => v.toFixed(2) + "%"}
-              />
-              <Row label="Performance baseline" m={getPerformanceBaseline(acct)} />
-            </tbody>
-          </table>
-        </div>
-      </section>
+      )}
 
-      <section className="dsh-panel dsh-tablewrap">
-        <div className="dsh-panel-head">
-          <h2>Top posts this period</h2>
-          <Link href="/analytics#posts" className="dsh-link">
-            All content <ArrowRight size={12} />
-          </Link>
-        </div>
-        {top.rows.length ? (
-          <ol className="dsh-top">
-            {top.rows.map(({ post, engagement, multiplier }, i) => (
-              <li key={post.id ?? i}>
-                <span className="dsh-top-rank">{String(i + 1).padStart(2, "0")}</span>
-                {post.thumbnail_url || post.media_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="dsh-top-thumb" src={post.thumbnail_url || post.media_url!} alt="" width={44} height={44} />
-                ) : (
-                  <span className="dsh-top-thumb ph" aria-hidden />
-                )}
-                <span className="dsh-top-meta">
-                  <b>{(post.caption || "").split("\n")[0].slice(0, 40) || "(no caption)"}</b>
-                  <small>
-                    {post.timestamp
-                      ? new Date(post.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                      : ""}
-                    {" · "}
-                    {engagementOf(post).toLocaleString("en-US")} engagements
-                  </small>
-                </span>
-                <span className="dsh-top-nums">
-                  <span className="dsh-top-stat">
-                    <b>{engagement.toLocaleString("en-US")}</b>
-                    <small>Engagements</small>
-                  </span>
-                  {multiplier != null && (
-                    <em className={multiplier >= 1 ? "up" : "down"}>
-                      {multiplier >= 1 ? "↑" : "↓"} {multiplier.toFixed(1)}×<small>vs baseline</small>
-                    </em>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="dsh-empty">No posts synced yet.</p>
-        )}
-      </section>
+      <ReportBody report={report} />
 
       <p className="dsh-trust">
-        <ShieldCheck size={13} /> Report values come from the same calculations the dashboard uses.
-        Anything Instagram doesn&apos;t provide is shown as &quot;—&quot;, never as zero.
+        <ShieldCheck size={13} /> Report values come from the same calculations the dashboard uses. Anything a platform doesn&apos;t provide is shown as &quot;—&quot;, never as zero.
+        {" "}<Link href="/api/export" className="dsh-link">Export all account data (JSON) <ArrowRight size={12} /></Link>
       </p>
     </AppShell>
   );
