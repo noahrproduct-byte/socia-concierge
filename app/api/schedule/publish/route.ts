@@ -6,6 +6,7 @@ import {
 } from "@/lib/igPublish";
 import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, type ScheduledPost } from "@/lib/scheduling";
 import { runDailySnapshots, type SnapshotRun } from "@/lib/snapshotJob";
+import { runAlertDetection, type AlertRun } from "@/lib/alertRun";
 import { getEntitlements, checkFeature, type Entitlements } from "@/lib/entitlements";
 import { requireFeature } from "@/lib/planGuard";
 import { parentsWithDestinations } from "@/lib/publishing/db";
@@ -317,5 +318,12 @@ async function run(req: Request) {
   if (Date.now() < deadline - 5_000) {
     try { snapshots = await runDailySnapshots(svc, now, Math.max(3_000, deadline - Date.now() - 2_000)); } catch { snapshots = null; }
   }
-  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots });
+  // Alert detection rides the same tick, after snapshots so it sees today's
+  // numbers. Deterministic and cheap (no external calls); a fingerprint keeps
+  // re-runs from duplicating events.
+  let alerts: AlertRun | null = null;
+  if (Date.now() < deadline - 3_000) {
+    try { alerts = await runAlertDetection(svc, now, Math.max(2_000, deadline - Date.now() - 1_500)); } catch { alerts = null; }
+  }
+  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots, alerts });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runDailySnapshots } from "@/lib/snapshotJob";
+import { runAlertDetection } from "@/lib/alertRun";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,8 +17,10 @@ async function run(req: Request) {
   if (!secret || bearer === undefined || clean(bearer) !== secret) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
-  const result = await runDailySnapshots(svc, new Date(), 50000);
-  return NextResponse.json(result);
+  const now = new Date();
+  const result = await runDailySnapshots(svc, now, 40000);
+  const alerts = await runAlertDetection(svc, now, 15000).catch(() => null);
+  return NextResponse.json({ ...result, alerts });
 }
 export async function GET(req: Request) { return run(req); }
 export async function POST(req: Request) { return run(req); }
