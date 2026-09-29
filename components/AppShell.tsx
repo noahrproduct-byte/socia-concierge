@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import WorkspaceSwitcher from "@/components/WorkspaceSwitcher";
-import TopBar, { type SearchItem } from "@/components/TopBar";
+import TopBar, { type SearchItem, type AlertItem } from "@/components/TopBar";
 import { ThemeSync } from "@/components/ThemeProvider";
 import { isAppearance, type Appearance } from "@/lib/appearance";
 import { createClient } from "@/lib/supabase/server";
@@ -31,6 +31,7 @@ import { getActiveConnection } from "@/lib/instagramSync";
 import { getEntitlements } from "@/lib/entitlements";
 import { PLANS, nextPlan, pricingHref, type PlanId } from "@/lib/plans";
 import { buildActivity, displayTitle, type Activity } from "@/lib/overview";
+import { getAlerts, unreadAlertCount } from "@/lib/alerts";
 import type { ScheduledPost } from "@/lib/scheduling";
 
 const FB_MARK = (
@@ -98,6 +99,8 @@ export default async function AppShell({
   let appearance: Appearance | null = null;
   let searchIndex: SearchItem[] = PAGES;
   let activity: Activity[] = [];
+  let alerts: AlertItem[] = [];
+  let unreadAlerts = 0;
   try {
     const supabase = await createClient();
     const {
@@ -145,6 +148,13 @@ export default async function AppShell({
         syncedAt: c?.last_synced_at ?? null,
         handle: igUsername,
       });
+      // Alerts of the active workspace (verified events; the bell inbox).
+      const [alertRows, unread] = await Promise.all([
+        getAlerts(ctx.client, ctx.ownerId, 15),
+        unreadAlertCount(ctx.client, ctx.ownerId),
+      ]);
+      alerts = alertRows.map((a) => ({ id: a.id, type: a.type, severity: a.severity, title: a.title, body: a.body, detectedAt: a.detectedAt, readAt: a.readAt, entityRef: a.entityRef }));
+      unreadAlerts = unread ?? 0;
     }
   } catch {
     // sidebar still renders with default rows
@@ -217,7 +227,7 @@ export default async function AppShell({
       </aside>
 
       <main className="app-main">
-        <TopBar email={userEmail} plan={plan} index={searchIndex} activity={activity} />
+        <TopBar email={userEmail} plan={plan} index={searchIndex} activity={activity} alerts={alerts} unread={unreadAlerts} />
         <div className="app-content">{children}</div>
       </main>
     </div>

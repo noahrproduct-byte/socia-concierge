@@ -6,22 +6,45 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen } from "lucide-react";
+import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen, TrendingUp, Zap, X } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
 import { AskHost } from "@/components/AskSocia";
 import { relTime, type Activity } from "@/lib/overview";
 import type { PlanId } from "@/lib/plans";
 
 export type SearchItem = { kind: "page" | "post"; label: string; hint?: string; href: string };
+export type AlertItem = { id: string; type: string; severity: "good" | "info" | "warning"; title: string; body: string; detectedAt: string; readAt: string | null; entityRef: string | null };
 
 const ACT_ICON = { scheduled: CalendarCheck2, published: CheckCircle2, failed: AlertTriangle, draft: FilePen, plan: FileText, sync: RefreshCw } as const;
+const ALERT_ICON: Record<string, typeof Zap> = { breakout: Zap, performance_change: TrendingUp };
 
-export default function TopBar({ email, plan, index, activity }: { email?: string | null; plan: PlanId; index: SearchItem[]; activity: Activity[] }) {
+export default function TopBar({ email, plan, index, activity, alerts = [], unread = 0 }: { email?: string | null; plan: PlanId; index: SearchItem[]; activity: Activity[]; alerts?: AlertItem[]; unread?: number }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(0);
   const [bell, setBell] = useState(false);
+  const [items, setItems] = useState<AlertItem[]>(alerts);
+  const [unreadN, setUnreadN] = useState(unread);
+  useEffect(() => { setItems(alerts); setUnreadN(unread); }, [alerts, unread]);
+
+  // Opening the bell marks the alerts read (optimistically); a failed publish
+  // still shows its own red dot from the activity feed.
+  const openBell = () => {
+    setBell((v) => {
+      const next = !v;
+      if (next && unreadN > 0) {
+        setUnreadN(0);
+        setItems((xs) => xs.map((a) => ({ ...a, readAt: a.readAt ?? new Date().toISOString() })));
+        fetch("/api/alerts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "read" }), keepalive: true }).catch(() => {});
+      }
+      return next;
+    });
+  };
+  const dismiss = (id: string) => {
+    setItems((xs) => xs.filter((a) => a.id !== id));
+    fetch("/api/alerts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "dismiss", id }), keepalive: true }).catch(() => {});
+  };
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
@@ -88,13 +111,33 @@ export default function TopBar({ email, plan, index, activity }: { email?: strin
       <div className="tb-right">
         <AskHost />
         <div className="tb-bell" ref={bellRef}>
-          <button type="button" className={`tb-iconbtn${bell ? " on" : ""}`} aria-label="Recent activity" aria-expanded={bell} onClick={() => setBell((v) => !v)}>
+          <button type="button" className={`tb-iconbtn${bell ? " on" : ""}`} aria-label={`Notifications${unreadN > 0 ? `, ${unreadN} unread` : ""}`} aria-expanded={bell} onClick={openBell}>
             <Bell size={16} />
-            {activity.some((a) => a.kind === "failed") && <span className="tb-bell-dot danger" aria-hidden />}
+            {unreadN > 0 ? <span className="tb-bell-badge" aria-hidden>{unreadN > 9 ? "9+" : unreadN}</span>
+              : activity.some((a) => a.kind === "failed") && <span className="tb-bell-dot danger" aria-hidden />}
           </button>
           {bell && (
-            <div className="tb-pop" role="dialog" aria-label="Recent activity">
-              <div className="tb-pop-head"><b>Recent activity</b><Link href="/calendar" onClick={() => setBell(false)}>Calendar</Link></div>
+            <div className="tb-pop" role="dialog" aria-label="Notifications">
+              <div className="tb-pop-head"><b>Notifications</b><Link href="/analytics" onClick={() => setBell(false)}>Analytics</Link></div>
+              {items.length > 0 && (
+                <ul className="tb-alerts">
+                  {items.map((a) => {
+                    const Icon = ALERT_ICON[a.type] ?? Zap;
+                    return (
+                      <li key={a.id} className={`tb-alert ${a.severity}${a.readAt ? "" : " unread"}`}>
+                        <span className="tb-alert-ico"><Icon size={14} /></span>
+                        <span className="tb-alert-body">
+                          <b>{a.title}</b>
+                          <small>{a.body}</small>
+                          <time dateTime={a.detectedAt}>{relTime(a.detectedAt)}</time>
+                        </span>
+                        <button type="button" className="tb-alert-x" aria-label="Dismiss" onClick={() => dismiss(a.id)}><X size={13} /></button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <div className="tb-pop-sub"><b>Recent activity</b><Link href="/calendar" onClick={() => setBell(false)}>Calendar</Link></div>
               {activity.length ? (
                 <ul className="tb-acts">
                   {activity.map((a) => {
@@ -108,7 +151,7 @@ export default function TopBar({ email, plan, index, activity }: { email?: strin
                     );
                   })}
                 </ul>
-              ) : <p className="tb-none">Nothing yet. Scheduled posts, generated plans and syncs show up here.</p>}
+              ) : items.length === 0 ? <p className="tb-none">Nothing yet. Breakout posts, big changes, scheduled posts and syncs show up here.</p> : null}
             </div>
           )}
         </div>
