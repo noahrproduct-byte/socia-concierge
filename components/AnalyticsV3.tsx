@@ -379,7 +379,14 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                 {gate.deeperInsights ? (
                   <>
                     {insights.length > 0 && <InsightList insights={insights.slice(0, 1)} posts={d.posts} compact onTab={jumpTab} />}
-                    <Locked plan={gate.deeperInsights} title="What's working, and what to do next" blurb={`SOCIA found ${Math.max(insights.length - 1, 0) || "more"} more ${insights.length - 1 === 1 ? "insight" : "insights"} in your data. See every one, plus What Changed and What To Do Next.`} from="analytics_insights" />
+                    <Locked
+                      plan={gate.deeperInsights}
+                      title="What's working, and what to do next"
+                      blurb={insights.length > 1
+                        ? `SOCIA found ${insights.length - 1} more ${insights.length - 1 === 1 ? "insight" : "insights"} in your data. See every one, plus What Changed and What To Do Next.`
+                        : "See What's Working, What Changed and What To Do Next, drawn from your own performance."}
+                      from="analytics_insights"
+                    />
                   </>
                 ) : isSingleIg ? (
                   <InsightList insights={insights.slice(0, 5)} posts={d.posts} compact onTab={jumpTab} />
