@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
@@ -43,7 +44,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   const { range: rangeParam } = await searchParams;
   const [profile, snap, ent] = await Promise.all([
-    getProfile(ctx.client, ctx.ownerId),
+    getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)),
     getIgSnapshot(ctx.client, ctx.ownerId),
     getEntitlements(ctx.client, ctx.ownerId),
   ]);
@@ -216,7 +217,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     });
   }
   try {
-    const { data: tt } = await ctx.client.from("tiktok_connections").select("username, display_name").eq("user_id", ctx.ownerId).maybeSingle();
+    // The active workspace's TikTok account. limit(1), not maybeSingle: a user
+    // with TikTok connected in two workspaces would make maybeSingle throw.
+    const { data: ttRows } = await scopeToWorkspace(
+      ctx.client.from("tiktok_connections").select("username, display_name").eq("user_id", ctx.ownerId),
+      ctx.workspace?.id,
+    ).limit(1);
+    const tt = (ttRows ?? [])[0];
     if (tt) graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: tt.username ? `@${tt.username}` : (tt.display_name || "TikTok"), series: {} });
   } catch { /* tiktok_connections may not exist yet */ }
 
