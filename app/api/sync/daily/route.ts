@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runDailySnapshots } from "@/lib/snapshotJob";
 import { runAlertDetection } from "@/lib/alertRun";
+import { recordCompetitorSnapshots } from "@/lib/competitorHistory";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,7 +21,8 @@ async function run(req: Request) {
   const now = new Date();
   const result = await runDailySnapshots(svc, now, 40000);
   const alerts = await runAlertDetection(svc, now, 15000).catch(() => null);
-  return NextResponse.json({ ...result, alerts });
+  const competitors = await recordCompetitorSnapshots(svc, now, 25000).catch(() => null);
+  return NextResponse.json({ ...result, alerts, competitors });
 }
 export async function GET(req: Request) { return run(req); }
 export async function POST(req: Request) { return run(req); }

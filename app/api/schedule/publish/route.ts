@@ -7,6 +7,7 @@ import {
 import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, type ScheduledPost } from "@/lib/scheduling";
 import { runDailySnapshots, type SnapshotRun } from "@/lib/snapshotJob";
 import { runAlertDetection, type AlertRun } from "@/lib/alertRun";
+import { recordCompetitorSnapshots, type CompetitorRun } from "@/lib/competitorHistory";
 import { getEntitlements, checkFeature, type Entitlements } from "@/lib/entitlements";
 import { requireFeature } from "@/lib/planGuard";
 import { parentsWithDestinations } from "@/lib/publishing/db";
@@ -325,5 +326,11 @@ async function run(req: Request) {
   if (Date.now() < deadline - 3_000) {
     try { alerts = await runAlertDetection(svc, now, Math.max(2_000, deadline - Date.now() - 1_500)); } catch { alerts = null; }
   }
-  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots, alerts });
+  // Competitor history accrues on the same tick, last (it makes external calls,
+  // so it takes whatever time is left). first-of-day wins; cheap on re-runs.
+  let competitors: CompetitorRun | null = null;
+  if (Date.now() < deadline - 4_000) {
+    try { competitors = await recordCompetitorSnapshots(svc, now, Math.max(2_000, deadline - Date.now() - 2_000)); } catch { competitors = null; }
+  }
+  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots, alerts, competitors });
 }
