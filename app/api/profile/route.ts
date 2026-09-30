@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, type BrandDetail } from "@/lib/profile";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { resolveContext, brandWorkspace, can, forbiddenCopy } from "@/lib/context";
 import { updateWorkspace, type WorkspacePatch } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -13,10 +13,11 @@ export async function GET() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ profile: null });
-    // getProfile overlays a non-default workspace's brand, so the brand form
-    // prefills with the brand of the workspace the person is in.
+    // Per-user fields (theme, platforms) come from the VIEWER's own profile
+    // row; the brand is overlaid from the active non-default workspace. This
+    // keeps a guest's own theme correct while showing the workspace's brand.
     const ctx = await resolveContext(supabase, user.id);
-    const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx));
+    const profile = await getProfile(supabase, user.id, brandWorkspace(ctx));
     return NextResponse.json({ profile });
   } catch {
     return NextResponse.json({ profile: null });
@@ -88,6 +89,14 @@ export async function POST(req: Request) {
       strategist: { ...(existing.strategist ?? {}), ...(body.brand_detail.strategist ?? {}) },
     };
     brandSaved = true;
+  }
+
+  // Editing a workspace's brand is a manage_workspace action: only the owner or
+  // an admin may. Without this, a Member (who acts through the service-role
+  // client) could overwrite the owner's brand. Per-user fields (theme etc.)
+  // still save below, so a Member can still set their own preferences.
+  if (brandWs && Object.keys(brand).length && !can(ctx, "manage_workspace")) {
+    return NextResponse.json({ error: forbiddenCopy("manage_workspace") }, { status: 403 });
   }
 
   // Route the brand to the workspace when one owns it; otherwise fold it into

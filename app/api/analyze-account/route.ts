@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { NICHES } from "@/lib/niches";
 import { requireUsage, recordEvent } from "@/lib/planGuard";
-import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
+import { resolveContext, brandWorkspace, can, type Ctx } from "@/lib/context";
 import { updateWorkspace, type WorkspacePatch } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -285,8 +285,10 @@ Allowed niches: ${NICHES.join(", ")}`;
     extracted.candidates = (extracted.candidates ?? []).slice(0, 3);
     extracted.highlights = (extracted.highlights ?? []).slice(0, 3);
 
-    // 4) Save automatically only when the model is genuinely confident.
-    if (extracted.confidence >= 75) {
+    // 4) Save automatically only when the model is genuinely confident — and
+    // only when the viewer may change the brand (owner/admin). A Member's audit
+    // still returns results; it just doesn't rewrite the brand.
+    if (extracted.confidence >= 75 && can(ctx, "manage_workspace")) {
       await saveNiche(ctx.client, ctx.ownerId, extracted.niche, detailOf(extracted), {
         brand_name: extracted.brand_name || account.username,
         goals: extracted.goal,
@@ -333,7 +335,9 @@ export async function POST(req: Request) {
   // Direct pick from the category list.
   if (body.choose?.niche) {
     const niche = NICHES.includes(body.choose.niche) ? body.choose.niche : "Other";
-    await saveNiche(ctx.client, ctx.ownerId, niche, { source: "manual" }, {}, brandWorkspace(ctx));
+    if (can(ctx, "manage_workspace")) {
+      await saveNiche(ctx.client, ctx.ownerId, niche, { source: "manual" }, {}, brandWorkspace(ctx));
+    }
     return NextResponse.json({ ok: true, niche });
   }
 
@@ -369,10 +373,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Couldn't structure that. Try again." }, { status: 502 });
     }
 
-    await saveNiche(ctx.client, ctx.ownerId, extracted.niche, {
-      ...detailOf(extracted),
-      source: "described",
-    }, {}, brandWorkspace(ctx));
+    if (can(ctx, "manage_workspace")) {
+      await saveNiche(ctx.client, ctx.ownerId, extracted.niche, {
+        ...detailOf(extracted),
+        source: "described",
+      }, {}, brandWorkspace(ctx));
+    }
     return NextResponse.json({ ok: true, extracted, usage: u.usage });
   } catch (err) {
     await u.release();
