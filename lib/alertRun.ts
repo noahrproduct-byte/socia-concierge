@@ -13,6 +13,7 @@ import { interactionsTotal } from "./engagement";
 import type { IgMediaItem } from "./instagramSync";
 import { detectBreakouts, detectPerformanceChange, isoWeekKey, type AlertCandidate, type BreakoutPost } from "./alertDetectors";
 import { recordAlerts, alertsEnabled } from "./alerts";
+import { getEntitlements, canUseFeature, type Entitlements } from "./entitlements";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -101,12 +102,24 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
     }
   }
 
+  // Which alert types an owner gets is a plan feature: every plan has breakout
+  // alerts, Starter and up add performance-change alerts. Resolve once per owner.
+  const entByOwner = new Map<string, Entitlements>();
+  const entFor = async (owner: string): Promise<Entitlements> => {
+    let e = entByOwner.get(owner);
+    if (!e) { e = await getEntitlements(svc, owner); entByOwner.set(owner, e); }
+    return e;
+  };
+
   for (const c of conns) {
     if (Date.now() > deadline) break;
     run.workspaces++;
     try {
+      const ent = await entFor(c.user_id);
       const media = Array.isArray(c.media) ? (c.media as IgMediaItem[]) : [];
-      const candidates = [...breakoutsFor("instagram", media, now.getTime()), ...(await performanceFor(svc, c, now))];
+      const candidates: AlertCandidate[] = [];
+      if (canUseFeature(ent, "breakout_alerts")) candidates.push(...breakoutsFor("instagram", media, now.getTime()));
+      if (canUseFeature(ent, "performance_change_alerts")) candidates.push(...(await performanceFor(svc, c, now)));
       run.candidates += candidates.length;
       if (candidates.length) run.recorded += await recordAlerts(svc, { userId: c.user_id, workspaceId: c.workspace_id ?? null }, candidates);
     } catch {

@@ -125,7 +125,7 @@ export type FeatureStatus = "available" | "coming_soon" | "policy";
 
 export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   scheduling: "available",
-  breakout_alerts: "coming_soon",
+  breakout_alerts: "available",
   monthly_summary: "available",
   posting_time_analysis: "available",
   growth_analysis: "available",
@@ -134,7 +134,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   content_plan: "available",
   niche_intelligence: "available",
   weekly_trend_roundup: "coming_soon",
-  performance_change_alerts: "coming_soon",
+  performance_change_alerts: "available",
   weekly_summary: "available",
   team: "available",
   cross_platform_analytics: "available",
