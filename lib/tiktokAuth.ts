@@ -13,7 +13,7 @@
 // Setup (TikTok for Developers → the "Socia" app):
 //   1. Login Kit + Content Posting API products added, scopes below approved.
 //   2. Redirect URI exactly equal to ttRedirectUri() in production
-//      (https://socia-concierge.vercel.app/api/auth/tiktok/callback).
+//      (https://sociaos.com/api/auth/tiktok/callback).
 //   3. TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET in the environment. The
 //      Sandbox has its own key/secret pair; use those until the app is live.
 
