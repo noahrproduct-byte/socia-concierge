@@ -43,6 +43,18 @@ function isMissingFunction(e: unknown): boolean {
   return /function .* does not exist/i.test(m) || /could not find .* function/i.test(m) || /schema cache/i.test(m);
 }
 
+/** The write used a per-workspace key shape the database can't satisfy yet: the
+ *  workspace_id column exists but the primary key was not widened (a partial
+ *  migration), or the not-null workspace_id is missing. Then a pooled retry is
+ *  the safe fallback until the migration is completed. */
+function isConstraintMismatch(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  if (!err) return false;
+  if (err.code === "42P10" || err.code === "23502") return true;
+  const m = err.message ?? "";
+  return /no unique or exclusion constraint matching the on conflict/i.test(m) || /null value in column "workspace_id"/i.test(m);
+}
+
 export async function GET() {
   const supabase = await createClient();
   const {
@@ -89,6 +101,10 @@ export async function POST(req: Request) {
   // on but the person has no workspace yet, create their default one.
   const scoped = await competitorsScopedEnabled(ctx.client);
   const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
+  // Isolation is on but we could not resolve a workspace to add into (no active
+  // workspace, all suspended): refuse cleanly instead of writing to the wrong
+  // key shape and returning a raw 500.
+  if (scoped && !wsId) return NextResponse.json({ error: "Couldn't find your active workspace. Reload and try again." }, { status: 503 });
 
   // The cap is the workspace owner's plan.
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
@@ -116,7 +132,7 @@ export async function POST(req: Request) {
     const { data, error } = await svc.rpc("socia_add_competitor", wsId
       ? { p_user: ctx.ownerId, p_workspace: wsId, p_platform: platform, p_handle: key, p_limit: limit }
       : { p_user: ctx.ownerId, p_platform: platform, p_handle: key, p_limit: limit });
-    if (error && !isMissingFunction(error)) {
+    if (error && !isMissingFunction(error) && !isConstraintMismatch(error)) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     if (!error) {
@@ -124,7 +140,8 @@ export async function POST(req: Request) {
       if (row?.already || row?.added) return NextResponse.json({ ok: true });
       return limitReached(typeof row?.active_count === "number" ? row.active_count : active);
     }
-    // Function missing: the database is pre-migration, so the legacy path is right.
+    // Function missing (pre-migration) or the per-workspace key isn't in force
+    // yet (partial migration): fall through to the resilient legacy path.
   }
 
   // ---- Legacy path: no service key, or the migration has not run ----------
@@ -140,20 +157,21 @@ export async function POST(req: Request) {
   const c = canAddCompetitor(ent, active);
   if (!c.ok) return limitReached(active);
 
-  // The conflict target matches the primary key in force: per-workspace once the
-  // migration has run, per-user before it.
-  const onConflict = wsId ? "user_id,workspace_id,platform,handle" : "user_id,platform,handle";
-  const row: Record<string, unknown> = wsId
-    ? { user_id: ctx.ownerId, workspace_id: wsId, platform, handle: key }
-    : { user_id: ctx.ownerId, platform, handle: key };
-  const { error } = await ctx.client
-    .from("tracked_competitors")
-    .upsert({ ...row, is_active: true }, { onConflict });
-  if (error) {
-    // Pre-migration schema: no is_active column, and no inactive rows either.
-    const { error: e2 } = await ctx.client.from("tracked_competitors").upsert(row, { onConflict });
-    if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
-  }
+  // Upsert with the key shape for the migration in force, retrying without
+  // is_active for a very old schema, and pooled if the per-workspace key is not
+  // yet in force (partial migration) so the add still succeeds.
+  const pooledRow: Record<string, unknown> = { user_id: ctx.ownerId, platform, handle: key };
+  const wsRow: Record<string, unknown> = wsId ? { user_id: ctx.ownerId, workspace_id: wsId, platform, handle: key } : pooledRow;
+  const upsert = async (r: Record<string, unknown>, oc: string) => {
+    let res = await ctx.client.from("tracked_competitors").upsert({ ...r, is_active: true }, { onConflict: oc });
+    if (res.error && !isConstraintMismatch(res.error)) {
+      res = await ctx.client.from("tracked_competitors").upsert(r, { onConflict: oc }); // pre-is_active schema
+    }
+    return res;
+  };
+  let { error } = await upsert(wsRow, wsId ? "user_id,workspace_id,platform,handle" : "user_id,platform,handle");
+  if (error && wsId && isConstraintMismatch(error)) ({ error } = await upsert(pooledRow, "user_id,platform,handle"));
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 
@@ -172,8 +190,12 @@ export async function DELETE(req: Request) {
 
   // An explicit removal is a hard delete, active or not. Scoped to THIS
   // workspace: without the workspace_id filter a removal would drop the handle
-  // from every brand that tracks it.
+  // from every brand that tracks it. If isolation is on but there is no active
+  // workspace, refuse rather than delete across all of them.
   const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
+  if (!cwid && (await competitorsScopedEnabled(ctx.client))) {
+    return NextResponse.json({ error: "Couldn't find your active workspace. Reload and try again." }, { status: 503 });
+  }
   let del = ctx.client
     .from("tracked_competitors")
     .delete()

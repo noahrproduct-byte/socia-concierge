@@ -22,6 +22,23 @@ alter table public.discovered_content  add column if not exists workspace_id uui
 alter table public.discovery_runs      add column if not exists workspace_id uuid references public.workspaces (id) on delete cascade;
 
 -- ---------------------------------------------------------------------------
+-- 1b. Any owner who has competitor rows but no default workspace gets one, so
+--     the backfill below can fill EVERY row. Without this a row could keep a
+--     null workspace_id, the primary-key widen (step 3) would silently skip,
+--     and the app — which enables scoping as soon as the column exists — would
+--     then use the new key shapes against the old key and 500 on add.
+-- ---------------------------------------------------------------------------
+insert into public.workspaces (owner_id, name, is_default)
+select distinct u, 'My brand', true
+from (
+  select user_id as u from public.tracked_competitors
+  union select user_id from public.discovered_accounts
+  union select user_id from public.discovered_content
+  union select user_id from public.discovery_runs
+) owners
+where not exists (select 1 from public.workspaces w where w.owner_id = owners.u and w.is_default);
+
+-- ---------------------------------------------------------------------------
 -- 2. Backfill every existing row to the owner's default workspace.
 -- ---------------------------------------------------------------------------
 update public.tracked_competitors t set workspace_id = w.id
@@ -46,33 +63,33 @@ update public.discovery_runs d set workspace_id = w.id
 -- ---------------------------------------------------------------------------
 do $$
 begin
-  -- tracked_competitors: (user_id, platform, handle) -> (+ workspace_id)
-  if not exists (select 1 from public.tracked_competitors where workspace_id is null) then
-    alter table public.tracked_competitors alter column workspace_id set not null;
-    alter table public.tracked_competitors drop constraint if exists tracked_competitors_pkey;
-    alter table public.tracked_competitors add constraint tracked_competitors_pkey primary key (user_id, workspace_id, platform, handle);
+  -- After 1b + backfill no row should still be null. If one is, STOP loudly
+  -- rather than skip the widen: a skipped widen + column-present would make the
+  -- app scope-on against the old key and 500 on every add. (Re-running this
+  -- whole file is safe and will resolve a transient cause.)
+  if exists (select 1 from public.tracked_competitors where workspace_id is null)
+     or exists (select 1 from public.discovered_accounts where workspace_id is null)
+     or exists (select 1 from public.discovered_content where workspace_id is null)
+     or exists (select 1 from public.discovery_runs where workspace_id is null) then
+    raise exception 'competitor backfill incomplete: some rows still have workspace_id = null; not widening the primary keys. Re-run this file (step 1b creates the missing default workspaces).';
   end if;
 
-  -- discovered_accounts: (user_id, platform, platform_account_id) -> (+ workspace_id)
-  if not exists (select 1 from public.discovered_accounts where workspace_id is null) then
-    alter table public.discovered_accounts alter column workspace_id set not null;
-    alter table public.discovered_accounts drop constraint if exists discovered_accounts_pkey;
-    alter table public.discovered_accounts add constraint discovered_accounts_pkey primary key (user_id, workspace_id, platform, platform_account_id);
-  end if;
+  -- No orphans: widen the keys so the same handle/URL can exist in two brands.
+  alter table public.tracked_competitors alter column workspace_id set not null;
+  alter table public.tracked_competitors drop constraint if exists tracked_competitors_pkey;
+  alter table public.tracked_competitors add constraint tracked_competitors_pkey primary key (user_id, workspace_id, platform, handle);
 
-  -- discovered_content: (user_id, content_url) -> (+ workspace_id)
-  if not exists (select 1 from public.discovered_content where workspace_id is null) then
-    alter table public.discovered_content alter column workspace_id set not null;
-    alter table public.discovered_content drop constraint if exists discovered_content_pkey;
-    alter table public.discovered_content add constraint discovered_content_pkey primary key (user_id, workspace_id, content_url);
-  end if;
+  alter table public.discovered_accounts alter column workspace_id set not null;
+  alter table public.discovered_accounts drop constraint if exists discovered_accounts_pkey;
+  alter table public.discovered_accounts add constraint discovered_accounts_pkey primary key (user_id, workspace_id, platform, platform_account_id);
 
-  -- discovery_runs: (user_id) -> (user_id, workspace_id)  [one row per workspace]
-  if not exists (select 1 from public.discovery_runs where workspace_id is null) then
-    alter table public.discovery_runs alter column workspace_id set not null;
-    alter table public.discovery_runs drop constraint if exists discovery_runs_pkey;
-    alter table public.discovery_runs add constraint discovery_runs_pkey primary key (user_id, workspace_id);
-  end if;
+  alter table public.discovered_content alter column workspace_id set not null;
+  alter table public.discovered_content drop constraint if exists discovered_content_pkey;
+  alter table public.discovered_content add constraint discovered_content_pkey primary key (user_id, workspace_id, content_url);
+
+  alter table public.discovery_runs alter column workspace_id set not null;
+  alter table public.discovery_runs drop constraint if exists discovery_runs_pkey;
+  alter table public.discovery_runs add constraint discovery_runs_pkey primary key (user_id, workspace_id);
 end $$;
 
 create index if not exists tracked_competitors_workspace_idx on public.tracked_competitors (user_id, workspace_id);
