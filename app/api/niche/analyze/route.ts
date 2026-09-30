@@ -67,7 +67,10 @@ export async function POST(req: Request) {
   const post = body.post;
   if (!post?.url) return NextResponse.json({ error: "No post given." }, { status: 400 });
 
-  const key = `analysis:${ctx.ownerId}:${post.url}`.slice(0, 900);
+  // Cache per workspace: the default keeps the owner-keyed cache, a second
+  // brand caches under its own id (its brand context shapes the analysis).
+  const scopeId = brandWorkspace(ctx)?.id ?? ctx.ownerId;
+  const key = `analysis:${scopeId}:${post.url}`.slice(0, 900);
   try {
     const { data } = await ctx.client.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
     const doc = data?.data as AnalyzeResponse | undefined;
