@@ -262,7 +262,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
             {source && frames && phase !== "extracting" && (
               <div className="st-row-actions">
                 <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => analyze(source, frames)}><RefreshCw size={12} className={phase === "analyzing" ? "spin" : undefined} /> {analysis ? "Re-analyze as a new version" : "Analyze"}</button>
-                {usage && <UsageLine meter="content_studio" used={usage.used} limit={usage.limit} />}
+                {usage && <UsageLine meter="content_studio" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} />}
               </div>
             )}
           </div>

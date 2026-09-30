@@ -43,6 +43,7 @@ export function UsageLine({
   meter,
   used,
   limit,
+  resetsOn,
   always = false,
   threshold = 0.8,
   className,
@@ -50,6 +51,8 @@ export function UsageLine({
   meter: MeterKey;
   used: number | null;
   limit: number;
+  /** ISO reset date; when present, shown once the line is near the limit. */
+  resetsOn?: string | null;
   always?: boolean;
   threshold?: number;
   className?: string;
@@ -59,10 +62,13 @@ export function UsageLine({
   if (!always && !near) return null;
   const left = Math.max(0, limit - used);
   const unit = left === 1 ? METER_UNIT[meter].one : METER_UNIT[meter].many;
+  // The reset date matters most once someone is close to or out of allowance.
+  const showReset = resetsOn && (near || left === 0);
   return (
     <span className={`usage-line${near ? " near" : ""}${left === 0 ? " out" : ""}${className ? ` ${className}` : ""}`}>
       {METER_LABEL[meter]}: {used} / {limit} used
       {left > 0 ? ` · ${left} ${unit} left` : ""}
+      {showReset ? ` · resets ${formatResetDate(resetsOn)}` : ""}
     </span>
   );
 }

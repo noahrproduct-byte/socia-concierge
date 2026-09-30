@@ -17,7 +17,7 @@ import { byteLength, countHashtags, countMentions, formatIdFor } from "@/lib/pub
 import type { ComposerAction } from "./contracts";
 
 type Option = { label: string; text: string; steps?: string[] };
-type Usage = { used: number | null; limit: number } | null;
+type Usage = { used: number | null; limit: number; resetsOn?: string | null } | null;
 type Result = { task: "caption" | "hooks" | "optimize"; platform: Platform | null; options: Option[] };
 
 /**
@@ -60,7 +60,7 @@ export async function improve(body: Record<string, unknown>): Promise<{ options:
     if (isPlanError(json)) throw new ImproveFailure(json.error, json);
     throw new ImproveFailure(json.error ?? "SOCIA could not generate options.", null);
   }
-  const usage = json.usage && typeof json.usage.limit === "number" ? { used: json.usage.used ?? null, limit: json.usage.limit } : null;
+  const usage = json.usage && typeof json.usage.limit === "number" ? { used: json.usage.used ?? null, limit: json.usage.limit, resetsOn: json.usage.resetsOn ?? null } : null;
   return { options: Array.isArray(json.options) ? json.options : [], usage };
 }
 
@@ -207,7 +207,7 @@ export default function MasterContent({
             {busy === "optimize" ? <Loader2 size={13} className="cp-spin" /> : null} Optimize for each platform
           </button>
         )}
-        {usage && <UsageLine meter="content_generation" used={usage.used} limit={usage.limit} className="cp-usage" />}
+        {usage && <UsageLine meter="content_generation" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} className="cp-usage" />}
       </div>
 
       {planError && <PlanNotice error={planError} compact />}

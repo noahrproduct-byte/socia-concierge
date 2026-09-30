@@ -173,7 +173,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           <span className="ask-mark"><Sparkles size={12} /></span>
           {chips.map((c) => <span key={c} className="ov-chip muted">{c}</span>)}
           <span className="ask-chips-note">answers from your verified data</span>
-          {usage && <UsageLine meter="ask_socia" used={usage.used} limit={usage.limit} />}
+          {usage && <UsageLine meter="ask_socia" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} />}
         </div>
         <div className="ask-thread" ref={scrollRef}>
           {messages.length === 0 && !busy && (
