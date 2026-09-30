@@ -8,8 +8,8 @@
 //   competitor_move     a tracked competitor's followers moved (competitor_snapshots)
 //   trend               a niche tag carried by several recent winners (discovered_content)
 //   opportunity         a winning niche format the account barely posts
-// The last three are Growth+ features and run for workspaces with Instagram
-// connected (the workspace seam); the fingerprint scheme namespaces by type.
+// The last three are Growth+ features and run daily for EVERY workspace (not
+// only those with Instagram); their fingerprints are namespaced per workspace.
 
 import { formatOf } from "./overview";
 import { interactionsTotal } from "./engagement";
@@ -91,10 +91,10 @@ type SnapRow = { platform: string; handle: string; day: string; followers: numbe
 type ContentRow = { trend_tags: unknown; multiplier: number | null; content_type: string | null; last_checked: string | null; published_at: string | null };
 
 /** Competitor follower moves, from this workspace's tracked handles and stored snapshots. */
-async function competitorMovesFor(svc: Supa, conn: IgConn, now: Date): Promise<AlertCandidate[]> {
+async function competitorMovesFor(svc: Supa, userId: string, workspaceId: string | null, now: Date): Promise<AlertCandidate[]> {
   try {
-    const cwid = await competitorScopeId(svc, conn.workspace_id);
-    let tq = svc.from("tracked_competitors").select("platform, handle").eq("user_id", conn.user_id);
+    const cwid = await competitorScopeId(svc, workspaceId);
+    let tq = svc.from("tracked_competitors").select("platform, handle").eq("user_id", userId);
     if (cwid) tq = tq.eq("workspace_id", cwid);
     const { data: tracked } = await tq;
     const rows = (tracked ?? []) as TrackedRow[];
@@ -103,7 +103,7 @@ async function competitorMovesFor(svc: Supa, conn: IgConn, now: Date): Promise<A
     const since = new Date(now.getTime() - 12 * dayMs).toISOString().slice(0, 10);
     const { data: snaps } = await svc.from("competitor_snapshots")
       .select("platform, handle, day, followers")
-      .eq("user_id", conn.user_id).in("handle", handles).gte("day", since);
+      .eq("user_id", userId).in("handle", handles).gte("day", since);
     const byKey = new Map<string, CompetitorSeries>();
     for (const s of (snaps ?? []) as SnapRow[]) {
       const key = `${s.platform}:${s.handle.toLowerCase()}`;
@@ -124,13 +124,13 @@ async function competitorMovesFor(svc: Supa, conn: IgConn, now: Date): Promise<A
 }
 
 /** Niche trend + format-opportunity, from this workspace's discovered content and the account's own posts. */
-async function nicheSignalsFor(svc: Supa, conn: IgConn, ent: Entitlements, media: IgMediaItem[], now: Date): Promise<AlertCandidate[]> {
+async function nicheSignalsFor(svc: Supa, userId: string, workspaceId: string | null, ent: Entitlements, media: IgMediaItem[], now: Date): Promise<AlertCandidate[]> {
   const wantTrend = canUseFeature(ent, "trend_alerts");
   const wantOpp = canUseFeature(ent, "opportunity_alerts");
   if (!wantTrend && !wantOpp) return [];
   try {
-    const cwid = await competitorScopeId(svc, conn.workspace_id);
-    let q = svc.from("discovered_content").select("trend_tags, multiplier, content_type, last_checked, published_at").eq("user_id", conn.user_id);
+    const cwid = await competitorScopeId(svc, workspaceId);
+    let q = svc.from("discovered_content").select("trend_tags, multiplier, content_type, last_checked, published_at").eq("user_id", userId);
     if (cwid) q = q.eq("workspace_id", cwid);
     const { data } = await q.limit(200);
     const rows = (data ?? []) as ContentRow[];
@@ -199,6 +199,8 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
     return e;
   };
 
+  // Pass 1: Instagram-specific detectors (breakout, performance), per active
+  // Instagram connection. These read the account's own posts and snapshots.
   for (const c of conns) {
     if (Date.now() > deadline) break;
     run.workspaces++;
@@ -208,17 +210,64 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
       const candidates: AlertCandidate[] = [];
       if (canUseFeature(ent, "breakout_alerts")) candidates.push(...breakoutsFor("instagram", media, now.getTime()));
       if (canUseFeature(ent, "performance_change_alerts")) candidates.push(...(await performanceFor(svc, c, now)));
-      // Phase-2 detectors (Growth+): competitor moves, niche trends, format gaps.
-      // Daily only — their inputs change at most once a day.
-      if (opts.phase2) {
-        if (canUseFeature(ent, "competitor_alerts")) candidates.push(...(await competitorMovesFor(svc, c, now)));
-        candidates.push(...(await nicheSignalsFor(svc, c, ent, media, now)));
-      }
       run.candidates += candidates.length;
       if (candidates.length) run.recorded += await recordAlerts(svc, { userId: c.user_id, workspaceId: c.workspace_id ?? null }, candidates);
     } catch {
       run.errors++;
     }
   }
+
+  // Pass 2 (daily): workspace-level detectors — competitor moves, niche trends,
+  // format gaps. These run for EVERY workspace, not just those with Instagram,
+  // so a YouTube-only or discovery-only brand still gets them.
+  if (opts.phase2) await runWorkspacePhase2(svc, conns, entFor, now, deadline, run);
+
   return run;
+}
+
+/** Phase-2 detectors across all workspaces (post-migration) or per user (before it). */
+async function runWorkspacePhase2(
+  svc: Supa,
+  conns: IgConn[],
+  entFor: (owner: string) => Promise<Entitlements>,
+  now: Date,
+  deadline: number,
+  run: AlertRun,
+): Promise<void> {
+  // The account's own posts, per workspace, for the opportunity detector.
+  const mediaByWs = new Map<string, IgMediaItem[]>();
+  for (const c of conns) if (c.workspace_id) mediaByWs.set(c.workspace_id, Array.isArray(c.media) ? (c.media as IgMediaItem[]) : []);
+
+  // Every non-suspended workspace; before the workspaces migration, fall back to
+  // one implicit workspace per user (via the Instagram connections).
+  let wss: { id: string; owner_id: string }[] | null = null;
+  try {
+    const { data, error } = await svc.from("workspaces").select("id, owner_id").is("plan_suspended_at", null);
+    if (!error) wss = (data ?? []) as { id: string; owner_id: string }[];
+  } catch {
+    wss = null;
+  }
+  const units: { userId: string; workspaceId: string | null; media: IgMediaItem[] }[] = wss
+    ? wss.map((w) => ({ userId: w.owner_id, workspaceId: w.id, media: mediaByWs.get(w.id) ?? [] }))
+    : conns.map((c) => ({ userId: c.user_id, workspaceId: null, media: Array.isArray(c.media) ? (c.media as IgMediaItem[]) : [] }));
+
+  for (const u of units) {
+    if (Date.now() > deadline) break;
+    try {
+      const ent = await entFor(u.userId);
+      const candidates: AlertCandidate[] = [];
+      if (canUseFeature(ent, "competitor_alerts")) candidates.push(...(await competitorMovesFor(svc, u.userId, u.workspaceId, now)));
+      candidates.push(...(await nicheSignalsFor(svc, u.userId, u.workspaceId, ent, u.media, now)));
+      if (!candidates.length) continue;
+      // Namespace the fingerprint by workspace so the same competitor, tag or
+      // format alerts each brand independently (dedup is per user + fingerprint).
+      const scoped = u.workspaceId
+        ? candidates.map((a) => ({ ...a, fingerprint: `${a.fingerprint}:ws:${u.workspaceId}` }))
+        : candidates;
+      run.candidates += scoped.length;
+      run.recorded += await recordAlerts(svc, { userId: u.userId, workspaceId: u.workspaceId }, scoped);
+    } catch {
+      run.errors++;
+    }
+  }
 }
