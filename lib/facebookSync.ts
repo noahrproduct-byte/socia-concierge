@@ -139,7 +139,8 @@ export async function syncFacebook(supabase: Supa, userId: string): Promise<FbSn
     await supabase
       .from("facebook_connections")
       .update({ connection_status: "expired" })
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .eq("page_id", conn.page_id);
     return null;
   }
 
@@ -159,7 +160,8 @@ export async function syncFacebook(supabase: Supa, userId: string): Promise<FbSn
       connection_status: "connected",
       last_synced_at: now,
     })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("page_id", conn.page_id);
 
   return {
     page_id: conn.page_id,

@@ -56,7 +56,9 @@ export async function tiktokAccessToken(supabase: SupabaseClient, userId: string
 
   const tok = await refreshAccessToken(row.refresh_token);
   if (!tok) return current;
-  await supabase
+  // Scope the token write to THIS account's row (open_id), so refreshing one
+  // workspace's TikTok never overwrites another workspace's token.
+  let uq = supabase
     .from("tiktok_connections")
     .update({
       access_token: tok.access_token,
@@ -65,8 +67,9 @@ export async function tiktokAccessToken(supabase: SupabaseClient, userId: string
       ...(tok.refreshExpiresIn != null ? { refresh_expires_at: new Date(Date.now() + tok.refreshExpiresIn * 1000).toISOString() } : {}),
       ...(tok.scopes.length ? { scopes: tok.scopes } : {}),
     })
-    .eq("user_id", userId)
-    .then(() => undefined, () => undefined);
+    .eq("user_id", userId);
+  if (row.open_id) uq = uq.eq("open_id", row.open_id);
+  await uq.then(() => undefined, () => undefined);
   return { token: tok.access_token, openId: row.open_id ?? tok.open_id, scopes: tok.scopes.length ? tok.scopes : scopes };
 }
 
@@ -103,7 +106,10 @@ export async function syncTikTok(
   if (profile) Object.assign(patch, profileColumns(profile));
   if (videos) patch.videos = videos;
   if (profile || videos) {
-    await supabase.from("tiktok_connections").update(patch).eq("user_id", userId).then(() => undefined, () => undefined);
+    // Only the account we synced (open_id), never every TikTok row of the user.
+    let uq = supabase.from("tiktok_connections").update(patch).eq("user_id", userId);
+    if (auth.openId) uq = uq.eq("open_id", auth.openId);
+    await uq.then(() => undefined, () => undefined);
   }
   return { profile, videos };
 }

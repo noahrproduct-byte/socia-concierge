@@ -111,15 +111,18 @@ export async function youtubeAccessToken(supabase: SupabaseClient, userId: strin
 
   const tok = await refreshAccessToken(row.refresh_token);
   if (!tok) return { token: row.access_token, channelId: row.channel_id, scopes };
-  await supabase
+  // Scope the token write to THIS channel, so refreshing one workspace's
+  // YouTube never overwrites another workspace's channel token.
+  let uq = supabase
     .from("youtube_connections")
     .update({
       access_token: tok.access_token,
       token_expires_at: new Date(Date.now() + tok.expiresIn * 1000).toISOString(),
       ...(tok.refresh_token && tok.refresh_token !== row.refresh_token ? { refresh_token: tok.refresh_token } : {}),
     })
-    .eq("user_id", userId)
-    .then(() => undefined, () => undefined);
+    .eq("user_id", userId);
+  if (row.channel_id) uq = uq.eq("channel_id", row.channel_id);
+  await uq.then(() => undefined, () => undefined);
   return { token: tok.access_token, channelId: row.channel_id, scopes };
 }
 
