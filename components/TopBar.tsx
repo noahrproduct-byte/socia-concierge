@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen, TrendingUp, Zap, X } from "lucide-react";
+import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen, TrendingUp, Zap, Users, Flame, Lightbulb, X } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
 import { AskHost } from "@/components/AskSocia";
 import { relTime, type Activity } from "@/lib/overview";
@@ -16,7 +16,13 @@ export type SearchItem = { kind: "page" | "post"; label: string; hint?: string; 
 export type AlertItem = { id: string; type: string; severity: "good" | "info" | "warning"; title: string; body: string; detectedAt: string; readAt: string | null; entityRef: string | null };
 
 const ACT_ICON = { scheduled: CalendarCheck2, published: CheckCircle2, failed: AlertTriangle, draft: FilePen, plan: FileText, sync: RefreshCw } as const;
-const ALERT_ICON: Record<string, typeof Zap> = { breakout: Zap, performance_change: TrendingUp };
+const ALERT_ICON: Record<string, typeof Zap> = {
+  breakout: Zap,
+  performance_change: TrendingUp,
+  competitor_move: Users,
+  trend: Flame,
+  opportunity: Lightbulb,
+};
 
 export default function TopBar({ email, plan, index, activity, alerts = [], unread = 0 }: { email?: string | null; plan: PlanId; index: SearchItem[]; activity: Activity[]; alerts?: AlertItem[]; unread?: number }) {
   const router = useRouter();
@@ -151,7 +157,7 @@ export default function TopBar({ email, plan, index, activity, alerts = [], unre
                     );
                   })}
                 </ul>
-              ) : items.length === 0 ? <p className="tb-none">Nothing yet. Breakout posts, big changes, scheduled posts and syncs show up here.</p> : null}
+              ) : items.length === 0 ? <p className="tb-none">Nothing yet. Breakout posts, big changes, competitor moves, niche trends and syncs show up here.</p> : null}
             </div>
           )}
         </div>

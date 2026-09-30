@@ -10671,6 +10671,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .tb-alert.unread { background: var(--primary-subtle, rgba(var(--primary-rgb), 0.07)); }
 .tb-alert-ico { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; background: var(--surface-muted); color: var(--text-secondary); margin-top: 1px; }
 .tb-alert.good .tb-alert-ico { background: var(--success-subtle); color: var(--success-text); }
+.tb-alert.info .tb-alert-ico { background: var(--primary-subtle, rgba(var(--primary-rgb), 0.12)); color: rgb(var(--primary-rgb)); }
 .tb-alert.warning .tb-alert-ico { background: var(--warning-subtle, var(--danger-subtle)); color: var(--warning-text, var(--danger-text)); }
 .tb-alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .tb-alert-body b { font-size: 12.5px; line-height: 1.35; color: var(--text-primary); }
