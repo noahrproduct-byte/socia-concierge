@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   if (askCtx.range && rangeDays(askCtx.range) > maxHistoryDays(ent)) askCtx.range = "30";
 
-  const ev = await buildAskEvidence(ctx.client, ctx.ownerId, askCtx);
+  const ev = await buildAskEvidence(ctx.client, ctx.ownerId, askCtx, ctx.workspace?.id ?? null);
   const first = messages[0];
   const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
 

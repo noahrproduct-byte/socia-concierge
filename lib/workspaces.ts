@@ -259,3 +259,17 @@ export async function deleteWorkspace(supabase: Supa, userId: string, workspaceI
 
 /** Active (not paused) workspaces, for the plan meter. */
 export const activeWorkspaces = (list: Workspace[]): Workspace[] => list.filter((w) => !w.suspended);
+
+/**
+ * Scope a Supabase query to a workspace's rows when one is active. A no-op
+ * before the migration (workspaceId null/undefined) so callers keep their
+ * per-user behaviour and never hide rows that predate the backfill. Use for
+ * tables that carry a workspace_id column (scheduled_posts, plans,
+ * post_destinations): `scopeToWorkspace(q.eq("user_id", ownerId), ctx.workspace?.id)`.
+ */
+export function scopeToWorkspace<T>(query: T, workspaceId: string | null | undefined): T {
+  // The Supabase filter builder returns itself from .eq; typed generically so
+  // any query builder passes through unchanged when there is no workspace.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return workspaceId ? ((query as any).eq("workspace_id", workspaceId) as T) : query;
+}

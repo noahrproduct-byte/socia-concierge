@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
@@ -149,10 +150,17 @@ export default async function DashboardPage({
   } catch {
     // snapshots table may not exist yet — series render their empty states
   }
+  const wsId = ctx.workspace?.id ?? null;
   const [schedRes, plansRes] = await Promise.all([
-    ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled")
-      .gte("scheduled_at", new Date(Date.now() - 30 * DAY_MS).toISOString()).order("scheduled_at", { ascending: true }).limit(200),
-    ctx.client.from("plans").select("id, data, created_at, client_handle").eq("user_id", ctx.ownerId).order("created_at", { ascending: false }).limit(1),
+    scopeToWorkspace(
+      ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled")
+        .gte("scheduled_at", new Date(Date.now() - 30 * DAY_MS).toISOString()),
+      wsId,
+    ).order("scheduled_at", { ascending: true }).limit(200),
+    scopeToWorkspace(
+      ctx.client.from("plans").select("id, data, created_at, client_handle").eq("user_id", ctx.ownerId),
+      wsId,
+    ).order("created_at", { ascending: false }).limit(1),
   ]);
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;

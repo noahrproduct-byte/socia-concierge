@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AskContext, AskPage } from "./ask";
 import { getProfile, type Profile } from "./profile";
+import { scopeToWorkspace } from "./workspaces";
 import { brandContext } from "./prompt";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "./instagramSync";
 import type { DailySnapshot } from "./dashboardMetrics";
@@ -88,7 +89,7 @@ async function accountBlock(supabase: Supa, userId: string): Promise<{ text: str
   return { text: lines.join("\n"), posts, media, handle: snap?.username ?? null, followers, daily };
 }
 
-export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskContext): Promise<AskEvidence> {
+export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskContext, workspaceId?: string | null): Promise<AskEvidence> {
   const profile = await getProfile(supabase, userId).catch(() => null);
   const acct = await accountBlock(supabase, userId);
   const parts: string[] = [`# Account evidence (assembled by SOCIA from the connected account)`, acct.text];
@@ -161,8 +162,8 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
 
   if (ctx.page === "plan") {
     try {
-      let q = supabase.from("plans").select("id, client_handle, niche, platform, data, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(1);
-      if (ctx.planId) q = supabase.from("plans").select("id, client_handle, niche, platform, data, created_at").eq("user_id", userId).eq("id", ctx.planId).limit(1);
+      let q = scopeToWorkspace(supabase.from("plans").select("id, client_handle, niche, platform, data, created_at").eq("user_id", userId), workspaceId).order("created_at", { ascending: false }).limit(1);
+      if (ctx.planId) q = scopeToWorkspace(supabase.from("plans").select("id, client_handle, niche, platform, data, created_at").eq("user_id", userId).eq("id", ctx.planId), workspaceId).limit(1);
       const { data } = await q;
       plan = (data?.[0] as SavedPlan | undefined) ?? null;
     } catch { plan = null; }

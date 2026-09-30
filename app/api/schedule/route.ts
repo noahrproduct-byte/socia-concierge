@@ -6,6 +6,7 @@ import { getEntitlements, canUseFeature, checkFeature, type Entitlements } from 
 import type { PlanError } from "@/lib/planErrors";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -93,11 +94,14 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const from = u.searchParams.get("from");
   const to = u.searchParams.get("to");
-  let q = ctx.client
-    .from("scheduled_posts")
-    .select("*")
-    .eq("user_id", ctx.ownerId)
-    .neq("status", "cancelled")
+  let q = scopeToWorkspace(
+    ctx.client
+      .from("scheduled_posts")
+      .select("*")
+      .eq("user_id", ctx.ownerId)
+      .neq("status", "cancelled"),
+    ctx.workspace?.id,
+  )
     .order("scheduled_at", { ascending: true })
     .limit(400);
   if (from) q = q.gte("scheduled_at", from);
@@ -157,12 +161,15 @@ export async function POST(req: Request) {
   let skipped = 0;
   const planIds = [...new Set(rows.map((r) => r.plan_id).filter((x): x is string => Boolean(x)))];
   if (planIds.length) {
-    const { data: existing } = await ctx.client
-      .from("scheduled_posts")
-      .select("plan_id, plan_day, scheduled_at")
-      .eq("user_id", ctx.ownerId)
-      .in("plan_id", planIds)
-      .neq("status", "cancelled");
+    const { data: existing } = await scopeToWorkspace(
+      ctx.client
+        .from("scheduled_posts")
+        .select("plan_id, plan_day, scheduled_at")
+        .eq("user_id", ctx.ownerId)
+        .in("plan_id", planIds)
+        .neq("status", "cancelled"),
+      ctx.workspace?.id,
+    );
     const taken = new Set(((existing ?? []) as { plan_id: string | null; plan_day: string | null; scheduled_at: string }[]).map((e) => `${e.plan_id}|${(e.plan_day ?? "").toLowerCase()}|${new Date(e.scheduled_at).toISOString()}`));
     const before = rows.length;
     const kept = rows.filter((r) => !r.plan_id || !taken.has(`${r.plan_id}|${(r.plan_day ?? "").toLowerCase()}|${r.scheduled_at}`));
@@ -193,12 +200,14 @@ export async function PATCH(req: Request) {
   const body = (await req.json().catch(() => null)) as Body | null;
   if (!body?.id) return NextResponse.json({ error: "id required." }, { status: 400 });
 
-  const { data: cur, error: readErr } = await ctx.client
-    .from("scheduled_posts")
-    .select("*")
-    .eq("id", body.id)
-    .eq("user_id", ctx.ownerId)
-    .maybeSingle();
+  const { data: cur, error: readErr } = await scopeToWorkspace(
+    ctx.client
+      .from("scheduled_posts")
+      .select("*")
+      .eq("id", body.id)
+      .eq("user_id", ctx.ownerId),
+    ctx.workspace?.id,
+  ).maybeSingle();
   if (readErr || !cur) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (cur.status === "published") return NextResponse.json({ error: "Published posts can't be edited." }, { status: 409 });
 
@@ -238,11 +247,14 @@ export async function PATCH(req: Request) {
     if (cur.status === "draft" && next.status === "scheduled" && cur.error) next.error = null;
   }
 
-  const { data, error } = await ctx.client
-    .from("scheduled_posts")
-    .update(next)
-    .eq("id", body.id)
-    .eq("user_id", ctx.ownerId)
+  const { data, error } = await scopeToWorkspace(
+    ctx.client
+      .from("scheduled_posts")
+      .update(next)
+      .eq("id", body.id)
+      .eq("user_id", ctx.ownerId),
+    ctx.workspace?.id,
+  )
     .select("*")
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -260,18 +272,23 @@ export async function DELETE(req: Request) {
 
   // Remove the media object too, so the bucket doesn't accumulate orphans.
   // Only a file under the viewer's or the owner's folder is ever removed.
-  const { data: cur } = await ctx.client
-    .from("scheduled_posts")
-    .select("media_path, status")
-    .eq("id", body.id)
-    .eq("user_id", ctx.ownerId)
-    .maybeSingle();
+  const { data: cur } = await scopeToWorkspace(
+    ctx.client
+      .from("scheduled_posts")
+      .select("media_path, status")
+      .eq("id", body.id)
+      .eq("user_id", ctx.ownerId),
+    ctx.workspace?.id,
+  ).maybeSingle();
   if (cur?.status === "published") return NextResponse.json({ error: "Published posts stay in the record." }, { status: 409 });
   if (cur?.media_path && ownsPath(ctx, cur.media_path)) {
     await ctx.client.storage.from("scheduled-media").remove([cur.media_path]).catch(() => null);
   }
 
-  const { error } = await ctx.client.from("scheduled_posts").delete().eq("id", body.id).eq("user_id", ctx.ownerId);
+  const { error } = await scopeToWorkspace(
+    ctx.client.from("scheduled_posts").delete().eq("id", body.id).eq("user_id", ctx.ownerId),
+    ctx.workspace?.id,
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

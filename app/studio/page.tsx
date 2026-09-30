@@ -6,6 +6,7 @@ import AppShell from "@/components/AppShell";
 import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const metadata = { title: "Content Studio — SOCIA" };
 
@@ -27,12 +28,15 @@ export default async function StudioPage() {
 
   let drafts: DraftItem[] = [];
   try {
-    const { data } = await ctx.client
-      .from("scheduled_posts")
-      .select("id, caption, media_url, media_type, scheduled_at, status")
-      .eq("user_id", ctx.ownerId)
-      .not("media_url", "is", null)
-      .in("status", ["draft", "scheduled", "failed"])
+    const { data } = await scopeToWorkspace(
+      ctx.client
+        .from("scheduled_posts")
+        .select("id, caption, media_url, media_type, scheduled_at, status")
+        .eq("user_id", ctx.ownerId)
+        .not("media_url", "is", null)
+        .in("status", ["draft", "scheduled", "failed"]),
+      ctx.workspace?.id,
+    )
       .order("scheduled_at", { ascending: true })
       .limit(12);
     drafts = (data ?? []) as DraftItem[];

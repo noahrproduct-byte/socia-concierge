@@ -9,6 +9,7 @@ import { serviceConfigured } from "@/lib/supabase/service";
 import { getEntitlements, checkFeature } from "@/lib/entitlements";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
 
@@ -92,13 +93,17 @@ export default async function CalendarPage() {
   // The user's queue (recent past kept so published/failed posts stay visible)
   // and what we know about whether the publisher can actually post.
   const since = new Date(Date.now() - 60 * 86400000).toISOString();
+  const wsId = ctx.workspace?.id ?? null;
   const [{ data: rows }, conn, { data: heartbeat }, ent] = await Promise.all([
-    ctx.client
-      .from("scheduled_posts")
-      .select("*")
-      .eq("user_id", ctx.ownerId)
-      .neq("status", "cancelled")
-      .gte("scheduled_at", since)
+    scopeToWorkspace(
+      ctx.client
+        .from("scheduled_posts")
+        .select("*")
+        .eq("user_id", ctx.ownerId)
+        .neq("status", "cancelled")
+        .gte("scheduled_at", since),
+      wsId,
+    )
       .order("scheduled_at", { ascending: true })
       .limit(400),
     getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id, scopes"),

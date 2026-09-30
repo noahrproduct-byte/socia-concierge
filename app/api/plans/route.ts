@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -16,10 +17,13 @@ export async function GET() {
     if (!user) return NextResponse.json({ plans: [] });
     const ctx = await resolveContext(supabase, user.id);
 
-    const { data, error } = await ctx.client
-      .from("plans")
-      .select("id, client_handle, niche, platform, data, created_at")
-      .eq("user_id", ctx.ownerId)
+    const { data, error } = await scopeToWorkspace(
+      ctx.client
+        .from("plans")
+        .select("id, client_handle, niche, platform, data, created_at")
+        .eq("user_id", ctx.ownerId),
+      ctx.workspace?.id,
+    )
       .order("created_at", { ascending: false })
       .limit(30);
 
@@ -47,10 +51,16 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
   if (!body.id || !Array.isArray(body.weeklyPlan)) return NextResponse.json({ error: "id and weeklyPlan required." }, { status: 400 });
-  const { data: cur, error: readErr } = await ctx.client.from("plans").select("id, data").eq("id", body.id).eq("user_id", ctx.ownerId).maybeSingle();
+  const { data: cur, error: readErr } = await scopeToWorkspace(
+    ctx.client.from("plans").select("id, data").eq("id", body.id).eq("user_id", ctx.ownerId),
+    ctx.workspace?.id,
+  ).maybeSingle();
   if (readErr || !cur) return NextResponse.json({ error: "Plan not found." }, { status: 404 });
   const data = { ...(cur.data as Record<string, unknown>), weeklyPlan: body.weeklyPlan };
-  const { data: rows, error } = await ctx.client.from("plans").update({ data }).eq("id", body.id).eq("user_id", ctx.ownerId).select("id, client_handle, niche, platform, data, created_at");
+  const { data: rows, error } = await scopeToWorkspace(
+    ctx.client.from("plans").update({ data }).eq("id", body.id).eq("user_id", ctx.ownerId),
+    ctx.workspace?.id,
+  ).select("id, client_handle, niche, platform, data, created_at");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!rows?.length) return NextResponse.json({ error: "The change was applied on screen but could not be saved to the plan. Run the latest supabase/schema.sql (plans update policy) to enable saving." }, { status: 403 });
   return NextResponse.json({ plan: rows[0] });
