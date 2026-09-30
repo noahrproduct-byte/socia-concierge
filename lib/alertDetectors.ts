@@ -6,7 +6,7 @@
 // metric measured against the previous equal period. The caller stores them
 // (lib/alerts.ts); the fingerprint keeps re-runs from duplicating.
 
-export type AlertType = "breakout" | "performance_change";
+export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity";
 export type AlertSeverity = "good" | "info" | "warning";
 
 export type AlertCandidate = {
@@ -141,4 +141,166 @@ export function isoWeekKey(d: Date): string {
   const firstThursday = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
   const week = 1 + Math.round(((t.getTime() - firstThursday.getTime()) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
   return `${t.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
+// Phase-2 detectors: competitor movement, niche trends, format opportunity.
+// Each still reads only real, already-stored numbers and invents nothing; when
+// the data doesn't clear the bar it returns none rather than a soft signal.
+// ---------------------------------------------------------------------------
+
+export type CompetitorSeries = {
+  handle: string;
+  /** Daily follower/subscriber snapshots for this competitor, any order. */
+  points: { day: string; followers: number | null }[];
+};
+
+/**
+ * A tracked competitor whose follower count moved at least `minPct`% between the
+ * oldest and newest snapshot in the set. Needs two dated points and a base of at
+ * least `floor` followers so a tiny account's noise doesn't fire. Fingerprint is
+ * per competitor per ISO week, so one sustained move reminds at most once a week.
+ */
+export function detectCompetitorMoves(input: {
+  platform: string;
+  competitors: CompetitorSeries[];
+  weekKey: string;
+  minPct?: number;
+  floor?: number;
+}): AlertCandidate[] {
+  const { platform, competitors, weekKey } = input;
+  const minPct = input.minPct ?? 8;
+  const floor = input.floor ?? 200;
+  const out: AlertCandidate[] = [];
+  for (const c of competitors) {
+    const pts = c.points
+      .filter((p): p is { day: string; followers: number } => p.followers != null && Boolean(p.day))
+      .sort((a, b) => a.day.localeCompare(b.day));
+    if (pts.length < 2) continue;
+    const first = pts[0], last = pts[pts.length - 1];
+    if (first.day === last.day) continue;
+    if (first.followers < floor) continue;
+    const delta = last.followers - first.followers;
+    const pct = (delta / first.followers) * 100;
+    if (Math.abs(pct) < minPct) continue;
+    const up = delta >= 0;
+    const h = c.handle.replace(/^@/, "");
+    out.push({
+      type: "competitor_move",
+      platform,
+      fingerprint: `competitor_move:${platform}:${h.toLowerCase()}:${weekKey}`,
+      severity: "info",
+      title: `@${h} ${up ? "gained" : "lost"} ${fmt(Math.abs(delta))} followers (${up ? "+" : "−"}${Math.abs(Math.round(pct))}%)`,
+      body: `From ${fmt(first.followers)} to ${fmt(last.followers)} between ${first.day} and ${last.day}. ${up ? "Worth a look at what they're posting." : "Their audience is shrinking."}`,
+      evidence: { handle: h, from: first.followers, to: last.followers, pct: Math.round(pct), fromDay: first.day, toDay: last.day },
+      entityRef: h,
+    });
+  }
+  return out;
+}
+
+/**
+ * A niche trend tag carried by at least `minItems` recently-discovered posts that
+ * each beat their creator's median by `minMultiple`×. Only content within
+ * `windowDays` counts, so a trend has to be current. Fingerprint is per tag per
+ * ISO week. Returns the strongest few (by count) so the inbox isn't flooded.
+ */
+export function detectNicheTrends(input: {
+  items: { trendTags: string[]; multiplier: number | null; whenMs: number }[];
+  now: number;
+  weekKey: string;
+  windowDays?: number;
+  minItems?: number;
+  minMultiple?: number;
+  maxAlerts?: number;
+}): AlertCandidate[] {
+  const { items, now, weekKey } = input;
+  const windowDays = input.windowDays ?? 21;
+  const minItems = input.minItems ?? 3;
+  const minMultiple = input.minMultiple ?? 2;
+  const maxAlerts = input.maxAlerts ?? 3;
+  const cutoff = now - windowDays * 86400000;
+
+  const byTag = new Map<string, number[]>(); // tag -> multipliers of winning posts
+  for (const it of items) {
+    if (!(it.whenMs >= cutoff)) continue;
+    if (it.multiplier == null || it.multiplier < minMultiple) continue;
+    for (const raw of it.trendTags ?? []) {
+      const tag = String(raw ?? "").trim();
+      if (!tag) continue;
+      byTag.set(tag.toLowerCase(), [...(byTag.get(tag.toLowerCase()) ?? []), it.multiplier]);
+    }
+  }
+  const ranked = [...byTag.entries()]
+    .filter(([, mults]) => mults.length >= minItems)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, maxAlerts);
+
+  return ranked.map(([tag, mults]) => {
+    const med = median(mults) ?? minMultiple;
+    return {
+      type: "trend" as const,
+      platform: "niche",
+      fingerprint: `trend:${tag}:${weekKey}`,
+      severity: "good" as const,
+      title: `"${tag}" is winning in your niche right now`,
+      body: `${mults.length} recent posts tagged "${tag}" are averaging ${fmtMult(med)} their creators' median. A format worth trying this week.`,
+      evidence: { tag, count: mults.length, medianMultiple: Math.round(med * 10) / 10, windowDays },
+      entityRef: null,
+    };
+  });
+}
+
+/** Coarse content bucket, so IG's Reel/Carousel and the niche's short/video map together. */
+export function formatBucket(raw: string): "video" | "image" | null {
+  const s = (raw || "").toLowerCase();
+  if (/reel|short|video|clip|tiktok/.test(s)) return "video";
+  if (/image|carousel|photo|post|graphic/.test(s)) return "image";
+  return null;
+}
+
+/**
+ * A format the niche's winners lean on that the person barely posts. Fires only
+ * when both samples are large enough (`minUserPosts`, `minNicheWinners`), the
+ * winning format is a clear majority (`nicheShareMin`) and the person's share of
+ * it is low (`userShareMax`) — a stark, honest gap, not a nudge. Once per format
+ * per ISO week.
+ */
+export function detectFormatGap(input: {
+  userFormats: string[];
+  nicheWinnerFormats: string[];
+  weekKey: string;
+  minUserPosts?: number;
+  minNicheWinners?: number;
+  nicheShareMin?: number;
+  userShareMax?: number;
+}): AlertCandidate | null {
+  const minUserPosts = input.minUserPosts ?? 6;
+  const minNicheWinners = input.minNicheWinners ?? 4;
+  const nicheShareMin = input.nicheShareMin ?? 0.6;
+  const userShareMax = input.userShareMax ?? 0.2;
+
+  const userBuckets = input.userFormats.map(formatBucket).filter((b): b is "video" | "image" => b != null);
+  const nicheBuckets = input.nicheWinnerFormats.map(formatBucket).filter((b): b is "video" | "image" => b != null);
+  if (userBuckets.length < minUserPosts || nicheBuckets.length < minNicheWinners) return null;
+
+  const share = (arr: ("video" | "image")[], b: "video" | "image") => arr.filter((x) => x === b).length / arr.length;
+  for (const bucket of ["video", "image"] as const) {
+    const nicheShare = share(nicheBuckets, bucket);
+    const userShare = share(userBuckets, bucket);
+    if (nicheShare >= nicheShareMin && userShare <= userShareMax) {
+      const label = bucket === "video" ? "short-form video" : "image & carousel";
+      return {
+        type: "opportunity",
+        platform: "niche",
+        fingerprint: `opportunity:format:${bucket}:${input.weekKey}`,
+        severity: "info",
+        title: `Your niche is winning with ${label} — you're barely posting it`,
+        body: `${Math.round(nicheShare * 100)}% of the winning posts in your niche are ${label}, but only ${Math.round(userShare * 100)}% of your recent posts are.`,
+        evidence: { bucket, nicheSharePct: Math.round(nicheShare * 100), userSharePct: Math.round(userShare * 100), userPosts: userBuckets.length, nicheWinners: nicheBuckets.length },
+        entityRef: null,
+      };
+    }
+  }
+  return null;
 }

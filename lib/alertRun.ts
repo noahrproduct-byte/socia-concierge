@@ -2,18 +2,25 @@
 // and turn it into verified alert events. No new API calls and no model. Runs
 // from the daily cron (service role), after the snapshot job.
 //
-// Launch detectors (Instagram, from stored data):
+// Detectors (from stored data, per active workspace):
 //   breakout            a recent post above its own format's median
 //   performance_change  reach / views / new-followers vs the previous 7 days
-// YouTube, TikTok and the trend/competitor detectors follow once their history
-// is stored; the fingerprint scheme already namespaces by platform and type.
+//   competitor_move     a tracked competitor's followers moved (competitor_snapshots)
+//   trend               a niche tag carried by several recent winners (discovered_content)
+//   opportunity         a winning niche format the account barely posts
+// The last three are Growth+ features and run for workspaces with Instagram
+// connected (the workspace seam); the fingerprint scheme namespaces by type.
 
 import { formatOf } from "./overview";
 import { interactionsTotal } from "./engagement";
 import type { IgMediaItem } from "./instagramSync";
-import { detectBreakouts, detectPerformanceChange, isoWeekKey, type AlertCandidate, type BreakoutPost } from "./alertDetectors";
+import {
+  detectBreakouts, detectPerformanceChange, detectCompetitorMoves, detectNicheTrends, detectFormatGap,
+  isoWeekKey, type AlertCandidate, type BreakoutPost, type CompetitorSeries,
+} from "./alertDetectors";
 import { recordAlerts, alertsEnabled } from "./alerts";
 import { getEntitlements, canUseFeature, type Entitlements } from "./entitlements";
+import { competitorScopeId } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -79,6 +86,81 @@ async function performanceFor(svc: Supa, conn: IgConn, now: Date): Promise<Alert
   return out;
 }
 
+type TrackedRow = { platform: string; handle: string };
+type SnapRow = { platform: string; handle: string; day: string; followers: number | null };
+type ContentRow = { trend_tags: unknown; multiplier: number | null; content_type: string | null; last_checked: string | null; published_at: string | null };
+
+/** Competitor follower moves, from this workspace's tracked handles and stored snapshots. */
+async function competitorMovesFor(svc: Supa, conn: IgConn, now: Date): Promise<AlertCandidate[]> {
+  try {
+    const cwid = await competitorScopeId(svc, conn.workspace_id);
+    let tq = svc.from("tracked_competitors").select("platform, handle").eq("user_id", conn.user_id);
+    if (cwid) tq = tq.eq("workspace_id", cwid);
+    const { data: tracked } = await tq;
+    const rows = (tracked ?? []) as TrackedRow[];
+    if (!rows.length) return [];
+    const handles = [...new Set(rows.map((r) => r.handle.toLowerCase()))];
+    const since = new Date(now.getTime() - 12 * dayMs).toISOString().slice(0, 10);
+    const { data: snaps } = await svc.from("competitor_snapshots")
+      .select("platform, handle, day, followers")
+      .eq("user_id", conn.user_id).in("handle", handles).gte("day", since);
+    const byKey = new Map<string, CompetitorSeries>();
+    for (const s of (snaps ?? []) as SnapRow[]) {
+      const key = `${s.platform}:${s.handle.toLowerCase()}`;
+      const cur = byKey.get(key) ?? { handle: s.handle, points: [] };
+      cur.points.push({ day: s.day, followers: s.followers });
+      byKey.set(key, cur);
+    }
+    const weekKey = isoWeekKey(now);
+    const out: AlertCandidate[] = [];
+    for (const platform of ["instagram", "youtube"] as const) {
+      const comps = [...byKey.entries()].filter(([k]) => k.startsWith(`${platform}:`)).map(([, v]) => v);
+      if (comps.length) out.push(...detectCompetitorMoves({ platform, competitors: comps, weekKey }));
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Niche trend + format-opportunity, from this workspace's discovered content and the account's own posts. */
+async function nicheSignalsFor(svc: Supa, conn: IgConn, ent: Entitlements, media: IgMediaItem[], now: Date): Promise<AlertCandidate[]> {
+  const wantTrend = canUseFeature(ent, "trend_alerts");
+  const wantOpp = canUseFeature(ent, "opportunity_alerts");
+  if (!wantTrend && !wantOpp) return [];
+  try {
+    const cwid = await competitorScopeId(svc, conn.workspace_id);
+    let q = svc.from("discovered_content").select("trend_tags, multiplier, content_type, last_checked, published_at").eq("user_id", conn.user_id);
+    if (cwid) q = q.eq("workspace_id", cwid);
+    const { data } = await q.limit(200);
+    const rows = (data ?? []) as ContentRow[];
+    if (!rows.length) return [];
+    const weekKey = isoWeekKey(now);
+    const out: AlertCandidate[] = [];
+    if (wantTrend) {
+      const items = rows.map((r) => ({
+        trendTags: Array.isArray(r.trend_tags) ? (r.trend_tags as unknown[]).map((t) => String(t)) : [],
+        multiplier: r.multiplier,
+        whenMs: new Date(r.last_checked ?? r.published_at ?? 0).getTime(),
+      }));
+      out.push(...detectNicheTrends({ items, now: now.getTime(), weekKey }));
+    }
+    if (wantOpp) {
+      const nicheWinnerFormats = rows.filter((r) => (r.multiplier ?? 0) >= 2).map((r) => r.content_type ?? "").filter(Boolean);
+      const userFormats = [...media]
+        .filter((m) => m.timestamp)
+        .sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime())
+        .slice(0, 20)
+        .map((m) => formatOf(m));
+      const opp = detectFormatGap({ userFormats, nicheWinnerFormats, weekKey });
+      if (opp) out.push(opp);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** Read active Instagram connections, detect, and record. Cheap: no external calls. */
 export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 15000): Promise<AlertRun> {
   const run: AlertRun = { workspaces: 0, candidates: 0, recorded: 0, errors: 0 };
@@ -120,6 +202,9 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
       const candidates: AlertCandidate[] = [];
       if (canUseFeature(ent, "breakout_alerts")) candidates.push(...breakoutsFor("instagram", media, now.getTime()));
       if (canUseFeature(ent, "performance_change_alerts")) candidates.push(...(await performanceFor(svc, c, now)));
+      // Phase-2 detectors (Growth+): competitor moves, niche trends, format gaps.
+      if (canUseFeature(ent, "competitor_alerts")) candidates.push(...(await competitorMovesFor(svc, c, now)));
+      candidates.push(...(await nicheSignalsFor(svc, c, ent, media, now)));
       run.candidates += candidates.length;
       if (candidates.length) run.recorded += await recordAlerts(svc, { userId: c.user_id, workspaceId: c.workspace_id ?? null }, candidates);
     } catch {

@@ -86,10 +86,10 @@ describe("plan configuration", () => {
     // Everything marked available must be a thing the app really gates or renders today.
     const available = FEATURES.filter((k) => FEATURE_STATUS[k] === "available");
     expect(available.sort()).toEqual([
-      "breakout_alerts", "client_reports", "content_plan", "cross_platform_analytics", "custom_date_ranges",
-      "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
-      "performance_change_alerts", "period_comparison", "platform_reports", "posting_time_analysis",
-      "report_exports", "scheduling", "team", "weekly_summary",
+      "breakout_alerts", "client_reports", "competitor_alerts", "content_plan", "cross_platform_analytics",
+      "custom_date_ranges", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
+      "opportunity_alerts", "performance_change_alerts", "period_comparison", "platform_reports",
+      "posting_time_analysis", "report_exports", "scheduling", "team", "trend_alerts", "weekly_summary",
     ].sort());
   });
 
@@ -183,8 +183,8 @@ describe("comparison table", () => {
     }
     expect(includedFor("free")).toContain("scheduling");
     expect(includedFor("free")).toContain("breakout_alerts");
-    // Growth lists trend alerts, which are not built yet.
-    expect(comingSoonFor("growth")).toContain("trend_alerts");
+    // Growth lists cross-platform performance alerts, which are not built yet.
+    expect(comingSoonFor("growth")).toContain("cross_platform_alerts");
   });
 
   it("uses the spec's ten sections in order", () => {
