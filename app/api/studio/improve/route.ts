@@ -5,7 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
 import { GOALS, type GoalId } from "@/lib/studio";
 import { requireUsage } from "@/lib/planGuard";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  const profile = await getProfile(ctx.client, ctx.ownerId).catch(() => null);
+  const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
   const promptCtx = [
     `Account: ${profile?.niche ?? "niche not set"}${profile?.brand_detail?.location ? `, ${profile.brand_detail.location}` : ""}${profile?.goals ? `; overall goal: ${profile.goals}` : ""}.`,

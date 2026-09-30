@@ -6,7 +6,7 @@ import { brandContext } from "@/lib/prompt";
 import { videoDurationSec, youtubeVideoId, ytConfigured } from "@/lib/youtube";
 import type { NichePost } from "@/lib/nicheTrends";
 import { requireFeature } from "@/lib/planGuard";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
   const g = await requireFeature(ctx.client, ctx.ownerId, "niche_intelligence");
   if (g.denied) return g.denied;
 
-  const profile = await getProfile(ctx.client, ctx.ownerId).catch(() => null);
+  const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const observed = [
     `Platform: ${post.platform}${post.format ? ` (${post.format})` : ""}`,
     `Creator: ${post.accountName ?? "unknown"}`,

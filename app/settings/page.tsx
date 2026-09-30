@@ -43,7 +43,7 @@ import PlanNotice from "@/components/PlanNotice";
 import PlanBilling from "@/components/settings/PlanBilling";
 import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
 import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
-import { resolveContext, can } from "@/lib/context";
+import { resolveContext, can, brandWorkspace } from "@/lib/context";
 import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
 import { Users } from "lucide-react";
 import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
@@ -285,12 +285,17 @@ export default async function SettingsPage({
     connected: Boolean(snap),
   };
   let brandDetail: BrandDetail | null = null;
+  // A non-default workspace shows its own brand/intelligence; the default
+  // workspace and pre-migration accounts read the per-user profile.
+  const brandWs = brandWorkspace(await resolveContext(supabase, user.id));
   try {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("niche, niche_detail, niche_analyzed_at, brand_detail")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const prof = brandWs
+      ? { niche: brandWs.niche, niche_detail: brandWs.niche_detail, niche_analyzed_at: brandWs.niche_analyzed_at, brand_detail: brandWs.brand_detail }
+      : (await supabase
+          .from("profiles")
+          .select("niche, niche_detail, niche_analyzed_at, brand_detail")
+          .eq("user_id", user.id)
+          .maybeSingle()).data;
     const d = (prof?.niche_detail ?? null) as {
       sub_niche?: string;
       confidence?: number;

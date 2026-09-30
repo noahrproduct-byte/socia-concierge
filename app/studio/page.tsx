@@ -5,7 +5,7 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import AppShell from "@/components/AppShell";
 import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio";
 import type { GoalId } from "@/lib/studio";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const metadata = { title: "Content Studio — SOCIA" };
@@ -22,7 +22,7 @@ export default async function StudioPage() {
   // Profile, posts and drafts are the active workspace owner's.
   const ctx = await resolveContext(supabase, user.id);
 
-  const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null)]);
+  const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null)]);
   const goals = (profile?.goals ?? "").toLowerCase();
   const goalDefault: GoalId | null = /cater/.test(goals) ? "catering" : /order|visit|store|local/.test(goals) ? "local_orders" : /follower|grow/.test(goals) ? "followers" : /engage/.test(goals) ? "engagement" : /aware|brand/.test(goals) ? "awareness" : /authorit|expert|creator/.test(goals) ? "authority" : null;
 

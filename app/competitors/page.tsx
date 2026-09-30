@@ -20,7 +20,7 @@ import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 import { getEntitlements, clampDays, maxHistoryDays } from "@/lib/entitlements";
 import { listTracked } from "@/lib/trackedCompetitors";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
@@ -81,12 +81,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   const cutoff = now.getTime() - days * 86400000;
   const posts = all.filter((p) => p.timestamp && new Date(p.timestamp).getTime() >= cutoff);
   const followers = snap?.followers_count ?? null;
-  const profile = await getProfile(ctx.client, ctx.ownerId).catch(() => null);
+  const brandWs = brandWorkspace(ctx);
+  const profile = await getProfile(ctx.client, ctx.ownerId, brandWs).catch(() => null);
   const location = profile?.brand_detail?.location ?? null;
   let subNiche: string | null = null;
   try {
-    const { data } = await ctx.client.from("profiles").select("niche_detail").eq("user_id", ctx.ownerId).maybeSingle();
-    subNiche = (data?.niche_detail as { sub_niche?: string } | null)?.sub_niche ?? null;
+    // A non-default workspace's niche_detail lives on the workspace, not the profile.
+    const nicheDetail = brandWs
+      ? brandWs.niche_detail
+      : (await ctx.client.from("profiles").select("niche_detail").eq("user_id", ctx.ownerId).maybeSingle()).data?.niche_detail;
+    subNiche = (nicheDetail as { sub_niche?: string } | null)?.sub_niche ?? null;
   } catch { /* optional */ }
 
   let momentumCell = absent("insufficient");

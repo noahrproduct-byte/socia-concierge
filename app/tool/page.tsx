@@ -5,7 +5,7 @@ import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanCli
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
-import { resolveContext, type Ctx } from "@/lib/context";
+import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
 
 export const metadata = { title: "Content Plan — SOCIA" };
 
@@ -75,16 +75,18 @@ export default async function ContentPlanPage() {
   let nicheDetected = false;
   let goal: string | null = null;
   let platform: string | null = null;
+  const brandWs = brandWorkspace(ctx);
   try {
     const { data: prof } = await ctx.client
       .from("profiles")
       .select("brand_name, niche, niche_detail, goals, platforms")
       .eq("user_id", ctx.ownerId)
       .maybeSingle();
-    brandName = prof?.brand_name ?? null;
-    niche = prof?.niche ?? null;
-    nicheDetected = Boolean(prof?.niche_detail);
-    goal = prof?.goals ?? null;
+    // Brand fields come from a non-default workspace; platforms is per-user.
+    brandName = brandWs ? brandWs.brand_name : (prof?.brand_name ?? null);
+    niche = brandWs ? brandWs.niche : (prof?.niche ?? null);
+    nicheDetected = Boolean(brandWs ? brandWs.niche_detail : prof?.niche_detail);
+    goal = brandWs ? brandWs.goals : (prof?.goals ?? null);
     platform = (Array.isArray(prof?.platforms) && prof.platforms[0]) || null;
   } catch {
     // profile columns may be mid-migration; the form still works blank

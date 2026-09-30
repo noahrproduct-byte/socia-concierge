@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { NICHES } from "@/lib/niches";
 import { requireUsage, recordEvent } from "@/lib/planGuard";
-import { resolveContext, type Ctx } from "@/lib/context";
+import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
+import { updateWorkspace, type WorkspacePatch } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -113,18 +114,28 @@ async function saveNiche(
   niche: string,
   detail: Record<string, unknown> | null,
   extras: Record<string, unknown> = {},
+  brandWs?: { id: string } | null,
 ) {
-  const base = {
-    user_id: userId,
-    niche,
-    updated_at: new Date().toISOString(),
-    ...extras,
-  };
-  const withDetail = {
-    ...base,
-    niche_detail: detail,
-    niche_analyzed_at: new Date().toISOString(),
-  };
+  const now = new Date().toISOString();
+
+  if (brandWs) {
+    // A non-default workspace owns its brand. Brand fields go to the workspace;
+    // any per-user leftovers in `extras` (e.g. account_connected) to the profile.
+    const { brand_name, goals, ...rest } = extras;
+    const patch: WorkspacePatch = { niche, niche_detail: detail, niche_analyzed_at: now };
+    if (brand_name !== undefined) patch.brand_name = (brand_name as string | null) ?? null;
+    if (goals !== undefined) patch.goals = (goals as string | null) ?? null;
+    await updateWorkspace(supabase, userId, brandWs.id, patch);
+    if (Object.keys(rest).length) {
+      await supabase.from("profiles").upsert({ user_id: userId, updated_at: now, ...rest }, { onConflict: "user_id" });
+    }
+    return;
+  }
+
+  // Default / pre-migration: brand lives on the profile (historical path). The
+  // detail columns are additive schema — fall back to the base row if missing.
+  const base = { user_id: userId, niche, updated_at: now, ...extras };
+  const withDetail = { ...base, niche_detail: detail, niche_analyzed_at: now };
   const { error } = await supabase.from("profiles").upsert(withDetail, { onConflict: "user_id" });
   if (error) {
     await supabase.from("profiles").upsert(base, { onConflict: "user_id" });
@@ -280,7 +291,7 @@ Allowed niches: ${NICHES.join(", ")}`;
         brand_name: extracted.brand_name || account.username,
         goals: extracted.goal,
         account_connected: true,
-      });
+      }, brandWorkspace(ctx));
     }
     // Product events stay attributed to the person who clicked.
     recordEvent(supabase, user.id, "free_audit_completed", { plan: u.ent.plan });
@@ -322,7 +333,7 @@ export async function POST(req: Request) {
   // Direct pick from the category list.
   if (body.choose?.niche) {
     const niche = NICHES.includes(body.choose.niche) ? body.choose.niche : "Other";
-    await saveNiche(ctx.client, ctx.ownerId, niche, { source: "manual" });
+    await saveNiche(ctx.client, ctx.ownerId, niche, { source: "manual" }, {}, brandWorkspace(ctx));
     return NextResponse.json({ ok: true, niche });
   }
 
@@ -361,7 +372,7 @@ export async function POST(req: Request) {
     await saveNiche(ctx.client, ctx.ownerId, extracted.niche, {
       ...detailOf(extracted),
       source: "described",
-    });
+    }, {}, brandWorkspace(ctx));
     return NextResponse.json({ ok: true, extracted, usage: u.usage });
   } catch (err) {
     await u.release();

@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AskContext, AskPage } from "./ask";
-import { getProfile, type Profile } from "./profile";
+import { getProfile, type Profile, type BrandSource } from "./profile";
 import { scopeToWorkspace } from "./workspaces";
 import { brandContext } from "./prompt";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "./instagramSync";
@@ -89,8 +89,8 @@ async function accountBlock(supabase: Supa, userId: string): Promise<{ text: str
   return { text: lines.join("\n"), posts, media, handle: snap?.username ?? null, followers, daily };
 }
 
-export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskContext, workspaceId?: string | null): Promise<AskEvidence> {
-  const profile = await getProfile(supabase, userId).catch(() => null);
+export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskContext, workspaceId?: string | null, brandWs?: BrandSource | null): Promise<AskEvidence> {
+  const profile = await getProfile(supabase, userId, brandWs).catch(() => null);
   const acct = await accountBlock(supabase, userId);
   const parts: string[] = [`# Account evidence (assembled by SOCIA from the connected account)`, acct.text];
   let plan: SavedPlan | null = null;

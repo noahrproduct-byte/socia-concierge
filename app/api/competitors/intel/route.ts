@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
-import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { resolveContext, can, forbiddenCopy, brandWorkspace } from "@/lib/context";
 import {
   searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
 } from "@/lib/youtube";
@@ -85,12 +85,15 @@ export async function GET(req: Request) {
   let location: string | null = null;
   let description: string | null = null;
   let goalText: string | null = null;
+  const brandWs = brandWorkspace(ctx);
   try {
-    const { data: prof } = await ctx.client
-      .from("profiles")
-      .select("niche, brand_name, goals, niche_detail, brand_detail")
-      .eq("user_id", ctx.ownerId)
-      .maybeSingle();
+    const prof = brandWs
+      ? { niche: brandWs.niche, brand_name: brandWs.brand_name, goals: brandWs.goals, niche_detail: brandWs.niche_detail, brand_detail: brandWs.brand_detail }
+      : (await ctx.client
+          .from("profiles")
+          .select("niche, brand_name, goals, niche_detail, brand_detail")
+          .eq("user_id", ctx.ownerId)
+          .maybeSingle()).data;
     niche = prof?.niche ?? null;
     brandName = prof?.brand_name ?? null;
     goalText = prof?.goals ?? null;

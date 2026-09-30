@@ -28,34 +28,59 @@ export type Profile = {
   appearance?: "light" | "dark" | "system" | null;
 };
 
+/**
+ * A Brand Workspace's own brand fields, when the app should read the brand from
+ * the workspace rather than the shared per-user profile. Any Workspace object
+ * satisfies this structurally. Pass it only for a NON-default workspace: the
+ * default workspace keeps using the profile row, so existing single-workspace
+ * accounts are unchanged. Use context.brandWorkspace(ctx) to decide.
+ */
+export type BrandSource = {
+  niche: string | null;
+  brand_name: string | null;
+  goals: string | null;
+  brand_detail?: BrandDetail | null;
+};
+
 // Reads the signed-in user's profile row. Returns null if the profile hasn't
 // been created yet or the `profiles` table doesn't exist. Callers treat a null
 // (or account_connected: false) as "no account connected yet".
+//
+// When `brandWs` is given (a non-default Brand Workspace), the brand fields
+// (niche, brand_name, goals, brand_detail) come from that workspace instead of
+// the profile, so a second brand has its own identity. Non-brand fields
+// (platforms, account_connected, appearance) stay per-user.
 export async function getProfile(
   supabase: SupabaseClient,
   userId: string,
+  brandWs?: BrandSource | null,
 ): Promise<Profile | null> {
+  const withBrand = (base: Profile | null): Profile | null => {
+    if (!brandWs) return base;
+    const brand = { niche: brandWs.niche, brand_name: brandWs.brand_name, goals: brandWs.goals, brand_detail: brandWs.brand_detail ?? null };
+    return base ? { ...base, ...brand } : { ...brand, platforms: null, account_connected: false };
+  };
   try {
     const newest = await supabase
       .from("profiles")
       .select("niche, brand_name, goals, platforms, account_connected, brand_detail, appearance")
       .eq("user_id", userId)
       .maybeSingle();
-    if (!newest.error) return (newest.data as Profile) ?? null;
+    if (!newest.error) return withBrand((newest.data as Profile) ?? null);
     // appearance column may not exist yet
     const full = await supabase
       .from("profiles")
       .select("niche, brand_name, goals, platforms, account_connected, brand_detail")
       .eq("user_id", userId)
       .maybeSingle();
-    if (!full.error) return (full.data as Profile) ?? null;
+    if (!full.error) return withBrand((full.data as Profile) ?? null);
     // brand_detail column may not exist yet — fall back to the legacy columns.
     const base = await supabase
       .from("profiles")
       .select("niche, brand_name, goals, platforms, account_connected")
       .eq("user_id", userId)
       .maybeSingle();
-    return (base.data as Profile) ?? null;
+    return withBrand((base.data as Profile) ?? null);
   } catch {
     return null;
   }

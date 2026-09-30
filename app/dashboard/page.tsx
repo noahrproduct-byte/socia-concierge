@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
@@ -50,7 +50,7 @@ export default async function DashboardPage({
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
 
-  const [profile, ent] = await Promise.all([getProfile(ctx.client, ctx.ownerId), getEntitlements(ctx.client, ctx.ownerId)]);
+  const [profile, ent] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)), getEntitlements(ctx.client, ctx.ownerId)]);
   const connected = profile?.account_connected ?? false;
   const snap = connected ? await getIgSnapshot(ctx.client, ctx.ownerId) : null;
   const live = Boolean(snap && snap.followers_count != null);

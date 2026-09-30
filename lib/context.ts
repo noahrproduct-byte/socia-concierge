@@ -51,6 +51,18 @@ export async function resolveContext(supabase: Supa, viewerId: string): Promise<
   return { viewerId, ownerId: ws.ownerId, workspace: ws, role: ws.role === "admin" ? "admin" : "member", client: svc, isOwner: false };
 }
 
+/**
+ * The workspace whose brand fields (niche, brand_name, goals, brand_detail,
+ * niche_detail) the app should read and write, or null to use the legacy
+ * per-user profile. The DEFAULT workspace keeps using the profile row, so
+ * existing single-workspace accounts behave exactly as before; only a second,
+ * non-default brand owns its own brand identity. One seam for every brand
+ * read/write to consult.
+ */
+export function brandWorkspace(ctx: Pick<Ctx, "workspace">): Workspace | null {
+  return ctx.workspace && !ctx.workspace.isDefault ? ctx.workspace : null;
+}
+
 export type Action =
   | "publish"          // schedule / publish content
   | "connect"          // connect or disconnect a social account

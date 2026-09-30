@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { loadEvidence, type Evidence } from "@/lib/planEvidence";
 import { requireUsage } from "@/lib/planGuard";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 
 export const runtime = "nodejs";
 // Opus 5 thinks before answering; give the request room.
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
   let brand = null;
   let evidence: Evidence | null = null;
   try {
-    brand = (await getProfile(ctx.client, ctx.ownerId))?.brand_detail ?? null;
+    brand = (await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)))?.brand_detail ?? null;
     const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
     evidence = await loadEvidence(ctx.client, ctx.ownerId, snap);
     evidence.used.windows = Boolean(input.audienceWindows?.trim());

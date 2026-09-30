@@ -9,7 +9,7 @@ import { interactionsTotal } from "@/lib/engagement";
 import { postCards, displayTitle, type PostCard } from "@/lib/overview";
 import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
 import { requireUsage } from "@/lib/planGuard";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
 
   // Account context: profile + top posts + their cover frames (real content).
-  const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null)]);
+  const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null)]);
   const media: IgMediaItem[] = snap?.media ?? [];
   const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);

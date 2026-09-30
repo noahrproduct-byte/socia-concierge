@@ -6,7 +6,7 @@ import { askAnswerSchema, type AskAnswer, type AskContext, type ModelAnswer, typ
 import { requireUsage } from "@/lib/planGuard";
 import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 import { rangeDays } from "@/lib/overview";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, brandWorkspace } from "@/lib/context";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   if (askCtx.range && rangeDays(askCtx.range) > maxHistoryDays(ent)) askCtx.range = "30";
 
-  const ev = await buildAskEvidence(ctx.client, ctx.ownerId, askCtx, ctx.workspace?.id ?? null);
+  const ev = await buildAskEvidence(ctx.client, ctx.ownerId, askCtx, ctx.workspace?.id ?? null, brandWorkspace(ctx));
   const first = messages[0];
   const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
 
