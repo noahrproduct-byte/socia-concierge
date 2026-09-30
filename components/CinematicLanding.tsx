@@ -399,7 +399,7 @@ const FAQS = [
   { q: "Can SOCIA predict whether content will perform?", a: "It scores every idea on hook, retention, relevance, and originality against what your audience already responds to. A score is a forecast, not a promise, and SOCIA is honest about that." },
   { q: "Does SOCIA replace a social media manager?", a: "For solo creators, it covers the strategy work a manager would do. For teams and agencies, it makes the manager faster: audits, plans, and scoring in minutes instead of afternoons." },
   { q: "How does SOCIA use my data?", a: "Your synced account data is used to build your dashboard and your plans. It stays yours, it isn't sold, and you can disconnect and delete it anytime." },
-  { q: "Can I cancel anytime?", a: "Yes. Paid plans start with 7 days free, and you can cancel in one click before or after the trial ends." },
+  { q: "Can I cancel anytime?", a: "Yes — no lock-in, ever. You can change or cancel your plan whenever you want; self-serve billing is on the way, so for now just reach out and we'll take care of it the same day." },
 ];
 
 function Faq() {

@@ -21,8 +21,8 @@ const FAQS = [
     a: "No. The strategy engine works from your first post. Small accounts often see the fastest gains because the plan removes the guessing.",
   },
   {
-    q: "Is there a free trial?",
-    a: "Yes. Every paid plan starts with 7 days free, full access, cancel anytime before it ends.",
+    q: "How do I start a paid plan?",
+    a: "Self-serve checkout is on the way. For now, contact us and we'll set you up on the right plan — no lock-in, and you can change or cancel anytime.",
   },
 ];
 
