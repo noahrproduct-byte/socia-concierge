@@ -132,10 +132,12 @@
 .pr-custom p { font-size: 14.5px; line-height: 1.6; color: var(--so-dim); max-width: 560px; }
 
 /* comparison table */
-.pr-table-wrap { border: 1px solid var(--so-line); border-radius: 18px; overflow: hidden; }
+/* Contained scroll so the plan header (and the category header under it) can
+   stick while the long table scrolls inside the card. */
+.pr-table-wrap { border: 1px solid var(--so-line); border-radius: 18px; overflow: auto; max-height: 74vh; }
 .pr-table { width: 100%; border-collapse: collapse; font-size: 13.5px; color: var(--so-text); }
 .pr-table th, .pr-table td { padding: 11px 14px; border-bottom: 1px solid var(--so-line); text-align: left; vertical-align: top; }
-.pr-table thead th { background: rgba(255, 255, 255, 0.03); padding-top: 14px; padding-bottom: 14px; }
+.pr-table thead th { background: #0b1017; padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 6; }
 .pr-table thead th, .pr-table td { text-align: center; }
 .pr-table thead th.pr-th-feature { text-align: left; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--so-dimmer); font-weight: 700; }
 .pr-th-name { display: block; font-size: 14px; font-weight: 600; color: #fff; }
@@ -144,18 +146,43 @@
 .pr-table tbody th[scope="row"] { font-weight: 500; color: var(--so-text); min-width: 200px; }
 .pr-table th[scope="row"] { text-align: left; }
 .pr-table .pr-cat th {
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: var(--so-dimmer);
-  padding-top: 12px;
-  padding-bottom: 8px;
+  background: #0b1017;
+  padding: 0;
   text-align: left;
+  position: sticky;
+  top: 52px;
+  z-index: 4;
 }
+.pr-cat-btn {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 11px 14px;
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: var(--so-dimmer);
+  font-family: inherit;
+}
+.pr-cat-btn:hover { color: var(--so-text); }
+.pr-cat-chev { transition: transform 180ms var(--ease, ease); flex-shrink: 0; }
+.pr-table tbody.collapsed .pr-cat-chev { transform: rotate(-90deg); }
+.pr-cat-count { margin-left: auto; font-size: 10px; letter-spacing: 0; color: var(--so-dimmer); background: rgba(255,255,255,0.05); border-radius: 999px; padding: 1px 7px; }
+.pr-table tbody tr:not(.pr-cat):hover th[scope="row"], .pr-table tbody tr:not(.pr-cat):hover td { background: rgba(255, 255, 255, 0.02); }
+.pr-table tbody tr:not(.pr-cat):hover td.popular { background: rgba(37, 99, 255, 0.09); }
 .pr-table tbody:last-child tr:last-child th, .pr-table tbody:last-child tr:last-child td { border-bottom: none; }
-.pr-row-note { display: block; font-size: 11.5px; color: var(--so-dimmer); margin-top: 3px; font-weight: 400; }
+
+.pr-row-label { display: inline-flex; align-items: center; gap: 6px; }
+.pr-tip { position: relative; display: inline-flex; color: var(--so-dimmer); cursor: help; }
+.pr-tip:hover, .pr-tip:focus-visible, .pr-tip:focus { color: var(--so-blue-bright); outline: none; }
+.pr-tip-bubble {
+  position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px);
+  width: max-content; max-width: 240px; padding: 8px 10px; border-radius: 8px;
+  background: #0a0e17; border: 1px solid var(--so-line); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  font-size: 11.5px; font-weight: 400; line-height: 1.4; letter-spacing: 0; text-transform: none; color: var(--so-text);
+  opacity: 0; pointer-events: none; transition: opacity 140ms ease, transform 140ms ease; z-index: 10;
+}
+.pr-tip:hover .pr-tip-bubble, .pr-tip:focus-visible .pr-tip-bubble, .pr-tip:focus .pr-tip-bubble { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-cat-chev, .pr-tip-bubble { transition: none; }
+}
 .pr-yes { color: var(--so-blue-bright); display: inline-flex; }
 .pr-no { color: var(--so-faint); }
 .pr-cell-text { color: var(--so-text); font-variant-numeric: tabular-nums; }
