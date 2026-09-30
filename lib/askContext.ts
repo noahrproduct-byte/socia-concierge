@@ -7,7 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AskContext, AskPage } from "./ask";
 import { getProfile, type Profile, type BrandSource } from "./profile";
-import { scopeToWorkspace } from "./workspaces";
+import { scopeToWorkspace, competitorScopeId } from "./workspaces";
 import { brandContext } from "./prompt";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "./instagramSync";
 import type { DailySnapshot } from "./dashboardMetrics";
@@ -142,9 +142,10 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     let accounts: { platform: string; handle: string | null; display_name: string | null; followers: number | null; location: string | null; category: string | null; classification: string; relevance_score: number | null; platform_account_id?: string }[] = [];
     let tracked: { platform: string; handle: string }[] = [];
     let winning: { platform: string; account_name: string | null; title: string | null; views: number | null; likes: number | null; comments: number | null; multiplier: number | null; trend_tags: string[] | null; why_recommended: string | null; published_at: string | null }[] = [];
-    try { const { data } = await supabase.from("discovered_accounts").select("platform, platform_account_id, handle, display_name, followers, location, category, classification, relevance_score").eq("user_id", userId).order("relevance_score", { ascending: false, nullsFirst: false }).limit(12); accounts = data ?? []; } catch { /* none */ }
-    try { tracked = await listTracked<{ platform: string; handle: string }>(supabase, userId, "platform, handle", { limit: 20 }); } catch { /* none */ }
-    try { const { data } = await supabase.from("discovered_content").select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at").eq("user_id", userId).order("multiplier", { ascending: false, nullsFirst: false }).limit(30); winning = data ?? []; } catch { /* none */ }
+    const cwid = await competitorScopeId(supabase, workspaceId);
+    try { const { data } = await scopeToWorkspace(supabase.from("discovered_accounts").select("platform, platform_account_id, handle, display_name, followers, location, category, classification, relevance_score").eq("user_id", userId), cwid).order("relevance_score", { ascending: false, nullsFirst: false }).limit(12); accounts = data ?? []; } catch { /* none */ }
+    try { tracked = await listTracked<{ platform: string; handle: string }>(supabase, userId, "platform, handle", { limit: 20, workspaceId: cwid }); } catch { /* none */ }
+    try { const { data } = await scopeToWorkspace(supabase.from("discovered_content").select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at").eq("user_id", userId), cwid).order("multiplier", { ascending: false, nullsFirst: false }).limit(30); winning = data ?? []; } catch { /* none */ }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const block = competitorsBlock(accounts as any, tracked as any, winning as any);
     if (block) parts.push(`# Competitors and winning content SOCIA holds (YouTube figures from the YouTube Data API; Instagram/Facebook accounts from web research carry no metrics)`, block);

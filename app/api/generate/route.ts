@@ -8,6 +8,7 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { loadEvidence, type Evidence } from "@/lib/planEvidence";
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { competitorScopeId } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 // Opus 5 thinks before answering; give the request room.
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
   try {
     brand = (await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)))?.brand_detail ?? null;
     const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
-    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap);
+    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id));
     evidence.used.windows = Boolean(input.audienceWindows?.trim());
   } catch {
     // generation still works without settings or evidence

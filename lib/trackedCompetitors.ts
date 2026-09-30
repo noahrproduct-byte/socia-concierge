@@ -15,16 +15,23 @@ type Supa = any;
 export type ListTrackedOptions = {
   platform?: string;
   /**
-   * Plan cap: the oldest `limit` rows (by added_at) are returned, the rest are
-   * never handed out, even when more active rows exist. Implies byAdded.
+   * An evidence/display cap: the oldest `limit` rows (by added_at) are returned.
+   * NOT the plan limit (that is pooled and enforced elsewhere).
    */
   limit?: number;
   /** Order by added_at ascending (oldest first). */
   byAdded?: boolean;
+  /**
+   * Scope to one Brand Workspace's competitors. The caller passes the gated id
+   * (competitorScopeId(...) — null before the competitors migration or when
+   * pooled), so this stays a no-op until isolation is enabled.
+   */
+  workspaceId?: string | null;
 };
 
 function baseQuery(supabase: Supa, userId: string, cols: string, opts: ListTrackedOptions) {
   let q = supabase.from("tracked_competitors").select(cols).eq("user_id", userId);
+  if (opts.workspaceId) q = q.eq("workspace_id", opts.workspaceId);
   if (opts.platform) q = q.eq("platform", opts.platform);
   if (opts.byAdded || opts.limit != null) q = q.order("added_at", { ascending: true });
   if (opts.limit != null) q = q.limit(Math.max(0, opts.limit));
@@ -61,11 +68,14 @@ export async function listTracked<T = Record<string, unknown>>(
 
 export type TrackedState = { exists: false } | { exists: true; active: boolean };
 
-/** Whether one handle is already in the roster, and whether it still counts. */
-export async function trackedState(supabase: Supa, userId: string, platform: string, handle: string): Promise<TrackedState> {
+/** Whether one handle is already in the roster (of this workspace), and whether it still counts. */
+export async function trackedState(supabase: Supa, userId: string, platform: string, handle: string, workspaceId?: string | null): Promise<TrackedState> {
   const h = handle.toLowerCase();
-  const one = (cols: string) =>
-    supabase.from("tracked_competitors").select(cols).eq("user_id", userId).eq("platform", platform).eq("handle", h).limit(1);
+  const one = (cols: string) => {
+    let q = supabase.from("tracked_competitors").select(cols).eq("user_id", userId).eq("platform", platform).eq("handle", h);
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    return q.limit(1);
+  };
   try {
     const { data, error } = await one("handle, is_active");
     if (!error) {

@@ -7,6 +7,7 @@ import type { IgMediaItem, IgSnapshot } from "./instagramSync";
 import { engagementOf, median, postsPerWeek } from "./metrics";
 import type { EvidenceUsed } from "./schema";
 import { listTracked } from "./trackedCompetitors";
+import { scopeToWorkspace } from "./workspaces";
 
 export type Evidence = {
   postsBlock: string;
@@ -152,7 +153,7 @@ type Supa = any;
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null): Promise<Evidence> {
   const media = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
 
@@ -160,22 +161,22 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   let tracked: TrackedRow[] = [];
   let winning: WinningRow[] = [];
   try {
-    const { data } = await supabase
+    const { data } = await scopeToWorkspace(supabase
       .from("discovered_accounts")
       .select("platform, handle, display_name, followers, location, category, classification, relevance_score")
-      .eq("user_id", userId)
+      .eq("user_id", userId), workspaceId)
       .order("relevance_score", { ascending: false, nullsFirst: false })
       .limit(12);
     accounts = (data ?? []) as CompetitorRow[];
   } catch { /* none */ }
   try {
-    tracked = await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20 });
+    tracked = await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId });
   } catch { /* none */ }
   try {
-    const { data } = await supabase
+    const { data } = await scopeToWorkspace(supabase
       .from("discovered_content")
       .select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at")
-      .eq("user_id", userId)
+      .eq("user_id", userId), workspaceId)
       .order("multiplier", { ascending: false, nullsFirst: false })
       .limit(30);
     winning = (data ?? []) as WinningRow[];

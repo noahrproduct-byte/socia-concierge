@@ -5,6 +5,7 @@ import { getActiveConnection } from "@/lib/instagramSync";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
 import { resolveContext, can, forbiddenCopy, brandWorkspace } from "@/lib/context";
+import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
 import {
   searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
 } from "@/lib/youtube";
@@ -342,6 +343,16 @@ Output ONLY this JSON, no other text:
   const trends = rollUpTrends(content);
   const ranAt = new Date().toISOString();
 
+  // Discovery is per-workspace once the competitors migration has run; wsId null
+  // keeps the pooled, pre-migration behaviour. onConflict targets match the
+  // primary key in force.
+  const scoped = await competitorsScopedEnabled(ctx.client);
+  const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
+  const wsCol: Record<string, unknown> = wsId ? { workspace_id: wsId } : {};
+  const accConflict = wsId ? "user_id,workspace_id,platform,platform_account_id" : "user_id,platform,platform_account_id";
+  const conConflict = wsId ? "user_id,workspace_id,content_url" : "user_id,content_url";
+  const runConflict = wsId ? "user_id,workspace_id" : "user_id";
+
   // ---- persist (best effort; a failure must not fail the response) ------
   if (accounts.length || content.length) {
     try {
@@ -353,20 +364,20 @@ Output ONLY this JSON, no other text:
       if (accounts.length) {
         await ctx.client.from("discovered_accounts").upsert(
           accounts.map((a) => ({
-            user_id: ctx.ownerId, platform: a.platform, platform_account_id: a.platformAccountId,
+            user_id: ctx.ownerId, ...wsCol, platform: a.platform, platform_account_id: a.platformAccountId,
             handle: a.handle, display_name: a.displayName, profile_image: a.profileImage,
             profile_url: a.profileUrl, followers: a.followers, location: a.location,
             category: a.category, classification: a.classification,
             relevance_score: a.relevanceScore, relevance_reasons: a.relevanceReasons,
             data_source: a.dataSource, last_checked: ranAt,
           })),
-          { onConflict: "user_id,platform,platform_account_id" },
+          { onConflict: accConflict },
         );
       }
       if (content.length) {
         await ctx.client.from("discovered_content").upsert(
           content.map((c) => ({
-            user_id: ctx.ownerId, content_url: c.contentUrl, platform: c.platform,
+            user_id: ctx.ownerId, ...wsCol, content_url: c.contentUrl, platform: c.platform,
             account_handle: c.accountHandle, account_name: c.accountName,
             account_image: c.accountImage, thumbnail_url: c.thumbnailUrl, title: c.title,
             published_at: c.publishedAt, content_type: c.contentType, views: c.views,
@@ -375,7 +386,7 @@ Output ONLY this JSON, no other text:
             trend_tags: c.trendTags, why_recommended: c.why, data_source: c.dataSource,
             last_checked: ranAt,
           })),
-          { onConflict: "user_id,content_url" },
+          { onConflict: conConflict },
         );
       }
 
@@ -384,16 +395,17 @@ Output ONLY this JSON, no other text:
       // "winning post" goes stale faster than a competitor does.
       const accountCutoff = new Date(Date.now() - 30 * 86400000).toISOString();
       const contentCutoff = new Date(Date.now() - 14 * 86400000).toISOString();
-      await ctx.client.from("discovered_accounts").delete()
-        .eq("user_id", ctx.ownerId).lt("last_checked", accountCutoff);
-      await ctx.client.from("discovered_content").delete()
-        .eq("user_id", ctx.ownerId).lt("last_checked", contentCutoff);
+      let pruneAcc = ctx.client.from("discovered_accounts").delete().eq("user_id", ctx.ownerId).lt("last_checked", accountCutoff);
+      let pruneCon = ctx.client.from("discovered_content").delete().eq("user_id", ctx.ownerId).lt("last_checked", contentCutoff);
+      if (wsId) { pruneAcc = pruneAcc.eq("workspace_id", wsId); pruneCon = pruneCon.eq("workspace_id", wsId); }
+      await pruneAcc;
+      await pruneCon;
       await ctx.client.from("discovery_runs").upsert(
         {
-          user_id: ctx.ownerId, ran_at: ranAt, accounts_found: accounts.length,
+          user_id: ctx.ownerId, ...wsCol, ran_at: ranAt, accounts_found: accounts.length,
           content_found: content.length, sources,
         },
-        { onConflict: "user_id" },
+        { onConflict: runConflict },
       );
     } catch {
       /* tables may not exist yet — the response below still serves */
@@ -402,7 +414,7 @@ Output ONLY this JSON, no other text:
 
   // Return everything SOCIA knows, not just what this run happened to find —
   // otherwise a refresh visibly loses accounts it had already discovered.
-  const merged = await readStored(ctx.client, ctx.ownerId);
+  const merged = await readStored(ctx.client, ctx.ownerId, wsId);
   const doc: IntelDoc = merged
     ? { ...merged, ranAt, sources, profileGaps }
     : { accounts, content, trends, ranAt, sources, profileGaps };
@@ -410,12 +422,14 @@ Output ONLY this JSON, no other text:
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function readStored(supabase: any, userId: string): Promise<IntelDoc | null> {
+async function readStored(supabase: any, userId: string, workspaceId?: string | null): Promise<IntelDoc | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scope = (q: any) => (workspaceId ? q.eq("workspace_id", workspaceId) : q);
   try {
     const [runRes, accRes, conRes] = await Promise.all([
-      supabase.from("discovery_runs").select("ran_at, sources").eq("user_id", userId).maybeSingle(),
-      supabase.from("discovered_accounts").select("*").eq("user_id", userId).order("relevance_score", { ascending: false }),
-      supabase.from("discovered_content").select("*").eq("user_id", userId).order("relevance_score", { ascending: false }),
+      scope(supabase.from("discovery_runs").select("ran_at, sources").eq("user_id", userId)).maybeSingle(),
+      scope(supabase.from("discovered_accounts").select("*").eq("user_id", userId)).order("relevance_score", { ascending: false }),
+      scope(supabase.from("discovered_content").select("*").eq("user_id", userId)).order("relevance_score", { ascending: false }),
     ]);
     if (!runRes.data?.ran_at) return null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

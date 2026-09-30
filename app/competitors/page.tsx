@@ -10,6 +10,7 @@ import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtub
 import { nameKey } from "@/lib/discovery";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import { competitorHistoryEnabled, competitorMomentum, type CompetitorPoint } from "@/lib/competitorHistory";
+import { competitorScopeId } from "@/lib/workspaces";
 import { withBaseline, type CompetitorRow, type CompPost, type PostsGate } from "@/lib/competitorIntel";
 import { igCompetitorRows, type IgCompetitor } from "@/lib/igCompetitorData";
 import { locationTokens, tagsFor } from "@/lib/competitorPatterns";
@@ -82,6 +83,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   const posts = all.filter((p) => p.timestamp && new Date(p.timestamp).getTime() >= cutoff);
   const followers = snap?.followers_count ?? null;
   const brandWs = brandWorkspace(ctx);
+  // Competitors, discovery and discovery-runs are scoped to this workspace once
+  // the competitors migration has run; null keeps the pooled behaviour.
+  const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWs).catch(() => null);
   const location = profile?.brand_detail?.location ?? null;
   let subNiche: string | null = null;
@@ -133,16 +137,18 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // ---- tracked + discovered accounts --------------------------------------
   let tracked: Tracked[] = [];
   try {
-    tracked = await listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true });
+    tracked = await listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid });
   } catch { /* not migrated yet */ }
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
 
   let suggested: Suggested[] = [];
   try {
-    const { data } = await ctx.client
+    let dq = ctx.client
       .from("discovered_accounts")
       .select("platform, handle, display_name, profile_image, profile_url, followers, location, classification, relevance_score, relevance_reasons")
-      .eq("user_id", ctx.ownerId).order("relevance_score", { ascending: false }).limit(40);
+      .eq("user_id", ctx.ownerId);
+    if (cwid) dq = dq.eq("workspace_id", cwid);
+    const { data } = await dq.order("relevance_score", { ascending: false }).limit(40);
     const seenName = new Set<string>();
     suggested = ((data ?? []) as Record<string, unknown>[])
       .map((r) => ({
@@ -275,7 +281,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   let lastRun: string | null = null;
   let sources: { youtube: string; web: string } | null = null;
   try {
-    const { data } = await ctx.client.from("discovery_runs").select("ran_at, sources").eq("user_id", ctx.ownerId).maybeSingle();
+    let rq = ctx.client.from("discovery_runs").select("ran_at, sources").eq("user_id", ctx.ownerId);
+    if (cwid) rq = rq.eq("workspace_id", cwid);
+    const { data } = await rq.maybeSingle();
     lastRun = data?.ran_at ?? null;
     sources = (data?.sources as { youtube: string; web: string } | null) ?? null;
   } catch { /* no run recorded */ }
@@ -284,10 +292,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   const FORMAT: Record<string, string> = { short: "Short", video: "Video", reel: "Reel" };
   let content: NichePost[] = [];
   try {
-    const { data } = await ctx.client
+    let cq = ctx.client
       .from("discovered_content")
       .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, why_recommended, data_source")
-      .eq("user_id", ctx.ownerId).order("relevance_score", { ascending: false }).limit(200);
+      .eq("user_id", ctx.ownerId);
+    if (cwid) cq = cq.eq("workspace_id", cwid);
+    const { data } = await cq.order("relevance_score", { ascending: false }).limit(200);
     content = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
       url: String(r.content_url), platform: String(r.platform), accountName: (r.account_name as string) ?? null, accountHandle: (r.account_handle as string) ?? null,
       title: (r.title as string) ?? null, thumb: (r.thumbnail_url as string) ?? null,

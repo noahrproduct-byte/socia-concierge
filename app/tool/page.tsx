@@ -6,6 +6,7 @@ import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
+import { competitorScopeId } from "@/lib/workspaces";
 
 export const metadata = { title: "Content Plan — SOCIA" };
 
@@ -23,13 +24,15 @@ function ago(iso: string): string {
 
 /** Rows on file that the generator attaches to the brief by itself. Counted
  *  here so the form can say so truthfully; zero when a table doesn't exist. */
-async function evidenceCounts(supabase: Ctx["client"], userId: string) {
+async function evidenceCounts(supabase: Ctx["client"], userId: string, workspaceId?: string | null) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scope = (q: any) => (workspaceId ? q.eq("workspace_id", workspaceId) : q);
   const count = async (table: string) => {
     try {
-      const { count, error } = await supabase
+      const { count, error } = await scope(supabase
         .from(table)
         .select("user_id", { count: "exact", head: true })
-        .eq("user_id", userId);
+        .eq("user_id", userId));
       return error ? 0 : count ?? 0;
     } catch {
       return 0;
@@ -40,11 +43,11 @@ async function evidenceCounts(supabase: Ctx["client"], userId: string) {
   // database has not been migrated yet.
   const countActiveTracked = async () => {
     try {
-      const { count, error } = await supabase
+      const { count, error } = await scope(supabase
         .from("tracked_competitors")
         .select("user_id", { count: "exact", head: true })
         .eq("user_id", userId)
-        .eq("is_active", true);
+        .eq("is_active", true));
       if (!error) return count ?? 0;
     } catch {
       /* column may not exist yet */
@@ -101,7 +104,8 @@ export default async function ContentPlanPage() {
 
   // Entitlements are the workspace owner's: a member's plans count against
   // the owner's allowance.
-  const [counts, ent] = await Promise.all([evidenceCounts(ctx.client, ctx.ownerId), getEntitlements(ctx.client, ctx.ownerId)]);
+  const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
+  const [counts, ent] = await Promise.all([evidenceCounts(ctx.client, ctx.ownerId, cwid), getEntitlements(ctx.client, ctx.ownerId)]);
   const evidence = { posts: Math.min(media.length, 25), ...counts };
   // Drafts are always saved; whether they can publish themselves is a plan question.
   const canSchedule = canUseFeature(ent, "scheduling");

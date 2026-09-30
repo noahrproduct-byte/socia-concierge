@@ -10,6 +10,7 @@ import { postCards, displayTitle, type PostCard } from "@/lib/overview";
 import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
   const covers = (await Promise.all(top.map((p) => (p.thumb ? fetchB64(p.thumb) : Promise.resolve(null))))).map((b, i) => ({ b64: b, post: top[i] }));
   let niche: { title: string | null; trend_tags: string[] | null; multiplier: number | null; account_name: string | null }[] = [];
   try {
-    const { data } = await ctx.client.from("discovered_content").select("title, trend_tags, multiplier, account_name").eq("user_id", ctx.ownerId).order("multiplier", { ascending: false, nullsFirst: false }).limit(8);
+    const { data } = await scopeToWorkspace(ctx.client.from("discovered_content").select("title, trend_tags, multiplier, account_name").eq("user_id", ctx.ownerId), await competitorScopeId(ctx.client, ctx.workspace?.id)).order("multiplier", { ascending: false, nullsFirst: false }).limit(8);
     niche = data ?? [];
   } catch { niche = []; }
 

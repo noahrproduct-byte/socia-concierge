@@ -5,6 +5,7 @@ import { getEntitlements, getLimit, countActiveCompetitors, canAddCompetitor } f
 import { deny, recordEvent } from "@/lib/planGuard";
 import { listTracked, trackedState } from "@/lib/trackedCompetitors";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -53,8 +54,12 @@ export async function GET() {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const limit = getLimit(ent, "competitors");
   try {
-    const competitors = await listTracked(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true });
-    return NextResponse.json({ competitors, limit, active: competitors.length });
+    // The list is this workspace's competitors; `active` is the POOLED usage
+    // (the plan limit is shared across brands), so the meter reads correctly.
+    const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
+    const competitors = await listTracked(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid });
+    const pooled = await countActiveCompetitors(ctx.client, ctx.ownerId);
+    return NextResponse.json({ competitors, limit, active: pooled ?? competitors.length });
   } catch {
     // Table may not exist yet. The count is unknown, not zero.
     return NextResponse.json({ competitors: [], limit, active: null });
@@ -79,6 +84,12 @@ export async function POST(req: Request) {
   }
   const key = handle.toLowerCase();
 
+  // The workspace this competitor is added to, once the competitors migration
+  // has run; null keeps the pooled, pre-migration behaviour. When isolation is
+  // on but the person has no workspace yet, create their default one.
+  const scoped = await competitorsScopedEnabled(ctx.client);
+  const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
+
   // The cap is the workspace owner's plan.
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const limit = getLimit(ent, "competitors");
@@ -100,12 +111,11 @@ export async function POST(req: Request) {
   // ---- Atomic path: cap check and insert in one privileged call -----------
   const svc = createServiceClient();
   if (svc) {
-    const { data, error } = await svc.rpc("socia_add_competitor", {
-      p_user: ctx.ownerId,
-      p_platform: platform,
-      p_handle: key,
-      p_limit: limit,
-    });
+    // Post-migration the workspace-aware overload owns the insert (its onConflict
+    // matches the new per-workspace primary key); pre-migration the 4-arg form.
+    const { data, error } = await svc.rpc("socia_add_competitor", wsId
+      ? { p_user: ctx.ownerId, p_workspace: wsId, p_platform: platform, p_handle: key, p_limit: limit }
+      : { p_user: ctx.ownerId, p_platform: platform, p_handle: key, p_limit: limit });
     if (error && !isMissingFunction(error)) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -121,7 +131,7 @@ export async function POST(req: Request) {
   // Idempotent: re-adding a handle that is already counted never hits the cap.
   let state: Awaited<ReturnType<typeof trackedState>> = { exists: false };
   try {
-    state = await trackedState(ctx.client, ctx.ownerId, platform, key);
+    state = await trackedState(ctx.client, ctx.ownerId, platform, key, wsId);
   } catch {
     /* table may not exist yet; the upsert below reports that */
   }
@@ -130,13 +140,18 @@ export async function POST(req: Request) {
   const c = canAddCompetitor(ent, active);
   if (!c.ok) return limitReached(active);
 
-  const row = { user_id: ctx.ownerId, platform, handle: key };
+  // The conflict target matches the primary key in force: per-workspace once the
+  // migration has run, per-user before it.
+  const onConflict = wsId ? "user_id,workspace_id,platform,handle" : "user_id,platform,handle";
+  const row: Record<string, unknown> = wsId
+    ? { user_id: ctx.ownerId, workspace_id: wsId, platform, handle: key }
+    : { user_id: ctx.ownerId, platform, handle: key };
   const { error } = await ctx.client
     .from("tracked_competitors")
-    .upsert({ ...row, is_active: true }, { onConflict: "user_id,platform,handle" });
+    .upsert({ ...row, is_active: true }, { onConflict });
   if (error) {
     // Pre-migration schema: no is_active column, and no inactive rows either.
-    const { error: e2 } = await ctx.client.from("tracked_competitors").upsert(row, { onConflict: "user_id,platform,handle" });
+    const { error: e2 } = await ctx.client.from("tracked_competitors").upsert(row, { onConflict });
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
@@ -155,13 +170,18 @@ export async function DELETE(req: Request) {
   const handle = (body?.handle ?? "").trim().replace(/^@/, "").toLowerCase();
   if (!handle) return NextResponse.json({ error: "handle required." }, { status: 400 });
 
-  // An explicit removal is a hard delete, active or not.
-  const { error } = await ctx.client
+  // An explicit removal is a hard delete, active or not. Scoped to THIS
+  // workspace: without the workspace_id filter a removal would drop the handle
+  // from every brand that tracks it.
+  const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
+  let del = ctx.client
     .from("tracked_competitors")
     .delete()
     .eq("user_id", ctx.ownerId)
     .eq("platform", platformOf(body?.platform))
     .eq("handle", handle);
+  if (cwid) del = del.eq("workspace_id", cwid);
+  const { error } = await del;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

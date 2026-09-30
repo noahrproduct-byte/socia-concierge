@@ -75,6 +75,34 @@ export async function workspacesEnabled(supabase: Supa): Promise<boolean> {
   }
 }
 
+// Competitors get their own migration (supabase/competitors-workspaces.sql):
+// until it runs, competitors stay pooled per user and this stays false, so the
+// app can deploy before the SQL without changing anything.
+let competitorsScopedSince: number | null = null;
+
+/** Whether the competitors-per-workspace migration has run (tracked_competitors.workspace_id exists). */
+export async function competitorsScopedEnabled(supabase: Supa): Promise<boolean> {
+  if (competitorsScopedSince != null) return true;
+  try {
+    const { error } = await supabase.from("tracked_competitors").select("workspace_id", { head: true, count: "exact" }).limit(0);
+    if (error) return false;
+    competitorsScopedSince = Date.now();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The workspace id to scope a competitor read/write to, or null to stay pooled.
+ * Null both before the competitors migration (so nothing changes) and when there
+ * is no active workspace. This is the single seam every competitor site uses.
+ */
+export async function competitorScopeId(supabase: Supa, workspaceId: string | null | undefined): Promise<string | null> {
+  if (!workspaceId) return null;
+  return (await competitorsScopedEnabled(supabase)) ? workspaceId : null;
+}
+
 /** Every workspace the person owns, oldest first (the default is normally first). */
 export async function listWorkspaces(supabase: Supa, userId: string): Promise<Workspace[]> {
   if (!(await workspacesEnabled(supabase))) return [];
