@@ -55,9 +55,29 @@ export default function WorkspacesManager({
   async function create() {
     const name = newName.trim();
     if (!name) return;
-    if (await call("/api/workspaces", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) }, "create")) {
+    setBusy("create");
+    setErr(null);
+    try {
+      const res = await fetch("/api/workspaces", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }) });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErr(j?.error ?? "That didn't work. Please try again.");
+        return;
+      }
+      // Drop into the new brand so connecting its accounts happens right here,
+      // instead of leaving the person in the previous workspace. Best-effort:
+      // the workspace exists even if the switch call fails.
+      const { id } = (await res.json().catch(() => ({}))) as { id?: string };
+      if (id) {
+        await fetch(`/api/workspaces/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ active: true }) }).catch(() => null);
+      }
       setNewName("");
       setCreating(false);
+      router.refresh();
+    } catch {
+      setErr("That didn't work. Please try again.");
+    } finally {
+      setBusy(null);
     }
   }
 
