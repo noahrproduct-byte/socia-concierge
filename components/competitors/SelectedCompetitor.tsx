@@ -7,7 +7,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, ExternalLink, Link2, Loader2, Plus, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, Link2, Loader2, Plus, Sparkles, TrendingUp, TrendingDown } from "lucide-react";
 import type { LeaderRow } from "@/lib/competitorRollup";
 import { SOURCE_LABEL } from "@/lib/competitorRollup";
 import type { Comparison as Cmp } from "@/lib/similarCompetitor";
@@ -39,6 +39,16 @@ export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking, notice
           <b>{similarity}%</b> match
         </span>
       )}
+      {r.momentum.state === "ok" && r.momentum.value != null ? (
+        <span className={`cx2-mom-chip ${r.momentum.value >= 0 ? "up" : "down"}`} title="Net follower change from SOCIA's own daily snapshots of this competitor.">
+          {r.momentum.value >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+          {r.momentum.value >= 0 ? "+" : "−"}{fmtN(Math.abs(r.momentum.value))} followers
+        </span>
+      ) : r.momentum.state === "insufficient" ? (
+        <span className="cx2-mom-chip collecting" title="SOCIA is building this competitor's daily history. A momentum figure appears once a couple of days have been recorded; nothing is estimated meanwhile.">
+          Momentum: collecting
+        </span>
+      ) : null}
       {gated && (
         <a href="/api/auth/facebook/start" className="cx2-gate-chip" title={`${platName(r.platform)} shares competitor numbers only through a linked Facebook Page.`}>
           <Link2 size={11} /> Unlock data

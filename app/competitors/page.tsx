@@ -9,6 +9,7 @@ import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/insta
 import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtube";
 import { nameKey } from "@/lib/discovery";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
+import { competitorHistoryEnabled, competitorMomentum, type CompetitorPoint } from "@/lib/competitorHistory";
 import { withBaseline, type CompetitorRow, type CompPost, type PostsGate } from "@/lib/competitorIntel";
 import { igCompetitorRows, type IgCompetitor } from "@/lib/igCompetitorData";
 import { locationTokens, tagsFor } from "@/lib/competitorPatterns";
@@ -171,6 +172,30 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   ].slice(0, 8);
   const igRes = await igCompetitorRows(ctx.client, ctx.ownerId, igHandles).catch(() => ({ enabled: false, reason: null as string | null, competitors: [] as IgCompetitor[] }));
   const ig = new Map(igRes.competitors.map((c) => [c.handle.toLowerCase(), c]));
+
+  // Competitor follower momentum from the daily history: measured once two days
+  // exist, "collecting" with one, "unavailable" with none. Read in one query.
+  const momByKey = new Map<string, ReturnType<typeof cell> | ReturnType<typeof absent>>();
+  try {
+    if (await competitorHistoryEnabled(ctx.client)) {
+      const from = localDayStr(new Date(cutoff));
+      const { data } = await ctx.client
+        .from("competitor_snapshots")
+        .select("platform, handle, day, followers, media_count, views_total")
+        .eq("user_id", ctx.ownerId).gte("day", from).order("day", { ascending: false });
+      const byKey = new Map<string, CompetitorPoint[]>();
+      for (const r of (data ?? []) as (CompetitorPoint & { platform: string; handle: string })[]) {
+        const k = `${r.platform}:${String(r.handle).toLowerCase()}`;
+        byKey.set(k, [...(byKey.get(k) ?? []), r]);
+      }
+      for (const [k, pts] of byKey) {
+        const m = competitorMomentum(pts, days);
+        if (m.current != null && m.previous != null) momByKey.set(k, cell(m.current - m.previous, "socia_snapshot", m.points));
+        else if (m.points >= 1) momByKey.set(k, absent("insufficient"));
+      }
+    }
+  } catch { /* history absent */ }
+  const momentumFor = (p: string, h: string) => momByKey.get(`${p}:${h.toLowerCase()}`) ?? absent("unavailable");
   const igGate = (c: IgCompetitor | undefined): PostsGate => !igRes.enabled ? "connection_needed" : !c ? "unavailable" : c.found ? "unavailable" : (c.reasonKind === "no_permission" ? "no_permission" : c.reasonKind === "not_business" ? "not_business" : c.reasonKind === "not_found" ? "not_found" : "failed");
 
   const matchFor = (p: string, h: string) => suggested.find((sg) => sg.platform === p && sg.handle?.toLowerCase() === h.toLowerCase());
@@ -194,7 +219,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
         engagement: live ? cell(live.engagementRate ?? null, "calculated", n) : absent("unknown"),
         cadence: live ? cell(live.uploadsPerWeek ?? null, "calculated", n) : absent("unknown"),
         medianViews: live ? cell(live.medianViews ?? null, "public_api", n) : absent("unknown"),
-        momentum: absent("unavailable"), match: sg?.relevanceScore ?? null,
+        momentum: momentumFor(p, handle), match: sg?.relevanceScore ?? null,
         topFormat: postsRead.length ? (postsRead.filter((x) => x.format === "Short").length >= postsRead.length / 2 ? "Shorts" : "Videos") : null,
         description: live?.description ?? null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [],
         postsCount: live?.videoCount ?? null, posts: postsRead, postsSource: postsRead.length ? "youtube_api" : null,
@@ -216,7 +241,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
         cadence: live ? cell(live.postsPerWeek ?? null, "calculated", n) : absent(igRes.enabled ? "unknown" : "connection_needed"),
         // Meta never publishes another account's views.
         medianViews: absent("unavailable"),
-        momentum: absent("unavailable"), match: sg?.relevanceScore ?? null,
+        momentum: momentumFor(p, handle), match: sg?.relevanceScore ?? null,
         topFormat: postsRead.length ? (postsRead.filter((x) => x.format === "Reel").length >= postsRead.length / 2 ? "Reels" : "Photos") : null,
         description: live?.biography ?? null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [],
         postsCount: live?.mediaCount ?? null, posts: postsRead, postsSource: postsRead.length ? "instagram_discovery" : null, postsGate: gate,
