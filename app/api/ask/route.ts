@@ -121,7 +121,11 @@ export async function POST(req: Request) {
     // strategist said is lost.
     try {
       const title = `${askCtx.page}: ${first.content.slice(0, 44)}`;
-      await ctx.client.from("conversations").insert({ user_id: ctx.ownerId, title, messages: [...messages, { role: "assistant", content: answer.text }] });
+      const convRow = { user_id: ctx.ownerId, title, messages: [...messages, { role: "assistant", content: answer.text }] };
+      const saved = ctx.workspace
+        ? await ctx.client.from("conversations").insert({ ...convRow, workspace_id: ctx.workspace.id })
+        : await ctx.client.from("conversations").insert(convRow);
+      if (saved.error && ctx.workspace) await ctx.client.from("conversations").insert(convRow); // column not migrated yet
     } catch { /* history is optional */ }
 
     return NextResponse.json({ answer, usage: u.usage });

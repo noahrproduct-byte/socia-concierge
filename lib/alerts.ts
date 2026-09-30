@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AlertCandidate } from "./alertDetectors";
+import { scopeToWorkspace } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -79,47 +80,63 @@ const toAlert = (r: Row): Alert => ({
   evidence: r.evidence, entityRef: r.entity_ref, detectedAt: r.detected_at, readAt: r.read_at,
 });
 
-/** The workspace owner's alerts, newest first (dismissed ones excluded). */
-export async function getAlerts(supabase: Supa, ownerId: string, limit = 20): Promise<Alert[]> {
+// The alerts of the ACTIVE workspace. alert_events already carries workspace_id
+// (recordAlerts writes it), so every reader scopes to it when one is active,
+// with the null-safe fallback so a pre-scoping alert is never hidden.
+
+/** The active workspace's alerts, newest first (dismissed ones excluded). */
+export async function getAlerts(supabase: Supa, ownerId: string, limit = 20, workspaceId?: string | null): Promise<Alert[]> {
   if (!(await alertsEnabled(supabase))) return [];
-  const { data, error } = await supabase
-    .from("alert_events")
-    .select("id, type, platform, severity, title, body, evidence, entity_ref, detected_at, read_at")
-    .eq("user_id", ownerId)
-    .is("dismissed_at", null)
+  const { data, error } = await scopeToWorkspace(
+    supabase
+      .from("alert_events")
+      .select("id, type, platform, severity, title, body, evidence, entity_ref, detected_at, read_at")
+      .eq("user_id", ownerId)
+      .is("dismissed_at", null),
+    workspaceId,
+  )
     .order("detected_at", { ascending: false })
     .limit(limit);
   if (error) return [];
   return ((data ?? []) as Row[]).map(toAlert);
 }
 
-/** How many of the owner's alerts are unread. null when the table isn't there. */
-export async function unreadAlertCount(supabase: Supa, ownerId: string): Promise<number | null> {
+/** How many of the active workspace's alerts are unread. null when the table isn't there. */
+export async function unreadAlertCount(supabase: Supa, ownerId: string, workspaceId?: string | null): Promise<number | null> {
   if (!(await alertsEnabled(supabase))) return null;
-  const { count, error } = await supabase
-    .from("alert_events")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", ownerId)
-    .is("read_at", null)
-    .is("dismissed_at", null);
+  const { count, error } = await scopeToWorkspace(
+    supabase
+      .from("alert_events")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", ownerId)
+      .is("read_at", null)
+      .is("dismissed_at", null),
+    workspaceId,
+  );
   if (error) return null;
   return count ?? 0;
 }
 
-/** Mark specific alerts, or all of the owner's unread, as read. */
-export async function markAlertsRead(supabase: Supa, ownerId: string, ids?: string[]): Promise<boolean> {
-  let q = supabase.from("alert_events").update({ read_at: new Date().toISOString() }).eq("user_id", ownerId).is("read_at", null);
+/** Mark specific alerts, or all of the active workspace's unread, as read. */
+export async function markAlertsRead(supabase: Supa, ownerId: string, ids?: string[], workspaceId?: string | null): Promise<boolean> {
+  let q = scopeToWorkspace(
+    supabase.from("alert_events").update({ read_at: new Date().toISOString() }).eq("user_id", ownerId).is("read_at", null),
+    workspaceId,
+  );
   if (ids?.length) q = q.in("id", ids);
   const { error } = await q;
   return !error;
 }
 
 /** Remove an alert from the feed for good. */
-export async function dismissAlert(supabase: Supa, ownerId: string, id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from("alert_events")
-    .update({ dismissed_at: new Date().toISOString() })
-    .eq("user_id", ownerId)
-    .eq("id", id);
+export async function dismissAlert(supabase: Supa, ownerId: string, id: string, workspaceId?: string | null): Promise<boolean> {
+  const { error } = await scopeToWorkspace(
+    supabase
+      .from("alert_events")
+      .update({ dismissed_at: new Date().toISOString() })
+      .eq("user_id", ownerId)
+      .eq("id", id),
+    workspaceId,
+  );
   return !error;
 }

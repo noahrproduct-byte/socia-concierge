@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -16,12 +17,15 @@ export async function GET() {
     if (!user) return NextResponse.json({ conversations: [] });
     const ctx = await resolveContext(supabase, user.id);
 
-    const { data, error } = await ctx.client
-      .from("conversations")
-      .select("id, title, messages, updated_at")
-      .eq("user_id", ctx.ownerId)
-      .order("updated_at", { ascending: false })
-      .limit(30);
+    const wsId = ctx.workspace?.id;
+    const run = (scoped: boolean) => {
+      const q = ctx.client.from("conversations").select("id, title, messages, updated_at").eq("user_id", ctx.ownerId);
+      return (scoped ? scopeToWorkspace(q, wsId) : q).order("updated_at", { ascending: false }).limit(30);
+    };
+    let { data, error } = await run(true);
+    // workspace_id column may not exist yet (migration not run): fall back to
+    // the per-user history rather than showing an empty list.
+    if (error && wsId) ({ data, error } = await run(false));
 
     if (error) return NextResponse.json({ conversations: [] });
     return NextResponse.json({ conversations: data ?? [] });
@@ -51,25 +55,25 @@ export async function POST(req: Request) {
 
   try {
     if (body.id) {
-      const { error } = await ctx.client
-        .from("conversations")
-        .update({ title: body.title ?? null, messages: body.messages ?? [], updated_at: now })
-        .eq("id", body.id)
-        .eq("user_id", ctx.ownerId);
+      const applyUpdate = (scoped: boolean) => {
+        const q = ctx.client
+          .from("conversations")
+          .update({ title: body.title ?? null, messages: body.messages ?? [], updated_at: now })
+          .eq("id", body.id)
+          .eq("user_id", ctx.ownerId);
+        return scoped ? scopeToWorkspace(q, ctx.workspace?.id) : q;
+      };
+      let { error } = await applyUpdate(true);
+      if (error && ctx.workspace) ({ error } = await applyUpdate(false)); // column not migrated yet
       if (error) throw error;
       return NextResponse.json({ id: body.id });
     } else {
-      const { data, error } = await ctx.client
-        .from("conversations")
-        .insert({
-          user_id: ctx.ownerId,
-          title: body.title ?? null,
-          messages: body.messages ?? [],
-          updated_at: now,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
+      const rowBase = { user_id: ctx.ownerId, title: body.title ?? null, messages: body.messages ?? [], updated_at: now };
+      let { data, error } = ctx.workspace
+        ? await ctx.client.from("conversations").insert({ ...rowBase, workspace_id: ctx.workspace.id }).select("id").single()
+        : await ctx.client.from("conversations").insert(rowBase).select("id").single();
+      if (error && ctx.workspace) ({ data, error } = await ctx.client.from("conversations").insert(rowBase).select("id").single()); // column not migrated yet
+      if (error || !data) throw error ?? new Error("Couldn't save.");
       return NextResponse.json({ id: data.id });
     }
   } catch (e: unknown) {
