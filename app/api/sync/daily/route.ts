@@ -20,7 +20,7 @@ async function run(req: Request) {
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const now = new Date();
   const result = await runDailySnapshots(svc, now, 40000);
-  const alerts = await runAlertDetection(svc, now, 15000).catch(() => null);
+  const alerts = await runAlertDetection(svc, now, 15000, { phase2: true }).catch(() => null);
   const competitors = await recordCompetitorSnapshots(svc, now, 25000).catch(() => null);
   return NextResponse.json({ ...result, alerts, competitors });
 }

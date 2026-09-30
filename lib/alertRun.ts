@@ -161,8 +161,14 @@ async function nicheSignalsFor(svc: Supa, conn: IgConn, ent: Entitlements, media
   }
 }
 
-/** Read active Instagram connections, detect, and record. Cheap: no external calls. */
-export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 15000): Promise<AlertRun> {
+/**
+ * Read active Instagram connections, detect, and record. No external calls.
+ * The cheap detectors (breakout, performance) run on every publisher tick; the
+ * Phase-2 detectors (competitor / trend / opportunity) query per-workspace
+ * competitor + discovery data and only change daily, so they run when
+ * `opts.phase2` is set — from the daily cron, not every 5-minute tick.
+ */
+export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 15000, opts: { phase2?: boolean } = {}): Promise<AlertRun> {
   const run: AlertRun = { workspaces: 0, candidates: 0, recorded: 0, errors: 0 };
   if (!(await alertsEnabled(svc))) return run;
   const deadline = Date.now() + budgetMs;
@@ -203,8 +209,11 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
       if (canUseFeature(ent, "breakout_alerts")) candidates.push(...breakoutsFor("instagram", media, now.getTime()));
       if (canUseFeature(ent, "performance_change_alerts")) candidates.push(...(await performanceFor(svc, c, now)));
       // Phase-2 detectors (Growth+): competitor moves, niche trends, format gaps.
-      if (canUseFeature(ent, "competitor_alerts")) candidates.push(...(await competitorMovesFor(svc, c, now)));
-      candidates.push(...(await nicheSignalsFor(svc, c, ent, media, now)));
+      // Daily only — their inputs change at most once a day.
+      if (opts.phase2) {
+        if (canUseFeature(ent, "competitor_alerts")) candidates.push(...(await competitorMovesFor(svc, c, now)));
+        candidates.push(...(await nicheSignalsFor(svc, c, ent, media, now)));
+      }
       run.candidates += candidates.length;
       if (candidates.length) run.recorded += await recordAlerts(svc, { userId: c.user_id, workspaceId: c.workspace_id ?? null }, candidates);
     } catch {
