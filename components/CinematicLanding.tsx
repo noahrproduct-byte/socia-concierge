@@ -296,9 +296,11 @@ function Loop() {
             <circle className="so-lorbit-base" cx="280" cy="280" r={LOOP_R} fill="none" />
             {Array.from({ length: LOOP_N }, (_, i) => {
               const a = ((i + 0.5) / LOOP_N) * Math.PI * 2 - Math.PI / 2;
-              const x = 280 + LOOP_R * Math.cos(a);
-              const y = 280 + LOOP_R * Math.sin(a);
-              const deg = (a * 180) / Math.PI + 90;
+              // Fixed precision so the server and client render byte-identical
+              // transforms (float toString can differ and trips hydration).
+              const x = (280 + LOOP_R * Math.cos(a)).toFixed(3);
+              const y = (280 + LOOP_R * Math.sin(a)).toFixed(3);
+              const deg = ((a * 180) / Math.PI + 90).toFixed(3);
               return (
                 <path
                   key={i}
@@ -324,8 +326,9 @@ function Loop() {
 
           {LOOP_STAGES.map((s, i) => {
             const a = (i / LOOP_N) * Math.PI * 2 - Math.PI / 2;
-            const x = 50 + 44 * Math.cos(a);
-            const y = 50 + 44 * Math.sin(a);
+            // Fixed precision so SSR and client positions match (see above).
+            const x = (50 + 44 * Math.cos(a)).toFixed(3);
+            const y = (50 + 44 * Math.sin(a)).toFixed(3);
             return (
               <button
                 key={s.t}
