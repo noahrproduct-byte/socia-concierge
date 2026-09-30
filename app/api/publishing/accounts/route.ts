@@ -19,6 +19,6 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
-  const { accounts, complete } = await loadPickerAccountsDetailed(ctx.client, ctx.ownerId);
+  const { accounts, complete } = await loadPickerAccountsDetailed(ctx.client, ctx.ownerId, ctx.workspace?.id);
   return NextResponse.json({ accounts, complete });
 }

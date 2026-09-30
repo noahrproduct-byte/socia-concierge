@@ -486,10 +486,12 @@ export async function listDue(svc: Supa, now: Date, limit: number): Promise<DueD
 // Connected accounts as the picker sees them
 // ---------------------------------------------------------------------------
 
-async function scopesByAccount(supabase: Supa, table: string, idCol: string, userId: string): Promise<Map<string, string[] | null>> {
+async function scopesByAccount(supabase: Supa, table: string, idCol: string, userId: string, workspaceId?: string | null): Promise<Map<string, string[] | null>> {
   const out = new Map<string, string[] | null>();
   try {
-    const { data, error } = await supabase.from(table).select(`${idCol}, scopes`).eq("user_id", userId);
+    let q = supabase.from(table).select(`${idCol}, scopes`).eq("user_id", userId);
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data, error } = await q;
     if (error) return out; // scopes column (or table) missing: unknown, not empty
     for (const r of (data ?? []) as Record<string, unknown>[]) {
       const id = r[idCol];
@@ -514,12 +516,12 @@ export type PickerAccountsResult = {
  * picker can say why they are unavailable. Shared by
  * /api/publishing/accounts, /api/posts and the composer page.
  */
-export async function loadPickerAccountsDetailed(supabase: Supa, userId: string): Promise<PickerAccountsResult> {
+export async function loadPickerAccountsDetailed(supabase: Supa, userId: string, workspaceId?: string | null): Promise<PickerAccountsResult> {
   const [{ accounts, complete }, igScopes, ytScopes, ttScopes] = await Promise.all([
-    listConnectedAccountsDetailed(supabase, userId),
-    scopesByAccount(supabase, "instagram_connections", "ig_user_id", userId),
-    scopesByAccount(supabase, "youtube_connections", "channel_id", userId),
-    scopesByAccount(supabase, "tiktok_connections", "open_id", userId),
+    listConnectedAccountsDetailed(supabase, userId, workspaceId),
+    scopesByAccount(supabase, "instagram_connections", "ig_user_id", userId, workspaceId),
+    scopesByAccount(supabase, "youtube_connections", "channel_id", userId, workspaceId),
+    scopesByAccount(supabase, "tiktok_connections", "open_id", userId, workspaceId),
   ]);
   return {
     complete,

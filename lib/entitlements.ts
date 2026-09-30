@@ -356,10 +356,14 @@ type Row = Record<string, unknown>;
  * null means every shape failed: the table could not be read at all, which is
  * not the same as the person having no rows.
  */
-async function selectRows(supabase: Supa, table: string, userId: string, selects: string[]): Promise<Row[] | null> {
+async function selectRows(supabase: Supa, table: string, userId: string, selects: string[], workspaceId?: string | null): Promise<Row[] | null> {
   for (const cols of selects) {
     try {
-      const { data, error } = await supabase.from(table).select(cols).eq("user_id", userId);
+      let q = supabase.from(table).select(cols).eq("user_id", userId);
+      // Scope to one workspace only when asked (the picker). Callers pass an id
+      // only after the migration, so the workspace_id column exists.
+      if (workspaceId) q = q.eq("workspace_id", workspaceId);
+      const { data, error } = await q;
       if (!error) return (data ?? []) as Row[];
     } catch {
       /* try the next shape */
@@ -375,26 +379,31 @@ export type ConnectedAccountsResult = {
   complete: boolean;
 };
 
-/** The list plus whether it is trustworthy. Use this wherever a count is shown or compared. */
-export async function listConnectedAccountsDetailed(supabase: Supa, userId: string): Promise<ConnectedAccountsResult> {
+/**
+ * The list plus whether it is trustworthy. Use this wherever a count is shown
+ * or compared. By default it spans ALL of the person's workspaces — the plan
+ * counts accounts across workspaces. Pass `workspaceId` (the composer/picker
+ * only) to narrow it to a single workspace's accounts.
+ */
+export async function listConnectedAccountsDetailed(supabase: Supa, userId: string, workspaceId?: string | null): Promise<ConnectedAccountsResult> {
   const [igRaw, fbRaw, ytRaw, ttRaw] = await Promise.all([
     selectRows(supabase, "instagram_connections", userId, [
       "ig_user_id, username, profile, is_active, plan_suspended_at",
       "ig_user_id, username, profile, is_active",
       "ig_user_id, username, profile",
-    ]),
+    ], workspaceId),
     selectRows(supabase, "facebook_connections", userId, [
       "page_id, page_name, username, picture_url, connection_status, plan_suspended_at",
       "page_id, page_name, username, picture_url, connection_status",
-    ]),
+    ], workspaceId),
     selectRows(supabase, "youtube_connections", userId, [
       "channel_id, title, handle, avatar_url, plan_suspended_at",
       "channel_id, title, handle, avatar_url",
-    ]),
+    ], workspaceId),
     selectRows(supabase, "tiktok_connections", userId, [
       "open_id, display_name, username, avatar_url, plan_suspended_at",
       "open_id, display_name, username, avatar_url",
-    ]),
+    ], workspaceId),
   ]);
   // TikTok's table is newer than the others: an account with no rows there
   // (or a project that has not run the migration) must not read as incomplete.

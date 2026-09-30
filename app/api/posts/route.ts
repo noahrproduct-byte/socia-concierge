@@ -168,7 +168,7 @@ export async function POST(req: Request) {
   // A draft may keep an unavailable destination (it is saved as a draft). When
   // the connection tables could not all be read the list is a lower bound, and
   // nothing is scheduled or published against a guess.
-  const { accounts, complete: accountsComplete } = await loadPickerAccountsDetailed(ctx.client, ctx.ownerId);
+  const { accounts, complete: accountsComplete } = await loadPickerAccountsDetailed(ctx.client, ctx.ownerId, ctx.workspace?.id);
   if (!isDraft && !accountsComplete) {
     return NextResponse.json({ error: "SOCIA could not read your connected accounts just now. Try again in a moment." }, { status: 503 });
   }

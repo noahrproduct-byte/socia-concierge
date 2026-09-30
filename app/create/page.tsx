@@ -67,7 +67,7 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
     getEntitlements(ctx.client, ctx.ownerId),
     getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
     // A read failure means the list is a lower bound (complete: false), never "no accounts".
-    loadPickerAccountsDetailed(ctx.client, ctx.ownerId).then(
+    loadPickerAccountsDetailed(ctx.client, ctx.ownerId, ctx.workspace?.id).then(
       (r) => ({ accounts: r.accounts as PickerAccount[], complete: r.complete }),
       () => ({ accounts: [] as PickerAccount[], complete: false }),
     ),
