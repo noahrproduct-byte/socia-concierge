@@ -6,11 +6,13 @@ import { adapterFor, registerAdapter } from "../adapter";
 import { instagramAdapter } from "./instagram";
 import { youtubeAdapter } from "./youtube";
 import { tiktokAdapter } from "./tiktok";
+import { facebookAdapter } from "./facebook";
 
 export function ensureAdapters(): void {
   if (!adapterFor("instagram")) registerAdapter(instagramAdapter);
   if (!adapterFor("youtube")) registerAdapter(youtubeAdapter);
   if (!adapterFor("tiktok")) registerAdapter(tiktokAdapter);
+  if (!adapterFor("facebook")) registerAdapter(facebookAdapter);
 }
 
 ensureAdapters();

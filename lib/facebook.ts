@@ -31,7 +31,15 @@ export const FB_GRAPH_V = "v23.0";
 // even for a direct Page admin. Needs Advanced Access for public users (App
 // Review); works now for app admins/testers. See the /me/businesses fallback
 // in the callback.
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "instagram_basic", "business_management"].join(",");
+//   pages_manage_posts    -> publish photos/videos/text to the connected Page.
+//                            Standard Access covers Pages the app admins/testers
+//                            manage (so publishing works for them pre-review);
+//                            Advanced Access (App Review) is needed for public
+//                            users' Pages. Facebook Login silently omits an
+//                            un-granted scope rather than rejecting the whole
+//                            authorization, so requesting it is safe before the
+//                            permission is added/approved in the Meta dashboard.
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "instagram_basic", "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

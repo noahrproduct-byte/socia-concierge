@@ -179,12 +179,12 @@ const YOUTUBE: PlatformCapabilities = {
 const FACEBOOK: PlatformCapabilities = {
   platform: "facebook",
   label: "Facebook",
-  implemented: false,
+  implemented: true,
   formats: [
     {
       id: "feed",
       label: "Page post",
-      implemented: false,
+      implemented: true,
       media: {
         kinds: ["image", "video"], mimes: ["image/jpeg", "image/png", "image/gif", "video/mp4"], maxBytes: 10 * MB, minItems: 0, maxItems: 10,
         notes: ["Photos up to 10 MB (JPEG, PNG, GIF)."],
@@ -199,7 +199,7 @@ const FACEBOOK: PlatformCapabilities = {
     description: "supported", thumbnail: "supported", nativeScheduling: "supported", shareToFeed: "unsupported",
   },
   fields: {},
-  notes: ["Publishing to a Facebook Page needs Meta's approval of the pages_manage_posts permission for SOCIA. Until then Facebook is read-only here."],
+  notes: ["Publishes text, a photo, several photos, or a video to the Page feed. Needs the pages_manage_posts permission: granted to Pages the app admins/testers manage today, and to all users' Pages once Meta approves it. Reconnect Facebook after granting it."],
   sources: ["https://developers.facebook.com/docs/pages-api/posts/", "https://developers.facebook.com/docs/video-api/guides/reels-publishing/"],
 };
 
@@ -257,6 +257,8 @@ export type Availability =
   | { state: "coming_soon"; reason: string; notes: string[] };
 
 export const IG_PUBLISH_SCOPE = "instagram_business_content_publish";
+/** Pages API: publish posts to a Facebook Page. */
+export const FB_PUBLISH_SCOPE = "pages_manage_posts";
 /** Content Posting API: upload to the creator's inbox (drafts). */
 export const TT_UPLOAD_SCOPE = "video.upload";
 /** Content Posting API: post directly to the profile. */
@@ -294,6 +296,15 @@ export function availabilityFor(
     // Either posting scope lets SOCIA upload; the adapter picks inbox vs direct.
     if (account.scopes && !account.scopes.includes(TT_UPLOAD_SCOPE) && !account.scopes.includes(TT_PUBLISH_SCOPE)) {
       return { state: "needs_scope", reason: "Reconnect TikTok to allow uploads.", action: "reconnect", notes: caps.notes };
+    }
+    return { state: "available", notes: caps.notes };
+  }
+  if (platform === "facebook") {
+    // Facebook connections don't record scopes yet, so a null list is tried and
+    // the publisher reports a missing permission precisely. A recorded list
+    // without pages_manage_posts is a definite reconnect.
+    if (account.scopes && !account.scopes.includes(FB_PUBLISH_SCOPE)) {
+      return { state: "needs_scope", reason: "Reconnect Facebook to allow publishing.", action: "reconnect", notes: caps.notes };
     }
     return { state: "available", notes: caps.notes };
   }

@@ -15,11 +15,16 @@ const image = (over: Partial<MediaItem> = {}): MediaItem => ({
 const future = new Date(Date.now() + 3600_000).toISOString();
 
 describe("capabilities", () => {
-  it("Instagram, YouTube and TikTok are implemented; Facebook needs approval", () => {
+  it("all four platforms are implemented; Facebook gates on its publish scope", () => {
     expect(CAPABILITIES.instagram.implemented).toBe(true);
     expect(CAPABILITIES.youtube.implemented).toBe(true);
     expect(CAPABILITIES.tiktok.implemented).toBe(true);
-    expect(availabilityFor("facebook", { status: "connected", suspended: false, scopes: [] }).state).toBe("needs_approval");
+    expect(CAPABILITIES.facebook.implemented).toBe(true);
+    // A recorded scope list without pages_manage_posts asks for a reconnect; a
+    // null list (Facebook connections don't record scopes yet) is tried.
+    expect(availabilityFor("facebook", { status: "connected", suspended: false, scopes: [] }).state).toBe("needs_scope");
+    expect(availabilityFor("facebook", { status: "connected", suspended: false, scopes: ["pages_manage_posts"] }).state).toBe("available");
+    expect(availabilityFor("facebook", { status: "connected", suspended: false, scopes: null }).state).toBe("available");
     expect(availabilityFor("tiktok", null).state).toBe("not_connected");
     expect(availabilityFor("tiktok", { status: "connected", suspended: false, scopes: ["user.info.basic"] }).state).toBe("needs_scope");
     expect(availabilityFor("tiktok", { status: "connected", suspended: false, scopes: ["user.info.basic", "video.upload"] }).state).toBe("available");
@@ -85,10 +90,9 @@ describe("text rules", () => {
     expect(validateDestination({ platform: "instagram", media: [video()], masterCaption: many, settings: s, scheduledAt: future, requireFutureTime: true }).issues.map((i) => i.code)).toContain("hashtags_many");
     expect(validateDestination({ platform: "instagram", media: [video()], masterCaption: "ok", settings: s, scheduledAt: "2020-01-01T00:00:00Z", requireFutureTime: true }).issues.map((i) => i.code)).toContain("time_past");
   });
-  it("blocks platforms SOCIA cannot publish to, with the honest reason", () => {
+  it("validates a Facebook Page post now that publishing is implemented", () => {
     const r = validateDestination({ platform: "facebook", media: [image()], masterCaption: "x", settings: defaultSettings("facebook"), scheduledAt: null, requireFutureTime: false });
-    expect(r.level).toBe("blocked");
-    expect(r.issues[0].message).toMatch(/Meta's approval/);
+    expect(r.level).toBe("ready");
   });
 });
 
