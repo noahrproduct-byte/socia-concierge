@@ -9,7 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshAccessToken } from "./youtubeAuth";
-import { recentVideos, type YtVideo } from "./youtube";
+import { recentVideos, isoDurationSec, type YtVideo } from "./youtube";
 import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
 import { readPlatformSnapshots } from "./platformSnapshots";
 
@@ -40,8 +40,49 @@ export type YouTubeAnalytics = {
   topVideos: YtVideo[];
   /** Viewer share by age bucket (male + female summed), when available. */
   demographics: YtBar[];
+  /** Viewer share by gender, from the same demographics report. */
+  genders: YtBar[];
   /** A human reason when analytics could not be read (auth, api, none yet). */
   note: string | null;
+  /** The richer reports the Analytics page uses; null on the light path. */
+  deep: YtDeep | null;
+};
+
+export type YtDailyExt = { day: string; views: number; minutes: number; subsGained: number; subsLost: number; likes: number; comments: number; shares: number };
+export type YtVideoStat = {
+  videoId: string;
+  views: number;
+  minutes: number;
+  avgViewDurationSec: number | null;
+  avgViewPercentage: number | null;
+  likes: number;
+  comments: number;
+  shares: number;
+  subsGained: number;
+};
+export type YtSlice = { key: string; views: number; minutes: number };
+
+/** Everything beyond the basic panel. Each report is fetched on its own and is
+ *  null when YouTube didn't answer — the UI then says "not available" for that
+ *  one section instead of guessing. */
+export type YtDeep = {
+  /** Daily rows over twice the range (current + previous window), oldest first. */
+  daily: YtDailyExt[] | null;
+  /** Channel-wide average percentage viewed for the current / previous window. */
+  avgViewPercentage: { current: number | null; previous: number | null };
+  /** Per-video stats inside the range, top 50 by views. */
+  videoStats: YtVideoStat[] | null;
+  /** Details (title, thumbnail, length, publish date) for the videos in videoStats. */
+  videoMeta: Record<string, YtVideo>;
+  /** Ids of in-range videos YouTube itself classifies as Shorts; null = YouTube didn't say. */
+  shortsIds: string[] | null;
+  /** Views / watch time by YouTube's own content type (SHORTS, VIDEO_ON_DEMAND, LIVE_STREAM…). */
+  contentTypes: YtSlice[] | null;
+  traffic: YtSlice[] | null;
+  devices: YtSlice[] | null;
+  countries: YtSlice[] | null;
+  /** Up to 50 most recent public uploads, with lifetime public stats. */
+  uploads: YtVideo[];
 };
 
 type ConnRow = {
@@ -162,12 +203,131 @@ function rowsByHeader(payload: Record<string, unknown> | null): { headers: strin
   return { headers, rows };
 }
 
+type Report = { headers: string[]; rows: unknown[][] };
+
+/** One YouTube Analytics report for the user's own channel, or null on any error. */
+async function report(token: string, params: string): Promise<Report | null> {
+  const j = await getJson(`${ANALYTICS}?ids=channel==MINE&${params}`, token);
+  return j ? rowsByHeader(j) : null;
+}
+
+const cell = (r: unknown[], i: number): number => (i >= 0 ? Number(r[i] ?? 0) || 0 : 0);
+const cellOrNull = (r: unknown[], i: number): number | null => {
+  if (i < 0 || r[i] == null) return null;
+  const n = Number(r[i]);
+  return Number.isFinite(n) ? n : null;
+};
+
+/** Views + watch time split by one dimension (traffic source, device, country, content type). */
+async function sliceReport(token: string, range: string, dimension: string, extra = ""): Promise<YtSlice[] | null> {
+  const r = await report(token, `${range}&metrics=views,estimatedMinutesWatched&dimensions=${dimension}&sort=-views${extra}`);
+  if (!r) return null;
+  const iK = r.headers.indexOf(dimension);
+  if (iK < 0) return null;
+  const iV = r.headers.indexOf("views");
+  const iM = r.headers.indexOf("estimatedMinutesWatched");
+  return r.rows.map((row) => ({ key: String(row[iK] ?? ""), views: cell(row, iV), minutes: cell(row, iM) })).filter((s) => s.key);
+}
+
+type VideoItem = {
+  id: string;
+  snippet?: { title?: string; publishedAt?: string; thumbnails?: { medium?: { url?: string }; high?: { url?: string } } };
+  statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+  contentDetails?: { duration?: string };
+};
+
+/** Video details by id through the owner's own token (so private and unlisted
+ *  uploads resolve too). Missing ids are simply absent. */
+async function videosByIds(token: string, ids: string[]): Promise<Record<string, YtVideo>> {
+  const out: Record<string, YtVideo> = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const j = await getJson(`${DATA}/videos?part=snippet,statistics,contentDetails&id=${chunk.join(",")}`, token);
+    for (const v of ((j?.items as VideoItem[] | undefined) ?? [])) {
+      out[v.id] = {
+        videoId: v.id,
+        title: v.snippet?.title ?? "",
+        publishedAt: v.snippet?.publishedAt ?? "",
+        thumb: v.snippet?.thumbnails?.high?.url ?? v.snippet?.thumbnails?.medium?.url ?? null,
+        views: num(v.statistics?.viewCount),
+        likes: num(v.statistics?.likeCount),
+        comments: num(v.statistics?.commentCount),
+        durationSec: isoDurationSec(v.contentDetails?.duration),
+      };
+    }
+  }
+  return out;
+}
+
+/** The richer reports for the Analytics page. All requests run in parallel and
+ *  fail independently. */
+async function fetchDeep(token: string, uploadsPlaylist: string | null, days: number): Promise<YtDeep> {
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 86400000);
+  const prevEnd = new Date(start.getTime() - 86400000);
+  const prevStart = new Date(prevEnd.getTime() - days * 86400000);
+  const wideStart = new Date(end.getTime() - (2 * days + 3) * 86400000);
+  const range = `startDate=${ymd(start)}&endDate=${ymd(end)}`;
+  const prevRange = `startDate=${ymd(prevStart)}&endDate=${ymd(prevEnd)}`;
+
+  const [dailyR, pctCur, pctPrev, videoR, shortsR, contentTypes, traffic, devices, countries, uploads] = await Promise.all([
+    report(token, `startDate=${ymd(wideStart)}&endDate=${ymd(end)}&metrics=views,estimatedMinutesWatched,subscribersGained,subscribersLost,likes,comments,shares&dimensions=day&sort=day`),
+    report(token, `${range}&metrics=averageViewPercentage`),
+    report(token, `${prevRange}&metrics=averageViewPercentage`),
+    report(token, `${range}&metrics=views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,likes,comments,shares,subscribersGained&dimensions=video&sort=-views&maxResults=50`),
+    report(token, `${range}&metrics=views&dimensions=video&filters=creatorContentType==SHORTS&sort=-views&maxResults=200`),
+    sliceReport(token, range, "creatorContentType"),
+    sliceReport(token, range, "insightTrafficSourceType"),
+    sliceReport(token, range, "deviceType"),
+    sliceReport(token, range, "country", "&maxResults=10"),
+    uploadsPlaylist ? recentVideos(uploadsPlaylist, 50).catch(() => [] as YtVideo[]) : Promise.resolve([] as YtVideo[]),
+  ]);
+
+  let daily: YtDailyExt[] | null = null;
+  if (dailyR) {
+    const h = dailyR.headers;
+    const iDay = h.indexOf("day");
+    const ix = { v: h.indexOf("views"), m: h.indexOf("estimatedMinutesWatched"), g: h.indexOf("subscribersGained"), l: h.indexOf("subscribersLost"), li: h.indexOf("likes"), c: h.indexOf("comments"), s: h.indexOf("shares") };
+    if (iDay >= 0) {
+      daily = dailyR.rows
+        .map((r) => ({ day: String(r[iDay] ?? ""), views: cell(r, ix.v), minutes: cell(r, ix.m), subsGained: cell(r, ix.g), subsLost: cell(r, ix.l), likes: cell(r, ix.li), comments: cell(r, ix.c), shares: cell(r, ix.s) }))
+        .filter((d) => d.day);
+    }
+  }
+
+  const pct = (r: Report | null): number | null => (r && r.rows[0] ? cellOrNull(r.rows[0], r.headers.indexOf("averageViewPercentage")) : null);
+
+  let videoStats: YtVideoStat[] | null = null;
+  if (videoR) {
+    const h = videoR.headers;
+    const iId = h.indexOf("video");
+    if (iId >= 0) {
+      const ix = { v: h.indexOf("views"), m: h.indexOf("estimatedMinutesWatched"), d: h.indexOf("averageViewDuration"), p: h.indexOf("averageViewPercentage"), li: h.indexOf("likes"), c: h.indexOf("comments"), s: h.indexOf("shares"), g: h.indexOf("subscribersGained") };
+      videoStats = videoR.rows
+        .map((r) => ({ videoId: String(r[iId] ?? ""), views: cell(r, ix.v), minutes: cell(r, ix.m), avgViewDurationSec: cellOrNull(r, ix.d), avgViewPercentage: cellOrNull(r, ix.p), likes: cell(r, ix.li), comments: cell(r, ix.c), shares: cell(r, ix.s), subsGained: cell(r, ix.g) }))
+        .filter((v) => v.videoId);
+    }
+  }
+  const videoMeta = videoStats?.length ? await videosByIds(token, videoStats.map((v) => v.videoId)).catch(() => ({} as Record<string, YtVideo>)) : {};
+
+  let shortsIds: string[] | null = null;
+  if (shortsR) {
+    const iId = shortsR.headers.indexOf("video");
+    if (iId >= 0) shortsIds = shortsR.rows.map((r) => String(r[iId] ?? "")).filter(Boolean);
+  }
+
+  return { daily, avgViewPercentage: { current: pct(pctCur), previous: pct(pctPrev) }, videoStats, videoMeta, shortsIds, contentTypes, traffic, devices, countries, uploads };
+}
+
 /** Everything the YouTube panel shows, for the signed-in user's own channel.
- *  Returns null only when the user has no YouTube connection. */
+ *  Returns null only when the user has no YouTube connection. Pass
+ *  `{ deep: true }` for the Analytics page's richer reports; the Dashboard uses
+ *  the light path. */
 export async function getYouTubeAnalytics(
   supabase: SupabaseClient,
   userId: string,
   days: number,
+  opts: { deep?: boolean } = {},
 ): Promise<YouTubeAnalytics | null> {
   const auth = await validToken(supabase, userId);
   if (!auth) return null;
@@ -261,24 +421,40 @@ export async function getYouTubeAnalytics(
     token,
   );
   const demoMap = new Map<string, number>();
+  const genderMap = new Map<string, number>();
   if (demoJson) {
     const { headers, rows } = rowsByHeader(demoJson);
     const iAge = headers.indexOf("ageGroup");
+    const iGender = headers.indexOf("gender");
     const iPct = headers.indexOf("viewerPercentage");
     for (const r of rows) {
       const age = String(r[iAge] ?? "").replace(/^age/, "");
       const pct = Number(r[iPct] ?? 0);
       demoMap.set(age, (demoMap.get(age) ?? 0) + pct);
+      if (iGender >= 0) {
+        const g = String(r[iGender] ?? "");
+        if (g) genderMap.set(g, (genderMap.get(g) ?? 0) + pct);
+      }
     }
   }
   const demographics: YtBar[] = [...demoMap.entries()]
     .map(([label, value]) => ({ label, value: Math.round(value * 10) / 10 }))
     .sort((a, b) => a.label.localeCompare(b.label));
+  const GENDER_LABEL: Record<string, string> = { female: "Female", male: "Male", user_specified: "Other" };
+  const genders: YtBar[] = [...genderMap.entries()]
+    .map(([k, value]) => ({ label: GENDER_LABEL[k] ?? k, value: Math.round(value * 10) / 10 }))
+    .sort((a, b) => b.value - a.value);
+
+  // The Analytics page asks for the richer reports; the Dashboard does not.
+  if (opts.deep) {
+    const deep = await fetchDeep(token, uploads, days);
+    return { channel, range, series, topVideos: deep.uploads.slice(0, 6), demographics, genders, note, deep };
+  }
 
   // Recent uploads with public stats (reuses the public-data reader).
   const topVideos = uploads ? await recentVideos(uploads, 6).catch(() => []) : [];
 
-  return { channel, range, series, topVideos, demographics, note };
+  return { channel, range, series, topVideos, demographics, genders, note, deep: null };
 }
 
 /** Lightweight connection check for pages that only need to know it exists.
