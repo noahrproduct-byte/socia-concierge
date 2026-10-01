@@ -6,6 +6,8 @@ import {
 } from "@/lib/igPublish";
 import { isDue, nextAction, MAX_ATTEMPTS, DAILY_PUBLISH_CAP, GRACE_HOURS, type ScheduledPost } from "@/lib/scheduling";
 import { runDailySnapshots, type SnapshotRun } from "@/lib/snapshotJob";
+import { runFacebookDailySnapshots, type PlatformSnapshotRun } from "@/lib/platformSnapshots";
+import { runYouTubeDailySnapshots } from "@/lib/youtubeSnapshots";
 import { runAlertDetection, type AlertRun } from "@/lib/alertRun";
 import { recordCompetitorSnapshots, type CompetitorRun } from "@/lib/competitorHistory";
 import { getEntitlements, checkFeature, type Entitlements } from "@/lib/entitlements";
@@ -319,6 +321,17 @@ async function run(req: Request) {
   if (Date.now() < deadline - 5_000) {
     try { snapshots = await runDailySnapshots(svc, now, Math.max(3_000, deadline - Date.now() - 2_000)); } catch { snapshots = null; }
   }
+  // Facebook (and, later, other non-Instagram) daily follower snapshots ride
+  // the same tick, right after Instagram's: first run of the UTC day records
+  // each Page's follower count, later runs find it present.
+  let fbSnapshots: PlatformSnapshotRun | null = null;
+  if (Date.now() < deadline - 5_000) {
+    try { fbSnapshots = await runFacebookDailySnapshots(svc, now, Math.max(3_000, deadline - Date.now() - 2_000)); } catch { fbSnapshots = null; }
+  }
+  let ytSnapshots: PlatformSnapshotRun | null = null;
+  if (Date.now() < deadline - 6_000) {
+    try { ytSnapshots = await runYouTubeDailySnapshots(svc, now, Math.max(3_000, deadline - Date.now() - 3_000)); } catch { ytSnapshots = null; }
+  }
   // Alert detection rides the same tick, after snapshots so it sees today's
   // numbers. Deterministic and cheap (no external calls); a fingerprint keeps
   // re-runs from duplicating events.
@@ -332,5 +345,5 @@ async function run(req: Request) {
   if (Date.now() < deadline - 4_000) {
     try { competitors = await recordCompetitorSnapshots(svc, now, Math.max(2_000, deadline - Date.now() - 2_000)); } catch { competitors = null; }
   }
-  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots, alerts, competitors });
+  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots, fbSnapshots, ytSnapshots, alerts, competitors });
 }

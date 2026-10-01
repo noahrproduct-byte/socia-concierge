@@ -17,12 +17,19 @@
 //                            Instagram business accounts. This is the only
 //                            route Meta offers to competitor data on
 //                            Instagram; the Instagram Login API has none.
-// read_insights (Page insights time series) is an advanced permission that
-// requires App Review and isn't selectable on user-token login
-// configurations, so SOCIA doesn't request it — the capability map reports
-// those metrics as unavailable rather than guessing.
-// In Development Mode these work for app admins/developers/testers without
-// App Review — public users need the app reviewed by Meta.
+// read_insights (Page/post Insights time series) CAN be requested via this
+// Facebook Login scope list, but it is an Advanced-Access permission: public
+// users need App Review + Business Verification before Meta grants it. SOCIA
+// does not request it yet — the plan is to queue that App Review after the
+// in-flight Instagram review clears, and until then the capability map reports
+// the Insights-only metrics (page/video views, Meta's daily follower-flow,
+// post_clicks) as unavailable rather than guessing. SOCIA builds its own
+// Facebook follower trend from followers_count (see lib/platformSnapshots.ts),
+// which needs no extra permission. NOTE: Meta deprecated the impressions/reach/
+// page_fans family (version-independent waves in Nov 2025 and June 2026), so
+// Facebook reach/impressions are no longer retrievable on any version.
+// In Development Mode insights work for app admins/developers/testers without
+// App Review — useful for prototyping before submission.
 
 export const FB_GRAPH_V = "v23.0";
 

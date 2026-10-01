@@ -15,6 +15,14 @@ export async function uploadMedia(
   path: string,
   file: File
 ): Promise<void> {
+  // Optional client-side guard: when NEXT_PUBLIC_MAX_UPLOAD_MB is set to match
+  // the project's Supabase Storage limit, an oversized file fails instantly with
+  // actionable guidance instead of waiting for a 413 from storage. Unset (the
+  // default) = no guard, so this never wrongly blocks a file that would upload.
+  const maxMb = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB);
+  if (Number.isFinite(maxMb) && maxMb > 0 && file.size > maxMb * 1024 * 1024) {
+    throw new Error(`Upload failed: this file is ${(file.size / 1024 / 1024).toFixed(0)} MB, over the ${maxMb} MB upload limit. Compress it to a smaller size and try again.`);
+  }
   const contentType = file.type || "application/octet-stream";
   if (file.size <= CHUNK) {
     const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType });

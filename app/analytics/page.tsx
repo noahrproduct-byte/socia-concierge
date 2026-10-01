@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { Link2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
@@ -8,6 +8,7 @@ import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
 import { getIgSnapshot, readDailySnapshots, getActiveConnection, type IgMediaItem } from "@/lib/instagramSync";
+import { readPlatformSnapshots } from "@/lib/platformSnapshots";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
 import { median } from "@/lib/metrics";
 import { interactionsTotal, engagementRateOf, engagementBreakdown, engagementQuality } from "@/lib/engagement";
@@ -18,8 +19,16 @@ import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsV3, { type AnalyticsData, type AnalyticsGate } from "@/components/AnalyticsV3";
 import YouTubeAnalytics from "@/components/YouTubeAnalytics";
+import FacebookAnalytics from "@/components/FacebookAnalytics";
+import TikTokAnalytics from "@/components/TikTokAnalytics";
+import AnalyticsShell from "@/components/AnalyticsShell";
+import type { PlatformTab } from "@/components/PlatformTabs";
+import type { OverlayLine } from "@/components/ov/MultiLineChart";
 import { getYouTubeAnalytics, type YtDaily } from "@/lib/youtubeData";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
+import { buildFacebookAnalytics } from "@/lib/metrics/facebook";
+import { buildTikTokAnalytics } from "@/lib/metrics/tiktok";
+import { buildAllPlatforms, type PlatformSummary } from "@/lib/metrics/allPlatforms";
 import type { LibraryPost } from "@/components/ContentLibrary";
 import {
   RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId, type Series, type SeriesPoint, type GraphAccount, type GraphSeries,
@@ -29,48 +38,58 @@ import { minPlanWithFeature, type PlanId } from "@/lib/plans";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
-// Analytics. The pipeline is fixed: platform rows → normalized posts and daily
-// snapshots → deterministic aggregation (medians, buckets, gaps) → rendered →
-// AI only ever explains. Nothing on this page is estimated.
-export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
+// Analytics. One experience, switched by platform. Each platform's panel is
+// built from the data that platform actually provides (Instagram keeps its full
+// view; Facebook/YouTube/TikTok are honest to their own APIs). "All Platforms"
+// combines only what is mathematically valid. The pipeline stays fixed: real
+// rows → deterministic aggregation → rendered → AI only ever explains.
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; platform?: string }> }) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  // Everything below reads the ACTIVE Brand Workspace: the viewer's own data,
-  // or the owner's when they were invited into someone else's workspace.
   const ctx = await resolveContext(supabase, user.id);
 
-  const { range: rangeParam } = await searchParams;
+  const { range: rangeParam, platform: platformParam } = await searchParams;
   const [profile, snap, ent] = await Promise.all([
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)),
     getIgSnapshot(ctx.client, ctx.ownerId),
     getEntitlements(ctx.client, ctx.ownerId),
   ]);
-  // History is limited per plan here, on the server: a ?range= beyond the
-  // plan's window is served as the longest range the plan includes.
   const maxDays = maxHistoryDays(ent);
   const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
   const rangeId: string = clampRangeId(requestedId, maxDays);
   const days = rangeDays(rangeId);
   const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
-  const live = Boolean(snap && snap.followers_count != null);
-  // The connected user's own YouTube channel, when they have linked one. Null
-  // when no YouTube connection exists, so the page stays multi-platform aware.
-  const yt = await getYouTubeAnalytics(ctx.client, ctx.ownerId, days).catch(() => null);
 
-  if (!live) {
-    // No Instagram, but a YouTube channel is connected: show its analytics
-    // instead of forcing an Instagram connection.
-    if (yt) {
-      return (
-        <AppShell active="analytics" userEmail={user.email}>
-          <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
-          <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} />
-        </AppShell>
-      );
-    }
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const live = Boolean(snap && snap.followers_count != null);
+
+  // Fetch every platform the workspace might have, in parallel. Each resolves to
+  // null/absent when not connected, so the page stays multi-platform aware.
+  const [yt, fb] = await Promise.all([
+    getYouTubeAnalytics(ctx.client, ctx.ownerId, days).catch(() => null),
+    getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null),
+  ]);
+  const fbConnected = fb?.status === "connected";
+
+  // TikTok: the active workspace's account row (counts + videos), if any.
+  let ttRow: Record<string, unknown> | null = null;
+  try {
+    const { data } = await scopeToWorkspace(
+      ctx.client.from("tiktok_connections").select("username, display_name, avatar_url, is_verified, follower_count, likes_count, video_count, videos, last_synced_at").eq("user_id", ctx.ownerId),
+      ctx.workspace?.id,
+    ).limit(1);
+    ttRow = (data ?? [])[0] ?? null;
+  } catch { /* tiktok_connections may not exist yet */ }
+  const ttConnected = Boolean(ttRow);
+
+  const connectedCount = [live, fbConnected, Boolean(yt), ttConnected].filter(Boolean).length;
+
+  // Nothing connected: the connect wall (unchanged).
+  if (connectedCount === 0) {
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     const ytHref = ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings";
     return (
@@ -82,7 +101,6 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
             <h2>Connect an account to see your analytics</h2>
             <p>Analytics fills with your real numbers the moment you connect a platform, and SOCIA starts recording your growth from that moment. Nothing here is estimated.</p>
           </div>
-          {/* plain anchors: /api/auth routes must not be Link-prefetched */}
           <span className="db-connect-actions">
             <a href={igHref} className="db-connect-cta">Connect Instagram</a>
             <a href={ytHref} className="db-connect-cta ghost">Connect YouTube</a>
@@ -92,92 +110,83 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     );
   }
 
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const media: IgMediaItem[] = snap!.media ?? [];
-  const followers = snap!.followers_count ?? null;
-  type Row = DailySnapshot & { followers_gained: number | null };
-  const [dailyRows, tokenRow] = await Promise.all([
-    readDailySnapshots<Row>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as Row[]),
-    getActiveConnection(ctx.client, ctx.ownerId, "access_token") as Promise<{ access_token?: string } | null>,
-  ]);
-  const demo = await fetchDemographics(tokenRow?.access_token ?? null);
+  // Accounts the Performance graph can overlay. Only platforms with a real
+  // per-day series contribute a line; the rest are honest gaps.
+  const graphAccounts: GraphAccount[] = [];
 
-  // Baseline = the median post's interactions (likes + comments + saves + shares).
-  const baseline = median(media.map(interactionsTotal));
-  const posts = postCards(media, baseline);
-  const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
+  // ---- Instagram panel + summary (full existing experience, only when live) ----
+  let igPanel: ReactNode = null;
+  const igSummary: PlatformSummary = { platform: "instagram", connected: false, label: "Instagram", audience: null, audienceLabel: "followers", views: null, viewsNote: null, engagement: null, contentPublished: null };
 
-  const kpisAll = buildKpis({ media, daily: dailyRows, followers, days, now });
-  const kpis = (["views", "engagement_rate", "followers", "reach"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
-  const metrics: MetricId[] = ["views", "engagement", "followers", "reach"];
-  const series = Object.fromEntries(metrics.map((m) => [m, buildSeries(m, media, dailyRows, days, now)])) as AnalyticsData["series"];
-  const rows = new Map(dailyRows.map((r) => [r.day, r]));
-  const gains = series.views.current.map((p) => { const r = rows.get(p.day); return { day: p.day, value: r && r.source === "instagram_api" ? (r.followers_gained ?? null) : null, postIds: [] }; });
+  if (live) {
+    const media: IgMediaItem[] = snap!.media ?? [];
+    const followers = snap!.followers_count ?? null;
+    type Row = DailySnapshot & { followers_gained: number | null };
+    const [dailyRows, tokenRow] = await Promise.all([
+      readDailySnapshots<Row>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as Row[]),
+      getActiveConnection(ctx.client, ctx.ownerId, "access_token") as Promise<{ access_token?: string } | null>,
+    ]);
+    const demo = await fetchDemographics(tokenRow?.access_token ?? null);
 
-  const location = profile?.brand_detail?.location ?? null;
-  const insights = buildInsights({ media, baseline, location, handle: snap!.username ?? null });
-  const freq = profile?.brand_detail?.strategist?.frequency ?? null;
-  const frequencyTarget = freq ? parseInt(freq.match(/\d+/)?.[0] ?? "", 10) : NaN;
-  const allGaps = buildGaps({ media, followers, goals: profile?.goals ?? null, location, frequencyTarget: Number.isFinite(frequencyTarget) ? frequencyTarget : null, now });
-  // Without the deeper-insights feature (Free) the person sees their top gap in
-  // full; the rest stay on the server and only their real count travels to the
-  // client. Plans with the feature get every gap.
-  const holdBack = !canUseFeature(ent, "deeper_insights") && allGaps.length > 1;
-  const gaps = holdBack ? allGaps.slice(0, 1) : allGaps;
-  const lockedGaps = holdBack ? allGaps.length - 1 : undefined;
-  const breakdown = formatBreakdown(media, days, now);
+    const baseline = median(media.map(interactionsTotal));
+    const posts = postCards(media, baseline);
+    const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
 
-  const since = now.getTime() - days * DAY_MS;
-  const inRange = media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since);
-  const engagement = { rate: engagementRateOf(inRange, followers), breakdown: engagementBreakdown(inRange), quality: engagementQuality(media, formatOf) };
+    const kpisAll = buildKpis({ media, daily: dailyRows, followers, days, now });
+    const kpis = (["views", "engagement_rate", "followers", "reach"] as const).map((id) => kpisAll.find((k) => k.id === id)!);
+    const metrics: MetricId[] = ["views", "engagement", "followers", "reach"];
+    const series = Object.fromEntries(metrics.map((m) => [m, buildSeries(m, media, dailyRows, days, now)])) as AnalyticsData["series"];
+    const rows = new Map(dailyRows.map((r) => [r.day, r]));
+    const gains = series.views.current.map((p) => { const r = rows.get(p.day); return { day: p.day, value: r && r.source === "instagram_api" ? (r.followers_gained ?? null) : null, postIds: [] }; });
 
-  const fPoints = followerPoints(dailyRows);
-  const oldestPost = media.filter((m) => m.timestamp).map((m) => m.timestamp!.slice(0, 10)).sort()[0] ?? null;
-  const firstSnap = dailyRows[0]?.day ?? null;
-  const firstDataDay = [oldestPost, firstSnap].filter((d): d is string => Boolean(d)).sort()[0] ?? null;
+    const location = profile?.brand_detail?.location ?? null;
+    const insights = buildInsights({ media, baseline, location, handle: snap!.username ?? null });
+    const freq = profile?.brand_detail?.strategist?.frequency ?? null;
+    const frequencyTarget = freq ? parseInt(freq.match(/\d+/)?.[0] ?? "", 10) : NaN;
+    const allGaps = buildGaps({ media, followers, goals: profile?.goals ?? null, location, frequencyTarget: Number.isFinite(frequencyTarget) ? frequencyTarget : null, now });
+    const holdBack = !canUseFeature(ent, "deeper_insights") && allGaps.length > 1;
+    const gaps = holdBack ? allGaps.slice(0, 1) : allGaps;
+    const lockedGaps = holdBack ? allGaps.length - 1 : undefined;
+    const breakdown = formatBreakdown(media, days, now);
 
-  const timed = media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) }));
-  const formats: Record<string, number> = {};
-  for (const p of posts) formats[p.format] = (formats[p.format] ?? 0) + 1;
-  const library: LibraryPost[] = posts.map((p) => ({
-    id: p.id, caption: p.caption, published: p.published, format: p.format, views: p.views, reach: p.reach, likes: p.likes, comments: p.comments, saves: p.saves, shares: p.shares,
-    engagements: p.engagements, engRate: p.reach ? (p.engagements / p.reach) * 100 : followers ? (p.engagements / followers) * 100 : null, multiplier: p.multiplier, thumb: p.thumb, permalink: p.permalink,
-  }));
+    const since = now.getTime() - days * DAY_MS;
+    const inRange = media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since);
+    const engagement = { rate: engagementRateOf(inRange, followers), breakdown: engagementBreakdown(inRange), quality: engagementQuality(media, formatOf) };
 
-  const platformMetric = series.views.total != null ? "views" : "engagement";
-  const platformTotal = platformMetric === "views" ? series.views.total : series.engagement.total;
-  // Facebook: the connected Page's own engagement (reactions + comments +
-  // shares on posts inside the range), as Meta reports it. Facebook exposes
-  // no view count for regular Page posts, so under the views metric the row
-  // is connected but unmeasured, never zero.
-  const fb = await getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null);
-  const fbConnected = fb?.status === "connected";
-  const fbSince = Date.now() - (days) * 86400000;
-  const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
-  const fbCounted = fbPosts.some((p) => p.reactions != null || p.comments != null || p.shares != null);
-  const fbEngagement = fbCounted ? fbPosts.reduce((a, p) => a + (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0), 0) : null;
-  const fbValue = platformMetric === "engagement" ? fbEngagement : null;
-  const fbRow: PlatformRow = { id: "facebook", label: "Facebook", connected: fbConnected, value: fbValue, deltaPct: null, share: 0 };
-  const platforms: PlatformRow[] = [
-    { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === "views")?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
-    { id: "tiktok", label: "TikTok", connected: false, value: null, deltaPct: null, share: 0 },
-    fbRow,
-    { id: "youtube", label: "YouTube", connected: Boolean(yt), value: yt && platformMetric === "views" ? (yt.range?.views ?? null) : null, deltaPct: null, share: 0 },
-  ];
-  {
-    const total = platforms.reduce((a, r) => a + (r.connected && r.value ? r.value : 0), 0);
-    for (const r of platforms) r.share = total > 0 && r.connected && r.value ? r.value / total : 0;
-  }
+    const fPoints = followerPoints(dailyRows);
+    const oldestPost = media.filter((m) => m.timestamp).map((m) => m.timestamp!.slice(0, 10)).sort()[0] ?? null;
+    const firstSnap = dailyRows[0]?.day ?? null;
+    const firstDataDay = [oldestPost, firstSnap].filter((d): d is string => Boolean(d)).sort()[0] ?? null;
 
-  // Connected accounts the Performance Over Time graph can overlay. Only
-  // Instagram and YouTube carry real per-day series; Facebook/TikTok are listed
-  // (so they're selectable) but with no series — the graph says "no daily trend"
-  // rather than inventing a line. Built from data already fetched above.
-  const gs = (s: Series): GraphSeries => ({ points: s.current, label: s.label, provenance: s.provenance, trueSeries: s.provenance === "instagram_daily" || s.provenance === "snapshot", mode: s.metric === "followers" ? "last" : "sum", note: s.note });
-  const igHasGains = gains.some((g) => g.value != null);
-  const graphAccounts: GraphAccount[] = [
+    const timed = media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) }));
+    const formats: Record<string, number> = {};
+    for (const p of posts) formats[p.format] = (formats[p.format] ?? 0) + 1;
+    const library: LibraryPost[] = posts.map((p) => ({
+      id: p.id, caption: p.caption, published: p.published, format: p.format, views: p.views, reach: p.reach, likes: p.likes, comments: p.comments, saves: p.saves, shares: p.shares,
+      engagements: p.engagements, engRate: p.reach ? (p.engagements / p.reach) * 100 : followers ? (p.engagements / followers) * 100 : null, multiplier: p.multiplier, thumb: p.thumb, permalink: p.permalink,
+    }));
+
+    const platformMetric = series.views.total != null ? "views" : "engagement";
+    const platformTotal = platformMetric === "views" ? series.views.total : series.engagement.total;
+    const fbSince = Date.now() - days * 86400000;
+    const fbPosts = fbConnected ? fb!.posts.filter((p) => p.created_time && new Date(p.created_time).getTime() >= fbSince) : [];
+    const fbCounted = fbPosts.some((p) => p.reactions != null || p.comments != null || p.shares != null);
+    const fbEngagement = fbCounted ? fbPosts.reduce((a, p) => a + (p.reactions ?? 0) + (p.comments ?? 0) + (p.shares ?? 0), 0) : null;
+    const fbValue = platformMetric === "engagement" ? fbEngagement : null;
+    const platforms: PlatformRow[] = [
+      { id: "instagram", label: "Instagram", connected: true, value: platformTotal, deltaPct: kpisAll.find((k) => k.id === "views")?.deltaPct ?? null, share: platformTotal ? 1 : 0 },
+      { id: "tiktok", label: "TikTok", connected: ttConnected, value: null, deltaPct: null, share: 0 },
+      { id: "facebook", label: "Facebook", connected: fbConnected, value: fbValue, deltaPct: null, share: 0 },
+      { id: "youtube", label: "YouTube", connected: Boolean(yt), value: yt && platformMetric === "views" ? (yt.range?.views ?? null) : null, deltaPct: null, share: 0 },
+    ];
     {
+      const total = platforms.reduce((a, r) => a + (r.connected && r.value ? r.value : 0), 0);
+      for (const r of platforms) r.share = total > 0 && r.connected && r.value ? r.value / total : 0;
+    }
+
+    const gs = (s: Series): GraphSeries => ({ points: s.current, label: s.label, provenance: s.provenance, trueSeries: s.provenance === "instagram_daily" || s.provenance === "snapshot", mode: s.metric === "followers" ? "last" : "sum", note: s.note });
+    const igHasGains = gains.some((g) => g.value != null);
+    graphAccounts.push({
       id: `instagram:${snap!.ig_user_id ?? "me"}`,
       platform: "instagram",
       label: snap!.username ? `@${snap!.username}` : "Instagram",
@@ -185,8 +194,34 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         views: gs(series.views), engagement: gs(series.engagement), followers: gs(series.followers), reach: gs(series.reach),
         net_followers: { points: gains, label: "New followers", provenance: igHasGains ? "instagram_daily" : "unavailable", trueSeries: igHasGains, mode: "sum", note: "New followers per day, as Instagram reports it." },
       },
-    },
-  ];
+    });
+
+    const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null =>
+      canUseFeature(ent, feature) ? null : (minPlanWithFeature(feature) ?? "starter");
+    const gate: AnalyticsGate = {
+      postingTimes: lockedTo("posting_time_analysis"),
+      growth: lockedTo("growth_analysis"),
+      comparison: lockedTo("period_comparison"),
+      deeperInsights: lockedTo("deeper_insights"),
+      crossPlatform: lockedTo("cross_platform_analytics"),
+    };
+
+    const d: AnalyticsData = {
+      handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
+      timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts, gate,
+    };
+    igPanel = <AnalyticsV3 d={d} />;
+
+    igSummary.connected = true;
+    igSummary.label = snap!.username ? `@${snap!.username}` : "Instagram";
+    igSummary.audience = followers;
+    igSummary.views = series.views.total;
+    igSummary.engagement = series.engagement.total;
+    igSummary.contentPublished = inRange.length;
+  }
+
+  // ---- YouTube overlay + summary ----
+  const ytSummary: PlatformSummary = { platform: "youtube", connected: Boolean(yt), label: yt?.channel.title ?? "YouTube", audience: yt?.channel.subscribers ?? null, audienceLabel: "subscribers", views: yt?.range?.views ?? null, viewsNote: null, engagement: null, contentPublished: null };
   if (yt && yt.series?.length) {
     const mk = (pick: (row: YtDaily) => number, label: string, note: string): GraphSeries => ({ points: yt.series.map((dd) => ({ day: dd.day, value: pick(dd), postIds: [] })), label, provenance: "youtube_daily", trueSeries: true, mode: "sum", note });
     graphAccounts.push({
@@ -194,61 +229,67 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       series: { views: mk((dd) => dd.views, "Views", "Daily views, YouTube Analytics."), watch_time: mk((dd) => dd.minutes, "Watch time", "Daily watch time (minutes), YouTube Analytics."), net_followers: mk((dd) => dd.subs, "New subscribers", "Subscribers gained per day, YouTube Analytics.") },
     });
   }
-  if (fbConnected) {
-    // Facebook has no daily series, but its per-post engagement (reactions +
-    // comments + shares) can be plotted by publish date — content totals on the
-    // day posted, exactly like Instagram's Engagement series. Unknown post
-    // metrics are excluded (a day with only unknown counts stays null, not 0).
-    const fbDayEng = new Map<string, number>();
-    for (const p of fb!.posts) {
-      if (!p.created_time) continue;
-      const parts = [p.reactions, p.comments, p.shares].filter((v): v is number => v != null);
-      if (!parts.length) continue;
-      const day = new Date(p.created_time).toISOString().slice(0, 10);
-      fbDayEng.set(day, (fbDayEng.get(day) ?? 0) + parts.reduce((a, b) => a + b, 0));
-    }
-    const fbEngPoints: SeriesPoint[] = series.engagement.current.map((pt) => ({ day: pt.day, value: fbDayEng.has(pt.day) ? fbDayEng.get(pt.day)! : null, postIds: [] }));
-    const fbHasEng = fbEngPoints.some((p) => p.value != null);
-    graphAccounts.push({
-      id: "facebook:me", platform: "facebook", label: fb!.page_name ?? "Facebook",
-      series: fbHasEng
-        ? { engagement: { points: fbEngPoints, label: "Engagement", provenance: "publish_totals", trueSeries: false, mode: "sum", note: "Reactions + comments + shares on each Facebook post, placed on the day it was published." } }
-        : {},
-    });
-  }
-  try {
-    // The active workspace's TikTok account. limit(1), not maybeSingle: a user
-    // with TikTok connected in two workspaces would make maybeSingle throw.
-    const { data: ttRows } = await scopeToWorkspace(
-      ctx.client.from("tiktok_connections").select("username, display_name").eq("user_id", ctx.ownerId),
-      ctx.workspace?.id,
-    ).limit(1);
-    const tt = (ttRows ?? [])[0];
-    if (tt) graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: tt.username ? `@${tt.username}` : (tt.display_name || "TikTok"), series: {} });
-  } catch { /* tiktok_connections may not exist yet */ }
 
-  // Which analytics sections the plan unlocks. A locked section names the plan
-  // that opens it (from FEATURE_STATUS's truth layer via minPlanWithFeature) so
-  // the card can say "Unlock with Starter"; open sections are null.
-  const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null =>
-    canUseFeature(ent, feature) ? null : (minPlanWithFeature(feature) ?? "starter");
-  const gate: AnalyticsGate = {
-    postingTimes: lockedTo("posting_time_analysis"),
-    growth: lockedTo("growth_analysis"),
-    comparison: lockedTo("period_comparison"),
-    deeperInsights: lockedTo("deeper_insights"),
-    crossPlatform: lockedTo("cross_platform_analytics"),
+  // ---- Facebook panel + summary ----
+  let fbPanel: ReactNode = null;
+  const fbSummary: PlatformSummary = { platform: "facebook", connected: Boolean(fbConnected), label: fb?.page_name ?? "Facebook", audience: fb?.followers_count ?? null, audienceLabel: "followers", views: null, viewsNote: "Facebook doesn't report post views", engagement: null, contentPublished: null };
+  if (fbConnected && fb) {
+    const fbSnaps = fb.page_id ? await readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", fb.page_id).catch(() => []) : [];
+    const fbData = buildFacebookAnalytics({ snap: fb, snapshots: fbSnaps, days, rangeLabel, now });
+    fbPanel = <FacebookAnalytics data={fbData} />;
+    fbSummary.engagement = fbData.engagement.total;
+    fbSummary.contentPublished = fbData.postsInRange;
+    // Facebook engagement by publish date (for the Instagram overlay, if shown).
+    if (fbData.engagement.provenance === "publish_totals") {
+      graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb.page_name ?? "Facebook", series: { engagement: { points: fbData.engagement.current, label: "Engagement", provenance: "publish_totals", trueSeries: false, mode: "sum", note: fbData.engagement.note } } });
+    } else {
+      graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb.page_name ?? "Facebook", series: {} });
+    }
+  }
+
+  // ---- TikTok panel + summary ----
+  let ttPanel: ReactNode = null;
+  const ttSummary: PlatformSummary = { platform: "tiktok", connected: ttConnected, label: "TikTok", audience: null, audienceLabel: "followers", views: null, viewsNote: "TikTok reports per-video totals, not a range view count", engagement: null, contentPublished: null };
+  if (ttConnected && ttRow) {
+    const ttData = buildTikTokAnalytics({ row: ttRow, days, rangeLabel, now });
+    ttPanel = <TikTokAnalytics data={ttData} />;
+    ttSummary.label = ttData.profile.username ? `@${ttData.profile.username}` : (ttData.profile.name || "TikTok");
+    ttSummary.audience = (ttRow.follower_count as number | null) ?? null;
+    ttSummary.contentPublished = ttData.videosInRange;
+    graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: ttSummary.label, series: {} });
+  }
+
+  // ---- Tabs, panels, All-Platforms overlay ----
+  const connectedTabs: PlatformTab[] = [];
+  if (live) connectedTabs.push({ id: "instagram", label: "Instagram" });
+  if (fbConnected) connectedTabs.push({ id: "facebook", label: "Facebook" });
+  if (yt) connectedTabs.push({ id: "youtube", label: "YouTube" });
+  if (ttConnected) connectedTabs.push({ id: "tiktok", label: "TikTok" });
+  const multi = connectedTabs.length >= 2;
+  const tabs: PlatformTab[] = multi ? [{ id: "all", label: "All Platforms" }, ...connectedTabs] : connectedTabs;
+  const validIds = new Set(tabs.map((t) => t.id));
+  const initial = platformParam && validIds.has(platformParam) ? platformParam : multi ? "all" : connectedTabs[0]?.id ?? "all";
+
+  const panels: Record<string, ReactNode> = {
+    instagram: igPanel,
+    facebook: fbPanel,
+    youtube: yt ? <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} /> : null,
+    tiktok: ttPanel,
   };
 
-  const d: AnalyticsData = {
-    handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
-    timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts, gate,
+  const allData = multi ? buildAllPlatforms([igSummary, fbSummary, ytSummary, ttSummary]) : null;
+  const overlayLines: OverlayLine[] = graphAccounts
+    .filter((a) => a.series.views && a.series.views.trueSeries)
+    .map((a) => ({ id: a.id, platform: a.platform, label: a.label, points: a.series.views!.points, mode: "sum", trueSeries: true }));
+  const overlay = {
+    lines: overlayLines,
+    note: "Daily views from the platforms that report a real daily series — Instagram and YouTube. Facebook and TikTok don't provide a daily views trend, so they aren't drawn here.",
   };
 
   return (
     <AppShell active="analytics" userEmail={user.email}>
-      <AnalyticsV3 d={d} />
-      {yt && <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} />}
+      <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
+      <AnalyticsShell tabs={tabs} initial={initial} panels={panels} allData={allData} overlay={overlay} today={today} />
     </AppShell>
   );
 }

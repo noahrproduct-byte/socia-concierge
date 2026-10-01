@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runDailySnapshots } from "@/lib/snapshotJob";
+import { runFacebookDailySnapshots } from "@/lib/platformSnapshots";
+import { runYouTubeDailySnapshots } from "@/lib/youtubeSnapshots";
 import { runAlertDetection } from "@/lib/alertRun";
 import { recordCompetitorSnapshots } from "@/lib/competitorHistory";
 
@@ -20,9 +22,11 @@ async function run(req: Request) {
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const now = new Date();
   const result = await runDailySnapshots(svc, now, 40000);
+  const facebook = await runFacebookDailySnapshots(svc, now, 12000).catch(() => null);
+  const youtube = await runYouTubeDailySnapshots(svc, now, 20000).catch(() => null);
   const alerts = await runAlertDetection(svc, now, 15000, { phase2: true }).catch(() => null);
   const competitors = await recordCompetitorSnapshots(svc, now, 25000).catch(() => null);
-  return NextResponse.json({ ...result, alerts, competitors });
+  return NextResponse.json({ ...result, facebook, youtube, alerts, competitors });
 }
 export async function GET(req: Request) { return run(req); }
 export async function POST(req: Request) { return run(req); }
