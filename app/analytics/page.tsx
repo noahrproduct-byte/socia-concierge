@@ -7,6 +7,7 @@ import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
+import { getFacebookInsights } from "@/lib/facebookInsights";
 import { getIgSnapshot, readDailySnapshots, getActiveConnection, type IgMediaItem } from "@/lib/instagramSync";
 import { readPlatformSnapshots } from "@/lib/platformSnapshots";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
@@ -234,17 +235,31 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   let fbPanel: ReactNode = null;
   const fbSummary: PlatformSummary = { platform: "facebook", connected: Boolean(fbConnected), label: fb?.page_name ?? "Facebook", audience: fb?.followers_count ?? null, audienceLabel: "followers", views: null, viewsNote: "Facebook doesn't report post views", engagement: null, contentPublished: null };
   if (fbConnected && fb) {
-    const fbSnaps = fb.page_id ? await readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", fb.page_id).catch(() => []) : [];
-    const fbData = buildFacebookAnalytics({ snap: fb, snapshots: fbSnaps, days, rangeLabel, now });
+    // Snapshots (SOCIA's own follower history) and Page Insights (read_insights:
+    // views / video views / daily follows) in parallel. Insights degrade to
+    // "unavailable" when the permission isn't granted — never to zeros.
+    const [fbSnaps, fbInsights] = await Promise.all([
+      fb.page_id ? readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", fb.page_id).catch(() => []) : Promise.resolve([]),
+      getFacebookInsights(ctx.client, ctx.ownerId, days).catch(() => null),
+    ]);
+    const fbData = buildFacebookAnalytics({ snap: fb, snapshots: fbSnaps, days, rangeLabel, now, insights: fbInsights });
     fbPanel = <FacebookAnalytics data={fbData} />;
     fbSummary.engagement = fbData.engagement.total;
     fbSummary.contentPublished = fbData.postsInRange;
-    // Facebook engagement by publish date (for the Instagram overlay, if shown).
-    if (fbData.engagement.provenance === "publish_totals") {
-      graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb.page_name ?? "Facebook", series: { engagement: { points: fbData.engagement.current, label: "Engagement", provenance: "publish_totals", trueSeries: false, mode: "sum", note: fbData.engagement.note } } });
-    } else {
-      graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb.page_name ?? "Facebook", series: {} });
+    if (fbData.views && fbData.views.total != null) {
+      fbSummary.views = fbData.views.total;
+      fbSummary.viewsNote = null;
     }
+    // The overlay: engagement by publish date (content totals) and, when
+    // Insights serve it, a genuine daily Page-views series.
+    const fbSeries: GraphAccount["series"] = {};
+    if (fbData.engagement.provenance === "publish_totals") {
+      fbSeries.engagement = { points: fbData.engagement.current, label: "Engagement", provenance: "publish_totals", trueSeries: false, mode: "sum", note: fbData.engagement.note };
+    }
+    if (fbData.views && fbData.views.provenance !== "unavailable") {
+      fbSeries.views = { points: fbData.views.current, label: "Views", provenance: "platform_daily", trueSeries: true, mode: "sum", note: fbData.views.note };
+    }
+    graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb.page_name ?? "Facebook", series: fbSeries });
   }
 
   // ---- TikTok panel + summary ----

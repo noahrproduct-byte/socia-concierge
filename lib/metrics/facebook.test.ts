@@ -85,6 +85,48 @@ describe("buildFacebookAnalytics — engagement by publish date", () => {
   });
 });
 
+describe("buildFacebookAnalytics — Page views from Insights (read_insights)", () => {
+  const insights = {
+    available: true,
+    views: { series: [{ day: "2026-09-28", value: 120 }, { day: "2026-09-29", value: 80 }], total: 200 },
+    videoViews: { series: [{ day: "2026-09-28", value: 40 }], total: 40 },
+    dailyFollows: { series: [{ day: "2026-09-28", value: 3 }, { day: "2026-09-29", value: 2 }], total: 5 },
+  };
+
+  it("builds a real daily views series and surfaces it as a stat", () => {
+    const d = buildFacebookAnalytics({ snap: snap(), snapshots: [], days: 30, rangeLabel: "Last 30 days", now: NOW, insights });
+    expect(d.views?.provenance).toBe("platform_daily");
+    expect(d.views?.total).toBe(200);
+    expect(d.views?.current.find((p) => p.day === "2026-09-28")?.value).toBe(120);
+    const v = d.stats.find((s) => s.key === "views")!;
+    expect(v.value).toBe("200");
+    expect(v.note).toMatch(/40 video views/);
+    expect(d.videoViews).toBe(40);
+    expect(d.insightsAvailable).toBe(true);
+  });
+
+  it("prefers Facebook's own daily follows for the followers note", () => {
+    const d = buildFacebookAnalytics({ snap: snap(), snapshots: [], days: 30, rangeLabel: "Last 30 days", now: NOW, insights });
+    expect(d.newFollows).toBe(5);
+    expect(d.stats.find((s) => s.key === "followers")?.note).toMatch(/\+5 new follows/);
+  });
+
+  it("drops the 'views unavailable' line once Insights serve views, keeps reach/impressions", () => {
+    const d = buildFacebookAnalytics({ snap: snap(), snapshots: [], days: 30, rangeLabel: "Last 30 days", now: NOW, insights });
+    const labels = d.unavailable.map((u) => u.label.toLowerCase()).join(" ");
+    expect(labels).toMatch(/reach/);
+    expect(labels).not.toMatch(/views/);
+  });
+
+  it("without read_insights: views stay null and are explicitly unavailable, never 0", () => {
+    const d = buildFacebookAnalytics({ snap: snap(), snapshots: [], days: 30, rangeLabel: "Last 30 days", now: NOW, insights: { available: false, views: null, videoViews: null, dailyFollows: null } });
+    expect(d.views).toBeNull();
+    expect(d.stats.find((s) => s.key === "views")).toBeUndefined();
+    expect(d.unavailable.find((u) => /views/i.test(u.label))?.why).toMatch(/read_insights/);
+    expect(d.insightsAvailable).toBe(false);
+  });
+});
+
 describe("buildFacebookAnalytics — top posts + honesty", () => {
   it("ranks posts by engagement and keeps null-engagement posts last", () => {
     const d = buildFacebookAnalytics({

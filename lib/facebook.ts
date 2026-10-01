@@ -20,12 +20,12 @@
 // read_insights (Page/post Insights time series) CAN be requested via this
 // Facebook Login scope list, but it is an Advanced-Access permission: public
 // users need App Review + Business Verification before Meta grants it. SOCIA
-// does not request it yet — the plan is to queue that App Review after the
-// in-flight Instagram review clears, and until then the capability map reports
-// the Insights-only metrics (page/video views, Meta's daily follower-flow,
-// post_clicks) as unavailable rather than guessing. SOCIA builds its own
-// Facebook follower trend from followers_count (see lib/platformSnapshots.ts),
-// which needs no extra permission. NOTE: Meta deprecated the impressions/reach/
+// requests it (see FB_SCOPES); until Meta grants it for a given connection the
+// Insights reader (lib/facebookInsights.ts) reports those metrics (page/video
+// views, Meta's daily follows) as unavailable rather than guessing. SOCIA also
+// builds its own Facebook follower trend from followers_count (see
+// lib/platformSnapshots.ts), which needs no extra permission. NOTE: Meta
+// deprecated the impressions/reach/
 // page_fans family (version-independent waves in Nov 2025 and June 2026), so
 // Facebook reach/impressions are no longer retrievable on any version.
 // In Development Mode insights work for app admins/developers/testers without
@@ -46,7 +46,15 @@ export const FB_GRAPH_V = "v23.0";
 //                            un-granted scope rather than rejecting the whole
 //                            authorization, so requesting it is safe before the
 //                            permission is added/approved in the Meta dashboard.
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "instagram_basic", "business_management"].join(",");
+//   read_insights        -> Page/video view counts and the daily follower-flow
+//                            series from the /insights edge. Advanced Access
+//                            (App Review + Business Verification) for public
+//                            users; works for app admins/testers in Dev Mode
+//                            now. Facebook Login omits an un-granted scope
+//                            rather than failing, so requesting it is safe
+//                            before it's approved — the insights reader degrades
+//                            to "unavailable" when it isn't granted.
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "read_insights", "instagram_basic", "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

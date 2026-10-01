@@ -1,18 +1,21 @@
 // Facebook analytics, assembled from what SOCIA can honestly measure today:
 //   - the Page's follower count, plus the daily trend SOCIA records itself
-//     (platform_snapshots — Facebook's own Insights daily series needs
-//     read_insights, which is queued for App Review);
+//     (platform_snapshots), and — when read_insights is granted — Facebook's
+//     own daily follow count;
+//   - Page views per day from Facebook Page Insights (needs read_insights;
+//     reported as unavailable, never 0, when it isn't granted);
 //   - per-post engagement (reactions + comments + shares) placed on the day a
 //     post was published — content totals, drawn as bars, never faked as a
 //     daily activity series;
-//   - what Facebook no longer exposes (reach/impressions, retired by Meta) and
-//     what needs read_insights (page/video views), stated plainly.
+//   - what Facebook no longer exposes (reach/impressions, retired by Meta),
+//     stated plainly.
 //
 // Pure: the page fetches, this shapes. null is never coerced to 0.
 
 import { DAY_MS, fmtNum, type Series, type SeriesPoint } from "../overview";
 import type { FbSnapshot, FbPost } from "../facebookSync";
 import type { PlatformSnapshotRow } from "../platformSnapshots";
+import type { FbInsights } from "../facebookInsights";
 
 const dayList = (end: Date, days: number): string[] =>
   Array.from({ length: days }, (_, i) => new Date(end.getTime() - (days - i) * DAY_MS).toISOString().slice(0, 10));
@@ -56,6 +59,14 @@ export type FacebookAnalyticsData = {
   followers: Series;
   /** Per-post engagement by publish date (bars). */
   engagement: Series;
+  /** Page views per day from Facebook Insights; null until read_insights works. */
+  views: Series | null;
+  /** Video views across the Page's videos in range, from Insights. */
+  videoViews: number | null;
+  /** New follows in range, from Facebook's own page_daily_follows. */
+  newFollows: number | null;
+  /** true when the Insights edge returned data (read_insights granted). */
+  insightsAvailable: boolean;
   topPosts: FbTopPost[];
   /** Metrics that are genuinely not available, each with an honest reason. */
   unavailable: { label: string; why: string }[];
@@ -68,21 +79,29 @@ export function buildFacebookAnalytics(input: {
   days: number;
   rangeLabel: string;
   now?: Date;
+  /** Page Insights, when the page fetched them (read_insights). */
+  insights?: FbInsights | null;
 }): FacebookAnalyticsData {
   const { snap, snapshots, days, rangeLabel } = input;
+  const insights = input.insights ?? null;
   const now = input.now ?? new Date();
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
   const curDays = dayList(end, days);
   const prevDays = dayList(new Date(end.getTime() - days * DAY_MS), days);
 
-  // ---- Follower trend (SOCIA's own daily snapshots) ----
-  const byDay = new Map(snapshots.map((r) => [r.day, r.followers]));
-  const followerPts: SeriesPoint[] = curDays.map((d) => ({ day: d, value: byDay.has(d) ? byDay.get(d)! ?? null : null, postIds: [] }));
-  const prevFollowerPts: SeriesPoint[] = prevDays.map((d) => ({ day: d, value: byDay.has(d) ? byDay.get(d)! ?? null : null, postIds: [] }));
+  const sum = (pts: SeriesPoint[]): number | null => {
+    const v = pts.map((p) => p.value).filter((x): x is number => x != null);
+    return v.length ? v.reduce((a, b) => a + b, 0) : null;
+  };
   const lastVal = (pts: SeriesPoint[]): number | null => {
     for (let i = pts.length - 1; i >= 0; i--) if (pts[i].value != null) return pts[i].value;
     return null;
   };
+
+  // ---- Follower trend (SOCIA's own daily snapshots) ----
+  const byDay = new Map(snapshots.map((r) => [r.day, r.followers]));
+  const followerPts: SeriesPoint[] = curDays.map((d) => ({ day: d, value: byDay.has(d) ? byDay.get(d)! ?? null : null, postIds: [] }));
+  const prevFollowerPts: SeriesPoint[] = prevDays.map((d) => ({ day: d, value: byDay.has(d) ? byDay.get(d)! ?? null : null, postIds: [] }));
   const haveFollowerHistory = followerPts.some((p) => p.value != null);
   const firstDay = snapshots.find((r) => r.followers != null)?.day ?? null;
   const followers: Series = {
@@ -107,10 +126,6 @@ export function buildFacebookAnalytics(input: {
     const d = new Date(p.created_time).toISOString().slice(0, 10);
     byPubDay.set(d, (byPubDay.get(d) ?? 0) + e);
   }
-  const sum = (pts: SeriesPoint[]): number | null => {
-    const v = pts.map((p) => p.value).filter((x): x is number => x != null);
-    return v.length ? v.reduce((a, b) => a + b, 0) : null;
-  };
   const engPts: SeriesPoint[] = curDays.map((d) => ({ day: d, value: byPubDay.has(d) ? byPubDay.get(d)! : null, postIds: [] }));
   const engPrevPts: SeriesPoint[] = prevDays.map((d) => ({ day: d, value: byPubDay.has(d) ? byPubDay.get(d)! : null, postIds: [] }));
   const anyEng = posts.some((p) => fbPostEngagement(p) != null);
@@ -127,41 +142,73 @@ export function buildFacebookAnalytics(input: {
     prevTotal: sum(engPrevPts),
   };
 
-  // ---- Stat tiles ----
+  // ---- Page views per day (Facebook Insights; needs read_insights) ----
+  let views: Series | null = null;
+  if (insights?.views) {
+    const vm = new Map(insights.views.series.map((p) => [p.day, p.value]));
+    const cur: SeriesPoint[] = curDays.map((d) => ({ day: d, value: vm.has(d) ? vm.get(d)! : null, postIds: [] }));
+    const has = cur.some((p) => p.value != null);
+    views = {
+      metric: "views",
+      label: "Views",
+      provenance: has ? "platform_daily" : "unavailable",
+      note: has ? "Page views per day, from Facebook Page Insights." : "Facebook Insights returned no Page views for this period.",
+      current: cur,
+      previous: [],
+      total: has ? sum(cur) : null,
+      prevTotal: null,
+    };
+  }
+  const videoViews = insights?.videoViews?.total ?? null;
+  const newFollows = insights?.dailyFollows?.total ?? null;
+
+  // ---- Stat tiles (always four) ----
   const since = now.getTime() - days * DAY_MS;
   const inRange = posts.filter((p) => new Date(p.created_time!).getTime() >= since);
   const engCounted = inRange.some((p) => fbPostEngagement(p) != null);
   const engTotalRange = inRange.reduce((a, p) => a + (fbPostEngagement(p) ?? 0), 0);
-  const stats: FbStat[] = [
-    {
-      key: "followers",
-      label: "Followers",
-      value: snap.followers_count != null ? snap.followers_count.toLocaleString("en-US") : "—",
-      note: haveFollowerHistory ? "recorded daily by SOCIA" : snap.followers_count != null ? "trend starts building today" : "not provided by Facebook",
-      status: snap.followers_count != null ? (haveFollowerHistory ? "ok" : "collecting") : "unavailable",
-    },
-    {
-      key: "engagement",
-      label: "Engagement",
-      value: engCounted ? fmtNum(engTotalRange) : "—",
-      note: engCounted ? `reactions + comments + shares · ${rangeLabel.toLowerCase()}` : "needs pages_read_user_content",
-      status: engCounted ? "ok" : "unavailable",
-    },
-    {
-      key: "posts",
-      label: "Posts",
-      value: String(inRange.length),
-      note: `published · ${rangeLabel.toLowerCase()}`,
-      status: "ok",
-    },
-    {
-      key: "avg",
-      label: "Avg engagement / post",
-      value: engCounted && inRange.length ? fmtNum(Math.round(engTotalRange / inRange.length)) : "—",
-      note: engCounted ? "per post in range" : "needs engagement data",
-      status: engCounted && inRange.length ? "ok" : "unavailable",
-    },
-  ];
+
+  const followersStat: FbStat = {
+    key: "followers",
+    label: "Followers",
+    value: snap.followers_count != null ? snap.followers_count.toLocaleString("en-US") : "—",
+    // Prefer Facebook's own follow count for the period when Insights serve it.
+    note: newFollows != null
+      ? `${newFollows >= 0 ? "+" : ""}${newFollows.toLocaleString("en-US")} new follows · ${rangeLabel.toLowerCase()} (Facebook)`
+      : haveFollowerHistory ? "recorded daily by SOCIA" : snap.followers_count != null ? "trend starts building today" : "not provided by Facebook",
+    status: snap.followers_count != null ? (haveFollowerHistory || newFollows != null ? "ok" : "collecting") : "unavailable",
+  };
+  const engagementStat: FbStat = {
+    key: "engagement",
+    label: "Engagement",
+    value: engCounted ? fmtNum(engTotalRange) : "—",
+    note: engCounted ? `reactions + comments + shares · ${rangeLabel.toLowerCase()}` : "needs pages_read_user_content",
+    status: engCounted ? "ok" : "unavailable",
+  };
+  const postsStat: FbStat = {
+    key: "posts",
+    label: "Posts",
+    value: String(inRange.length),
+    note: `published · ${rangeLabel.toLowerCase()}`,
+    status: "ok",
+  };
+  const avgStat: FbStat = {
+    key: "avg",
+    label: "Avg engagement / post",
+    value: engCounted && inRange.length ? fmtNum(Math.round(engTotalRange / inRange.length)) : "—",
+    note: engCounted ? "per post in range" : "needs engagement data",
+    status: engCounted && inRange.length ? "ok" : "unavailable",
+  };
+  const viewsStat: FbStat | null = views && views.total != null
+    ? {
+        key: "views",
+        label: "Page views",
+        value: fmtNum(views.total),
+        note: videoViews != null ? `incl. ${fmtNum(videoViews)} video views · ${rangeLabel.toLowerCase()}` : `Facebook Page Insights · ${rangeLabel.toLowerCase()}`,
+        status: "ok",
+      }
+    : null;
+  const stats: FbStat[] = viewsStat ? [followersStat, viewsStat, engagementStat, postsStat] : [followersStat, engagementStat, postsStat, avgStat];
 
   // ---- Top posts by engagement ----
   const topPosts: FbTopPost[] = [...posts]
@@ -180,10 +227,18 @@ export function buildFacebookAnalytics(input: {
       published: p.created_time ?? "",
     }));
 
-  const unavailable = [
+  // ---- Honest "not available" list ----
+  const unavailable: { label: string; why: string }[] = [
     { label: "Reach & impressions", why: "Meta retired these Page metrics across all API versions (2025–2026), so Facebook no longer provides them." },
-    { label: "Page & video views", why: "Available through Facebook's Insights API, which needs the read_insights permission — queued for App Review after your Instagram review clears." },
   ];
+  if (!views || views.provenance === "unavailable") {
+    unavailable.push({
+      label: "Page & video views",
+      why: insights?.available
+        ? "Facebook Insights returned no view data for this Page in this period."
+        : "Needs the read_insights permission — reconnect Facebook to grant it (public access arrives with App Review).",
+    });
+  }
 
   return {
     page: { name: snap.page_name, username: snap.username, avatar: snap.picture_url },
@@ -192,6 +247,10 @@ export function buildFacebookAnalytics(input: {
     stats,
     followers,
     engagement,
+    views,
+    videoViews,
+    newFollows,
+    insightsAvailable: Boolean(insights?.available),
     topPosts,
     unavailable,
     postsInRange: inRange.length,
