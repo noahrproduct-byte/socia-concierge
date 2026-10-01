@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshAccessToken } from "./youtubeAuth";
 import { recentVideos, type YtVideo } from "./youtube";
 import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
+import { readPlatformSnapshots } from "./platformSnapshots";
 
 const DATA = "https://www.googleapis.com/youtube/v3";
 const ANALYTICS = "https://youtubeanalytics.googleapis.com/v2/reports";
@@ -170,7 +171,7 @@ export async function getYouTubeAnalytics(
 ): Promise<YouTubeAnalytics | null> {
   const auth = await validToken(supabase, userId);
   if (!auth) return null;
-  const { token } = auth;
+  const { token, channelId } = auth;
 
   // Channel identity + lifetime stats + uploads playlist (youtube.readonly).
   const chJson = await getJson(
@@ -192,33 +193,65 @@ export async function getYouTubeAnalytics(
   const start = new Date(end.getTime() - days * 86400000);
   const q = `ids=channel==MINE&startDate=${ymd(start)}&endDate=${ymd(end)}`;
 
-  // Daily views / watch time / subscribers gained (yt-analytics.readonly).
+  // Live daily views / watch time / subscribers gained (yt-analytics.readonly).
   const seriesJson = await getJson(
     `${ANALYTICS}?${q}&metrics=views,estimatedMinutesWatched,subscribersGained&dimensions=day&sort=day`,
     token,
   );
-  let series: YtDaily[] = [];
-  let range: YouTubeAnalytics["range"] = null;
-  let note: string | null = null;
+  const liveMap = new Map<string, YtDaily>();
   if (seriesJson) {
     const { headers, rows } = rowsByHeader(seriesJson);
     const iDay = headers.indexOf("day");
     const iViews = headers.indexOf("views");
     const iMin = headers.indexOf("estimatedMinutesWatched");
     const iSubs = headers.indexOf("subscribersGained");
-    series = rows.map((r) => ({
-      day: String(r[iDay] ?? ""),
-      views: Number(r[iViews] ?? 0),
-      minutes: Number(r[iMin] ?? 0),
-      subs: Number(r[iSubs] ?? 0),
-    }));
+    for (const r of rows) {
+      const day = String(r[iDay] ?? "");
+      if (day) liveMap.set(day, { day, views: Number(r[iViews] ?? 0), minutes: Number(r[iMin] ?? 0), subs: Number(r[iSubs] ?? 0) });
+    }
+  }
+
+  // Merge with the durable history SOCIA records daily (platform_snapshots):
+  // prefer the live value for each day, fall back to the stored one, and when
+  // the live call returned nothing at all fall back to stored history entirely
+  // so the trend still shows. Both come from YouTube's own Analytics API, so
+  // they agree for finalised days; stored only adds resilience and reach.
+  const startDay = ymd(start);
+  const endDay = ymd(end);
+  const storedMap = new Map<string, { views: number | null; minutes: number | null; subs: number | null }>();
+  if (channelId) {
+    const stored = await readPlatformSnapshots(supabase, userId, "youtube", channelId).catch(() => []);
+    for (const r of stored) {
+      if (!r.day || r.day < startDay || r.day > endDay) continue;
+      storedMap.set(r.day, { views: r.views, minutes: r.watch_time_minutes, subs: r.followers_gained });
+    }
+  }
+
+  const allDays = Array.from(new Set([...liveMap.keys(), ...storedMap.keys()])).sort();
+  const series: YtDaily[] = allDays.map((day) => {
+    const lv = liveMap.get(day);
+    const st = storedMap.get(day);
+    return {
+      day,
+      views: lv?.views ?? st?.views ?? 0,
+      minutes: lv?.minutes ?? st?.minutes ?? 0,
+      subs: lv?.subs ?? st?.subs ?? 0,
+    };
+  });
+
+  let range: YouTubeAnalytics["range"] = null;
+  let note: string | null = null;
+  if (series.length) {
     range = series.reduce(
       (a, d) => ({ views: a.views + d.views, minutes: a.minutes + d.minutes, subs: a.subs + d.subs }),
       { views: 0, minutes: 0, subs: 0 },
     );
+    // Live call failed but SOCIA's recorded history filled the gap.
+    if (liveMap.size === 0 && storedMap.size > 0) {
+      note = "Showing the history SOCIA has recorded — live YouTube Analytics was unavailable just now.";
+    }
   } else {
-    // Analytics can be empty for a channel with no recent activity, or blocked
-    // if the analytics scope was not granted. Say so instead of showing zeros.
+    // No live data and no stored history yet: say so instead of showing zeros.
     note = "YouTube Analytics has no data for this period yet, or the analytics permission was not granted.";
   }
 
