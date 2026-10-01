@@ -1,0 +1,103 @@
+/* Multi-platform analytics: the top-level platform switcher and the per-platform
+ * panels (Facebook, TikTok, All Platforms). Reuses the ov-* / token vocabulary
+ * so these feel like the same product as the Instagram view, with platform
+ * colour used only as a small accent — SOCIA's identity stays dominant. */
+
+/* ---- platform switcher ---- */
+.pswitch {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.pswitch::-webkit-scrollbar { display: none; }
+.pswitch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  scroll-snap-align: start;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.pswitch button:hover:not(.on) { color: var(--text-primary); border-color: var(--border-strong); }
+.pswitch button.on { color: var(--on-primary); background: var(--primary); border-color: var(--primary); }
+.pswitch button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.pswitch-ico { display: grid; place-items: center; width: 16px; height: 16px; }
+/* platform accent dot on the un-selected state */
+.pswitch button:not(.on) .pswitch-ico { color: var(--tint, var(--text-muted)); }
+
+/* subtle panel transition on switch (150–250ms, no flashiness) */
+.pa-panel { animation: paFade 0.18s ease; }
+@keyframes paFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pa-panel { animation: none; } }
+
+/* ---- shared panel chrome ---- */
+.pa { display: flex; flex-direction: column; gap: 14px; }
+.pa-head { display: flex; align-items: center; gap: 12px; }
+.pa-avatar { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.pa-avatar-ph { display: grid; place-items: center; background: var(--surface-muted); color: var(--text-muted); font-weight: 800; text-transform: uppercase; }
+.pa-head-meta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pa-head-meta h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; color: var(--text-primary); }
+.pa-head-meta small { font-size: 12.5px; color: var(--text-secondary); }
+.pa-badge { margin-left: auto; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--surface-muted); color: var(--text-secondary); }
+.pa-badge.facebook { color: #1877f2; background: rgba(24, 119, 242, 0.12); }
+.pa-badge.tiktok { color: #0b7d8a; background: rgba(34, 211, 238, 0.14); }
+.pa-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.pa-note { font-size: 12px; color: var(--text-secondary); margin: 8px 0 0; line-height: 1.5; }
+
+/* ---- top posts / videos list ---- */
+.pa-posts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pa-post { display: flex; align-items: center; gap: 10px; }
+.pa-post img, .pa-post-ph { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--surface-muted); }
+.pa-post-title { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-post-stats { display: flex; gap: 12px; flex-shrink: 0; }
+.pa-post-stats em { font-style: normal; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.pa-post-link { color: var(--text-muted); display: grid; place-items: center; padding: 4px; border-radius: 6px; }
+.pa-post-link:hover { color: var(--primary); background: var(--surface-hover); }
+
+/* ---- "not available" honesty card ---- */
+.pa-unavail ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.pa-unavail li { display: flex; flex-direction: column; gap: 2px; }
+.pa-unavail li b { font-size: 13px; font-weight: 650; color: var(--text-primary); }
+.pa-unavail li span { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+
+/* ---- generic "state" block (not connected / collecting / insufficient) ---- */
+.pa-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 40px 20px; }
+.pa-state-ico { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-muted); color: var(--text-muted); }
+.pa-state h3 { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.pa-state p { font-size: 13px; color: var(--text-secondary); max-width: 420px; line-height: 1.55; }
+.pa-state .pa-state-cta { margin-top: 6px; font-size: 13px; font-weight: 650; color: var(--on-primary); background: var(--primary); border-radius: 9px; padding: 8px 16px; }
+
+/* ---- All Platforms: per-platform summary cards ---- */
+.pa-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.pa-pcard { display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; }
+.pa-pcard-head { display: flex; align-items: center; gap: 9px; }
+.pa-pcard-ico { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: #fff; }
+.pa-pcard-head b { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.pa-pcard-head small { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+.pa-pcard-metrics { display: flex; gap: 18px; }
+.pa-pcard-metric { display: flex; flex-direction: column; gap: 1px; }
+.pa-pcard-metric b { font-size: 19px; font-weight: 750; letter-spacing: -0.4px; color: var(--text-primary); }
+.pa-pcard-metric b.dim { color: var(--text-disabled); }
+.pa-pcard-metric small { font-size: 11.5px; color: var(--text-secondary); }
+.pa-pcard-insight { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.pa-pcard-link { margin-top: auto; align-self: flex-start; font-size: 12.5px; font-weight: 650; color: var(--primary-text); display: inline-flex; align-items: center; gap: 4px; }
+.pa-pcard-link:hover { gap: 7px; }
+
+/* All Platforms: connected-presence strip */
+.pa-presence { display: flex; flex-wrap: wrap; gap: 8px; }
+.pa-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); }
+.pa-chip .pa-chip-dot { width: 8px; height: 8px; border-radius: 999px; }
+.pa-chip.off { opacity: 0.55; }

@@ -15,6 +15,8 @@ import { InsightList } from "./ov/Insights";
 import DateRangeSelector from "./DateRangeSelector";
 import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
+import PlatformSnapshot from "./PlatformSnapshot";
+import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
 import { askSocia } from "@/lib/ask";
@@ -41,6 +43,8 @@ export type DashboardData = {
   goals: string[];
   trackers: GoalTracker[];
   timed: CalPost[];
+  /** Per-platform summaries for the multi-platform snapshot. Absent on legacy callers. */
+  platformSummaries?: PlatformSummary[];
 };
 
 const TILE_ICON = { video: Film, map: MapPin, users: Users, target: Target } as const;
@@ -140,6 +144,10 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
               </div>
             </div>
           </section>
+
+          {d.platformSummaries && d.platformSummaries.filter((s) => s.connected).length >= 2 && (
+            <PlatformSnapshot summaries={d.platformSummaries} sub="your presence across every connected platform" />
+          )}
 
           <section className="ov-card" aria-labelledby="dv-top-h">
             <div className="ov-card-head">
