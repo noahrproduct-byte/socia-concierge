@@ -135,8 +135,16 @@ export default function MediaSection({
     }
   }, [dispatch, followInstagram, registerFile, upload]);
 
-  const replaceFile = useCallback(async (id: string, f: File) => {
+  const replaceFile = useCallback(async (id: string, original: File) => {
     const prev = draftRef.current.media.find((m) => m.id === id);
+    // Compress an oversized replacement video first (same fail-safe path as
+    // adding a file): on any failure the original is used unchanged.
+    let f = original;
+    if (shouldOfferCompression(original)) {
+      setUpload(id, { status: "compressing", message: null, progress: 0 });
+      const compressed = await compressVideo(original, (r) => setUpload(id, { status: "compressing", message: null, progress: r }));
+      if (compressed) f = compressed;
+    }
     const m = await measure(f);
     // The old preview URL leaves the draft here; useComposer revokes it.
     const patch: Partial<MediaItemWithPreview> = {
