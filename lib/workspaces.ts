@@ -301,3 +301,16 @@ export function scopeToWorkspace<T>(query: T, workspaceId: string | null | undef
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return workspaceId ? ((query as any).eq("workspace_id", workspaceId) as T) : query;
 }
+
+/**
+ * A Postgres "column does not exist" error — e.g. workspace_id before its
+ * migration has run. Callers use it to fall back to the pre-migration path only
+ * for that specific cause, not on a transient error (which must not widen scope
+ * or retry a write).
+ */
+export function isMissingColumnError(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  if (!err) return false;
+  if (err.code === "42703") return true;
+  return /column .* does not exist/i.test(err.message ?? "");
+}

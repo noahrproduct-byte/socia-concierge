@@ -7,6 +7,7 @@ import { requireUsage } from "@/lib/planGuard";
 import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
 import { rangeDays } from "@/lib/overview";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -125,7 +126,7 @@ export async function POST(req: Request) {
       const saved = ctx.workspace
         ? await ctx.client.from("conversations").insert({ ...convRow, workspace_id: ctx.workspace.id })
         : await ctx.client.from("conversations").insert(convRow);
-      if (saved.error && ctx.workspace) await ctx.client.from("conversations").insert(convRow); // column not migrated yet
+      if (saved.error && ctx.workspace && isMissingColumnError(saved.error)) await ctx.client.from("conversations").insert(convRow); // column not migrated yet
     } catch { /* history is optional */ }
 
     return NextResponse.json({ answer, usage: u.usage });

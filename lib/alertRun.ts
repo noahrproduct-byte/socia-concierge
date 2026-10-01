@@ -20,7 +20,7 @@ import {
 } from "./alertDetectors";
 import { recordAlerts, alertsEnabled } from "./alerts";
 import { getEntitlements, canUseFeature, type Entitlements } from "./entitlements";
-import { competitorScopeId } from "./workspaces";
+import { competitorScopeId, competitorsScopedEnabled } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -238,14 +238,19 @@ async function runWorkspacePhase2(
   const mediaByWs = new Map<string, IgMediaItem[]>();
   for (const c of conns) if (c.workspace_id) mediaByWs.set(c.workspace_id, Array.isArray(c.media) ? (c.media as IgMediaItem[]) : []);
 
-  // Every non-suspended workspace; before the workspaces migration, fall back to
-  // one implicit workspace per user (via the Instagram connections).
+  // Enumerate per workspace only once competitors + discovery are actually
+  // isolated (the competitors migration). Before that their data is still pooled
+  // per user, so iterating workspaces would record the same pooled signal once
+  // per workspace (distinct :ws: fingerprints defeat dedup); fall back to one
+  // pass per user instead. Ordered for deterministic coverage under the budget.
   let wss: { id: string; owner_id: string }[] | null = null;
-  try {
-    const { data, error } = await svc.from("workspaces").select("id, owner_id").is("plan_suspended_at", null);
-    if (!error) wss = (data ?? []) as { id: string; owner_id: string }[];
-  } catch {
-    wss = null;
+  if (await competitorsScopedEnabled(svc)) {
+    try {
+      const { data, error } = await svc.from("workspaces").select("id, owner_id").is("plan_suspended_at", null).order("created_at", { ascending: true });
+      if (!error) wss = (data ?? []) as { id: string; owner_id: string }[];
+    } catch {
+      wss = null;
+    }
   }
   const units: { userId: string; workspaceId: string | null; media: IgMediaItem[] }[] = wss
     ? wss.map((w) => ({ userId: w.owner_id, workspaceId: w.id, media: mediaByWs.get(w.id) ?? [] }))

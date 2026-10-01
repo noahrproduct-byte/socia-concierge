@@ -5,7 +5,6 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AlertCandidate } from "./alertDetectors";
-import { scopeToWorkspace } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -80,14 +79,20 @@ const toAlert = (r: Row): Alert => ({
   evidence: r.evidence, entityRef: r.entity_ref, detectedAt: r.detected_at, readAt: r.read_at,
 });
 
-// The alerts of the ACTIVE workspace. alert_events already carries workspace_id
-// (recordAlerts writes it), so every reader scopes to it when one is active,
-// with the null-safe fallback so a pre-scoping alert is never hidden.
+// The alerts of the ACTIVE workspace. alert_events carries workspace_id
+// (recordAlerts writes it), but alerts recorded before the column was populated
+// have a null one. So every reader scopes to the active workspace AND keeps any
+// null-workspace (legacy) rows, so no past alert is ever hidden. Once those rows
+// are backfilled the null branch simply matches nothing.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function scopeAlerts(q: any, workspaceId: string | null | undefined): any {
+  return workspaceId ? q.or(`workspace_id.is.null,workspace_id.eq.${workspaceId}`) : q;
+}
 
 /** The active workspace's alerts, newest first (dismissed ones excluded). */
 export async function getAlerts(supabase: Supa, ownerId: string, limit = 20, workspaceId?: string | null): Promise<Alert[]> {
   if (!(await alertsEnabled(supabase))) return [];
-  const { data, error } = await scopeToWorkspace(
+  const { data, error } = await scopeAlerts(
     supabase
       .from("alert_events")
       .select("id, type, platform, severity, title, body, evidence, entity_ref, detected_at, read_at")
@@ -104,7 +109,7 @@ export async function getAlerts(supabase: Supa, ownerId: string, limit = 20, wor
 /** How many of the active workspace's alerts are unread. null when the table isn't there. */
 export async function unreadAlertCount(supabase: Supa, ownerId: string, workspaceId?: string | null): Promise<number | null> {
   if (!(await alertsEnabled(supabase))) return null;
-  const { count, error } = await scopeToWorkspace(
+  const { count, error } = await scopeAlerts(
     supabase
       .from("alert_events")
       .select("id", { count: "exact", head: true })
@@ -119,7 +124,7 @@ export async function unreadAlertCount(supabase: Supa, ownerId: string, workspac
 
 /** Mark specific alerts, or all of the active workspace's unread, as read. */
 export async function markAlertsRead(supabase: Supa, ownerId: string, ids?: string[], workspaceId?: string | null): Promise<boolean> {
-  let q = scopeToWorkspace(
+  let q = scopeAlerts(
     supabase.from("alert_events").update({ read_at: new Date().toISOString() }).eq("user_id", ownerId).is("read_at", null),
     workspaceId,
   );
@@ -130,7 +135,7 @@ export async function markAlertsRead(supabase: Supa, ownerId: string, ids?: stri
 
 /** Remove an alert from the feed for good. */
 export async function dismissAlert(supabase: Supa, ownerId: string, id: string, workspaceId?: string | null): Promise<boolean> {
-  const { error } = await scopeToWorkspace(
+  const { error } = await scopeAlerts(
     supabase
       .from("alert_events")
       .update({ dismissed_at: new Date().toISOString() })

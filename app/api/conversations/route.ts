@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
-import { scopeToWorkspace } from "@/lib/workspaces";
+import { scopeToWorkspace, isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -23,9 +23,10 @@ export async function GET() {
       return (scoped ? scopeToWorkspace(q, wsId) : q).order("updated_at", { ascending: false }).limit(30);
     };
     let { data, error } = await run(true);
-    // workspace_id column may not exist yet (migration not run): fall back to
-    // the per-user history rather than showing an empty list.
-    if (error && wsId) ({ data, error } = await run(false));
+    // workspace_id column may not exist yet (migration not run): fall back to the
+    // per-user history. Only for a missing column — a transient error must not
+    // widen the read to the owner's other workspaces.
+    if (error && wsId && isMissingColumnError(error)) ({ data, error } = await run(false));
 
     if (error) return NextResponse.json({ conversations: [] });
     return NextResponse.json({ conversations: data ?? [] });
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
         return scoped ? scopeToWorkspace(q, ctx.workspace?.id) : q;
       };
       let { error } = await applyUpdate(true);
-      if (error && ctx.workspace) ({ error } = await applyUpdate(false)); // column not migrated yet
+      if (error && ctx.workspace && isMissingColumnError(error)) ({ error } = await applyUpdate(false)); // column not migrated yet
       if (error) throw error;
       return NextResponse.json({ id: body.id });
     } else {
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
       let { data, error } = ctx.workspace
         ? await ctx.client.from("conversations").insert({ ...rowBase, workspace_id: ctx.workspace.id }).select("id").single()
         : await ctx.client.from("conversations").insert(rowBase).select("id").single();
-      if (error && ctx.workspace) ({ data, error } = await ctx.client.from("conversations").insert(rowBase).select("id").single()); // column not migrated yet
+      if (error && ctx.workspace && isMissingColumnError(error)) ({ data, error } = await ctx.client.from("conversations").insert(rowBase).select("id").single()); // column not migrated yet
       if (error || !data) throw error ?? new Error("Couldn't save.");
       return NextResponse.json({ id: data.id });
     }
