@@ -55,9 +55,31 @@ async function readConn(supabase: Supa, userId: string): Promise<Conn | null> {
   }
 }
 
-/** One daily metric from /{page}/insights, or null on any error (including
- *  "permission not granted" and "invalid metric"). */
+// Meta serves at most 90 days of Page Insights per query, so a longer range is
+// read in consecutive windows (kept a day under the limit to be safe).
+const MAX_WINDOW_S = 89 * 86400;
+
+/** Split [since, until) into consecutive windows no longer than Meta allows. */
+export function insightWindows(since: number, until: number, maxSpan = MAX_WINDOW_S): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (let s = since; s < until; s += maxSpan) out.push([s, Math.min(until, s + maxSpan)]);
+  return out;
+}
+
+/** One daily metric over any range, read window by window. All-or-nothing: if
+ *  any window fails the metric is null (unavailable) — a total missing a chunk
+ *  would silently undercount. Days at a window edge are de-duplicated. */
 async function fetchDailyMetric(token: string, pageId: string, metric: string, since: number, until: number): Promise<FbInsightPoint[] | null> {
+  const parts = await Promise.all(insightWindows(since, until).map(([s, u]) => fetchMetricWindow(token, pageId, metric, s, u)));
+  if (!parts.length || parts.some((p) => p == null)) return null;
+  const byDay = new Map<string, number>();
+  for (const p of parts) for (const pt of p!) byDay.set(pt.day, pt.value);
+  return [...byDay.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([day, value]) => ({ day, value }));
+}
+
+/** One daily metric for a single ≤90-day window from /{page}/insights, or null
+ *  on any error (including "permission not granted" and "invalid metric"). */
+async function fetchMetricWindow(token: string, pageId: string, metric: string, since: number, until: number): Promise<FbInsightPoint[] | null> {
   try {
     const u = new URL(`${BASE}/${pageId}/insights`);
     u.searchParams.set("metric", metric);
