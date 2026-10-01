@@ -46,7 +46,15 @@ export const FB_GRAPH_V = "v23.0";
 //                            un-granted scope rather than rejecting the whole
 //                            authorization, so requesting it is safe before the
 //                            permission is added/approved in the Meta dashboard.
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "instagram_basic", "business_management"].join(",");
+//   read_insights        -> Page/video view counts and the daily follower-flow
+//                            series from the /insights edge. Advanced Access
+//                            (App Review + Business Verification) for public
+//                            users; works for app admins/testers in Dev Mode
+//                            now. Facebook Login omits an un-granted scope
+//                            rather than failing, so requesting it is safe
+//                            before it's approved — the insights reader degrades
+//                            to "unavailable" when it isn't granted.
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "read_insights", "instagram_basic", "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

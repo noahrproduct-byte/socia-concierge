@@ -7,6 +7,7 @@ import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
+import { getFacebookInsights } from "@/lib/facebookInsights";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import { getYouTubeAnalytics } from "@/lib/youtubeData";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
@@ -158,9 +159,14 @@ export default async function DashboardPage({
 
   const fbSummary: PlatformSummary = { platform: "facebook", connected: fbConnected, label: fb?.page_name ?? "Facebook", audience: fb?.followers_count ?? null, audienceLabel: "followers", views: null, viewsNote: "Facebook doesn't report post views", engagement: null, contentPublished: null };
   if (fbConnected && fb) {
-    const fd = buildFacebookAnalytics({ snap: fb, snapshots: [], days, rangeLabel, now });
+    const fbInsights = await getFacebookInsights(ctx.client, ctx.ownerId, days).catch(() => null);
+    const fd = buildFacebookAnalytics({ snap: fb, snapshots: [], days, rangeLabel, now, insights: fbInsights });
     fbSummary.engagement = fd.engagement.total;
     fbSummary.contentPublished = fd.postsInRange;
+    if (fd.views && fd.views.total != null) {
+      fbSummary.views = fd.views.total;
+      fbSummary.viewsNote = null;
+    }
   }
   const ytSummary: PlatformSummary = { platform: "youtube", connected: ytConnected, label: yt?.channel.title ?? "YouTube", audience: yt?.channel.subscribers ?? null, audienceLabel: "subscribers", views: yt?.range?.views ?? null, viewsNote: null, engagement: null, contentPublished: null };
   const ttSummary: PlatformSummary = { platform: "tiktok", connected: ttConnected, label: "TikTok", audience: null, audienceLabel: "followers", views: null, viewsNote: "TikTok reports per-video totals, not a range view count", engagement: null, contentPublished: null };

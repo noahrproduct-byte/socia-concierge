@@ -122,7 +122,9 @@ export function rankPosts(posts: PostCard[], by: "views" | "engagements" = "view
 // --------------------------------------------------------------- series ----
 
 export type MetricId = "views" | "engagement" | "followers" | "reach";
-export type Provenance = "instagram_daily" | "publish_totals" | "snapshot" | "unavailable";
+/** `platform_daily` = a genuine per-day series from a platform's own API that
+ *  isn't Instagram (e.g. Facebook Page Insights). */
+export type Provenance = "instagram_daily" | "platform_daily" | "publish_totals" | "snapshot" | "unavailable";
 export type SeriesPoint = { day: string; value: number | null; postIds: string[] };
 export type Series = {
   metric: MetricId;

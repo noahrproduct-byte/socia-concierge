@@ -6,7 +6,7 @@
 // by publish date). Metrics Facebook no longer provides are stated, never faked.
 
 import { useState } from "react";
-import { Users, Heart, FileText, BarChart3, ExternalLink, Info } from "lucide-react";
+import { Users, Heart, FileText, BarChart3, Eye, ExternalLink, Info } from "lucide-react";
 import OverviewChart from "./ov/OverviewChart";
 import StatTile from "./ov/StatTile";
 import { fmtNum, type Granularity } from "@/lib/overview";
@@ -15,17 +15,21 @@ import "./platformAnalytics.css";
 
 const TILE: Record<string, { Icon: typeof Users; tone: string }> = {
   followers: { Icon: Users, tone: "info" },
+  views: { Icon: Eye, tone: "primary" },
   engagement: { Icon: Heart, tone: "pink" },
   posts: { Icon: FileText, tone: "primary" },
   avg: { Icon: BarChart3, tone: "success" },
 };
 
+type Metric = "views" | "followers" | "engagement";
+
 export default function FacebookAnalytics({ data }: { data: FacebookAnalyticsData }) {
+  const canViews = Boolean(data.views && data.views.provenance !== "unavailable");
   const canFollowers = data.followers.provenance !== "unavailable";
   const canEngagement = data.engagement.provenance !== "unavailable";
-  const [metric, setMetric] = useState<"followers" | "engagement">(canFollowers ? "followers" : "engagement");
+  const [metric, setMetric] = useState<Metric>(canViews ? "views" : canFollowers ? "followers" : "engagement");
   const [gran, setGran] = useState<Granularity>("day");
-  const series = metric === "followers" ? data.followers : data.engagement;
+  const series = metric === "views" && data.views ? data.views : metric === "followers" ? data.followers : data.engagement;
 
   return (
     <section className="pa" aria-label="Facebook analytics">
@@ -55,6 +59,7 @@ export default function FacebookAnalytics({ data }: { data: FacebookAnalyticsDat
           <h2>Performance over time</h2>
           <div className="pa-controls">
             <div className="ov-seg" role="tablist" aria-label="Metric">
+              <button className={metric === "views" ? "on" : ""} onClick={() => setMetric("views")} disabled={!canViews} title={canViews ? "" : "Needs the read_insights permission — reconnect Facebook"}>Views</button>
               <button className={metric === "followers" ? "on" : ""} onClick={() => setMetric("followers")} disabled={!canFollowers} title={canFollowers ? "" : "No follower history yet"}>Followers</button>
               <button className={metric === "engagement" ? "on" : ""} onClick={() => setMetric("engagement")} disabled={!canEngagement} title={canEngagement ? "" : "No engagement data yet"}>Engagement</button>
             </div>
