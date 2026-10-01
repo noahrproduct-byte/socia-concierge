@@ -10,8 +10,6 @@
 // so keep this list to the minimum the product actually uses.
 //
 // Add back when the matching feature ships AND the permission is enabled in Meta:
-//   instagram_business_content_publish  -> scheduling / auto-posting
-//   instagram_business_manage_comments  -> comment management
 //   instagram_business_manage_messages  -> DM management
 export const IG_SCOPES = [
   "instagram_business_basic",
@@ -20,6 +18,11 @@ export const IG_SCOPES = [
   // the Meta app dashboard BEFORE users reconnect, or Instagram rejects the
   // whole authorization (see the note above).
   "instagram_business_content_publish",
+  // AI comment replies (Growth+): read comments on our own media and post
+  // replies as the account. Every reply is approved by a person before it is
+  // sent. Same rule as above: enable it on the Instagram use case in the Meta
+  // dashboard BEFORE this ships, or every Instagram connect fails.
+  "instagram_business_manage_comments",
 ].join(",");
 
 export function igClientId() {

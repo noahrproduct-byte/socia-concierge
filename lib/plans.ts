@@ -98,6 +98,7 @@ export type FeatureKey =
   | "team"
   // Growth
   | "cross_platform_analytics"
+  | "comment_replies"
   | "daily_recommendations"
   | "repurposing"
   | "custom_date_ranges"
@@ -138,6 +139,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   weekly_summary: "available",
   team: "available",
   cross_platform_analytics: "available",
+  comment_replies: "available",
   daily_recommendations: "coming_soon",
   repurposing: "coming_soon",
   custom_date_ranges: "available",
@@ -170,6 +172,7 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   weekly_summary: "Weekly performance summary",
   team: "Invite team members",
   cross_platform_analytics: "Cross-platform analytics",
+  comment_replies: "AI comment replies (draft, approve, send)",
   daily_recommendations: "Daily recommendations",
   repurposing: "Cross-platform content and repurposing recommendations",
   custom_date_ranges: "Custom date-range reports",
@@ -253,7 +256,7 @@ const STARTER_FEATURES: FeatureKey[] = [
 ];
 const GROWTH_FEATURES: FeatureKey[] = [
   ...STARTER_FEATURES,
-  "cross_platform_analytics", "daily_recommendations", "repurposing",
+  "cross_platform_analytics", "comment_replies", "daily_recommendations", "repurposing",
   "custom_date_ranges", "platform_reports", "report_exports",
   "trend_alerts", "opportunity_alerts", "competitor_alerts", "cross_platform_alerts",
   "priority_support",

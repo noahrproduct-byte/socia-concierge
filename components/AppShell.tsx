@@ -16,6 +16,7 @@ import {
   Gem,
   LifeBuoy,
   Sparkles,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
@@ -71,6 +72,8 @@ const NAV: NavItem[] = [
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
   { href: "/studio", label: "Content Studio", Icon: Clapperboard, key: "studio" },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
+  // AI comment replies inbox (Growth+): draft → approve → send.
+  { href: "/comments", label: "Comments", Icon: MessageSquare, key: "comments" },
   // The multi-platform composer (/create and its sub-routes pass active="create").
   { href: "/create", label: "Create post", Icon: PenSquare, key: "create" },
   { href: "/reports", label: "Reports", Icon: FileBarChart, key: "reports" },
