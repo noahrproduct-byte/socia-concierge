@@ -47,6 +47,7 @@ const COLS: { key: keyof LibraryPost; label: string; num?: boolean }[] = [
   { key: "likes", label: "Likes", num: true },
   { key: "comments", label: "Comments", num: true },
   { key: "saves", label: "Saves", num: true },
+  { key: "shares", label: "Shares", num: true },
   { key: "engagements", label: "Engagements", num: true },
   { key: "multiplier", label: "vs baseline", num: true },
 ];
@@ -157,6 +158,7 @@ export default function ContentLibrary({ posts, embedded = false }: { posts: Lib
                 <td className="num">{fmt(p.likes)}</td>
                 <td className="num">{fmt(p.comments)}</td>
                 <td className="num">{fmt(p.saves)}</td>
+                <td className="num">{fmt(p.shares)}</td>
                 <td className="num">{p.engagements.toLocaleString("en-US")}</td>
                 <td className="num">
                   {p.multiplier != null ? (

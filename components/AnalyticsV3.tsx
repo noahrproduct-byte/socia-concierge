@@ -26,6 +26,7 @@ import DateRangeSelector from "./DateRangeSelector";
 import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
 import MultiLineChart, { type OverlayLine } from "./ov/MultiLineChart";
+import WhatChanged, { type ChangeItem } from "./ov/WhatChanged";
 import {
   rankPosts, fmtNum, audienceInsight, seriesBaseline, granularityOptions, bucketize, detectOutliers, bucketTitle,
   GRAPH_METRIC_LABEL,
@@ -40,6 +41,7 @@ import type { Demographics } from "@/lib/igDemographics";
 import { pricingHref, PLANS, type PlanId } from "@/lib/plans";
 import { Lock } from "lucide-react";
 import "./planRange.css";
+import "./platformAnalytics.css";
 
 /** Which analytics sections the viewer's plan unlocks. A PlanId means the
  *  section is LOCKED and names the plan that opens it; null/absent means open.
@@ -118,6 +120,10 @@ export type AnalyticsData = {
   graphAccounts: GraphAccount[];
   /** Which sections the plan unlocks. Absent = everything open (e.g. legacy callers). */
   gate?: AnalyticsGate;
+  /** The period's headline numbers against the previous period. */
+  changes?: ChangeItem[];
+  /** One plain next step: the top gap's action or the first insight's recommendation. */
+  nextStep?: string | null;
 };
 
 const OPEN_GATE: AnalyticsGate = { postingTimes: null, growth: null, comparison: null, deeperInsights: null, crossPlatform: null };
@@ -231,6 +237,14 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
     for (const p of rankPosts(d.posts, "views", d.posts.length)) seen.set(p.format, [...(seen.get(p.format) ?? []), p].slice(0, 3));
     return [...seen.values()].flat();
   }, [contentTab, d.posts]);
+
+  // Tab labels carry their counts, so an empty Underperforming / Breakouts tab
+  // is visible before it is opened.
+  const contentTabs = useMemo(() => {
+    const under = d.posts.filter((p) => p.multiplier != null && p.multiplier < 0.7).length;
+    const brk = d.posts.filter((p) => p.multiplier != null && p.multiplier >= 3).length;
+    return [["top", "Top Content"], ["under", `Underperforming (${under})`], ["format", "By Format"], ["breakout", `Breakouts (${brk})`]] as ["top" | "under" | "format" | "breakout", string][];
+  }, [d.posts]);
 
   const fPoints = useMemo(() => followersInRange(d.followerPoints, d.series.followers.current[0]?.day ?? "0000", d.today), [d.followerPoints, d.series.followers.current, d.today]);
   const fSummary = useMemo(() => summarizeFollowers(fPoints, d.followerPoints), [fPoints, d.followerPoints]);
@@ -401,6 +415,21 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
             </aside>
           </div>
 
+          {d.changes && d.changes.length > 0 && (
+            <section className="ov-card av-changed" aria-labelledby="av-wc-h">
+              <div className="ov-card-head">
+                <h2 id="av-wc-h">What changed</h2>
+                <span className="ov-card-sub">{d.rangeLabel} against the {d.rangeDays} days before.</span>
+              </div>
+              {gate.comparison ? (
+                <Locked plan={gate.comparison} title="Previous-period comparisons" blurb="See how views, reach, interactions, followers and posting moved against the period before." from="analytics_what_changed" />
+              ) : (
+                <WhatChanged items={d.changes} />
+              )}
+              {d.nextStep && !gate.deeperInsights && <p className="av-next"><b>Do this next:</b> {d.nextStep}</p>}
+            </section>
+          )}
+
           <section className="ov-card av-missing" aria-labelledby="av-gap-h">
             <div className="ov-card-head">
               <h2 id="av-gap-h"><span className="ov-h-ico warning"><Target size={14} /></span> What&apos;s Missing</h2>
@@ -437,7 +466,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
                 <div className="ov-card-head wrap">
                   <h2 id="av-content-h">Content Performance</h2>
                   <div className="ov-seg" role="tablist" aria-label="Content view">
-                    {([["top", "Top Content"], ["under", "Underperforming"], ["format", "By Format"], ["breakout", "Breakouts"]] as const).map(([id, label]) => (
+                    {contentTabs.map(([id, label]) => (
                       <button key={id} type="button" role="tab" aria-selected={contentTab === id} className={contentTab === id ? "on" : ""} onClick={() => setContentTab(id)}>{label}</button>
                     ))}
                   </div>
@@ -487,15 +516,16 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
             <div className="ov-card-head wrap">
               <h2 id="ct-h">Content Performance</h2>
               <div className="ov-seg" role="tablist" aria-label="Content view">
-                {([["top", "Top Content"], ["under", "Underperforming"], ["format", "By Format"], ["breakout", "Breakouts"]] as const).map(([id, label]) => (
+                {contentTabs.map(([id, label]) => (
                   <button key={id} type="button" role="tab" aria-selected={contentTab === id} className={contentTab === id ? "on" : ""} onClick={() => setContentTab(id)}>{label}</button>
                 ))}
               </div>
-              <span className="ov-range-label">{d.baseline != null ? `Median post ${Math.round(d.baseline).toLocaleString("en-US")} interactions` : "No baseline yet"}</span>
+              <span className="ov-range-label">{d.baseline != null ? `Median post ${Math.round(d.baseline).toLocaleString("en-US")} interactions · last ${d.posts.length} synced posts` : "No baseline yet"}</span>
             </div>
             {contentTab === "under" && !contentPosts.length && <div className="ov-empty small">No post fell below 70% of your median interactions.</div>}
             {contentTab === "breakout" && !contentPosts.length && <div className="ov-empty small">No post reached 3× your median interactions.</div>}
             {contentPosts.length > 0 && <ContentRow posts={contentPosts} onOpen={setOpen} size="lg" />}
+            <p className="ov-source">Top Content and By Format rank by views. Underperforming and Breakouts compare each post&apos;s interactions (likes + comments + saves + shares) with your median post: below 70% and at least 3×.</p>
           </section>
           <div className="av-two">
             <section className="ov-card" aria-labelledby="ct-break-h">

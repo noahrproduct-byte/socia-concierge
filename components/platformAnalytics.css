@@ -106,7 +106,7 @@
 .pa-head-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .yta2 { display: flex; flex-direction: column; gap: 14px; }
 .yta2 > .av-tabs { margin-bottom: 2px; }
-.wc-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.wc-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
 .wc-strip li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); }
 .wc-strip small { font-size: 11.5px; color: var(--text-secondary); }
 .wc-strip b { font-size: 18px; font-weight: 750; letter-spacing: -0.3px; color: var(--text-primary); }
@@ -140,10 +140,15 @@
 .pa-steps { list-style: decimal; }
 /* segmented controls scroll inside their card on small screens instead of
    pushing the page wider than the viewport */
-.yta2 .ov-seg, .pa .ov-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.yta2 .ov-seg::-webkit-scrollbar, .pa .ov-seg::-webkit-scrollbar { display: none; }
+.yta2 .ov-seg, .pa .ov-seg, .av .ov-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.yta2 .ov-seg::-webkit-scrollbar, .pa .ov-seg::-webkit-scrollbar, .av .ov-seg::-webkit-scrollbar { display: none; }
 .yta2 .ov-card-head.wrap > *, .pa .ov-card-head.wrap > * { min-width: 0; }
 @media (max-width: 640px) {
   .yt-vid { min-width: 190px; }
   .pa-head { flex-wrap: wrap; }
 }
+.pa-subh { font-size: 12px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-secondary); margin: 16px 0 0; }
+/* the single "do this next" line under What changed (Instagram overview) */
+.av-changed { margin-top: 16px; }
+.av-next { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-muted); font-size: 13px; line-height: 1.5; color: var(--text-primary); }
+.av-next b { color: var(--primary-text); font-weight: 700; margin-right: 4px; }

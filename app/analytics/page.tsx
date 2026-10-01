@@ -124,6 +124,16 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     crossPlatform: lockedTo("cross_platform_analytics"),
   };
 
+  // Every overlay line is laid on the SAME day axis (the range ending today), so
+  // lines from platforms that report with a delay line up by date instead of by
+  // position. A day a platform hasn't reported is a gap (null), never a zero.
+  const axisEnd = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const axisDays = Array.from({ length: days }, (_, i) => new Date(axisEnd - (days - 1 - i) * DAY_MS).toISOString().slice(0, 10));
+  const onAxis = (pts: SeriesPoint[]): SeriesPoint[] => {
+    const m = new Map(pts.map((p) => [p.day, p]));
+    return axisDays.map((d) => m.get(d) ?? { day: d, value: null, postIds: [] });
+  };
+
   // Accounts the Performance graph can overlay. Only platforms with a real
   // per-day series contribute a line; the rest are honest gaps.
   const graphAccounts: GraphAccount[] = [];
@@ -210,9 +220,40 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       },
     });
 
+    // "What changed": the period's headline numbers against the one before,
+    // from totals already computed above. No previous period → no delta shown.
+    const pctChg = (cur: number | null, prev: number | null) => {
+      if (cur == null || prev == null || prev <= 0) return { delta: null as string | null, positive: null as boolean | null };
+      const p = ((cur - prev) / prev) * 100;
+      if (Math.abs(p) < 0.05) return { delta: null, positive: null };
+      return { delta: `${p >= 0 ? "↑" : "↓"} ${Math.abs(p).toFixed(Math.abs(p) >= 100 ? 0 : 1)}%`, positive: p >= 0 };
+    };
+    const fmtN = (n: number) => (n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, "")}K` : n.toLocaleString("en-US"));
+    const prevSince = since - days * DAY_MS;
+    const prevPosts = media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= prevSince && new Date(m.timestamp).getTime() < since);
+    const oldestTs = media.filter((m) => m.timestamp).map((m) => new Date(m.timestamp!).getTime()).sort((a, b) => a - b)[0];
+    const prevPostsKnown = oldestTs != null && (oldestTs <= prevSince || prevPosts.length > 0);
+    const rangeStartDay = new Date(since).toISOString().slice(0, 10);
+    const follInRange = fPoints.filter((p) => p.day >= rangeStartDay);
+    const follNet = follInRange.length >= 2 ? follInRange[follInRange.length - 1].followers - follInRange[0].followers : null;
+    const changes: NonNullable<AnalyticsData["changes"]> = [];
+    for (const m of ["views", "reach", "engagement"] as const) {
+      const s = series[m];
+      if (s.total == null) continue;
+      changes.push({ key: m, label: m === "engagement" ? "Interactions" : s.label, current: fmtN(s.total), previous: s.prevTotal != null ? fmtN(s.prevTotal) : null, ...pctChg(s.total, s.prevTotal) });
+    }
+    if (follNet != null) changes.push({ key: "followers", label: "Followers (net)", current: `${follNet >= 0 ? "+" : "−"}${Math.abs(follNet).toLocaleString("en-US")}`, previous: null, delta: null, positive: null });
+    {
+      const diff = prevPostsKnown ? inRange.length - prevPosts.length : null;
+      changes.push({ key: "posts", label: "Posts published", current: String(inRange.length), previous: prevPostsKnown ? String(prevPosts.length) : null, delta: diff != null && diff !== 0 ? `${diff > 0 ? "↑" : "↓"} ${Math.abs(diff)}` : null, positive: diff != null && diff !== 0 ? diff > 0 : null });
+    }
+    // One plain "do this next": the top-ranked gap's action, else the first
+    // insight's recommendation. Both are already tied to this account's data.
+    const nextStep = gaps[0]?.action ?? insights[0]?.recommendation ?? null;
+
     const d: AnalyticsData = {
       handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
-      timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts, gate,
+      timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts, gate, changes, nextStep,
     };
     igPanel = <AnalyticsV3 d={d} />;
 
@@ -227,7 +268,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // ---- YouTube overlay + summary ----
   const ytSummary: PlatformSummary = { platform: "youtube", connected: Boolean(yt), label: yt?.channel.title ?? "YouTube", audience: yt?.channel.subscribers ?? null, audienceLabel: "subscribers", views: yt?.range?.views ?? null, viewsNote: null, engagement: null, contentPublished: null };
   if (yt && yt.series?.length) {
-    const mk = (pick: (row: YtDaily) => number, label: string, note: string): GraphSeries => ({ points: yt.series.map((dd) => ({ day: dd.day, value: pick(dd), postIds: [] })), label, provenance: "youtube_daily", trueSeries: true, mode: "sum", note });
+    const mk = (pick: (row: YtDaily) => number, label: string, note: string): GraphSeries => ({ points: onAxis(yt.series.map((dd) => ({ day: dd.day, value: pick(dd), postIds: [] }))), label, provenance: "youtube_daily", trueSeries: true, mode: "sum", note });
     graphAccounts.push({
       id: "youtube:me", platform: "youtube", label: yt.channel.title ?? "YouTube",
       series: { views: mk((dd) => dd.views, "Views", "Daily views, YouTube Analytics."), watch_time: mk((dd) => dd.minutes, "Watch time", "Daily watch time (minutes), YouTube Analytics."), net_followers: mk((dd) => dd.subs, "New subscribers", "Subscribers gained per day, YouTube Analytics.") },
@@ -246,7 +287,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       getFacebookInsights(ctx.client, ctx.ownerId, days).catch(() => null),
     ]);
     const fbData = buildFacebookAnalytics({ snap: fb, snapshots: fbSnaps, days, rangeLabel, now, insights: fbInsights });
-    fbPanel = <FacebookAnalytics data={fbData} />;
+    fbPanel = <FacebookAnalytics data={fbData} gate={gate} maxDays={maxDays} />;
     fbSummary.engagement = fbData.engagement.total;
     fbSummary.contentPublished = fbData.postsInRange;
     if (fbData.views && fbData.views.total != null) {
@@ -260,7 +301,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       fbSeries.engagement = { points: fbData.engagement.current, label: "Engagement", provenance: "publish_totals", trueSeries: false, mode: "sum", note: fbData.engagement.note };
     }
     if (fbData.views && fbData.views.provenance !== "unavailable") {
-      fbSeries.views = { points: fbData.views.current, label: "Views", provenance: "platform_daily", trueSeries: true, mode: "sum", note: fbData.views.note };
+      fbSeries.views = { points: onAxis(fbData.views.current), label: "Views", provenance: "platform_daily", trueSeries: true, mode: "sum", note: fbData.views.note };
     }
     graphAccounts.push({ id: "facebook:me", platform: "facebook", label: fb.page_name ?? "Facebook", series: fbSeries });
   }
