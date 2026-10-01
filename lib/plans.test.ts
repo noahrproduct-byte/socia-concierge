@@ -90,6 +90,7 @@ describe("plan configuration", () => {
       "custom_date_ranges", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
       "opportunity_alerts", "performance_change_alerts", "period_comparison", "platform_reports",
       "posting_time_analysis", "report_exports", "scheduling", "team", "trend_alerts", "weekly_summary",
+      "weekly_trend_roundup",
     ].sort());
   });
 

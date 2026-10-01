@@ -15,6 +15,7 @@ import {
   Plus,
   Gem,
   LifeBuoy,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
@@ -66,6 +67,7 @@ const NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
   { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
   { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
+  { href: "/roundup", label: "Weekly roundup", Icon: Sparkles, key: "roundup" },
   { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
   { href: "/studio", label: "Content Studio", Icon: Clapperboard, key: "studio" },
   { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },

@@ -133,7 +133,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   deeper_insights: "available",
   content_plan: "available",
   niche_intelligence: "available",
-  weekly_trend_roundup: "coming_soon",
+  weekly_trend_roundup: "available",
   performance_change_alerts: "available",
   weekly_summary: "available",
   team: "available",
