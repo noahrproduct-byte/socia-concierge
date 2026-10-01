@@ -54,7 +54,7 @@ export type AnalyticsGate = {
 
 /** A tasteful locked panel: what the section is, and the plan that unlocks it.
  *  Never an empty box; the person always sees the feature exists and its value. */
-function Locked({ plan, title, blurb, from }: { plan: PlanId; title: string; blurb: string; from: string }) {
+export function Locked({ plan, title, blurb, from }: { plan: PlanId; title: string; blurb: string; from: string }) {
   return (
     <div className="av-locked" role="group" aria-label={`${title} (locked)`}>
       <span className="av-locked-ico"><Lock size={16} /></span>

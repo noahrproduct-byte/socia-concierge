@@ -62,7 +62,9 @@ export type PostCard = {
   caption: string;
   published: string;
   format: string;
-  platform: "instagram";
+  /** Instagram everywhere today; YouTube/Facebook cards reuse the shape as
+   *  evidence rows for their own insights. */
+  platform: "instagram" | "youtube" | "facebook";
   isVideo: boolean;
   views: number | null;
   reach: number | null;

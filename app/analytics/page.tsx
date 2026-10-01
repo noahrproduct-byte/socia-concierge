@@ -29,6 +29,7 @@ import { getYouTubeAnalytics, type YtDaily } from "@/lib/youtubeData";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { buildFacebookAnalytics } from "@/lib/metrics/facebook";
 import { buildTikTokAnalytics } from "@/lib/metrics/tiktok";
+import { buildYouTubeAnalytics } from "@/lib/metrics/youtube";
 import { buildAllPlatforms, type PlatformSummary } from "@/lib/metrics/allPlatforms";
 import type { LibraryPost } from "@/components/ContentLibrary";
 import {
@@ -71,7 +72,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // Fetch every platform the workspace might have, in parallel. Each resolves to
   // null/absent when not connected, so the page stays multi-platform aware.
   const [yt, fb] = await Promise.all([
-    getYouTubeAnalytics(ctx.client, ctx.ownerId, days).catch(() => null),
+    getYouTubeAnalytics(ctx.client, ctx.ownerId, days, { deep: true }).catch(() => null),
     getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null),
   ]);
   const fbConnected = fb?.status === "connected";
@@ -110,6 +111,18 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </AppShell>
     );
   }
+
+  // Which analytics sections the plan unlocks — the same gates on every
+  // platform's page. A locked section names the plan that opens it.
+  const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null =>
+    canUseFeature(ent, feature) ? null : (minPlanWithFeature(feature) ?? "starter");
+  const gate: AnalyticsGate = {
+    postingTimes: lockedTo("posting_time_analysis"),
+    growth: lockedTo("growth_analysis"),
+    comparison: lockedTo("period_comparison"),
+    deeperInsights: lockedTo("deeper_insights"),
+    crossPlatform: lockedTo("cross_platform_analytics"),
+  };
 
   // Accounts the Performance graph can overlay. Only platforms with a real
   // per-day series contribute a line; the rest are honest gaps.
@@ -197,16 +210,6 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       },
     });
 
-    const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null =>
-      canUseFeature(ent, feature) ? null : (minPlanWithFeature(feature) ?? "starter");
-    const gate: AnalyticsGate = {
-      postingTimes: lockedTo("posting_time_analysis"),
-      growth: lockedTo("growth_analysis"),
-      comparison: lockedTo("period_comparison"),
-      deeperInsights: lockedTo("deeper_insights"),
-      crossPlatform: lockedTo("cross_platform_analytics"),
-    };
-
     const d: AnalyticsData = {
       handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
       timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts, gate,
@@ -288,7 +291,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const panels: Record<string, ReactNode> = {
     instagram: igPanel,
     facebook: fbPanel,
-    youtube: yt ? <YouTubeAnalytics data={yt} rangeLabel={rangeLabel} /> : null,
+    youtube: yt ? <YouTubeAnalytics data={buildYouTubeAnalytics({ yt, days, rangeLabel, now })} gate={gate} maxDays={maxDays} /> : null,
     tiktok: ttPanel,
   };
 
