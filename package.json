@@ -5,14 +5,19 @@
   "description": "SOCIA concierge engine — generate an audit + competitor breakdown + weekly content plan for a client account.",
   "scripts": {
     "dev": "next dev -p 3000",
+    "prebuild": "node scripts/copy-ffmpeg-core.mjs",
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "node scripts/copy-ffmpeg-core.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
     "@base-ui/react": "^1.7.0",
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "class-variance-authority": "^0.7.1",

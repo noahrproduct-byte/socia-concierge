@@ -36,3 +36,6 @@ phone-agent/
 /demo-video/out/
 /demo-video/node_modules/
 /demo-video/.env
+
+# Self-hosted ffmpeg.wasm core (copied from @ffmpeg/core on install)
+/public/ffmpeg/

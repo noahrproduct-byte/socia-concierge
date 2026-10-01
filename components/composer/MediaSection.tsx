@@ -11,6 +11,7 @@ import { useCallback, useMemo, useRef, useState, type DragEvent } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Check, Loader2, RefreshCw, Trash2, Upload, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
+import { compressVideo, shouldOfferCompression } from "@/lib/videoCompress";
 import { CAPABILITIES, formatSpec } from "@/lib/publishing/capabilities";
 import { enabledDestinations, readinessFor, suggestInstagramFormat, type ComposerDraft, type PickerAccount } from "@/lib/publishing/composer";
 import { PLATFORM_LABEL, type InstagramSettings, type MediaItem, type Platform } from "@/lib/publishing/types";
@@ -20,7 +21,7 @@ import { accountFor, PlatformMark } from "./DestinationPicker";
 
 const BUCKET = "scheduled-media";
 
-type UploadState = { status: "uploading" | "done" | "error"; message: string | null };
+type UploadState = { status: "compressing" | "uploading" | "done" | "error"; message: string | null; progress?: number };
 
 /**
  * Every MIME type any implemented format of these platforms accepts. Not the
@@ -113,7 +114,25 @@ export default function MediaSection({
     }
     dispatch({ type: "add_media", items });
     followInstagram([...draftRef.current.media, ...items]);
-    for (let i = 0; i < items.length; i++) await upload(items[i], files[i]);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      let file = files[i];
+      // Oversized videos are compressed in the browser before upload. Fail-safe:
+      // if compression can't help (unsupported / failed / not smaller), the
+      // original is uploaded unchanged — this never blocks an upload.
+      if (shouldOfferCompression(file)) {
+        setUpload(item.id, { status: "compressing", message: null, progress: 0 });
+        const compressed = await compressVideo(file, (r) => setUpload(item.id, { status: "compressing", message: null, progress: r }));
+        if (compressed) {
+          file = compressed;
+          registerFile(item.id, compressed);
+          const m2 = await measure(compressed);
+          const patch: Partial<MediaItemWithPreview> = { name: compressed.name, mime: m2.mime ?? "video/mp4", size: compressed.size, width: m2.width ?? null, height: m2.height ?? null, duration: m2.duration ?? null, previewUrl: m2.previewUrl, poster: null };
+          dispatch({ type: "update_media", id: item.id, patch });
+        }
+      }
+      await upload(item, file);
+    }
   }, [dispatch, followInstagram, registerFile, upload]);
 
   const replaceFile = useCallback(async (id: string, f: File) => {
@@ -217,7 +236,7 @@ export default function MediaSection({
           {media.map((m, i) => {
             const u = uploads[m.id];
             const src = m.previewUrl ?? m.url ?? null;
-            const unsent = !m.url && u?.status !== "uploading";
+            const unsent = !m.url && u?.status !== "uploading" && u?.status !== "compressing";
             return (
               <li key={m.id} className={`cp-media-card${u?.status === "error" || (unsent && !u) ? " flagged" : ""}`}>
                 <div className="cp-media-thumb">
@@ -246,6 +265,7 @@ export default function MediaSection({
                     <div><dt>Type</dt><dd title={m.mime ? undefined : "The browser did not report a type"}>{m.mime || "–"}</dd></div>
                   </dl>
                   <div className="cp-media-state">
+                    {u?.status === "compressing" && <span className="cp-uploading"><Loader2 size={12} className="cp-spin" /> Compressing{typeof u.progress === "number" ? ` ${Math.round(u.progress * 100)}%` : "…"}</span>}
                     {u?.status === "uploading" && <span className="cp-uploading"><Loader2 size={12} className="cp-spin" /> Uploading</span>}
                     {u?.status === "error" && <span className="cp-error-inline">{u.message}</span>}
                     {!u && !m.url && <span className="cp-error-inline">Not uploaded yet.</span>}
@@ -259,7 +279,7 @@ export default function MediaSection({
                       <button type="button" className="cp-icon-btn" aria-label="Move down" disabled={i === media.length - 1} onClick={() => move(i, i + 1)}><ArrowDown size={14} /></button>
                     </>
                   )}
-                  <button type="button" className="cp-icon-btn" aria-label="Replace" disabled={u?.status === "uploading"} onClick={() => { replacing.current = m.id; replaceRef.current?.click(); }}><RefreshCw size={14} /></button>
+                  <button type="button" className="cp-icon-btn" aria-label="Replace" disabled={u?.status === "uploading" || u?.status === "compressing"} onClick={() => { replacing.current = m.id; replaceRef.current?.click(); }}><RefreshCw size={14} /></button>
                   {u?.status === "error" && fileFor(m.id) && (
                     <button type="button" className="cp-link" onClick={() => { const f = fileFor(m.id); if (f) void upload(m, f); }}>Retry</button>
                   )}
