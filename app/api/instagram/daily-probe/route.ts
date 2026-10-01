@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { getActiveConnection } from "@/lib/instagramSync";
+import { isAdminEmail } from "@/lib/admin";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -17,6 +18,7 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  if (!isAdminEmail(user.email)) return new NextResponse(null, { status: 404 });
   const ctx = await resolveContext(supabase, user.id);
 
   const conn = await getActiveConnection(ctx.client, ctx.ownerId, "access_token");

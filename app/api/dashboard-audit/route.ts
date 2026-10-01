@@ -4,6 +4,7 @@ import { resolveContext } from "@/lib/context";
 import { getEntitlements, clampDays } from "@/lib/entitlements";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import { computeContentScore } from "@/lib/contentScore";
+import { isAdminEmail } from "@/lib/admin";
 import {
   getFollowers,
   getFollowerGrowth,
@@ -32,6 +33,7 @@ export async function GET(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  if (!isAdminEmail(user.email)) return new NextResponse(null, { status: 404 });
   // Audits the ACTIVE Brand Workspace's account (the owner's, for a team member).
   const ctx = await resolveContext(supabase, user.id);
 
