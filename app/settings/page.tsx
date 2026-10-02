@@ -48,7 +48,7 @@ import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
 import { Users } from "lucide-react";
 import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
 import type { BrandDetail } from "@/lib/profile";
-import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces } from "@/lib/workspaces";
+import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace } from "@/lib/workspaces";
 import { Briefcase } from "lucide-react";
 
 export const metadata = { title: "Settings — SOCIA" };
@@ -115,30 +115,35 @@ export default async function SettingsPage({
 
   const { ig, fb, yt, tt } = await searchParams;
 
+  // The connection cards show the ACTIVE Brand Workspace's accounts. A person
+  // can hold one channel / Page per workspace, so a read by user alone can find
+  // several rows (a single-row read then errors, and the card said "Not
+  // connected" for a channel that was saved). Before workspaces exist there is
+  // no workspace id and this is the one row per user.
+  const connCtx = await resolveContext(supabase, user.id);
+  const connRow = async <T,>(table: string, cols: string): Promise<{ row: T | null; failed: boolean }> => {
+    const { data, error } = await scopeToWorkspace(
+      connCtx.client.from(table).select(cols).eq("user_id", connCtx.ownerId),
+      connCtx.workspace?.id,
+    ).limit(1);
+    return { row: ((data as unknown as T[] | null) ?? [])[0] ?? null, failed: Boolean(error) };
+  };
+
   // YouTube channel connection (tokens never leave the server).
-  let ytConn: {
+  type YtConn = {
     title: string | null;
     handle: string | null;
     subscribers: number | null;
     avatar_url: string | null;
     scopes?: string[] | null;
-  } | null = null;
+  };
+  let ytConn: YtConn | null = null;
   try {
-    const { data, error } = await supabase
-      .from("youtube_connections")
-      .select("title, handle, subscribers, avatar_url, scopes")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (!error) ytConn = data;
-    else {
-      // scopes column may not exist yet: read the card's fields without it
-      const { data: legacy } = await supabase
-        .from("youtube_connections")
-        .select("title, handle, subscribers, avatar_url")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      ytConn = legacy;
-    }
+    const r = await connRow<YtConn>("youtube_connections", "title, handle, subscribers, avatar_url, scopes");
+    // scopes column may not exist yet: read the card's fields without it
+    ytConn = r.failed
+      ? (await connRow<YtConn>("youtube_connections", "title, handle, subscribers, avatar_url")).row
+      : r.row;
   } catch {
     // table may not exist yet — the card shows the disconnected state
   }
@@ -147,27 +152,23 @@ export default async function SettingsPage({
   const ytCanUpload = Array.isArray(ytConn?.scopes) && ytConn!.scopes!.some((s) => YT_WRITE_SCOPES.includes(s));
 
   // TikTok connection (tokens never leave the server).
-  let ttConn: {
+  type TtConn = {
     display_name: string | null;
     username: string | null;
     follower_count: number | null;
     avatar_url: string | null;
     scopes?: string[] | null;
-  } | null = null;
+  };
+  let ttConn: TtConn | null = null;
   try {
-    const { data } = await supabase
-      .from("tiktok_connections")
-      .select("display_name, username, follower_count, avatar_url, scopes")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    ttConn = data;
+    ttConn = (await connRow<TtConn>("tiktok_connections", "display_name, username, follower_count, avatar_url, scopes")).row;
   } catch {
     // table may not exist yet — the card shows the disconnected state
   }
   const ttDirect = Array.isArray(ttConn?.scopes) && ttConn!.scopes!.includes("video.publish");
 
   // Facebook connection state (tokens never leave the server).
-  let fbConn: {
+  type FbConn = {
     page_name: string | null;
     username: string | null;
     followers_count: number | null;
@@ -175,14 +176,10 @@ export default async function SettingsPage({
     connection_status: string | null;
     last_synced_at: string | null;
     pending_pages: unknown; media?: unknown;
-  } | null = null;
+  };
+  let fbConn: FbConn | null = null;
   try {
-    const { data } = await supabase
-      .from("facebook_connections")
-      .select("page_name, username, followers_count, picture_url, connection_status, last_synced_at, pending_pages, media")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    fbConn = data;
+    fbConn = (await connRow<FbConn>("facebook_connections", "page_name, username, followers_count, picture_url, connection_status, last_synced_at, pending_pages, media")).row;
   } catch {
     // table may not exist yet — the card shows the disconnected state
   }
@@ -238,7 +235,7 @@ export default async function SettingsPage({
   } | null = null;
   let teamUsed: number | null = null;
   if (tmEnabled) {
-    const ctx = await resolveContext(supabase, user.id);
+    const ctx = connCtx;
     if (ctx.workspace) {
       const ownerEnt = ctx.isOwner ? ent : await getEntitlements(ctx.client, ctx.ownerId);
       const [members, invites] = await Promise.all([
@@ -287,7 +284,7 @@ export default async function SettingsPage({
   let brandDetail: BrandDetail | null = null;
   // A non-default workspace shows its own brand/intelligence; the default
   // workspace and pre-migration accounts read the per-user profile.
-  const brandWs = brandWorkspace(await resolveContext(supabase, user.id));
+  const brandWs = brandWorkspace(connCtx);
   try {
     const prof = brandWs
       ? { niche: brandWs.niche, niche_detail: brandWs.niche_detail, niche_analyzed_at: brandWs.niche_analyzed_at, brand_detail: brandWs.brand_detail }

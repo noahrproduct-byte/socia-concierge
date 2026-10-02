@@ -25,6 +25,7 @@ import { ThemeSync } from "@/components/ThemeProvider";
 import { isAppearance, type Appearance } from "@/lib/appearance";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
@@ -115,7 +116,8 @@ export default async function AppShell({
       const ctx = await resolveContext(supabase, user.id);
       const [conn, fbRes, platRes, appRes, entRes, schedRes, plansRes, ytRes] = await Promise.all([
         getActiveConnection(ctx.client, ctx.ownerId, "username, media, last_synced_at"),
-        ctx.client.from("facebook_connections").select("page_name, connection_status").eq("user_id", ctx.ownerId).maybeSingle(),
+        // Connections are one per workspace: read the active workspace's row, not "the" row for the owner.
+        scopeToWorkspace(ctx.client.from("facebook_connections").select("page_name, connection_status").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle(),
         ctx.client.from("profiles").select("platforms").eq("user_id", ctx.ownerId).maybeSingle(),
         // Viewer's theme. The appearance column may not exist yet: a failed read is simply "no preference".
         supabase.from("profiles").select("appearance").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
@@ -124,7 +126,7 @@ export default async function AppShell({
         ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
         ctx.client.from("plans").select("id, created_at, client_handle").eq("user_id", ctx.ownerId).order("created_at", { ascending: false }).limit(3),
         // Its own catch so a not-yet-created table never blanks the whole shell.
-        ctx.client.from("youtube_connections").select("title").eq("user_id", ctx.ownerId).maybeSingle().then((r) => r, () => ({ data: null })),
+        scopeToWorkspace(ctx.client.from("youtube_connections").select("title").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle().then((r) => r, () => ({ data: null })),
       ]);
       const c = conn as { username?: string; media?: { id?: string; caption?: string; timestamp?: string; permalink?: string }[]; last_synced_at?: string } | null;
       igUsername = c?.username ?? null;
