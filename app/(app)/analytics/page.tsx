@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Link2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
@@ -16,13 +16,14 @@ import { interactionsTotal, engagementRateOf, engagementBreakdown, engagementQua
 import { followerPoints } from "@/lib/followers";
 import { buildGaps } from "@/lib/gaps";
 import { fetchDemographics } from "@/lib/igDemographics";
-import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import AnalyticsV3, { type AnalyticsData, type AnalyticsGate } from "@/components/AnalyticsV3";
 import YouTubeAnalytics from "@/components/YouTubeAnalytics";
 import FacebookAnalytics from "@/components/FacebookAnalytics";
 import TikTokAnalytics from "@/components/TikTokAnalytics";
 import AnalyticsShell from "@/components/AnalyticsShell";
+import UpdatedAgo from "@/components/UpdatedAgo";
+import { cachedLive, oldestFetch } from "@/lib/liveCache";
 import type { PlatformTab } from "@/components/PlatformTabs";
 import type { OverlayLine } from "@/components/ov/MultiLineChart";
 import { getYouTubeAnalytics, type YtDaily } from "@/lib/youtubeData";
@@ -46,19 +47,35 @@ export const metadata = { title: "Analytics — SOCIA" };
 // combines only what is mathematically valid. The pipeline stays fixed: real
 // rows → deterministic aggregation → rendered → AI only ever explains.
 export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; platform?: string }> }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   const ctx = await resolveContext(supabase, user.id);
 
   const { range: rangeParam, platform: platformParam } = await searchParams;
-  const [profile, snap, ent] = await Promise.all([
+
+  // Loads are started as early as their inputs allow and awaited together, so
+  // the page waits for the slowest platform rather than for each in turn.
+  // Range-independent reads start now.
+  const profileSnapP = Promise.all([
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)),
     getIgSnapshot(ctx.client, ctx.ownerId),
-    getEntitlements(ctx.client, ctx.ownerId),
   ]);
+  profileSnapP.catch(() => {}); // surfaced when awaited below
+  const fbP = getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null);
+  // TikTok: the active workspace's account row (counts + videos), if any.
+  const ttP: Promise<Record<string, unknown> | null> = (async () => {
+    try {
+      const { data } = await scopeToWorkspace(
+        ctx.client.from("tiktok_connections").select("username, display_name, avatar_url, is_verified, follower_count, likes_count, video_count, videos, last_synced_at").eq("user_id", ctx.ownerId),
+        ctx.workspace?.id,
+      ).limit(1);
+      return ((data ?? [])[0] as Record<string, unknown> | undefined) ?? null;
+    } catch {
+      return null; // tiktok_connections may not exist yet
+    }
+  })();
+
+  const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const maxDays = maxHistoryDays(ent);
   const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
   const rangeId: string = clampRangeId(requestedId, maxDays);
@@ -67,26 +84,46 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
+
+  // Live platform reads, reused for a few minutes per workspace and range
+  // (lib/liveCache.ts). A guest sees the owner's data through a different
+  // client, so their reads are kept apart from the owner's.
+  const scope = [ctx.workspace?.id, ctx.isOwner ? "owner" : `guest:${ctx.viewerId}`];
+  const ytP = cachedLive(
+    ctx.ownerId, ["yt-deep", ...scope, days],
+    () => getYouTubeAnalytics(ctx.client, ctx.ownerId, days, { deep: true }),
+    (v) => v.note == null, // a degraded read (live call failed) is not reused
+  ).catch(() => null);
+  // Facebook: snapshots (SOCIA's own follower history) and Page Insights
+  // (read_insights), only for a connected Page. Insights degrade to
+  // "unavailable" when the permission isn't granted — never to zeros.
+  const fbSnapsP = fbP.then((f) => (f?.status === "connected" && f.page_id ? readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", f.page_id).catch(() => []) : []));
+  const fbInsightsP = fbP.then((f) =>
+    f?.status === "connected"
+      ? cachedLive(ctx.ownerId, ["fb-insights", ...scope, f.page_id, days], () => getFacebookInsights(ctx.client, ctx.ownerId, days), (v) => v.available).catch(() => null)
+      : null,
+  );
+
+  const [profile, snap] = await profileSnapP;
   const live = Boolean(snap && snap.followers_count != null);
 
-  // Fetch every platform the workspace might have, in parallel. Each resolves to
-  // null/absent when not connected, so the page stays multi-platform aware.
-  const [yt, fb] = await Promise.all([
-    getYouTubeAnalytics(ctx.client, ctx.ownerId, days, { deep: true }).catch(() => null),
-    getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null),
-  ]);
-  const fbConnected = fb?.status === "connected";
+  // Instagram's stored daily rows and its (live) follower demographics.
+  type IgRow = DailySnapshot & { followers_gained: number | null };
+  const igExtraP = live
+    ? Promise.all([
+        readDailySnapshots<IgRow>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as IgRow[]),
+        (getActiveConnection(ctx.client, ctx.ownerId, "access_token") as Promise<{ access_token?: string } | null>).then((row) =>
+          cachedLive(ctx.ownerId, ["ig-demo", ...scope, snap?.ig_user_id], () => fetchDemographics(row?.access_token ?? null), (v) => v.status === "ok"),
+        ),
+      ])
+    : null;
 
-  // TikTok: the active workspace's account row (counts + videos), if any.
-  let ttRow: Record<string, unknown> | null = null;
-  try {
-    const { data } = await scopeToWorkspace(
-      ctx.client.from("tiktok_connections").select("username, display_name, avatar_url, is_verified, follower_count, likes_count, video_count, videos, last_synced_at").eq("user_id", ctx.ownerId),
-      ctx.workspace?.id,
-    ).limit(1);
-    ttRow = (data ?? [])[0] ?? null;
-  } catch { /* tiktok_connections may not exist yet */ }
+  const [ytC, fb, ttRow, fbSnapsLoaded, fbInsightsC, igExtra] = await Promise.all([ytP, fbP, ttP, fbSnapsP, fbInsightsP, igExtraP]);
+  const yt = ytC?.value ?? null;
+  const fbConnected = fb?.status === "connected";
   const ttConnected = Boolean(ttRow);
+  // How old the reused live reads on this page are (null when none were used).
+  const updatedAt = oldestFetch(ytC, fbInsightsC, igExtra?.[1]);
 
   const connectedCount = [live, fbConnected, Boolean(yt), ttConnected].filter(Boolean).length;
 
@@ -95,7 +132,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     const ytHref = ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings";
     return (
-      <AppShell active="analytics" userEmail={user.email}>
+      <>
         <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
         <div className="db-connect">
           <span className="db-connect-ico"><Link2 size={22} /></span>
@@ -108,7 +145,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
             <a href={ytHref} className="db-connect-cta ghost">Connect YouTube</a>
           </span>
         </div>
-      </AppShell>
+      </>
     );
   }
 
@@ -145,12 +182,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   if (live) {
     const media: IgMediaItem[] = snap!.media ?? [];
     const followers = snap!.followers_count ?? null;
-    type Row = DailySnapshot & { followers_gained: number | null };
-    const [dailyRows, tokenRow] = await Promise.all([
-      readDailySnapshots<Row>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as Row[]),
-      getActiveConnection(ctx.client, ctx.ownerId, "access_token") as Promise<{ access_token?: string } | null>,
-    ]);
-    const demo = await fetchDemographics(tokenRow?.access_token ?? null);
+    const dailyRows = igExtra?.[0] ?? [];
+    const demo = igExtra?.[1]?.value ?? (await fetchDemographics(null));
 
     const baseline = median(media.map(interactionsTotal));
     const posts = postCards(media, baseline);
@@ -279,13 +312,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   let fbPanel: ReactNode = null;
   const fbSummary: PlatformSummary = { platform: "facebook", connected: Boolean(fbConnected), label: fb?.page_name ?? "Facebook", audience: fb?.followers_count ?? null, audienceLabel: "followers", views: null, viewsNote: "Facebook doesn't report post views", engagement: null, contentPublished: null };
   if (fbConnected && fb) {
-    // Snapshots (SOCIA's own follower history) and Page Insights (read_insights:
-    // views / video views / daily follows) in parallel. Insights degrade to
-    // "unavailable" when the permission isn't granted — never to zeros.
-    const [fbSnaps, fbInsights] = await Promise.all([
-      fb.page_id ? readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", fb.page_id).catch(() => []) : Promise.resolve([]),
-      getFacebookInsights(ctx.client, ctx.ownerId, days).catch(() => null),
-    ]);
+    const fbSnaps = fbSnapsLoaded;
+    const fbInsights = fbInsightsC?.value ?? null;
     const fbData = buildFacebookAnalytics({ snap: fb, snapshots: fbSnaps, days, rangeLabel, now, insights: fbInsights });
     fbPanel = <FacebookAnalytics data={fbData} gate={gate} maxDays={maxDays} />;
     fbSummary.engagement = fbData.engagement.total;
@@ -346,9 +374,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   };
 
   return (
-    <AppShell active="analytics" userEmail={user.email}>
-      <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
+    <>
+      <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." status={<UpdatedAgo at={updatedAt} />} />
       <AnalyticsShell tabs={tabs} initial={initial} panels={panels} allData={allData} overlay={overlay} today={today} />
-    </AppShell>
+    </>
   );
 }

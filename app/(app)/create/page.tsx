@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { getEntitlements, canUseFeature, checkFeature } from "@/lib/entitlements";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import { interactionsTotal } from "@/lib/engagement";
@@ -8,7 +8,6 @@ import type { TimedPost } from "@/lib/postingTimes";
 import { hasDestinationsTable, loadPickerAccountsDetailed } from "@/lib/publishing/db";
 import type { PickerAccount } from "@/lib/publishing/composer";
 import type { ComposerPageProps } from "@/components/composer/contracts";
-import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import ComposerPage from "@/components/composer/ComposerPage";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
@@ -44,10 +43,7 @@ function futureIso(v: string | null): string | null {
 }
 
 export default async function CreatePostPage({ searchParams }: { searchParams: Promise<Params> }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   // The active Brand Workspace: its owner's accounts, plan and history, read
   // through ctx.client. Uploads still land in the viewer's own storage folder.
@@ -105,10 +101,10 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
   };
 
   return (
-    <AppShell active="create" userEmail={user.email}>
+    <>
       <PageHeader title="Create post" sub="Create, customize, and publish to your connected platforms." />
       {/* A different post id remounts the composer so "Create another" and editing never share state. */}
       <ComposerPage key={postId ?? "new"} {...props} postId={postId} />
-    </AppShell>
+    </>
   );
 }

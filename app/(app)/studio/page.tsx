@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { getIgSnapshot } from "@/lib/instagramSync";
-import AppShell from "@/components/AppShell";
 import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
@@ -14,10 +13,7 @@ export const metadata = { title: "Content Studio — SOCIA" };
 // live. The server passes what SOCIA already knows (niche, goal, drafts with
 // media); analysis happens on demand from frames sampled in the browser.
 export default async function StudioPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   // Profile, posts and drafts are the active workspace owner's.
   const ctx = await resolveContext(supabase, user.id);
@@ -45,7 +41,7 @@ export default async function StudioPage() {
   }
 
   return (
-    <AppShell active="studio" userEmail={user.email}>
+    <>
       <ContentStudio
         // The viewer's own id: the browser uploads studio media under it with
         // the viewer's session, so this must not be the workspace owner.
@@ -57,6 +53,6 @@ export default async function StudioPage() {
         connected={Boolean(snap && snap.followers_count != null)}
         postsSynced={snap?.media?.length ?? 0}
       />
-    </AppShell>
+    </>
   );
 }

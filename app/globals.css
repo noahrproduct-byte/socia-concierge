@@ -10707,6 +10707,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .dv-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
 .dv-head h1 { font-size: 24px; font-weight: 750; letter-spacing: -0.5px; color: var(--text-primary); }
 .dv-head p { margin-top: 3px; font-size: 13.5px; color: var(--text-secondary); }
+.dv-head .upd-ago { display: block; margin-top: 5px; font-size: 12px; color: var(--text-muted); }
 .dv-head-actions { display: flex; align-items: center; gap: 10px; }
 .ov-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-family: inherit; font-size: 13px; font-weight: 650; border-radius: 10px; padding: 9px 14px; text-decoration: none; cursor: pointer; white-space: nowrap; transition: background 0.15s, border-color 0.15s, transform 0.15s; }
 .ov-btn.primary { background: var(--primary); color: var(--on-primary); border: 1px solid transparent; }

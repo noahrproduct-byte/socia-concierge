@@ -1,19 +1,19 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Link2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
 import { getFacebookInsights } from "@/lib/facebookInsights";
+import { cachedLive, oldestFetch } from "@/lib/liveCache";
 import { getIgSnapshot, readDailySnapshots } from "@/lib/instagramSync";
 import { getYouTubeAnalytics } from "@/lib/youtubeData";
 import type { DailySnapshot } from "@/lib/dashboardMetrics";
 import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
-import AppShell from "@/components/AppShell";
 import SyncCinematic from "@/components/SyncCinematic";
 import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
 import DashboardMultiPlatform from "@/components/DashboardMultiPlatform";
@@ -39,10 +39,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ ig?: string; range?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   const ctx = await resolveContext(supabase, user.id);
 
@@ -53,29 +50,67 @@ export default async function DashboardPage({
   const raw = (user.email?.split("@")[0] ?? "there").replace(/[._-]+/g, " ");
   const name = raw.charAt(0).toUpperCase() + raw.slice(1);
 
+  // Loads start as early as their inputs allow and are awaited together, so
+  // the page waits for the slowest read rather than for each in turn.
+  const wsId = ctx.workspace?.id ?? null;
+  const fbP = getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null);
+  const ttP = scopeToWorkspace(
+    ctx.client.from("tiktok_connections").select("username, display_name, avatar_url, is_verified, follower_count, likes_count, video_count, videos").eq("user_id", ctx.ownerId),
+    wsId,
+  ).limit(1).then((r) => (r.data ?? [])[0] ?? null, () => null);
+  // Scheduled posts and the latest plan (used by both dashboard views).
+  const schedPlansP = Promise.all([
+    scopeToWorkspace(
+      ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled")
+        .gte("scheduled_at", new Date(Date.now() - 30 * DAY_MS).toISOString()),
+      wsId,
+    ).order("scheduled_at", { ascending: true }).limit(200),
+    scopeToWorkspace(
+      ctx.client.from("plans").select("id, data, created_at, client_handle").eq("user_id", ctx.ownerId),
+      wsId,
+    ).order("created_at", { ascending: false }).limit(1),
+  ]);
+
   const [profile, ent] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)), getEntitlements(ctx.client, ctx.ownerId)]);
   const igConnected = profile?.account_connected ?? false;
-  const snap = igConnected ? await getIgSnapshot(ctx.client, ctx.ownerId) : null;
-  const live = Boolean(snap && snap.followers_count != null);
 
-  // Range (per-plan clamp), needed before fetching platform data.
+  // Range (per-plan clamp), needed before fetching ranged platform data.
   const maxDays = maxHistoryDays(ent);
   const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
   const rangeId: string = clampRangeId(requestedId, maxDays);
   const days = rangeDays(rangeId);
   const rangeLabel = RANGES.find((r) => r.id === rangeId)?.label ?? "Last 30 days";
   const now = new Date();
-  const wsId = ctx.workspace?.id ?? null;
 
-  // Every other platform, in parallel. null/absent when not connected.
-  const [fb, yt, ttRow] = await Promise.all([
-    getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null),
-    getYouTubeAnalytics(ctx.client, ctx.ownerId, days).catch(() => null),
-    scopeToWorkspace(
-      ctx.client.from("tiktok_connections").select("username, display_name, avatar_url, is_verified, follower_count, likes_count, video_count, videos").eq("user_id", ctx.ownerId),
-      wsId,
-    ).limit(1).then((r) => (r.data ?? [])[0] ?? null, () => null),
-  ]);
+  // Live platform reads, reused for a few minutes per workspace and range
+  // (lib/liveCache.ts). A guest's reads are kept apart from the owner's.
+  const scope = [wsId, ctx.isOwner ? "owner" : `guest:${ctx.viewerId}`];
+  const ytP = cachedLive(
+    ctx.ownerId, ["yt", ...scope, days],
+    () => getYouTubeAnalytics(ctx.client, ctx.ownerId, days),
+    (v) => v.note == null, // a degraded read (live call failed) is not reused
+  ).catch(() => null);
+  const fbInsightsP = fbP.then((f) =>
+    f?.status === "connected"
+      ? cachedLive(ctx.ownerId, ["fb-insights", ...scope, f.page_id, days], () => getFacebookInsights(ctx.client, ctx.ownerId, days), (v) => v.available).catch(() => null)
+      : null,
+  );
+  const snapP = igConnected ? getIgSnapshot(ctx.client, ctx.ownerId) : Promise.resolve(null);
+  // Instagram's stored daily rows; the table may not exist yet, in which case
+  // the series render their empty states.
+  const dailyRowsP: Promise<DailySnapshot[]> = snapP.then(
+    (sn) => (sn && sn.followers_count != null
+      ? readDailySnapshots<DailySnapshot>(ctx.client, ctx.ownerId, sn.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as DailySnapshot[])
+      : []),
+    () => [],
+  );
+
+  // Every platform, in parallel. null/absent when not connected.
+  const [snap, fb, ytC, ttRow, fbInsightsC, dailyRowsLoaded] = await Promise.all([snapP, fbP, ytP, ttP, fbInsightsP, dailyRowsP]);
+  const yt = ytC?.value ?? null;
+  const live = Boolean(snap && snap.followers_count != null);
+  // How old the reused live reads on this page are (null when none were used).
+  const updatedAt = oldestFetch(ytC, fbInsightsC);
   const fbConnected = fb?.status === "connected";
   const ytConnected = Boolean(yt);
   const ttConnected = Boolean(ttRow);
@@ -86,7 +121,7 @@ export default async function DashboardPage({
   if (connectedCount === 0) {
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     return (
-      <AppShell active="dashboard" userEmail={user.email}>
+      <>
         <div className="dash-header">
           <div>
             <h1 className="dash-greeting">{greeting}, {name} <span aria-hidden>👋</span></h1>
@@ -149,7 +184,7 @@ export default async function DashboardPage({
             </Link>
           </div>
         )}
-      </AppShell>
+      </>
     );
   }
 
@@ -159,7 +194,7 @@ export default async function DashboardPage({
 
   const fbSummary: PlatformSummary = { platform: "facebook", connected: fbConnected, label: fb?.page_name ?? "Facebook", audience: fb?.followers_count ?? null, audienceLabel: "followers", views: null, viewsNote: "Facebook doesn't report post views", engagement: null, contentPublished: null };
   if (fbConnected && fb) {
-    const fbInsights = await getFacebookInsights(ctx.client, ctx.ownerId, days).catch(() => null);
+    const fbInsights = fbInsightsC?.value ?? null;
     const fd = buildFacebookAnalytics({ snap: fb, snapshots: [], days, rangeLabel, now, insights: fbInsights });
     fbSummary.engagement = fd.engagement.total;
     fbSummary.contentPublished = fd.postsInRange;
@@ -177,18 +212,7 @@ export default async function DashboardPage({
     ttSummary.contentPublished = td.videosInRange;
   }
 
-  // Scheduled posts (used by both dashboard views).
-  const [schedRes, plansRes] = await Promise.all([
-    scopeToWorkspace(
-      ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled")
-        .gte("scheduled_at", new Date(Date.now() - 30 * DAY_MS).toISOString()),
-      wsId,
-    ).order("scheduled_at", { ascending: true }).limit(200),
-    scopeToWorkspace(
-      ctx.client.from("plans").select("id, data, created_at, client_handle").eq("user_id", ctx.ownerId),
-      wsId,
-    ).order("created_at", { ascending: false }).limit(1),
-  ]);
+  const [schedRes, plansRes] = await schedPlansP;
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
   const upcoming = buildUpcoming(scheduled);
 
@@ -197,21 +221,16 @@ export default async function DashboardPage({
   if (!live) {
     const igSummary: PlatformSummary = { platform: "instagram", connected: false, label: "Instagram", audience: null, audienceLabel: "followers", views: null, viewsNote: null, engagement: null, contentPublished: null };
     return (
-      <AppShell active="dashboard" userEmail={user.email}>
-        <DashboardMultiPlatform greeting={greeting} name={name} summaries={[igSummary, fbSummary, ytSummary, ttSummary]} upcoming={upcoming} />
-      </AppShell>
+      <>
+        <DashboardMultiPlatform greeting={greeting} name={name} summaries={[igSummary, fbSummary, ytSummary, ttSummary]} upcoming={upcoming} updatedAt={updatedAt} />
+      </>
     );
   }
 
   // ---- Instagram-live dashboard (full existing experience) ----
   const media = snap!.media ?? [];
 
-  let dailyRows: DailySnapshot[] = [];
-  try {
-    dailyRows = await readDailySnapshots<DailySnapshot>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source");
-  } catch {
-    // snapshots table may not exist yet — series render their empty states
-  }
+  const dailyRows = dailyRowsLoaded;
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
@@ -263,16 +282,16 @@ export default async function DashboardPage({
   };
 
   const d: DashboardData = {
-    greeting, name, handle: snap!.username ?? null, rangeLabel, maxDays, kpis, series, platforms, platformTotal, platformMetric,
+    greeting, name, handle: snap!.username ?? null, rangeLabel, maxDays, updatedAt, kpis, series, platforms, platformTotal, platformMetric,
     insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
     timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
     platformSummaries: [igSummary, fbSummary, ytSummary, ttSummary],
   };
 
   return (
-    <AppShell active="dashboard" userEmail={user.email}>
+    <>
       {justConnected && <SyncCinematic username={snap?.username} followers={snap?.followers_count} />}
       <DashboardV3 d={d} />
-    </AppShell>
+    </>
   );
 }

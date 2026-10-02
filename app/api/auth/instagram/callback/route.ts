@@ -8,6 +8,7 @@ import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { PLATFORMS_PER_WORKSPACE } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
 import { resolveContext, can } from "@/lib/context";
+import { clearLiveCache } from "@/lib/liveCache";
 
 export const runtime = "nodejs";
 
@@ -41,6 +42,9 @@ export async function GET(req: Request) {
   // through ctx.client. Auth, the OAuth state and event attribution stay on
   // the viewer. Refused before the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connections or their data are about to change: drop the reused live
+  // platform reads so the next page view asks the platforms again.
+  clearLiveCache(ctx.ownerId);
   if (!can(ctx, "connect")) return settings("forbidden");
 
   const redirectUri = igRedirectUri(origin);

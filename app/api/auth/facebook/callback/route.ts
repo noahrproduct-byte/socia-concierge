@@ -7,6 +7,7 @@ import { activeByPlatform, canConnectAnother, getEntitlements, getLimit, listCon
 import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
+import { clearLiveCache } from "@/lib/liveCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -81,6 +82,9 @@ export async function GET(req: Request) {
   // ctx.client. Auth and event attribution stay on the viewer. Refused before
   // the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connections or their data are about to change: drop the reused live
+  // platform reads so the next page view asks the platforms again.
+  clearLiveCache(ctx.ownerId);
   if (!can(ctx, "connect")) return done("forbidden");
 
   try {

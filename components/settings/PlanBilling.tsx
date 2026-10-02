@@ -6,7 +6,7 @@
 // There is no Manage or Cancel button because nothing exists behind them yet.
 
 import Link from "next/link";
-import "@/app/settings/plan-billing.css";
+import "@/app/(app)/settings/plan-billing.css";
 import {
   FEATURE_STATUS, METER_LABEL, METER_PERIOD, PRICING_PATH, checkoutAvailable, contactHref, formatHistory, formatPrice,
   type MeterKey,
