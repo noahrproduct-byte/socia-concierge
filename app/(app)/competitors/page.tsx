@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
-import AppShell from "@/components/AppShell";
 import CompetitorsPage from "@/components/competitors/CompetitorsPage";
 import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, YouSeriesPoint } from "@/components/competitors/types";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
@@ -61,8 +60,7 @@ function igPosts(c: IgCompetitor): CompPost[] {
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ range?: string; platform?: string; niche_range?: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   // Everything below reads the ACTIVE Brand Workspace, which may belong to
   // someone who invited this person: data helpers take (ctx.client, ctx.ownerId).
@@ -335,8 +333,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   };
 
   return (
-    <AppShell active="competitors" userEmail={user.email}>
+    <>
       <CompetitorsPage d={data} />
-    </AppShell>
+    </>
   );
 }

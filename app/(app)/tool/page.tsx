@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import AppShell from "@/components/AppShell";
+import { getViewer } from "@/lib/supabase/server";
 import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanClient";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
@@ -63,10 +62,7 @@ async function evidenceCounts(supabase: Ctx["client"], userId: string, workspace
 }
 
 export default async function ContentPlanPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   // Everything below reads the active Brand Workspace's owner (the viewer,
   // unless they were invited into someone else's workspace).
@@ -142,8 +138,8 @@ export default async function ContentPlanPage() {
   };
 
   return (
-    <AppShell active="tool" userEmail={user.email}>
+    <>
       <ContentPlanClient context={context} canSchedule={canSchedule} />
-    </AppShell>
+    </>
   );
 }

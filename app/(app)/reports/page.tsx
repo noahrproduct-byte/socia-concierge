@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Download, ShieldCheck, ArrowRight, Lock, Printer, TrendingUp } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
-import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import BrandMark from "@/components/BrandMark";
 import CustomRange from "@/components/reports/CustomRange";
@@ -97,8 +96,7 @@ function ReportBody({ report }: { report: Report }) {
 }
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Search> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   const ctx = await resolveContext(supabase, user.id);
   const [ent, ws] = await Promise.all([getEntitlements(ctx.client, ctx.ownerId), getActiveWorkspace(supabase, user.id)]);
@@ -154,7 +152,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   );
 
   return (
-    <AppShell active="reports" userEmail={user.email}>
+    <>
       <PageHeader
         title="Reports"
         sub={<>Performance summary for {wsName} · {report.periodLabel}</>}
@@ -206,6 +204,6 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <ShieldCheck size={13} /> Report values come from the same calculations the dashboard uses. Anything a platform doesn&apos;t provide is shown as &quot;—&quot;, never as zero.
         {" "}<Link href="/api/export" className="dsh-link">Export all account data (JSON) <ArrowRight size={12} /></Link>
       </p>
-    </AppShell>
+    </>
   );
 }

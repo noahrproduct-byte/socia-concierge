@@ -7,6 +7,7 @@ import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { deny } from "@/lib/planGuard";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { clearLiveCache } from "@/lib/liveCache";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,6 +25,9 @@ export async function POST(req: Request) {
   // the pending row and the saved Page are the workspace OWNER's, read and
   // written through ctx.client. Event attribution stays on the viewer.
   const ctx = await resolveContext(supabase, user.id);
+  // Connections or their data are about to change: drop the reused live
+  // platform reads so the next page view asks the platforms again.
+  clearLiveCache(ctx.ownerId);
   if (!can(ctx, "connect")) return NextResponse.json({ error: forbiddenCopy("connect") }, { status: 403 });
 
   let pageId: string;

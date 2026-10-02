@@ -16,8 +16,7 @@ import {
   SunMoon,
 } from "lucide-react";
 import AppearanceSettings from "@/components/AppearanceSettings";
-import { createClient } from "@/lib/supabase/server";
-import AppShell from "@/components/AppShell";
+import { getViewer } from "@/lib/supabase/server";
 import PageHeader from "@/components/PageHeader";
 import BrandSettings from "@/components/BrandSettings";
 import StrategistSettings from "@/components/StrategistSettings";
@@ -107,10 +106,7 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
 
   const { ig, fb, yt, tt } = await searchParams;
@@ -332,7 +328,7 @@ export default async function SettingsPage({
   );
 
   return (
-    <AppShell active="settings" userEmail={user.email}>
+    <>
       <div className="st2 st3">
         <PageHeader title="Settings" sub="Manage your brand, connections, intelligence, and plan." />
 
@@ -572,6 +568,6 @@ export default async function SettingsPage({
           </div>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { clearLiveCache } from "@/lib/liveCache";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,9 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   const ctx = await resolveContext(supabase, user.id);
+  // Connections or their data are about to change: drop the reused live
+  // platform reads so the next page view asks the platforms again.
+  clearLiveCache(ctx.ownerId);
   if (!can(ctx, "connect")) return NextResponse.json({ error: forbiddenCopy("connect") }, { status: 403 });
   const db = ctx.client;
   const ownerId = ctx.ownerId;
@@ -80,6 +84,8 @@ export async function POST() {
   } catch {
     // cosmetic
   }
+
+  clearLiveCache(ctx.ownerId);
 
   return NextResponse.json({ ok: true });
 }

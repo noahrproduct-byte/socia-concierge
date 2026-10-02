@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Flame, Users, Zap, Lightbulb, ArrowRight, Sparkles } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
-import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { minPlanWithFeature, pricingHref, PLANS } from "@/lib/plans";
@@ -36,8 +35,7 @@ function Section({ icon, title, items, empty }: { icon: ReactNode; title: string
 }
 
 export default async function RoundupPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   const ctx = await resolveContext(supabase, user.id);
   const [ent, ws] = await Promise.all([
@@ -49,7 +47,7 @@ export default async function RoundupPage() {
   if (!canUseFeature(ent, "weekly_trend_roundup")) {
     const plan = minPlanWithFeature("weekly_trend_roundup") ?? "starter";
     return (
-      <AppShell active="roundup" userEmail={user.email}>
+      <>
         <PageHeader title="Weekly roundup" sub="Your niche, your competitors and your wins — rolled up once a week." />
         <div className="ru-gate">
           <span className="ru-gate-ico" aria-hidden><Sparkles size={22} /></span>
@@ -57,14 +55,14 @@ export default async function RoundupPage() {
           <p>Every week SOCIA rolls up what&apos;s trending in your niche, how your tracked competitors moved, your breakout posts, and the one format you&apos;re under-using — all from your real data, never estimated.</p>
           <Link href={pricingHref(plan)} className="ru-cta">Upgrade to {PLANS[plan].name} <ArrowRight size={15} /></Link>
         </div>
-      </AppShell>
+      </>
     );
   }
 
   const roundup = await buildWeeklyRoundup(ctx.client, ctx.ownerId, ws?.id ?? null, new Date());
 
   return (
-    <AppShell active="roundup" userEmail={user.email}>
+    <>
       <PageHeader title="Weekly roundup" sub={`${ws?.name ?? "Your brand"} · ${roundup.rangeLabel}`} />
 
       {roundup.empty ? (
@@ -100,6 +98,6 @@ export default async function RoundupPage() {
           <p className="ru-foot">Rolled up from your workspace&apos;s own data and the same detectors behind your alerts. A line appears only when the numbers clear the bar — nothing here is estimated.</p>
         </>
       )}
-    </AppShell>
+    </>
   );
 }

@@ -333,11 +333,26 @@ export async function getYouTubeAnalytics(
   if (!auth) return null;
   const { token, channelId } = auth;
 
+  const end = new Date();
+  const start = new Date(end.getTime() - days * 86400000);
+  const q = `ids=channel==MINE&startDate=${ymd(start)}&endDate=${ymd(end)}`;
+
+  // None of these reads depends on another, so they all start now and each is
+  // awaited where it is used: the panel costs one round trip, not five in a row.
+  // (Only the video lists wait for the channel, to learn its uploads playlist.)
+  const chP = getJson(`${DATA}/channels?part=snippet,statistics,contentDetails&mine=true`, token);
+  const seriesP = getJson(`${ANALYTICS}?${q}&metrics=views,estimatedMinutesWatched,subscribersGained&dimensions=day&sort=day`, token);
+  const demoP = getJson(`${ANALYTICS}?${q}&metrics=viewerPercentage&dimensions=ageGroup,gender&sort=ageGroup`, token);
+  const storedP = channelId ? readPlatformSnapshots(supabase, userId, "youtube", channelId).catch(() => []) : Promise.resolve([]);
+  const uploadsOf = (j: Record<string, unknown> | null) => (j?.items as ChannelItem[] | undefined)?.[0]?.contentDetails?.relatedPlaylists?.uploads ?? null;
+  // The Analytics page asks for the richer reports; the Dashboard does not.
+  const deepP = opts.deep ? chP.then((j) => fetchDeep(token, uploadsOf(j), days)) : null;
+  // Recent uploads with public stats (reuses the public-data reader).
+  const recentP = opts.deep ? null : chP.then((j) => { const up = uploadsOf(j); return up ? recentVideos(up, 6).catch(() => []) : []; });
+  deepP?.catch(() => {}); // surfaced when awaited below
+
   // Channel identity + lifetime stats + uploads playlist (youtube.readonly).
-  const chJson = await getJson(
-    `${DATA}/channels?part=snippet,statistics,contentDetails&mine=true`,
-    token,
-  );
+  const chJson = await chP;
   const it = (chJson?.items as ChannelItem[] | undefined)?.[0];
   const channel: YouTubeAnalytics["channel"] = {
     title: it?.snippet?.title ?? "Your channel",
@@ -347,17 +362,9 @@ export async function getYouTubeAnalytics(
     totalViews: num(it?.statistics?.viewCount),
     videoCount: num(it?.statistics?.videoCount),
   };
-  const uploads = it?.contentDetails?.relatedPlaylists?.uploads ?? null;
-
-  const end = new Date();
-  const start = new Date(end.getTime() - days * 86400000);
-  const q = `ids=channel==MINE&startDate=${ymd(start)}&endDate=${ymd(end)}`;
 
   // Live daily views / watch time / subscribers gained (yt-analytics.readonly).
-  const seriesJson = await getJson(
-    `${ANALYTICS}?${q}&metrics=views,estimatedMinutesWatched,subscribersGained&dimensions=day&sort=day`,
-    token,
-  );
+  const seriesJson = await seriesP;
   const liveMap = new Map<string, YtDaily>();
   if (seriesJson) {
     const { headers, rows } = rowsByHeader(seriesJson);
@@ -379,12 +386,9 @@ export async function getYouTubeAnalytics(
   const startDay = ymd(start);
   const endDay = ymd(end);
   const storedMap = new Map<string, { views: number | null; minutes: number | null; subs: number | null }>();
-  if (channelId) {
-    const stored = await readPlatformSnapshots(supabase, userId, "youtube", channelId).catch(() => []);
-    for (const r of stored) {
-      if (!r.day || r.day < startDay || r.day > endDay) continue;
-      storedMap.set(r.day, { views: r.views, minutes: r.watch_time_minutes, subs: r.followers_gained });
-    }
+  for (const r of await storedP) {
+    if (!r.day || r.day < startDay || r.day > endDay) continue;
+    storedMap.set(r.day, { views: r.views, minutes: r.watch_time_minutes, subs: r.followers_gained });
   }
 
   const allDays = Array.from(new Set([...liveMap.keys(), ...storedMap.keys()])).sort();
@@ -416,10 +420,7 @@ export async function getYouTubeAnalytics(
   }
 
   // Viewer share by age (sum genders), when the channel has enough data.
-  const demoJson = await getJson(
-    `${ANALYTICS}?${q}&metrics=viewerPercentage&dimensions=ageGroup,gender&sort=ageGroup`,
-    token,
-  );
+  const demoJson = await demoP;
   const demoMap = new Map<string, number>();
   const genderMap = new Map<string, number>();
   if (demoJson) {
@@ -445,14 +446,12 @@ export async function getYouTubeAnalytics(
     .map(([k, value]) => ({ label: GENDER_LABEL[k] ?? k, value: Math.round(value * 10) / 10 }))
     .sort((a, b) => b.value - a.value);
 
-  // The Analytics page asks for the richer reports; the Dashboard does not.
-  if (opts.deep) {
-    const deep = await fetchDeep(token, uploads, days);
+  if (deepP) {
+    const deep = await deepP;
     return { channel, range, series, topVideos: deep.uploads.slice(0, 6), demographics, genders, note, deep };
   }
 
-  // Recent uploads with public stats (reuses the public-data reader).
-  const topVideos = uploads ? await recentVideos(uploads, 6).catch(() => []) : [];
+  const topVideos = recentP ? await recentP : [];
 
   return { channel, range, series, topVideos, demographics, genders, note, deep: null };
 }

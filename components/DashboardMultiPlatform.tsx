@@ -9,6 +9,7 @@ import { Link2, CalendarDays, Film, ArrowRight, Plus } from "lucide-react";
 import PlatformSnapshot from "./PlatformSnapshot";
 import { igConfigured } from "@/lib/instagram";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
+import UpdatedAgo from "./UpdatedAgo";
 import type { Upcoming } from "@/lib/overview";
 
 const STATUS: Record<Upcoming["status"], { label: string; tone: string }> = {
@@ -25,11 +26,14 @@ export default function DashboardMultiPlatform({
   name,
   summaries,
   upcoming,
+  updatedAt,
 }: {
   greeting: string;
   name: string;
   summaries: PlatformSummary[];
   upcoming: Upcoming[];
+  /** When the reused live platform reads on this page were fetched (null: none were reused). */
+  updatedAt?: string | null;
 }) {
   const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
   return (
@@ -38,6 +42,7 @@ export default function DashboardMultiPlatform({
         <div>
           <h1>{greeting}, {name} <span aria-hidden>👋</span></h1>
           <p>Here&apos;s what&apos;s happening across your connected platforms.</p>
+          <UpdatedAgo at={updatedAt ?? null} />
         </div>
         <div className="dv-head-actions">
           <Link href="/tool" className="ov-btn primary"><ArrowRight size={14} /> Generate Content</Link>
