@@ -212,13 +212,6 @@
   .pr-table th, .pr-table td { padding: 10px 12px; }
 }
 
-/* Billing period toggle (components/pricing/PricingCards.tsx) */
-.pr-toggle { display: flex; justify-content: center; gap: 4px; margin: 0 auto 26px; padding: 4px; width: max-content; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 999px; background: rgba(255, 255, 255, 0.04); }
-.pr-toggle button { border: 0; background: none; color: var(--so-dim); font: inherit; font-size: 13.5px; font-weight: 500; padding: 8px 16px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
-.pr-toggle button:hover { color: #fff; }
-.pr-toggle button.on { background: #fff; color: #0f1115; }
-.pr-toggle-save { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: rgba(96, 165, 250, 0.18); color: var(--so-cyan); }
-.pr-toggle button.on .pr-toggle-save { background: rgba(37, 99, 255, 0.12); color: #2563ff; }
-.pr-annual-note { margin: -4px 0 10px; font-size: 12.5px; color: var(--so-dimmer); }
+/* Checkout button states (components/pricing/PlanCta.tsx) */
 .pr-cta button:disabled { opacity: 0.7; cursor: progress; }
 .pr-cta-err { display: block; margin-top: 8px; font-size: 12.5px; color: #fca5a5; }

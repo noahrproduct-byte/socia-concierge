@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Choose a paid plan and a billing period." }, { status: 400 });
   }
   const price = priceIdFor(plan, interval);
-  if (!price) return NextResponse.json({ error: `The ${PLANS[plan].name} ${interval === "year" ? "annual" : "monthly"} price is not configured yet.` }, { status: 503 });
+  if (!price) return NextResponse.json({ error: `The ${PLANS[plan].name} price is not configured yet.` }, { status: 503 });
 
   const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || new URL(req.url).origin;
   const billing = await readBillingInfo(supabase, user.id);

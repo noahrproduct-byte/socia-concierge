@@ -4,9 +4,8 @@
 //
 // Environment (Vercel; test-mode values first, live values when launching):
 //   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-//   STRIPE_PRICE_STARTER_MONTHLY / STRIPE_PRICE_STARTER_ANNUAL
-//   STRIPE_PRICE_GROWTH_MONTHLY  / STRIPE_PRICE_GROWTH_ANNUAL
-//   STRIPE_PRICE_PRO_MONTHLY     / STRIPE_PRICE_PRO_ANNUAL
+//   STRIPE_PRICE_STARTER_MONTHLY, STRIPE_PRICE_GROWTH_MONTHLY, STRIPE_PRICE_PRO_MONTHLY
+//   (optional, only if yearly prices are ever created: STRIPE_PRICE_<PLAN>_ANNUAL)
 import Stripe from "stripe";
 import { PLAN_ORDER, type BillingInterval, type PlanId } from "@/lib/plans";
 
@@ -48,7 +47,7 @@ export function planForPrice(priceId: string | null | undefined): { plan: PaidPl
   return null;
 }
 
-/** Every price the pricing page can sell is configured. */
+/** Every price the pricing page sells (the monthly ones) is configured. */
 export function pricesConfigured(): boolean {
-  return (["starter", "growth", "pro"] as const).every((p) => priceIdFor(p, "month") && priceIdFor(p, "year"));
+  return (["starter", "growth", "pro"] as const).every((p) => priceIdFor(p, "month"));
 }

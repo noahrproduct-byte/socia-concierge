@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
-import { PLANS, contactHref, type BillingInterval, type PlanId } from "@/lib/plans";
+import { PLANS, contactHref, type PlanId } from "@/lib/plans";
 
 // The button on a pricing card. Signed out it goes to sign-up; signed in it
-// starts a Stripe Checkout for the chosen plan and billing period. Someone
+// starts a Stripe Checkout for the chosen plan (billed monthly). Someone
 // already on a paid plan is taken to the Customer Portal to switch (the server
 // decides that and returns the right URL). Until Stripe is configured the
 // button opens a contact email and says so.
@@ -15,7 +15,6 @@ export default function PlanCta({
   currentPlan,
   signedIn,
   checkout,
-  interval,
   highlighted = false,
 }: {
   plan: PlanId;
@@ -23,7 +22,6 @@ export default function PlanCta({
   signedIn: boolean;
   /** checkoutAvailable() from the server. */
   checkout: boolean;
-  interval: BillingInterval;
   /** The card linked to from ?plan=; scrolled into view on load. */
   highlighted?: boolean;
 }) {
@@ -49,7 +47,7 @@ export default function PlanCta({
       void fetch("/api/events", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "upgrade_clicked", props: { plan, from: "pricing", interval } }),
+        body: JSON.stringify({ name: "upgrade_clicked", props: { plan, from: "pricing" } }),
         keepalive: true,
       }).catch(() => {});
     } catch {
@@ -65,7 +63,7 @@ export default function PlanCta({
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ plan, interval }),
+        body: JSON.stringify({ plan, interval: "month" }),
       });
       const j = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
       if (!res.ok || !j?.url) throw new Error(j?.error || "Checkout couldn't be started. Please try again.");

@@ -20,15 +20,14 @@ import {
 import PlanKeepChooser, { type KeepAccount, type KeepCompetitor } from "./PlanKeepChooser";
 import ManageBillingButton from "./ManageBillingButton";
 import type { BillingInfo } from "@/lib/billing";
-import { priceFor } from "@/lib/plans";
 import type { PlanConfig } from "@/lib/plans";
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 /** One plain sentence about where the subscription stands, from Stripe's last update. */
 function billingLine(b: BillingInfo, cfg: PlanConfig): string | null {
-  const per = b.interval === "year" ? "year" : "month";
-  const amount = b.interval ? `$${priceFor(cfg, b.interval).toLocaleString("en-US")}/${per}` : null;
+  // SOCIA sells monthly prices; a yearly subscription (only possible from inside Stripe) shows no amount rather than a wrong one.
+  const amount = b.interval === "month" ? `${formatPrice(cfg)}/month` : null;
   if (b.plan === "free") return b.status === "canceled" ? "Your subscription has ended. You're on Free." : null;
   if (b.status === "past_due") return `Your last payment failed. Update your card in Manage billing to keep ${cfg.name}.`;
   if (b.cancelAt) return `Cancels on ${fmtDay(b.cancelAt)}. You keep ${cfg.name} until then.`;
@@ -145,7 +144,7 @@ export default function PlanBilling({
         <div>
           <div className="st2-plan-name">
             {cfg.name}{" "}
-            <span className="pb-price">· {billing?.interval === "year" ? `$${priceFor(cfg, "year").toLocaleString("en-US")}/year` : `${formatPrice(cfg)}/month`}</span>{" "}
+            <span className="pb-price">· {formatPrice(cfg)}/month</span>{" "}
             <span className="st2-badge">Current</span>
           </div>
           <p>{cfg.tagline}</p>
