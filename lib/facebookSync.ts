@@ -2,6 +2,7 @@
 // real values or clearly unavailable — a missing key means Meta didn't
 // provide it, never zero. Tokens stay server-side.
 
+import { timedFn } from "@/lib/timing";
 import { FB_GRAPH_V } from "./facebook";
 import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
 
@@ -154,7 +155,7 @@ async function fetchPage(token: string, pageId: string): Promise<{
 }
 
 /** Force-sync the connected Page; returns the fresh snapshot or null. */
-export async function syncFacebook(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
+async function syncFacebookImpl(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
   const conn = await readFbRow(supabase, userId);
   // A Page paused by a plan downgrade is never read, not even on a manual sync.
   if (!conn?.access_token || !conn.page_id || conn.plan_suspended_at != null) return null;
@@ -254,7 +255,7 @@ function idleStatus(row: FbRow): FbSnapshot["status"] {
  *  connection exists; a non-null result with status "expired", "choose_page"
  *  or "suspended" tells the UI what attention is needed. A suspended Page
  *  (paused by a plan downgrade) is never read from Meta. */
-export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
+async function getFbSnapshotImpl(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
   const row = await readFbRow(supabase, userId);
   if (!row) return null;
 
@@ -297,3 +298,9 @@ export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbS
     capabilities: caps(posts, row.followers_count ?? null),
   };
 }
+
+/** getFbSnapshot, logged when slow (lib/timing.ts). */
+export const getFbSnapshot = timedFn("getFbSnapshot", getFbSnapshotImpl);
+
+/** syncFacebook, logged when slow (lib/timing.ts). */
+export const syncFacebook = timedFn("syncFacebook", syncFacebookImpl);

@@ -20,6 +20,7 @@
 // Server only.
 
 import { cache } from "react";
+import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "./supabase/service";
 import { getActiveWorkspace, type Workspace } from "./workspaces";
@@ -57,7 +58,7 @@ async function resolveContextUncached(supabase: Supa, viewerId: string): Promise
  * context (same request client, same viewer), so the workspace lookups run
  * once. Outside a render (route handlers, jobs) it is a plain call.
  */
-export const resolveContext = cache(resolveContextUncached);
+export const resolveContext = cache(timedFn("resolveContext", resolveContextUncached));
 
 /**
  * The workspace whose brand fields (niche, brand_name, goals, brand_detail,

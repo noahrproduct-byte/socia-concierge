@@ -14,9 +14,10 @@
 //     degraded is returned to this request only; the next request asks again.
 //   • Every value carries the time it was fetched, so the page can say so.
 import { unstable_cache, revalidateTag } from "next/cache";
+import { timed } from "@/lib/timing";
 
 /** How long a live platform read may be reused, in seconds. */
-export const LIVE_TTL_S = 300;
+export const LIVE_TTL_S = 900;
 
 export type Fetched<T> = { value: T; fetchedAt: string };
 
@@ -42,7 +43,7 @@ export async function cachedLive<T>(
   let uncached: Fetched<T> | null = null;
   const run = unstable_cache(
     async (): Promise<Fetched<T>> => {
-      const value = await load();
+      const value = await timed(`live:${parts.map((p) => String(p ?? "-")).join(":")}`, load);
       const fetched = value == null ? null : { value, fetchedAt: new Date().toISOString() };
       if (!fetched || !keep(fetched.value)) {
         uncached = fetched;

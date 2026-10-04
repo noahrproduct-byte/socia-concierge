@@ -1,3 +1,4 @@
+import { timed } from "@/lib/timing";
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
@@ -68,23 +69,77 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
   const sp = await searchParams;
   // The range never exceeds the plan's analytics history; niche_range is discovery content, not history, so it is left alone.
-  const ent = await getEntitlements(ctx.client, ctx.ownerId);
+  const brandWs = brandWorkspace(ctx);
+  // Independent reads run together (this page used to wait for them in turn).
+  // Competitors, discovery and discovery-runs are scoped to this workspace once
+  // the competitors migration has run; null keeps the pooled behaviour.
+  const [ent, snap, cwid, profile] = await Promise.all([
+    getEntitlements(ctx.client, ctx.ownerId),
+    getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
+    competitorScopeId(ctx.client, ctx.workspace?.id),
+    getProfile(ctx.client, ctx.ownerId, brandWs).catch(() => null),
+  ]);
   const days = clampDays(ent, sp.range === "7" ? 7 : sp.range === "90" ? 90 : 30);
   const platform: PlatformFilter = sp.platform === "instagram" || sp.platform === "youtube" || sp.platform === "facebook" ? sp.platform : "all";
   const nicheRange: NicheRange = sp.niche_range === "30" ? 30 : sp.niche_range === "all" ? 0 : 90;
   const now = new Date();
+  const cutoff = now.getTime() - days * 86400000;
+
+  // Everything below that only needs the scope starts now and is awaited where
+  // it is used. Each resolves to "nothing" on a missing table or a failed read.
+  const trackedP: Promise<Tracked[]> = listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid }).catch(() => []);
+  const suggestedRowsP: Promise<Record<string, unknown>[]> = (async () => {
+    try {
+      let dq = ctx.client
+        .from("discovered_accounts")
+        .select("platform, handle, display_name, profile_image, profile_url, followers, location, classification, relevance_score, relevance_reasons")
+        .eq("user_id", ctx.ownerId);
+      if (cwid) dq = dq.eq("workspace_id", cwid);
+      const { data } = await dq.order("relevance_score", { ascending: false }).limit(40);
+      return (data ?? []) as Record<string, unknown>[];
+    } catch { return []; } // discovery tables may not exist yet
+  })();
+  const historyP: Promise<(CompetitorPoint & { platform: string; handle: string })[] | null> = (async () => {
+    try {
+      if (!(await competitorHistoryEnabled(ctx.client))) return null;
+      const { data } = await ctx.client
+        .from("competitor_snapshots")
+        .select("platform, handle, day, followers, media_count, views_total")
+        .eq("user_id", ctx.ownerId).gte("day", localDayStr(new Date(cutoff))).order("day", { ascending: false });
+      return (data ?? []) as (CompetitorPoint & { platform: string; handle: string })[];
+    } catch { return null; } // history table absent
+  })();
+  const runP: Promise<{ ran_at?: string | null; sources?: unknown } | null> = (async () => {
+    try {
+      let rq = ctx.client.from("discovery_runs").select("ran_at, sources").eq("user_id", ctx.ownerId);
+      if (cwid) rq = rq.eq("workspace_id", cwid);
+      return (await rq.maybeSingle()).data ?? null;
+    } catch { return null; } // no run recorded
+  })();
+  const contentRowsP: Promise<Record<string, unknown>[]> = (async () => {
+    try {
+      let cq = ctx.client
+        .from("discovered_content")
+        .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, why_recommended, data_source")
+        .eq("user_id", ctx.ownerId);
+      if (cwid) cq = cq.eq("workspace_id", cwid);
+      const { data } = await cq.order("relevance_score", { ascending: false }).limit(200);
+      return (data ?? []) as Record<string, unknown>[];
+    } catch { return []; } // no discovery yet
+  })();
+  const savedP: Promise<NichePost[]> = (async () => {
+    try {
+      // Keyed by the owner; the service client is what lets a guest read it.
+      const { data } = await ctx.client.from("niche_trends").select("data").eq("niche", `saved:${ctx.ownerId}`).maybeSingle();
+      const doc = data?.data as { v: number; items: NichePost[] } | undefined;
+      return doc?.v === 1 && Array.isArray(doc.items) ? doc.items : [];
+    } catch { return []; } // none
+  })();
 
   // ---- the user -----------------------------------------------------------
-  const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
   const all: IgMediaItem[] = snap?.media ?? [];
-  const cutoff = now.getTime() - days * 86400000;
   const posts = all.filter((p) => p.timestamp && new Date(p.timestamp).getTime() >= cutoff);
   const followers = snap?.followers_count ?? null;
-  const brandWs = brandWorkspace(ctx);
-  // Competitors, discovery and discovery-runs are scoped to this workspace once
-  // the competitors migration has run; null keeps the pooled behaviour.
-  const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
-  const profile = await getProfile(ctx.client, ctx.ownerId, brandWs).catch(() => null);
   const location = profile?.brand_detail?.location ?? null;
   let subNiche: string | null = null;
   try {
@@ -133,22 +188,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   } : null;
 
   // ---- tracked + discovered accounts --------------------------------------
-  let tracked: Tracked[] = [];
-  try {
-    tracked = await listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid });
-  } catch { /* not migrated yet */ }
+  const [tracked, suggestedRows] = await Promise.all([trackedP, suggestedRowsP]);
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
 
   let suggested: Suggested[] = [];
-  try {
-    let dq = ctx.client
-      .from("discovered_accounts")
-      .select("platform, handle, display_name, profile_image, profile_url, followers, location, classification, relevance_score, relevance_reasons")
-      .eq("user_id", ctx.ownerId);
-    if (cwid) dq = dq.eq("workspace_id", cwid);
-    const { data } = await dq.order("relevance_score", { ascending: false }).limit(40);
+  {
     const seenName = new Set<string>();
-    suggested = ((data ?? []) as Record<string, unknown>[])
+    suggested = suggestedRows
       .map((r) => ({
         platform: String(r.platform), handle: (r.handle as string) ?? null, displayName: (r.display_name as string) ?? null,
         profileImage: (r.profile_image as string) ?? null, profileUrl: (r.profile_url as string) ?? null,
@@ -160,39 +206,37 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
       // One card per business: the same restaurant surfaces on two platforms.
       .filter((sg) => { const k = nameKey(sg.displayName ?? sg.handle); if (!k) return true; if (seenName.has(k)) return false; seenName.add(k); return true; })
       .slice(0, 24);
-  } catch { /* discovery tables may not exist yet */ }
+  }
 
   // YouTube: public stats and recent uploads for every channel shown.
   const ytHandles = [
     ...tracked.filter((t) => t.platform === "youtube").map((t) => t.handle),
     ...suggested.filter((s) => s.platform === "youtube" && s.handle).map((s) => s.handle!),
   ].slice(0, 14);
-  const yt = new Map<string, YtStats>();
-  if (ytHandles.length && ytConfigured()) {
-    const res = await Promise.all(ytHandles.map((h) => channelStats(h).catch(() => ({ handle: h, found: false } as YtStats))));
-    for (const r of res) yt.set(r.handle.toLowerCase(), r);
-  }
-
   // Instagram: Business Discovery for tracked and discovered handles when a Page is linked.
   const igHandles = [
     ...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle),
     ...suggested.filter((s) => s.platform === "instagram" && s.handle).map((s) => s.handle!),
   ].slice(0, 8);
-  const igRes = await igCompetitorRows(ctx.client, ctx.ownerId, igHandles).catch(() => ({ enabled: false, reason: null as string | null, competitors: [] as IgCompetitor[] }));
+  // Both platforms' public reads go out together.
+  const [ytRes, igRes] = await Promise.all([
+    ytHandles.length && ytConfigured()
+      ? timed("competitors.youtubeStats", () => Promise.all(ytHandles.map((h) => channelStats(h).catch(() => ({ handle: h, found: false } as YtStats)))))
+      : Promise.resolve([] as YtStats[]),
+    igCompetitorRows(ctx.client, ctx.ownerId, igHandles).catch(() => ({ enabled: false, reason: null as string | null, competitors: [] as IgCompetitor[] })),
+  ]);
+  const yt = new Map<string, YtStats>();
+  for (const r of ytRes) yt.set(r.handle.toLowerCase(), r);
   const ig = new Map(igRes.competitors.map((c) => [c.handle.toLowerCase(), c]));
 
   // Competitor follower momentum from the daily history: measured once two days
   // exist, "collecting" with one, "unavailable" with none. Read in one query.
   const momByKey = new Map<string, ReturnType<typeof cell> | ReturnType<typeof absent>>();
   try {
-    if (await competitorHistoryEnabled(ctx.client)) {
-      const from = localDayStr(new Date(cutoff));
-      const { data } = await ctx.client
-        .from("competitor_snapshots")
-        .select("platform, handle, day, followers, media_count, views_total")
-        .eq("user_id", ctx.ownerId).gte("day", from).order("day", { ascending: false });
+    const history = await historyP;
+    if (history) {
       const byKey = new Map<string, CompetitorPoint[]>();
-      for (const r of (data ?? []) as (CompetitorPoint & { platform: string; handle: string })[]) {
+      for (const r of history) {
         const k = `${r.platform}:${String(r.handle).toLowerCase()}`;
         byKey.set(k, [...(byKey.get(k) ?? []), r]);
       }
@@ -276,27 +320,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   }
 
   // ---- discovery run + niche content --------------------------------------
-  let lastRun: string | null = null;
-  let sources: { youtube: string; web: string } | null = null;
-  try {
-    let rq = ctx.client.from("discovery_runs").select("ran_at, sources").eq("user_id", ctx.ownerId);
-    if (cwid) rq = rq.eq("workspace_id", cwid);
-    const { data } = await rq.maybeSingle();
-    lastRun = data?.ran_at ?? null;
-    sources = (data?.sources as { youtube: string; web: string } | null) ?? null;
-  } catch { /* no run recorded */ }
+  const [run, contentRows, saved] = await Promise.all([runP, contentRowsP, savedP]);
+  const lastRun: string | null = run?.ran_at ?? null;
+  const sources = (run?.sources as { youtube: string; web: string } | null) ?? null;
 
   const loc = locationTokens(location);
   const FORMAT: Record<string, string> = { short: "Short", video: "Video", reel: "Reel" };
-  let content: NichePost[] = [];
-  try {
-    let cq = ctx.client
-      .from("discovered_content")
-      .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, why_recommended, data_source")
-      .eq("user_id", ctx.ownerId);
-    if (cwid) cq = cq.eq("workspace_id", cwid);
-    const { data } = await cq.order("relevance_score", { ascending: false }).limit(200);
-    content = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+  const content: NichePost[] = contentRows.map((r) => ({
       url: String(r.content_url), platform: String(r.platform), accountName: (r.account_name as string) ?? null, accountHandle: (r.account_handle as string) ?? null,
       title: (r.title as string) ?? null, thumb: (r.thumbnail_url as string) ?? null,
       views: (r.views as number) ?? null, likes: (r.likes as number) ?? null, comments: (r.comments as number) ?? null,
@@ -306,16 +336,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
       tags: tagsFor((r.title as string) ?? null, loc),
       format: r.content_type ? FORMAT[String(r.content_type)] ?? null : null,
       why: (r.why_recommended as string) ?? null, dataSource: String(r.data_source ?? "web_research"),
-    }));
-  } catch { /* no discovery yet */ }
-
-  let saved: NichePost[] = [];
-  try {
-    // Keyed by the owner; the service client is what lets a guest read it.
-    const { data } = await ctx.client.from("niche_trends").select("data").eq("niche", `saved:${ctx.ownerId}`).maybeSingle();
-    const doc = data?.data as { v: number; items: NichePost[] } | undefined;
-    if (doc?.v === 1 && Array.isArray(doc.items)) saved = doc.items;
-  } catch { /* none */ }
+  }));
 
   // The user's own posts, tagged the same way, for the opportunity maths.
   const ownBase = median(all.map(interactionsTotal));

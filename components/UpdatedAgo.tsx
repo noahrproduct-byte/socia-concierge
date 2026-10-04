@@ -23,7 +23,7 @@ export default function UpdatedAgo({ at }: { at: string | null }) {
   }, []);
   if (!at || now == null) return null;
   return (
-    <small className="upd-ago" title={`Fetched from the platforms at ${new Date(at).toLocaleTimeString()}. Reused for up to 5 minutes.`}>
+    <small className="upd-ago" title={`Fetched from the platforms at ${new Date(at).toLocaleTimeString()}. Reused for up to 15 minutes.`}>
       Platform data updated {ago(at, now)}
     </small>
   );
