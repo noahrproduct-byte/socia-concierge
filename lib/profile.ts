@@ -1,3 +1,4 @@
+import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Brand & strategist settings, stored in profiles.brand_detail (jsonb).
@@ -50,7 +51,7 @@ export type BrandSource = {
 // (niche, brand_name, goals, brand_detail) come from that workspace instead of
 // the profile, so a second brand has its own identity. Non-brand fields
 // (platforms, account_connected, appearance) stay per-user.
-export async function getProfile(
+async function getProfileImpl(
   supabase: SupabaseClient,
   userId: string,
   brandWs?: BrandSource | null,
@@ -85,3 +86,6 @@ export async function getProfile(
     return null;
   }
 }
+
+/** getProfile, logged when slow (lib/timing.ts). */
+export const getProfile = timedFn("getProfile", getProfileImpl);

@@ -26,6 +26,7 @@
 //
 // Server only. Route handlers use the wrappers in lib/planGuard.ts.
 
+import { timedFn } from "@/lib/timing";
 import {
   PLANS, FEATURE_STATUS, METER_PERIOD, normalizePlan,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey, type MeterPeriod,
@@ -165,7 +166,7 @@ async function readPlanOverrides(supabase: Supa, plan: PlanId): Promise<unknown>
   }
 }
 
-export async function getEntitlements(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
+async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
   const { plan, overrides: userOverrides } = await readProfilePlan(supabase, userId);
   const base = PLANS[plan];
   const planOverrides = await readPlanOverrides(supabase, plan);
@@ -385,7 +386,7 @@ export type ConnectedAccountsResult = {
  * counts accounts across workspaces. Pass `workspaceId` (the composer/picker
  * only) to narrow it to a single workspace's accounts.
  */
-export async function listConnectedAccountsDetailed(supabase: Supa, userId: string, workspaceId?: string | null): Promise<ConnectedAccountsResult> {
+async function listConnectedAccountsDetailedImpl(supabase: Supa, userId: string, workspaceId?: string | null): Promise<ConnectedAccountsResult> {
   const [igRaw, fbRaw, ytRaw, ttRaw] = await Promise.all([
     selectRows(supabase, "instagram_connections", userId, [
       "ig_user_id, username, profile, is_active, plan_suspended_at",
@@ -598,3 +599,9 @@ export async function getOverLimits(supabase: Supa, ent: Entitlements): Promise<
   ]);
   return computeOverLimits(ent, accounts.complete ? activeByPlatform(accounts.accounts) : null, competitors);
 }
+
+/** getEntitlements, logged when slow (lib/timing.ts). */
+export const getEntitlements = timedFn("getEntitlements", getEntitlementsImpl);
+
+/** listConnectedAccountsDetailed, logged when slow (lib/timing.ts). */
+export const listConnectedAccountsDetailed = timedFn("listConnectedAccountsDetailed", listConnectedAccountsDetailedImpl);

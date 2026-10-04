@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { timed } from "@/lib/timing";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
@@ -40,6 +41,6 @@ export const getViewer = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await timed("auth.getUser", () => supabase.auth.getUser());
   return { supabase, user };
 });
