@@ -3,12 +3,13 @@ import type Stripe from "stripe";
 import { stateFromSubscription, hasLiveSubscription, trialEligible, type BillingInfo } from "./billing";
 import { planForPrice, priceIdFor, pricesConfigured } from "./stripe";
 
+// Short names for two plans, the long name for the third: both must work.
 const PRICES = {
-  STRIPE_PRICE_STARTER_MONTHLY: "price_starter_m",
+  STRIPE_PRICE_STARTER: "price_starter_m",
   STRIPE_PRICE_STARTER_ANNUAL: "price_starter_y",
   STRIPE_PRICE_GROWTH_MONTHLY: "price_growth_m",
   STRIPE_PRICE_GROWTH_ANNUAL: "price_growth_y",
-  STRIPE_PRICE_PRO_MONTHLY: "price_pro_m",
+  STRIPE_PRICE_PRO: "price_pro_m",
   STRIPE_PRICE_PRO_ANNUAL: "price_pro_y",
 };
 beforeAll(() => Object.assign(process.env, PRICES));

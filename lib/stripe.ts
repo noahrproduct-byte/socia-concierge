@@ -4,7 +4,8 @@
 //
 // Environment (Vercel; test-mode values first, live values when launching):
 //   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-//   STRIPE_PRICE_STARTER_MONTHLY, STRIPE_PRICE_GROWTH_MONTHLY, STRIPE_PRICE_PRO_MONTHLY
+//   STRIPE_PRICE_STARTER, STRIPE_PRICE_GROWTH, STRIPE_PRICE_PRO   (monthly prices;
+//   the longer STRIPE_PRICE_<PLAN>_MONTHLY names are accepted too)
 //   (optional, only if yearly prices are ever created: STRIPE_PRICE_<PLAN>_ANNUAL)
 import Stripe from "stripe";
 import { PLAN_ORDER, type BillingInterval, type PlanId } from "@/lib/plans";
@@ -21,10 +22,11 @@ export function getStripe(): Stripe | null {
 
 export type PaidPlan = Exclude<PlanId, "free">;
 
-const PRICE_ENV: Record<PaidPlan, Record<BillingInterval, string>> = {
-  starter: { month: "STRIPE_PRICE_STARTER_MONTHLY", year: "STRIPE_PRICE_STARTER_ANNUAL" },
-  growth: { month: "STRIPE_PRICE_GROWTH_MONTHLY", year: "STRIPE_PRICE_GROWTH_ANNUAL" },
-  pro: { month: "STRIPE_PRICE_PRO_MONTHLY", year: "STRIPE_PRICE_PRO_ANNUAL" },
+// Each price can be set under either name; the first one found wins.
+const PRICE_ENV: Record<PaidPlan, Record<BillingInterval, string[]>> = {
+  starter: { month: ["STRIPE_PRICE_STARTER", "STRIPE_PRICE_STARTER_MONTHLY"], year: ["STRIPE_PRICE_STARTER_ANNUAL"] },
+  growth: { month: ["STRIPE_PRICE_GROWTH", "STRIPE_PRICE_GROWTH_MONTHLY"], year: ["STRIPE_PRICE_GROWTH_ANNUAL"] },
+  pro: { month: ["STRIPE_PRICE_PRO", "STRIPE_PRICE_PRO_MONTHLY"], year: ["STRIPE_PRICE_PRO_ANNUAL"] },
 };
 
 export const isPaidPlan = (p: string): p is PaidPlan => p === "starter" || p === "growth" || p === "pro";
@@ -32,7 +34,11 @@ export const isBillingInterval = (i: string): i is BillingInterval => i === "mon
 
 /** The Stripe Price for a plan and interval, or null when not configured. */
 export function priceIdFor(plan: PaidPlan, interval: BillingInterval): string | null {
-  return process.env[PRICE_ENV[plan][interval]]?.trim() || null;
+  for (const name of PRICE_ENV[plan][interval]) {
+    const v = process.env[name]?.trim();
+    if (v) return v;
+  }
+  return null;
 }
 
 /** The plan and interval a Stripe Price id stands for, or null for a price SOCIA does not know. */
