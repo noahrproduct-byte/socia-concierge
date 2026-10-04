@@ -37,6 +37,10 @@ describe("price mapping", () => {
     expect(planForPrice("price_starter_m")).toEqual({ plan: "starter", interval: "month" });
     expect(planForPrice("price_unknown")).toBeNull();
     expect(planForPrice(null)).toBeNull();
+    // The environment may hold the Product id instead of the Price id.
+    process.env.STRIPE_PRICE_GROWTH_MONTHLY = "prod_growth";
+    expect(planForPrice("price_whatever", "prod_growth")).toEqual({ plan: "growth", interval: "month" });
+    process.env.STRIPE_PRICE_GROWTH_MONTHLY = "price_growth_m";
     expect(priceIdFor("pro", "year")).toBe("price_pro_y");
     expect(pricesConfigured()).toBe(true);
   });
@@ -79,6 +83,13 @@ describe("stateFromSubscription", () => {
     expect(atEnd.cancelAt).toBe(atEnd.currentPeriodEnd);
     const explicit = stateFromSubscription(sub({ cancel_at: now + 3 * DAY }));
     expect(explicit.cancelAt).toBe(new Date((now + 3 * DAY) * 1000).toISOString());
+  });
+
+  it("recognises a subscription by its product when the environment holds product ids", () => {
+    process.env.STRIPE_PRICE_PRO = "prod_pro";
+    const s = stateFromSubscription(sub({}, { price: { id: "price_live_x", product: "prod_pro", recurring: { interval: "month" } } }));
+    expect(s.plan).toBe("pro");
+    process.env.STRIPE_PRICE_PRO = "price_pro_m";
   });
 
   it("leaves the plan alone for a price SOCIA does not sell", () => {
