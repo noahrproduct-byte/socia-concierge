@@ -1,5 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { Check } from "lucide-react";
-import { PLANS, PLAN_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
+import { PLANS, PLAN_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatHistory, monthlyEquivalent, annualNote, type BillingInterval, type PlanId, type PlanConfig } from "@/lib/plans";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 
@@ -84,7 +87,17 @@ export default function PricingCards({
   /** From ?plan=; that card is outlined and scrolled to. */
   highlight: PlanId | null;
 }) {
+  // Billing period for every card at once. Annual is two months free; the
+  // card shows the per-month figure and says what is billed.
+  const [interval, setInterval] = useState<BillingInterval>("month");
   return (
+    <>
+    <div className="pr-toggle" role="group" aria-label="Billing period">
+      <button type="button" className={interval === "month" ? "on" : ""} aria-pressed={interval === "month"} onClick={() => setInterval("month")}>Monthly</button>
+      <button type="button" className={interval === "year" ? "on" : ""} aria-pressed={interval === "year"} onClick={() => setInterval("year")}>
+        Annual <span className="pr-toggle-save">2 months free</span>
+      </button>
+    </div>
     <div className="pr-grid">
       {PLAN_ORDER.map((id) => {
         const p = PLANS[id];
@@ -99,12 +112,13 @@ export default function PricingCards({
               {p.popular && <span className="pr-popular">Most popular</span>}
             </div>
             <div className="pr-price">
-              <span className="pr-price-amount">{formatPrice(p)}</span>
+              <span className="pr-price-amount">{monthlyEquivalent(p, interval)}</span>
               <span className="pr-price-per">/month</span>
             </div>
+            {interval === "year" && annualNote(p) && <p className="pr-annual-note">{annualNote(p)}</p>}
             <p className="pr-tagline">{p.tagline}</p>
             <p className="pr-audience">{p.audience}</p>
-            <PlanCta plan={id} currentPlan={currentPlan} signedIn={signedIn} checkout={checkout} highlighted={highlight === id} />
+            <PlanCta plan={id} currentPlan={currentPlan} signedIn={signedIn} checkout={checkout} interval={interval} highlighted={highlight === id} />
             {below && <p className="pr-everything">Everything in {PLANS[below].name}, plus:</p>}
             <ul className="pr-list">
               {highlightsFor(p).filter((t): t is string => Boolean(t)).map((text) => (
@@ -123,5 +137,6 @@ export default function PricingCards({
         );
       })}
     </div>
+    </>
   );
 }

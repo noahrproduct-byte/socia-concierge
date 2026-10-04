@@ -1,33 +1,38 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { PLANS, contactHref, type PlanId } from "@/lib/plans";
+import { ArrowRight, Loader2 } from "lucide-react";
+import { PLANS, contactHref, type BillingInterval, type PlanId } from "@/lib/plans";
 
-// The one control on each pricing card. Honest by construction: while
-// checkout is not wired, a paid plan's button opens a contact email instead of
-// pretending to start a purchase, and a plan the person is already on is a
-// label, not a button.
-
+// The button on a pricing card. Signed out it goes to sign-up; signed in it
+// starts a Stripe Checkout for the chosen plan and billing period. Someone
+// already on a paid plan is taken to the Customer Portal to switch (the server
+// decides that and returns the right URL). Until Stripe is configured the
+// button opens a contact email and says so.
 export default function PlanCta({
   plan,
   currentPlan,
   signedIn,
   checkout,
+  interval,
   highlighted = false,
 }: {
   plan: PlanId;
   currentPlan: PlanId | null;
   signedIn: boolean;
-  /** checkoutAvailable() from the server. False until a billing provider exists. */
+  /** checkoutAvailable() from the server. */
   checkout: boolean;
+  interval: BillingInterval;
   /** The card linked to from ?plan=; scrolled into view on load. */
   highlighted?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const p = PLANS[plan];
   const isCurrent = signedIn && currentPlan === plan;
+  const paidAlready = signedIn && currentPlan != null && currentPlan !== "free";
 
   useEffect(() => {
     if (!highlighted) return;
@@ -44,11 +49,30 @@ export default function PlanCta({
       void fetch("/api/events", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "upgrade_clicked", props: { plan, from: "pricing" } }),
+        body: JSON.stringify({ name: "upgrade_clicked", props: { plan, from: "pricing", interval } }),
         keepalive: true,
       }).catch(() => {});
     } catch {
       /* analytics never blocks the click */
+    }
+  }
+
+  async function startCheckout() {
+    setBusy(true);
+    setErr(null);
+    trackUpgrade();
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ plan, interval }),
+      });
+      const j = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+      if (!res.ok || !j?.url) throw new Error(j?.error || "Checkout couldn't be started. Please try again.");
+      window.location.assign(j.url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Checkout couldn't be started. Please try again.");
+      setBusy(false);
     }
   }
 
@@ -63,21 +87,39 @@ export default function PlanCta({
           {p.cta} <ArrowRight size={14} />
         </Link>
       );
-  } else {
-    // No checkout route exists yet, so the button opens a contact email and
-    // says so; the plan's own cta string is reserved for a real purchase.
-    // When checkoutAvailable() flips, this is the one place to route to the
-    // billing flow instead.
-    const href = contactHref(`SOCIA ${p.name} plan`);
+  } else if (!checkout) {
     body = (
       <a
-        href={href}
+        href={contactHref(`SOCIA ${p.name} plan`)}
         className={`so-btn ${p.popular ? "so-btn-blue" : "so-btn-ghost"}`}
         onClick={trackUpgrade}
-        title={checkout ? undefined : "Opens an email to the SOCIA team"}
+        title="Opens an email to the SOCIA team"
       >
-        {checkout ? <>{p.cta} <ArrowRight size={14} /></> : `Contact us about ${p.name}`}
+        Contact us about {p.name}
       </a>
+    );
+  } else if (!signedIn) {
+    body = (
+      <Link href="/signup" className={`so-btn ${p.popular ? "so-btn-blue" : "so-btn-ghost"}`}>
+        {p.cta} <ArrowRight size={14} />
+      </Link>
+    );
+  } else {
+    body = (
+      <>
+        <button
+          type="button"
+          className={`so-btn ${p.popular ? "so-btn-blue" : "so-btn-ghost"}`}
+          onClick={startCheckout}
+          disabled={busy}
+          aria-busy={busy || undefined}
+        >
+          {busy ? <Loader2 size={14} className="spin" /> : null}
+          {paidAlready ? `Switch to ${p.name}` : p.cta}
+          {!busy && <ArrowRight size={14} />}
+        </button>
+        {err && <small className="pr-cta-err" role="alert">{err}</small>}
+      </>
     );
   }
 

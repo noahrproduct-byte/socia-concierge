@@ -40,6 +40,8 @@ import {
 import { limitError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
 import PlanBilling from "@/components/settings/PlanBilling";
+import { PLANS } from "@/lib/plans";
+import { readBillingInfo, syncCheckoutSession } from "@/lib/billing";
 import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
 import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
 import { resolveContext, can, brandWorkspace } from "@/lib/context";
@@ -104,12 +106,16 @@ const PREVIEW_COMPETITORS = [
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string }>;
+  searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string; billing?: string; session_id?: string }>;
 }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
 
-  const { ig, fb, yt, tt } = await searchParams;
+  const { ig, fb, yt, tt, billing: billingParam, session_id: sessionId } = await searchParams;
+
+  // Back from Stripe Checkout: apply the new subscription now rather than
+  // waiting for the webhook, so the plan on this page is already right.
+  const synced = billingParam === "success" && sessionId ? await syncCheckoutSession(sessionId, user.id) : null;
 
   // The connection cards show the ACTIVE Brand Workspace's accounts. A person
   // can hold one channel / Page per workspace, so a read by user alone can find
@@ -199,6 +205,17 @@ export default async function SettingsPage({
   // read stay unknown (never 0); the over-limit state is computed from the
   // same lists the meters render, so the two never disagree.
   const ent = await getEntitlements(supabase, user.id);
+  const billing = await readBillingInfo(supabase, user.id);
+  const billingNotice =
+    billingParam === "success"
+      ? synced?.status === "trialing" && synced.trialEnd
+        ? { tone: "good" as const, text: `Your ${PLANS[ent.plan].name} trial has started. Nothing is charged until ${new Date(synced.trialEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })}; cancel before then in Manage billing if it isn't for you.` }
+        : synced
+          ? { tone: "good" as const, text: `You're on ${PLANS[ent.plan].name}. Thank you.` }
+          : { tone: "info" as const, text: "Payment received. Your plan will update here in a moment; refresh if it hasn't." }
+      : billingParam === "cancelled"
+        ? { tone: "info" as const, text: "Checkout was cancelled. Nothing was charged." }
+        : null;
   const [usage, accountsResult, competitorCount] = await Promise.all([
     getUsage(supabase, ent),
     listConnectedAccountsDetailed(supabase, user.id),
@@ -541,6 +558,8 @@ export default async function SettingsPage({
                 competitors={keepCompetitors}
                 overLimits={overLimits}
                 teamUsed={teamUsed}
+                billing={billing}
+                notice={billingNotice}
               />
             </section>
 

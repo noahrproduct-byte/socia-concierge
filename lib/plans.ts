@@ -225,6 +225,8 @@ export type PlanConfig = {
   name: string;
   /** USD per month. 0 for Free. */
   priceMonthly: number;
+  /** USD per year when billed annually (two months free). 0 for Free. */
+  priceAnnual: number;
   /** The one-line story: what this plan is for. */
   tagline: string;
   /** "Best for" line. */
@@ -268,6 +270,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "free",
     name: "Free",
     priceMonthly: 0,
+    priceAnnual: 0,
     tagline: "Understand one brand.",
     audience: "People trying SOCIA and managing one brand.",
     limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30 },
@@ -279,6 +282,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "starter",
     name: "Starter",
     priceMonthly: 29,
+    priceAnnual: 290,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
     limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90 },
@@ -290,6 +294,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "growth",
     name: "Growth",
     priceMonthly: 79,
+    priceAnnual: 790,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
     limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365 },
@@ -302,6 +307,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "pro",
     name: "Pro",
     priceMonthly: 179,
+    priceAnnual: 1790,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
     limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED },
@@ -355,6 +361,27 @@ export function nextPlan(p: PlanId): PlanId | null {
 
 export function formatPrice(p: PlanConfig): string {
   return p.priceMonthly === 0 ? "$0" : `$${p.priceMonthly}`;
+}
+
+/** How a subscription is billed. */
+export type BillingInterval = "month" | "year";
+
+/** The amount charged per billing period. */
+export function priceFor(p: PlanConfig, interval: BillingInterval): number {
+  return interval === "year" ? p.priceAnnual : p.priceMonthly;
+}
+
+/** The per-month figure shown on a card: the monthly price, or the annual price spread over 12 months. */
+export function monthlyEquivalent(p: PlanConfig, interval: BillingInterval): string {
+  if (p.priceMonthly === 0) return "$0";
+  return interval === "year" ? `$${Math.round(p.priceAnnual / 12)}` : `$${p.priceMonthly}`;
+}
+
+/** "Billed $290 a year · 2 months free", or null for Free. */
+export function annualNote(p: PlanConfig): string | null {
+  if (p.priceAnnual === 0 || p.priceMonthly === 0) return null;
+  const monthsFree = Math.round(12 - p.priceAnnual / p.priceMonthly);
+  return `Billed $${p.priceAnnual.toLocaleString("en-US")} a year${monthsFree > 0 ? ` · ${monthsFree} months free` : ""}`;
 }
 
 /** "30 days", "90 days", "1 year" or "All retained history" from the history limit. */

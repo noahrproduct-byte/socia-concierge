@@ -33,8 +33,8 @@ async function readVisitor(): Promise<{ signedIn: boolean; plan: PlanId | null }
   }
 }
 
-export default async function PricingPage({ searchParams }: { searchParams: Promise<{ plan?: string }> }) {
-  const [{ signedIn, plan }, { plan: wanted }] = await Promise.all([readVisitor(), searchParams]);
+export default async function PricingPage({ searchParams }: { searchParams: Promise<{ plan?: string; billing?: string }> }) {
+  const [{ signedIn, plan }, { plan: wanted, billing }] = await Promise.all([readVisitor(), searchParams]);
   const highlight = isPlanId(wanted) ? wanted : null;
   const checkout = checkoutAvailable();
   const pro = PLANS.pro.limits;
@@ -54,6 +54,9 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
             <p className="pr-note">
               Checkout is opening soon. <a href={contactHref("SOCIA paid plan")}>Contact us</a> to move to a paid plan today.
             </p>
+          )}
+          {checkout && billing === "cancelled" && (
+            <p className="pr-note" role="status">Checkout was cancelled. Nothing was charged.</p>
           )}
         </header>
 
