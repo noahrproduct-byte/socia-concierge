@@ -223,7 +223,7 @@ export const LIMIT_UNIT: Record<LimitKey, { one: string; many: string }> = {
 export type PlanConfig = {
   id: PlanId;
   name: string;
-  /** USD per month. 0 for Free. */
+  /** USD per month. 0 for Free. Plans are billed monthly only. */
   priceMonthly: number;
   /** The one-line story: what this plan is for. */
   tagline: string;
@@ -301,7 +301,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   pro: {
     id: "pro",
     name: "Pro",
-    priceMonthly: 179,
+    priceMonthly: 150,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
     limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED },
@@ -356,6 +356,10 @@ export function nextPlan(p: PlanId): PlanId | null {
 export function formatPrice(p: PlanConfig): string {
   return p.priceMonthly === 0 ? "$0" : `$${p.priceMonthly}`;
 }
+
+/** How a subscription is billed. SOCIA sells monthly prices; "year" only
+ *  appears if a subscription was ever put on a yearly price inside Stripe. */
+export type BillingInterval = "month" | "year";
 
 /** "30 days", "90 days", "1 year" or "All retained history" from the history limit. */
 export function formatHistory(days: number): string {
