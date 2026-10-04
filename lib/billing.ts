@@ -55,7 +55,8 @@ export function stateFromSubscription(sub: Stripe.Subscription): SubscriptionSta
   const item = sub.items?.data?.[0];
   const price = item?.price ?? null;
   const priceId = price?.id ?? null;
-  const known = planForPrice(priceId);
+  const productId = typeof price?.product === "string" ? price.product : price?.product?.id ?? null;
+  const known = planForPrice(priceId, productId);
   const ended = ENDED.has(sub.status);
   // Newer Stripe API versions keep the period on the item; older ones on the subscription.
   const periodEnd = (item as unknown as { current_period_end?: number } | undefined)?.current_period_end

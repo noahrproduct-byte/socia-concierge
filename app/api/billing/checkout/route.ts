@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { getStripe, isBillingInterval, isPaidPlan, priceIdFor } from "@/lib/stripe";
+import { getStripe, isBillingInterval, isPaidPlan, resolvePriceId } from "@/lib/stripe";
 import { hasLiveSubscription, readBillingInfo, saveCustomerId, trialEligible } from "@/lib/billing";
 import { PLANS, checkoutAvailable } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   if (!isPaidPlan(plan) || !isBillingInterval(interval)) {
     return NextResponse.json({ error: "Choose a paid plan and a billing period." }, { status: 400 });
   }
-  const price = priceIdFor(plan, interval);
+  const price = await resolvePriceId(stripe, plan, interval).catch(() => null);
   if (!price) return NextResponse.json({ error: `The ${PLANS[plan].name} price is not configured yet.` }, { status: 503 });
 
   const origin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || new URL(req.url).origin;
