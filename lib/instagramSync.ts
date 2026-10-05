@@ -4,6 +4,7 @@
 // goes stale. If the cache columns don't exist yet, the fetched snapshot
 // is still returned in-memory so pages render real data either way.
 
+import { timedFn } from "@/lib/timing";
 import { hasSnapshot, writeDailySnapshot } from "./snapshotJob";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -340,7 +341,7 @@ export async function getActiveConnection(
 
 /** Fetch fresh data from Instagram and cache it. Returns the snapshot, or null
  *  if there's no usable connection. Cache write is best-effort. */
-export async function syncInstagram(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
+async function syncInstagramImpl(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
   const conn = (await getActiveConnection(
     supabase,
     userId,
@@ -480,7 +481,7 @@ export async function syncInstagram(supabase: Supa, userId: string): Promise<IgS
 
 /** Read the cached snapshot of the ACTIVE account, auto-syncing when stale
  *  or never synced. */
-export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
+async function getIgSnapshotImpl(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
   // Try the full row first (cache columns may not exist yet).
   const row = (await getActiveConnection(
     supabase,
@@ -541,3 +542,9 @@ export async function getIgSnapshot(supabase: Supa, userId: string): Promise<IgS
     last_synced_at: row.last_synced_at ?? null,
   };
 }
+
+/** getIgSnapshot, logged when slow (lib/timing.ts). */
+export const getIgSnapshot = timedFn("getIgSnapshot", getIgSnapshotImpl);
+
+/** syncInstagram, logged when slow (lib/timing.ts). */
+export const syncInstagram = timedFn("syncInstagram", syncInstagramImpl);

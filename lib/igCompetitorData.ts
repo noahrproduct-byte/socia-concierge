@@ -6,6 +6,7 @@
 // result says so (enabled: false) and nothing is estimated. Fresh rows are
 // cached in ig_competitor_snapshots because Discovery is rate limited.
 
+import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { businessDiscovery, discoveryStats, IG_DISCOVERY_REASON, type IgDiscoveryReason } from "@/lib/igBusinessDiscovery";
 
@@ -55,7 +56,7 @@ export async function igConnection(supabase: Supa, userId: string): Promise<{ ig
   return null;
 }
 
-export async function igCompetitorRows(supabase: Supa, userId: string, handles: string[], refresh = false): Promise<IgCompetitorResult> {
+async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: string[], refresh = false): Promise<IgCompetitorResult> {
   const conn = await igConnection(supabase, userId);
   if (!conn) return { enabled: false, reason: IG_DISCOVERY_REASON.not_connected, competitors: [] };
   const wanted = [...new Set(handles.map((h) => h.replace(/^@/, "").toLowerCase()))].slice(0, 10);
@@ -118,3 +119,6 @@ export async function igCompetitorRows(supabase: Supa, userId: string, handles: 
   );
   return { enabled: true, competitors };
 }
+
+/** igCompetitorRows, logged when slow (lib/timing.ts). */
+export const igCompetitorRows = timedFn("igCompetitorRows", igCompetitorRowsImpl);

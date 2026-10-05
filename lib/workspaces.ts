@@ -117,15 +117,20 @@ export async function listWorkspaces(supabase: Supa, userId: string): Promise<Wo
  * exist yet; then it is just the owned ones.
  */
 export async function listAccessibleWorkspaces(supabase: Supa, userId: string): Promise<Workspace[]> {
+  // The person's own workspaces and their memberships are independent reads:
+  // run them together (this is on the path of every page load).
+  type Membership = { workspace_id: string; role: "admin" | "member" };
+  const membershipsP: Promise<Membership[]> = (async () => {
+    try {
+      const { data, error } = await supabase.from("workspace_members").select("workspace_id, role").eq("user_id", userId);
+      return error ? [] : ((data ?? []) as Membership[]);
+    } catch {
+      return []; // pre-migration: no memberships
+    }
+  })();
   const owned = await listWorkspaces(supabase, userId);
   if (!owned.length && !(await workspacesEnabled(supabase))) return [];
-  let memberships: { workspace_id: string; role: "admin" | "member" }[] = [];
-  try {
-    const { data, error } = await supabase.from("workspace_members").select("workspace_id, role").eq("user_id", userId);
-    if (!error) memberships = (data ?? []) as typeof memberships;
-  } catch {
-    /* pre-migration: no memberships */
-  }
+  const memberships = await membershipsP;
   const ids = memberships.map((m) => m.workspace_id).filter((id) => !owned.some((w) => w.id === id));
   if (!ids.length) return owned;
   const { data, error } = await supabase.from("workspaces").select(COLS).in("id", ids).order("created_at", { ascending: true });
@@ -151,14 +156,17 @@ export async function getWorkspace(supabase: Supa, userId: string, workspaceId: 
  */
 export async function getActiveWorkspace(supabase: Supa, userId: string): Promise<Workspace | null> {
   if (!(await workspacesEnabled(supabase))) return null;
-  let activeId: string | null = null;
-  try {
-    const { data } = await supabase.from("profiles").select("active_workspace_id").eq("user_id", userId).maybeSingle();
-    activeId = (data?.active_workspace_id as string | null) ?? null;
-  } catch {
-    /* column may be missing mid-migration */
-  }
-  const all = await listAccessibleWorkspaces(supabase, userId);
+  // Which workspace is selected, and which ones the person can reach, are
+  // independent reads: run them together (every page load resolves this).
+  const activeIdP: Promise<string | null> = (async () => {
+    try {
+      const { data } = await supabase.from("profiles").select("active_workspace_id").eq("user_id", userId).maybeSingle();
+      return (data?.active_workspace_id as string | null) ?? null;
+    } catch {
+      return null; // column may be missing mid-migration
+    }
+  })();
+  const [activeId, all] = await Promise.all([activeIdP, listAccessibleWorkspaces(supabase, userId)]);
   const live = all.filter((w) => !w.suspended);
   const own = live.filter((w) => w.role === "owner");
   return live.find((w) => w.id === activeId) ?? own.find((w) => w.isDefault) ?? own[0] ?? live[0] ?? null;

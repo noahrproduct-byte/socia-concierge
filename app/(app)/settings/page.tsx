@@ -1,0 +1,592 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import {
+  UserRound,
+  Share2,
+  CreditCard,
+  Lock,
+  LogOut,
+  Sparkles,
+  Sparkle,
+  Radar,
+  Bell,
+  ArrowRight,
+  CheckCircle2,
+  AlertTriangle,
+  SunMoon,
+} from "lucide-react";
+import AppearanceSettings from "@/components/AppearanceSettings";
+import { getViewer } from "@/lib/supabase/server";
+import PageHeader from "@/components/PageHeader";
+import BrandSettings from "@/components/BrandSettings";
+import StrategistSettings from "@/components/StrategistSettings";
+import IntelligenceCard, { type IntelState } from "@/components/IntelligenceCard";
+import SecurityCard from "@/components/SecurityCard";
+import SettingsNav from "@/components/SettingsNav";
+import ConnectionsManager from "@/components/ConnectionsManager";
+import InstagramConnect from "@/components/InstagramConnect";
+import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
+import YouTubeConnect from "@/components/YouTubeConnect";
+import TikTokConnect from "@/components/TikTokConnect";
+import { ttAuthConfigured } from "@/lib/tiktokAuth";
+import { ytAuthConfigured } from "@/lib/youtubeAuth";
+import { YT_WRITE_SCOPES } from "@/lib/publishing/capabilities";
+import type { FbPost } from "@/lib/facebookSync";
+import { getIgSnapshot } from "@/lib/instagramSync";
+import {
+  getEntitlements, getUsage, listConnectedAccountsDetailed, countActiveCompetitors, computeOverLimits,
+  activeAccounts, activeByPlatform, workspacesInUse, getLimit, canUseFeature,
+} from "@/lib/entitlements";
+import { limitError } from "@/lib/planErrors";
+import PlanNotice from "@/components/PlanNotice";
+import PlanBilling from "@/components/settings/PlanBilling";
+import { PLANS } from "@/lib/plans";
+import { readBillingInfo, syncCheckoutSession } from "@/lib/billing";
+import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
+import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
+import { resolveContext, can, brandWorkspace } from "@/lib/context";
+import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
+import { Users } from "lucide-react";
+import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
+import type { BrandDetail } from "@/lib/profile";
+import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace } from "@/lib/workspaces";
+import { Briefcase } from "lucide-react";
+
+export const metadata = { title: "Settings — SOCIA" };
+
+function ago(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Supa = any;
+
+/** Every tracked competitor, paused ones included, for the "choose what to keep" state. */
+async function listTrackedCompetitors(supabase: Supa, userId: string): Promise<KeepCompetitor[]> {
+  type Row = { platform: string | null; handle: string | null; is_active?: boolean | null };
+  const shape = (rows: Row[], activeKnown: boolean): KeepCompetitor[] =>
+    rows
+      .filter((r) => r.platform && r.handle)
+      .map((r) => ({ platform: r.platform as string, handle: r.handle as string, active: activeKnown ? r.is_active !== false : true }));
+  try {
+    const { data, error } = await supabase
+      .from("tracked_competitors")
+      .select("platform, handle, is_active")
+      .eq("user_id", userId)
+      .order("added_at", { ascending: true });
+    if (!error) return shape((data ?? []) as Row[], true);
+  } catch {
+    /* is_active may not exist yet */
+  }
+  try {
+    const { data, error } = await supabase
+      .from("tracked_competitors")
+      .select("platform, handle")
+      .eq("user_id", userId)
+      .order("added_at", { ascending: true });
+    if (!error) return shape((data ?? []) as Row[], false);
+  } catch {
+    /* table may not exist */
+  }
+  return [];
+}
+
+// Preview competitor list — same labeled demo set as the Competitors page.
+const PREVIEW_COMPETITORS = [
+  { handle: "@cheese.pull.daily", avatar: "/brand/comp/a1.jpg" },
+  { handle: "@trendy.slice", avatar: "/brand/comp/a2.jpg" },
+  { handle: "@rival.pizza", avatar: "/brand/comp/a3.jpg" },
+];
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string; billing?: string; session_id?: string }>;
+}) {
+  const { supabase, user } = await getViewer();
+  if (!user) redirect("/login");
+
+  const { ig, fb, yt, tt, billing: billingParam, session_id: sessionId } = await searchParams;
+
+  // Back from Stripe Checkout: apply the new subscription now rather than
+  // waiting for the webhook, so the plan on this page is already right.
+  const synced = billingParam === "success" && sessionId ? await syncCheckoutSession(sessionId, user.id) : null;
+
+  // The connection cards show the ACTIVE Brand Workspace's accounts. A person
+  // can hold one channel / Page per workspace, so a read by user alone can find
+  // several rows (a single-row read then errors, and the card said "Not
+  // connected" for a channel that was saved). Before workspaces exist there is
+  // no workspace id and this is the one row per user.
+  const connCtx = await resolveContext(supabase, user.id);
+  const connRow = async <T,>(table: string, cols: string): Promise<{ row: T | null; failed: boolean }> => {
+    const { data, error } = await scopeToWorkspace(
+      connCtx.client.from(table).select(cols).eq("user_id", connCtx.ownerId),
+      connCtx.workspace?.id,
+    ).limit(1);
+    return { row: ((data as unknown as T[] | null) ?? [])[0] ?? null, failed: Boolean(error) };
+  };
+
+  // YouTube channel connection (tokens never leave the server).
+  type YtConn = {
+    title: string | null;
+    handle: string | null;
+    subscribers: number | null;
+    avatar_url: string | null;
+    scopes?: string[] | null;
+  };
+  let ytConn: YtConn | null = null;
+  try {
+    const r = await connRow<YtConn>("youtube_connections", "title, handle, subscribers, avatar_url, scopes");
+    // scopes column may not exist yet: read the card's fields without it
+    ytConn = r.failed
+      ? (await connRow<YtConn>("youtube_connections", "title, handle, subscribers, avatar_url")).row
+      : r.row;
+  } catch {
+    // table may not exist yet — the card shows the disconnected state
+  }
+  // Channels connected before the upload scope existed carry only read scopes;
+  // the card asks for a reconnect instead of pretending uploads work.
+  const ytCanUpload = Array.isArray(ytConn?.scopes) && ytConn!.scopes!.some((s) => YT_WRITE_SCOPES.includes(s));
+
+  // TikTok connection (tokens never leave the server).
+  type TtConn = {
+    display_name: string | null;
+    username: string | null;
+    follower_count: number | null;
+    avatar_url: string | null;
+    scopes?: string[] | null;
+  };
+  let ttConn: TtConn | null = null;
+  try {
+    ttConn = (await connRow<TtConn>("tiktok_connections", "display_name, username, follower_count, avatar_url, scopes")).row;
+  } catch {
+    // table may not exist yet — the card shows the disconnected state
+  }
+  const ttDirect = Array.isArray(ttConn?.scopes) && ttConn!.scopes!.includes("video.publish");
+
+  // Facebook connection state (tokens never leave the server).
+  type FbConn = {
+    page_name: string | null;
+    username: string | null;
+    followers_count: number | null;
+    picture_url: string | null;
+    connection_status: string | null;
+    last_synced_at: string | null;
+    pending_pages: unknown; media?: unknown;
+  };
+  let fbConn: FbConn | null = null;
+  try {
+    fbConn = (await connRow<FbConn>("facebook_connections", "page_name, username, followers_count, picture_url, connection_status, last_synced_at, pending_pages, media")).row;
+  } catch {
+    // table may not exist yet — the card shows the disconnected state
+  }
+  type PendingPage = {
+    id: string; name?: string; followers_count?: number; fan_count?: number;
+    picture?: { data?: { url?: string } };
+  };
+  const fbPages: FbPageOption[] = Array.isArray(fbConn?.pending_pages)
+    ? (fbConn!.pending_pages as PendingPage[]).map((p) => ({
+        id: p.id,
+        name: p.name ?? "Untitled Page",
+        followers: p.followers_count ?? p.fan_count ?? null,
+        picture: p.picture?.data?.url ?? null,
+      }))
+    : [];
+
+  // Live account snapshot (avatar, followers, sync state) — best-effort.
+  const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+
+  // Plan, meters and what occupies the plan's slots. Counts that cannot be
+  // read stay unknown (never 0); the over-limit state is computed from the
+  // same lists the meters render, so the two never disagree.
+  const ent = await getEntitlements(supabase, user.id);
+  const billing = await readBillingInfo(supabase, user.id);
+  const billingNotice =
+    billingParam === "success"
+      ? synced?.status === "trialing" && synced.trialEnd
+        ? { tone: "good" as const, text: `Your ${PLANS[ent.plan].name} trial has started. Nothing is charged until ${new Date(synced.trialEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })}; cancel before then in Manage billing if it isn't for you.` }
+        : synced
+          ? { tone: "good" as const, text: `You're on ${PLANS[ent.plan].name}. Thank you.` }
+          : { tone: "info" as const, text: "Payment received. Your plan will update here in a moment; refresh if it hasn't." }
+      : billingParam === "cancelled"
+        ? { tone: "info" as const, text: "Checkout was cancelled. Nothing was charged." }
+        : null;
+  const [usage, accountsResult, competitorCount] = await Promise.all([
+    getUsage(supabase, ent),
+    listConnectedAccountsDetailed(supabase, user.id),
+    countActiveCompetitors(supabase, user.id),
+  ]);
+  const accountsList = accountsResult.accounts;
+  // A platform table that could not be read makes the count unknown (not a lower bound shown as truth).
+  const activeCount = accountsResult.complete ? activeAccounts(accountsList).length : null;
+  const overLimits = computeOverLimits(ent, accountsResult.complete ? activeByPlatform(accountsList) : null, competitorCount);
+
+  // Brand Workspaces (only once the migration has run; before that the section is hidden).
+  const wsEnabled = await workspacesEnabled(supabase);
+  let workspaceRows: WorkspaceRow[] = [];
+  let workspaceUsed = 0;
+  if (wsEnabled) {
+    const [wsList, wsActive] = await Promise.all([
+      listWorkspaces(supabase, user.id),
+      getActiveWorkspace(supabase, user.id),
+    ]);
+    workspaceRows = wsList.map((w) => ({ id: w.id, name: w.name, isDefault: w.isDefault, suspended: w.suspended, active: wsActive?.id === w.id }));
+    workspaceUsed = activeWorkspaces(wsList).length;
+  }
+  const workspaceLimit = getLimit(ent, "workspaces");
+
+  // Team of the ACTIVE workspace (may be one the person was invited into).
+  const tmEnabled = wsEnabled && (await teamEnabled(supabase));
+  let team: {
+    workspaceName: string; role: "owner" | "admin" | "member"; members: TeamMemberRow[]; invites: TeamInviteRow[];
+    seats: { used: number | null; limit: number }; canInvite: boolean; teamIncluded: boolean; planName: string;
+  } | null = null;
+  let teamUsed: number | null = null;
+  if (tmEnabled) {
+    const ctx = connCtx;
+    if (ctx.workspace) {
+      const ownerEnt = ctx.isOwner ? ent : await getEntitlements(ctx.client, ctx.ownerId);
+      const [members, invites] = await Promise.all([
+        listMembers(supabase, ctx.workspace.id),
+        can(ctx, "invite") ? listInvites(supabase, ctx.workspace.id) : Promise.resolve([]),
+      ]);
+      const ownedIds = workspaceRows.map((w) => w.id);
+      teamUsed = await seatsUsed(supabase, ownedIds, user.id);
+      const seatUsedForOwner = ctx.isOwner ? teamUsed : null;
+      team = {
+        workspaceName: ctx.workspace.name,
+        role: ctx.role,
+        members: [
+          { userId: ctx.ownerId, role: "owner", email: ctx.isOwner ? (user.email ?? null) : null, createdAt: null, isYou: ctx.isOwner },
+          ...members.map((m) => ({ userId: m.userId, role: m.role, email: m.email, createdAt: m.createdAt, isYou: m.userId === user.id })),
+        ],
+        invites: invites.map((i) => ({ id: i.id, role: i.role, email: i.email, expiresAt: i.expiresAt })),
+        seats: { used: seatUsedForOwner, limit: getLimit(ownerEnt, "team_members") },
+        canInvite: can(ctx, "invite"),
+        teamIncluded: canUseFeature(ownerEnt, "team"),
+        planName: ownerEnt.config.name,
+      };
+    }
+  }
+  const keepCompetitors = overLimits.competitors ? await listTrackedCompetitors(supabase, user.id) : null;
+  const accountLimitHit = ig === "limit" || fb === "limit" || yt === "limit" || tt === "limit";
+  // Accounts paused by a downgrade still have rows (the cards below read those
+  // rows directly), so tell each card when its platform is paused.
+  const pausedOn = (platform: "instagram" | "facebook" | "youtube" | "tiktok") =>
+    accountsList.some((a) => a.platform === platform && a.suspended) &&
+    !accountsList.some((a) => a.platform === platform && !a.suspended);
+
+  // Intelligence state from the real detection pipeline.
+  let intel: IntelState = {
+    niche: null,
+    subNiche: null,
+    confidence: null,
+    audience: null,
+    signals: [],
+    postsAnalyzed: snap ? snap.media.length : null,
+    analyzedAgo: null,
+    trendsAgo: null,
+    location: null,
+    connected: Boolean(snap),
+  };
+  let brandDetail: BrandDetail | null = null;
+  // A non-default workspace shows its own brand/intelligence; the default
+  // workspace and pre-migration accounts read the per-user profile.
+  const brandWs = brandWorkspace(connCtx);
+  try {
+    const prof = brandWs
+      ? { niche: brandWs.niche, niche_detail: brandWs.niche_detail, niche_analyzed_at: brandWs.niche_analyzed_at, brand_detail: brandWs.brand_detail }
+      : (await supabase
+          .from("profiles")
+          .select("niche, niche_detail, niche_analyzed_at, brand_detail")
+          .eq("user_id", user.id)
+          .maybeSingle()).data;
+    const d = (prof?.niche_detail ?? null) as {
+      sub_niche?: string;
+      confidence?: number;
+      audience?: string;
+      signals?: string[];
+    } | null;
+    brandDetail = (prof?.brand_detail ?? null) as BrandDetail | null;
+    intel = {
+      ...intel,
+      niche: prof?.niche ?? null,
+      subNiche: d?.sub_niche ?? null,
+      confidence: d?.confidence ?? null,
+      audience: d?.audience ?? null,
+      signals: (d?.signals ?? []).slice(0, 5),
+      analyzedAgo: prof?.niche_analyzed_at ? ago(prof.niche_analyzed_at) : null,
+      location: brandDetail?.location ?? null,
+    };
+  } catch {
+    // columns may be mid-migration; intelligence section degrades gracefully
+  }
+  if (intel.niche) {
+    try {
+      const { data: cached } = await supabase
+        .from("niche_trends")
+        .select("updated_at")
+        .eq("niche", `${user.id}:${intel.niche}`)
+        .maybeSingle();
+      if (cached?.updated_at) intel.trendsAgo = ago(cached.updated_at);
+    } catch {
+      // cache table may not have updated_at — analyzedAgo still shows
+    }
+  }
+  if (!intel.trendsAgo) intel.trendsAgo = intel.analyzedAgo;
+
+  const syncedRecently = Boolean(
+    snap?.last_synced_at && Date.now() - new Date(snap.last_synced_at).getTime() < 12 * 3600_000
+  );
+
+  return (
+    <>
+      <div className="st2 st3">
+        <PageHeader title="Settings" sub="Manage your brand, connections, intelligence, and plan." />
+
+        <div className="st3-layout">
+          <SettingsNav />
+
+          <div className="st3-main">
+            {/* 1 — Profile & Brand */}
+            <section className="st2-card" id="brand">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><UserRound size={15} /></span>
+                <h3>Profile &amp; Brand</h3>
+                <span className="st2-card-note">Powers every recommendation the AI makes</span>
+              </div>
+              <BrandSettings email={user.email ?? ""} />
+            </section>
+
+            {/* 1b — Brand Workspaces */}
+            {wsEnabled && (
+              <section className="st2-card" id="workspaces">
+                <div className="st2-card-head">
+                  <span className="st2-card-ico"><Briefcase size={15} /></span>
+                  <h3>Brand Workspaces</h3>
+                  <span className="st2-card-note">One brand, one workspace, one account per platform</span>
+                </div>
+                <WorkspacesManager workspaces={workspaceRows} limit={workspaceLimit} used={workspaceUsed} planName={ent.config.name} />
+              </section>
+            )}
+
+            {/* 1c — Team */}
+            {team && (
+              <section className="st2-card" id="team">
+                <div className="st2-card-head">
+                  <span className="st2-card-ico"><Users size={15} /></span>
+                  <h3>Team</h3>
+                  <span className="st2-card-note">Who can work in this workspace</span>
+                </div>
+                <TeamManager {...team} youId={user.id} />
+              </section>
+            )}
+
+            {/* 2 — Connected Accounts */}
+            <section className="st2-card" id="accounts">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Share2 size={15} /></span>
+                <h3>Connected accounts</h3>
+                <span className="st2-card-note">SOCIA runs on your live account data</span>
+              </div>
+              {accountLimitHit && (
+                <PlanNotice
+                  error={limitError(ent.plan, "workspaces", getLimit(ent, "workspaces"), activeCount == null ? null : workspacesInUse(accountsList))}
+                />
+              )}
+              {snap && (
+                <p className={`st3-health${syncedRecently ? "" : " warn"}`}>
+                  {syncedRecently ? (
+                    <><CheckCircle2 size={13} /> Account health: all systems synced</>
+                  ) : (
+                    <><AlertTriangle size={13} /> Data is getting stale — hit Sync now</>
+                  )}
+                </p>
+              )}
+              <InstagramConnect
+                username={snap?.username ?? null}
+                status={ig}
+                syncedAt={snap?.last_synced_at ?? null}
+                followers={snap?.followers_count ?? null}
+                avatar={snap?.profile_picture_url ?? null}
+                needsReconnect={snap?.insights_ok === false}
+                paused={!snap && pausedOn("instagram")}
+              />
+              <div className="st2-divider"><span>Facebook</span></div>
+              <FacebookConnect
+                status={fb}
+                connectionStatus={fbConn?.connection_status ?? null}
+                pageName={fbConn?.page_name ?? null}
+                username={fbConn?.username ?? null}
+                followers={fbConn?.followers_count ?? null}
+                picture={fbConn?.picture_url ?? null}
+                syncedAt={fbConn?.last_synced_at ?? null}
+                pendingPages={fbPages}
+                posts={Array.isArray(fbConn?.media) ? (fbConn!.media as FbPost[]).slice(0, 5) : []}
+                paused={pausedOn("facebook")}
+              />
+              <div className="st2-divider"><span>YouTube</span></div>
+              <YouTubeConnect
+                status={yt}
+                configured={ytAuthConfigured()}
+                channelTitle={ytConn?.title ?? null}
+                handle={ytConn?.handle ?? null}
+                subscribers={ytConn?.subscribers ?? null}
+                avatar={ytConn?.avatar_url ?? null}
+                paused={pausedOn("youtube")}
+                canUpload={ytCanUpload}
+              />
+              <div className="st2-divider"><span>TikTok</span></div>
+              <TikTokConnect
+                status={tt}
+                configured={ttAuthConfigured()}
+                displayName={ttConn?.display_name ?? null}
+                username={ttConn?.username ?? null}
+                followers={ttConn?.follower_count ?? null}
+                avatar={ttConn?.avatar_url ?? null}
+                paused={pausedOn("tiktok")}
+                canPublishDirect={ttDirect}
+              />
+              <div className="st2-divider"><span>Other platforms</span></div>
+              <ConnectionsManager />
+            </section>
+
+            {/* 3 — SOCIA Intelligence */}
+            <section className="st2-card st3-intel" id="intel">
+              <div className="st2-card-head">
+                <span className="st2-card-ico purple"><Sparkle size={15} /></span>
+                <h3>SOCIA Intelligence</h3>
+                <span className="st2-card-note">What SOCIA has learned from your real content</span>
+              </div>
+              <IntelligenceCard intel={intel} />
+            </section>
+
+            {/* 4 — Competitors & Market */}
+            <section className="st2-card" id="market">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Radar size={15} /></span>
+                <h3>Competitors &amp; Market</h3>
+                <span className="st2-card-note">Preview</span>
+              </div>
+              <div className="st3-market">
+                <div>
+                  <small className="st3-sub">Your market</small>
+                  {intel.location ? (
+                    <p className="st3-market-loc">{intel.location}</p>
+                  ) : (
+                    <p className="st3-market-loc muted">
+                      Set your location in Profile &amp; Brand and SOCIA sharpens local angles.
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <small className="st3-sub">Tracked competitors <em className="st3-chip">Preview</em></small>
+                  <div className="st3-comp-row">
+                    {PREVIEW_COMPETITORS.map((c) => (
+                      <span className="st3-comp" key={c.handle}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={c.avatar} alt="" width={22} height={22} /> {c.handle}
+                      </span>
+                    ))}
+                  </div>
+                  <Link href="/competitors" className="cp3-viewmore">
+                    Manage competitors <ArrowRight size={13} />
+                  </Link>
+                </div>
+              </div>
+            </section>
+
+            {/* 5 — AI Strategist */}
+            <section className="st2-card" id="strategist">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Sparkles size={15} /></span>
+                <h3>AI Strategist</h3>
+                <span className="st2-card-note">Written into every plan and conversation</span>
+              </div>
+              <StrategistSettings />
+            </section>
+
+            {/* 6 — Notifications & Reports (planned; no fake toggles) */}
+            <section className="st2-card" id="appearance">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><SunMoon size={15} /></span>
+                <h3>Appearance</h3>
+                <span className="st2-card-note">Choose how SOCIA looks on this device.</span>
+              </div>
+              <AppearanceSettings />
+            </section>
+
+            <section className="st2-card" id="notifications">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Bell size={15} /></span>
+                <h3>Notifications &amp; Reports</h3>
+                <span className="st2-card-note">Planned — nothing to configure yet</span>
+              </div>
+              <ul className="st3-planned">
+                {[
+                  "A post of yours starts outperforming",
+                  "A competitor has a breakout post",
+                  "A new niche trend is detected",
+                  "Engagement drops significantly",
+                  "Weekly intelligence report",
+                ].map((t) => (
+                  <li key={t}>
+                    {t} <em className="st3-chip">Planned</em>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* 7 — Plan & Billing */}
+            <section className="st2-card" id="plan">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><CreditCard size={15} /></span>
+                <h3>Plan &amp; billing</h3>
+                <span className="st2-card-note">Your plan and usage this period</span>
+              </div>
+              <PlanBilling
+                ent={ent}
+                usage={usage}
+                accounts={accountsList}
+                activeCount={activeCount}
+                competitorCount={competitorCount}
+                competitors={keepCompetitors}
+                overLimits={overLimits}
+                teamUsed={teamUsed}
+                billing={billing}
+                notice={billingNotice}
+              />
+            </section>
+
+            {/* Security & session */}
+            <section className="st2-card" id="security">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Lock size={15} /></span>
+                <h3>Security &amp; privacy</h3>
+                <span className="st2-card-note">Signed in as {user.email}</span>
+              </div>
+              <SecurityCard />
+              <p className="st2-legal-links">
+                <Link href="/privacy">Privacy Policy</Link> · <Link href="/terms">Terms of Service</Link>
+              </p>
+              <div className="st2-divider"><span>Session</span></div>
+              <div className="st2-session">
+                <p>Sign out on this device only.</p>
+                <form action="/auth/signout" method="post">
+                  <button className="st2-logout" type="submit">
+                    <LogOut size={14} /> Log out
+                  </button>
+                </form>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}

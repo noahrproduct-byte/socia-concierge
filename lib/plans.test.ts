@@ -18,7 +18,7 @@ describe("plan configuration", () => {
     expect(PLANS.free.priceMonthly).toBe(0);
     expect(PLANS.starter.priceMonthly).toBe(29);
     expect(PLANS.growth.priceMonthly).toBe(79);
-    expect(PLANS.pro.priceMonthly).toBe(179);
+    expect(PLANS.pro.priceMonthly).toBe(150);
     expect(PLANS.growth.popular).toBe(true);
   });
 
@@ -154,7 +154,7 @@ describe("plan helpers", () => {
 
   it("formats prices, history and pricing links", () => {
     expect(formatPrice(PLANS.free)).toBe("$0");
-    expect(formatPrice(PLANS.pro)).toBe("$179");
+    expect(formatPrice(PLANS.pro)).toBe("$150");
     expect(formatHistory(30)).toBe("30 days");
     expect(formatHistory(90)).toBe("90 days");
     expect(formatHistory(365)).toBe("1 year");

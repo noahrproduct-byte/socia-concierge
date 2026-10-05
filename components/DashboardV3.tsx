@@ -13,6 +13,7 @@ import ContentRow from "./ov/ContentRow";
 import ContentDrawer from "./ov/ContentDrawer";
 import { InsightList } from "./ov/Insights";
 import DateRangeSelector from "./DateRangeSelector";
+import UpdatedAgo from "./UpdatedAgo";
 import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
 import PlatformSnapshot from "./PlatformSnapshot";
@@ -28,6 +29,8 @@ export type DashboardData = {
   rangeLabel: string;
   /** Longest window the viewer's plan may look back over; ranges beyond it show as locked. */
   maxDays?: number;
+  /** When the reused live platform reads on this page were fetched (null: none were reused). */
+  updatedAt?: string | null;
   kpis: Kpi[];
   series: Record<"views" | "engagement" | "followers", Series>;
   platforms: PlatformRow[];
@@ -93,6 +96,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
         <div>
           <h1>{greet}, {d.name} <span aria-hidden>👋</span></h1>
           <p>Here&apos;s what&apos;s happening with your content.</p>
+          <UpdatedAgo at={d.updatedAt ?? null} />
         </div>
         <div className="dv-head-actions">
           <Mounted fallback={<span className="ov-ctl-ph" aria-hidden />}>

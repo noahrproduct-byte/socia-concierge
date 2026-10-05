@@ -19,17 +19,23 @@ type Supa = any;
 const BASE = `https://graph.facebook.com/${FB_GRAPH_V}`;
 
 export type FbInsightPoint = { day: string; value: number };
-export type FbInsightSeries = { series: FbInsightPoint[]; total: number };
 
+/** Each series covers TWICE the requested range (the current window and the
+ *  one before it), oldest first, so the page can compare periods. A metric
+ *  Facebook didn't return is null. */
 export type FbInsights = {
   /** true when at least one insight came back (read_insights is working). */
   available: boolean;
   /** Page views per day (page_views_total). */
-  views: FbInsightSeries | null;
+  views: FbInsightPoint[] | null;
   /** Video views per day across the Page's videos (page_video_views). */
-  videoViews: FbInsightSeries | null;
+  videoViews: FbInsightPoint[] | null;
   /** New follows per day, from Facebook itself (page_daily_follows). */
-  dailyFollows: FbInsightSeries | null;
+  dailyFollows: FbInsightPoint[] | null;
+  /** Unfollows per day (page_daily_unfollows_unique) — with follows, net growth. */
+  dailyUnfollows: FbInsightPoint[] | null;
+  /** Reactions, comments, shares and clicks on the Page's posts per day (page_post_engagements). */
+  postEngagements: FbInsightPoint[] | null;
 };
 
 type Conn = { page_id: string; access_token: string };
@@ -106,22 +112,23 @@ async function fetchMetricWindow(token: string, pageId: string, metric: string, 
   }
 }
 
-const pack = (s: FbInsightPoint[] | null): FbInsightSeries | null =>
-  s ? { series: s, total: s.reduce((a, p) => a + p.value, 0) } : null;
-
-/** Page Insights for the active workspace's Page over the last `days` days.
- *  null when there is no usable connection; `available: false` when the
- *  connection exists but read_insights isn't granted (or every metric failed). */
+/** Page Insights for the active workspace's Page, over the last `days` days
+ *  AND the `days` before them (so periods can be compared). null when there is
+ *  no usable connection; `available: false` when the connection exists but
+ *  read_insights isn't granted (or every metric failed). */
 export async function getFacebookInsights(supabase: Supa, userId: string, days: number): Promise<FbInsights | null> {
   const conn = await readConn(supabase, userId);
   if (!conn) return null;
   const until = Math.floor(Date.now() / 1000);
-  const since = until - days * 86400;
-  const [views, videoViews, follows] = await Promise.all([
-    fetchDailyMetric(conn.access_token, conn.page_id, "page_views_total", since, until),
-    fetchDailyMetric(conn.access_token, conn.page_id, "page_video_views", since, until),
-    fetchDailyMetric(conn.access_token, conn.page_id, "page_daily_follows", since, until),
+  const since = until - (2 * days + 1) * 86400;
+  const get = (metric: string) => fetchDailyMetric(conn.access_token, conn.page_id, metric, since, until);
+  const [views, videoViews, dailyFollows, dailyUnfollows, postEngagements] = await Promise.all([
+    get("page_views_total"),
+    get("page_video_views"),
+    get("page_daily_follows"),
+    get("page_daily_unfollows_unique"),
+    get("page_post_engagements"),
   ]);
-  const available = Boolean(views || videoViews || follows);
-  return { available, views: pack(views), videoViews: pack(videoViews), dailyFollows: pack(follows) };
+  const available = Boolean(views || videoViews || dailyFollows || dailyUnfollows || postEngagements);
+  return { available, views, videoViews, dailyFollows, dailyUnfollows, postEngagements };
 }

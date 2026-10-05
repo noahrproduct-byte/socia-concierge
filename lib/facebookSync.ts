@@ -2,6 +2,7 @@
 // real values or clearly unavailable — a missing key means Meta didn't
 // provide it, never zero. Tokens stay server-side.
 
+import { timedFn } from "@/lib/timing";
 import { FB_GRAPH_V } from "./facebook";
 import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
 
@@ -18,7 +19,15 @@ export type FbPost = {
   reactions?: number; // total reactions, when provided
   comments?: number; // total comments, when provided
   shares?: number; // share count, when provided
+  /** Reactions by type, when Facebook returned the per-type breakdown. */
+  reactionTypes?: Partial<Record<FbReaction, number>>;
 };
+
+export const FB_REACTIONS = ["like", "love", "care", "haha", "wow", "sad", "angry"] as const;
+export type FbReaction = (typeof FB_REACTIONS)[number];
+
+/** How many of the Page's most recent posts a sync reads (the API's per-call maximum). */
+export const FB_POST_LIMIT = 100;
 
 export type FbSnapshot = {
   page_id: string | null;
@@ -77,10 +86,16 @@ async function fetchPage(token: string, pageId: string): Promise<{
     // pages_read_user_content is granted.
     const POST_FIELDS_FULL = "id,message,created_time,permalink_url,full_picture,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)";
     const POST_FIELDS_SAFE = "id,message,created_time,permalink_url,full_picture,status_type,shares";
+    // Richest set: the reactions total plus one aliased count per reaction
+    // type. Field aliasing isn't supported on every edge, so this is tried
+    // first and the call falls back to the plain total if Facebook rejects it.
+    const POST_FIELDS_TYPES =
+      "id,message,created_time,permalink_url,full_picture,status_type,shares,comments.summary(total_count).limit(0),reactions.summary(total_count).limit(0).as(rx_total)," +
+      FB_REACTIONS.map((t) => `reactions.type(${t.toUpperCase()}).summary(total_count).limit(0).as(rx_${t})`).join(",");
     const getPosts = async (fields: string) => {
       const u = new URL(`${BASE}/${pageId}/published_posts`);
       u.searchParams.set("fields", fields);
-      u.searchParams.set("limit", "25");
+      u.searchParams.set("limit", String(FB_POST_LIMIT));
       u.searchParams.set("access_token", token);
       const r = await fetch(u, { signal: AbortSignal.timeout(10000) });
       return { r, j: (await r.json().catch(() => null)) as { data?: unknown[] } | null };
@@ -93,7 +108,8 @@ async function fetchPage(token: string, pageId: string): Promise<{
       return { page: {}, posts: [], authExpired: code === 190 };
     }
 
-    let postsResp = await getPosts(POST_FIELDS_FULL);
+    let postsResp = await getPosts(POST_FIELDS_TYPES);
+    if (!postsResp.r.ok) postsResp = await getPosts(POST_FIELDS_FULL);
     if (!postsResp.r.ok) postsResp = await getPosts(POST_FIELDS_SAFE);
     const mRes = postsResp.r;
     const mJson = postsResp.j;
@@ -105,19 +121,32 @@ async function fetchPage(token: string, pageId: string): Promise<{
         shares?: { count?: number };
         reactions?: { summary?: { total_count?: number } };
         comments?: { summary?: { total_count?: number } };
+      } & Record<string, unknown>;
+      const aliased = (r: Raw, key: string): number | undefined => {
+        const v = r[key] as { summary?: { total_count?: number } } | undefined;
+        return typeof v?.summary?.total_count === "number" ? v.summary.total_count : undefined;
       };
-      posts = ((mJson?.data ?? []) as Raw[]).map((r) => ({
-        id: r.id,
-        message: r.message,
-        created_time: r.created_time,
-        permalink_url: r.permalink_url,
-        full_picture: r.full_picture,
-        status_type: r.status_type,
-        // presence-checked: absent in the API response stays absent here
-        ...(r.reactions?.summary?.total_count != null ? { reactions: r.reactions.summary.total_count } : {}),
-        ...(r.comments?.summary?.total_count != null ? { comments: r.comments.summary.total_count } : {}),
-        ...(r.shares?.count != null ? { shares: r.shares.count } : {}),
-      }));
+      posts = ((mJson?.data ?? []) as Raw[]).map((r) => {
+        const total = r.reactions?.summary?.total_count ?? aliased(r, "rx_total");
+        const types: Partial<Record<FbReaction, number>> = {};
+        for (const t of FB_REACTIONS) {
+          const n = aliased(r, `rx_${t}`);
+          if (n != null) types[t] = n;
+        }
+        return {
+          id: r.id,
+          message: r.message,
+          created_time: r.created_time,
+          permalink_url: r.permalink_url,
+          full_picture: r.full_picture,
+          status_type: r.status_type,
+          // presence-checked: absent in the API response stays absent here
+          ...(total != null ? { reactions: total } : {}),
+          ...(r.comments?.summary?.total_count != null ? { comments: r.comments.summary.total_count } : {}),
+          ...(r.shares?.count != null ? { shares: r.shares.count } : {}),
+          ...(Object.keys(types).length ? { reactionTypes: types } : {}),
+        };
+      });
     }
     return { page: pJson ?? {}, posts, authExpired: false };
   } catch {
@@ -126,7 +155,7 @@ async function fetchPage(token: string, pageId: string): Promise<{
 }
 
 /** Force-sync the connected Page; returns the fresh snapshot or null. */
-export async function syncFacebook(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
+async function syncFacebookImpl(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
   const conn = await readFbRow(supabase, userId);
   // A Page paused by a plan downgrade is never read, not even on a manual sync.
   if (!conn?.access_token || !conn.page_id || conn.plan_suspended_at != null) return null;
@@ -226,7 +255,7 @@ function idleStatus(row: FbRow): FbSnapshot["status"] {
  *  connection exists; a non-null result with status "expired", "choose_page"
  *  or "suspended" tells the UI what attention is needed. A suspended Page
  *  (paused by a plan downgrade) is never read from Meta. */
-export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
+async function getFbSnapshotImpl(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
   const row = await readFbRow(supabase, userId);
   if (!row) return null;
 
@@ -269,3 +298,9 @@ export async function getFbSnapshot(supabase: Supa, userId: string): Promise<FbS
     capabilities: caps(posts, row.followers_count ?? null),
   };
 }
+
+/** getFbSnapshot, logged when slow (lib/timing.ts). */
+export const getFbSnapshot = timedFn("getFbSnapshot", getFbSnapshotImpl);
+
+/** syncFacebook, logged when slow (lib/timing.ts). */
+export const syncFacebook = timedFn("syncFacebook", syncFacebookImpl);

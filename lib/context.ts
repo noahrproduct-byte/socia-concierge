@@ -19,6 +19,8 @@
 //
 // Server only.
 
+import { cache } from "react";
+import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "./supabase/service";
 import { getActiveWorkspace, type Workspace } from "./workspaces";
@@ -39,7 +41,7 @@ export type Ctx = {
   isOwner: boolean;
 };
 
-export async function resolveContext(supabase: Supa, viewerId: string): Promise<Ctx> {
+async function resolveContextUncached(supabase: Supa, viewerId: string): Promise<Ctx> {
   const ws = await getActiveWorkspace(supabase, viewerId);
   const asSelf = (workspace: Workspace | null): Ctx => ({ viewerId, ownerId: viewerId, workspace, role: "owner", client: supabase, isOwner: true });
   if (!ws) return asSelf(null);
@@ -50,6 +52,13 @@ export async function resolveContext(supabase: Supa, viewerId: string): Promise<
   if (!svc) return asSelf(null);
   return { viewerId, ownerId: ws.ownerId, workspace: ws, role: ws.role === "admin" ? "admin" : "member", client: svc, isOwner: false };
 }
+
+/**
+ * Memoised per request render: the layout and the page ask for the same
+ * context (same request client, same viewer), so the workspace lookups run
+ * once. Outside a render (route handlers, jobs) it is a plain call.
+ */
+export const resolveContext = cache(timedFn("resolveContext", resolveContextUncached));
 
 /**
  * The workspace whose brand fields (niche, brand_name, goals, brand_detail,

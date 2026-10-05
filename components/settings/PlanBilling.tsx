@@ -3,10 +3,11 @@
 // page hands it entitlements, usage and the account/competitor lists.
 //
 // Honesty rules: a counter that could not be read renders a dash, never 0.
-// There is no Manage or Cancel button because nothing exists behind them yet.
+// The billing line (renewal, trial, cancellation) is what Stripe last told us;
+// Manage billing opens Stripe's own portal for card, plan and cancellation.
 
 import Link from "next/link";
-import "@/app/settings/plan-billing.css";
+import "@/app/(app)/settings/plan-billing.css";
 import {
   FEATURE_STATUS, METER_LABEL, METER_PERIOD, PRICING_PATH, checkoutAvailable, contactHref, formatHistory, formatPrice,
   type MeterKey,
@@ -17,6 +18,23 @@ import {
   type ConnectedAccount, type Entitlements, type OverLimits, type UsageSnapshot,
 } from "@/lib/entitlements";
 import PlanKeepChooser, { type KeepAccount, type KeepCompetitor } from "./PlanKeepChooser";
+import ManageBillingButton from "./ManageBillingButton";
+import type { BillingInfo } from "@/lib/billing";
+import type { PlanConfig } from "@/lib/plans";
+
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** One plain sentence about where the subscription stands, from Stripe's last update. */
+function billingLine(b: BillingInfo, cfg: PlanConfig): string | null {
+  // SOCIA sells monthly prices; a yearly subscription (only possible from inside Stripe) shows no amount rather than a wrong one.
+  const amount = b.interval === "month" ? `${formatPrice(cfg)}/month` : null;
+  if (b.plan === "free") return b.status === "canceled" ? "Your subscription has ended. You're on Free." : null;
+  if (b.status === "past_due") return `Your last payment failed. Update your card in Manage billing to keep ${cfg.name}.`;
+  if (b.cancelAt) return `Cancels on ${fmtDay(b.cancelAt)}. You keep ${cfg.name} until then.`;
+  if (b.status === "trialing" && b.trialEnd) return `Free trial until ${fmtDay(b.trialEnd)}${amount ? `, then ${amount}` : ""}.`;
+  if (b.status === "active" && b.currentPeriodEnd) return `Renews on ${fmtDay(b.currentPeriodEnd)}${amount ? ` · ${amount}` : ""}.`;
+  return null;
+}
 
 const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_ideas", "content_plan", "content_generation", "account_audit"];
 
@@ -72,6 +90,8 @@ export default function PlanBilling({
   competitors,
   overLimits,
   teamUsed = null,
+  billing = null,
+  notice = null,
 }: {
   ent: Entitlements;
   usage: Record<MeterKey, UsageSnapshot>;
@@ -85,6 +105,10 @@ export default function PlanBilling({
   overLimits: OverLimits;
   /** Team seats in use (you + distinct members across your workspaces); null when unknown. */
   teamUsed?: number | null;
+  /** Subscription state mirrored from Stripe; null before billing exists. */
+  billing?: BillingInfo | null;
+  /** A one-off message, e.g. just back from Checkout. */
+  notice?: { tone: "good" | "info" | "warning"; text: string } | null;
 }) {
   const cfg = ent.config;
   const workspaceLimit = getLimit(ent, "workspaces");
@@ -115,12 +139,16 @@ export default function PlanBilling({
 
   return (
     <>
+      {notice && <p className={`pb-notice ${notice.tone}`} role="status">{notice.text}</p>}
       <div className="st2-plan">
         <div>
           <div className="st2-plan-name">
-            {cfg.name} <span className="pb-price">· {formatPrice(cfg)}/month</span> <span className="st2-badge">Current</span>
+            {cfg.name}{" "}
+            <span className="pb-price">· {formatPrice(cfg)}/month</span>{" "}
+            <span className="st2-badge">Current</span>
           </div>
           <p>{cfg.tagline}</p>
+          {billing && billingLine(billing, cfg) && <p className="pb-billing-line">{billingLine(billing, cfg)}</p>}
         </div>
       </div>
 
@@ -162,7 +190,8 @@ export default function PlanBilling({
       </p>
 
       <div className="pb-actions">
-        <Link href={PRICING_PATH} className="btn-secondary">Compare plans</Link>
+        <Link href={PRICING_PATH} className="btn-secondary">{ent.plan === "free" && checkoutAvailable() ? "Upgrade" : "Compare plans"}</Link>
+        {billing?.hasCustomer && checkoutAvailable() && <ManageBillingButton />}
         {!checkoutAvailable() && (
           <p>
             Checkout is opening soon. To change your plan today,{" "}

@@ -1,10 +1,15 @@
+import { cache } from "react";
+import { timed } from "@/lib/timing";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
 
 // The Supabase client for use on the server (server components, route
 // handlers, server actions). It reads/writes the login session via cookies.
-export async function createClient() {
+// Memoised per request render (React cache), so the layout and the page share
+// one client instead of each building their own; outside a render (route
+// handlers) every call still returns a fresh client.
+export const createClient = cache(async () => {
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -28,4 +33,14 @@ export async function createClient() {
       },
     },
   );
-}
+});
+
+/** The signed-in person and the request's client, checked with Supabase once
+ *  per render however many components ask. */
+export const getViewer = cache(async () => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await timed("auth.getUser", () => supabase.auth.getUser());
+  return { supabase, user };
+});

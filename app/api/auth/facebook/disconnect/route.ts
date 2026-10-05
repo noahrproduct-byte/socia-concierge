@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { clearLiveCache } from "@/lib/liveCache";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,9 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   const ctx = await resolveContext(supabase, user.id);
+  // Connections or their data are about to change: drop the reused live
+  // platform reads so the next page view asks the platforms again.
+  clearLiveCache(ctx.ownerId);
   if (!can(ctx, "connect")) return NextResponse.json({ error: forbiddenCopy("connect") }, { status: 403 });
 
   // One Page per workspace, so the workspace id names the row. A failed
@@ -27,8 +31,12 @@ export async function POST() {
       .delete()
       .eq("user_id", ctx.ownerId)
       .eq("workspace_id", ctx.workspace.id);
-    if (!error) return NextResponse.json({ ok: true });
+    if (!error) {
+      clearLiveCache(ctx.ownerId);
+      return NextResponse.json({ ok: true });
+    }
   }
   await ctx.client.from("facebook_connections").delete().eq("user_id", ctx.ownerId);
+  clearLiveCache(ctx.ownerId);
   return NextResponse.json({ ok: true });
 }

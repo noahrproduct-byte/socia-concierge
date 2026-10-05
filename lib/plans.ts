@@ -226,7 +226,7 @@ export const LIMIT_UNIT: Record<LimitKey, { one: string; many: string }> = {
 export type PlanConfig = {
   id: PlanId;
   name: string;
-  /** USD per month. 0 for Free. */
+  /** USD per month. 0 for Free. Plans are billed monthly only. */
   priceMonthly: number;
   /** The one-line story: what this plan is for. */
   tagline: string;
@@ -304,7 +304,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   pro: {
     id: "pro",
     name: "Pro",
-    priceMonthly: 179,
+    priceMonthly: 150,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
     limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED },
@@ -360,6 +360,10 @@ export function formatPrice(p: PlanConfig): string {
   return p.priceMonthly === 0 ? "$0" : `$${p.priceMonthly}`;
 }
 
+/** How a subscription is billed. SOCIA sells monthly prices; "year" only
+ *  appears if a subscription was ever put on a yearly price inside Stripe. */
+export type BillingInterval = "month" | "year";
+
 /** "30 days", "90 days", "1 year" or "All retained history" from the history limit. */
 export function formatHistory(days: number): string {
   if (isAllHistory(days)) return "All retained history";
@@ -386,10 +390,15 @@ export function contactHref(subject: string): string {
 }
 
 /**
- * Whether a working checkout exists. Stripe is not wired yet, so this is false
- * and every paid CTA says so honestly instead of pretending to start a purchase.
- * Flip by configuring the billing provider; nothing else in the UI needs to change.
+ * Whether people can buy a plan. Needs Stripe configured AND the switch
+ * STRIPE_CHECKOUT_ENABLED=true, so keys can sit in the environment while the
+ * setup is finished. Off, every paid CTA honestly says "Contact us" and the
+ * checkout route refuses. The webhook does not depend on this: subscriptions
+ * that already exist keep syncing.
  */
 export function checkoutAvailable(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+  return (
+    process.env.STRIPE_CHECKOUT_ENABLED?.trim().toLowerCase() === "true" &&
+    Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET)
+  );
 }

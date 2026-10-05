@@ -49,7 +49,9 @@ export function WindowsList({ w, compact = false }: { w: Windows; compact?: bool
   );
 }
 
-export default function PostingHeatmap({ posts, formats }: { posts: TimedPost[]; formats: Record<string, number> }) {
+/** `unit` names what each post's score is ("interactions" on Instagram and
+ *  Facebook, "views" on YouTube) so the copy never mislabels the basis. */
+export default function PostingHeatmap({ posts, formats, unit = "interactions" }: { posts: TimedPost[]; formats: Record<string, number>; unit?: string }) {
   const [format, setFormat] = useState<Format>("all");
   const [cell, setCell] = useState<{ d: number; b: number } | null>(null);
   const w = useWindows(posts, format);
@@ -99,7 +101,7 @@ export default function PostingHeatmap({ posts, formats }: { posts: TimedPost[];
               <span>{blockLabel(c.block)}</span>
               {c.n === 0 ? <p>No posts published in this window yet.</p> : (
                 <dl>
-                  <div><dt>Median interactions</dt><dd>{c.median != null ? Math.round(c.median).toLocaleString("en-US") : "—"}</dd></div>
+                  <div><dt>Median {unit}</dt><dd>{c.median != null ? Math.round(c.median).toLocaleString("en-US") : "—"}</dd></div>
                   <div><dt>Posts analyzed</dt><dd>{c.n}</dd></div>
                   <div><dt>Performance</dt><dd className={c.rel != null && c.rel >= 1 ? "up" : "down"}>{c.rel != null ? relText(c.rel) : "—"}</dd></div>
                   <div><dt>Confidence</dt><dd>{c.n >= RELIABLE_N ? "High" : c.n >= SIGNAL_N ? "Early signal" : "One post only"}</dd></div>
@@ -107,7 +109,7 @@ export default function PostingHeatmap({ posts, formats }: { posts: TimedPost[];
               )}
             </>
           ) : (
-            <p className="pt-detail-hint">Hover or select a block. Numbers are the post count; colour is the median performance of those posts against your typical post ({w.baseline != null ? `${Math.round(w.baseline).toLocaleString("en-US")} interactions` : "not enough data"}).</p>
+            <p className="pt-detail-hint">Hover or select a block. Numbers are the post count; colour is the median performance of those posts against your typical post ({w.baseline != null ? `${Math.round(w.baseline).toLocaleString("en-US")} ${unit}` : "not enough data"}).</p>
           )}
         </div>
       </div>

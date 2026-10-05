@@ -1,31 +1,15 @@
 import Link from "next/link";
-import {
-  LayoutDashboard,
-  BarChart3,
-  Radar,
-  FileText,
-  FileBarChart,
-  Clapperboard,
-  CalendarDays,
-  PenSquare,
-  Settings,
-  Camera,
-  Music2,
-  Play,
-  Plus,
-  Gem,
-  LifeBuoy,
-  Sparkles,
-  MessageSquare,
-  type LucideIcon,
-} from "lucide-react";
+import { Camera, Music2, Play, Plus, Gem, LifeBuoy } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import WorkspaceSwitcher from "@/components/WorkspaceSwitcher";
 import TopBar, { type SearchItem, type AlertItem } from "@/components/TopBar";
 import { ThemeSync } from "@/components/ThemeProvider";
 import { isAppearance, type Appearance } from "@/lib/appearance";
-import { createClient } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/supabase/server";
+import { NAV } from "@/lib/nav";
+import { SideNav, SideSettingsLink } from "@/components/SideNav";
 import { resolveContext } from "@/lib/context";
+import { scopeToWorkspace } from "@/lib/workspaces";
 import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
@@ -41,8 +25,6 @@ const FB_MARK = (
     <path d="M13.5 21v-7h2.3l.4-2.7h-2.7V9.6c0-.8.2-1.3 1.3-1.3h1.4V5.9c-.2 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5v1.9H8.5V14h2.3v7h2.7Z" />
   </svg>
 );
-
-type NavItem = { href: string; label: string; Icon: LucideIcon; key: string };
 
 // One quiet line per step up, read from the plan config so the numbers never
 // drift from what the plan actually includes. Only built features are named.
@@ -62,23 +44,6 @@ function nextPlanLine(p: PlanId): string {
   }
 }
 
-// Pages are user jobs, not technologies. SOCIA AI is not a destination: it
-// lives inside each of these pages (Ask SOCIA in the top bar and in context).
-const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard, key: "dashboard" },
-  { href: "/analytics", label: "Analytics", Icon: BarChart3, key: "analytics" },
-  { href: "/competitors", label: "Competitors", Icon: Radar, key: "competitors" },
-  { href: "/roundup", label: "Weekly roundup", Icon: Sparkles, key: "roundup" },
-  { href: "/tool", label: "Content Plan", Icon: FileText, key: "tool" },
-  { href: "/studio", label: "Content Studio", Icon: Clapperboard, key: "studio" },
-  { href: "/calendar", label: "Calendar", Icon: CalendarDays, key: "calendar" },
-  // AI comment replies inbox (Growth+): draft → approve → send.
-  { href: "/comments", label: "Comments", Icon: MessageSquare, key: "comments" },
-  // The multi-platform composer (/create and its sub-routes pass active="create").
-  { href: "/create", label: "Create post", Icon: PenSquare, key: "create" },
-  { href: "/reports", label: "Reports", Icon: FileBarChart, key: "reports" },
-];
-
 const PAGES: SearchItem[] = [
   ...NAV.map((n) => ({ kind: "page" as const, label: n.label, href: n.href })),
   { kind: "page", label: "Settings", href: "/settings" },
@@ -86,15 +51,10 @@ const PAGES: SearchItem[] = [
   { kind: "page", label: "Connected accounts", hint: "Settings", href: "/settings#accounts" },
 ];
 
-export default async function AppShell({
-  active,
-  userEmail,
-  children,
-}: {
-  active: string;
-  userEmail?: string | null;
-  children: React.ReactNode;
-}) {
+// Rendered once by app/(app)/layout.tsx and kept mounted while the person moves
+// between sections, so its reads run on a full page load (or router.refresh()),
+// not on every click.
+export default async function AppShell({ children }: { children: React.ReactNode }) {
   // Shell state (best effort; the shell renders fine without any of it).
   let igUsername: string | null = null;
   let fbPageName: string | null = null;
@@ -106,19 +66,19 @@ export default async function AppShell({
   let activity: Activity[] = [];
   let alerts: AlertItem[] = [];
   let unreadAlerts = 0;
+  let userEmail: string | null = null;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await getViewer();
     if (user) {
+      userEmail = user.email ?? null;
       // The sidebar describes the ACTIVE Brand Workspace (the owner's accounts,
       // activity and posts when the viewer is an invited team member). Theme and
       // the plan behind the "Upgrade to …" card are the viewer's own.
       const ctx = await resolveContext(supabase, user.id);
       const [conn, fbRes, platRes, appRes, entRes, schedRes, plansRes, ytRes] = await Promise.all([
         getActiveConnection(ctx.client, ctx.ownerId, "username, media, last_synced_at"),
-        ctx.client.from("facebook_connections").select("page_name, connection_status").eq("user_id", ctx.ownerId).maybeSingle(),
+        // Connections are one per workspace: read the active workspace's row, not "the" row for the owner.
+        scopeToWorkspace(ctx.client.from("facebook_connections").select("page_name, connection_status").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle(),
         ctx.client.from("profiles").select("platforms").eq("user_id", ctx.ownerId).maybeSingle(),
         // Viewer's theme. The appearance column may not exist yet: a failed read is simply "no preference".
         supabase.from("profiles").select("appearance").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
@@ -127,7 +87,7 @@ export default async function AppShell({
         ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
         ctx.client.from("plans").select("id, created_at, client_handle").eq("user_id", ctx.ownerId).order("created_at", { ascending: false }).limit(3),
         // Its own catch so a not-yet-created table never blanks the whole shell.
-        ctx.client.from("youtube_connections").select("title").eq("user_id", ctx.ownerId).maybeSingle().then((r) => r, () => ({ data: null })),
+        scopeToWorkspace(ctx.client.from("youtube_connections").select("title").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle().then((r) => r, () => ({ data: null })),
       ]);
       const c = conn as { username?: string; media?: { id?: string; caption?: string; timestamp?: string; permalink?: string }[]; last_synced_at?: string } | null;
       igUsername = c?.username ?? null;
@@ -185,14 +145,7 @@ export default async function AppShell({
 
         <WorkspaceSwitcher />
 
-        <nav className="side-nav" aria-label="Main">
-          {NAV.map(({ href, label, Icon, key }) => (
-            <Link key={key} href={href} className={`side-link${active === key ? " active" : ""}`} aria-current={active === key ? "page" : undefined}>
-              <Icon size={17} strokeWidth={2} className="side-ico" />
-              <span>{label}</span>
-            </Link>
-          ))}
-        </nav>
+        <SideNav />
 
         <div className="side-sec">Social Accounts</div>
         <div className="side-channels">
@@ -220,10 +173,7 @@ export default async function AppShell({
               <span className="side-upcard-btn">See plans</span>
             </Link>
           )}
-          <Link href="/settings" className={`side-link${active === "settings" ? " active" : ""}`} aria-current={active === "settings" ? "page" : undefined}>
-            <Settings size={17} strokeWidth={2} className="side-ico" />
-            <span>Settings</span>
-          </Link>
+          <SideSettingsLink />
           <Link href="/#faq" className="side-link">
             <LifeBuoy size={17} strokeWidth={2} className="side-ico" />
             <span>Help &amp; Support</span>
