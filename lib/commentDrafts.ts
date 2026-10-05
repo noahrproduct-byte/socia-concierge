@@ -108,7 +108,7 @@ export async function syncCommentDrafts(
   const fbPosts = fbConnected ? (fb!.posts ?? []).filter((p) => p.created_time).sort((a, b) => new Date(b.created_time!).getTime() - new Date(a.created_time!).getTime()).slice(0, POSTS_PER_PLATFORM) : [];
   const igMedia = igConnected ? (ig!.media ?? []).filter((m) => m.timestamp).sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime()).slice(0, POSTS_PER_PLATFORM) : [];
 
-  const none: CommentRead = { comments: [], postsChecked: 0, postsFailed: 0, problem: null };
+  const none: CommentRead = { comments: [], postsChecked: 0, postsFailed: 0, problem: null, returned: 0 };
   const [fbRead, igRead] = await Promise.all([
     fbPosts.length ? fetchFacebookComments(supabase, ownerId, fbPosts) : Promise.resolve(none),
     igMedia.length ? fetchInstagramComments(supabase, ownerId, igMedia) : Promise.resolve(none),
@@ -116,6 +116,17 @@ export async function syncCommentDrafts(
   const problems: SyncProblem[] = [];
   for (const [platform, r] of [["facebook", fbRead], ["instagram", igRead]] as const) {
     if (r.postsFailed > 0 && r.problem) problems.push({ platform, message: r.problem, postsChecked: r.postsChecked, postsFailed: r.postsFailed });
+  }
+  // Instagram says these posts have comments but returned none: the token
+  // most likely lacks comment access (Instagram can answer with an empty list).
+  const igExpected = igMedia.reduce((a, m) => a + (typeof m.comments_count === "number" ? m.comments_count : 0), 0);
+  if (!igRead.problem && igRead.postsChecked > 0 && igRead.returned === 0 && igExpected > 0) {
+    problems.push({
+      platform: "instagram",
+      message: `Instagram counts ${igExpected} comment${igExpected === 1 ? "" : "s"} on your ${igRead.postsChecked} most recent posts but returned none to SOCIA. Reconnect Instagram in Settings and allow comment access.`,
+      postsChecked: igRead.postsChecked,
+      postsFailed: igRead.postsChecked,
+    });
   }
   const fbComments: SocialComment[] = fbRead.comments;
   const igComments: SocialComment[] = igRead.comments;
