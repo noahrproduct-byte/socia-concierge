@@ -87,7 +87,7 @@ export default function AllPlatformsAnalytics({
         </div>
       </section>
 
-      <div className="ov-kpis" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+      <div className="ov-kpis three">
         <StatTile Icon={Users} tone="info" label="Total audience" value={data.combined.audience.value != null ? fmtNum(data.combined.audience.value) : "—"} note={data.combined.audience.note} status={data.combined.audience.value != null ? "ok" : "unavailable"} />
         <StatTile Icon={FileText} tone="primary" label="Content published" value={data.combined.contentPublished.value != null ? String(data.combined.contentPublished.value) : "—"} note={data.combined.contentPublished.note} status={data.combined.contentPublished.value != null ? "ok" : "unavailable"} />
         <StatTile Icon={Heart} tone="pink" label="Engagement" value={data.combined.engagement.value != null ? fmtNum(data.combined.engagement.value) : "—"} note={data.combined.engagement.note} status={data.combined.engagement.value != null ? "ok" : "unavailable"} />
