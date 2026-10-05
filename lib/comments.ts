@@ -56,6 +56,21 @@ async function readFbConn(supabase: Supa, userId: string): Promise<FbConn | null
   }
 }
 
+/** What one platform read produced: the comments, and how many posts could
+ *  not be read and why. A failed read is reported, never shown as "0 comments". */
+export type CommentRead = { comments: SocialComment[]; postsChecked: number; postsFailed: number; problem: string | null };
+
+/** A platform error as a sentence a person can act on. */
+async function readProblem(res: Response, platformName: string): Promise<string> {
+  const j = (await res.json().catch(() => null)) as { error?: { message?: string; code?: number } } | null;
+  const code = j?.error?.code;
+  if (code === 10 || code === 200 || code === 3 || res.status === 403) {
+    return `SOCIA doesn't have permission to read ${platformName} comments yet. Reconnect ${platformName} in Settings and allow comment access.`;
+  }
+  if (code === 190 || res.status === 401) return `The ${platformName} connection has expired. Reconnect it in Settings.`;
+  return j?.error?.message ? `${platformName} said: ${j.error.message}` : `${platformName} returned HTTP ${res.status}.`;
+}
+
 /** Top-level comments on the given Facebook posts (newest first), excluding
  *  the Page's own comments so SOCIA never drafts replies to itself. */
 export async function fetchFacebookComments(
@@ -63,12 +78,15 @@ export async function fetchFacebookComments(
   userId: string,
   posts: Array<{ id?: string; message?: string }>,
   perPost = 25,
-): Promise<SocialComment[]> {
+): Promise<CommentRead> {
   const conn = await readFbConn(supabase, userId);
-  if (!conn) return [];
+  if (!conn) return { comments: [], postsChecked: 0, postsFailed: 0, problem: "Facebook isn't connected in this workspace." };
   const out: SocialComment[] = [];
+  let checked = 0, failed = 0;
+  let problem: string | null = null;
   for (const p of posts) {
     if (!p.id) continue;
+    checked++;
     try {
       const u = new URL(`${FB_BASE}/${p.id}/comments`);
       u.searchParams.set("fields", "id,message,from{id,name},created_time,like_count");
@@ -77,7 +95,11 @@ export async function fetchFacebookComments(
       u.searchParams.set("limit", String(perPost));
       u.searchParams.set("access_token", conn.access_token);
       const res = await fetch(u, { signal: AbortSignal.timeout(TIMEOUT) });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        failed++;
+        problem ??= await readProblem(res, "Facebook");
+        continue;
+      }
       const j = (await res.json().catch(() => null)) as { data?: Array<Record<string, unknown>> } | null;
       for (const c of j?.data ?? []) {
         const from = c.from as { id?: string; name?: string } | undefined;
@@ -96,11 +118,13 @@ export async function fetchFacebookComments(
           likeCount: typeof c.like_count === "number" ? c.like_count : null,
         });
       }
-    } catch {
-      /* this post's comments stay absent — never guessed */
+    } catch (err) {
+      // this post's comments stay absent — never guessed — and the read is reported as failed
+      failed++;
+      problem ??= `Couldn't reach the platform: ${(err as Error).message}`;
     }
   }
-  return out;
+  return { comments: out, postsChecked: checked, postsFailed: failed, problem };
 }
 
 // ------------------------------------------------------------ instagram ----
@@ -120,19 +144,26 @@ export async function fetchInstagramComments(
   userId: string,
   media: Array<{ id?: string; caption?: string }>,
   perPost = 25,
-): Promise<SocialComment[]> {
+): Promise<CommentRead> {
   const conn = await readIgConn(supabase, userId);
-  if (!conn) return [];
+  if (!conn) return { comments: [], postsChecked: 0, postsFailed: 0, problem: "Instagram isn't connected in this workspace." };
   const out: SocialComment[] = [];
+  let checked = 0, failed = 0;
+  let problem: string | null = null;
   for (const m of media) {
     if (!m.id) continue;
+    checked++;
     try {
       const u = new URL(`${IG_BASE}/${m.id}/comments`);
       u.searchParams.set("fields", "id,text,username,timestamp,like_count,from{id,username}");
       u.searchParams.set("limit", String(perPost));
       u.searchParams.set("access_token", conn.access_token);
       const res = await fetch(u, { signal: AbortSignal.timeout(TIMEOUT) });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        failed++;
+        problem ??= await readProblem(res, "Instagram");
+        continue;
+      }
       const j = (await res.json().catch(() => null)) as { data?: Array<Record<string, unknown>> } | null;
       for (const c of j?.data ?? []) {
         const from = c.from as { id?: string; username?: string } | undefined;
@@ -152,11 +183,13 @@ export async function fetchInstagramComments(
           likeCount: typeof c.like_count === "number" ? c.like_count : null,
         });
       }
-    } catch {
-      /* this post's comments stay absent — never guessed */
+    } catch (err) {
+      // this post's comments stay absent — never guessed — and the read is reported as failed
+      failed++;
+      problem ??= `Couldn't reach the platform: ${(err as Error).message}`;
     }
   }
-  return out;
+  return { comments: out, postsChecked: checked, postsFailed: failed, problem };
 }
 
 // ---------------------------------------------------------------- reply ----
