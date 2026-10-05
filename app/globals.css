@@ -12259,3 +12259,56 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .usage-line { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
 .usage-line.near { color: var(--warning); }
 .usage-line.out { color: var(--danger); }
+
+/* ---------------------------------------------------------------------------
+   App shell on phones and small tablets. Must stay at the END of this file:
+   the "Shell v3" rules above set the sidebar column unconditionally and, being
+   later than the older 860px collapse, overrode it, so on a 375px screen the
+   sidebar stayed 224px wide and squeezed every page. Here the sidebar becomes
+   a sticky top strip (logo, workspace, scrollable section links, settings).
+   --------------------------------------------------------------------------- */
+@media (max-width: 860px) {
+  /* one column; the strip takes its own height and the page gets the rest
+     (otherwise a short page stretches the strip to fill the screen) */
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .side, .app-main { min-width: 0; max-width: 100%; }
+  .side {
+    position: sticky; top: 0; z-index: 40;
+    height: auto;
+    flex-direction: row; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border-right: none; border-bottom: 1px solid var(--sidebar-border);
+    overflow: visible;
+  }
+  .side-logo { margin: 0; padding: 0 4px; flex-shrink: 0; }
+  .ws-switch { width: auto; max-width: 140px; margin: 0; flex-shrink: 0; padding: 7px 9px; }
+  .side-nav { flex-direction: row; flex: 1; min-width: 0; overflow-x: auto; gap: 2px; padding: 2px; scrollbar-width: none; }
+  .side-nav::-webkit-scrollbar { display: none; }
+  .side-link { flex-shrink: 0; padding: 8px 10px; white-space: nowrap; }
+  .side-sec, .side-channels, .side-add, .side-upcard { display: none; }
+  .side-bottom { margin: 0; padding: 0; flex-direction: row; gap: 2px; flex-shrink: 0; }
+  /* Settings and Help keep their names for assistive tech but show icons only */
+  .side-bottom .side-link { padding: 8px; }
+  .side-bottom .side-link span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .tb { padding: 0 16px; gap: 10px; }
+  .tb-search { width: auto; flex: 1; min-width: 0; max-width: none; }
+  .tb-right { flex-shrink: 0; gap: 8px; }
+  .app-content { padding: 16px; }
+}
+@media (max-width: 560px) {
+  .side { flex-wrap: wrap; row-gap: 6px; }
+  .side-nav { order: 3; flex-basis: 100%; }
+  .side-word { display: none; }
+  .side-link { padding: 8px 9px; font-size: 12.5px; }
+  .ws-switch { max-width: none; flex: 1; }
+  /* Top bar: icon-only Ask SOCIA, no keyboard hint, no account text */
+  .tb { padding: 0 12px; gap: 8px; }
+  .tb-kbd { display: none; }
+  .tb-ask { padding: 0 10px; }
+  .tb-ask span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .acct-meta { display: none; }
+}
+@media (max-width: 860px) and (pointer: coarse) {
+  .side-bottom .side-link, .side-link { min-height: 40px; }
+  .side-bottom .side-link { min-width: 40px; justify-content: center; }
+}
