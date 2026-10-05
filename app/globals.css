@@ -10724,6 +10724,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 
 .ov-kpis { display: grid; gap: 14px; margin-bottom: 14px; }
 .ov-kpis.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ov-kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ov-kpi { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; min-height: 88px; }
 .ov-kpi.icon-left { flex-direction: row-reverse; justify-content: flex-end; align-items: center; }
 .ov-kpi-body { display: flex; flex-direction: column; min-width: 0; }
@@ -12311,4 +12312,18 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 @media (max-width: 860px) and (pointer: coarse) {
   .side-bottom .side-link, .side-link { min-height: 40px; }
   .side-bottom .side-link { min-width: 40px; justify-content: center; }
+}
+/* Page-level pieces that did not wrap on phones (found after the shell fix). */
+@media (max-width: 560px) {
+  /* page header actions (account, range, primary action) wrap under the title */
+  .dv-head-actions { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  /* chart card heads: title, metric tabs and range label stack; tabs scroll */
+  .ov-card-head { flex-wrap: wrap; row-gap: 8px; }
+  .ov-legend-tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .ov-legend-tabs::-webkit-scrollbar { display: none; }
+  .ov-legend-tabs button { flex-shrink: 0; }
+  /* reports: the custom date range takes its own line */
+  .rep-custom { flex-wrap: wrap; max-width: 100%; }
+  /* All Platforms: three KPI cards stack instead of squeezing to 100px each */
+  .ov-kpis.three { grid-template-columns: minmax(0, 1fr); }
 }
