@@ -8,6 +8,7 @@
 
 import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { activeWorkspaceId, workspacesEnabled } from "@/lib/workspaces";
 import { businessDiscovery, discoveryStats, IG_DISCOVERY_REASON, type IgDiscoveryReason } from "@/lib/igBusinessDiscovery";
 
 const FRESH_MS = 6 * 60 * 60 * 1000;
@@ -40,20 +41,32 @@ export type IgCompetitorResult = { enabled: boolean; reason?: string; competitor
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
 
+/**
+ * A connected Facebook Page with a linked Instagram business account, used to
+ * read OTHER accounts through Business Discovery. Since Brand Workspaces an
+ * owner can have one Page per workspace (a single-row read errored and
+ * competitor data silently disappeared): prefer the active workspace's Page,
+ * else any of the owner's connected Pages — Business Discovery reads public
+ * data about the competitor, so whichever of the owner's Pages asks, the
+ * answer is the same.
+ */
 export async function igConnection(supabase: Supa, userId: string): Promise<{ igUserId: string; pageToken: string } | null> {
+  type Row = { ig_business_id?: string | null; access_token?: string | null; connection_status?: string | null; workspace_id?: string | null };
+  const read = async (cols: string): Promise<Row[] | null> => {
+    const { data, error } = await supabase.from("facebook_connections").select(cols).eq("user_id", userId).limit(20);
+    return error ? null : ((data ?? []) as unknown as Row[]);
+  };
   try {
-    const { data } = await supabase
-      .from("facebook_connections")
-      .select("ig_business_id, access_token, connection_status")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (data?.connection_status === "connected" && data.ig_business_id && data.access_token) {
-      return { igUserId: data.ig_business_id, pageToken: data.access_token };
-    }
+    // workspace_id may not exist before the workspaces migration
+    const rows = (await read("ig_business_id, access_token, connection_status, workspace_id")) ?? (await read("ig_business_id, access_token, connection_status")) ?? [];
+    const usable = rows.filter((r) => r.connection_status === "connected" && r.ig_business_id && r.access_token);
+    if (!usable.length) return null;
+    const wsId = usable.length > 1 && (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+    const pick = usable.find((r) => wsId && r.workspace_id === wsId) ?? usable[0];
+    return { igUserId: pick.ig_business_id!, pageToken: pick.access_token! };
   } catch {
-    /* treated as not connected */
+    return null; // treated as not connected
   }
-  return null;
 }
 
 async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: string[], refresh = false): Promise<IgCompetitorResult> {
