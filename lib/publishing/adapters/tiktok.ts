@@ -213,8 +213,9 @@ async function resolve(ctx: PublishContext): Promise<{ r: Resolved } | { failure
   if (!canUpload(auth.scopes)) return { failure: fail(RECONNECT_MESSAGE, "needs_scope") };
   let username: string | null = null;
   try {
-    const { data } = await ctx.supabase.from("tiktok_connections").select("username").eq("user_id", ctx.userId).maybeSingle();
-    username = (data as { username?: string | null } | null)?.username ?? null;
+    // The account this post is for (one TikTok account per workspace, so a read by user alone can find several).
+    const { data } = await ctx.supabase.from("tiktok_connections").select("username").eq("user_id", ctx.userId).eq("open_id", ctx.destination.accountId).limit(1);
+    username = ((data ?? [])[0] as { username?: string | null } | undefined)?.username ?? null;
   } catch { /* cosmetic */ }
   return { r: { auth, username, direct: canPublishDirect(auth.scopes) } };
 }
