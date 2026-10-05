@@ -387,10 +387,15 @@ export function contactHref(subject: string): string {
 }
 
 /**
- * Whether a working checkout exists. Stripe is not wired yet, so this is false
- * and every paid CTA says so honestly instead of pretending to start a purchase.
- * Flip by configuring the billing provider; nothing else in the UI needs to change.
+ * Whether people can buy a plan. Needs Stripe configured AND the switch
+ * STRIPE_CHECKOUT_ENABLED=true, so keys can sit in the environment while the
+ * setup is finished. Off, every paid CTA honestly says "Contact us" and the
+ * checkout route refuses. The webhook does not depend on this: subscriptions
+ * that already exist keep syncing.
  */
 export function checkoutAvailable(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+  return (
+    process.env.STRIPE_CHECKOUT_ENABLED?.trim().toLowerCase() === "true" &&
+    Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET)
+  );
 }
