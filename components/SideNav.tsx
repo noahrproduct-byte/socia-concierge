@@ -7,7 +7,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, BarChart3, Radar, FileText, FileBarChart, Clapperboard, CalendarDays, PenSquare, Settings, Sparkles, type LucideIcon,
+  LayoutDashboard, BarChart3, Radar, FileText, FileBarChart, Clapperboard, CalendarDays, PenSquare, Settings, Sparkles, MessageSquare, type LucideIcon,
 } from "lucide-react";
 import { NAV, activeNavKey } from "@/lib/nav";
 
@@ -20,6 +20,7 @@ const ICONS: Record<string, LucideIcon> = {
   studio: Clapperboard,
   calendar: CalendarDays,
   create: PenSquare,
+  comments: MessageSquare,
   reports: FileBarChart,
 };
 

@@ -12,6 +12,8 @@ export const NAV: NavEntry[] = [
   { href: "/tool", label: "Content Plan", key: "tool" },
   { href: "/studio", label: "Content Studio", key: "studio" },
   { href: "/calendar", label: "Calendar", key: "calendar" },
+  // AI comment replies (Growth+): drafts a reply to every new comment for approval.
+  { href: "/comments", label: "Comments", key: "comments" },
   // The multi-platform composer.
   { href: "/create", label: "Create post", key: "create" },
   { href: "/reports", label: "Reports", key: "reports" },

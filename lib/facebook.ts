@@ -54,7 +54,12 @@ export const FB_GRAPH_V = "v23.0";
 //                            rather than failing, so requesting it is safe
 //                            before it's approved — the insights reader degrades
 //                            to "unavailable" when it isn't granted.
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "read_insights", "instagram_basic", "business_management"].join(",");
+//   pages_manage_engagement -> reply to (and moderate) comments on the Page's
+//                            posts as the Page — the AI comment-replies feature
+//                            (Growth+; every reply is approved by a person
+//                            before it's sent). Advanced Access for public
+//                            users; admins/testers in Dev Mode now.
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "pages_manage_engagement", "read_insights", "instagram_basic", "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

@@ -53,6 +53,7 @@ export async function updateSession(request: NextRequest) {
     "/calendar",
     "/reports",
     "/settings",
+    "/comments",
   ];
   if (!user && protectedPaths.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
