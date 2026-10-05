@@ -10,7 +10,7 @@
 // next sync. Server only (uses the Anthropic SDK).
 
 import { anthropic, MODEL } from "./anthropic";
-import { fetchFacebookComments, fetchInstagramComments, replyToComment, type CommentPlatform, type SocialComment } from "./comments";
+import { fetchFacebookComments, fetchInstagramComments, replyToComment, type CommentPlatform, type CommentRead, type SocialComment } from "./comments";
 import { getFbSnapshot } from "./facebookSync";
 import { getIgSnapshot } from "./instagramSync";
 
@@ -86,7 +86,9 @@ Comment: ${comment.text.slice(0, 600)}`;
   }
 }
 
-export type SyncResult = { scanned: number; newComments: number; drafted: number; capped: boolean; facebook: boolean; instagram: boolean };
+/** A platform whose comments could not (all) be read: the inbox says so instead of "all caught up". */
+export type SyncProblem = { platform: CommentPlatform; message: string; postsChecked: number; postsFailed: number };
+export type SyncResult = { scanned: number; newComments: number; drafted: number; capped: boolean; facebook: boolean; instagram: boolean; problems: SyncProblem[] };
 
 /** Read new comments across the workspace's connected platforms and draft
  *  replies for the ones SOCIA hasn't stored yet. */
@@ -106,10 +108,17 @@ export async function syncCommentDrafts(
   const fbPosts = fbConnected ? (fb!.posts ?? []).filter((p) => p.created_time).sort((a, b) => new Date(b.created_time!).getTime() - new Date(a.created_time!).getTime()).slice(0, POSTS_PER_PLATFORM) : [];
   const igMedia = igConnected ? (ig!.media ?? []).filter((m) => m.timestamp).sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime()).slice(0, POSTS_PER_PLATFORM) : [];
 
-  const [fbComments, igComments] = await Promise.all([
-    fbPosts.length ? fetchFacebookComments(supabase, ownerId, fbPosts) : Promise.resolve([] as SocialComment[]),
-    igMedia.length ? fetchInstagramComments(supabase, ownerId, igMedia) : Promise.resolve([] as SocialComment[]),
+  const none: CommentRead = { comments: [], postsChecked: 0, postsFailed: 0, problem: null };
+  const [fbRead, igRead] = await Promise.all([
+    fbPosts.length ? fetchFacebookComments(supabase, ownerId, fbPosts) : Promise.resolve(none),
+    igMedia.length ? fetchInstagramComments(supabase, ownerId, igMedia) : Promise.resolve(none),
   ]);
+  const problems: SyncProblem[] = [];
+  for (const [platform, r] of [["facebook", fbRead], ["instagram", igRead]] as const) {
+    if (r.postsFailed > 0 && r.problem) problems.push({ platform, message: r.problem, postsChecked: r.postsChecked, postsFailed: r.postsFailed });
+  }
+  const fbComments: SocialComment[] = fbRead.comments;
+  const igComments: SocialComment[] = igRead.comments;
   const all = [...fbComments, ...igComments].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
 
   // Which of these have we already stored?
@@ -143,7 +152,7 @@ export async function syncCommentDrafts(
     const { error } = await supabase.from("comment_drafts").upsert(row, { onConflict: "user_id,platform,comment_id", ignoreDuplicates: true });
     if (!error) drafted++;
   }
-  return { scanned: all.length, newComments: fresh.length, drafted, capped: fresh.length > toDraft.length, facebook: fbConnected, instagram: igConnected };
+  return { scanned: all.length, newComments: fresh.length, drafted, capped: fresh.length > toDraft.length, facebook: fbConnected, instagram: igConnected, problems };
 }
 
 /** The inbox: drafted first (newest comment first), then recent history. */

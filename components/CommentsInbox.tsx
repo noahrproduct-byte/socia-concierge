@@ -11,7 +11,9 @@ import { platformMark } from "./platformMarks";
 import type { CommentDraft } from "@/lib/commentDrafts";
 import "./comments.css";
 
-type SyncInfo = { scanned: number; newComments: number; drafted: number; capped: boolean; facebook: boolean; instagram: boolean };
+import type { SyncProblem } from "@/lib/commentDrafts";
+
+type SyncInfo = { scanned: number; newComments: number; drafted: number; capped: boolean; facebook: boolean; instagram: boolean; problems: SyncProblem[] };
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
 
@@ -36,7 +38,7 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
       const res = await fetch("/api/comments/sync", { method: "POST" });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "Couldn't check for comments.");
-      setSyncInfo({ scanned: j.scanned, newComments: j.newComments, drafted: j.drafted, capped: j.capped, facebook: j.facebook, instagram: j.instagram });
+      setSyncInfo({ scanned: j.scanned, newComments: j.newComments, drafted: j.drafted, capped: j.capped, facebook: j.facebook, instagram: j.instagram, problems: Array.isArray(j.problems) ? j.problems : [] });
       if (Array.isArray(j.drafts)) setItems(j.drafts);
     } catch (e) {
       setSyncErr(e instanceof Error ? e.message : "Couldn't check for comments.");
@@ -74,7 +76,7 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
     <div className="cm">
       <div className="cm-bar">
         <div className="cm-bar-meta">
-          {open.length ? <><b>{open.length}</b> waiting for your approval</> : "Nothing waiting — you're all caught up."}
+          {open.length ? <><b>{open.length}</b> waiting for your approval</> : syncInfo?.problems.length ? "Nothing waiting, but some comments couldn't be read." : "Nothing waiting — you're all caught up."}
           {syncInfo && <> · checked {syncInfo.scanned} comment{syncInfo.scanned === 1 ? "" : "s"}, {syncInfo.newComments} new{syncInfo.capped ? " (drafting the rest on the next check)" : ""}</>}
         </div>
         <button type="button" className="cm-sync" onClick={sync} disabled={syncing || noPlatforms} title={noPlatforms ? "Connect Facebook or Instagram first" : ""}>
@@ -82,6 +84,12 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
         </button>
       </div>
       {syncErr && <p className="cm-err" role="alert"><AlertCircle size={13} /> {syncErr}</p>}
+      {syncInfo?.problems.map((p) => (
+        <p key={p.platform} className="cm-err" role="alert">
+          <AlertCircle size={13} /> {p.message}
+          {p.postsFailed < p.postsChecked ? ` (${p.postsFailed} of ${p.postsChecked} posts couldn't be read.)` : ""}
+        </p>
+      ))}
       {noPlatforms && <div className="ov-empty"><b>Connect a platform to start</b><p>Comment replies work on your connected Facebook Page and Instagram account. Connect one in Settings → Connected accounts.</p></div>}
 
       {open.length > 0 && (
