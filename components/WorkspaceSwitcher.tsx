@@ -11,7 +11,9 @@
 // workspace, which takes a second or two; a refresh shows no route skeleton.
 // So the switcher shows the new name at once, keeps a spinner and marks the
 // document (lib/workspaceSwitching.ts → dimmed content + "Switching to …")
-// until the refreshed tree has actually rendered, then re-reads the list.
+// until the refreshed tree has actually rendered. AppShell keys the whole
+// shell by workspace id, so that render remounts every client component with
+// the new workspace's data (a plain refresh would keep their old state).
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -25,35 +27,36 @@ import { markSwitching } from "@/lib/workspaceSwitching";
 type WS = { id: string; name: string; isDefault: boolean; suspended: boolean; active: boolean; role?: "owner" | "admin" | "member" };
 type Data = { enabled: boolean; workspaces?: WS[]; activeId?: string | null; canCreate?: boolean; limit?: number; used?: number };
 
-export default function WorkspaceSwitcher() {
+/**
+ * `initial` is the server-resolved active workspace (AppShell): the trigger
+ * renders with the right name at once, and the full list follows from
+ * /api/workspaces. The shell is keyed by workspace id, so after a successful
+ * switch this component remounts with the new `initial` — which is also what
+ * clears the switching state (see the unmount cleanup).
+ */
+export default function WorkspaceSwitcher({ initial }: { initial?: { id: string; name: string } | null }) {
   const router = useRouter();
-  const [data, setData] = useState<Data | null>(null);
+  const [data, setData] = useState<Data | null>(() =>
+    initial ? { enabled: true, activeId: initial.id, workspaces: [{ id: initial.id, name: initial.name, isDefault: false, suspended: false, active: true }] } : null,
+  );
   const [switching, setSwitching] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const saving = useRef(false);
-  const resyncAfter = useRef(false);
-
-  const load = () =>
-    fetch("/api/workspaces")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: Data | null) => j && setData(j))
-      .catch(() => null);
 
   useEffect(() => {
     let alive = true;
     fetch("/api/workspaces")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: Data | null) => alive && setData(j))
-      .catch(() => alive && setData({ enabled: false }));
+      .then((j: Data | null) => alive && j && setData(j))
+      .catch(() => alive && !initial && setData({ enabled: false }));
     return () => { alive = false; markSwitching(null); };
-  }, []);
+  }, [initial]);
 
-  // The refresh has rendered (or never started): clear the switching state
-  // and read the list back from the server so it reflects what really happened.
+  // The refresh rendered without remounting us (nothing changed), or never
+  // started: clear the switching state.
   useEffect(() => {
     if (isPending || saving.current) return;
     markSwitching(null);
-    if (resyncAfter.current) { resyncAfter.current = false; void load(); }
   }, [isPending]);
 
   if (!data?.enabled || !data.workspaces?.length) return null;
@@ -76,7 +79,6 @@ export default function WorkspaceSwitcher() {
         body: JSON.stringify({ active: true }),
       });
       if (!res.ok) { setData(previous); markSwitching(null); return; }
-      resyncAfter.current = true;
       startTransition(() => { router.refresh(); });
     } catch {
       setData(previous);
