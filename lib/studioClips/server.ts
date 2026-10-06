@@ -12,6 +12,7 @@ import { checkClipFits, projectTotals, ownerStorageBytes, expiryFor, type FitRes
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
 import { MAX_REGENERATIONS } from "./types";
+import { audioLine } from "@/lib/audio/server";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -330,7 +331,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const pool = directive === "different_clips" ? rows.filter((r) => r.card && !r.purged_at) : rows.filter((r) => opp.clipIds.includes(r.id));
   const ordered = [...pool.filter((r) => opp.clipIds.includes(r.id)), ...pool.filter((r) => !opp.clipIds.includes(r.id))];
   const urls = await frameUrls(client, ordered);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), acct, { directive, previous: row.edl });
+  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl });
   const forEdl = rows.map(toClipForEdl);
   const { edl } = validateEdl(raw, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
@@ -359,7 +360,7 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   const rows = await clipRows(client, project.id);
   const used = rows.filter((r) => opp.clipIds.includes(r.id));
   const urls = await frameUrls(client, used);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(used, urls), acct);
+  const { raw, model } = await opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) });
   const forEdl = used.map(toClipForEdl);
   const { edl } = validateEdl(raw, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from these clips.");

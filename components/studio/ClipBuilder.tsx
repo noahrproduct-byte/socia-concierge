@@ -9,12 +9,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Player } from "@remotion/player";
-import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Type } from "lucide-react";
+import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Type, Music } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
+import AudioPanel from "./AudioPanel";
 import { timeline, secToFrames } from "@/lib/studioClips/timeline";
 import { clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
 
@@ -39,7 +40,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  const [panel, setPanel] = useState<"cut" | "text" | "regenerate">("cut");
+  const [panel, setPanel] = useState<"cut" | "text" | "audio" | "regenerate">("cut");
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -249,8 +250,20 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
           <div className="st-tabs cbb-tabs" role="tablist">
             <button type="button" role="tab" className={panel === "cut" ? "on" : ""} onClick={() => setPanel("cut")}>Cut</button>
             <button type="button" role="tab" className={panel === "text" ? "on" : ""} onClick={() => setPanel("text")}>Text &amp; captions</button>
+            <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Audio</button>
             <button type="button" role="tab" className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>
           </div>
+
+          {panel === "audio" && (
+            <div className="cbb-audio">
+              <div className="ov-card cba-current">
+                <b><Music size={14} /> Music line in this cut</b>
+                <p>{edl.music ?? "No music recommendation in this cut."}</p>
+                <small>SOCIA never adds a track to the file. Add music from Instagram's library when you post, or bake in a track you have the rights to.</small>
+              </div>
+              <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
+            </div>
+          )}
 
           {panel === "cut" && (
             <ol className="cbb-segs">
