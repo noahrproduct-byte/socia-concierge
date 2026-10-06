@@ -677,7 +677,7 @@ export function audienceInsight(posts: (CalPost & { id?: string; format?: string
 // --------------------------------------------------------- plan & goals ----
 
 export type FocusTile = { icon: "video" | "map" | "users" | "target"; label: string; title: string; detail: string };
-export type Focus = { planId: string; headline: string; tiles: FocusTile[]; createdAt: string };
+export type Focus = { planId: string; headline: string; tiles: FocusTile[]; createdAt: string; /** What became of this plan so far ("2 of 4 posted · best: Friday at 2.1× your median"), or null before anything reached the Calendar. */ outcomeLine?: string | null };
 
 export function buildFocus(plan: { id: string; data: Deliverable; created_at: string } | null): Focus | null {
   if (!plan?.data?.topFixes?.length) return null;

@@ -1,3 +1,6 @@
+import { loadPlanOutcomes } from "@/lib/planOutcomesLoad";
+import { summaryOf, type PlanOutcomeSummary } from "@/lib/planOutcomes";
+import type { Deliverable } from "@/lib/schema";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
@@ -28,7 +31,17 @@ export async function GET() {
       .limit(30);
 
     if (error) return NextResponse.json({ plans: [] });
-    return NextResponse.json({ plans: data ?? [] });
+    const plans = (data ?? []) as Array<{ id: string; data: Deliverable; created_at: string }>;
+    // What became of each plan (on the Calendar, published, measured). Best
+    // effort: the list still renders if the outcome read fails.
+    let outcomes: PlanOutcomeSummary[] = [];
+    try {
+      const map = await loadPlanOutcomes(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, plans);
+      outcomes = [...map.values()].map(summaryOf);
+    } catch {
+      outcomes = [];
+    }
+    return NextResponse.json({ plans, outcomes });
   } catch {
     // table may not exist yet — return empty history rather than erroring
     return NextResponse.json({ plans: [] });
