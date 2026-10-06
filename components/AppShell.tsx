@@ -67,6 +67,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
   let alerts: AlertItem[] = [];
   let unreadAlerts = 0;
   let userEmail: string | null = null;
+  let activeWs: { id: string; name: string } | null = null;
   try {
     const { supabase, user } = await getViewer();
     if (user) {
@@ -75,6 +76,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
       // activity and posts when the viewer is an invited team member). Theme and
       // the plan behind the "Upgrade to …" card are the viewer's own.
       const ctx = await resolveContext(supabase, user.id);
+      activeWs = ctx.workspace ? { id: ctx.workspace.id, name: ctx.workspace.name } : null;
       const [conn, fbRes, platRes, appRes, entRes, schedRes, plansRes, ytRes] = await Promise.all([
         getActiveConnection(ctx.client, ctx.ownerId, "username, media, last_synced_at", ctx.workspace?.id ?? null),
         // Connections are one per workspace: read the active workspace's row, not "the" row for the owner.
@@ -135,7 +137,12 @@ export default async function AppShell({ children }: { children: React.ReactNode
   ];
 
   return (
-    <div className="app">
+    // Keyed by the active Brand Workspace: when a switch refreshes the tree,
+    // every client component below — pages that seed state from their props,
+    // the account switcher and alerts bell that fetch on mount — remounts and
+    // reads the new workspace instead of keeping the old one's state. The key
+    // only changes on a switch, so ordinary navigation keeps the shell mounted.
+    <div className="app" key={activeWs?.id ?? "default"}>
       <ThemeSync appearance={appearance} />
       <aside className="side">
         <Link href="/dashboard" className="side-logo">
@@ -143,7 +150,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
           <span className="side-word">SOCIA</span>
         </Link>
 
-        <WorkspaceSwitcher />
+        <WorkspaceSwitcher initial={activeWs} />
 
         <SideNav />
 
