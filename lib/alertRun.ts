@@ -15,9 +15,10 @@ import { formatOf } from "./overview";
 import { interactionsTotal } from "./engagement";
 import type { IgMediaItem } from "./instagramSync";
 import {
-  detectBreakouts, detectPerformanceChange, detectCompetitorMoves, detectNicheTrends, detectFormatGap,
-  isoWeekKey, type AlertCandidate, type BreakoutPost, type CompetitorSeries,
+  detectBreakouts, detectPerformanceChange, detectCompetitorMoves, detectNicheTrends, detectFormatGap, detectPlanResults,
+  isoWeekKey, type AlertCandidate, type BreakoutPost, type CompetitorSeries, type PlanResultItem,
 } from "./alertDetectors";
+import { recentPlanOutcomes } from "./planOutcomesLoad";
 import { recordAlerts, alertsEnabled } from "./alerts";
 import { getEntitlements, canUseFeature, type Entitlements } from "./entitlements";
 import { competitorScopeId, competitorsScopedEnabled } from "./workspaces";
@@ -118,6 +119,26 @@ async function competitorMovesFor(svc: Supa, userId: string, workspaceId: string
       if (comps.length) out.push(...detectCompetitorMoves({ platform, competitors: comps, weekKey }));
     }
     return out;
+  } catch {
+    return [];
+  }
+}
+
+/** Settled results of planned posts (plan -> Calendar -> published -> measured), from the last two plans. */
+async function planResultsFor(svc: Supa, userId: string, workspaceId: string | null, now: Date): Promise<AlertCandidate[]> {
+  try {
+    const outcomes = await recentPlanOutcomes(svc, userId, workspaceId, 2, now);
+    const items: PlanResultItem[] = [];
+    for (const o of outcomes) {
+      for (const it of o.items) {
+        if (it.state !== "published" || !it.result) continue;
+        items.push({
+          planId: o.planId, index: it.index, day: it.day, concept: it.concept, format: it.format, platform: it.result.platform,
+          multiplier: it.result.multiplier, measured: it.result.measured, early: it.result.early, short: it.result.short, text: it.result.text, permalink: it.permalink,
+        });
+      }
+    }
+    return detectPlanResults(items);
   } catch {
     return [];
   }
@@ -263,6 +284,7 @@ async function runWorkspacePhase2(
       const candidates: AlertCandidate[] = [];
       if (canUseFeature(ent, "competitor_alerts")) candidates.push(...(await competitorMovesFor(svc, u.userId, u.workspaceId, now)));
       candidates.push(...(await nicheSignalsFor(svc, u.userId, u.workspaceId, ent, u.media, now)));
+      candidates.push(...(await planResultsFor(svc, u.userId, u.workspaceId, now)));
       if (!candidates.length) continue;
       // Namespace the fingerprint by workspace so the same competitor, tag or
       // format alerts each brand independently (dedup is per user + fingerprint).

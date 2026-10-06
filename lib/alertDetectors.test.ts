@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   detectBreakouts, detectPerformanceChange, detectCompetitorMoves, detectNicheTrends, detectFormatGap,
   formatBucket, median, isoWeekKey,
+  detectPlanResults, planReadyAlert, type PlanResultItem,
 } from "./alertDetectors";
 
 const DAY = 86400000;
@@ -190,5 +191,34 @@ describe("detectFormatGap", () => {
       nicheWinnerFormats: ["short", "reel", "video", "short"],
       userFormats: ["Reel", "Reel", "Reel", "Carousel", "Reel", "Image"], // already mostly video
     })).toBeNull();
+  });
+});
+
+describe("detectPlanResults", () => {
+  const item = (over: Partial<PlanResultItem>): PlanResultItem => ({
+    planId: "p1", index: 0, day: "Monday", concept: "Behind the oven", format: "Reel", platform: "instagram",
+    multiplier: 2.1, measured: true, early: false, short: "2.1× your median", text: "2.1× your typical Instagram post.", permalink: "https://ig/x", ...over,
+  });
+
+  it("alerts once per settled planned post, with the verdict in the title", () => {
+    const out = detectPlanResults([item({}), item({ index: 1, day: "Friday", multiplier: 0.6, short: "0.6× your median" }), item({ index: 2, multiplier: 1.0 })]);
+    expect(out.map((a) => a.severity)).toEqual(["good", "warning", "info"]);
+    expect(out[0].title).toBe("Monday's planned Reel did 2.1× your median");
+    expect(out[1].title).toBe("Friday's planned Reel did 0.6× your median");
+    expect(out[2].title).toMatch(/landed about on your median/);
+    expect(out[0].fingerprint).toBe("plan_result:p1:0");
+    expect(out[0].entityRef).toBe("https://ig/x");
+    expect(out[0].body).toMatch(/Planned as: "Behind the oven"/);
+  });
+
+  it("waits for unreported and early results", () => {
+    expect(detectPlanResults([item({ measured: false }), item({ early: true })])).toEqual([]);
+  });
+
+  it("announces a generated plan once", () => {
+    const a = planReadyAlert({ id: "p9", headline: "Lean into Reels.", posts: 5, weekLabel: "Oct 6" });
+    expect(a.fingerprint).toBe("plan_ready:p9");
+    expect(a.title).toBe("Your plan for the week of Oct 6 is ready");
+    expect(a.entityRef).toBe("/tool");
   });
 });

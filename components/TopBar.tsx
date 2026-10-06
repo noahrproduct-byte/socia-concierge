@@ -22,6 +22,8 @@ const ALERT_ICON: Record<string, typeof Zap> = {
   competitor_move: Users,
   trend: Flame,
   opportunity: Lightbulb,
+  plan_result: CheckCircle2,
+  plan_ready: FileText,
 };
 
 export default function TopBar({ email, plan, index, activity, alerts = [], unread = 0 }: { email?: string | null; plan: PlanId; index: SearchItem[]; activity: Activity[]; alerts?: AlertItem[]; unread?: number }) {
