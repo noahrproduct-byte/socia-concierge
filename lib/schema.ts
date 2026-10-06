@@ -149,6 +149,8 @@ export type EvidenceUsed = {
   winning: number;
   windows: boolean;
   followers: number | null;
+  /** Planned posts from earlier plans whose outcome (posted / skipped / result vs median) the strategist was shown. Absent on plans made before outcomes existed. */
+  outcomes?: number;
 };
 
 // A plan saved to the database (one row in the `plans` table).

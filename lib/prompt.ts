@@ -86,6 +86,14 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     );
   }
 
+  if (evidence?.outcomesBlock) {
+    parts.push(`\n# What happened to the last plan`);
+    parts.push(evidence.outcomesBlock);
+    parts.push(
+      `Use this. Keep and build on what beat the median (same format and hook structure, a new angle). Change what fell short: a different format, hook or topic, and say what you changed. A planned post that was never made is a signal about effort, not about the idea: re-propose it at most once, simplified so it is easier to film, and only if it still fits the goal. For every post in the new plan whose idea follows from a previous result, say so in its evidence field (for example "Follows last week's Friday Reel, which did 2.1× the median").`,
+    );
+  }
+
   parts.push(
     `\n# Task\nProduce the full deliverable: a health score with a one-line diagnosis, an honest audit, the account's strengths, its concrete problems (with the evidence and the impact of each), the top 3 fixes ranked by expected impact, competitor insights with the specific gap this account should close, and a 5-7 post plan for the coming week where each post has a written hook and cites its evidence.`,
   );

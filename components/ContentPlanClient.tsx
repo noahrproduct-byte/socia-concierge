@@ -688,6 +688,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
             <b>{ev.competitors > 0 ? `${ev.competitors} competitor${ev.competitors === 1 ? "" : "s"}` : "no competitors on file"}</b>
             <b>{ev.winning > 0 ? `${ev.winning} winning videos` : "no winning content"}</b>
             <b>{ev.windows ? "your audience windows" : "no timing data"}</b>
+            {ev.outcomes != null && ev.outcomes > 0 && <b>{`what became of ${ev.outcomes} planned post${ev.outcomes === 1 ? "" : "s"}`}</b>}
           </>
         ) : (
           <span>Built from the brief you typed. No account data was attached to this plan.</span>

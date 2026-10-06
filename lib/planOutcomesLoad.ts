@@ -126,3 +126,21 @@ export async function loadPlanOutcomes(supabase: Supa, ownerId: string, workspac
 export async function loadPlanOutcome(supabase: Supa, ownerId: string, workspaceId: string | null, plan: PlanRow, now: Date = new Date()): Promise<PlanOutcome> {
   return (await loadPlanOutcomes(supabase, ownerId, workspaceId, [plan], now)).get(plan.id)!;
 }
+
+
+/** The owner's most recent plans in this workspace with their outcomes, newest first. */
+export async function recentPlanOutcomes(supabase: Supa, ownerId: string, workspaceId: string | null, limit = 2, now: Date = new Date()): Promise<PlanOutcome[]> {
+  let plans: PlanRow[] = [];
+  try {
+    let q = supabase.from("plans").select("id, data, created_at").eq("user_id", ownerId);
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    plans = (data ?? []) as PlanRow[];
+  } catch {
+    // plans table or workspace_id column may be missing: no outcomes to learn from
+    return [];
+  }
+  const map = await loadPlanOutcomes(supabase, ownerId, workspaceId, plans, now);
+  return plans.map((p) => map.get(p.id)!).filter(Boolean);
+}
