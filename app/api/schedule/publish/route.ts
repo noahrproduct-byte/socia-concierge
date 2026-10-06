@@ -10,6 +10,7 @@ import { runFacebookDailySnapshots, type PlatformSnapshotRun } from "@/lib/platf
 import { runYouTubeDailySnapshots } from "@/lib/youtubeSnapshots";
 import { runAlertDetection, type AlertRun } from "@/lib/alertRun";
 import { recordCompetitorSnapshots, type CompetitorRun } from "@/lib/competitorHistory";
+import { refreshStaleSnapshots, type SnapshotRefreshRun } from "@/lib/snapshotRefresh";
 import { getEntitlements, checkFeature, type Entitlements } from "@/lib/entitlements";
 import { requireFeature } from "@/lib/planGuard";
 import { parentsWithDestinations } from "@/lib/publishing/db";
@@ -345,5 +346,11 @@ async function run(req: Request) {
   if (Date.now() < deadline - 4_000) {
     try { competitors = await recordCompetitorSnapshots(svc, now, Math.max(2_000, deadline - Date.now() - 2_000)); } catch { competitors = null; }
   }
-  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots, fbSnapshots, ytSnapshots, alerts, competitors });
+  // Last, with whatever time remains: re-sync the oldest stale Instagram
+  // snapshots so switching into a workspace never waits on Instagram.
+  let refreshed: SnapshotRefreshRun | null = null;
+  if (Date.now() < deadline - 15_000) {
+    try { refreshed = await refreshStaleSnapshots(svc, now, deadline - Date.now() - 2_000); } catch { refreshed = null; }
+  }
+  return NextResponse.json({ ran_at: now.toISOString(), considered, published, results, destinations, snapshots, fbSnapshots, ytSnapshots, alerts, competitors, refreshed });
 }

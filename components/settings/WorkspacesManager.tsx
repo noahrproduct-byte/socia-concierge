@@ -5,9 +5,10 @@
 // inside it, so it asks first. Enforcement is server-side (/api/workspaces);
 // this is the management surface.
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Check, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { markSwitching } from "@/lib/workspaceSwitching";
 
 export type WorkspaceRow = { id: string; name: string; isDefault: boolean; suspended: boolean; active: boolean };
 
@@ -25,6 +26,12 @@ export default function WorkspacesManager({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Switching re-renders the whole tree; the document is marked (dimmed
+  // content, "Switching to …") until the refreshed tree has rendered.
+  const [isPending, startTransition] = useTransition();
+  const saving = useRef(false);
+  useEffect(() => { if (!isPending && !saving.current) markSwitching(null); }, [isPending]);
+  useEffect(() => () => markSwitching(null), []);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
@@ -69,11 +76,14 @@ export default function WorkspacesManager({
       // the workspace exists even if the switch call fails.
       const { id } = (await res.json().catch(() => ({}))) as { id?: string };
       if (id) {
+        saving.current = true;
+        markSwitching(name);
         await fetch(`/api/workspaces/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ active: true }) }).catch(() => null);
+        saving.current = false;
       }
       setNewName("");
       setCreating(false);
-      router.refresh();
+      startTransition(() => { router.refresh(); });
     } catch {
       setErr("That didn't work. Please try again.");
     } finally {
@@ -89,8 +99,27 @@ export default function WorkspacesManager({
     }
   }
 
-  async function switchTo(id: string) {
-    await call(`/api/workspaces/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ active: true }) }, `switch:${id}`);
+  async function switchTo(w: WorkspaceRow) {
+    saving.current = true;
+    markSwitching(w.name);
+    setBusy(`switch:${w.id}`);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/workspaces/${w.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ active: true }) });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        setErr(j?.error ?? "That didn't work. Please try again.");
+        markSwitching(null);
+        return;
+      }
+      startTransition(() => { router.refresh(); });
+    } catch {
+      setErr("That didn't work. Please try again.");
+      markSwitching(null);
+    } finally {
+      saving.current = false;
+      setBusy(null);
+    }
   }
 
   async function remove(w: WorkspaceRow) {
@@ -138,8 +167,8 @@ export default function WorkspacesManager({
               ) : (
                 <>
                   {!w.active && !w.suspended && (
-                    <button type="button" className="btn-secondary sm" onClick={() => switchTo(w.id)} disabled={busy === `switch:${w.id}`}>
-                      {busy === `switch:${w.id}` ? <Loader2 size={13} className="acsw-spin" /> : <><Check size={13} /> Use</>}
+                    <button type="button" className="btn-secondary sm" onClick={() => switchTo(w)} disabled={busy === `switch:${w.id}` || isPending}>
+                      {busy === `switch:${w.id}` || (isPending && !busy) ? <Loader2 size={13} className="acsw-spin" /> : <><Check size={13} /> Use</>}
                     </button>
                   )}
                   <button type="button" className="ws-mgr-btn" title="Rename" aria-label="Rename" onClick={() => { setEditing(w.id); setEditName(w.name); }}>

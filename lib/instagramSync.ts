@@ -5,6 +5,7 @@
 // is still returned in-memory so pages render real data either way.
 
 import { timedFn } from "@/lib/timing";
+import { scheduleBackground, onceEvery } from "@/lib/background";
 import { hasSnapshot, writeDailySnapshot } from "./snapshotJob";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -557,12 +558,26 @@ async function getIgSnapshotImpl(supabase: Supa, userId: string, workspaceId?: s
 
   const stale =
     !row.last_synced_at || Date.now() - new Date(row.last_synced_at).getTime() > STALE_MS;
+  const neverSynced = !row.profile && row.followers_count == null;
   if (stale) {
-    const fresh = await syncInstagram(supabase, userId, workspaceId);
-    if (fresh) return fresh;
+    // A page already has a snapshot to render: serve it and refresh after the
+    // response (its "updated … ago" stays truthful). Only a connection that
+    // has never synced, or a caller with no request to defer to (jobs),
+    // waits for Instagram here.
+    if (neverSynced) {
+      const fresh = await syncInstagram(supabase, userId, workspaceId);
+      if (fresh) return fresh;
+    } else if (onceEvery(`ig-sync:${userId}:${row.ig_user_id ?? ""}`, 60_000)) {
+      if (!scheduleBackground("syncInstagram", () => syncInstagram(supabase, userId, workspaceId))) {
+        const fresh = await syncInstagram(supabase, userId, workspaceId);
+        if (fresh) return fresh;
+      }
+    }
+    // else: another render within the last minute already refreshed (or is
+    // refreshing) this account; the cached snapshot is what there is.
   }
 
-  if (!row.profile && row.followers_count == null) return null; // never synced successfully
+  if (neverSynced) return null; // never synced successfully
 
   await recordSnapshot(supabase, userId, row.ig_user_id ?? null, row.followers_count ?? null, {
     follows: ((row.profile as Record<string, unknown> | null)?.follows_count as number | undefined) ?? null,
