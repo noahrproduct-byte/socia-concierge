@@ -12,6 +12,7 @@ import type { CollaboratorsCheck, InstagramFormat, InstagramSettings, MediaItem 
 import { IG_USERNAME_RE, MAX_COLLABORATORS, normalizeUsername } from "@/lib/publishing/igRules";
 import { fmtDuration, posterFrame, type MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
 import type { ComposerAction } from "../contracts";
+import UsernameInput from "./UsernameInput";
 
 /** The formats the capability model lists for Instagram, in its order; only implemented ones get a radio. */
 const FORMATS = CAPABILITIES.instagram.formats.filter((f) => f.implemented);
@@ -41,7 +42,6 @@ export default function InstagramSettingsForm({
   const video = media.find((m) => m.kind === "video") ?? null;
   const firstImage = media.find((m) => m.kind === "image") ?? null;
   const altMax = CAPABILITIES.instagram.fields.altText?.max ?? 1000;
-  const [tagInput, setTagInput] = useState("");
 
   return (
     <div className="cp-form" data-dest={dest.key}>
@@ -99,18 +99,15 @@ export default function InstagramSettingsForm({
               <button type="button" aria-label={`Remove ${t.username}`} onClick={() => set({ userTags: s.userTags.filter((_, n) => n !== i) })}><X size={11} /></button>
             </span>
           ))}
-          <input
-            className="cp-chip-input"
-            value={tagInput}
-            placeholder="username, then Enter"
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter" && e.key !== ",") return;
-              e.preventDefault();
-              const u = tagInput.trim().replace(/^@/, "");
-              if (!u || s.userTags.some((t) => t.username === u)) { setTagInput(""); return; }
+          <UsernameInput
+            accountId={dest.accountId}
+            exclude={s.userTags.map((t) => t.username)}
+            onAdd={(raw) => {
+              const u = normalizeUsername(raw);
+              if (!IG_USERNAME_RE.test(u)) return "invalid";
+              if (s.userTags.some((t) => normalizeUsername(t.username) === u)) return null;
               set({ userTags: [...s.userTags, { username: u }] });
-              setTagInput("");
+              return null;
             }}
           />
         </div>
@@ -146,7 +143,6 @@ const sortedList = (list: string[]) => Array.from(new Set(list.map(normalizeUser
 function CollaboratorsField({ accountId, settings, onChange }: { accountId: string; settings: InstagramSettings; onChange: (patch: Partial<InstagramSettings>) => void }) {
   const list = settings.collaborators ?? [];
   const check = settings.collaboratorsCheck ?? null;
-  const [input, setInput] = useState("");
   const [checking, setChecking] = useState(false);
   const [inputErr, setInputErr] = useState<string | null>(null);
   // The latest settings, so an answer that arrives after other edits never overwrites them.
@@ -177,15 +173,15 @@ function CollaboratorsField({ accountId, settings, onChange }: { accountId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, accountId, covered]);
 
-  const add = () => {
-    const u = normalizeUsername(input);
+  const add = (raw: string): string | null => {
+    const u = normalizeUsername(raw);
     setInputErr(null);
-    if (!u) return;
-    if (!IG_USERNAME_RE.test(u)) { setInputErr("Usernames use letters, numbers, periods and underscores (up to 30)."); return; }
-    if (list.some((x) => normalizeUsername(x) === u)) { setInput(""); return; }
-    if (list.length >= MAX_COLLABORATORS) { setInputErr(`Instagram allows up to ${MAX_COLLABORATORS} collaborators.`); return; }
+    if (!u) return null;
+    if (!IG_USERNAME_RE.test(u)) { const m = "Usernames use letters, numbers, periods and underscores (up to 30)."; setInputErr(m); return m; }
+    if (list.some((x) => normalizeUsername(x) === u)) return null;
+    if (list.length >= MAX_COLLABORATORS) { const m = `Instagram allows up to ${MAX_COLLABORATORS} collaborators.`; setInputErr(m); return m; }
     onChange({ collaborators: [...list, u] });
-    setInput("");
+    return null;
   };
 
   const statusLine = !list.length ? null
@@ -206,14 +202,7 @@ function CollaboratorsField({ accountId, settings, onChange }: { accountId: stri
           </span>
         ))}
         {list.length < MAX_COLLABORATORS && (
-          <input
-            className="cp-chip-input"
-            value={input}
-            placeholder="username, then Enter"
-            onChange={(e) => { setInput(e.target.value); setInputErr(null); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); } }}
-            onBlur={add}
-          />
+          <UsernameInput accountId={accountId} exclude={list} onAdd={add} onTypedChange={() => setInputErr(null)} />
         )}
       </div>
       {inputErr && <small className="cp-help warn">{inputErr}</small>}

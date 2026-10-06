@@ -48,6 +48,15 @@ describe("the pre-flight verdict", () => {
     expect(r.message).toBe("Instagram refused this collaborator: The user cannot be tagged as a collaborator");
     expect(decideCheck(["friend"], { ok: false, error: "timeout" }, null, AT).status).toBe("error");
   });
+  it("a generic failure that disappears without collaborators is the collaborators' fault", () => {
+    const unknown = { ok: false as const, error: "An unknown error occurred", code: 1 };
+    const blamed = decideCheck(["salvospizza"], unknown, null, AT, { ok: true, value: { id: "plain" } });
+    expect(blamed.status).toBe("rejected");
+    expect(blamed.message).toMatch(/fails every time collaborators are added \(the same test without them works\)/);
+    // Instagram failing the plain test too: nothing can be concluded.
+    expect(decideCheck(["salvospizza"], unknown, null, AT, { ok: false, error: "An unknown error occurred", code: 1 }).status).toBe("error");
+    expect(decideCheck(["salvospizza"], unknown, null, AT, null).status).toBe("error");
+  });
   it("knows when a stored check still covers the list", () => {
     const check = decideCheck(["b", "A"], { ok: true, value: { id: "c" } }, { ok: false, error: "x", code: 100 }, AT);
     expect(sortedUsernames(["@B", "a", "a"])).toEqual(["a", "b"]);
