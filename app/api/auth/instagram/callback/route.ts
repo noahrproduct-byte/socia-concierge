@@ -12,6 +12,19 @@ import { clearLiveCache } from "@/lib/liveCache";
 
 export const runtime = "nodejs";
 
+/** The workspace an already-connected Instagram account sits in, or null
+ *  (not connected, or a schema without workspace_id). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function connectionWorkspace(client: any, ownerId: string, igId: string): Promise<string | null> {
+  try {
+    const { data, error } = await client.from("instagram_connections").select("workspace_id").eq("user_id", ownerId).eq("ig_user_id", igId).limit(1);
+    if (error) return null;
+    return ((data ?? [])[0] as { workspace_id?: string | null } | undefined)?.workspace_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Step 2 of Instagram OAuth: Instagram redirects here with ?code=... We trade
 // the code (+ app secret) for a short-lived token, upgrade it to a 60-day
 // long-lived token, fetch the account, and save it to the user's row.
@@ -103,6 +116,24 @@ export async function GET(req: Request) {
     );
     const already = Boolean(existing);
 
+    // Brand Workspaces: the account joins the OWNER's active workspace (one
+    // Instagram account per workspace). Inert before the migration
+    // (ensureDefaultWorkspace returns null, so workspace_id is never written).
+    const ws = ctx.workspace ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId));
+    // An account lives in exactly one workspace. Connecting one that already
+    // sits in ANOTHER workspace is refused, never silently moved there (the
+    // other workspace would lose it): disconnect it in that workspace first,
+    // or connect a different account here. Reconnecting in its own workspace
+    // is unchanged.
+    if (ws && igId) {
+      const home = await connectionWorkspace(ctx.client, ctx.ownerId, igId);
+      if (home && home !== ws.id) {
+        const other = await ctx.client.from("workspaces").select("name").eq("id", home).maybeSingle().then((r: { data: unknown }) => r.data, () => null);
+        const name = (other as { name?: string | null } | null)?.name ?? "";
+        return NextResponse.redirect(`${origin}/${dest}?ig=elsewhere${name ? `&igws=${encodeURIComponent(name)}` : ""}`);
+      }
+    }
+
     if (existing?.suspended) {
       // Reconnecting an account the plan paused is a request for a slot, so
       // it is judged like a new account: no reconnect exemption. If it fits,
@@ -147,12 +178,8 @@ export async function GET(req: Request) {
       : typeof shortJson.permissions === "string"
         ? String(shortJson.permissions).split(",").map((x) => x.trim()).filter(Boolean)
         : [];
-    // Brand Workspaces: the account joins the OWNER's active workspace (one
-    // Instagram account per workspace). is_active still marks the account the
-    // app reads through; stamping workspace_id keeps the two in step. Inert
-    // before the migration (ensureDefaultWorkspace returns null, so the
-    // column is never written).
-    const ws = ctx.workspace ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId));
+    // workspace_id names the row the workspace reads; is_active is the pointer
+    // socia_set_active_workspace keeps in step with it.
     const connRow: Record<string, unknown> = {
       user_id: ctx.ownerId,
       ig_user_id: igId,

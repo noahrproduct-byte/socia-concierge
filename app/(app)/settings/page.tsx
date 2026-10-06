@@ -106,12 +106,12 @@ const PREVIEW_COMPETITORS = [
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ig?: string; fb?: string; yt?: string; tt?: string; billing?: string; session_id?: string }>;
+  searchParams: Promise<{ ig?: string; igws?: string; fb?: string; yt?: string; tt?: string; billing?: string; session_id?: string }>;
 }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
 
-  const { ig, fb, yt, tt, billing: billingParam, session_id: sessionId } = await searchParams;
+  const { ig, igws, fb, yt, tt, billing: billingParam, session_id: sessionId } = await searchParams;
 
   // Back from Stripe Checkout: apply the new subscription now rather than
   // waiting for the webhook, so the plan on this page is already right.
@@ -198,8 +198,9 @@ export default async function SettingsPage({
       }))
     : [];
 
-  // Live account snapshot (avatar, followers, sync state) — best-effort.
-  const snap = await getIgSnapshot(supabase, user.id).catch(() => null);
+  // Live account snapshot (avatar, followers, sync state) of the ACTIVE
+  // workspace's account — best-effort.
+  const snap = await getIgSnapshot(connCtx.client, connCtx.ownerId, connCtx.workspace?.id ?? null).catch(() => null);
 
   // Plan, meters and what occupies the plan's slots. Counts that cannot be
   // read stay unknown (never 0); the over-limit state is computed from the
@@ -411,6 +412,7 @@ export default async function SettingsPage({
               <InstagramConnect
                 username={snap?.username ?? null}
                 status={ig}
+                elsewhereWorkspace={igws ?? null}
                 syncedAt={snap?.last_synced_at ?? null}
                 followers={snap?.followers_count ?? null}
                 avatar={snap?.profile_picture_url ?? null}

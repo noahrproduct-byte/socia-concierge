@@ -71,7 +71,7 @@ export async function GET() {
   if (!isAdminEmail(user.email)) return new NextResponse(null, { status: 404 });
   const ctx = await resolveContext(supabase, user.id);
 
-  const conn = await getActiveConnection(ctx.client, ctx.ownerId, "access_token, username, media");
+  const conn = await getActiveConnection(ctx.client, ctx.ownerId, "access_token, username, media", ctx.workspace?.id ?? null);
   if (!conn?.access_token) return NextResponse.json({ error: "No Instagram connection." }, { status: 400 });
   const token = conn.access_token as string;
 

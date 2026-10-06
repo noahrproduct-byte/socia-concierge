@@ -61,7 +61,7 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
 
   const [ent, snap, accountsRes, ready] = await Promise.all([
     getEntitlements(ctx.client, ctx.ownerId),
-    getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
+    getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null),
     // A read failure means the list is a lower bound (complete: false), never "no accounts".
     loadPickerAccountsDetailed(ctx.client, ctx.ownerId, ctx.workspace?.id).then(
       (r) => ({ accounts: r.accounts as PickerAccount[], complete: r.complete }),

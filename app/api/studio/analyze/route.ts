@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
 
   // Account context: profile + top posts + their cover frames (real content).
-  const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null)]);
+  const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null)]);
   const media: IgMediaItem[] = snap?.media ?? [];
   const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);

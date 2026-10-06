@@ -141,10 +141,10 @@ export async function fetchFacebookComments(
 
 type IgConn = { ig_user_id: string | null; username: string | null; access_token: string; scopes: string[] | null };
 
-async function readIgConn(supabase: Supa, userId: string): Promise<IgConn | null> {
+async function readIgConn(supabase: Supa, userId: string, workspaceId: string | null | undefined): Promise<IgConn | null> {
   // scopes (what Instagram granted at connect) may be absent on older rows
-  const row = ((await getActiveConnection(supabase, userId, "ig_user_id, username, access_token, scopes").catch(() => null))
-    ?? (await getActiveConnection(supabase, userId, "ig_user_id, username, access_token"))) as Record<string, unknown> | null;
+  const row = ((await getActiveConnection(supabase, userId, "ig_user_id, username, access_token, scopes", workspaceId).catch(() => null))
+    ?? (await getActiveConnection(supabase, userId, "ig_user_id, username, access_token", workspaceId))) as Record<string, unknown> | null;
   if (!row?.access_token) return null;
   return {
     ig_user_id: row.ig_user_id ? String(row.ig_user_id) : null,
@@ -161,8 +161,9 @@ export async function fetchInstagramComments(
   userId: string,
   media: Array<{ id?: string; caption?: string }>,
   perPost = 25,
+  workspaceId?: string | null,
 ): Promise<CommentRead> {
-  const conn = await readIgConn(supabase, userId);
+  const conn = await readIgConn(supabase, userId, workspaceId);
   if (!conn) return { comments: [], postsChecked: 0, postsFailed: 0, problem: "Instagram isn't connected in this workspace.", returned: 0 };
   const withIds = media.filter((m) => m.id).length;
   // Instagram records what it granted at connect. Without comment access it may
@@ -239,7 +240,7 @@ async function postReply(url: URL, body: Record<string, string>): Promise<ReplyR
 }
 
 /** Post a reply to a comment as the connected Page / Instagram account. */
-export async function replyToComment(supabase: Supa, userId: string, platform: CommentPlatform, commentId: string, message: string): Promise<ReplyResult> {
+export async function replyToComment(supabase: Supa, userId: string, platform: CommentPlatform, commentId: string, message: string, workspaceId?: string | null): Promise<ReplyResult> {
   const text = message.trim();
   if (!text) return { ok: false, error: "The reply is empty." };
   if (platform === "facebook") {
@@ -247,7 +248,7 @@ export async function replyToComment(supabase: Supa, userId: string, platform: C
     if (!conn) return { ok: false, error: "Facebook isn't connected in this workspace." };
     return postReply(new URL(`${FB_BASE}/${commentId}/comments`), { message: text, access_token: conn.access_token });
   }
-  const conn = await readIgConn(supabase, userId);
+  const conn = await readIgConn(supabase, userId, workspaceId);
   if (!conn) return { ok: false, error: "Instagram isn't connected in this workspace." };
   return postReply(new URL(`${IG_BASE}/${commentId}/replies`), { message: text, access_token: conn.access_token });
 }

@@ -125,7 +125,7 @@ export async function POST(req: Request) {
   if (!body) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
   const [conn, ent] = await Promise.all([
-    getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id") as Promise<{ ig_user_id?: string } | null>,
+    getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id", ctx.workspace?.id ?? null) as Promise<{ ig_user_id?: string } | null>,
     getEntitlements(ctx.client, ctx.ownerId),
   ]);
   const igUserId = conn?.ig_user_id ?? null;

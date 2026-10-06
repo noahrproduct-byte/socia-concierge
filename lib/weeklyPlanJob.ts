@@ -84,7 +84,7 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
   const wsId = ws?.id ?? null;
   if (await hasPlanThisWeek(svc, ownerId, wsId, now)) return "already_this_week";
 
-  const snap = await getIgSnapshot(svc, ownerId).catch(() => null);
+  const snap = await getIgSnapshot(svc, ownerId, wsId).catch(() => null);
   if (!snap) return "no_account";
   const media = snap.media ?? [];
   if (media.length < MIN_POSTS) return "too_few_posts";

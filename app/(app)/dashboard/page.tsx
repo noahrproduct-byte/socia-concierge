@@ -96,7 +96,7 @@ export default async function DashboardPage({
       ? cachedLive(ctx.ownerId, ["fb-insights", ...scope, f.page_id, days], () => getFacebookInsights(ctx.client, ctx.ownerId, days), (v) => v.available).catch(() => null)
       : null,
   );
-  const snapP = igConnected ? getIgSnapshot(ctx.client, ctx.ownerId) : Promise.resolve(null);
+  const snapP = igConnected ? getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null) : Promise.resolve(null);
   // Instagram's stored daily rows; the table may not exist yet, in which case
   // the series render their empty states.
   const dailyRowsP: Promise<DailySnapshot[]> = snapP.then(

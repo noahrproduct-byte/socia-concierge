@@ -75,7 +75,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // the competitors migration has run; null keeps the pooled behaviour.
   const [ent, snap, cwid, profile] = await Promise.all([
     getEntitlements(ctx.client, ctx.ownerId),
-    getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
+    getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null),
     competitorScopeId(ctx.client, ctx.workspace?.id),
     getProfile(ctx.client, ctx.ownerId, brandWs).catch(() => null),
   ]);

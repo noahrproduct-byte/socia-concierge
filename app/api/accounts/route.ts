@@ -102,15 +102,20 @@ export async function POST(req: Request) {
   const igId = body?.ig_user_id;
   if (!igId) return NextResponse.json({ error: "ig_user_id required." }, { status: 400 });
 
-  // Only the workspace owner's rows are reachable (RLS enforces this for the owner's own session).
+  // Only the workspace owner's rows are reachable (RLS enforces this for the
+  // owner's own session), and only the ACTIVE workspace's row may become the
+  // one the app reads through: switching to another workspace's account from
+  // here would show that workspace's Instagram inside this one.
+  const wsId = ctx.workspace?.id ?? null;
   let target: { ig_user_id: string; plan_suspended_at?: string | null }[] | null = null;
   try {
-    const { data, error } = await ctx.client
+    let q = ctx.client
       .from("instagram_connections")
       .select("ig_user_id, plan_suspended_at")
       .eq("user_id", ctx.ownerId)
-      .eq("ig_user_id", igId)
-      .limit(1);
+      .eq("ig_user_id", igId);
+    if (wsId) q = q.eq("workspace_id", wsId);
+    const { data, error } = await q.limit(1);
     if (!error) target = data ?? [];
   } catch {
     /* column may not exist yet */

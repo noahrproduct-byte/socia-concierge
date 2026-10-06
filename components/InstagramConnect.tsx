@@ -30,9 +30,12 @@ export default function InstagramConnect({
   avatar = null,
   needsReconnect = false,
   paused = false,
+  elsewhereWorkspace = null,
 }: {
   username: string | null;
   status?: string;
+  /** ?ig=elsewhere — the workspace that already holds the account just tried. */
+  elsewhereWorkspace?: string | null;
   syncedAt?: string | null;
   followers?: number | null;
   /** Real profile picture from the connected account, when synced. */
@@ -75,7 +78,9 @@ export default function InstagramConnect({
           ? "Something went wrong connecting Instagram. Please try again."
           : status === "forbidden"
             ? "Only the workspace owner or an admin can connect or disconnect accounts."
-            : null;
+            : status === "elsewhere"
+              ? `That Instagram account is already connected in ${elsewhereWorkspace ? `“${elsewhereWorkspace}”` : "another workspace"}. Switch there to disconnect it first, or connect a different account in this workspace.`
+              : null;
   // ?ig=limit is rendered once, by the page-level PlanNotice above the cards.
 
   const synced = ago(syncedAt);

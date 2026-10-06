@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   let evidence: Evidence | null = null;
   try {
     brand = (await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)))?.brand_detail ?? null;
-    const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
+    const snap = await getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
     // The last two plans and what became of them, so the strategist learns
     // from what was posted, skipped, and how each post did.
     const outcomes = await recentPlanOutcomes(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => []);
