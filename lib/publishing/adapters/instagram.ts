@@ -128,12 +128,16 @@ const url = (m: MediaItem | undefined): string | null => m?.url ?? null;
  * Pure, so the tests can check what each format sends.
  */
 export function containerPlan(settings: InstagramSettings, media: MediaItem[], caption: string): { children: ContainerInput[]; parent: ContainerInput } {
+  // Collab posts: the co-authors ride on the parent container of every format
+  // that supports them (Reels, feed image, carousel); settings from before the
+  // field existed have none.
+  const collaborators = settings.collaborators?.length ? settings.collaborators : null;
   if (settings.format === "reel") {
     return {
       children: [],
       parent: {
         mediaType: "REELS", mediaUrl: url(media[0]), caption, shareToFeed: settings.shareToFeed,
-        thumbOffsetMs: settings.coverTimestampMs, isAiGenerated: settings.aiGenerated,
+        thumbOffsetMs: settings.coverTimestampMs, isAiGenerated: settings.aiGenerated, collaborators,
       },
     };
   }
@@ -142,13 +146,13 @@ export function containerPlan(settings: InstagramSettings, media: MediaItem[], c
       children: [],
       parent: {
         mediaType: "IMAGE", mediaUrl: url(media[0]), caption, altText: settings.altText,
-        userTags: settings.userTags, isAiGenerated: settings.aiGenerated,
+        userTags: settings.userTags, isAiGenerated: settings.aiGenerated, collaborators,
       },
     };
   }
   return {
     children: media.map((m) => ({ mediaType: "CAROUSEL_ITEM" as const, mediaUrl: url(m), altText: settings.altText, isCarouselItem: true })),
-    parent: { mediaType: "CAROUSEL", caption, isAiGenerated: settings.aiGenerated, children: [] },
+    parent: { mediaType: "CAROUSEL", caption, isAiGenerated: settings.aiGenerated, children: [], collaborators },
   };
 }
 
