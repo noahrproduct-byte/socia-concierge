@@ -1,20 +1,34 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio";
+import ClipsStudio from "@/components/studio/ClipsStudio";
+import StudioMode from "@/components/studio/StudioMode";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const metadata = { title: "Content Studio — SOCIA" };
 
-// Content Studio: bring a piece of content, make it better before it goes
-// live. The server passes what SOCIA already knows (niche, goal, drafts with
-// media); analysis happens on demand from frames sampled in the browser.
-export default async function StudioPage() {
+// Content Studio has two ways in. Quick Analyze: bring a finished piece of
+// content and make it better before it goes live (the original Studio,
+// unchanged). Build from Clips: bring raw footage and let SOCIA find the
+// posts in it. The mode is in the URL (?mode=clips) so a refresh keeps it.
+export default async function StudioPage({ searchParams }: { searchParams: Promise<{ mode?: string; project?: string }> }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
+  const { mode } = await searchParams;
+
+  if (mode === "clips") {
+    return (
+      <Suspense fallback={null}>
+        <ClipsStudio viewerId={user.id} modeTabs={<StudioMode mode="clips" />} />
+      </Suspense>
+    );
+  }
+
   // Profile, posts and drafts are the active workspace owner's.
   const ctx = await resolveContext(supabase, user.id);
 
@@ -52,6 +66,7 @@ export default async function StudioPage() {
         drafts={drafts}
         connected={Boolean(snap && snap.followers_count != null)}
         postsSynced={snap?.media?.length ?? 0}
+        modeTabs={<StudioMode mode="quick" />}
       />
     </>
   );

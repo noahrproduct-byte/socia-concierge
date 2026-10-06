@@ -45,7 +45,12 @@ export const PLATFORM_NAME: Record<WorkspacePlatform, string> = {
  *   team_members           people with access, the owner included
  *   analytics_history_days longest analytics window; HISTORY_ALL_RETAINED = no cap
  */
-export type LimitKey = "workspaces" | "competitors" | "team_members" | "analytics_history_days";
+export type LimitKey =
+  | "workspaces" | "competitors" | "team_members" | "analytics_history_days"
+  // Content Studio · Build from Clips. DEVELOPMENT PLACEHOLDERS until real
+  // storage, transcription, AI and rendering costs are measured; never shown
+  // on the pricing page. Enforced server-side in app/api/studio/*.
+  | "studio_clips_per_project" | "studio_footage_minutes" | "studio_upload_mb" | "studio_storage_gb" | "studio_retention_days";
 
 /**
  * "All retained history": the plan applies no window of its own, the person
@@ -64,13 +69,14 @@ export const isAllHistory = (days: number) => days >= HISTORY_ALL_RETAINED;
  *   content_plan       one full weekly Content Plan generation       (per month)
  *   content_ideas      one batch of quick content ideas              (per week)
  */
-export type MeterKey = "ask_socia" | "content_studio" | "content_generation" | "account_audit" | "content_plan" | "content_ideas";
+export type MeterKey = "ask_socia" | "content_studio" | "content_generation" | "account_audit" | "content_plan" | "content_ideas" | "content_build";
 
 export type MeterPeriod = "month" | "week";
 
 export const METER_PERIOD: Record<MeterKey, MeterPeriod> = {
   ask_socia: "month",
   content_studio: "month",
+  content_build: "month",
   content_generation: "month",
   account_audit: "month",
   content_plan: "month",
@@ -85,6 +91,7 @@ export type FeatureKey =
   | "scheduling"
   | "breakout_alerts"
   | "monthly_summary"
+  | "build_from_clips"
   // Starter
   | "posting_time_analysis"
   | "growth_analysis"
@@ -128,6 +135,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   scheduling: "available",
   breakout_alerts: "available",
   monthly_summary: "available",
+  build_from_clips: "available",
   posting_time_analysis: "available",
   growth_analysis: "available",
   period_comparison: "available",
@@ -161,6 +169,7 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   scheduling: "Scheduling and publishing",
   breakout_alerts: "Breakout alerts",
   monthly_summary: "Monthly performance summary",
+  build_from_clips: "Content Studio: Build from clips",
   posting_time_analysis: "Posting-time analysis",
   growth_analysis: "Growth analysis",
   period_comparison: "Previous-period comparisons",
@@ -194,11 +203,17 @@ export const LIMIT_LABEL: Record<LimitKey, string> = {
   competitors: "Competitors",
   team_members: "Team members",
   analytics_history_days: "Analytics history",
+  studio_clips_per_project: "Clips per project",
+  studio_footage_minutes: "Footage per project",
+  studio_upload_mb: "Upload per project",
+  studio_storage_gb: "Clip storage",
+  studio_retention_days: "Raw footage kept for",
 };
 
 export const METER_LABEL: Record<MeterKey, string> = {
   ask_socia: "Ask SOCIA",
   content_studio: "Content Studio",
+  content_build: "Clip builds",
   content_generation: "Hooks and captions",
   account_audit: "Account audits",
   content_plan: "Content Plans",
@@ -209,6 +224,7 @@ export const METER_LABEL: Record<MeterKey, string> = {
 export const METER_UNIT: Record<MeterKey, { one: string; many: string }> = {
   ask_socia: { one: "question", many: "questions" },
   content_studio: { one: "analysis", many: "analyses" },
+  content_build: { one: "build", many: "builds" },
   content_generation: { one: "generation", many: "generations" },
   account_audit: { one: "audit", many: "audits" },
   content_plan: { one: "plan", many: "plans" },
@@ -221,6 +237,11 @@ export const LIMIT_UNIT: Record<LimitKey, { one: string; many: string }> = {
   competitors: { one: "competitor", many: "competitors" },
   team_members: { one: "team member", many: "team members" },
   analytics_history_days: { one: "day of analytics history", many: "days of analytics history" },
+  studio_clips_per_project: { one: "clip per project", many: "clips per project" },
+  studio_footage_minutes: { one: "minute of footage per project", many: "minutes of footage per project" },
+  studio_upload_mb: { one: "MB per project", many: "MB per project" },
+  studio_storage_gb: { one: "GB of clip storage", many: "GB of clip storage" },
+  studio_retention_days: { one: "day of raw footage retention", many: "days of raw footage retention" },
 };
 
 export type PlanConfig = {
@@ -247,7 +268,12 @@ const F = (on: FeatureKey[]): Record<FeatureKey, boolean> => {
   return out;
 };
 
-const FREE_FEATURES: FeatureKey[] = ["scheduling", "breakout_alerts", "monthly_summary"];
+const FREE_FEATURES: FeatureKey[] = ["scheduling", "breakout_alerts", "monthly_summary", "build_from_clips"];
+
+// Build from Clips: DEVELOPMENT PLACEHOLDERS, identical across plans except
+// retention. Not pricing promises; tune here (or in plan_config_overrides)
+// once real storage, transcription, AI and rendering costs are measured.
+const STUDIO_DEV_LIMITS = { studio_clips_per_project: 20, studio_footage_minutes: 10, studio_upload_mb: 500 };
 const STARTER_FEATURES: FeatureKey[] = [
   ...FREE_FEATURES,
   "posting_time_analysis", "growth_analysis", "period_comparison", "deeper_insights",
@@ -273,8 +299,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 0,
     tagline: "Understand one brand.",
     audience: "People trying SOCIA and managing one brand.",
-    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30 },
-    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 0, content_ideas: 3 },
+    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_DEV_LIMITS, studio_storage_gb: 5, studio_retention_days: 14 },
+    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 0, content_ideas: 3, content_build: 3 },
     features: F(FREE_FEATURES),
     cta: "Get started free",
   },
@@ -284,8 +310,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 29,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
-    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90 },
-    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 3 },
+    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_DEV_LIMITS, studio_storage_gb: 10, studio_retention_days: 14 },
+    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 3, content_build: 10 },
     features: F(STARTER_FEATURES),
     cta: "Start Starter",
   },
@@ -295,8 +321,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 79,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
-    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365 },
-    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 3 },
+    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_DEV_LIMITS, studio_storage_gb: 25, studio_retention_days: 30 },
+    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 3, content_build: 40 },
     features: F(GROWTH_FEATURES),
     cta: "Start Growth",
     popular: true,
@@ -307,9 +333,9 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 150,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
-    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED },
+    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_DEV_LIMITS, studio_storage_gb: 50, studio_retention_days: 60 },
     // Deliberately higher, deliberately finite. Tune in plan_config_overrides.
-    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 3 },
+    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 3, content_build: 100 },
     features: F(PRO_FEATURES),
     cta: "Start Pro",
   },

@@ -13,7 +13,9 @@ export async function uploadMedia(
   supabase: SupabaseClient,
   bucket: string,
   path: string,
-  file: File
+  file: File,
+  /** Optional: bytes sent so far, for a progress bar. Called per chunk. */
+  onProgress?: (sent: number, total: number) => void,
 ): Promise<void> {
   // Optional client-side guard: when NEXT_PUBLIC_MAX_UPLOAD_MB is set to match
   // the project's Supabase Storage limit, an oversized file fails instantly with
@@ -27,6 +29,7 @@ export async function uploadMedia(
   if (file.size <= CHUNK) {
     const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType });
     if (error) throw new Error(`Upload failed: ${error.message}`);
+    onProgress?.(file.size, file.size);
     return;
   }
 
@@ -68,6 +71,7 @@ export async function uploadMedia(
     if (res?.ok) {
       offset = Number(res.headers.get("upload-offset") ?? offset + CHUNK);
       attempts = 0;
+      onProgress?.(Math.min(offset, file.size), file.size);
       continue;
     }
     if (res && res.status !== 409 && res.status < 500) throw new Error(`Upload failed: ${await describe(res, file.size)}`);

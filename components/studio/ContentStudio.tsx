@@ -6,7 +6,7 @@
 // browser for analysis (only sampled frames do); it is uploaded only when the
 // user saves a draft.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Upload, FolderOpen, FileVideo, Image as ImageIcon, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
@@ -40,7 +40,7 @@ const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }
 const TABS = [["analyze", "Analyze"], ["improve", "Improve"], ["caption", "Caption"], ["audio", "Audio"], ["prepare", "Prepare"]] as const;
 type Tab = (typeof TABS)[number][0];
 
-export default function ContentStudio({ userId, niche, location, goalDefault, drafts, connected, postsSynced }: { userId: string; niche: string | null; location: string | null; goalDefault: GoalId | null; drafts: DraftItem[]; connected: boolean; postsSynced: number }) {
+export default function ContentStudio({ userId, niche, location, goalDefault, drafts, connected, postsSynced, modeTabs }: { userId: string; niche: string | null; location: string | null; goalDefault: GoalId | null; drafts: DraftItem[]; connected: boolean; postsSynced: number; /** The Quick analyze | Build from clips switch, rendered under the header. */ modeTabs?: ReactNode }) {
   const [source, setSource] = useState<Source | null>(null);
   const [frames, setFrames] = useState<Frames | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -227,6 +227,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
           </>
         }
       />
+      {modeTabs}
 
       {pickDraft && (
         <div className="st-drafts ov-card">
