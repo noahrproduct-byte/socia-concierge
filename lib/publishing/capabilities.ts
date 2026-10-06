@@ -79,6 +79,9 @@ export type PlatformCapabilities = {
 
 const MB = 1024 * 1024;
 
+// Hashtags: the Graph API docs still say 30, but Instagram has enforced at
+// most 5 per post and Reel since December 2025 (announced by Adam Mosseri;
+// more are stripped or the post is blocked), so the stricter value is used.
 const INSTAGRAM: PlatformCapabilities = {
   platform: "instagram",
   label: "Instagram",
@@ -93,7 +96,7 @@ const INSTAGRAM: PlatformCapabilities = {
         minDurationSec: 3, maxDurationSec: 15 * 60, maxWidth: 1920, aspectMin: 0.01, aspectMax: 10, recommendedAspect: "9:16",
         notes: ["MP4 or MOV, H.264 or HEVC, up to 300 MB, 3 seconds to 15 minutes.", "9:16 is recommended; other ratios are cropped by Instagram."],
       },
-      caption: { field: "caption", max: 2200, unit: "chars", maxHashtags: 30, maxMentions: 20 },
+      caption: { field: "caption", max: 2200, unit: "chars", maxHashtags: 5, maxMentions: 20 },
     },
     {
       id: "image",
@@ -104,7 +107,7 @@ const INSTAGRAM: PlatformCapabilities = {
         minWidth: 320, maxWidth: 1440, aspectMin: 0.8, aspectMax: 1.91, recommendedAspect: "4:5 to 1.91:1",
         notes: ["JPEG only, up to 8 MB, 320 to 1440 px wide, aspect ratio between 4:5 and 1.91:1."],
       },
-      caption: { field: "caption", max: 2200, unit: "chars", maxHashtags: 30, maxMentions: 20 },
+      caption: { field: "caption", max: 2200, unit: "chars", maxHashtags: 5, maxMentions: 20 },
     },
     {
       id: "carousel",
@@ -115,7 +118,7 @@ const INSTAGRAM: PlatformCapabilities = {
         minWidth: 320, maxWidth: 1440, aspectMin: 0.8, aspectMax: 1.91,
         notes: ["2 to 10 JPEG images. Instagram crops every image to the first image's aspect ratio."],
       },
-      caption: { field: "caption", max: 2200, unit: "chars", maxHashtags: 30, maxMentions: 20 },
+      caption: { field: "caption", max: 2200, unit: "chars", maxHashtags: 5, maxMentions: 20 },
     },
   ],
   features: {

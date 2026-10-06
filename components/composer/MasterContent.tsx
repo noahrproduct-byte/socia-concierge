@@ -5,7 +5,7 @@
 // actions. Every AI result is a draft the person picks; nothing is ever
 // written into the caption without a click.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { askSocia } from "@/lib/ask";
@@ -15,6 +15,7 @@ import { enabledDestinations, type ComposerDraft } from "@/lib/publishing/compos
 import { PLATFORM_LABEL, type DestinationSettings, type Platform } from "@/lib/publishing/types";
 import { byteLength, countHashtags, countMentions, formatIdFor } from "@/lib/publishing/validate";
 import type { ComposerAction } from "./contracts";
+import CaptionGenerator from "./CaptionGenerator";
 
 type Option = { label: string; text: string; steps?: string[] };
 type Usage = { used: number | null; limit: number; resetsOn?: string | null } | null;
@@ -81,10 +82,12 @@ export function withHook(caption: string, hook: string): string {
 }
 
 export default function MasterContent({
-  draft, dispatch,
+  draft, dispatch, userId, fileFor,
 }: {
   draft: ComposerDraft;
   dispatch: (a: ComposerAction) => void;
+  userId: string;
+  fileFor: (mediaId: string) => File | null;
 }) {
   const caption = draft.masterCaption;
   const limit = captionLimit(draft);
@@ -103,19 +106,28 @@ export default function MasterContent({
   const [error, setError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<PlanError | null>(null);
   const [usage, setUsage] = useState<Usage>(null);
+  // Where the cursor was last in the caption box, for "Insert at cursor".
+  const caret = useRef<number | null>(null);
+  const insert = useCallback((text: string) => {
+    const at = caret.current == null ? caption.length : Math.min(caret.current, caption.length);
+    const before = caption.slice(0, at), after = caption.slice(at);
+    const lead = before && !before.endsWith("\n\n") ? (before.endsWith("\n") ? "\n" : "\n\n") : "";
+    const trail = !after || after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+    dispatch({ type: "set_caption", caption: `${before}${lead}${text}${trail}${after}` });
+    caret.current = at + lead.length + text.length;
+  }, [caption, dispatch]);
 
   const base = useCallback(() => {
     const k = studioKind(draft);
     return { caption, summary: caption, kind: k.kind, durationSec: k.durationSec };
   }, [caption, draft]);
 
-  const run = useCallback(async (task: "caption" | "hooks", extra: Record<string, unknown> = {}) => {
-    const { generate, ...rest } = extra;
-    setBusy(task === "hooks" ? "hook" : generate ? "generate" : "caption");
+  const run = useCallback(async (task: "caption" | "hooks") => {
+    setBusy(task === "hooks" ? "hook" : "caption");
     setError(null);
     setPlanError(null);
     try {
-      const r = await improve({ task, ...base(), ...rest, ...(generate && !caption.trim() ? { mode: "written from scratch for this post" } : {}) });
+      const r = await improve({ task, ...base() });
       setUsage(r.usage);
       setPerPlatform(null);
       setResult({ task, platform: null, options: r.options });
@@ -174,7 +186,9 @@ export default function MasterContent({
         data-field="caption"
         rows={6}
         value={caption}
-        onChange={(e) => dispatch({ type: "set_caption", caption: e.target.value })}
+        onChange={(e) => { caret.current = e.target.selectionStart; dispatch({ type: "set_caption", caption: e.target.value }); }}
+        onSelect={(e) => { caret.current = e.currentTarget.selectionStart; }}
+        onBlur={(e) => { caret.current = e.currentTarget.selectionStart; }}
         placeholder="First line is the hook. Hashtags go at the end."
         aria-label="Caption"
       />
@@ -191,11 +205,10 @@ export default function MasterContent({
         </span>
       </div>
 
+      <CaptionGenerator draft={draft} dispatch={dispatch} userId={userId} fileFor={fileFor} onInsert={insert} onUsage={setUsage} />
+
       <div className="cp-actions">
         <button type="button" className="cp-action" onClick={ask}><Sparkles size={13} /> Ask SOCIA</button>
-        <button type="button" className="cp-action" disabled={busy !== null} onClick={() => run("caption", { generate: true })}>
-          {busy === "generate" ? <Loader2 size={13} className="cp-spin" /> : null} Generate caption
-        </button>
         <button type="button" className="cp-action" disabled={busy !== null || !caption.trim()} onClick={() => run("caption")}>
           {busy === "caption" ? <Loader2 size={13} className="cp-spin" /> : null} Improve caption
         </button>
