@@ -10600,6 +10600,11 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .ws-switch-ico { color: var(--sidebar-active-text); flex-shrink: 0; }
 .ws-switch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-switch .drop-chev { color: var(--sidebar-muted); flex-shrink: 0; }
+/* While a Brand Workspace switch re-renders the tree (lib/workspaceSwitching.ts):
+   the old content dims and a pill names the destination, so the second or two
+   it takes reads as progress, not as a stuck click. */
+html[data-ws-switching] .app-main { opacity: 0.45; pointer-events: none; transition: opacity 0.15s; }
+html[data-ws-switching]::after { content: "Switching to " attr(data-ws-switching) "…"; position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1000; padding: 9px 14px; border-radius: 99px; background: var(--inverse-surface); color: var(--inverse-text); font: 650 12.5px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: 0.1px; box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.28); pointer-events: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
 .ws-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--warning-text); }
 .ws-tag.muted { color: var(--sidebar-muted, var(--muted-text)); }
 

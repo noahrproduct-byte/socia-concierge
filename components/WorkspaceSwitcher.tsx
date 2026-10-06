@@ -6,14 +6,21 @@
 // Settings to create or manage them. Hidden until the workspaces migration has
 // run (GET returns { enabled: false }); shown even with a single workspace, so
 // the concept is visible and the upgrade path is clear.
+//
+// A switch re-renders the whole server tree (shell + page) for the new
+// workspace, which takes a second or two; a refresh shows no route skeleton.
+// So the switcher shows the new name at once, keeps a spinner and marks the
+// document (lib/workspaceSwitching.ts → dimmed content + "Switching to …")
+// until the refreshed tree has actually rendered, then re-reads the list.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Check, Briefcase, Plus, Settings2, Loader2 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { markSwitching } from "@/lib/workspaceSwitching";
 
 type WS = { id: string; name: string; isDefault: boolean; suspended: boolean; active: boolean; role?: "owner" | "admin" | "member" };
 type Data = { enabled: boolean; workspaces?: WS[]; activeId?: string | null; canCreate?: boolean; limit?: number; used?: number };
@@ -22,6 +29,15 @@ export default function WorkspaceSwitcher() {
   const router = useRouter();
   const [data, setData] = useState<Data | null>(null);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const saving = useRef(false);
+  const resyncAfter = useRef(false);
+
+  const load = () =>
+    fetch("/api/workspaces")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: Data | null) => j && setData(j))
+      .catch(() => null);
 
   useEffect(() => {
     let alive = true;
@@ -29,34 +45,54 @@ export default function WorkspaceSwitcher() {
       .then((r) => (r.ok ? r.json() : null))
       .then((j: Data | null) => alive && setData(j))
       .catch(() => alive && setData({ enabled: false }));
-    return () => { alive = false; };
+    return () => { alive = false; markSwitching(null); };
   }, []);
+
+  // The refresh has rendered (or never started): clear the switching state
+  // and read the list back from the server so it reflects what really happened.
+  useEffect(() => {
+    if (isPending || saving.current) return;
+    markSwitching(null);
+    if (resyncAfter.current) { resyncAfter.current = false; void load(); }
+  }, [isPending]);
 
   if (!data?.enabled || !data.workspaces?.length) return null;
   const list = data.workspaces;
   const active = list.find((w) => w.active) ?? list.find((w) => !w.suspended) ?? list[0];
+  const busy = Boolean(switching) || isPending;
 
   async function switchTo(w: WS) {
-    if (w.active || w.suspended || switching) return;
+    if (w.active || w.suspended || busy) return;
+    const previous = data;
+    saving.current = true;
     setSwitching(w.id);
+    markSwitching(w.name);
+    // Optimistic: the trigger reads the new name while the server catches up.
+    setData((d) => (d ? { ...d, activeId: w.id, workspaces: d.workspaces?.map((x) => ({ ...x, active: x.id === w.id })) } : d));
     try {
       const res = await fetch(`/api/workspaces/${w.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ active: true }),
       });
-      if (res.ok) router.refresh();
+      if (!res.ok) { setData(previous); markSwitching(null); return; }
+      resyncAfter.current = true;
+      startTransition(() => { router.refresh(); });
+    } catch {
+      setData(previous);
+      markSwitching(null);
     } finally {
+      saving.current = false;
       setSwitching(null);
     }
   }
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="ws-switch" aria-label="Switch Brand Workspace">
+      <DropdownMenuTrigger className="ws-switch" aria-label="Switch Brand Workspace" aria-busy={busy || undefined}>
         <Briefcase size={14} className="ws-switch-ico" />
         <span className="ws-switch-name">{active.name}</span>
-        <ChevronDown size={14} className="drop-chev" />
+        {busy ? <Loader2 size={14} className="acsw-spin drop-chev" /> : <ChevronDown size={14} className="drop-chev" />}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-60">
         <DropdownMenuGroup>
@@ -65,7 +101,7 @@ export default function WorkspaceSwitcher() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           {list.map((w) => (
-            <DropdownMenuItem key={w.id} onClick={() => switchTo(w)} disabled={w.suspended} className="gap-2">
+            <DropdownMenuItem key={w.id} onClick={() => switchTo(w)} disabled={w.suspended || busy} className="gap-2">
               <Briefcase size={14} />
               <span className="flex-1">{w.name}</span>
               {w.role && w.role !== "owner" && <span className="ws-tag muted">{w.role === "admin" ? "Admin" : "Member"}</span>}

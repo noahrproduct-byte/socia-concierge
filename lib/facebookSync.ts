@@ -3,6 +3,7 @@
 // provide it, never zero. Tokens stay server-side.
 
 import { timedFn } from "@/lib/timing";
+import { scheduleBackground, onceEvery } from "@/lib/background";
 import { FB_GRAPH_V } from "./facebook";
 import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
 
@@ -280,9 +281,20 @@ async function getFbSnapshotImpl(supabase: Supa, userId: string): Promise<FbSnap
 
   const stale =
     !row.last_synced_at || Date.now() - new Date(row.last_synced_at).getTime() > STALE_MS;
+  const neverSynced = !row.last_synced_at;
   if (stale) {
-    const fresh = await syncFacebook(supabase, userId);
-    if (fresh) return fresh;
+    // Same rule as Instagram: a page renders the snapshot it has and the
+    // refresh runs after the response; only a never-synced Page (or a caller
+    // outside a request) waits for Meta here.
+    if (neverSynced) {
+      const fresh = await syncFacebook(supabase, userId);
+      if (fresh) return fresh;
+    } else if (onceEvery(`fb-sync:${userId}:${row.page_id ?? ""}`, 60_000)) {
+      if (!scheduleBackground("syncFacebook", () => syncFacebook(supabase, userId))) {
+        const fresh = await syncFacebook(supabase, userId);
+        if (fresh) return fresh;
+      }
+    }
   }
 
   const posts: FbPost[] = Array.isArray(row.media) ? (row.media as FbPost[]) : [];
