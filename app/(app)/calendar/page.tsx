@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
-import CalendarBoard, { type CalPost, type CalItem, type CalDestination, type PublishInfo } from "@/components/CalendarBoard";
+import CalendarBoard, { type CalPost, type CalItem, type CalDestination, type CalResult, type PublishInfo } from "@/components/CalendarBoard";
+import { loadDestinationsLite, loadMeasureSources, resultsForPosts } from "@/lib/planOutcomesLoad";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getIgSnapshot, getActiveConnection } from "@/lib/instagramSync";
 import { PUBLISH_SCOPE } from "@/lib/igPublish";
@@ -123,9 +124,21 @@ export default async function CalendarPage() {
   // Multi-destination items carry their destination rows; legacy rows carry none.
   const scheduledRows = (rows ?? []) as ScheduledPost[];
   const destinations = await loadDestinations(ctx.client, ctx.ownerId, scheduledRows.map((r) => r.id));
+  // Published posts carry how they did against the account's own median
+  // (lib/postResults): measured from stored platform data, "measuring" until
+  // the platform reports the post.
+  let results = new Map<string, CalResult>();
+  try {
+    const lite = await loadDestinationsLite(ctx.client, scheduledRows.map((r) => r.id));
+    const sources = await loadMeasureSources(ctx.client, ctx.ownerId, wsId, scheduledRows, lite);
+    results = resultsForPosts(scheduledRows, lite, sources);
+  } catch {
+    results = new Map();
+  }
   const scheduled: CalItem[] = scheduledRows.map((r) => {
     const ds = destinations.get(r.id);
-    return ds ? { ...r, destinations: ds } : r;
+    const result = results.get(r.id) ?? null;
+    return { ...r, ...(ds ? { destinations: ds } : {}), result };
   });
 
   return (

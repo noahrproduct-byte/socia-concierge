@@ -259,6 +259,25 @@ async function videosByIds(token: string, ids: string[]): Promise<Record<string,
   return out;
 }
 
+/** The owner's own videos by id (private and unlisted included), through
+ *  their token. For measuring posts SOCIA published. Empty map when YouTube is
+ *  not connected or Google did not answer. */
+export async function youtubeVideoStats(supabase: SupabaseClient, userId: string, ids: string[]): Promise<Record<string, YtVideo>> {
+  if (!ids.length) return {};
+  const auth = await validToken(supabase, userId);
+  if (!auth) return {};
+  return videosByIds(auth.token, ids).catch(() => ({}));
+}
+
+/** The channel's recent uploads with public stats: the baseline a published
+ *  video is compared with. Uses the channel's uploads playlist (the channel id
+ *  with its "UC" prefix swapped for "UU", YouTube's fixed convention). */
+export async function youtubeRecentUploads(supabase: SupabaseClient, userId: string, max = 25): Promise<YtVideo[]> {
+  const auth = await validToken(supabase, userId);
+  if (!auth?.channelId || !auth.channelId.startsWith("UC")) return [];
+  return recentVideos(`UU${auth.channelId.slice(2)}`, max).catch(() => []);
+}
+
 /** The richer reports for the Analytics page. All requests run in parallel and
  *  fail independently. */
 async function fetchDeep(token: string, uploadsPlaylist: string | null, days: number): Promise<YtDeep> {

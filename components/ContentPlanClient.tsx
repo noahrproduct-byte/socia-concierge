@@ -26,6 +26,7 @@ import {
 import PageHeader from "@/components/PageHeader";
 import { AskDrawer } from "@/components/AskSocia";
 import type { AskProposal } from "@/lib/ask";
+import type { PlanOutcome, PlanOutcomeSummary, ItemOutcome } from "@/lib/planOutcomes";
 import CountUp from "@/components/CountUp";
 import BestTime from "@/components/BestTime";
 import type { Deliverable, GenerateInput, SavedPlan } from "@/lib/schema";
@@ -113,6 +114,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [result, setResult] = useState<{ data: Deliverable; id: string | null } | null>(null);
   const [history, setHistory] = useState<SavedPlan[]>([]);
+  const [outcomes, setOutcomes] = useState<PlanOutcomeSummary[]>([]);
 
   // Deep links ("Add to Content Plan" from Dashboard / Analytics insights and
   // content drawers) arrive as ?note= and land in the notes field, reviewed
@@ -132,7 +134,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   useEffect(() => {
     fetch("/api/plans")
       .then((r) => (r.ok ? r.json() : { plans: [] }))
-      .then((j) => setHistory(j.plans ?? []))
+      .then((j) => { setHistory(j.plans ?? []); setOutcomes(Array.isArray(j.outcomes) ? j.outcomes : []); })
       .catch(() => {});
   }, []);
 
@@ -368,6 +370,9 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
                 >
                   <b>{h.client_handle || h.niche || "Untitled plan"}</b>
                   <small>{new Date(h.created_at).toLocaleDateString()}</small>
+                  {outcomes.find((o) => o.planId === h.id)?.line && (
+                    <span className="cpl-recent-outcome">{outcomes.find((o) => o.planId === h.id)!.line}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -519,6 +524,29 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   );
 }
 
+const STATE_LABEL: Record<ItemOutcome["state"], string | null> = {
+  unscheduled: null, draft: "Draft on Calendar", scheduled: "Scheduled", publishing: "Publishing", published: "Published", failed: "Failed",
+};
+
+/** Where a planned post got to, and how it did once published. */
+function OutcomeTags({ o }: { o: ItemOutcome | null }) {
+  if (!o || o.state === "unscheduled") return null;
+  const label = STATE_LABEL[o.state];
+  const when = o.state === "scheduled" && o.scheduledAt ? ` · ${new Date(o.scheduledAt).toLocaleDateString("en-US", { weekday: "short", hour: "numeric" })}` : "";
+  const r = o.result;
+  const tone = !r ? null : !r.measured ? "wait" : r.multiplier == null ? "flat" : r.multiplier >= 1.2 ? "up" : r.multiplier < 0.8 ? "down" : "flat";
+  return (
+    <>
+      {label && <span className={`cpl-tag state ${o.state}`}>{label}{when}</span>}
+      {o.state === "published" && r && (
+        o.permalink
+          ? <a className={`cpl-tag result ${tone}`} href={o.permalink} target="_blank" rel="noreferrer" title={r.text}>{r.measured ? r.short : "measuring"}</a>
+          : <span className={`cpl-tag result ${tone}`} title={r.text}>{r.measured ? r.short : "measuring"}</span>
+      )}
+    </>
+  );
+}
+
 function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; onUpdate: (d: Deliverable) => void }) {
   // Times are SOCIA's, from the audience data, never the model's guess. The
   // same rule the Calendar uses, so the two never disagree.
@@ -558,6 +586,21 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
     return `/create?${q.toString()}`;
   };
   const ev = data.evidenceUsed;
+  // What became of this plan: each day's state on the Calendar and, once
+  // published, the result against the account's own median. Re-read after
+  // "Schedule this week" so the chips update at once.
+  const [outcome, setOutcome] = useState<PlanOutcome | null>(null);
+  const [outcomeTick, setOutcomeTick] = useState(0);
+  useEffect(() => {
+    if (!planId) { setOutcome(null); return; }
+    let live = true;
+    fetch(`/api/plans/${planId}/outcomes`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (live) setOutcome(j?.outcome ?? null); })
+      .catch(() => { if (live) setOutcome(null); });
+    return () => { live = false; };
+  }, [planId, outcomeTick]);
+  const itemOutcome = (i: number): ItemOutcome | null => outcome?.items[i] ?? null;
   const [sched, setSched] = useState<{ busy: boolean; ok: boolean; msg: string | null; planError: PlanError | null }>({
     busy: false,
     ok: false,
@@ -589,6 +632,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
       }
       const n = (j.posts ?? []).length;
       const already = Number(j.skipped ?? 0);
+      setOutcomeTick((t) => t + 1);
       const wk = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const notes = [
         skipped.length ? `${skipped.join(", ")} skipped: not a weekday` : null,
@@ -729,11 +773,25 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
             <button type="button" className="ov-btn ghost small" onClick={() => setAsk({ q: null, day: null })}><Sparkles size={12} /> Ask SOCIA about this plan</button>
           </div>
           {saveNote && <p className="cpl-sched-msg ok">{saveNote}</p>}
+          {outcome && outcome.summary.onCalendar > 0 && (
+            <div className="cpl-outcome" role="status">
+              <span><b>{outcome.summary.published} of {outcome.summary.total}</b> posted</span>
+              <span><b>{outcome.summary.onCalendar}</b> on the Calendar</span>
+              {outcome.summary.best?.result?.multiplier != null && (
+                <span>Best: <b>{outcome.summary.best.day}</b> at {outcome.summary.best.result.short}</span>
+              )}
+              {outcome.summary.published > 0 && outcome.summary.measured === 0 && <small>Results still arriving from the platforms.</small>}
+              {outcome.summary.skipped.length > 0 && outcome.summary.skipped.length < outcome.summary.total && (
+                <small>Skipped: {outcome.summary.skipped.join(", ")}</small>
+              )}
+            </div>
+          )}
           <div className="cpl-posts">
             {data.weeklyPlan.map((post, i) => (
               <article className={`cpl-post${applied === post.day ? " applied" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="cpl-post-tags">
                   <span className="cpl-tag day">{post.day}</span>
+                  <OutcomeTags o={itemOutcome(i)} />
                   <button type="button" className="cpl-improve" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to film.`, day: post.day })}><Sparkles size={11} /> Improve</button>
                   {timeFor(post.day) && (
                     <span className="cpl-tag time" title={aud.enough ? "From your audience's engagement windows" : "No audience data yet; noon by default"}>

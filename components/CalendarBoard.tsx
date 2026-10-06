@@ -66,7 +66,9 @@ export type CalDestination = Pick<
 /** A scheduled_posts row, plus its destinations when it was created by the
  *  multi-platform composer. Rows without destinations are legacy Instagram
  *  posts and keep the original modal and publish path. */
-export type CalItem = ScheduledPost & { destinations?: CalDestination[] };
+export type CalResult = { platform: Platform; short: string; text: string; multiplier: number | null; early: boolean; measured: boolean };
+/** A scheduled post with its destinations and, once published, how it did against the account's own median. */
+export type CalItem = ScheduledPost & { destinations?: CalDestination[]; result?: CalResult | null };
 
 const isMulti = (p: CalItem): p is CalItem & { destinations: CalDestination[] } =>
   (p.destinations?.length ?? 0) > 0;
@@ -788,6 +790,7 @@ function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platf
           <DestinationChip destinations={p.destinations} />
         </span>
         {err && <span className="cal2-err">{err}</span>}
+        <ResultLine r={p.result} />
       </button>
     );
   }
@@ -802,8 +805,16 @@ function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platf
         <StatusChip p={p} />
       </span>
       {p.status === "failed" && p.error && <span className="cal2-err">{p.error}</span>}
+      <ResultLine r={p.result} />
     </button>
   );
+}
+
+/** How a published post did against the account's own median; "measuring" until the platform reports it. */
+function ResultLine({ r }: { r?: CalResult | null }) {
+  if (!r) return null;
+  const tone = !r.measured ? "wait" : r.multiplier == null ? "flat" : r.multiplier >= 1.2 ? "up" : r.multiplier < 0.8 ? "down" : "flat";
+  return <span className={`cal2-result ${tone}`} title={r.text}>{r.measured ? r.short : "measuring"}</span>;
 }
 
 function WeekGrid({

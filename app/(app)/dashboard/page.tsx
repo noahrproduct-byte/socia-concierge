@@ -1,3 +1,4 @@
+import { loadPlanOutcome } from "@/lib/planOutcomesLoad";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Link2 } from "lucide-react";
@@ -249,6 +250,15 @@ export default async function DashboardPage({
   const brand = profile?.brand_detail ?? null;
   const insights = buildInsights({ media, baseline, location: brand?.location ?? null, handle: snap!.username ?? null });
   const focus = buildFocus(latestPlan);
+  // What became of the latest plan: posted, measured against the median, skipped.
+  if (focus && latestPlan) {
+    try {
+      const outcome = await loadPlanOutcome(ctx.client, ctx.ownerId, wsId, latestPlan, now);
+      focus.outcomeLine = outcome.summary.line;
+    } catch {
+      focus.outcomeLine = null;
+    }
+  }
 
   const follRows = dailyRows.filter((d) => d.followers != null && d.day >= new Date(Date.now() - 30 * DAY_MS).toISOString().slice(0, 10));
   const followerDelta30 = follRows.length >= 2 ? follRows[follRows.length - 1].followers! - follRows[0].followers! : null;

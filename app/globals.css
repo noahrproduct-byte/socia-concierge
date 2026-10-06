@@ -12327,3 +12327,23 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
   /* All Platforms: three KPI cards stack instead of squeezing to 100px each */
   .ov-kpis.three { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Post results: how a published post did against the account's own median. */
+.cal2-result { display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; margin-top: 4px; padding: 2px 7px; border-radius: 6px; background: var(--surface-muted); color: var(--text-secondary); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cal2-result.up { background: rgba(var(--success-rgb), 0.12); color: var(--success-text); }
+.cal2-result.down { background: rgba(var(--danger-rgb), 0.12); color: var(--danger-text); }
+.cal2-result.wait { font-style: italic; font-weight: 600; }
+.dv-focus-outcome { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; font-weight: 600; color: var(--success-text); }
+/* Content Plan: what became of each planned post */
+.cpl-tag.state { background: var(--surface-muted); color: var(--text-secondary); }
+.cpl-tag.state.scheduled, .cpl-tag.state.draft { background: rgba(var(--primary-rgb), 0.12); color: var(--primary-text); }
+.cpl-tag.state.published { background: rgba(var(--success-rgb), 0.12); color: var(--success-text); }
+.cpl-tag.state.failed { background: rgba(var(--danger-rgb), 0.12); color: var(--danger-text); }
+.cpl-tag.result { text-transform: none; letter-spacing: 0; font-size: 11px; }
+.cpl-tag.result.up { background: rgba(var(--success-rgb), 0.12); color: var(--success-text); }
+.cpl-tag.result.down { background: rgba(var(--danger-rgb), 0.12); color: var(--danger-text); }
+.cpl-tag.result.wait { background: var(--surface-muted); color: var(--text-muted); font-style: italic; }
+.cpl-outcome { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-muted); font-size: 13px; color: var(--text-primary); }
+.cpl-outcome b { font-weight: 700; }
+.cpl-outcome small { color: var(--text-secondary); }
+.cpl-recent-item .cpl-recent-outcome { display: block; font-size: 10.5px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

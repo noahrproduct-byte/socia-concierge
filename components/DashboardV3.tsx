@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Sparkles, ArrowRight, Send, Target, Film, MapPin, Users, Zap, Plus, CalendarDays, Star } from "lucide-react";
+import { Sparkles, ArrowRight, Send, Target, Film, MapPin, Users, Zap, Plus, CalendarDays, Star, CheckCircle2 } from "lucide-react";
 import KpiCard from "./ov/KpiCard";
 import OverviewChart from "./ov/OverviewChart";
 import Donut from "./ov/Donut";
@@ -173,6 +173,7 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
               {d.focus ? (
                 <>
                   <p className="dv-focus-line">{d.focus.headline}</p>
+                  {d.focus.outcomeLine && <p className="dv-focus-outcome"><CheckCircle2 size={13} /> So far: {d.focus.outcomeLine}</p>}
                   <small className="ov-source">From your Content Plan of {new Date(d.focus.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}, built on your performance, goals and competitors.</small>
                   <div className="dv-tiles">
                     {d.focus.tiles.map((t, i) => {
