@@ -12,7 +12,11 @@ import { clipLabel, fmtClock } from "./types";
 import type { ProposedGroup } from "./yield";
 import type { RawEdl } from "./edl";
 
-export type AccountContext = { niche: string | null; location: string | null; goals: string | null; brand: BrandDetail | null };
+export type AccountContext = {
+  niche: string | null; location: string | null; goals: string | null; brand: BrandDetail | null;
+  /** measured note on what sound has worked for this account (lib/audio), when there is one */
+  audio?: string | null;
+};
 
 export type ClipInput = {
   id: string;
@@ -245,10 +249,10 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
 - text: 1 to 3 on-screen lines (opening line, optional mid-point line, optional CTA line) with output-relative at/end seconds. Short, plain, in the brand's voice.
 - enhance: only for clips whose MEASUREMENTS say they are darker, brighter, cooler or warmer than the others, or low in contrast. These are checked against the numbers afterwards; unsupported ones are dropped.
 - cta: a closing ask that fits the goal, or "". caption: a post caption in the brand's voice (with the ask when there is one).
-- music: one sentence recommending a style, tempo range and level ("keep it low under speech"); NEVER a specific song or artist.
+- music: one sentence recommending a style, tempo range and level ("keep it low under speech"); NEVER a specific song or artist. When a measured note on what sound has worked for this account is given, the recommendation must agree with it.
 - notes: anything the editor must know (e.g. "cut away before the pan shakes at 7s").`;
   const content: Content = [
-    { type: "text", text: `${accountText(acct)}
+    { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}
 
 The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.
