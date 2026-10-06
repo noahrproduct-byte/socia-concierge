@@ -26,12 +26,25 @@ export const sortedUsernames = (list: string[]): string[] => Array.from(new Set(
 export const checkCovers = (check: CollaboratorsCheck | null | undefined, list: string[]): boolean =>
   Boolean(check) && check!.usernames.join(",") === sortedUsernames(list).join(",");
 
-/** The verdict from the two test containers. Pure, unit-tested. */
-export function decideCheck(usernames: string[], real: IgResult<{ id: string }>, probe: IgResult<{ id: string }> | null, at = new Date().toISOString()): CollaboratorsCheck {
+/**
+ * The verdict from the test containers. Pure, unit-tested.
+ * `control` is the same test WITHOUT collaborators, made only when the real
+ * one failed with Instagram's generic error: it separates "Instagram fails
+ * whenever collaborators are included" from "Instagram is failing, period".
+ */
+export function decideCheck(usernames: string[], real: IgResult<{ id: string }>, probe: IgResult<{ id: string }> | null, at = new Date().toISOString(), control: IgResult<{ id: string }> | null = null): CollaboratorsCheck {
   const base = { usernames: sortedUsernames(usernames), at };
   const who = base.usernames.map((u) => `@${u}`).join(", ");
   if (!real.ok) {
-    if (igRetryable(real.code)) return { ...base, status: "error", message: `Couldn't check with Instagram right now (${real.error}). Try again in a moment.` };
+    if (igRetryable(real.code)) {
+      if (control?.ok) {
+        return {
+          ...base, status: "rejected",
+          message: `Instagram fails every time collaborators are added (the same test without them works), so it won't take ${who} through this connection. If ${base.usernames.length === 1 ? "that account is" : "any of them is"} private or a personal profile, Instagram can't invite it; otherwise Collab posts may need the Facebook-linked connection.`,
+        };
+      }
+      return { ...base, status: "error", message: `Couldn't check with Instagram right now (${real.error}). Try again in a moment.` };
+    }
     return { ...base, status: "rejected", message: `Instagram refused ${base.usernames.length === 1 ? "this collaborator" : "these collaborators"}: ${real.error}` };
   }
   if (probe && !probe.ok && !igRetryable(probe.code)) {
@@ -71,12 +84,17 @@ export async function checkCollaborators(client: Supa, input: CheckInput): Promi
 
   const real = await createContainer(conn.ig_user_id, conn.access_token, { mediaType: "IMAGE", mediaUrl: input.imageUrl, collaborators: list });
   let probe: IgResult<{ id: string }> | null = null;
+  let control: IgResult<{ id: string }> | null = null;
   if (real.ok) {
     // An invented, practically unclaimable username; never shown to anyone.
     const invented = `socia_check_${Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
     probe = await createContainer(conn.ig_user_id, conn.access_token, { mediaType: "IMAGE", mediaUrl: input.imageUrl, collaborators: [invented] });
+  } else if (igRetryable(real.code)) {
+    // Instagram's generic failure: is it the collaborators, or Instagram in general?
+    control = await createContainer(conn.ig_user_id, conn.access_token, { mediaType: "IMAGE", mediaUrl: input.imageUrl });
   }
-  const verdict = decideCheck(list, real, probe);
-  console.log("[collab-check]", JSON.stringify({ account: conn.ig_user_id, n: list.length, status: verdict.status, real: real.ok ? "ok" : `${real.code ?? "?"}:${real.error.slice(0, 120)}`, probe: probe ? (probe.ok ? "ok" : `${probe.code ?? "?"}:${probe.error.slice(0, 120)}`) : null }));
+  const verdict = decideCheck(list, real, probe, undefined, control);
+  const fmt = (r: IgResult<{ id: string }> | null) => (r ? (r.ok ? "ok" : `${r.code ?? "?"}:${r.error.slice(0, 120)}`) : null);
+  console.log("[collab-check]", JSON.stringify({ account: conn.ig_user_id, n: list.length, status: verdict.status, real: fmt(real), probe: fmt(probe), control: fmt(control) }));
   return verdict;
 }

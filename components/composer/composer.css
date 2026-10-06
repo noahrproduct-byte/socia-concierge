@@ -306,3 +306,18 @@
   .cp-dest-row:active, .cp-drop.over, .cp-action:active, .cp-icon-btn:active, .cp-use:active { transform: none; }
 }
 .cp-linkbtn { border: none; background: none; padding: 0; font: inherit; font-weight: 650; color: var(--primary-text); cursor: pointer; text-decoration: underline; }
+
+/* Username suggestions (components/composer/settings/UsernameInput.tsx) */
+.cp-un { position: relative; flex: 1; min-width: 160px; display: flex; }
+.cp-un .cp-chip-input { width: 100%; }
+.cp-suggest { position: absolute; z-index: 30; top: calc(100% + 8px); left: -6px; min-width: 280px; max-width: min(380px, 90vw); list-style: none; padding: 6px; border-radius: 12px; background: var(--surface-elevated, var(--surface)); border: 1px solid var(--border-strong); box-shadow: 0 12px 32px rgba(var(--shadow-rgb), 0.28); }
+.cp-suggest li[role="option"] { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+.cp-suggest li[role="option"].on { background: var(--primary-subtle); }
+.cp-suggest img, .cp-suggest-ph { width: 28px; height: 28px; border-radius: 99px; flex: none; object-fit: cover; background: var(--surface-muted); }
+.cp-suggest-ph { display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.cp-suggest-text { display: flex; flex-direction: column; min-width: 0; }
+.cp-suggest-text b { font-size: 13px; font-weight: 650; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-suggest-text small { font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-suggest-foot { padding: 6px 8px 2px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 4px; }
+.cp-suggest .cp-suggest-text small, .cp-suggest .cp-suggest-text b, .cp-suggest-foot { text-transform: none; letter-spacing: normal; }
+.cp-suggest .cp-suggest-text small { font-weight: 500; }
