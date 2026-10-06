@@ -84,9 +84,11 @@ describe("text rules", () => {
     const ok = { ...s, title: "Good title", madeForKids: false };
     expect(validateDestination({ platform: "youtube", media: [video()], masterCaption: "d", settings: ok, scheduledAt: null, requireFutureTime: false }).level).toBe("ready");
   });
-  it("Instagram blocks more than 30 hashtags and a past time", () => {
+  it("Instagram blocks more than 5 hashtags and a past time", () => {
     const s: InstagramSettings = { ...defaultSettings("instagram"), format: "reel" };
-    const many = Array.from({ length: 31 }, (_, i) => `#t${i}`).join(" ");
+    const five = Array.from({ length: 5 }, (_, i) => `#t${i}`).join(" ");
+    expect(validateDestination({ platform: "instagram", media: [video()], masterCaption: five, settings: s, scheduledAt: future, requireFutureTime: true }).issues.map((i) => i.code)).not.toContain("hashtags_many");
+    const many = Array.from({ length: 6 }, (_, i) => `#t${i}`).join(" ");
     expect(validateDestination({ platform: "instagram", media: [video()], masterCaption: many, settings: s, scheduledAt: future, requireFutureTime: true }).issues.map((i) => i.code)).toContain("hashtags_many");
     expect(validateDestination({ platform: "instagram", media: [video()], masterCaption: "ok", settings: s, scheduledAt: "2020-01-01T00:00:00Z", requireFutureTime: true }).issues.map((i) => i.code)).toContain("time_past");
   });

@@ -71,7 +71,7 @@ describe("contentChecks", () => {
     const tags = Array.from({ length: 31 }, (_, i) => `#t${i}`).join(" ");
     const checks = contentChecks(draftWith({ masterCaption: `Hook\n${tags}` }, ["instagram"]), accounts);
     expect(byId(checks, "tags").tone).toBe("warn");
-    expect(byId(checks, "tags").value).toContain("limit 30 hashtags");
+    expect(byId(checks, "tags").value).toContain("limit 5 hashtags");
   });
 
   it("checks the YouTube title, the made-for-kids answer and the thumbnail", () => {

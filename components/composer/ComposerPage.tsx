@@ -181,7 +181,7 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
       />
       {!quick && <PlatformTabs draft={draft} accounts={accounts} active={tab} onChange={setActiveTab} />}
       {quick || !activeDest ? (
-        <MasterContent draft={draft} dispatch={dispatch} />
+        <MasterContent draft={draft} dispatch={dispatch} userId={userId} fileFor={c.fileFor} />
       ) : (
         <CaptionOverride dest={activeDest} draft={draft} dispatch={dispatch} />
       )}
