@@ -6,6 +6,7 @@
 // this device; the server runs the analysis and keeps the project so it
 // survives a refresh. Plan limits are enforced by the API; this only shows them.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Upload, Sparkles, AlertTriangle, Loader2, RefreshCw, Layers, FolderOpen } from "lucide-react";
 import PageHeader from "../PageHeader";
@@ -19,7 +20,10 @@ import { STUDIO_BUCKET, type Opportunity, type StudioBuild, type StudioClip, typ
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
 
-type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean };
+type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
+
+// The video builder pulls in Remotion; load it only when a post is opened for building.
+const ClipBuilder = dynamic(() => import("./ClipBuilder"), { ssr: false, loading: () => <div className="ov-card st-progress"><ul><li className="on"><i />Opening the video builder</li></ul></div> });
 type Paths = { folder: string; source: string; frames: string; audio: string };
 
 const VIDEO_RE = /\.(mp4|mov|m4v|webm|mkv|avi)$/i;
@@ -54,6 +58,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
   const [build, setBuild] = useState<StudioBuild | null>(null);
   const [buildLoading, setBuildLoading] = useState(false);
   const [buildError, setBuildError] = useState<string | null>(null);
+  const [building, setBuilding] = useState(false);
   const [busyIds, setBusyIds] = useState(0);
   const projectRef = useRef<StudioProject | null>(null);
   projectRef.current = project;
@@ -65,7 +70,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
     const j = await res.json().catch(() => null);
     if (res.status === 503 && j?.migration) { setMigration(j.error); return; }
     if (!res.ok) { setNotice(j?.error ?? "Couldn't load your projects."); return; }
-    setMeta({ limits: j.limits, usage: j.usage ?? null, transcription: Boolean(j.transcription) });
+    setMeta({ limits: j.limits, usage: j.usage ?? null, transcription: Boolean(j.transcription), autoBuild: Boolean(j.features?.autoBuild) });
     setProjects(j.projects ?? []);
   }, []);
 
@@ -267,8 +272,8 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
   const footageSec = readyClips.reduce((a, l) => a + (l.durationSec ?? 0), 0);
   const bytes = readyClips.reduce((a, l) => a + (l.clip?.bytes ?? 0), 0);
   const stale = Boolean(project?.yield && project.status === "collecting");
-  const view: "start" | "collect" | "understanding" | "yield" | "opportunity" =
-    !project ? "start" : project.status === "understanding" ? "understanding" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
+  const view: "start" | "collect" | "understanding" | "yield" | "opportunity" | "builder" =
+    !project ? "start" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
   const canUnderstand = readyClips.length > 0 && !uploading && !starting;
   const limits = meta?.limits;
 
@@ -289,7 +294,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
         status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured — clips are understood from frames and measured sound"}</span> : null}
         actions={
           <>
-            {project && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={() => { setProject(null); setLocals([]); setOpenOpp(null); setAdding(false); router.replace("/studio?mode=clips", { scroll: false }); void loadMeta(); }}><FolderOpen size={14} /> Projects</button>}
+            {project && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={() => { setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); router.replace("/studio?mode=clips", { scroll: false }); void loadMeta(); }}><FolderOpen size={14} /> Projects</button>}
             <button type="button" className="ov-btn primary" disabled={view === "understanding"} onClick={() => input.current?.click()}><Upload size={14} /> Add clips</button>
             <input ref={input} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" multiple onChange={(e) => { if (e.target.files) void onFiles(e.target.files); e.target.value = ""; }} />
           </>
@@ -354,7 +359,11 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
       )}
 
       {view === "opportunity" && project && openOpp && (
-        <OpportunityView o={openOpp} build={build} clips={project.clips} loading={buildLoading} error={buildError} onBack={() => { setOpenOpp(null); setBuild(null); }} onRetry={() => void openOpportunity(openOpp)} />
+        <OpportunityView o={openOpp} build={build} clips={project.clips} loading={buildLoading} error={buildError} onBack={() => { setOpenOpp(null); setBuild(null); }} onRetry={() => void openOpportunity(openOpp)} canMake={meta ? meta.autoBuild : null} onMake={() => setBuilding(true)} />
+      )}
+
+      {view === "builder" && openOpp && build && (
+        <ClipBuilder buildId={build.id} title={openOpp.title} onBack={() => { setBuilding(false); void openOpportunity(openOpp); }} />
       )}
 
       <div className="st-privacy"><Sparkles size={11} /> Clips are measured on your device and stored privately. SOCIA counts a post only when the footage supports it.</div>

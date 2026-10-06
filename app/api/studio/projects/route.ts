@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getEntitlements, getUsage } from "@/lib/entitlements";
+import { getEntitlements, getUsage, canUseFeature } from "@/lib/entitlements";
 import { requireFeature } from "@/lib/planGuard";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { listProjects, createProject, studioLimits } from "@/lib/studioClips/server";
@@ -18,7 +18,11 @@ export async function GET() {
   try {
     const ent = await getEntitlements(ctx.client, ctx.ownerId);
     const [projects, usage] = await Promise.all([listProjects(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null), getUsage(ctx.client, ent)]);
-    return NextResponse.json({ projects, limits: studioLimits(ent), usage: usage.content_build, transcription: transcriptionConfigured() });
+    return NextResponse.json({
+      projects, limits: studioLimits(ent), usage: usage.content_build, transcription: transcriptionConfigured(),
+      // Make This Video (Phase B) is a Growth/Pro feature; the UI shows a plan note otherwise.
+      features: { autoBuild: canUseFeature(ent, "auto_build") }, videoBuilds: usage.video_builds,
+    });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

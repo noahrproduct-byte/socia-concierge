@@ -7,7 +7,7 @@
 import { anthropic, modelFor } from "@/lib/anthropic";
 import { brandContext } from "@/lib/prompt";
 import type { BrandDetail } from "@/lib/profile";
-import type { ClipCard, ClipFacts, Opportunity, Transcript } from "./types";
+import type { ClipCard, ClipFacts, Edl, Opportunity, RegenerateDirective, Transcript } from "./types";
 import { clipLabel, fmtClock } from "./types";
 import type { ProposedGroup } from "./yield";
 import type { RawEdl } from "./edl";
@@ -223,8 +223,22 @@ const EDL_SCHEMA = {
   required: ["targetSec", "segments", "text", "enhance", "cta", "music", "caption", "notes"],
 } as const;
 
-export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext): Promise<{ raw: RawEdl; model: string }> {
-  const used = clips.filter((c) => opp.clipIds.includes(c.id) && c.card);
+const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
+  faster: "Faster pace: more segments, each 1.5–3 seconds, cut on the action; same story.",
+  energetic: "More energetic: open on the most striking moment, quicker cuts, short punchy text lines.",
+  professional: "More professional: calmer pacing, fewer and plainer text lines, no hype words, a clean CTA.",
+  shorter: "Shorter: aim for about 60% of the previous cut's length; keep only the strongest moments.",
+  different_hook: "A different hook: open on a different moment than the previous cut and write a different opening line.",
+  different_clips: "Use different footage: prefer clips and moments the previous cut did not use, where the material allows; keep the story coherent.",
+};
+
+export type EdlVariant = { directive: RegenerateDirective; previous: Edl };
+
+export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant): Promise<{ raw: RawEdl; model: string }> {
+  const used = clips.filter((c) => (variant ? true : opp.clipIds.includes(c.id)) && c.card);
+  const previous = variant
+    ? `\n\nThe previous cut (${variant.previous.segments.reduce((a, s) => a + (s.out - s.in), 0).toFixed(1)}s): ${variant.previous.segments.map((s) => `${clipLabel(used.find((c) => c.id === s.clipId)?.position ?? 0)} ${s.in.toFixed(1)}–${s.out.toFixed(1)}s`).join("; ")}${variant.previous.text[0] ? `; opening line "${variant.previous.text[0].text}"` : ""}.\nChange requested: ${DIRECTIVE_TEXT[variant.directive]}`
+    : "";
   const system = `You are cutting ONE short-form vertical post (1080×1920) from the clips given, as an edit decision list another editor could follow exactly. ${HONESTY}
 - segments: in order; each has a clip id and clip-relative in/out seconds that lie INSIDE that clip's usable moments; the first segment is the opener (the strongest attention-holding moment or the spoken hook); the last is the ending. 3 to 8 segments.
 - targetSec: a sensible length for this footage, typically 15–30 seconds; never longer than the footage supports.
@@ -238,9 +252,9 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
 
 The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.
-${opp.opener ? `Opener candidate: ${clipLabel(used.find((c) => c.id === opp.opener!.clipId)?.position ?? 0)} ${opp.opener.start.toFixed(1)}–${opp.opener.end.toFixed(1)}s (${opp.opener.why}).` : "No opener was identified; choose the strongest available moment."}
+${opp.opener ? `Opener candidate: ${clipLabel(used.find((c) => c.id === opp.opener!.clipId)?.position ?? 0)} ${opp.opener.start.toFixed(1)}–${opp.opener.end.toFixed(1)}s (${opp.opener.why}).` : "No opener was identified; choose the strongest available moment."}${previous}
 
-Clips:
+Clips${variant?.directive === "different_clips" ? " (every clip in the project; the post's own clips are listed first)" : ""}:
 
 ${used.map((c) => `${cardText(c)}\n  measurements: ${factsText(c.facts)}${c.transcript?.words.length ? `\n  transcript:\n${transcriptLines(c.transcript, 900).split("\n").map((l) => `    ${l}`).join("\n")}` : ""}`).join("\n\n")}
 
