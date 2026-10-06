@@ -194,18 +194,22 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
   if (!(await alertsEnabled(svc))) return run;
   const deadline = Date.now() + budgetMs;
 
+  // Every connected account, in every workspace: is_active only points at the
+  // owner's active workspace, and a workspace without Instagram leaves all of
+  // their rows inactive — the other workspaces still get their alerts. Paused
+  // accounts (plan downgrade) are not read.
   let conns: IgConn[] = [];
   try {
     const { data, error } = await svc
       .from("instagram_connections")
-      .select("user_id, ig_user_id, workspace_id, media, is_active, plan_suspended_at");
+      .select("user_id, ig_user_id, workspace_id, media, plan_suspended_at");
     if (error) throw error;
-    conns = ((data ?? []) as IgConn[]).filter((c) => c.is_active !== false && c.plan_suspended_at == null);
+    conns = ((data ?? []) as IgConn[]).filter((c) => c.plan_suspended_at == null);
   } catch {
     // pre-workspaces schema: no workspace_id column
     try {
-      const { data } = await svc.from("instagram_connections").select("user_id, ig_user_id, media, is_active");
-      conns = ((data ?? []) as IgConn[]).filter((c) => c.is_active !== false).map((c) => ({ ...c, workspace_id: null }));
+      const { data } = await svc.from("instagram_connections").select("user_id, ig_user_id, media");
+      conns = ((data ?? []) as IgConn[]).map((c) => ({ ...c, workspace_id: null }));
     } catch {
       return run;
     }
@@ -220,8 +224,8 @@ export async function runAlertDetection(svc: Supa, now = new Date(), budgetMs = 
     return e;
   };
 
-  // Pass 1: Instagram-specific detectors (breakout, performance), per active
-  // Instagram connection. These read the account's own posts and snapshots.
+  // Pass 1: Instagram-specific detectors (breakout, performance), per
+  // connected Instagram account. These read the account's own posts and snapshots.
   for (const c of conns) {
     if (Date.now() > deadline) break;
     run.workspaces++;

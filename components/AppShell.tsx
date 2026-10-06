@@ -76,7 +76,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
       // the plan behind the "Upgrade to …" card are the viewer's own.
       const ctx = await resolveContext(supabase, user.id);
       const [conn, fbRes, platRes, appRes, entRes, schedRes, plansRes, ytRes] = await Promise.all([
-        getActiveConnection(ctx.client, ctx.ownerId, "username, media, last_synced_at"),
+        getActiveConnection(ctx.client, ctx.ownerId, "username, media, last_synced_at", ctx.workspace?.id ?? null),
         // Connections are one per workspace: read the active workspace's row, not "the" row for the owner.
         scopeToWorkspace(ctx.client.from("facebook_connections").select("page_name, connection_status").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle(),
         ctx.client.from("profiles").select("platforms").eq("user_id", ctx.ownerId).maybeSingle(),

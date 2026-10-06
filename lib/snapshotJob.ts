@@ -75,23 +75,27 @@ async function fetchTotals(token: string): Promise<{ followers: number | null; f
 export async function runDailySnapshots(supabase: Supa, now = new Date(), budgetMs = 20000): Promise<SnapshotRun> {
   const day = now.toISOString().slice(0, 10);
   const deadline = Date.now() + budgetMs;
-  // Accounts paused by a plan downgrade are not read: no snapshot, no API
-  // call. Progressively narrower selects keep a pre-migration schema working.
+  // Every connected account, whichever Brand Workspace its owner happens to be
+  // looking at: is_active only points at the active workspace's account, and a
+  // workspace without Instagram leaves every row inactive — history must keep
+  // accumulating for all of them. Accounts paused by a plan downgrade are not
+  // read: no snapshot, no API call. Progressively narrower selects keep a
+  // pre-migration schema working.
   let conns: Conn[] | null = null;
   try {
     const { data, error } = await supabase
       .from("instagram_connections")
-      .select("user_id, ig_user_id, access_token, is_active, plan_suspended_at");
+      .select("user_id, ig_user_id, access_token, plan_suspended_at");
     if (error) throw error;
-    conns = ((data ?? []) as Conn[]).filter((c) => c.access_token && c.is_active !== false && c.plan_suspended_at == null);
+    conns = ((data ?? []) as Conn[]).filter((c) => c.access_token && c.plan_suspended_at == null);
   } catch {
     conns = null;
   }
   if (conns == null) {
     try {
-      const { data, error } = await supabase.from("instagram_connections").select("user_id, ig_user_id, access_token, is_active");
+      const { data, error } = await supabase.from("instagram_connections").select("user_id, ig_user_id, access_token");
       if (error) throw error;
-      conns = ((data ?? []) as Conn[]).filter((c) => c.access_token && c.is_active !== false);
+      conns = ((data ?? []) as Conn[]).filter((c) => c.access_token);
     } catch {
       const { data } = await supabase.from("instagram_connections").select("user_id, ig_user_id, access_token");
       conns = ((data ?? []) as Conn[]).filter((c) => c.access_token);

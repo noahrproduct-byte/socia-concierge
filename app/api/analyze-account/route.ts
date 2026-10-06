@@ -172,7 +172,7 @@ export async function GET() {
   const ctx = await resolveContext(supabase, user.id);
 
   // 1) Does the workspace have a live Instagram connection with a token?
-  const conn = (await getActiveConnection(ctx.client, ctx.ownerId, "username, access_token")) as {
+  const conn = (await getActiveConnection(ctx.client, ctx.ownerId, "username, access_token", ctx.workspace?.id ?? null)) as {
     username?: string;
     access_token?: string;
   } | null;

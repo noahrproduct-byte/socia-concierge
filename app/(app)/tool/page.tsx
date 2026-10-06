@@ -91,7 +91,7 @@ export default async function ContentPlanPage() {
     // profile columns may be mid-migration; the form still works blank
   }
 
-  const snap = await getIgSnapshot(ctx.client, ctx.ownerId);
+  const snap = await getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null);
   const media = snap?.media ?? [];
   const engRate =
     snap?.followers_count && media.length

@@ -56,7 +56,7 @@ export async function buildWeeklyRoundup(
   let breakouts: RoundupItem[] = [];
   let media: IgMediaItem[] = [];
   let connected = false;
-  const snap = await getIgSnapshot(supabase, ownerId).catch(() => null);
+  const snap = await getIgSnapshot(supabase, ownerId, workspaceId).catch(() => null);
   if (snap) {
     connected = true;
     media = (Array.isArray(snap.media) ? snap.media : []) as IgMediaItem[];

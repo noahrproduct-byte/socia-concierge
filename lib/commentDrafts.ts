@@ -100,7 +100,7 @@ export async function syncCommentDrafts(
 ): Promise<SyncResult> {
   const [fb, ig] = await Promise.all([
     getFbSnapshot(supabase, ownerId).catch(() => null),
-    getIgSnapshot(supabase, ownerId).catch(() => null),
+    getIgSnapshot(supabase, ownerId, workspaceId).catch(() => null),
   ]);
   const fbConnected = fb?.status === "connected";
   const igConnected = Boolean(ig && ig.followers_count != null);
@@ -111,7 +111,7 @@ export async function syncCommentDrafts(
   const none: CommentRead = { comments: [], postsChecked: 0, postsFailed: 0, problem: null, returned: 0 };
   const [fbRead, igRead] = await Promise.all([
     fbPosts.length ? fetchFacebookComments(supabase, ownerId, fbPosts) : Promise.resolve(none),
-    igMedia.length ? fetchInstagramComments(supabase, ownerId, igMedia) : Promise.resolve(none),
+    igMedia.length ? fetchInstagramComments(supabase, ownerId, igMedia, 25, workspaceId) : Promise.resolve(none),
   ]);
   const problems: SyncProblem[] = [];
   for (const [platform, r] of [["facebook", fbRead], ["instagram", igRead]] as const) {
@@ -193,7 +193,7 @@ export async function sendCommentDraft(supabase: Supa, ownerId: string, id: stri
   if (d.status === "sent") return { ok: false, error: "This reply was already sent." };
   const now = new Date().toISOString();
   await supabase.from("comment_drafts").update({ status: "approved", draft: text, updated_at: now }).eq("user_id", ownerId).eq("id", id);
-  const r = await replyToComment(supabase, ownerId, d.platform, d.comment_id, text);
+  const r = await replyToComment(supabase, ownerId, d.platform, d.comment_id, text, (d as { workspace_id?: string | null }).workspace_id ?? null);
   if (r.ok) {
     await supabase.from("comment_drafts").update({ status: "sent", sent_reply_id: r.replyId, error: null, updated_at: new Date().toISOString() }).eq("user_id", ownerId).eq("id", id);
     return { ok: true, draft: { ...d, status: "sent", draft: text, sent_reply_id: r.replyId, error: null } };

@@ -64,7 +64,7 @@ export async function POST(req: Request) {
   };
   const finish = async () => {
     await dropSnapshots();
-    await promoteRemaining(db, ownerId);
+    await promoteRemaining(db, ownerId, wsId);
     clearLiveCache(ctx.ownerId);
     return NextResponse.json({ ok: true });
   };
@@ -108,13 +108,22 @@ export async function POST(req: Request) {
   return finish();
 }
 
+// If no row is active afterwards, promote one — but only one that belongs to
+// the SAME workspace. A workspace whose account was just removed has none
+// left, and must read as "not connected"; promoting another workspace's row
+// would make this workspace show that workspace's Instagram account (the bug
+// where a new workspace kept showing the original account and could not
+// disconnect it). Pre-workspaces (no wsId) the owner's rows are one pool.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function promoteRemaining(supabase: any, userId: string) {
+async function promoteRemaining(supabase: any, userId: string, workspaceId: string | null) {
   try {
-    const { data } = await supabase
+    let q = supabase
       .from("instagram_connections")
       .select("ig_user_id, is_active")
       .eq("user_id", userId);
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data, error } = await q;
+    if (error) return;
     const rows = (data ?? []) as { ig_user_id: string | null; is_active?: boolean }[];
     if (!rows.length || rows.some((r) => r.is_active)) return;
     const first = rows[0]?.ig_user_id;

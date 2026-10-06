@@ -42,7 +42,7 @@ export default async function CommentsPage() {
   const [drafts, fb, ig] = await Promise.all([
     listCommentDrafts(ctx.client, ctx.ownerId, wsId),
     getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null),
-    getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null),
+    getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null),
   ]);
   const connected = { facebook: fb?.status === "connected", instagram: Boolean(ig && ig.followers_count != null) };
 

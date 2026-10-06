@@ -42,7 +42,7 @@ export async function GET(req: Request) {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const requested = Number(new URL(req.url).searchParams.get("range") ?? 30);
   const days = clampDays(ent, Number.isFinite(requested) ? Math.max(1, Math.min(365, Math.floor(requested))) : 30);
-  const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
+  const snap = await getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
 
   let daily: DailySnapshot[] = [];
   try {

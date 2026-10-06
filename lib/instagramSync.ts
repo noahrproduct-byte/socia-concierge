@@ -283,19 +283,63 @@ export async function readDailySnapshots<T>(
   return (data ?? []) as T[];
 }
 
-/** The connection every read and write goes through: the active account.
+/** Which Brand Workspace the owner `userId` is reading through
+ *  (profiles.active_workspace_id). null before the workspaces migration, or
+ *  when the row cannot be read. */
+async function ownerActiveWorkspaceId(supabase: Supa, userId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.from("profiles").select("active_workspace_id").eq("user_id", userId).maybeSingle();
+    if (error) return null;
+    return ((data as { active_workspace_id?: string | null } | null)?.active_workspace_id as string | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The connection every read and write goes through: the account in the
+ *  active Brand Workspace.
+ *
+ *  A workspace holds one Instagram account, so `workspace_id` names the row
+ *  and is the source of truth. `is_active` is only the pointer that
+ *  socia_set_active_workspace keeps in step with it, and is never trusted on
+ *  its own: a workspace without an Instagram account leaves every row
+ *  inactive, and a stale pointer would otherwise surface ANOTHER workspace's
+ *  account here. Pass `workspaceId` when there is a request context
+ *  (ctx.workspace?.id ?? null); leave it undefined to look the owner's active
+ *  workspace up.
+ *
  *  An account paused by a plan downgrade (plan_suspended_at set) is never
  *  returned: its data is kept but not read. Tolerant of the pre-migration
- *  worlds where plan_suspended_at, or is_active, does not exist yet and a
- *  user has exactly one row. Multiple rows only appear post-migration, where
- *  exactly one is active. */
+ *  worlds where workspace_id, plan_suspended_at, or is_active does not exist
+ *  yet and a user has exactly one row. */
 export async function getActiveConnection(
   supabase: Supa,
   userId: string,
   fields: string,
+  workspaceId?: string | null,
 ): Promise<Record<string, unknown> | null> {
-  // 1) Post-migration: the active, not-suspended row. When no row is flagged
-  //    active, mirror the legacy single-row fallback, still never a paused one.
+  // 1) Brand Workspaces: the row in the active workspace, or nothing. There is
+  //    deliberately no fallback to a row from another workspace — a new
+  //    workspace starts with no Instagram account until one is connected in it.
+  const wsId = workspaceId === undefined ? await ownerActiveWorkspaceId(supabase, userId) : workspaceId;
+  if (wsId) {
+    try {
+      const { data, error } = await supabase
+        .from("instagram_connections")
+        .select(fields)
+        .eq("user_id", userId)
+        .eq("workspace_id", wsId)
+        .is("plan_suspended_at", null)
+        .limit(1);
+      if (!error) return data?.[0] ?? null;
+    } catch {
+      // workspace_id is not on this table yet (migration half-run): the
+      // pre-workspaces paths below still answer
+    }
+  }
+  // 2) Pre-workspaces, post-is_active: the active, not-suspended row. When no
+  //    row is flagged active, mirror the legacy single-row fallback, still
+  //    never a paused one.
   try {
     const { data, error } = await supabase
       .from("instagram_connections")
@@ -317,7 +361,7 @@ export async function getActiveConnection(
   } catch {
     // plan_suspended_at may not exist yet: fall through
   }
-  // 2) is_active exists but plan_suspended_at does not.
+  // 3) is_active exists but plan_suspended_at does not.
   try {
     const { data, error } = await supabase
       .from("instagram_connections")
@@ -330,7 +374,7 @@ export async function getActiveConnection(
   } catch {
     // is_active may not exist yet — fall through to the single-row world
   }
-  // 3) Pre-migration single-row world.
+  // 4) Pre-migration single-row world.
   const { data } = await supabase
     .from("instagram_connections")
     .select(fields)
@@ -341,11 +385,12 @@ export async function getActiveConnection(
 
 /** Fetch fresh data from Instagram and cache it. Returns the snapshot, or null
  *  if there's no usable connection. Cache write is best-effort. */
-async function syncInstagramImpl(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
+async function syncInstagramImpl(supabase: Supa, userId: string, workspaceId?: string | null): Promise<IgSnapshot | null> {
   const conn = (await getActiveConnection(
     supabase,
     userId,
     "access_token, username, ig_user_id",
+    workspaceId,
   )) as { access_token?: string; username?: string; ig_user_id?: string } | null;
   if (!conn?.access_token) return null;
   const token = conn.access_token;
@@ -481,12 +526,13 @@ async function syncInstagramImpl(supabase: Supa, userId: string): Promise<IgSnap
 
 /** Read the cached snapshot of the ACTIVE account, auto-syncing when stale
  *  or never synced. */
-async function getIgSnapshotImpl(supabase: Supa, userId: string): Promise<IgSnapshot | null> {
+async function getIgSnapshotImpl(supabase: Supa, userId: string, workspaceId?: string | null): Promise<IgSnapshot | null> {
   // Try the full row first (cache columns may not exist yet).
   const row = (await getActiveConnection(
     supabase,
     userId,
     "ig_user_id, username, access_token, profile, media, followers_count, media_count, last_synced_at",
+    workspaceId,
   )) as {
     ig_user_id?: string;
     username?: string;
@@ -500,19 +546,19 @@ async function getIgSnapshotImpl(supabase: Supa, userId: string): Promise<IgSnap
 
   if (row && row.access_token && row.profile === undefined && row.followers_count === undefined) {
     // Cache columns missing entirely — live sync every load.
-    return syncInstagram(supabase, userId);
+    return syncInstagram(supabase, userId, workspaceId);
   }
   if (!row?.access_token) {
     // The select may have failed on missing cache columns; last resort.
-    const base = await getActiveConnection(supabase, userId, "access_token");
+    const base = await getActiveConnection(supabase, userId, "access_token", workspaceId);
     if (!base?.access_token) return null;
-    return syncInstagram(supabase, userId);
+    return syncInstagram(supabase, userId, workspaceId);
   }
 
   const stale =
     !row.last_synced_at || Date.now() - new Date(row.last_synced_at).getTime() > STALE_MS;
   if (stale) {
-    const fresh = await syncInstagram(supabase, userId);
+    const fresh = await syncInstagram(supabase, userId, workspaceId);
     if (fresh) return fresh;
   }
 

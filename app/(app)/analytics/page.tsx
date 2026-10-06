@@ -58,7 +58,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // Range-independent reads start now.
   const profileSnapP = Promise.all([
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)),
-    getIgSnapshot(ctx.client, ctx.ownerId),
+    getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null),
   ]);
   profileSnapP.catch(() => {}); // surfaced when awaited below
   const fbP = getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null);
@@ -112,7 +112,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const igExtraP = live
     ? Promise.all([
         readDailySnapshots<IgRow>(ctx.client, ctx.ownerId, snap?.ig_user_id ?? null, "day, followers, reach, views, followers_gained, source").catch(() => [] as IgRow[]),
-        (getActiveConnection(ctx.client, ctx.ownerId, "access_token") as Promise<{ access_token?: string } | null>).then((row) =>
+        (getActiveConnection(ctx.client, ctx.ownerId, "access_token", ctx.workspace?.id ?? null) as Promise<{ access_token?: string } | null>).then((row) =>
           cachedLive(ctx.ownerId, ["ig-demo", ...scope, snap?.ig_user_id], () => fetchDemographics(row?.access_token ?? null), (v) => v.status === "ok"),
         ),
       ])

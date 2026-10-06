@@ -110,7 +110,7 @@ export async function GET(req: Request) {
   let ownFollowers: number | null = null;
   let ownFormats: string[] = [];
   try {
-    const conn = await getActiveConnection(ctx.client, ctx.ownerId, "username, followers_count, media");
+    const conn = await getActiveConnection(ctx.client, ctx.ownerId, "username, followers_count, media", ctx.workspace?.id ?? null);
     const c = conn as { username?: string; followers_count?: number; media?: unknown } | null;
     ownHandle = c?.username ?? null;
     ownFollowers = c?.followers_count ?? null;

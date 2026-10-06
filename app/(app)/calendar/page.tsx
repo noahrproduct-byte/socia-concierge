@@ -77,7 +77,7 @@ export default async function CalendarPage() {
   let igUsername: string | null = null;
   let connected = false;
   try {
-    const snap = await getIgSnapshot(ctx.client, ctx.ownerId);
+    const snap = await getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null);
     connected = Boolean(snap);
     igUsername = snap?.username ?? null;
     posts = (snap?.media ?? [])
@@ -103,7 +103,7 @@ export default async function CalendarPage() {
     )
       .order("scheduled_at", { ascending: true })
       .limit(400),
-    getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id, scopes"),
+    getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id, scopes", ctx.workspace?.id ?? null),
     ctx.client.from("publisher_heartbeat").select("ran_at").eq("id", 1).maybeSingle(),
     getEntitlements(ctx.client, ctx.ownerId),
   ]);
