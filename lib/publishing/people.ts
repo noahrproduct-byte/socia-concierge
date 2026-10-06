@@ -5,7 +5,27 @@
 // typed. Client-safe and pure.
 import { normalizeUsername } from "./igRules";
 
-export type PersonSource = "your_account" | "collaborated" | "tagged" | "mentioned" | "competitor" | "commented";
+export type PersonSource = "your_account" | "collaborated" | "used" | "tagged" | "mentioned" | "competitor" | "commented";
+
+/** What Instagram's account lookup (Business Discovery) said about one exact username. */
+export type LookupAccount = { username: string; name: string | null; avatar: string | null; followers: number | null };
+export type LookupResult =
+  | { available: false; reason: string }
+  | { available: true; status: "found"; account: LookupAccount }
+  | { available: true; status: "not_found" | "not_business" | "failed" };
+
+/** One line describing a lookup, for chips and the suggestion list. */
+export function lookupLine(r: LookupResult | null | undefined): string | null {
+  if (!r || !r.available) return null;
+  if (r.status === "found") {
+    const a = r.account;
+    const followers = a.followers == null ? null : a.followers >= 10_000 ? `${(a.followers / 1000).toFixed(a.followers >= 100_000 ? 0 : 1)}k followers` : `${a.followers.toLocaleString("en-US")} followers`;
+    return ["Found on Instagram", a.name, followers].filter(Boolean).join(" · ");
+  }
+  if (r.status === "not_business") return "Personal or private account — Instagram doesn't show those to apps. You can still add it.";
+  if (r.status === "not_found") return "No public Instagram account with this username — check the spelling.";
+  return null;
+}
 
 export type Person = {
   username: string;
@@ -21,13 +41,14 @@ export type Person = {
 export const SOURCE_LABEL: Record<PersonSource, string> = {
   your_account: "Your account",
   collaborated: "Collaborated before",
+  used: "Added before in SOCIA",
   tagged: "Tagged before",
   mentioned: "Mentioned in your captions",
   competitor: "Competitor you track",
   commented: "Commented on your posts",
 };
 
-const SOURCE_WEIGHT: Record<PersonSource, number> = { your_account: 6, collaborated: 5, tagged: 4, mentioned: 3, competitor: 2, commented: 1 };
+const SOURCE_WEIGHT: Record<PersonSource, number> = { your_account: 7, collaborated: 6, used: 5, tagged: 4, mentioned: 3, competitor: 2, commented: 1 };
 
 /** Edit distance, capped: anything over `max` returns max + 1. */
 export function distance(a: string, b: string, max = 2): number {

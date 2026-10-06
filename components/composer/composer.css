@@ -321,3 +321,11 @@
 .cp-suggest-foot { padding: 6px 8px 2px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 4px; }
 .cp-suggest .cp-suggest-text small, .cp-suggest .cp-suggest-text b, .cp-suggest-foot { text-transform: none; letter-spacing: normal; }
 .cp-suggest .cp-suggest-text small { font-weight: 500; }
+.cp-chip-av { width: 18px; height: 18px; border-radius: 99px; object-fit: cover; margin-left: -2px; }
+.cp-chip-ok { color: var(--success-text); flex: none; }
+.cp-chip-warn { color: var(--warning-text); flex: none; }
+.cp-chip.warn { box-shadow: inset 0 0 0 1px rgba(var(--warning-rgb), 0.45); }
+.cp-suggest-lookup { border-bottom: 1px solid var(--border); margin-bottom: 4px; border-radius: 8px 8px 0 0 !important; }
+.cp-suggest-lookup b { display: inline-flex; align-items: center; gap: 4px; }
+.cp-suggest-lookup.not_found small { color: var(--warning-text); }
+.cp-suggest-lookup .cp-suggest-text small { white-space: normal; line-height: 1.4; }

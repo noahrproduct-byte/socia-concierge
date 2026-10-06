@@ -8,6 +8,7 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId, scopeToWorkspace } from "@/lib/workspaces";
 import { mergePeople, mentionsIn, type Person, type PersonSource } from "./people";
+import { readKnown, scopeKey } from "./knownUsernames";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -20,7 +21,7 @@ export async function knownPeople(client: Supa, opts: { ownerId: string; workspa
   const { ownerId, workspaceId, isOwner } = opts;
   const entries: Entry[] = [];
 
-  const [conns, dests, snap, tracked, comments] = await Promise.all([
+  const [conns, dests, snap, tracked, comments, known] = await Promise.all([
     // The brand's own accounts. An invited team member sees only the active workspace's.
     settle(
       (isOwner
@@ -47,7 +48,11 @@ export async function knownPeople(client: Supa, opts: { ownerId: string; workspa
         .then((r: { data: unknown }) => (r.data ?? []) as { author: string | null }[]),
       [],
     ),
+    // Every username added in SOCIA for this brand, remembered at the moment it was added.
+    readKnown(client, ownerId, scopeKey(workspaceId)),
   ]);
+
+  for (const k of known) entries.push({ username: k.username, name: k.name, avatar: k.avatar, source: "used", count: k.uses });
 
   for (const c of conns) {
     if (c.username) entries.push({ username: c.username, name: c.profile?.name ?? null, avatar: c.profile?.profile_picture_url ?? null, source: "your_account", accountId: c.ig_user_id });

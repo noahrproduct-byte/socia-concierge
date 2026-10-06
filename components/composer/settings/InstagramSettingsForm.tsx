@@ -5,14 +5,14 @@
 // does not offer that way is named as unavailable instead of faked.
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { X } from "lucide-react";
+
 import { CAPABILITIES } from "@/lib/publishing/capabilities";
 import type { ComposerDraft, DraftDestination } from "@/lib/publishing/composer";
 import type { CollaboratorsCheck, InstagramFormat, InstagramSettings, MediaItem } from "@/lib/publishing/types";
 import { IG_USERNAME_RE, MAX_COLLABORATORS, normalizeUsername } from "@/lib/publishing/igRules";
 import { fmtDuration, posterFrame, type MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
 import type { ComposerAction } from "../contracts";
-import UsernameInput from "./UsernameInput";
+import UsernameInput, { UsernameChip } from "./UsernameInput";
 
 /** The formats the capability model lists for Instagram, in its order; only implemented ones get a radio. */
 const FORMATS = CAPABILITIES.instagram.formats.filter((f) => f.implemented);
@@ -93,11 +93,12 @@ export default function InstagramSettingsForm({
         <span className="cp-label">Tag people</span>
         <div className="cp-chips">
           {s.userTags.map((t, i) => (
-            <span key={`${t.username}-${i}`} className="cp-chip">
-              @{t.username}
-              {s.format === "image" && (t.x == null || t.y == null) && <small>place on image</small>}
-              <button type="button" aria-label={`Remove ${t.username}`} onClick={() => set({ userTags: s.userTags.filter((_, n) => n !== i) })}><X size={11} /></button>
-            </span>
+            <UsernameChip
+              key={`${t.username}-${i}`}
+              username={t.username}
+              onRemove={() => set({ userTags: s.userTags.filter((_, n) => n !== i) })}
+              extra={s.format === "image" && (t.x == null || t.y == null) ? <small>place on image</small> : undefined}
+            />
           ))}
           <UsernameInput
             accountId={dest.accountId}
@@ -196,10 +197,7 @@ function CollaboratorsField({ accountId, settings, onChange }: { accountId: stri
       <span className="cp-label">Collaborators <em>{list.length} / {MAX_COLLABORATORS}</em></span>
       <div className="cp-chips">
         {list.map((u) => (
-          <span key={u} className="cp-chip">
-            @{u}
-            <button type="button" aria-label={`Remove ${u}`} onClick={() => onChange({ collaborators: list.filter((x) => x !== u), ...(list.length === 1 ? { collaboratorsCheck: null } : {}) })}><X size={11} /></button>
-          </span>
+          <UsernameChip key={u} username={u} onRemove={() => onChange({ collaborators: list.filter((x) => x !== u), ...(list.length === 1 ? { collaboratorsCheck: null } : {}) })} />
         ))}
         {list.length < MAX_COLLABORATORS && (
           <UsernameInput accountId={accountId} exclude={list} onAdd={add} onTypedChange={() => setInputErr(null)} />

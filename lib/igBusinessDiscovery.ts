@@ -101,9 +101,10 @@ export async function businessDiscovery(
   const handle = competitor.trim().replace(/^@/, "");
   if (!/^[a-zA-Z0-9._]{1,30}$/.test(handle)) return { ok: false, reason: "not_found" };
 
+  // mediaLimit 0 = the profile only (username lookups), no posts.
   const fields =
-    `business_discovery.username(${handle}){username,name,biography,profile_picture_url,followers_count,media_count,` +
-    `media.limit(${mediaLimit}){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count}}`;
+    `business_discovery.username(${handle}){username,name,biography,profile_picture_url,followers_count,media_count` +
+    (mediaLimit > 0 ? `,media.limit(${mediaLimit}){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count}}` : "}");
 
   const u = new URL(`${BASE}/${igUserId}`);
   u.searchParams.set("fields", fields);
