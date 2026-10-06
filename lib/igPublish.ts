@@ -18,6 +18,7 @@
 //   containers expire after 24 h; 100 API publishes per account per 24 h (read at runtime).
 
 const IG_V = "v23.0";
+import { MAX_COLLABORATORS } from "./publishing/igRules";
 const BASE = `https://graph.instagram.com/${IG_V}`;
 
 export type IgResult<T> = { ok: true; value: T } | { ok: false; error: string; code?: number; subcode?: number };
@@ -61,6 +62,8 @@ export type ContainerInput = {
   altText?: string | null;
   /** Images only. */
   userTags?: IgUserTag[] | null;
+  /** Collab post co-authors (usernames). Feed image, Reels and carousel parents only; never on children. */
+  collaborators?: string[] | null;
   isAiGenerated?: boolean;
   /** CAROUSEL parent: child container ids in order. */
   children?: string[] | null;
@@ -96,9 +99,14 @@ export function buildContainerParams(input: ContainerInput): Record<string, stri
     }
   }
   if (!isChild && input.caption != null) p.caption = input.caption.slice(0, 2200);
+  // "A list of up to 3 instagram usernames as collaborators on an ig media.
+  // For Feed image, Reels and Carousels only." (IG User Media reference)
+  if (!isChild && input.collaborators?.length) p.collaborators = JSON.stringify(input.collaborators.slice(0, MAX_COLLABORATORS));
   if (input.isAiGenerated) p.is_ai_generated = "true";
   return p;
 }
+
+export { MAX_COLLABORATORS, IG_USERNAME_RE, normalizeUsername } from "./publishing/igRules";
 
 /** Step 1: a container. The media URL must be publicly fetchable by Instagram's servers.
  *  Legacy callers pass { mediaType: "REELS" | "IMAGE", mediaUrl, caption } and get the

@@ -305,3 +305,4 @@
   }
   .cp-dest-row:active, .cp-drop.over, .cp-action:active, .cp-icon-btn:active, .cp-use:active { transform: none; }
 }
+.cp-linkbtn { border: none; background: none; padding: 0; font: inherit; font-weight: 650; color: var(--primary-text); cursor: pointer; text-decoration: underline; }

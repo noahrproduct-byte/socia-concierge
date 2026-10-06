@@ -89,6 +89,26 @@ export type InstagramSettings = {
   userTags: { username: string; x?: number; y?: number }[];
   /** is_ai_generated disclosure. */
   aiGenerated: boolean;
+  /** Collab post: up to 3 usernames invited as co-authors (collaborators). Reels, feed images, carousels. */
+  collaborators: string[];
+  /** SOCIA's pre-flight check of `collaborators` with Instagram (lib/publishing/collaborators.ts). */
+  collaboratorsCheck: CollaboratorsCheck | null;
+};
+
+/**
+ * What Instagram said when SOCIA created an UNPUBLISHED test container with
+ * these collaborators on the account (nothing is posted; containers expire).
+ *   accepted     Instagram validated the usernames (it refuses an invented one)
+ *   unconfirmed  Instagram took them without validating, so the invite can't be confirmed in advance
+ *   rejected     Instagram refused them; the message is Instagram's
+ *   error        the check couldn't run (network, rate limit)
+ */
+export type CollaboratorsCheck = {
+  /** lower-cased and sorted, exactly as checked */
+  usernames: string[];
+  status: "accepted" | "unconfirmed" | "rejected" | "error";
+  message: string | null;
+  at: string;
 };
 
 export type YouTubePrivacy = "public" | "unlisted" | "private";
@@ -150,7 +170,7 @@ export type DestinationSettings = SettingsByPlatform[Platform];
 
 export function defaultSettings<P extends Platform>(platform: P): SettingsByPlatform[P] {
   const all: SettingsByPlatform = {
-    instagram: { format: "reel", caption: null, shareToFeed: true, coverTimestampMs: null, altText: null, userTags: [], aiGenerated: false },
+    instagram: { format: "reel", caption: null, shareToFeed: true, coverTimestampMs: null, altText: null, userTags: [], aiGenerated: false, collaborators: [], collaboratorsCheck: null },
     youtube: {
       title: "", description: null, tags: [], categoryId: null, privacy: "public", madeForKids: null, syntheticMedia: false,
       playlistId: null, notifySubscribers: true, license: "youtube", embeddable: true, recordingDate: null, language: null, thumbnailMediaId: null,

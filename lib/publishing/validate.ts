@@ -8,6 +8,7 @@
 
 import { CAPABILITIES, formatSpec, type FormatId, type MediaRule, type CaptionRule } from "./capabilities";
 import type { MediaItem, Platform, DestinationSettings, InstagramSettings, YouTubeSettings, TikTokSettings } from "./types";
+import { MAX_COLLABORATORS, IG_USERNAME_RE, normalizeUsername } from "./igRules";
 
 export type Severity = "block" | "warn";
 
@@ -143,6 +144,34 @@ export function effectiveCaption(platform: Platform, masterCaption: string, sett
   return s.caption ?? masterCaption;
 }
 
+/**
+ * Collab-post collaborators. A list Instagram refused, or one SOCIA hasn't
+ * checked yet, blocks scheduling so the post can't fail at its publish time
+ * because of it; a check that couldn't run or couldn't confirm is a warning.
+ */
+export function collaboratorIssues(s: InstagramSettings): Issue[] {
+  const list = s.collaborators ?? [];
+  if (!list.length) return [];
+  const out: Issue[] = [];
+  const field = "collaborators";
+  if (list.length > MAX_COLLABORATORS) out.push({ code: "collaborators_many", severity: "block", field, message: `Instagram allows up to ${MAX_COLLABORATORS} collaborators on a post.` });
+  const bad = list.find((u) => !IG_USERNAME_RE.test(u.replace(/^@/, "")));
+  if (bad) out.push({ code: "collaborator_invalid", severity: "block", field, message: `“${bad}” isn't a valid Instagram username.` });
+  if (out.length) return out;
+  const check = s.collaboratorsCheck ?? null;
+  const sorted = Array.from(new Set(list.map(normalizeUsername))).sort().join(",");
+  if (!check || check.usernames.join(",") !== sorted) {
+    out.push({ code: "collaborators_unchecked", severity: "block", field, message: "SOCIA hasn't checked these collaborators with Instagram yet." });
+  } else if (check.status === "rejected") {
+    out.push({ code: "collaborators_rejected", severity: "block", field, message: check.message ?? "Instagram refused these collaborators." });
+  } else if (check.status === "error") {
+    out.push({ code: "collaborators_check_failed", severity: "warn", field, message: check.message ?? "SOCIA couldn't check the collaborators with Instagram." });
+  } else if (check.status === "unconfirmed") {
+    out.push({ code: "collaborators_unconfirmed", severity: "warn", field, message: "Instagram didn't confirm the collaborators in advance; check the invite in Instagram after the post goes live." });
+  }
+  return out;
+}
+
 export function validateDestination(input: DestinationInput): Readiness {
   const caps = CAPABILITIES[input.platform];
   const issues: Issue[] = [];
@@ -171,6 +200,7 @@ export function validateDestination(input: DestinationInput): Readiness {
     if (s.userTags.length && s.format !== "reel" && s.userTags.some((t) => t.x == null || t.y == null)) {
       issues.push({ code: "user_tag_position", severity: "block", field: "userTags", message: "Each tagged user on an image needs a position." });
     }
+    issues.push(...collaboratorIssues(s));
   }
 
   if (input.platform === "youtube") {

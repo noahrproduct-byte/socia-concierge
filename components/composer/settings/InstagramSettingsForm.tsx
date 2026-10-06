@@ -8,7 +8,8 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { X } from "lucide-react";
 import { CAPABILITIES } from "@/lib/publishing/capabilities";
 import type { ComposerDraft, DraftDestination } from "@/lib/publishing/composer";
-import type { InstagramFormat, InstagramSettings, MediaItem } from "@/lib/publishing/types";
+import type { CollaboratorsCheck, InstagramFormat, InstagramSettings, MediaItem } from "@/lib/publishing/types";
+import { IG_USERNAME_RE, MAX_COLLABORATORS, normalizeUsername } from "@/lib/publishing/igRules";
 import { fmtDuration, posterFrame, type MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
 import type { ComposerAction } from "../contracts";
 
@@ -121,6 +122,8 @@ export default function InstagramSettingsForm({
         {s.format === "reel" && <small className="cp-help">On Reels, tagged people are listed without a position.</small>}
       </div>
 
+      <CollaboratorsField accountId={dest.accountId} settings={s} onChange={(patch) => set(patch)} />
+
       <label className="cp-row cp-checkrow" data-field="aiGenerated">
         <input type="checkbox" checked={s.aiGenerated} onChange={(e) => set({ aiGenerated: e.target.checked })} />
         <span>This content is AI-generated<small>Instagram labels the post as AI-generated.</small></span>
@@ -132,6 +135,93 @@ export default function InstagramSettingsForm({
 }
 
 // ---------------------------------------------------------------------------
+
+const sortedList = (list: string[]) => Array.from(new Set(list.map(normalizeUsername))).sort();
+
+/**
+ * Collab post co-authors. Every change is checked with Instagram on an
+ * unpublished test container (lib/publishing/collaborators.ts) so a refused
+ * collaborator blocks scheduling now instead of failing the post later.
+ */
+function CollaboratorsField({ accountId, settings, onChange }: { accountId: string; settings: InstagramSettings; onChange: (patch: Partial<InstagramSettings>) => void }) {
+  const list = settings.collaborators ?? [];
+  const check = settings.collaboratorsCheck ?? null;
+  const [input, setInput] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [inputErr, setInputErr] = useState<string | null>(null);
+  // The latest settings, so an answer that arrives after other edits never overwrites them.
+  const latest = useRef(settings);
+  latest.current = settings;
+  const key = sortedList(list).join(",");
+  const covered = Boolean(check) && check!.usernames.join(",") === key;
+
+  const runCheck = async () => {
+    const want = sortedList(latest.current.collaborators ?? []);
+    if (!want.length || want.some((u) => !IG_USERNAME_RE.test(u)) || want.length > MAX_COLLABORATORS) return;
+    setChecking(true);
+    const res = await fetch("/api/publishing/instagram/collaborators", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accountId, usernames: want }) }).catch(() => null);
+    const j = (await res?.json().catch(() => null)) as CollaboratorsCheck | { error?: string } | null;
+    setChecking(false);
+    // Only apply an answer that still matches the list on screen.
+    if (sortedList(latest.current.collaborators ?? []).join(",") !== want.join(",")) return;
+    const result: CollaboratorsCheck = res?.ok && j && "status" in j
+      ? j
+      : { usernames: want, status: "error", message: (j as { error?: string } | null)?.error ?? "SOCIA couldn't reach Instagram to check.", at: new Date().toISOString() };
+    onChange({ ...latest.current, collaboratorsCheck: result });
+  };
+
+  useEffect(() => {
+    if (!list.length || covered) return;
+    const t = setTimeout(() => { void runCheck(); }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, accountId, covered]);
+
+  const add = () => {
+    const u = normalizeUsername(input);
+    setInputErr(null);
+    if (!u) return;
+    if (!IG_USERNAME_RE.test(u)) { setInputErr("Usernames use letters, numbers, periods and underscores (up to 30)."); return; }
+    if (list.some((x) => normalizeUsername(x) === u)) { setInput(""); return; }
+    if (list.length >= MAX_COLLABORATORS) { setInputErr(`Instagram allows up to ${MAX_COLLABORATORS} collaborators.`); return; }
+    onChange({ collaborators: [...list, u] });
+    setInput("");
+  };
+
+  const statusLine = !list.length ? null
+    : checking || !covered ? <small className="cp-help">Checking with Instagram (a test that posts nothing)…</small>
+    : check!.status === "accepted" ? <small className="cp-ok">{check!.message}</small>
+    : check!.status === "rejected" ? <small className="cp-help warn">{check!.message}</small>
+    : check!.status === "unconfirmed" ? <small className="cp-help warn">{check!.message}</small>
+    : <small className="cp-help warn">{check!.message} <button type="button" className="cp-linkbtn" onClick={() => void runCheck()}>Check again</button></small>;
+
+  return (
+    <div className="cp-row" data-field="collaborators">
+      <span className="cp-label">Collaborators <em>{list.length} / {MAX_COLLABORATORS}</em></span>
+      <div className="cp-chips">
+        {list.map((u) => (
+          <span key={u} className="cp-chip">
+            @{u}
+            <button type="button" aria-label={`Remove ${u}`} onClick={() => onChange({ collaborators: list.filter((x) => x !== u), ...(list.length === 1 ? { collaboratorsCheck: null } : {}) })}><X size={11} /></button>
+          </span>
+        ))}
+        {list.length < MAX_COLLABORATORS && (
+          <input
+            className="cp-chip-input"
+            value={input}
+            placeholder="username, then Enter"
+            onChange={(e) => { setInput(e.target.value); setInputErr(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); } }}
+            onBlur={add}
+          />
+        )}
+      </div>
+      {inputErr && <small className="cp-help warn">{inputErr}</small>}
+      {statusLine}
+      <small className="cp-help">A Collab post appears on each collaborator&apos;s profile too, once they accept the invite in the Instagram app. Public accounts only.</small>
+    </div>
+  );
+}
 
 export function CoverPicker({
   video, file, valueMs, onChange,

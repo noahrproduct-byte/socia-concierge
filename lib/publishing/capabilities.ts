@@ -127,7 +127,7 @@ const INSTAGRAM: PlatformCapabilities = {
   fields: { altText: { max: 1000 } },
   notes: [
     "Instagram does not schedule posts itself; SOCIA publishes at the chosen time.",
-    "Collaborator invites are not confirmed to work for accounts connected through Instagram Login, so SOCIA does not offer them yet.",
+    "Collab posts: Meta's Instagram-Login guide doesn't list collaborators, so SOCIA checks them with Instagram on a test that posts nothing before you can schedule.",
     "Location tags, paid-partnership labels and product tags need the Facebook-Login version of the API and are not available.",
   ],
   sources: [
