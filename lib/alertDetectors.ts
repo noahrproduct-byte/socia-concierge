@@ -6,7 +6,7 @@
 // metric measured against the previous equal period. The caller stores them
 // (lib/alerts.ts); the fingerprint keeps re-runs from duplicating.
 
-export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity";
+export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity" | "plan_result" | "plan_ready";
 export type AlertSeverity = "good" | "info" | "warning";
 
 export type AlertCandidate = {
@@ -303,4 +303,63 @@ export function detectFormatGap(input: {
     }
   }
   return null;
+}
+
+// ------------------------------------------------------------ plan results --
+
+export type PlanResultItem = {
+  planId: string;
+  index: number;
+  day: string;
+  concept: string;
+  format: string;
+  platform: string;
+  /** The settled result (lib/postResults): multiplier against the account's own median. */
+  multiplier: number | null;
+  measured: boolean;
+  early: boolean;
+  short: string;
+  text: string;
+  permalink: string | null;
+};
+
+/**
+ * One alert per planned post whose result has settled: the plan said what to
+ * post, the person posted it, the platform reported how it did. Early results
+ * (inside the settling window) and unreported posts produce nothing yet; the
+ * fingerprint is the plan item, so each gets exactly one alert ever.
+ */
+export function detectPlanResults(items: PlanResultItem[]): AlertCandidate[] {
+  const out: AlertCandidate[] = [];
+  for (const it of items) {
+    if (!it.measured || it.early) continue;
+    const m = it.multiplier;
+    const severity: AlertSeverity = m == null ? "info" : m >= 1.2 ? "good" : m < 0.8 ? "warning" : "info";
+    const verdict = m == null ? `is in: ${it.short}` : m >= 1.2 ? `did ${fmtMult(m)} your median` : m < 0.8 ? `did ${fmtMult(m)} your median` : "landed about on your median";
+    out.push({
+      type: "plan_result",
+      platform: it.platform,
+      fingerprint: `plan_result:${it.planId}:${it.index}`,
+      severity,
+      title: `${it.day}'s planned ${it.format} ${verdict}`,
+      body: `${it.text} Planned as: "${it.concept.slice(0, 90)}".`,
+      evidence: { planId: it.planId, index: it.index, multiplier: m, platform: it.platform, concept: it.concept, format: it.format },
+      entityRef: it.permalink ?? "/tool",
+    });
+  }
+  return out;
+}
+
+/** "Your plan for this week is ready", once per generated plan. */
+export function planReadyAlert(plan: { id: string; headline: string; posts: number; weekLabel: string }): AlertCandidate {
+  return {
+    type: "plan_ready",
+    platform: "socia",
+    fingerprint: `plan_ready:${plan.id}`,
+    severity: "info",
+    title: `Your plan for the week of ${plan.weekLabel} is ready`,
+    body: `${plan.posts} posts, built from your results, goals and competitors. ${plan.headline}`.trim(),
+    evidence: { planId: plan.id, posts: plan.posts },
+    entityRef: "/tool",
+  };
 }
