@@ -8,10 +8,13 @@ import { engagementOf, median, postsPerWeek } from "./metrics";
 import type { EvidenceUsed } from "./schema";
 import { listTracked } from "./trackedCompetitors";
 import { scopeToWorkspace } from "./workspaces";
+import type { PlanOutcome, ItemOutcome } from "./planOutcomes";
 
 export type Evidence = {
   postsBlock: string;
   competitorsBlock: string;
+  /** What became of the previous plans: posted or not, and each post's result against the median. */
+  outcomesBlock: string;
   used: EvidenceUsed;
 };
 
@@ -95,6 +98,52 @@ const audienceWord = (platform: string) => (platform === "youtube" ? "subscriber
 
 /** Competitors and winning content as evidence. Metrics appear only where a
  *  platform actually published them; everything else says so. */
+const outcomeWord = (o: ItemOutcome): string => {
+  if (o.state === "unscheduled") return "NOT DONE (never put on the Calendar)";
+  if (o.state === "published") {
+    const r = o.result;
+    if (!r || !r.measured) return "posted; the platform has not reported it yet";
+    return `posted; ${r.text}`;
+  }
+  if (o.state === "failed") return "publishing FAILED";
+  if (o.state === "scheduled" || o.state === "publishing") return `scheduled for ${o.scheduledAt ? o.scheduledAt.slice(0, 10) : "later"}, not out yet`;
+  return "still a draft on the Calendar (never published)";
+};
+
+/** The previous plans as evidence: each planned post, what the plan predicted,
+ *  and what actually happened. Only plans that reached the Calendar are
+ *  included; a plan nobody acted on teaches nothing about the content. */
+export function outcomesBlock(outcomes: PlanOutcome[]): string {
+  const acted = outcomes
+    .filter((o) => o.summary.onCalendar > 0)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 2);
+  if (!acted.length) return "";
+  const parts: string[] = [];
+  const worked: string[] = [];
+  const missed: string[] = [];
+  const skipped: string[] = [];
+  for (const o of acted) {
+    parts.push(`Plan of ${o.createdAt.slice(0, 10)}: ${o.summary.published} of ${o.summary.total} posted${o.summary.skipped.length ? `, ${o.summary.skipped.length} never done` : ""}.`);
+    for (const it of o.items) {
+      parts.push(`- ${it.day} · ${it.format} · "${it.concept.slice(0, 80)}" · predicted: ${it.predicted || "n/a"} · actual: ${outcomeWord(it)}`);
+      const m = it.result?.measured && !it.result.early ? it.result.multiplier : null;
+      if (m != null && m >= 1.2) worked.push(`"${it.concept.slice(0, 60)}" (${it.format}, ${it.result!.short})`);
+      else if (m != null && m < 0.8) missed.push(`"${it.concept.slice(0, 60)}" (${it.format}, ${it.result!.short})`);
+      if (it.state === "unscheduled") skipped.push(`${it.day}: "${it.concept.slice(0, 60)}"`);
+    }
+  }
+  const lessons: string[] = [];
+  if (worked.length) lessons.push(`Beat the account's median: ${worked.join("; ")}.`);
+  if (missed.length) lessons.push(`Fell short of the median: ${missed.join("; ")}.`);
+  if (skipped.length) lessons.push(`Planned but never made: ${skipped.join("; ")}.`);
+  return [
+    `What became of the previous plan${acted.length > 1 ? "s" : ""} (SOCIA matched each planned day to the post made from it and measured the post against the account's own median):`,
+    ...parts,
+    ...(lessons.length ? ["", "Lessons SOCIA computed from the above:", ...lessons.map((l) => `- ${l}`)] : []),
+  ].join("\n");
+}
+
 export function competitorsBlock(accounts: CompetitorRow[], tracked: TrackedRow[], winning: WinningRow[]): string {
   const seen = new Set<string>();
   const accountLines: string[] = [];
@@ -153,7 +202,7 @@ type Supa = any;
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[] } = {}): Promise<Evidence> {
   const media = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
 
@@ -184,6 +233,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
 
   const postsBlock = ownPostsBlock(media, followers);
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning);
+  const outcomesBlock_ = outcomesBlock(opts.outcomes ?? []);
+  const outcomeItems = (opts.outcomes ?? []).filter((o) => o.summary.onCalendar > 0).slice(0, 2).reduce((n, o) => n + o.items.length, 0);
   const competitorCount = new Set([
     ...accounts.map((a) => `${a.platform}:${(a.handle ?? a.display_name ?? "").toLowerCase().replace(/^@/, "")}`),
     ...tracked.map((t) => `${t.platform}:${t.handle.toLowerCase().replace(/^@/, "")}`),
@@ -192,7 +243,9 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   return {
     postsBlock,
     competitorsBlock: competitorsBlock_,
+    outcomesBlock: outcomesBlock_,
     used: {
+      outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,
       competitors: competitorsBlock_ ? Math.min(competitorCount, 10 + tracked.length) : 0,
       winning: competitorsBlock_ ? Math.min(winning.length, 12) : 0,

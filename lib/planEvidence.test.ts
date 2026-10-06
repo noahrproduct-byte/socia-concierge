@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { ownPostsBlock, competitorsBlock } from "./planEvidence";
+import { ownPostsBlock, competitorsBlock, outcomesBlock } from "./planEvidence";
+import type { PlanOutcome, ItemOutcome } from "./planOutcomes";
 
 describe("plan evidence: own posts", () => {
   it("is empty with no posts", () => {
@@ -74,5 +75,44 @@ describe("plan evidence: competitors", () => {
       '- "I tried 5 crusts" by Pizza Guy (YouTube, 2026-08-20) · 45,000 views, 1,200 likes · 3.4× that creator\'s median · patterns: Comparison · why it matters: Format fits the account',
     );
     expect(b).toContain("Winning content SOCIA found in this niche (1");
+  });
+});
+
+describe("plan evidence: what became of the last plan", () => {
+  const item = (over: Partial<ItemOutcome>): ItemOutcome => ({
+    index: 0, day: "Monday", concept: "Behind the oven", format: "Reel", predicted: "High confidence", state: "unscheduled",
+    postId: null, scheduledAt: null, publishedAt: null, permalink: null, results: [], result: null, ...over,
+  });
+  const result = (multiplier: number | null, early = false, measured = true) => ({
+    platform: "instagram" as const, measured, early, multiplier,
+    short: measured ? (multiplier == null ? "40 interactions" : `${multiplier}× your median${early ? " so far" : ""}`) : "measuring",
+    text: measured ? `${multiplier}× your typical Instagram post` : "Instagram hasn't reported this post yet.",
+  });
+  const plan = (over: Partial<PlanOutcome["summary"]>, items: ItemOutcome[]): PlanOutcome => ({
+    planId: "p1", createdAt: "2026-09-28T09:00:00Z", items,
+    summary: { total: items.length, onCalendar: 1, published: 1, measured: 1, skipped: [], best: null, line: "x", ...over },
+  });
+
+  it("is empty when no plan reached the Calendar", () => {
+    expect(outcomesBlock([plan({ onCalendar: 0 }, [item({})])])).toBe("");
+    expect(outcomesBlock([])).toBe("");
+  });
+
+  it("lists each planned post with its prediction and what actually happened, then the lessons", () => {
+    const items = [
+      item({ index: 0, day: "Monday", state: "published", result: result(2.1) }),
+      item({ index: 1, day: "Wednesday", concept: "Staff pick", format: "Carousel", predicted: "Experiment", state: "published", result: result(0.5) }),
+      item({ index: 2, day: "Friday", concept: "Free slices", state: "unscheduled" }),
+      item({ index: 3, day: "Saturday", concept: "Game day", state: "published", result: result(1.5, true) }),
+    ];
+    const text = outcomesBlock([plan({ onCalendar: 3, published: 3, skipped: ["Friday"] }, items)]);
+    expect(text).toMatch(/Plan of 2026-09-28: 3 of 4 posted, 1 never done/);
+    expect(text).toMatch(/Monday · Reel · "Behind the oven" · predicted: High confidence · actual: posted; 2.1× your typical Instagram post/);
+    expect(text).toMatch(/Friday · Reel · "Free slices" · predicted: High confidence · actual: NOT DONE/);
+    expect(text).toMatch(/Beat the account's median: "Behind the oven" \(Reel, 2.1× your median\)/);
+    expect(text).toMatch(/Fell short of the median: "Staff pick" \(Carousel, 0.5× your median\)/);
+    expect(text).toMatch(/Planned but never made: Friday: "Free slices"/);
+    // an early result is reported but not yet counted as a lesson
+    expect(text).not.toMatch(/Game day" \(Reel, 1.5/);
   });
 });

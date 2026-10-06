@@ -9,6 +9,7 @@ import { loadEvidence, type Evidence } from "@/lib/planEvidence";
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { competitorScopeId } from "@/lib/workspaces";
+import { recentPlanOutcomes } from "@/lib/planOutcomesLoad";
 
 export const runtime = "nodejs";
 // Opus 5 thinks before answering; give the request room.
@@ -79,7 +80,10 @@ export async function POST(req: Request) {
   try {
     brand = (await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)))?.brand_detail ?? null;
     const snap = await getIgSnapshot(ctx.client, ctx.ownerId).catch(() => null);
-    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id));
+    // The last two plans and what became of them, so the strategist learns
+    // from what was posted, skipped, and how each post did.
+    const outcomes = await recentPlanOutcomes(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => []);
+    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id), { outcomes });
     evidence.used.windows = Boolean(input.audienceWindows?.trim());
   } catch {
     // generation still works without settings or evidence
