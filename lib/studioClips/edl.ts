@@ -196,6 +196,28 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
   return { edl, warnings };
 }
 
+/**
+ * A person edited the EDL in the builder (reordered, trimmed, replaced,
+ * rewrote text). Run it back through validation so cuts stay on word/pause
+ * boundaries and nothing points outside a clip — without silently trimming
+ * a cut they deliberately made longer than the original target.
+ */
+export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; warnings: string[] } {
+  const total = edlDurationSec(edited);
+  const raw: RawEdl = {
+    targetSec: { min: edited.targetSec.min, max: Math.max(edited.targetSec.max, Math.ceil(total)) },
+    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note })),
+    text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role })),
+    enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
+    cta: edited.cta, music: edited.music, caption: edited.caption,
+    notes: edited.notes.filter((n) => !/^This cut runs/.test(n)),
+  };
+  const r = validateEdl(raw, clips);
+  // Captions are derived from speech; an explicit "off" from the person is kept.
+  if (edited.captions === null) r.edl.captions = null;
+  return r;
+}
+
 const ENHANCE_COPY: Record<EdlEnhance["kind"], string> = {
   brighten: "Brighten {clip} {amount} — it's darker than the rest of the footage.",
   darken: "Bring {clip} down {amount} — it's brighter than the rest.",

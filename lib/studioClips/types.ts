@@ -259,7 +259,59 @@ export type StudioBuild = {
   durationSec: number;
   /** footage this build refers to has expired */
   footageExpired: boolean;
+  /** Phase B: how many times this build was regenerated with a directive */
+  regenerations: number;
+  /** earlier EDL versions kept for undo */
+  historyLength: number;
+  /** rendered file in scheduled-media, once exported */
+  renderPath: string | null;
+  renderedAt: string | null;
+  /** the draft post the render was saved to */
+  postId: string | null;
 };
+
+// -------------------------------------------------------- Make This Video ----
+
+export type RegenerateDirective = "faster" | "energetic" | "professional" | "shorter" | "different_hook" | "different_clips";
+
+export const REGENERATE_OPTIONS: { id: RegenerateDirective; label: string; hint: string }[] = [
+  { id: "faster", label: "Faster paced", hint: "More, shorter cuts" },
+  { id: "energetic", label: "More energetic", hint: "Punchier opener and text" },
+  { id: "professional", label: "More professional", hint: "Calmer, fewer lines" },
+  { id: "shorter", label: "Shorter", hint: "Keep only the strongest moments" },
+  { id: "different_hook", label: "Different hook", hint: "Another opening moment and line" },
+  { id: "different_clips", label: "Use different clips", hint: "Other footage where it exists" },
+];
+
+/** Regenerations allowed per build (server-enforced). */
+export const MAX_REGENERATIONS = 8;
+
+/** One clip as the Player and renderer need it. */
+export type BuildSource = {
+  clipId: string;
+  position: number;
+  name: string;
+  /** signed URL of the raw clip (short-lived) */
+  url: string;
+  /** signed URL of the first keyframe, for lists */
+  thumb: string | null;
+  durationSec: number;
+  width: number | null;
+  height: number | null;
+  words: TranscriptWord[] | null;
+  /** usable moments from the clip card, for "replace clip" */
+  moments: ClipMoment[];
+};
+
+export type BuildPlayerData = {
+  build: StudioBuild;
+  sources: BuildSource[];
+  /** the viewer may edit, regenerate and export (owner/admin, plan includes auto_build) */
+  canEdit: boolean;
+};
+
+/** Output canvas for every build (vertical, Reels/TikTok/Shorts). */
+export const OUTPUT = { width: 1080, height: 1920, fps: 30 } as const;
 
 /** Human label for a clip: its upload position, never the raw filename alone. */
 export const clipLabel = (position: number): string => `Clip ${position + 1}`;

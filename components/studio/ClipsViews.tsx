@@ -5,7 +5,7 @@
 // progress, the Content Yield, one opportunity's edit guide, and the project
 // list. No fetching here — ClipsStudio owns the flow and hands these data.
 import Link from "next/link";
-import { FileVideo, AlertTriangle, Check, Clock, Trash2, ChevronLeft, Copy, ArrowRight, Scissors, Type, SunMedium, Volume2, Captions, Music, Timer, Flag, Loader2, FolderOpen } from "lucide-react";
+import { FileVideo, AlertTriangle, Check, Clock, Trash2, ChevronLeft, Copy, ArrowRight, Scissors, Type, SunMedium, Volume2, Captions, Music, Timer, Flag, Loader2, FolderOpen, Clapperboard } from "lucide-react";
 import type { ReactNode } from "react";
 import type { GuideStep, Opportunity, StudioBuild, StudioClip, UnderstandProgress, YieldResult } from "@/lib/studioClips/types";
 import { clipLabel, fmtClock } from "@/lib/studioClips/types";
@@ -171,7 +171,7 @@ const STEP_ICON: Record<GuideStep["kind"], ReactNode> = {
   captions: <Captions size={13} />, music: <Music size={13} />, length: <Timer size={13} />, ending: <Flag size={13} />,
 };
 
-export function OpportunityView({ o, build, clips, loading, error, onBack, onRetry }: { o: Opportunity; build: StudioBuild | null; clips: StudioClip[]; loading: boolean; error: string | null; onBack: () => void; onRetry: () => void }) {
+export function OpportunityView({ o, build, clips, loading, error, onBack, onRetry, canMake, onMake }: { o: Opportunity; build: StudioBuild | null; clips: StudioClip[]; loading: boolean; error: string | null; onBack: () => void; onRetry: () => void; /** null = plan unknown yet; false = not on this plan */ canMake: boolean | null; onMake: () => void }) {
   const byId = new Map(clips.map((c) => [c.id, c]));
   const guideText = build ? build.guide.map((s) => `${s.n}. ${s.text}`).join("\n") : "";
   const createHref = build?.caption ? `/create?caption=${encodeURIComponent(build.caption)}&source=studio` : "/create?source=studio";
@@ -195,6 +195,16 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
             );
           })}
         </ul>
+        {build && !loading && (
+          canMake ? (
+            <div className="cb-make">
+              <button type="button" className="ov-btn primary" onClick={onMake}><Clapperboard size={14} /> {build.renderPath ? "Open the video builder" : "Make this video"}</button>
+              <small>SOCIA cuts the first draft from these clips — same cut as the guide — and you fix what you want: trim, reorder, replace, text, captions. Rendered on your computer, saved as a draft.</small>
+            </div>
+          ) : canMake === false ? (
+            <p className="cb-locked"><Clapperboard size={13} /> <b>Make this video</b> — SOCIA cuts the first draft for you, editable — is included on Growth and Pro. <Link href="/pricing">See plans</Link></p>
+          ) : null
+        )}
       </div>
 
       <div className="ov-card cb-guide">
