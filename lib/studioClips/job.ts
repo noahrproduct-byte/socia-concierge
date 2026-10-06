@@ -4,6 +4,7 @@
 // honest progress the page polls. Runs inside the request's after() budget.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getTranscriptionProvider, type TranscriptionJob, type TranscriptionProvider } from "@/lib/transcribe";
+import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import { signUrls } from "./storage";
 import { clipCard, batchGroups, AnalysisError, type AccountContext } from "./analysis";
 import { validateYield, type ClipForYield } from "./yield";
@@ -63,7 +64,7 @@ export async function runUnderstand(client: Supa, args: { projectId: string; acc
         failures++;
         const msg = e instanceof AnalysisError ? e.message : (e as Error)?.message ?? "analysis failed";
         console.error(`[studio] card failed for clip ${input.id}:`, msg);
-        await client.from("studio_clips").update({ error: msg, updated_at: new Date().toISOString() }).eq("id", input.id).then(() => null, () => null);
+        await client.from("studio_clips").update({ error: msg.slice(0, 300), updated_at: new Date().toISOString() }).eq("id", input.id).then(() => null, () => null);
       }
       progress.done++;
       await setProgress({});
@@ -88,7 +89,10 @@ export async function runUnderstand(client: Supa, args: { projectId: string; acc
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[studio] understand failed:", msg);
-    return fail(/credit|billing|insufficient/i.test(msg) ? "SOCIA AI is unavailable right now (account/credit issue). Nothing was counted." : "Understanding failed. Nothing was counted — try again.");
+    // The same words the rest of SOCIA uses for an AI outage (lib/aiStatus.ts);
+    // the page adds that nothing was counted against the plan.
+    const kind = aiFailureKind(e);
+    return fail(kind === "failed" ? "Understanding failed. Try again in a moment." : AI_UNAVAILABLE_COPY[kind]);
   }
 }
 
