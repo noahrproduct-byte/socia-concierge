@@ -7,6 +7,7 @@ import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
 import { postCards, displayTitle, type PostCard } from "@/lib/overview";
+import { describeQuickAudio, type QuickAudio } from "@/lib/audio/quick";
 import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
@@ -22,12 +23,35 @@ export const maxDuration = 120;
 // a scored, explainable, timestamped analysis. No retention curves, no
 // virality odds, no platform-rule claims.
 
-type Body = { kind: StudioKind; frames: string[]; frameTimes: number[]; durationSec: number; transcript?: string; caption?: string; goal?: GoalId | null; platform?: string | null };
+type Body = {
+  kind: StudioKind; frames: string[]; frameTimes: number[]; durationSec: number; transcript?: string; caption?: string; goal?: GoalId | null; platform?: string | null;
+  /** the video's sound, measured on the device from its samples */
+  audio?: QuickAudio | null;
+  /** the transcript as timestamped lines, when it was transcribed automatically */
+  timedTranscript?: string | null;
+  autoTranscript?: boolean;
+};
+
+/** Client numbers are the person's own measurements; keep them in range and finite. */
+function cleanAudio(a: unknown): QuickAudio | null {
+  if (!a || typeof a !== "object") return null;
+  const x = a as Record<string, unknown>;
+  const n = (v: unknown, lo: number, hi: number): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : null);
+  const levels = ["silent", "quiet", "ok", "loud", "unknown"] as const;
+  const pauses = Array.isArray(x.pauses) ? (x.pauses as { start: unknown; end: unknown }[]).slice(0, 8).map((p) => ({ start: n(p.start, 0, 600) ?? 0, end: n(p.end, 0, 600) ?? 0 })).filter((p) => p.end > p.start) : [];
+  return {
+    durationSec: n(x.durationSec, 0, 600) ?? 0, hasAudio: Boolean(x.hasAudio),
+    levelDb: n(x.levelDb, -120, 0), peakDb: n(x.peakDb, -120, 0),
+    level: levels.includes(x.level as (typeof levels)[number]) ? (x.level as QuickAudio["level"]) : "unknown",
+    audibleRatio: n(x.audibleRatio, 0, 1), silentOpeningSec: n(x.silentOpeningSec, 0, 600) ?? 0, longestPauseSec: n(x.longestPauseSec, 0, 600) ?? 0,
+    pauses, bpm: n(x.bpm, 30, 260), bpmConfidence: n(x.bpmConfidence, 0, 1) ?? 0, musicLikely: Boolean(x.musicLikely),
+  };
+}
 
 const SYSTEM = `You are SOCIA's content editor: a short-form video and social post editor who reviews drafts before they go live. Blunt, specific, useful, and honest about what you cannot see.
 
 Hard rules:
-- Judge only what is in the sampled frames and the text you were given. Say "not assessable" (assessable=false, score 0) for audio when no transcript or on-screen text was provided; never guess sound.
+- Judge only what is in the sampled frames, the measurements and the text you were given. Say "not assessable" (assessable=false, score 0) for audio only when there is neither a transcript nor a measurement of the sound; never guess sound beyond what the measurements and transcript show.
 - Never predict views, reach, virality or retention. Never state platform algorithm rules as facts; say "tends to" and "in your own top posts" instead.
 - Every observation must reference a timestamp or something visible/readable. Every fix must be an instruction someone could execute today.
 - Hooks, CTAs and on-screen text you propose are written lines in the account's voice, ready to use, no quotes around them, under 90 characters.
@@ -52,6 +76,7 @@ export async function POST(req: Request) {
   const kind: StudioKind = body.kind === "image" || body.kind === "carousel" ? body.kind : "video";
   const duration = kind === "video" ? Math.max(1, Math.round(body.durationSec || 0)) : 0;
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
+  const audio = kind === "video" ? cleanAudio(body.audio) : null;
 
   // Account context: profile + top posts + their cover frames (real content).
   const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null)]);
@@ -82,7 +107,12 @@ ${kind === "video" ? `The first ${Math.min(10, body.frames.length)} images are f
 ${covers.filter((c) => c.b64).length ? `The remaining ${covers.filter((c) => c.b64).length} images are the cover frames of the account's top posts W1..W${covers.filter((c) => c.b64).length}, in that order.` : ""}
 Goal for this piece: ${goal ? `${goal.label} (prioritise ${goal.focus})` : "not set (judge generally)"}.
 Intended platform: ${body.platform ?? "not chosen"}.
-${body.transcript?.trim() ? `Transcript / on-screen text the user provided:\n"""\n${body.transcript.trim().slice(0, 3000)}\n"""` : "No transcript or on-screen text was provided: mark audio not assessable and judge clarity from the frames alone."}
+${audio ? `Measured sound (from the video's own samples, not estimated): ${describeQuickAudio(audio)}.` : kind === "video" ? "The video's sound could not be measured." : ""}
+${body.transcript?.trim()
+  ? body.autoTranscript && body.timedTranscript?.trim()
+    ? `Transcript, transcribed automatically from the video's audio (timestamps are seconds into the video):\n"""\n${body.timedTranscript.trim().slice(0, 3000)}\n"""`
+    : `Transcript / on-screen text the user provided:\n"""\n${body.transcript.trim().slice(0, 3000)}\n"""`
+  : audio?.hasAudio ? "No speech was transcribed (there may be none): judge the sound from the measurements." : audio ? "There is no audible sound in the video." : "No transcript or on-screen text was provided and the sound could not be measured: mark audio not assessable and judge clarity from the frames alone."}
 ${body.caption?.trim() ? `Draft caption:\n"""\n${body.caption.trim().slice(0, 1500)}\n"""` : "No caption yet."}
 ${brandContext(profile?.brand_detail) || ""}
 ${profile?.goals ? `The account's overall goal: ${profile.goals}` : ""}
@@ -100,7 +130,7 @@ Return the JSON. Requirements:
 - ctaOptions: 3 endings that fit the goal. currentCta: the current ask if any, else "".
 - onScreenText: opening, mid and CTA text with timestamps${kind !== "video" ? " (t=-1)" : ""}.
 - cuts: dead space, repeats, long setups${kind !== "video" ? " (none for images)" : ""}.
-- audio: what you can observe about sound from the transcript (or that nothing can be), then a recommended music direction and one alternative (style, BPM range, texture, why it fits the pacing and visuals). Never name a specific trending track.
+- audio: what the measured sound and the transcript show (level, a silent opening, long pauses, whether music or a beat is present, what is said and when), or that nothing can be assessed; then a recommended music direction and one alternative (style, BPM range, texture, why it fits the pacing and visuals). Never name a specific trending track.
 - platformFit: Instagram Reels, TikTok, YouTube Shorts, each with a fit and a one-line reason grounded in length, opening and text.
 - compare: rows such as hook speed, subject visibility, people visible, text on screen, CTA, caption length, contrasting the draft with the winners' cover frames and captions; verdict per row; a two-sentence summary that says what the winners typically do.
 - niche: patterns observed in the niche list and how the draft compares, hedged.
@@ -169,7 +199,8 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       compare: top.length && r.compare?.rows?.length ? { basis: `your top ${top.length} posts by views and their cover frames`, rows: r.compare.rows.slice(0, 7), summary: r.compare.summary ?? "", sample: top.length } : null,
       niche: niche.length && r.niche?.patterns?.length ? { basis: `${niche.length} high-performing posts SOCIA found in your niche`, patterns: r.niche.patterns.slice(0, 6), summary: r.niche.summary ?? "" } : null,
       caption: { current: body.caption?.trim() || null, suggestion: r.captionSuggestion || null },
-      meta: { frames: body.frames.length, hadTranscript: Boolean(body.transcript?.trim()), analyzedAt: new Date().toISOString(), version: 1 },
+      meta: { frames: body.frames.length, hadTranscript: Boolean(body.transcript?.trim()), analyzedAt: new Date().toISOString(), version: 1, audioMeasured: Boolean(audio), autoTranscript: Boolean(body.autoTranscript && body.transcript?.trim()) },
+      measuredAudio: audio,
     };
     return NextResponse.json({ analysis, usage: u.usage });
   } catch (err) {

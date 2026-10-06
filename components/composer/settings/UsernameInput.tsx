@@ -6,7 +6,7 @@
 // Instagram (Business Discovery). Typing narrows the list; ↑/↓ and Enter or a
 // click pick one; Enter with nothing highlighted adds exactly what was typed.
 // Every added username is remembered for next time.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { X, Check, AlertTriangle } from "lucide-react";
 import type { LookupResult, Person } from "@/lib/publishing/people";
 import { lookupLine, rankPeople, SOURCE_LABEL } from "@/lib/publishing/people";
@@ -109,7 +109,8 @@ export default function UsernameInput({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [typedLookup, setTypedLookup] = useState<{ username: string; r: LookupResult } | null>(null);
-  const listId = useRef(`un-${Math.random().toString(36).slice(2)}`).current;
+  // Stable across server and client render (a random id broke hydration).
+  const listId = `un-${useId().replace(/:/g, "")}`;
 
   const ensure = () => { if (!people) void loadPeople(accountId).then(setPeople); };
   useEffect(() => { setPeople(null); }, [accountId]);

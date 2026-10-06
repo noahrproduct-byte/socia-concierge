@@ -1,3 +1,4 @@
+import type { QuickAudio } from "@/lib/audio/quick";
 // Content Studio: "I have a piece of content, help me make it better before
 // it goes live." Browser-safe types and helpers. The analysis is produced on
 // the server (app/api/studio/analyze) from frames sampled in the browser,
@@ -57,7 +58,9 @@ export type StudioAnalysis = {
   compare: { basis: string; rows: CompareRow[]; summary: string; sample: number } | null;
   niche: { basis: string; patterns: string[]; summary: string } | null;
   caption: { current: string | null; suggestion: string | null };
-  meta: { frames: number; hadTranscript: boolean; analyzedAt: string; version: number };
+  meta: { frames: number; hadTranscript: boolean; analyzedAt: string; version: number; audioMeasured?: boolean; autoTranscript?: boolean };
+  /** The video's sound measured from its samples on the device (lib/audio/quick.ts); null when it couldn't be decoded. */
+  measuredAudio?: QuickAudio | null;
 };
 
 export const SCORE_LABEL = (s: number) => (s >= 85 ? "Strong potential" : s >= 70 ? "Solid, with clear wins" : s >= 55 ? "Needs work before posting" : "Rework the opening first");

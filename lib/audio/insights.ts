@@ -5,7 +5,10 @@
 // for the files we could fetch, the measured features. Results are compared
 // with each account's OWN median, never across accounts.
 import { median } from "@/lib/metrics";
-import type { AudioFeatures } from "./features";
+import { musicScoreFrom, MUSIC_LIKELY_AT, type AudioFeatures } from "./features";
+
+/** Re-judged from the stored raw numbers, so measurements taken under an older rule stay correct. */
+const musicLikely = (f: AudioFeatures): boolean => musicScoreFrom(f) >= MUSIC_LIKELY_AT;
 
 export type AudioSource = "own" | "competitor";
 
@@ -88,7 +91,7 @@ export function accountAudio(rows: AudioMediaRow[]): AccountAudio {
         basedOn: ranked.length,
         bpmRange: bpms.length >= 2 ? ([Math.min(...bpms), Math.max(...bpms)] as [number, number]) : null,
         energy: energyLevel(ranked.map((r) => r.features!.energyDb).filter((x): x is number => x != null)),
-        musicShare: ranked.length ? ranked.filter((r) => r.features!.musicLikely).length / ranked.length : null,
+        musicShare: ranked.length ? ranked.filter((r) => musicLikely(r.features!)).length / ranked.length : null,
         audibleShare: ranked.length ? median(ranked.map((r) => r.features!.audibleRatio)) : null,
       }
     : null;

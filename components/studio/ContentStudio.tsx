@@ -20,12 +20,14 @@ import type { UsageSnapshot } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { extractFrames, imageFrames, analysisSummary, MAX_BYTES, MAX_SECONDS, type StudioAnalysis, type StudioKind, type Frames, type GoalId, type ApplyField } from "@/lib/studio";
+import { decodeToMono16k } from "@/lib/audio/decode";
+import { quickAudioFrom, timedTranscript, type QuickAudio } from "@/lib/audio/quick";
 import type { AskProposal } from "@/lib/ask";
 
 export type DraftItem = { id: string; caption: string; media_url: string | null; media_type: string; scheduled_at: string; status: string };
 
 type Source = { kind: StudioKind; url: string; name: string; file: File | null; files: File[]; draftId: string | null; images: string[] };
-type Phase = "idle" | "loading" | "extracting" | "analyzing" | "done" | "error";
+type Phase = "idle" | "loading" | "extracting" | "listening" | "transcribing" | "analyzing" | "done" | "error";
 type ErrKind = "unsupported" | "too_large" | "too_short" | "too_long" | "cors" | "failed" | "api" | "plan";
 // "plan" renders the PlanNotice from the server's PlanError instead of copy from here.
 const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }> = {
@@ -50,6 +52,11 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [analysis, setAnalysis] = useState<StudioAnalysis | null>(null);
   const [versions, setVersions] = useState<{ analysis: StudioAnalysis; at: string }[]>([]);
   const [transcript, setTranscript] = useState("");
+  // The video's sound, measured on this device, and the transcript SOCIA made
+  // of it (kept so a re-analysis reuses them; an edited transcript is sent as typed).
+  const [audioFacts, setAudioFacts] = useState<QuickAudio | null>(null);
+  const [auto, setAuto] = useState<{ text: string; timed: string } | null>(null);
+  const [listenNote, setListenNote] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("analyze");
   const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], platform: "Instagram Reels", goal: goalDefault, cover: null, audioChosen: false });
   const [seek, setSeek] = useState<SeekRequest>(null);
@@ -74,12 +81,17 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   }, []);
 
   // ---- analysis ---------------------------------------------------------
-  const analyze = useCallback(async (src: Source, fr: Frames, opts?: { transcript?: string; caption?: string; goal?: GoalId | null; platform?: string | null }) => {
+  const analyze = useCallback(async (src: Source, fr: Frames, opts?: { transcript?: string; caption?: string; goal?: GoalId | null; platform?: string | null; audio?: QuickAudio | null; auto?: { text: string; timed: string } | null }) => {
     setPhase("analyzing"); setErr(null);
     try {
+      const text = opts?.transcript ?? transcript;
+      const sound = opts?.audio !== undefined ? opts.audio : audioFacts;
+      const at = opts?.auto !== undefined ? opts.auto : auto;
+      // The timed version only stands while the transcript is exactly what SOCIA transcribed.
+      const isAuto = Boolean(at && text.trim() === at.text.trim());
       const res = await fetch("/api/studio/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: src.kind, frames: fr.frames, frameTimes: fr.times, durationSec: fr.duration, transcript: opts?.transcript ?? transcript, caption: opts?.caption ?? w.caption, goal: opts?.goal ?? w.goal, platform: opts?.platform ?? w.platform }),
+        body: JSON.stringify({ kind: src.kind, frames: fr.frames, frameTimes: fr.times, durationSec: fr.duration, transcript: text, caption: opts?.caption ?? w.caption, goal: opts?.goal ?? w.goal, platform: opts?.platform ?? w.platform, audio: src.kind === "video" ? sound : null, autoTranscript: isAuto, timedTranscript: isAuto ? at!.timed : null }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -96,10 +108,48 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     } catch {
       setErr({ kind: "api" }); setPhase("error");
     }
-  }, [transcript, w.caption, w.goal, w.platform]);
+  }, [transcript, w.caption, w.goal, w.platform, audioFacts, auto]);
+
+  /**
+   * The video's sound: measured from its samples on this device, then — when
+   * there is sound and no transcript has been typed — transcribed. Only a
+   * small 16 kHz WAV is uploaded for that, and the server deletes it as soon
+   * as the transcript is back. Never blocks the analysis: anything that fails
+   * is said plainly and the analysis goes on without it.
+   */
+  const listen = useCallback(async (src: Source): Promise<{ audio: QuickAudio | null; auto: { text: string; timed: string } | null; transcript?: string }> => {
+    setPhase("listening");
+    const blob = src.file ?? (await fetch(src.url).then((r) => (r.ok ? r.blob() : null)).catch(() => null));
+    const dec = blob ? await decodeToMono16k(blob) : null;
+    const qa = dec ? quickAudioFrom(dec.pcm, dec.rate) : null;
+    setAudioFacts(qa);
+    if (!dec || !qa) { setListenNote("This browser couldn't read the video's sound, so audio is judged from the transcript only."); return { audio: null, auto: null }; }
+    if (!qa.hasAudio) { setListenNote("The video has no audible sound."); return { audio: qa, auto: null }; }
+    if (transcript.trim()) return { audio: qa, auto: null };
+    setPhase("transcribing");
+    try {
+      const supabase = createClient();
+      const path = `${userId}/quick/${crypto.randomUUID()}/audio.wav`;
+      await uploadMedia(supabase, "studio-sources", path, new File([dec.wav], "audio.wav", { type: "audio/wav" }));
+      const res = await fetch("/api/studio/transcribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
+      const j = (await res.json().catch(() => null)) as { transcript?: { text: string; words: { text: string; startMs: number }[] } | null; reason?: string } | null;
+      const t = j?.transcript;
+      if (t && t.words.length) {
+        const next = { text: t.text, timed: timedTranscript(t) };
+        setAuto(next); setTranscript(t.text);
+        return { audio: qa, auto: next, transcript: t.text };
+      }
+      setListenNote(t ? "No speech was found in the video." : j?.reason === "not_configured" ? "Speech transcription isn't set up, so the sound is judged from its measurements only." : "Transcription didn't finish, so the sound is judged from its measurements only.");
+    } catch {
+      setListenNote("Transcription didn't finish, so the sound is judged from its measurements only.");
+    }
+    return { audio: qa, auto: null };
+  }, [transcript, userId]);
 
   const load = useCallback(async (src: Source) => {
     setSource(src); setAnalysis(null); setVersions([]); setFrames(null); setErr(null); setSavedId(null); setActiveMarker(null);
+    setAudioFacts(null); setListenNote(null);
+    if (auto) { setAuto(null); setTranscript((t) => (t.trim() === auto.text.trim() ? "" : t)); }
     setW((cur) => ({ ...cur, hook: "", cta: "", onscreen: [], cover: null }));
     setPhase("extracting"); setProgress({ done: 0, total: 10 });
     try {
@@ -113,12 +163,15 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       }
       const fr = src.kind === "video" ? await extractFrames(src.file ?? src.url, (d, t) => setProgress({ done: d, total: t }), el) : await imageFrames(src.files.length ? src.files : src.images);
       setFrames(fr);
-      await analyze(src, fr);
+      if (src.kind !== "video") { await analyze(src, fr, { audio: null, auto: null }); return; }
+      const heard = await listen(src);
+      await analyze(src, fr, heard);
     } catch (e) {
       const m = e instanceof Error ? e.message : "unsupported";
       setErr({ kind: (["unsupported", "too_short", "too_long", "cors"].includes(m) ? m : "unsupported") as ErrKind }); setPhase("error");
     }
-  }, [analyze]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyze, auto]);
 
   const onFiles = useCallback((list: FileList | File[]) => {
     const files = Array.from(list);
@@ -211,7 +264,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     return `From Content Studio: ${source?.name ?? "draft"} scored ${analysis.score.overall}/100. ${f ? `Top fix: ${f.title} (${f.suggestion}).` : ""}${w.hook ? ` Hook: "${w.hook}".` : ""}`.slice(0, 380);
   }, [analysis, source, w.hook]);
   const summaryForAsk = analysis ? analysisSummary(analysis) : null;
-  const busy = phase === "extracting" || phase === "analyzing" || phase === "loading";
+  const busy = phase === "extracting" || phase === "listening" || phase === "transcribing" || phase === "analyzing" || phase === "loading";
 
   return (
     <div className="st" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length && !busy) onFiles(e.dataTransfer.files); }}>
@@ -258,8 +311,10 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
             </div>
           )}
           <div className="ov-card st-context">
-            <label><span>Voiceover or on-screen text <small>(optional, improves accuracy a lot)</small></span>
-              <textarea rows={3} value={transcript} onChange={(e) => setTranscript(e.target.value)} placeholder="Paste what's said or shown on screen…" disabled={busy} /></label>
+            <label><span>Voiceover or on-screen text <small>{source?.kind === "video" ? "(transcribed automatically when there's speech)" : "(optional, improves accuracy a lot)"}</small></span>
+              <textarea rows={3} value={transcript} onChange={(e) => setTranscript(e.target.value)} placeholder={source?.kind === "video" ? "SOCIA fills this in from the video's speech; add on-screen text if you like…" : "Paste what's said or shown on screen…"} disabled={busy} /></label>
+            {auto && transcript.trim() === auto.text.trim() && <small className="st-auto-note">Transcribed automatically from the video — fix anything it got wrong and re-analyze.</small>}
+            {listenNote && <small className="st-auto-note muted">{listenNote}</small>}
             {source && frames && phase !== "extracting" && (
               <div className="st-row-actions">
                 <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => analyze(source, frames)}><RefreshCw size={12} className={phase === "analyzing" ? "spin" : undefined} /> {analysis ? "Re-analyze as a new version" : "Analyze"}</button>
@@ -282,11 +337,13 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               <p className="ov-source">No virality odds, no view predictions, no invented trending audio.</p>
             </div>
           )}
-          {source && (phase === "extracting" || phase === "analyzing") && (
+          {source && (phase === "extracting" || phase === "listening" || phase === "transcribing" || phase === "analyzing") && (
             <div className="ov-card st-progress" aria-live="polite">
-              <b>{phase === "extracting" ? "Reading the file" : "Analyzing"}</b>
+              <b>{phase === "extracting" ? "Reading the file" : phase === "listening" || phase === "transcribing" ? "Listening to the video" : "Analyzing"}</b>
               <ul>
                 <li className={phase === "extracting" ? "on" : "done"}><i />{phase === "extracting" ? `Extracting frames ${progress.done}/${progress.total}` : `Extracted ${frames?.frames.length ?? progress.total} frames`}</li>
+                {source.kind === "video" && <li className={phase === "listening" ? "on" : phase === "extracting" ? "" : "done"}><i />Measuring the sound on this device</li>}
+                {source.kind === "video" && <li className={phase === "transcribing" ? "on" : phase === "analyzing" && auto ? "done" : ""}><i />Transcribing speech{phase === "analyzing" && !auto ? " (skipped)" : ""}</li>}
                 <li className={phase === "analyzing" ? "on" : ""}><i />Analyzing hook, pacing, clarity and CTA</li>
                 <li className={phase === "analyzing" ? "on" : ""}><i />Comparing with your top posts{connected ? "" : " (not connected)"}</li>
               </ul>

@@ -53,6 +53,23 @@ describe("measured audio features", () => {
     expect(fNoise).toBeGreaterThan(0.4);
   });
 
+  it("does not call speech music just because voices are tonal", () => {
+    // Syllable-like tonal bursts at varying pitch with irregular gaps.
+    const out: number[] = [];
+    let seed = 3;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    while (out.length < RATE * 10) {
+      const syl = Math.round(RATE * (0.12 + rnd() * 0.13));
+      const hz = 140 + rnd() * 120;
+      for (let i = 0; i < syl; i++) out.push(0.35 * Math.sin((2 * Math.PI * hz * i) / RATE) * Math.sin((Math.PI * i) / syl));
+      const gap = Math.round(RATE * (0.08 + rnd() * 0.25));
+      for (let i = 0; i < gap; i++) out.push(0);
+    }
+    const speech = analyzeAudio(Float32Array.from(out.slice(0, RATE * 10)), RATE);
+    expect(speech.audibleRatio).toBeLessThan(0.8);
+    expect(speech.musicLikely).toBe(false);
+  });
+
   it("calls a tonal, steady track music and noise not", () => {
     const music = analyzeAudio(clickTrack(118, 12), RATE);
     expect(music.musicLikely).toBe(true);

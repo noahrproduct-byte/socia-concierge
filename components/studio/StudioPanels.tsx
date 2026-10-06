@@ -4,6 +4,8 @@
 // Audio / Prepare. Every panel renders what the analysis actually contains
 // and says plainly when something could not be assessed.
 
+import AudioInsights from "./AudioPanel";
+import type { QuickAudio } from "@/lib/audio/quick";
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Scissors, Clock, CalendarPlus, ArrowRight, Info, Send } from "lucide-react";
@@ -315,6 +317,25 @@ export function CaptionPanel({ a, w, setCaption, improve }: { a: StudioAnalysis;
   );
 }
 
+/** The video's sound as measured on the device — numbers, not impressions. */
+function MeasuredSound({ m }: { m: QuickAudio }) {
+  const cells: { label: string; value: string; note?: string; warn?: boolean }[] = !m.hasAudio
+    ? [{ label: "Sound", value: "None", note: "no audible sound in the file", warn: true }]
+    : [
+        { label: "Level", value: m.levelDb != null ? `${m.levelDb} dBFS` : "—", note: m.level === "quiet" ? "quiet — raise it" : m.level === "loud" ? "loud — may distort" : "comfortable", warn: m.level === "quiet" || m.level === "loud" },
+        { label: "Sound", value: `${Math.round((m.audibleRatio ?? 0) * 100)}%`, note: "of the video" },
+        { label: "Opening", value: m.silentOpeningSec >= 0.5 ? `${m.silentOpeningSec}s silent` : "starts at once", note: m.silentOpeningSec >= 0.5 ? "cut the silent start" : undefined, warn: m.silentOpeningSec >= 0.5 },
+        { label: "Longest pause", value: m.longestPauseSec >= 0.7 ? `${m.longestPauseSec}s` : "none", warn: m.longestPauseSec >= 1.5 },
+        { label: "Music", value: m.musicLikely ? "likely" : "not clear", note: m.bpm ? `steady beat ~${m.bpm} BPM` : undefined },
+      ];
+  return (
+    <div className="st-measured">
+      <small>Measured from the video&apos;s sound on this device</small>
+      <ul>{cells.map((c) => <li key={c.label} className={c.warn ? "warn" : ""}><span>{c.label}</span><b>{c.value}</b>{c.note && <em>{c.note}</em>}</li>)}</ul>
+    </div>
+  );
+}
+
 export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; setAudio: (b: boolean) => void }) {
   const Dir = ({ d, title }: { d: StudioAnalysis["audio"]["direction"]; title: string }) => (
     <div className="st-audio-dir">
@@ -328,7 +349,8 @@ export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; 
     <div className="st-panel">
       <section className="st-block">
         <h3>Audio</h3>
-        <div className="ov-why-block"><small>Observed</small><p>{a.audio.observed || (a.meta.hadTranscript ? "Transcript provided." : "No transcript or on-screen text was provided, so nothing about the sound could be assessed.")}</p></div>
+        {a.measuredAudio && <MeasuredSound m={a.measuredAudio} />}
+        <div className="ov-why-block"><small>Observed{a.meta.autoTranscript ? " · from the measurements and the automatic transcript" : a.meta.audioMeasured ? " · from the measurements" : ""}</small><p>{a.audio.observed || (a.meta.hadTranscript || a.meta.audioMeasured ? "Nothing notable about the sound." : "No transcript or on-screen text was provided, so nothing about the sound could be assessed.")}</p></div>
         {a.kind === "video" ? (
           <div className="st-audio">
             <Dir d={a.audio.direction} title="Recommended direction" />
@@ -337,6 +359,7 @@ export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; 
         ) : <div className="ov-empty small">Audio direction applies to video. For a still post, the caption carries the tone.</div>}
         <label className="st-check"><input type="checkbox" checked={w.audioChosen} onChange={(e) => setAudio(e.target.checked)} /> I&apos;ve picked a track for this piece</label>
       </section>
+      {a.kind === "video" && <AudioInsights canEdit={false} current={null} onUse={() => null} />}
       <section className="st-block">
         <h3>Trending audio</h3>
         <div className="ov-empty small">

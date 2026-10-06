@@ -144,6 +144,20 @@ export function spectralFlatness(pcm: Float32Array, rate: number, frameSize = 10
   return frames ? Number((total / frames).toFixed(3)) : null;
 }
 
+/**
+ * How likely music is playing, 0..1, from three measured numbers: a steady
+ * beat, or sound that barely stops, that is also tonal. Voiced speech is
+ * tonal too, but full of short gaps between syllables and phrases, so
+ * tonality alone never makes "music likely". Kept separate so stored
+ * measurements can be re-judged when this rule changes.
+ */
+export function musicScoreFrom(f: { flatness: number | null; bpmConfidence: number; audibleRatio: number }): number {
+  const tonal = f.flatness == null ? 0 : Math.max(0, Math.min(1, (0.45 - f.flatness) / 0.3));
+  const continuity = Math.max(0, Math.min(1, (f.audibleRatio - 0.75) / 0.2));
+  return Number((0.45 * f.bpmConfidence + 0.3 * continuity + 0.25 * tonal).toFixed(2));
+}
+export const MUSIC_LIKELY_AT = 0.5;
+
 export function analyzeAudio(pcm: Float32Array, rate: number): AudioFeatures {
   const durationSec = pcm.length / rate;
   const { rms, dbfs } = frameLevels(pcm, rate);
@@ -156,9 +170,7 @@ export function analyzeAudio(pcm: Float32Array, rate: number): AudioFeatures {
   const energyDb = audible ? Number((sumDb / audible).toFixed(1)) : null;
   const tempo = audibleRatio >= 0.2 ? estimateTempo(rms) : { bpm: null, confidence: 0 };
   const flatness = audibleRatio >= 0.05 ? spectralFlatness(pcm, rate) : null;
-  // Tonal (low flatness) and steadily periodic (confident beat) reads as music.
-  const tonal = flatness == null ? 0 : Math.max(0, Math.min(1, (0.45 - flatness) / 0.3));
-  const musicScore = Number((0.6 * tonal + 0.4 * tempo.confidence).toFixed(2));
+  const musicScore = musicScoreFrom({ flatness, bpmConfidence: tempo.confidence, audibleRatio });
   return {
     durationSec: Number(durationSec.toFixed(2)),
     audibleRatio: Number(audibleRatio.toFixed(3)),
@@ -168,6 +180,6 @@ export function analyzeAudio(pcm: Float32Array, rate: number): AudioFeatures {
     bpmConfidence: tempo.confidence,
     flatness,
     musicScore,
-    musicLikely: musicScore >= 0.5,
+    musicLikely: musicScore >= MUSIC_LIKELY_AT,
   };
 }
