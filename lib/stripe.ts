@@ -45,7 +45,10 @@ export function priceIdFor(plan: PaidPlan, interval: BillingInterval): string | 
 
 export const isProductId = (id: string | null | undefined): boolean => Boolean(id && id.startsWith("prod_"));
 
-const resolved = new Map<string, string>();
+// Resolved prices are cached briefly, so a new default price in the
+// Dashboard takes effect within minutes without a redeploy.
+const resolved = new Map<string, { id: string; at: number }>();
+const RESOLVE_TTL_MS = 10 * 60_000;
 
 /** The Price to charge for a plan: the configured price, or the product's
  *  active recurring price for that interval (looked up once, then remembered). */
@@ -55,11 +58,21 @@ export async function resolvePriceId(stripe: Stripe, plan: PaidPlan, interval: B
   if (!isProductId(configured)) return configured;
   const key = `${configured}:${interval}`;
   const hit = resolved.get(key);
-  if (hit) return hit;
+  if (hit && Date.now() - hit.at < RESOLVE_TTL_MS) return hit.id;
+  // The product's default price wins when it is an active price for this
+  // interval: that is the one marked "Default" in the Dashboard, so changing
+  // a plan's price is "add a price, set it as default". Otherwise the newest
+  // active price for the interval.
+  const product = await stripe.products.retrieve(configured, { expand: ["default_price"] });
+  const dp = product.default_price && typeof product.default_price === "object" ? product.default_price : null;
+  if (dp && dp.active && dp.recurring?.interval === interval) {
+    resolved.set(key, { id: dp.id, at: Date.now() });
+    return dp.id;
+  }
   const prices = await stripe.prices.list({ product: configured, active: true, type: "recurring", limit: 20 });
   const match = prices.data.find((p) => p.recurring?.interval === interval) ?? null;
   if (!match) return null;
-  resolved.set(key, match.id);
+  resolved.set(key, { id: match.id, at: Date.now() });
   return match.id;
 }
 
