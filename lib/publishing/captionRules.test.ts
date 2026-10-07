@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assembleCaption, businessLocations, cleanHashtags, hashtagMax, hashtagsIn, performanceFacts, unverifiedClaims } from "./captionRules";
+import { assembleCaption, businessLocations, cleanHashtags, hashtagMax, hashtagsIn, locationInstruction, performanceFacts, unverifiedClaims } from "./captionRules";
 
 describe("hashtags", () => {
   it("caps a caption going everywhere at the strictest platform", () => {
@@ -73,5 +73,24 @@ describe("business locations", () => {
 
   it("names nothing when no location was saved", () => {
     expect(businessLocations({ ...cur, location: null }, [{ ...franklin, brandName: "Other" }], [])).toEqual([]);
+  });
+});
+
+describe("location choice", () => {
+  const locs = [
+    { location: "Brentwood, TN", workspace: "Salvo's Brentwood", igUsername: null, why: "this_workspace" as const },
+    { location: "Franklin, TN", workspace: "Salvo's Franklin", igUsername: "salvosfranklin", why: "same_brand" as const },
+  ];
+
+  it("leaves it to the post on auto, and follows an explicit choice", () => {
+    expect(locationInstruction("auto", locs)).toBeNull();
+    expect(locationInstruction("franklin, tn", locs)?.line).toBe("This post is about the Franklin, TN location. Name Franklin, TN and no other location.");
+    expect(locationInstruction("all", locs)?.fact).toBe("For Brentwood, TN and Franklin, TN (your choice)");
+    expect(locationInstruction("none", locs)?.line).toMatch(/not to name any location/);
+  });
+
+  it("ignores a location SOCIA doesn't know", () => {
+    expect(locationInstruction("Nashville", locs)).toBeNull();
+    expect(locationInstruction("all", [])).toBeNull();
   });
 });

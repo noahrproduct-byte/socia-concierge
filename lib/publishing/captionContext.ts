@@ -10,6 +10,8 @@ import { brandWorkspace, type Ctx } from "@/lib/context";
 import { getProfile, type Profile } from "@/lib/profile";
 import { listWorkspaces, scopeToWorkspace } from "@/lib/workspaces";
 import { getIgSnapshot } from "@/lib/instagramSync";
+import { getFbSnapshot } from "@/lib/facebookSync";
+import type { TtVideo } from "@/lib/tiktokAuth";
 import { interactionsTotal } from "@/lib/engagement";
 import { formatOf } from "@/lib/overview";
 import type { SavedPlan } from "@/lib/schema";
@@ -17,13 +19,21 @@ import type { Edl, YieldResult } from "@/lib/studioClips/types";
 import { loadPickerAccountsDetailed } from "./db";
 import { readKnown, scopeKey } from "./knownUsernames";
 import { mentionsIn } from "./people";
-import { businessLocations, performanceFacts, type LocationFact, type PerformanceFacts, type WorkspaceFact } from "./captionRules";
+import { businessLocations, locationInstruction, performanceFacts, type LocationFact, type PastPost, type PerformanceFacts, type WorkspaceFact } from "./captionRules";
 import { PLATFORM_LABEL, type Platform } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
 
 export type FactSource = "brand" | "location" | "account" | "people" | "plan" | "studio" | "performance" | "notes" | "draft";
+
+/**
+ * What the person chose for this video in Content Studio's Quick Analyze,
+ * handed over by the browser that analysed it (lib/studioHandoff.ts).
+ * `observed` is SOCIA's own reading of the video, so it guides the caption
+ * but is never evidence for a specific claim.
+ */
+export type StudioHandoff = { observed: string; goal: string; hook: string; cta: string; onscreen: string[] };
 export type Fact = { source: FactSource; text: string };
 
 export type CaptionInput = {
@@ -39,6 +49,9 @@ export type CaptionInput = {
   planDay: string | null;
   /** heard from the video in the browser + transcription provider */
   transcript: string | null;
+  /** which known location the post is about: "auto" | "none" | "all" | one location */
+  location: string | null;
+  studio: StudioHandoff | null;
 };
 
 export type CaptionContext = {
@@ -54,22 +67,22 @@ export type CaptionContext = {
   handles: string[];
   brandName: string | null;
   locations: LocationFact[];
-  performance: PerformanceFacts | null;
+  history: PlatformHistory[];
 };
+
+export type PlatformHistory = { platform: Platform; who: string; facts: PerformanceFacts };
+type Conn = { username: string | null; workspace_id: string | null };
 
 const settle = async <T,>(p: PromiseLike<T>, fallback: T): Promise<T> => { try { return await p; } catch { return fallback; } };
 const clip = (s: string | null | undefined, n: number) => (s ?? "").trim().slice(0, n);
 const at = (u: string) => `@${u.replace(/^@/, "")}`;
 const uniq = (xs: string[]) => Array.from(new Set(xs.map((x) => x.replace(/^@/, "").toLowerCase()).filter(Boolean)));
 
-export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promise<CaptionContext> {
-  const client = ctx.client;
-  const ownerId = ctx.ownerId;
+/** The reads every location answer needs: this brand, the owner's other workspaces and which Instagram account each holds. */
+async function workspaceBits(ctx: Ctx) {
+  const { client, ownerId } = ctx;
   const wsId = ctx.workspace?.id ?? null;
-  const collaborators = uniq(input.collaborators).slice(0, 3);
-  const tagged = uniq(input.userTags).filter((u) => !collaborators.includes(u)).slice(0, 20);
-
-  const [profile, baseProfile, workspaces, conns, accounts, known, plan, build, snap] = await Promise.all([
+  const [profile, baseProfile, workspaces, conns] = await Promise.all([
     settle(getProfile(client, ownerId, brandWorkspace(ctx)), null as Profile | null),
     // Default workspaces keep their brand on the profile row.
     ctx.isOwner ? settle(getProfile(client, ownerId), null as Profile | null) : Promise.resolve(null),
@@ -79,15 +92,63 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
       (ctx.isOwner
         ? client.from("instagram_connections").select("username, workspace_id").eq("user_id", ownerId)
         : scopeToWorkspace(client.from("instagram_connections").select("username, workspace_id").eq("user_id", ownerId), wsId)
-      ).then((r: { data: unknown; error: unknown }) => (r.error ? [] : (r.data ?? [])) as { username: string | null; workspace_id: string | null }[]),
-      [],
+      ).then((r: { data: unknown; error: unknown }) => (r.error ? [] : (r.data ?? [])) as Conn[]),
+      [] as Conn[],
     ),
+  ]);
+  const igByWs = new Map<string, string>();
+  for (const c of conns) if (c.workspace_id && c.username) igByWs.set(c.workspace_id, c.username.toLowerCase());
+  const wsFact = (w: { id: string; name: string; isDefault: boolean; brand_name: string | null; brand_detail: { location?: string } | null }): WorkspaceFact => {
+    const brand = w.isDefault ? baseProfile : null;
+    return {
+      id: w.id, name: w.name,
+      brandName: (w.isDefault ? brand?.brand_name : w.brand_name) ?? null,
+      location: (w.isDefault ? brand?.brand_detail?.location : w.brand_detail?.location) ?? null,
+      igUsername: igByWs.get(w.id) ?? null,
+    };
+  };
+  const brandName = clip(profile?.brand_name, 80) || null;
+  const current: WorkspaceFact = {
+    id: wsId ?? "current", name: ctx.workspace?.name ?? brandName ?? "This brand", brandName, location: profile?.brand_detail?.location ?? null,
+    igUsername: wsId ? igByWs.get(wsId) ?? null : null,
+  };
+  const others = workspaces.filter((w) => w.id !== wsId && !w.suspended).map(wsFact);
+  return { profile, workspaces, igByWs, current, others };
+}
+
+/** The business locations a post with these collaborators may name, for the composer's location choice. */
+export async function knownLocations(ctx: Ctx, collaborators: string[]): Promise<LocationFact[]> {
+  const { current, others } = await workspaceBits(ctx);
+  return businessLocations(current, others, uniq(collaborators).slice(0, 3));
+}
+
+export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promise<CaptionContext> {
+  const client = ctx.client;
+  const ownerId = ctx.ownerId;
+  const wsId = ctx.workspace?.id ?? null;
+  const collaborators = uniq(input.collaborators).slice(0, 3);
+  const tagged = uniq(input.userTags).filter((u) => !collaborators.includes(u)).slice(0, 20);
+
+  const platforms = new Set(input.destinations.map((d) => d.platform));
+  const wants = (p: Platform) => platforms.has(p) || (p === "instagram" && platforms.size === 0);
+
+  const [bits, accounts, known, plan, build, snap, tt, fb] = await Promise.all([
+    workspaceBits(ctx),
     settle(loadPickerAccountsDetailed(client, ownerId, wsId).then((r) => r.accounts), []),
     collaborators.length || tagged.length ? readKnown(client, ownerId, scopeKey(wsId)) : Promise.resolve([]),
     input.planId ? settle(loadPlanDay(client, ownerId, wsId, input.planId, input.planDay), null) : Promise.resolve(null),
     input.postId ? settle(loadStudioBuild(client, ownerId, input.postId), null) : Promise.resolve(null),
-    settle(getIgSnapshot(client, ownerId, wsId), null),
+    wants("instagram") ? settle(getIgSnapshot(client, ownerId, wsId), null) : Promise.resolve(null),
+    wants("tiktok")
+      ? settle(
+          scopeToWorkspace(client.from("tiktok_connections").select("username, videos").eq("user_id", ownerId), wsId).limit(1)
+            .then((r: { data: unknown }) => ((r.data as { username: string | null; videos: TtVideo[] | null }[] | null) ?? [])[0] ?? null),
+          null,
+        )
+      : Promise.resolve(null),
+    wants("facebook") ? settle(getFbSnapshot(client, ownerId), null) : Promise.resolve(null),
   ]);
+  const { profile, workspaces, igByWs, current, others } = bits;
 
   const facts: Fact[] = [];
   const gaps: string[] = [];
@@ -97,7 +158,7 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
 
   // ---- Brand ------------------------------------------------------------------
   const bd = profile?.brand_detail ?? null;
-  const brandName = clip(profile?.brand_name, 80) || null;
+  const brandName = current.brandName;
   const wsName = ctx.workspace?.name ?? null;
   const brandLines = [
     brandName ? `Brand name: ${brandName}` : null,
@@ -119,22 +180,6 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
   if (!bd?.website) gaps.push("No website is saved, so the caption has no link.");
 
   // ---- Locations --------------------------------------------------------------
-  const igByWs = new Map<string, string>();
-  for (const c of conns) if (c.workspace_id && c.username) igByWs.set(c.workspace_id, c.username.toLowerCase());
-  const wsFact = (w: { id: string; name: string; isDefault: boolean; brand_name: string | null; brand_detail: { location?: string } | null }): WorkspaceFact => {
-    const brand = w.isDefault ? baseProfile : null;
-    return {
-      id: w.id, name: w.name,
-      brandName: (w.isDefault ? brand?.brand_name : w.brand_name) ?? null,
-      location: (w.isDefault ? brand?.brand_detail?.location : w.brand_detail?.location) ?? null,
-      igUsername: igByWs.get(w.id) ?? null,
-    };
-  };
-  const current: WorkspaceFact = {
-    id: wsId ?? "current", name: wsName ?? brandName ?? "This brand", brandName, location: bd?.location ?? null,
-    igUsername: wsId ? igByWs.get(wsId) ?? null : null,
-  };
-  const others = workspaces.filter((w) => w.id !== wsId && !w.suspended).map(wsFact);
   const locations = businessLocations(current, others, collaborators);
   if (locations.length) {
     const why = (l: LocationFact) =>
@@ -146,6 +191,11 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
     for (const l of locations) {
       facts.push({ source: "location", text: l.why === "this_workspace" ? `${l.location} (this workspace)` : `${l.location} (your ${l.workspace} workspace)` });
       if (l.why !== "this_workspace" && l.igUsername) handles.push(l.igUsername);
+    }
+    const choice = locationInstruction(input.location, locations);
+    if (choice) {
+      sections.push(`# The user's location choice for this post (follow it)\n${choice.line}`);
+      facts.push({ source: "location", text: choice.fact });
     }
   } else {
     gaps.push("No location is saved for this workspace (Settings → Brand), so no location is named unless the video or your notes say it.");
@@ -219,6 +269,22 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
     }
   }
 
+  if (input.studio) {
+    const st = input.studio;
+    const chosen = [
+      st.goal ? `Goal the user chose for this video: ${clip(st.goal, 120)}` : null,
+      st.hook ? `Opening line the user chose: "${clip(st.hook, 200)}"` : null,
+      st.cta ? `Ending ask the user chose: "${clip(st.cta, 200)}"` : null,
+      st.onscreen.length ? `On-screen text the user chose: ${st.onscreen.map((t) => `"${clip(t, 120)}"`).join(", ")}` : null,
+    ].filter(Boolean) as string[];
+    const observed = st.observed ? `What Content Studio saw in the video (SOCIA's own reading; use it to understand the video, never as a source for names, prices or places): ${clip(st.observed, 700)}` : null;
+    if (chosen.length || observed) {
+      sections.push(`# The user analysed this video in SOCIA's Content Studio (Quick Analyze)\n${[...chosen, observed].filter(Boolean).join("\n")}`);
+      corpus.push(...chosen);
+      facts.push({ source: "studio", text: `Content Studio analysis${st.goal ? `: ${clip(st.goal, 50)}` : ""}` });
+    }
+  }
+
   // ---- What the person said ------------------------------------------------------
   const notes = clip(input.notes, 1200);
   const draft = clip(input.draft, 2200);
@@ -239,25 +305,35 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
   }
 
   // ---- What worked before (style only) -------------------------------------------
-  let performance: PerformanceFacts | null = null;
+  const sum = (...xs: (number | null | undefined)[]) => (xs.every((x) => x == null) ? null : xs.reduce<number>((a, x) => a + (x ?? 0), 0));
+  const sources: { platform: Platform; who: string; posts: PastPost[] }[] = [];
   if (snap?.media?.length) {
-    performance = performanceFacts(snap.media.map((m) => ({ caption: m.caption ?? null, interactions: interactionsTotal(m), format: formatOf(m), at: m.timestamp ?? null })));
-    const pf = performance;
-    const who = snap.username ? at(snap.username) : "this account";
+    sources.push({ platform: "instagram", who: snap.username ? at(snap.username) : "this Instagram account", posts: snap.media.map((m) => ({ caption: m.caption ?? null, interactions: interactionsTotal(m), format: formatOf(m), at: m.timestamp ?? null })) });
+  }
+  if (tt?.videos?.length) {
+    sources.push({ platform: "tiktok", who: tt.username ? at(tt.username) : "this TikTok account", posts: tt.videos.map((v) => ({ caption: v.caption, interactions: sum(v.likes, v.comments, v.shares), format: "Video", at: v.createdAt })) });
+  }
+  if (fb?.status === "connected" && fb.posts.length) {
+    sources.push({ platform: "facebook", who: fb.page_name ?? "this Facebook Page", posts: fb.posts.map((p) => ({ caption: p.message ?? null, interactions: sum(p.reactions, p.comments, p.shares), format: p.status_type ?? "Post", at: p.created_time ?? null })) });
+  }
+  const history: PlatformHistory[] = [];
+  for (const src of sources) {
+    const pf = performanceFacts(src.posts);
+    const label = PLATFORM_LABEL[src.platform];
     const lines: string[] = [];
     if (pf.top.length) lines.push(`Opening lines of the posts that beat the account's median:\n${pf.top.map((t) => `- "${t.hook}" (${t.multiplier}× median, ${t.format}${t.hashtags.length ? `, ${t.hashtags.map((h) => `#${h}`).join(" ")}` : ""})`).join("\n")}`);
     if (pf.hashtags.length) lines.push(`Hashtags this account has used: ${pf.hashtags.map((h) => `#${h.tag} (${h.uses} post${h.uses === 1 ? "" : "s"}${h.medianMultiplier != null ? `, ${h.medianMultiplier}× median` : ""})`).join(", ")}`);
     if (pf.length) lines.push(`Caption length: the best quarter of posts have a median of ${pf.length.top} characters, the rest ${pf.length.rest}.`);
-    if (lines.length) {
-      sections.push(`# What has worked on ${who} (${pf.posts} recent Instagram posts${pf.baseline ? `, median ${Math.round(pf.baseline)} interactions` : ""}). Use for style and hashtag choice only; these are older posts, NOT facts about this one.\n${lines.join("\n")}`);
-      facts.push({ source: "performance", text: pf.top.length ? `${pf.top.length} of your top Instagram posts (${who})` : `Your Instagram history (${who})` });
-    }
+    if (!lines.length) continue;
+    history.push({ platform: src.platform, who: src.who, facts: pf });
+    sections.push(`# What has worked on ${label} for ${src.who} (${pf.posts} recent posts${pf.baseline ? `, median ${Math.round(pf.baseline)} interactions` : ""}). Use for style and hashtag choice only; these are older posts, NOT facts about this one.\n${lines.join("\n")}`);
+    facts.push({ source: "performance", text: pf.top.length ? `${pf.top.length} of your top ${label} posts (${src.who})` : `Your ${label} history (${src.who})` });
   }
-  if (!performance || (!performance.top.length && !performance.hashtags.length)) {
-    gaps.push("Not enough Instagram history with results yet, so style and hashtags come from the post itself.");
+  if (!history.some((h) => h.facts.top.length || h.facts.hashtags.length)) {
+    gaps.push("Not enough post history with results yet, so style and hashtags come from the post itself.");
   }
 
-  return { facts, gaps, prompt: sections.join("\n\n"), corpus: corpus.join("\n"), handles: uniq(handles), brandName, locations, performance };
+  return { facts, gaps, prompt: sections.join("\n\n"), corpus: corpus.join("\n"), handles: uniq(handles), brandName, locations, history };
 }
 
 type PlanItem = SavedPlan["data"]["weeklyPlan"][number];

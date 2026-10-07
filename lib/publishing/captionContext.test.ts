@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   baseProfile: null as unknown,
   workspaces: [] as unknown[],
   snapshot: null as unknown,
+  fb: null as unknown,
   accounts: [] as unknown[],
   known: [] as unknown[],
   tables: {} as Record<string, unknown[]>,
@@ -17,6 +18,7 @@ vi.mock("@/lib/profile", () => ({
 }));
 vi.mock("@/lib/workspaces", async (orig) => ({ ...(await orig<typeof import("@/lib/workspaces")>()), listWorkspaces: vi.fn(async () => state.workspaces) }));
 vi.mock("@/lib/instagramSync", () => ({ getIgSnapshot: vi.fn(async () => state.snapshot) }));
+vi.mock("@/lib/facebookSync", () => ({ getFbSnapshot: vi.fn(async () => state.fb) }));
 vi.mock("./db", () => ({ loadPickerAccountsDetailed: vi.fn(async () => ({ accounts: state.accounts, complete: true })) }));
 vi.mock("./knownUsernames", () => ({ readKnown: vi.fn(async () => state.known), scopeKey: (w: string | null) => w ?? "owner" }));
 
@@ -39,7 +41,7 @@ const ws = (id: string, name: string, extra: Record<string, unknown> = {}) => ({
 
 const input = {
   postId: null, destinations: [{ platform: "instagram" as const, accountId: "ig1" }], draft: "", notes: "",
-  collaborators: [], userTags: [], planId: null, planDay: null, transcript: null,
+  collaborators: [], userTags: [], planId: null, planDay: null, transcript: null, location: null, studio: null,
 };
 
 describe("caption context", () => {
@@ -52,6 +54,7 @@ describe("caption context", () => {
       ws("w3", "Rise Bakery", { brand_name: "Rise", brand_detail: { location: "Nashville" } }),
     ];
     state.snapshot = null;
+    state.fb = null;
     state.accounts = [{ platform: "instagram", accountId: "ig1", label: "Salvo's Brentwood", handle: "salvosbrentwood" }];
     state.known = [{ username: "chefmike", uses: 2, name: "Mike Rossi", avatar: null }];
     state.tables = { instagram_connections: [{ username: "salvosbrentwood", workspace_id: "w1" }, { username: "salvosfranklin", workspace_id: "w2" }, { username: "risebakery", workspace_id: "w3" }] };
@@ -93,5 +96,35 @@ describe("caption context", () => {
     expect(c.corpus).toContain("$5 Saturday");
     expect(c.facts.map((f) => f.source)).toEqual(expect.arrayContaining(["plan", "notes", "location", "brand"]));
     expect(c.gaps.some((g) => /No prices/.test(g))).toBe(false);
+  });
+
+  it("follows the person's location choice and ignores one SOCIA doesn't know", async () => {
+    const one = await buildCaptionContext(ctx(), { ...input, location: "Franklin, TN" });
+    expect(one.prompt).toContain("This post is about the Franklin, TN location. Name Franklin, TN and no other location.");
+    expect(one.facts).toContainEqual({ source: "location", text: "About Franklin, TN (your choice)" });
+    const unknown = await buildCaptionContext(ctx(), { ...input, location: "Nashville" });
+    expect(unknown.prompt).not.toContain("location choice");
+  });
+
+  it("uses what was chosen in Quick Analyze, but never SOCIA's own reading as evidence", async () => {
+    const c = await buildCaptionContext(ctx(), { ...input, studio: { observed: "A $9 combo board is visible", goal: "Get catering bookings", hook: "We fed 200 people Friday", cta: "Book your event", onscreen: ["Catering now open"] } });
+    expect(c.prompt).toContain("Goal the user chose for this video: Get catering bookings");
+    expect(c.prompt).toContain("never as a source for names, prices or places");
+    expect(c.corpus).toContain("We fed 200 people Friday");
+    expect(c.corpus).not.toContain("$9");
+    expect(c.facts).toContainEqual({ source: "studio", text: "Content Studio analysis: Get catering bookings" });
+  });
+
+  it("reads what worked on each platform the post goes to", async () => {
+    const vids = [3, 4, 5, 4, 30].map((n, i) => ({ id: `v${i}`, createdAt: null, cover: null, url: null, caption: n === 30 ? "POV: the corner piece #pizza" : `video ${i}`, durationSec: 20, views: 100, likes: n, comments: 0, shares: 0 }));
+    state.tables.tiktok_connections = [{ username: "salvostiktok", videos: vids }];
+    state.fb = { status: "connected", page_name: "Salvo's Pizza", posts: [2, 3, 2, 3, 12].map((n) => ({ message: n === 12 ? "Two kitchens, one dough #franklintn" : "Hello", reactions: n, comments: 1 })) };
+    const c = await buildCaptionContext(ctx(), { ...input, destinations: [{ platform: "tiktok", accountId: "tt1" }, { platform: "facebook", accountId: "fb1" }] });
+    expect(c.history.map((h) => h.platform)).toEqual(["tiktok", "facebook"]);
+    expect(c.prompt).toContain(`What has worked on TikTok for @salvostiktok`);
+    expect(c.prompt).toContain(`"POV: the corner piece"`);
+    expect(c.facts).toContainEqual({ source: "performance", text: "1 of your top TikTok posts (@salvostiktok)" });
+    expect(c.prompt).toContain(`What has worked on Facebook for Salvo's Pizza`);
+    expect(c.prompt).not.toContain("What has worked on Instagram"); // not a destination
   });
 });

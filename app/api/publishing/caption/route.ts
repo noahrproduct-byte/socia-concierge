@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSupabaseUrl } from "@/lib/supabase/env";
 import { resolveContext } from "@/lib/context";
 import { requireUsage } from "@/lib/planGuard";
-import { buildCaptionContext, type CaptionInput } from "@/lib/publishing/captionContext";
+import { buildCaptionContext, knownLocations, type CaptionInput } from "@/lib/publishing/captionContext";
 import { assembleCaption, describeClaim, HASHTAG_TARGET, hashtagMax, unverifiedClaims, type CaptionParts } from "@/lib/publishing/captionRules";
 import { CAPABILITIES } from "@/lib/publishing/capabilities";
 import { PLATFORM_LABEL, type Platform } from "@/lib/publishing/types";
@@ -26,7 +26,8 @@ const ACTIONS: Action[] = ["generate", "regenerate", "shorten", "engaging", "pro
 const PLATFORMS: Platform[] = ["instagram", "facebook", "tiktok", "youtube"];
 
 type Current = { target: string; hook: string; body: string; cta: string; hashtags: string[] };
-type Body = Partial<CaptionInput> & {
+type Body = Partial<Omit<CaptionInput, "studio">> & {
+  studio?: { observed?: unknown; goal?: unknown; hook?: unknown; cta?: unknown; onscreen?: unknown } | null;
   action?: string;
   perPlatform?: boolean;
   media?: { kind?: string; count?: number; durationSec?: number | null };
@@ -117,6 +118,18 @@ async function callModel(system: string, content: (Img | { type: "text"; text: s
   }
 }
 
+// GET ?collaborators=a,b — the business locations this post may name, so
+// the composer can ask which one it is about before writing.
+export async function GET(req: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const ctx = await resolveContext(supabase, user.id);
+  const collaborators = (new URL(req.url).searchParams.get("collaborators") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 3);
+  const locations = await knownLocations(ctx, collaborators).catch(() => []);
+  return NextResponse.json({ locations: locations.map((l) => ({ location: l.location, why: l.why, workspace: l.workspace })) });
+}
+
 export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -153,6 +166,10 @@ export async function POST(req: Request) {
     planId: str(body.planId, 64) || null,
     planDay: str(body.planDay, 40) || null,
     transcript: str(body.transcript, 4000) || null,
+    location: str(body.location, 120) || null,
+    studio: body.studio && typeof body.studio === "object"
+      ? { observed: str(body.studio.observed, 800), goal: str(body.studio.goal, 120), hook: str(body.studio.hook, 200), cta: str(body.studio.cta, 200), onscreen: strs(body.studio.onscreen, 6, 120) }
+      : null,
   };
   const facts = await buildCaptionContext(ctx, input);
 
