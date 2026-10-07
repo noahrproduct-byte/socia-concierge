@@ -19,9 +19,10 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
-import { extractFrames, imageFrames, analysisSummary, MAX_BYTES, MAX_SECONDS, type StudioAnalysis, type StudioKind, type Frames, type GoalId, type ApplyField } from "@/lib/studio";
+import { extractFrames, imageFrames, analysisSummary, GOALS, MAX_BYTES, MAX_SECONDS, type StudioAnalysis, type StudioKind, type Frames, type GoalId, type ApplyField } from "@/lib/studio";
 import { decodeToMono16k } from "@/lib/audio/decode";
-import { quickAudioFrom, timedTranscript, type QuickAudio } from "@/lib/audio/quick";
+import { describeQuickAudio, quickAudioFrom, timedTranscript, type QuickAudio } from "@/lib/audio/quick";
+import { saveStudioHandoff } from "@/lib/studioHandoff";
 import type { AskProposal } from "@/lib/ask";
 
 export type DraftItem = { id: string; caption: string; media_url: string | null; media_type: string; scheduled_at: string; status: string };
@@ -255,8 +256,18 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const publishOrSchedule = useCallback(async () => {
     const id = savedId ?? (await saveDraft());
     if (!id) return;
+    // What was chosen here travels with the draft to Generate Caption in this tab.
+    saveStudioHandoff(id, {
+      observed: analysis?.observed.summary ?? "",
+      goal: GOALS.find((g) => g.id === w.goal)?.label ?? "",
+      hook: w.hook.trim(),
+      cta: w.cta.trim(),
+      onscreen: w.onscreen.map((t) => t.trim()).filter(Boolean),
+      transcript: transcript.trim() || null,
+      audio: audioFacts ? describeQuickAudio(audioFacts) : null,
+    });
     router.push(`/create?post=${encodeURIComponent(id)}&from=studio`);
-  }, [savedId, saveDraft, router]);
+  }, [savedId, saveDraft, router, analysis, w.goal, w.hook, w.cta, w.onscreen, transcript, audioFacts]);
 
   const planNote = useMemo(() => {
     if (!analysis) return "Idea from Content Studio.";

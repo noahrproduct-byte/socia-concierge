@@ -7,13 +7,14 @@
 // can see why it says what it says; nothing is written into the caption
 // without a click. Refinements rewrite the same caption with the same facts.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import PlanNotice from "@/components/PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { enabledDestinations, type ComposerDraft } from "@/lib/publishing/composer";
 import { seeMedia, type SeePhase, type Seen } from "@/lib/publishing/captionMedia";
 import { countHashtags } from "@/lib/publishing/validate";
+import { readStudioHandoff, type StudioHandoff } from "@/lib/studioHandoff";
 import { PLATFORM_LABEL, type InstagramSettings, type Platform } from "@/lib/publishing/types";
 import type { ComposerAction } from "./contracts";
 
@@ -22,6 +23,7 @@ type Parts = { hook: string; body: string; cta: string; hashtags: string[] };
 type Caption = { target: string; platforms: Platform[]; text: string; parts: Parts; warnings: string[] };
 type Fact = { source: string; text: string };
 export type CaptionUsage = { used: number | null; limit: number; resetsOn?: string | null } | null;
+type KnownLocation = { location: string; why: "this_workspace" | "same_brand" | "collaborator"; workspace: string };
 type Result = { understanding: string; purpose: string; captions: Caption[]; facts: Fact[]; gaps: string[]; seenNotes: string[]; heard: boolean };
 
 const PHASE_COPY: Record<SeePhase | "writing", string> = {
@@ -67,9 +69,32 @@ export default function CaptionGenerator({
   const [error, setError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<PlanError | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
+  const [handoff, setHandoff] = useState<StudioHandoff | null>(null);
+  const [locations, setLocations] = useState<KnownLocation[]>([]);
+  const [place, setPlace] = useState("auto");
 
   const enabled = enabledDestinations(draft);
   const caption = draft.masterCaption;
+  const igSettings = enabled.filter((d) => d.platform === "instagram").map((d) => d.settings as InstagramSettings);
+  const collabKey = Array.from(new Set(igSettings.flatMap((x) => x.collaborators ?? []))).sort().join(",");
+
+  // Session storage is only readable after mount.
+  useEffect(() => { setHandoff(readStudioHandoff(draft.postId)); }, [draft.postId]);
+
+  // The locations SOCIA knows for this post (a collaborator can add one), so
+  // the person can say which one it is about before anything is written.
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(() => {
+      fetch(`/api/publishing/caption?collaborators=${encodeURIComponent(collabKey)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => { if (live && Array.isArray(j?.locations)) setLocations(j.locations); })
+        .catch(() => {});
+    }, 300);
+    return () => { live = false; clearTimeout(t); };
+  }, [collabKey]);
+  const placeValid = place === "auto" || place === "none" || (place === "all" && locations.length > 1) || locations.some((l) => l.location === place);
+  const placeSent = placeValid ? place : "auto";
 
   const run = useCallback(async (action: Action, extra: { ctaGoal?: string } = {}) => {
     setError(null); setPlanError(null); setCtaOpen(false); setApplied(null);
@@ -77,11 +102,11 @@ export default function CaptionGenerator({
     try {
       let s = seen;
       if (action === "generate" || !s) {
-        s = await seeMedia(draft.media, { userId, fileFor, onPhase: (p) => setBusy(p) });
+        s = await seeMedia(draft.media, { userId, fileFor, onPhase: (p) => setBusy(p), known: handoff ? { transcript: handoff.transcript, audio: handoff.audio } : null });
         setSeen(s);
       }
       if (action === "generate") setBusy("writing");
-      const ig = enabled.filter((d) => d.platform === "instagram").map((d) => d.settings as InstagramSettings);
+      const ig = igSettings;
       const res = await fetch("/api/publishing/caption", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,6 +131,8 @@ export default function CaptionGenerator({
           purpose: result?.purpose,
           current: action === "generate" ? [] : result?.captions.map((c) => ({ target: c.target, ...c.parts })) ?? [],
           ctaGoal: extra.ctaGoal,
+          location: placeSent,
+          studio: handoff ? { observed: handoff.observed, goal: handoff.goal, hook: handoff.hook, cta: handoff.cta, onscreen: handoff.onscreen } : null,
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -129,7 +156,7 @@ export default function CaptionGenerator({
     } finally {
       setBusy(null);
     }
-  }, [caption, draft.customizePerPlatform, draft.media, draft.planDay, draft.planId, draft.postId, enabled, fileFor, notes, onUsage, result, seen, userId]);
+  }, [caption, draft.customizePerPlatform, draft.media, draft.planDay, draft.planId, draft.postId, enabled, fileFor, handoff, igSettings, notes, onUsage, placeSent, result, seen, userId]);
 
   const useFor = (c: Caption) => {
     for (const d of enabled.filter((x) => c.platforms.includes(x.platform))) {
@@ -159,6 +186,20 @@ export default function CaptionGenerator({
           {notesOpen ? "Hide notes" : notes.trim() ? "Edit what SOCIA should know" : "Anything SOCIA should know?"}
         </button>
       </div>
+      {locations.length > 0 && (
+        <div className="cg-place" role="group" aria-label="Which location is this post about?">
+          <span className="cg-place-label">Location</span>
+          {[
+            { v: "auto", label: "Let SOCIA decide" },
+            ...locations.map((l) => ({ v: l.location, label: l.location })),
+            ...(locations.length > 1 ? [{ v: "all", label: locations.length === 2 ? "Both" : `All ${locations.length}` }] : []),
+            { v: "none", label: "Don't name one" },
+          ].map((o) => (
+            <button key={o.v} type="button" className={`cg-chip${placeSent === o.v ? " on" : ""}`} aria-pressed={placeSent === o.v} onClick={() => setPlace(o.v)}>{o.label}</button>
+          ))}
+        </div>
+      )}
+      {handoff && !result && <p className="cp-muted">Using what you chose in Content Studio{handoff.goal ? ` (${handoff.goal})` : ""}.</p>}
       {notesOpen && (
         <textarea
           className="cp-textarea cg-notes"

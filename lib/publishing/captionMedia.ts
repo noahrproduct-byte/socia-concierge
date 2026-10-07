@@ -39,7 +39,13 @@ function pick<T>(xs: T[], n: number): number[] {
 
 export async function seeMedia(
   media: MediaItem[],
-  opts: { userId: string; fileFor: (id: string) => File | null; onPhase?: (p: SeePhase) => void },
+  opts: {
+    userId: string;
+    fileFor: (id: string) => File | null;
+    onPhase?: (p: SeePhase) => void;
+    /** already heard in Content Studio for this draft: no second transcription */
+    known?: { transcript: string | null; audio: string | null } | null;
+  },
 ): Promise<Seen> {
   const key = mediaKey(media);
   const hit = cache.get(key);
@@ -67,6 +73,14 @@ export async function seeMedia(
       if (!seen.durationSec && fr.duration) seen.durationSec = fr.duration;
     } catch {
       seen.notes.push("This browser couldn't sample the video's frames, so SOCIA wrote from its sound and your details.");
+    }
+
+    if (opts.known?.transcript || opts.known?.audio) {
+      seen.transcript = opts.known.transcript?.slice(0, 4000) ?? null;
+      seen.audio = opts.known.audio ?? null;
+      if (!seen.transcript) seen.notes.push("Content Studio has no transcript of this video, so SOCIA wrote from what it saw.");
+      cache.set(key, seen);
+      return seen;
     }
 
     opts.onPhase?.("listening");

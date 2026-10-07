@@ -362,3 +362,6 @@
 .cg-gaps { font-size: 12px; color: var(--text-secondary); }
 .cg-gaps summary { cursor: pointer; font-weight: 600; color: var(--text-muted); }
 .cg-gaps ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
+.cg-place { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cg-place-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-right: 2px; }
+.cg-chip.on { color: var(--primary-text); background: var(--primary-subtle); border-color: rgba(var(--primary-rgb), 0.45); }

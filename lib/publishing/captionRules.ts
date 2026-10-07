@@ -157,7 +157,8 @@ export type PerformanceFacts = {
 
 export const MIN_POSTS = 5;
 
-const firstLine = (s: string) => (s.split("\n").map((l) => l.trim()).find((l) => l && !/^#/.test(l)) ?? "").slice(0, 140);
+const firstLine = (s: string) =>
+  (s.split("\n").map((l) => l.replace(/(\s+#[\p{L}\p{N}_]+)+\s*$/u, "").trim()).find((l) => l && !/^#/.test(l)) ?? "").slice(0, 140);
 
 export function performanceFacts(posts: PastPost[]): PerformanceFacts {
   const scored = posts.filter((p) => p.interactions != null) as (PastPost & { interactions: number })[];
@@ -232,4 +233,23 @@ export function businessLocations(current: WorkspaceFact | null, others: Workspa
     out.push({ location: w.location.trim(), workspace: w.name, igUsername: w.igUsername, why: isCollab ? "collaborator" : "same_brand" });
   }
   return out;
+}
+
+/**
+ * The person's answer to "which location is this post about?" as a prompt
+ * line and a "Built from" chip. "auto" (or nothing) leaves it to the post;
+ * a location that isn't one SOCIA knows is ignored rather than trusted.
+ */
+export function locationInstruction(choice: string | null | undefined, locations: LocationFact[]): { line: string; fact: string } | null {
+  const c = (choice ?? "").trim();
+  if (!c || c === "auto") return null;
+  if (c === "none") return { line: "The user chose not to name any location in this caption.", fact: "No location named (your choice)" };
+  if (c === "all") {
+    if (!locations.length) return null;
+    const list = locations.map((l) => l.location);
+    return { line: `This post is for all of these locations: ${list.join("; ")}. Name ${list.length === 1 ? "it" : "each of them"}.`, fact: `For ${list.join(" and ")} (your choice)` };
+  }
+  const hit = locations.find((l) => l.location.toLowerCase() === c.toLowerCase());
+  if (!hit) return null;
+  return { line: `This post is about the ${hit.location} location. Name ${hit.location} and no other location.`, fact: `About ${hit.location} (your choice)` };
 }
