@@ -27,6 +27,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const conn = (await getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id", ctx.workspace?.id ?? null)) as { ig_user_id?: string } | null;
     const { data: pub } = ctx.client.storage.from("scheduled-media").getPublicUrl(body.path);
+
+    // A post already planned for this build (Plan These Posts) keeps its day: the video goes onto that draft.
+    if (row.post_id) {
+      const { data: cur } = await ctx.client.from("scheduled_posts").select("id, status").eq("id", row.post_id).eq("user_id", ctx.ownerId).maybeSingle();
+      if ((cur as { status?: string } | null)?.status === "draft") {
+        const { error } = await ctx.client.from("scheduled_posts").update({
+          media_path: body.path, media_url: pub.publicUrl, media_type: "REELS",
+          caption: (body.caption ?? row.caption ?? "").slice(0, 2200), updated_at: new Date().toISOString(),
+        }).eq("id", row.post_id).eq("user_id", ctx.ownerId);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        await markRendered(ctx.client, ctx.ownerId, id, { path: body.path, durationSec: typeof body.durationSec === "number" ? body.durationSec : null, postId: row.post_id });
+        return NextResponse.json({ postId: row.post_id, planned: true });
+      }
+    }
     // A placeholder slot a day out, on the hour: the person picks the real time in Create Post.
     const when = new Date(Date.now() + 24 * 3600_000);
     when.setUTCMinutes(0, 0, 0);

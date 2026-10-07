@@ -19,6 +19,7 @@ import { fingerprintFile, probeClip, ingestClip } from "@/lib/studioClips/ingest
 import { STUDIO_BUCKET, type Opportunity, type StudioBuild, type StudioClip, type StudioProject } from "@/lib/studioClips/types";
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
+import PlanPanel from "./PlanPanel";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
@@ -355,7 +356,10 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
       )}
 
       {view === "yield" && project?.yield && (
-        <YieldView y={project.yield} clips={project.clips} builds={project.builds} onOpen={(o) => void openOpportunity(o)} onAddMore={() => setAdding(true)} stale={stale} />
+        <>
+          <YieldView y={project.yield} clips={project.clips} builds={project.builds} onOpen={(o) => void openOpportunity(o)} onAddMore={() => setAdding(true)} stale={stale} />
+          {project.yield.opportunities.length > 0 && <PlanPanel projectId={project.id} stale={stale} />}
+        </>
       )}
 
       {view === "opportunity" && project && openOpp && (

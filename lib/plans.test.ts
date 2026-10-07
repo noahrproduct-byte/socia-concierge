@@ -88,7 +88,7 @@ describe("plan configuration", () => {
     expect(available.sort()).toEqual([
       "auto_build", "breakout_alerts", "build_from_clips", "client_reports", "comment_replies", "competitor_alerts", "content_plan", "cross_platform_analytics",
       "custom_date_ranges", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
-      "opportunity_alerts", "performance_change_alerts", "period_comparison", "platform_reports",
+      "opportunity_alerts", "performance_change_alerts", "period_comparison", "plan_posts", "platform_reports",
       "posting_time_analysis", "report_exports", "scheduling", "team", "trend_alerts", "weekly_summary",
       "weekly_trend_roundup",
     ].sort());
