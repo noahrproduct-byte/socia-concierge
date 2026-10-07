@@ -317,7 +317,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   starter: {
     id: "starter",
     name: "Starter",
-    priceMonthly: 29,
+    priceMonthly: 19,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
     limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_DEV_LIMITS, studio_storage_gb: 10, studio_retention_days: 14 },
@@ -328,7 +328,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   growth: {
     id: "growth",
     name: "Growth",
-    priceMonthly: 79,
+    priceMonthly: 49,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
     limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_DEV_LIMITS, studio_storage_gb: 25, studio_retention_days: 30 },
@@ -340,7 +340,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   pro: {
     id: "pro",
     name: "Pro",
-    priceMonthly: 150,
+    priceMonthly: 99,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
     limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_DEV_LIMITS, studio_storage_gb: 50, studio_retention_days: 60 },

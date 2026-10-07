@@ -16,9 +16,9 @@ describe("plan configuration", () => {
   it("has the four confirmed plans at the confirmed prices, in order", () => {
     expect(PLAN_ORDER).toEqual(["free", "starter", "growth", "pro"]);
     expect(PLANS.free.priceMonthly).toBe(0);
-    expect(PLANS.starter.priceMonthly).toBe(29);
-    expect(PLANS.growth.priceMonthly).toBe(79);
-    expect(PLANS.pro.priceMonthly).toBe(150);
+    expect(PLANS.starter.priceMonthly).toBe(19);
+    expect(PLANS.growth.priceMonthly).toBe(49);
+    expect(PLANS.pro.priceMonthly).toBe(99);
     expect(PLANS.growth.popular).toBe(true);
   });
 
@@ -154,7 +154,7 @@ describe("plan helpers", () => {
 
   it("formats prices, history and pricing links", () => {
     expect(formatPrice(PLANS.free)).toBe("$0");
-    expect(formatPrice(PLANS.pro)).toBe("$150");
+    expect(formatPrice(PLANS.pro)).toBe("$99");
     expect(formatHistory(30)).toBe("30 days");
     expect(formatHistory(90)).toBe("90 days");
     expect(formatHistory(365)).toBe("1 year");
