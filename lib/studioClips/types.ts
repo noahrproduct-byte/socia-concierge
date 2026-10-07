@@ -236,6 +236,74 @@ export type Edl = {
   music: string | null;
   caption: string;
   notes: string[];
+  /** Phase C: measured picture and sound corrections (absent until measured). */
+  finish?: EdlFinish;
+};
+
+/**
+ * The colorCorrection() parameters SOCIA chose for one clip (same names and
+ * scales as @remotion/effects), always inside the gentle limits in
+ * lib/studioClips/grade.ts. Neutral = { 0, 1, 0, 0, 0, 0, 1, 0 }.
+ */
+export type GradeParams = {
+  exposure: number;
+  contrast: number;
+  shadows: number;
+  highlights: number;
+  temperature: number;
+  tint: number;
+  saturation: number;
+  vibrance: number;
+};
+
+/** Measured look of a clip's frames, 0..1 scales (sRGB). */
+export type LookStats = {
+  /** median luminance */
+  luma: number;
+  /** luminance standard deviation */
+  contrast: number;
+  /** share of near-white / near-black pixels */
+  clipHi: number;
+  clipLo: number;
+  /** mean red − mean blue */
+  warmth: number;
+  /** mean green − mean of red and blue (positive = green cast) */
+  tint: number;
+  /** mean HSL saturation */
+  saturation: number;
+};
+
+export type ClipGrade = { params: GradeParams; before: LookStats; after: LookStats; reasons: string[] };
+
+export type SoundStats = {
+  /** mean level of the speech/sound, dBFS */
+  levelDb: number | null;
+  /** highest sample peak, dBFS */
+  peakDb: number | null;
+  /** level between sounds (10th percentile), dBFS */
+  noiseDb: number | null;
+};
+
+export type ClipSound = {
+  /** typical gain applied, dB */
+  gainDb: number;
+  /** gain over clip time: db[i] applies at t0 + i·step seconds */
+  curve: { t0: number; step: number; db: number[] };
+  before: SoundStats;
+  after: SoundStats;
+  reasons: string[];
+};
+
+export type EdlFinish = {
+  look: "off" | "enhance" | "match";
+  /** per clip, for the selected look; empty when look is off */
+  grades: Record<string, ClipGrade>;
+  /** audio cleanup on/off */
+  sound: boolean;
+  sounds: Record<string, ClipSound>;
+  /** long pauses SOCIA cut out of this edit (the segments already reflect it) */
+  pausesCut: { count: number; seconds: number } | null;
+  measuredAt: string;
 };
 
 export type GuideStep = {

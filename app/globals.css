@@ -12602,3 +12602,28 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .st-measured li b { font-size: 15px; font-weight: 700; color: var(--text-primary); }
 .st-measured li em { font-style: normal; font-size: 11.5px; color: var(--text-secondary); }
 .st-measured li.warn em { color: var(--warning-text); }
+
+/* Look & sound (components/studio/FinishPanel.tsx) */
+.cbf { display: flex; flex-direction: column; gap: 10px; }
+.cbf-status { padding: 10px 14px; }
+.cbf-status p { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
+.cbf-status .cbb-bar { margin-top: 8px; }
+.cbf-again { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 12px; }
+.cbf-sec { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.cbf-sec h4 { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
+.cbf-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cbf-seg { align-self: flex-start; }
+.cbf-seg button { display: inline-flex; align-items: center; gap: 5px; }
+.cbf-help { font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.cbf-clips { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.cbf-clips li { display: flex; gap: 10px; align-items: flex-start; }
+.cbf-clips img, .cbf-clips .cb-clip-ph { width: 34px; height: 46px; border-radius: 6px; object-fit: cover; flex: none; }
+.cbf-clips b { display: block; font-size: 12.5px; color: var(--text-primary); }
+.cbf-clips small { display: block; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.cbf-clips .cbf-warn { color: var(--warning-text); }
+.cbf-dot { width: 6px; height: 6px; margin: 6px 4px 0; border-radius: 99px; background: var(--border-strong); flex: none; }
+.cbf-pauses { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); }
+.cbf-pauses .ov-btn { margin-left: auto; }
+.cbf-not b { font-size: 12.5px; color: var(--text-primary); }
+.cbf-not ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.cbf-compare { margin-top: 6px; align-self: flex-start; }

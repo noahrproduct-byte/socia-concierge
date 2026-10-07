@@ -4,14 +4,18 @@
 // (preview) and in the browser render (export). Nothing here is invented at
 // render time — segments, text lines, measured gain and transcript captions
 // all come from the validated EDL. Styles stay inside the client-side
-// renderer's supported subset (no filters, no backdrop effects).
+// renderer's supported subset (no CSS filters, no backdrop effects); picture
+// corrections use @remotion/effects' colorCorrection(), a WebGL pass that
+// the Player, the browser render and Safari all support.
 import React, { useMemo } from "react";
 import { AbsoluteFill, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { Video } from "@remotion/media";
+import { colorCorrection } from "@remotion/effects/color-correction";
 import { loadFont } from "@remotion/google-fonts/Inter";
 import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
 import type { BuildSource, Edl, EdlText } from "@/lib/studioClips/types";
-import { timeline, captionsForEdl, dbToGain, edgeEnvelope, secToFrames } from "@/lib/studioClips/timeline";
+import { timeline, captionsForEdl, dbToGain, edgeEnvelope, secToFrames, FPS } from "@/lib/studioClips/timeline";
+import { gainAtDb } from "@/lib/studioClips/sound";
 
 const { fontFamily } = loadFont("normal", { weights: ["600", "700"], subsets: ["latin"] });
 
@@ -19,6 +23,8 @@ export type ClipCompositionProps = {
   edl: Edl;
   sources: Record<string, BuildSource>;
   captionsOn: boolean;
+  /** false shows the cut without the measured corrections (Before); omitted = After */
+  finishOn?: boolean;
 };
 
 /** Captions page every ~1.2 s, like short-form captions people are used to. */
@@ -84,12 +90,18 @@ function CaptionPage({ page }: { page: TikTokPage }) {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, finishOn }) => {
   const { fps } = useVideoConfig();
   const tl = useMemo(() => timeline(edl), [edl]);
   // Measured balance, expressed as attenuation so no clip is pushed above unity.
   const maxGain = useMemo(() => Math.max(0, ...tl.segments.map((s) => s.gainDb)), [tl]);
   const words = useMemo(() => Object.fromEntries(Object.values(sources).map((s) => [s.clipId, s.words])), [sources]);
+  const finish = finishOn === false ? undefined : edl.finish;
+  // One effect instance per graded clip, so the WebGL program isn't rebuilt every frame.
+  const effects = useMemo(() => {
+    if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
+    return Object.fromEntries(Object.entries(finish.grades).map(([id, g]) => [id, [colorCorrection(g.params)]]));
+  }, [finish]);
   const pages = useMemo(() => {
     if (!captionsOn || !edl.captions) return [] as TikTokPage[];
     const captions = captionsForEdl(edl, words);
@@ -102,13 +114,17 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         const src = sources[s.clipId];
         if (!src) return null;
         const gain = dbToGain(s.gainDb - maxGain);
+        const sound = finish?.sound ? finish.sounds[s.clipId] : undefined;
         return (
           <Sequence key={s.id} from={s.startFrame} durationInFrames={s.durationFrames} name={`${s.role} · clip ${src.position + 1}`}>
             <Video
               src={src.url}
               trimBefore={s.inFrame}
               durationInFrames={s.durationFrames}
-              volume={(f) => Math.min(1, gain * edgeEnvelope(f, s.durationFrames))}
+              effects={effects[s.clipId]}
+              // Cleanup on: the measured gain curve (it may lift quiet sound; its peaks were measured
+              // to stay under -1 dBFS). Off: the Phase B balance, as attenuation only.
+              volume={(f) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames)}
               // Fill the vertical frame; landscape footage is cropped at the sides, never letterboxed.
               objectFit="cover"
               style={{ width: "100%", height: "100%" }}

@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
+import FinishPanel from "./FinishPanel";
 import { timeline, secToFrames } from "@/lib/studioClips/timeline";
 import { clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
 
@@ -40,7 +41,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  const [panel, setPanel] = useState<"cut" | "text" | "audio" | "regenerate">("cut");
+  const [panel, setPanel] = useState<"cut" | "text" | "finish" | "audio" | "regenerate">("cut");
+  // Before/After for the measured corrections; the export always uses After.
+  const [compare, setCompare] = useState<"before" | "after">("after");
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -198,7 +201,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
             <div className="cbb-player">
               <Player
                 component={ClipComposition}
-                inputProps={{ edl, sources, captionsOn }}
+                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after" }}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={OUTPUT.width}
@@ -211,6 +214,12 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
             <div className="cbb-player-meta">
               <b>{title}</b>
               <span>{tl.durationSec.toFixed(1)}s · {edl.segments.length} cut{edl.segments.length === 1 ? "" : "s"} · {OUTPUT.width}×{OUTPUT.height}</span>
+              {edl.finish && (
+                <div className="cal2-seg cbf-compare" role="radiogroup" aria-label="Compare corrections">
+                  <button type="button" role="radio" aria-checked={compare === "before"} className={compare === "before" ? "on" : ""} onClick={() => setCompare("before")}>Before</button>
+                  <button type="button" role="radio" aria-checked={compare === "after"} className={compare === "after" ? "on" : ""} onClick={() => setCompare("after")}>After</button>
+                </div>
+              )}
               {missing > 0 && <span className="cb-stale"><AlertTriangle size={12} /> {missing} cut{missing === 1 ? "" : "s"} point{missing === 1 ? "s" : ""} at footage that expired — replace or remove {missing === 1 ? "it" : "them"}.</span>}
             </div>
           </div>
@@ -250,9 +259,14 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
           <div className="st-tabs cbb-tabs" role="tablist">
             <button type="button" role="tab" className={panel === "cut" ? "on" : ""} onClick={() => setPanel("cut")}>Cut</button>
             <button type="button" role="tab" className={panel === "text" ? "on" : ""} onClick={() => setPanel("text")}>Text &amp; captions</button>
-            <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Audio</button>
+            <button type="button" role="tab" className={panel === "finish" ? "on" : ""} onClick={() => setPanel("finish")}>Look &amp; sound</button>
+            <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Music</button>
             <button type="button" role="tab" className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>
           </div>
+
+          {panel === "finish" && (
+            <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} onCommit={(next) => { commit(next); setCompare("after"); }} />
+          )}
 
           {panel === "audio" && (
             <div className="cbb-audio">
