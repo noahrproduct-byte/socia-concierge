@@ -58,6 +58,11 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           {checkout && billing === "cancelled" && (
             <p className="pr-note" role="status">Checkout was cancelled. Nothing was charged.</p>
           )}
+          {checkout && (
+            <p className="pr-fine">
+              Prices in USD before tax. Payments are handled by Stripe and sold through Link, which adds sales tax at checkout where it applies; charges show as LINK.COM* on your statement.
+            </p>
+          )}
         </header>
 
         <section className="so-wrap" aria-label="Plans">

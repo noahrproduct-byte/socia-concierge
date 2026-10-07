@@ -121,6 +121,7 @@
 .pr-coming-label { font-weight: 600; }
 
 .pr-note { margin: 22px auto 0; text-align: center; font-size: 13.5px; color: var(--so-dim); max-width: 560px; }
+.pr-fine { margin: 14px auto 0; text-align: center; font-size: 12px; line-height: 1.5; color: var(--so-dim); max-width: 520px; opacity: 0.85; }
 .pr-note a, .pr-custom a { color: var(--so-cyan); text-decoration: underline; text-underline-offset: 3px; }
 .pr-note a:hover, .pr-custom a:hover { color: #fff; }
 

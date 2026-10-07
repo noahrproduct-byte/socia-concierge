@@ -9,6 +9,11 @@ import { recordEvent } from "@/lib/planGuard";
 export const runtime = "nodejs";
 
 // Start a Stripe Checkout for a paid plan. Body: { plan, interval }.
+// Sold through Stripe Managed Payments: Stripe (via Link) is the merchant of
+// record and handles sales tax, receipts, fraud and disputes. That requires a
+// Managed Payments tax code on each Product in the Stripe Dashboard and rules
+// out automatic_tax, tax_id_collection, payment_method_types, customer_update
+// and invoice_creation on this session, none of which are used here.
 // Returns { url } to send the browser to. Someone who already has a live
 // subscription is sent to the Customer Portal instead (plan changes, including
 // up/downgrades, happen there with Stripe's proration rules).
@@ -69,6 +74,7 @@ export async function POST(req: Request) {
       ...(trial ? { trial_period_days: 7 } : {}),
     },
     allow_promotion_codes: true,
+    managed_payments: { enabled: true },
     success_url: `${origin}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}#plan`,
     cancel_url: `${origin}/pricing?billing=cancelled&plan=${plan}`,
   });
