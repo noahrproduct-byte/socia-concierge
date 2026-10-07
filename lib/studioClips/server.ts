@@ -11,6 +11,7 @@ import { signUrls, clipFolder, removeFolder } from "./storage";
 import { checkClipFits, projectTotals, ownerStorageBytes, expiryFor, type FitResult } from "./limits";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
+import { sanitizeFinish } from "./finish";
 import { MAX_REGENERATIONS } from "./types";
 import { audioLine } from "@/lib/audio/server";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
@@ -335,6 +336,10 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const forEdl = rows.map(toClipForEdl);
   const { edl } = validateEdl(raw, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
+  // Picture and sound corrections are per clip, so they still hold for the clips the new cut keeps;
+  // cut pauses belonged to the old cut.
+  const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));
+  if (kept && (kept.look !== "off" || kept.sound)) edl.finish = { ...kept, pausesCut: null };
   const guide = guideFromEdl(edl, forEdl);
   const history = [...(row.edl_history ?? []), row.edl].slice(-HISTORY_MAX);
   const patch: Record<string, unknown> = { edl, edl_history: history, guide, caption: edl.caption || null, model, updated_at: now() };

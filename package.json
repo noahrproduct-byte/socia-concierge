@@ -19,6 +19,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@remotion/captions": "4.0.533",
+    "@remotion/effects": "4.0.533",
     "@remotion/google-fonts": "4.0.533",
     "@remotion/media": "4.0.533",
     "@remotion/player": "4.0.533",

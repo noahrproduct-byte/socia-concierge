@@ -3,6 +3,7 @@
 // in Phase B, so the guide and the preview can never disagree.
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, TranscriptWord } from "./types";
 import { clipLabel, fmtClock } from "./types";
+import { finishSteps, sanitizeFinish } from "./finish";
 
 export type ClipForEdl = {
   id: string;
@@ -215,6 +216,9 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   const r = validateEdl(raw, clips);
   // Captions are derived from speech; an explicit "off" from the person is kept.
   if (edited.captions === null) r.edl.captions = null;
+  // Measured corrections (Phase C) travel with the cut, for the clips still in it.
+  const finish = sanitizeFinish(edited.finish, new Set(r.edl.segments.map((s) => s.clipId)));
+  if (finish) r.edl.finish = finish;
   return r;
 }
 
@@ -247,8 +251,11 @@ export function guideFromEdl(edl: Edl, clips: ClipForEdl[]): GuideStep[] {
   } else {
     push("captions", "No speech was detected in these clips — skip captions.");
   }
-  for (const e of edl.enhance) push("enhance", ENHANCE_COPY[e.kind].replace("{clip}", label(e.clipId)).replace("{amount}", e.amount === "moderate" ? "a little more" : "slightly"), { clipId: e.clipId });
-  for (const a of edl.audio) push("audio", `${a.gainDb > 0 ? "Raise" : "Lower"} ${label(a.clipId)} by about ${Math.abs(a.gainDb)} dB — ${a.why}.`, { clipId: a.clipId });
+  // Applied, measured corrections replace the general advice for the same clips.
+  const fin = finishSteps(edl.finish, label);
+  for (const st of fin.steps) push(st.kind, st.text, { clipId: st.clipId });
+  for (const e of edl.enhance) if (!fin.gradedClips.has(e.clipId)) push("enhance", ENHANCE_COPY[e.kind].replace("{clip}", label(e.clipId)).replace("{amount}", e.amount === "moderate" ? "a little more" : "slightly"), { clipId: e.clipId });
+  for (const a of edl.audio) if (!fin.leveledClips.has(a.clipId)) push("audio", `${a.gainDb > 0 ? "Raise" : "Lower"} ${label(a.clipId)} by about ${Math.abs(a.gainDb)} dB — ${a.why}.`, { clipId: a.clipId });
   if (edl.music) push("music", `Music: ${edl.music}`);
   if (edl.cta) push("ending", `End with: “${edl.cta}”`);
   push("length", `Recommended length: ${edl.targetSec.min}–${edl.targetSec.max} seconds (this cut runs ${edlDurationSec(edl)}s).`);
