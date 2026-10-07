@@ -37,7 +37,11 @@ export type Windows = {
   maxRel: number;
 };
 
-export function buildWindows(posts: TimedPost[]): Windows {
+/** Weekday (0 = Monday) and hour of an instant; the runtime's own zone unless a caller passes one. */
+export type ZonedAt = (d: Date) => { day: number; hour: number };
+const localAt: ZonedAt = (d) => ({ day: (d.getDay() + 6) % 7, hour: d.getHours() });
+
+export function buildWindows(posts: TimedPost[], at: ZonedAt = localAt): Windows {
   const dated = posts.filter((p) => !isNaN(new Date(p.t).getTime()));
   const baseline = median(dated.map((p) => p.e));
   const rel = (xs: number[]): { median: number | null; rel: number | null } => {
@@ -46,8 +50,8 @@ export function buildWindows(posts: TimedPost[]): Windows {
   };
   const cellPosts: TimedPost[][][] = Array.from({ length: 7 }, () => Array.from({ length: 8 }, () => []));
   for (const p of dated) {
-    const d = new Date(p.t);
-    cellPosts[(d.getDay() + 6) % 7][Math.floor(d.getHours() / 3)].push(p);
+    const z = at(new Date(p.t));
+    cellPosts[z.day][Math.floor(z.hour / 3)].push(p);
   }
   const cells: Cell[][] = cellPosts.map((row, day) => row.map((ps, block) => ({ day, block, n: ps.length, ...rel(ps.map((p) => p.e)), postIds: ps.map((p) => p.id) })));
   const byDay: Rollup[] = cellPosts.map((row, day) => { const ps = row.flat(); return { index: day, n: ps.length, ...rel(ps.map((p) => p.e)) }; });
