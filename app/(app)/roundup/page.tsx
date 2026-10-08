@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Flame, Users, Zap, Lightbulb, ArrowRight, Sparkles } from "lucide-react";
+import { Flame, Users, Zap, Lightbulb, ArrowRight, Sparkles, CalendarCheck } from "lucide-react";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import PageHeader from "@/components/PageHeader";
@@ -84,6 +84,18 @@ export default async function RoundupPage() {
                 </div>
               ))}
             </div>
+          )}
+          {roundup.scorecard && roundup.scorecard.lines.length > 0 && (
+            <section className="ru-card ru-week" aria-labelledby="ru-week-h">
+              <div className="ru-card-head">
+                <span className="ru-ico" aria-hidden><CalendarCheck size={15} /></span>
+                <h2 id="ru-week-h">Your week</h2>
+              </div>
+              <ul className="ru-list">
+                {roundup.scorecard.lines.map((l) => <li key={l}><small>{l}</small></li>)}
+              </ul>
+              <Link href="/tool" className="ru-week-link">Open your Content Plan <ArrowRight size={13} /></Link>
+            </section>
           )}
           <div className="ru-grid">
             <Section icon={<Flame size={15} />} title="Trending in your niche" items={roundup.trends}

@@ -14,6 +14,8 @@ import {
   isoWeekKey, type AlertCandidate, type BreakoutPost, type CompetitorSeries,
 } from "./alertDetectors";
 import type { DailySnapshot } from "./dashboardMetrics";
+import { recentPlanOutcomes } from "./planOutcomesLoad";
+import { weeklyScorecard, type Scorecard } from "./weeklyScorecard";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -32,6 +34,8 @@ export type WeeklyRoundup = {
   competitorMoves: RoundupItem[];
   breakouts: RoundupItem[];
   opportunities: RoundupItem[];
+  /** "Your week": posting, streak, best post and plan follow-through (null without Instagram or a plan). */
+  scorecard: Scorecard | null;
   /** Nothing to show yet (no account connected and no niche/competitor signals). */
   empty: boolean;
 };
@@ -128,9 +132,25 @@ export async function buildWeeklyRoundup(
     }
   } catch { /* no competitor history yet */ }
 
+  // ---- Your week: the account's own follow-through ---------------------------
+  let scorecard: Scorecard | null = null;
+  try {
+    const plan = (await recentPlanOutcomes(supabase, ownerId, workspaceId, 1, now).catch(() => []))[0] ?? null;
+    const planLine = plan && nowMs - new Date(plan.createdAt).getTime() < 8 * DAY ? plan.summary.line : null;
+    if (connected || planLine) {
+      scorecard = weeklyScorecard(
+        media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: new Date(m.timestamp!).getTime(), interactions: interactionsTotal(m), caption: m.caption ?? null, permalink: m.permalink ?? null, format: formatOf(m) })),
+        nowMs,
+        planLine,
+      );
+      // Without Instagram the posting lines would read as zeros; keep only the plan line.
+      if (!connected) scorecard = { ...scorecard, lines: scorecard.lines.filter((l) => l.startsWith("This week's Content Plan")) };
+    }
+  } catch { /* no scorecard this week */ }
+
   const fmtDay = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const rangeLabel = `${fmtDay(nowMs - (days - 1) * DAY)} – ${fmtDay(nowMs)}`;
   const empty = !connected && !trends.length && !competitorMoves.length && !opportunities.length;
 
-  return { rangeLabel, days, connected, kpis, trends, competitorMoves, breakouts, opportunities, empty };
+  return { rangeLabel, days, connected, kpis, trends, competitorMoves, breakouts, opportunities, scorecard, empty };
 }
