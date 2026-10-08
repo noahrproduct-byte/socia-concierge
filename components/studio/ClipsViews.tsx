@@ -8,6 +8,8 @@ import Link from "next/link";
 import { FileVideo, AlertTriangle, Check, Clock, Trash2, ChevronLeft, Copy, ArrowRight, Scissors, Type, SunMedium, Volume2, Captions, Music, Timer, Flag, Loader2, FolderOpen, Clapperboard } from "lucide-react";
 import type { ReactNode } from "react";
 import type { GuideStep, Opportunity, StudioBuild, StudioClip, UnderstandProgress, YieldResult } from "@/lib/studioClips/types";
+import type { StudioOutcome } from "@/lib/studioClips/learn";
+import { ResultChip } from "./LearnCard";
 import { clipLabel, fmtClock } from "@/lib/studioClips/types";
 import { evidenceLine, yieldHeadline } from "@/lib/studioClips/yield";
 import type { ProjectSummary } from "@/lib/studioClips/server";
@@ -116,7 +118,7 @@ export function UnderstandCard({ progress, clipCount }: { progress: UnderstandPr
   );
 }
 
-export function YieldView({ y, clips, builds, onOpen, onAddMore, stale }: { y: YieldResult; clips: StudioClip[]; builds: number[]; onOpen: (o: Opportunity) => void; onAddMore: () => void; stale: boolean }) {
+export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes }: { y: YieldResult; clips: StudioClip[]; builds: number[]; onOpen: (o: Opportunity) => void; onAddMore: () => void; stale: boolean; /** published / scheduled posts made from these ideas (Learn) */ outcomes?: StudioOutcome[] }) {
   const byId = new Map(clips.map((c) => [c.id, c]));
   return (
     <div className="cb-yield">
@@ -138,6 +140,7 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale }: { y: Y
               <div className="cb-opp-head">
                 <span className={`cb-badge ${o.strength}`}>{o.strength === "strong" ? "Strong post" : "Possible post"}</span>
                 {builds.includes(o.idx) && <span className="cb-badge built"><Check size={11} /> Guide ready</span>}
+                {(() => { const oc = outcomes?.find((x) => x.opportunityIdx === o.idx); return oc ? <ResultChip o={oc} /> : null; })()}
               </div>
               <h3>{o.title}</h3>
               <p className="cb-opp-angle">{o.angle}</p>

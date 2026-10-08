@@ -12,6 +12,7 @@ import { checkClipFits, projectTotals, ownerStorageBytes, expiryFor, type FitRes
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
+import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS } from "./types";
 import { audioLine } from "@/lib/audio/server";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
@@ -220,9 +221,17 @@ export async function deleteClip(client: Supa, ownerId: string, clipId: string):
 
 // ----------------------------------------------------------- analysis ----
 
-export async function accountContext(client: Supa, ownerId: string, brandWs: Workspace | null): Promise<AccountContext> {
-  const p = (await getProfile(client, ownerId, brandWs).catch(() => null)) as { niche?: string | null; goals?: string | null; brand_detail?: AccountContext["brand"] } | null;
-  return { niche: p?.niche ?? null, location: p?.brand_detail?.location ?? null, goals: p?.goals ?? null, brand: p?.brand_detail ?? null };
+/**
+ * The account as the Studio prompts see it. With `wsId` (the routes that
+ * plan posts and cuts) it also carries what this workspace's earlier Studio
+ * posts did once published (Learn); undefined skips that read.
+ */
+export async function accountContext(client: Supa, ownerId: string, brandWs: Workspace | null, wsId?: string | null): Promise<AccountContext> {
+  const [p, learned] = await Promise.all([
+    getProfile(client, ownerId, brandWs).catch(() => null) as Promise<{ niche?: string | null; goals?: string | null; brand_detail?: AccountContext["brand"] } | null>,
+    wsId === undefined ? Promise.resolve(null) : studioLearnedLine(client, ownerId, wsId),
+  ]);
+  return { niche: p?.niche ?? null, location: p?.brand_detail?.location ?? null, goals: p?.goals ?? null, brand: p?.brand_detail ?? null, learned };
 }
 
 export function toClipInputs(rows: ClipRow[], urls: Record<string, string>): ClipInput[] {

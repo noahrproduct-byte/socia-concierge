@@ -20,6 +20,7 @@ import { STUDIO_BUCKET, type Opportunity, type StudioBuild, type StudioClip, typ
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
 import PlanPanel from "./PlanPanel";
+import LearnCard, { useStudioLearn } from "./LearnCard";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
@@ -49,6 +50,8 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
   const [migration, setMigration] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [project, setProject] = useState<StudioProject | null>(null);
+  // Learn: results of posts made from this project's ideas, for the chips on each idea.
+  const learn = useStudioLearn(project?.yield ? project.id : null);
   const [locals, setLocals] = useState<LocalClip[]>([]);
   const [adding, setAdding] = useState(false);
   const [drag, setDrag] = useState(false);
@@ -323,6 +326,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
               </ul>
               <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. Music is a recommendation — SOCIA never adds a track.</p>
             </div>
+            <LearnCard />
             <ProjectList projects={projects} onOpen={(id) => void openProject(id)} onDelete={(id) => void deleteProject(id)} busy={uploading} />
           </div>
         </div>
@@ -357,7 +361,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
 
       {view === "yield" && project?.yield && (
         <>
-          <YieldView y={project.yield} clips={project.clips} builds={project.builds} onOpen={(o) => void openOpportunity(o)} onAddMore={() => setAdding(true)} stale={stale} />
+          <YieldView y={project.yield} clips={project.clips} builds={project.builds} onOpen={(o) => void openOpportunity(o)} onAddMore={() => setAdding(true)} stale={stale} outcomes={learn?.outcomes} />
           {project.yield.opportunities.length > 0 && <PlanPanel projectId={project.id} stale={stale} />}
         </>
       )}
