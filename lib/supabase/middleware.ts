@@ -54,6 +54,8 @@ export async function updateSession(request: NextRequest) {
     "/reports",
     "/settings",
     "/comments",
+    "/create",
+    "/roundup",
   ];
   if (!user && protectedPaths.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
