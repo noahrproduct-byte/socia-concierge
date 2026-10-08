@@ -161,7 +161,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   trend_alerts: "available",
   opportunity_alerts: "available",
   competitor_alerts: "available",
-  cross_platform_alerts: "coming_soon",
+  cross_platform_alerts: "available",
   priority_support: "policy",
   cross_brand_analytics: "coming_soon",
   client_reports: "available",
