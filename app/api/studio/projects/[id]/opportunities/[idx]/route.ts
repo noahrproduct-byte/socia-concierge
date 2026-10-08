@@ -49,7 +49,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const existing = await loadBuild(ctx.client, l.project.id, l.idx, await clipRows(ctx.client, l.project.id));
     if (existing) return NextResponse.json(existing);
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
-    const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx));
+    const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
     const build = await buildOpportunity(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project: l.project, idx: l.idx, acct });
     return NextResponse.json(build);
   } catch (e) {

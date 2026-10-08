@@ -17,6 +17,7 @@ import { interactionsTotal } from "./engagement";
 import { fbPostEngagement } from "./metrics/facebook";
 import { median } from "./metrics";
 import type { Platform } from "./publishing/types";
+import { fmtMultiplier } from "./multiplier";
 
 /** Posts needed before a median is a defensible baseline. */
 export const MIN_SAMPLE = 5;
@@ -94,8 +95,8 @@ export function measureDestination(platform: Platform, externalPostId: string, s
 
 export const PLATFORM_NAME: Record<Platform, string> = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube", tiktok: "TikTok" };
 
-/** "2.1×" / "0.8×" with one decimal (two below 0.1). */
-export const fmtMultiplier = (m: number): string => `${m >= 10 ? Math.round(m) : m >= 0.1 ? m.toFixed(1).replace(/\.0$/, "") : m.toFixed(2)}×`;
+/** "2.1×" / "0.8×": see lib/multiplier.ts (client-safe). */
+export { fmtMultiplier };
 
 export type ResultLine = {
   /** One plain sentence about the post against the account's own baseline. */

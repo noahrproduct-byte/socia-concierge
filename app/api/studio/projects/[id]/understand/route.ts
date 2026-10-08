@@ -39,7 +39,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const startedAt = new Date().toISOString();
     await updateProject(ctx.client, id, { status: "understanding", error: null, progress: { stage: "understanding", done: 0, total: clips.length, startedAt, updatedAt: startedAt } });
-    const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx));
+    const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
     const deadlineAt = Date.now() + BUDGET_MS;
     const run = async () => {
       const result = await runUnderstand(ctx.client, { projectId: id, acct, deadlineAt });

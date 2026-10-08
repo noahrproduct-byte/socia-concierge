@@ -16,7 +16,14 @@ export type AccountContext = {
   niche: string | null; location: string | null; goals: string | null; brand: BrandDetail | null;
   /** measured note on what sound has worked for this account (lib/audio), when there is one */
   audio?: string | null;
+  /** how this account's earlier Content Studio posts did against its median (lib/studioClips/learn.ts) */
+  learned?: string | null;
 };
+
+/** The Learn block for passes 2 and 3, with how to use it. */
+const learnedText = (acct: AccountContext): string => (acct.learned
+  ? `\n\n# How this account's earlier Content Studio posts did\n${acct.learned}\nUse this: favour what beat the median and avoid what fell short. When a pattern rests on only a few posts, treat it as a hint, never a rule. Don't repeat a post's topic just because it did well.`
+  : "");
 
 export type ClipInput = {
   id: string;
@@ -194,7 +201,7 @@ Group clips that belong together — same subject, same story, same session (fil
 Do not force a number of posts: if the footage only supports one post, propose one; if none, propose none. Rank the strongest post first. Titles are short and concrete ("Making a pepperoni pizza"), angles one sentence. opener: the single best moment to open with and why (clipId "" when there is none). cta: a natural closing ask that fits the account's goal, or "".
 unusable: clips that should not be used at all, with a plain reason.`;
   const content: Content = [
-    { type: "text", text: `${accountText(acct)}
+    { type: "text", text: `${accountText(acct)}${learnedText(acct)}
 
 ${withCards.length} clips, ${Math.round(withCards.reduce((a, c) => a + c.durationSec, 0))} seconds in total:
 
@@ -252,7 +259,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
 - music: one sentence recommending a style, tempo range and level ("keep it low under speech"); NEVER a specific song or artist. When a measured note on what sound has worked for this account is given, the recommendation must agree with it.
 - notes: anything the editor must know (e.g. "cut away before the pan shakes at 7s").`;
   const content: Content = [
-    { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}
+    { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}
 
 The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.
