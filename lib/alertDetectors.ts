@@ -6,7 +6,7 @@
 // metric measured against the previous equal period. The caller stores them
 // (lib/alerts.ts); the fingerprint keeps re-runs from duplicating.
 
-export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity" | "plan_result" | "plan_ready";
+export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity" | "plan_result" | "plan_ready" | "cross_platform";
 export type AlertSeverity = "good" | "info" | "warning";
 
 export type AlertCandidate = {
@@ -56,8 +56,14 @@ export function detectBreakouts(input: {
   windowDays?: number;
   minPerFormat?: number;
   factor?: number;
+  /** What `interactions` counts on this platform (TikTok compares views). */
+  metric?: "interactions" | "views";
+  /** Shown in the title on platforms other than Instagram ("Your Facebook video …"). */
+  platformLabel?: string;
 }): AlertCandidate[] {
   const { platform, posts, now } = input;
+  const unit = input.metric ?? "interactions";
+  const where = input.platformLabel ? `${input.platformLabel} ` : "";
   const windowDays = input.windowDays ?? 7;
   const minPerFormat = input.minPerFormat ?? 3;
   const factor = input.factor ?? 3;
@@ -81,9 +87,9 @@ export function detectBreakouts(input: {
       platform,
       fingerprint: `breakout:${platform}:${p.id}`,
       severity: "good",
-      title: `Your ${p.format} is performing ${fmtMult(mult)} your recent ${p.format} median`,
-      body: `${caption(p.caption)} earned ${fmt(p.interactions)} interactions against a ${p.format} median of ${fmt(med)}.`,
-      evidence: { interactions: p.interactions, formatMedian: Math.round(med), multiplier: Math.round(mult * 10) / 10, format: p.format, sample: peers.length },
+      title: `Your ${where}${where ? p.format.toLowerCase() : p.format} is performing ${fmtMult(mult)} your recent ${p.format} median`,
+      body: `${caption(p.caption)} earned ${fmt(p.interactions)} ${unit} against a ${p.format} median of ${fmt(med)}.`,
+      evidence: { [unit]: p.interactions, formatMedian: Math.round(med), multiplier: Math.round(mult * 10) / 10, format: p.format, sample: peers.length, metric: unit },
       entityRef: p.permalink ?? p.id,
     });
   }
@@ -362,4 +368,45 @@ export function planReadyAlert(plan: { id: string; headline: string; posts: numb
     evidence: { planId: plan.id, posts: plan.posts },
     entityRef: "/tool",
   };
+}
+
+// ---------------------------------------------------------------------------
+// Cross-platform: the same post, measured on each platform it went to.
+// ---------------------------------------------------------------------------
+
+export type CrossPlatformItem = {
+  postId: string;
+  caption: string | null;
+  /** One entry per platform the post was published to, each against that platform's own median. */
+  results: { platform: string; label: string; multiplier: number | null; settled: boolean }[];
+};
+
+/**
+ * One post sent to several platforms that did very differently on them:
+ * the best platform at least `minHigh`× its own median and at least `gap`×
+ * the weakest. Only settled results with a baseline count, so an early or
+ * unmeasured platform never makes the comparison. Once per post.
+ */
+export function detectCrossPlatformSplit(items: CrossPlatformItem[], opts: { minHigh?: number; gap?: number } = {}): AlertCandidate[] {
+  const minHigh = opts.minHigh ?? 1.5;
+  const gap = opts.gap ?? 2;
+  const out: AlertCandidate[] = [];
+  for (const it of items) {
+    const done = it.results.filter((r) => r.settled && r.multiplier != null && r.multiplier > 0) as { platform: string; label: string; multiplier: number; settled: boolean }[];
+    if (done.length < 2) continue;
+    const sorted = [...done].sort((a, b) => b.multiplier - a.multiplier);
+    const hi = sorted[0], lo = sorted[sorted.length - 1];
+    if (hi.multiplier < minHigh || hi.multiplier / lo.multiplier < gap) continue;
+    out.push({
+      type: "cross_platform",
+      platform: hi.platform,
+      fingerprint: `xsplit:${it.postId}`,
+      severity: "info",
+      title: `${caption(it.caption)} did ${fmtMult(hi.multiplier)} your median on ${hi.label} but ${fmtMult(lo.multiplier)} on ${lo.label}`,
+      body: `The same post, each platform measured against its own typical post: ${sorted.map((r) => `${r.label} ${fmtMult(r.multiplier)}`).join(", ")}.`,
+      evidence: { postId: it.postId, results: sorted.map((r) => ({ platform: r.platform, multiplier: Math.round(r.multiplier * 100) / 100 })) },
+      entityRef: it.postId,
+    });
+  }
+  return out;
 }

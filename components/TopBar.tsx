@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen, TrendingUp, Zap, Users, Flame, Lightbulb, X } from "lucide-react";
+import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen, TrendingUp, Zap, Users, Flame, Lightbulb, Shuffle, X } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
 import { AskHost } from "@/components/AskSocia";
 import { relTime, type Activity } from "@/lib/overview";
@@ -24,6 +24,7 @@ const ALERT_ICON: Record<string, typeof Zap> = {
   opportunity: Lightbulb,
   plan_result: CheckCircle2,
   plan_ready: FileText,
+  cross_platform: Shuffle,
 };
 
 export default function TopBar({ email, plan, index, activity, alerts = [], unread = 0 }: { email?: string | null; plan: PlanId; index: SearchItem[]; activity: Activity[]; alerts?: AlertItem[]; unread?: number }) {

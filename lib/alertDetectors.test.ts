@@ -222,3 +222,31 @@ describe("detectPlanResults", () => {
     expect(a.entityRef).toBe("/tool");
   });
 });
+
+describe("cross-platform alerts", () => {
+  it("names the platform and the metric for breakouts outside Instagram", async () => {
+    const { detectBreakouts } = await import("./alertDetectors");
+    const now = Date.parse("2026-10-08T12:00:00Z");
+    const v = (id: string, views: number, daysAgo: number) => ({ id, format: "Video", interactions: views, timestampMs: now - daysAgo * 86400000, permalink: null, caption: id === "hit" ? "Corner piece" : null });
+    const out = detectBreakouts({ platform: "tiktok", posts: [v("a", 900, 20), v("b", 1100, 15), v("c", 1000, 10), v("hit", 5200, 2)], now, metric: "views", platformLabel: "TikTok" });
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toBe("Your TikTok video is performing 5.2× your recent Video median");
+    expect(out[0].body).toBe(`"Corner piece" earned 5,200 views against a Video median of 1,000.`);
+    expect(out[0].evidence).toMatchObject({ views: 5200, metric: "views" });
+  });
+
+  it("flags one post that did very differently on two platforms, settled results only", async () => {
+    const { detectCrossPlatformSplit } = await import("./alertDetectors");
+    const base = { postId: "p1", caption: "Fresh out of the oven" };
+    const split = detectCrossPlatformSplit([{ ...base, results: [
+      { platform: "instagram", label: "Instagram", multiplier: 0.6, settled: true },
+      { platform: "facebook", label: "Facebook", multiplier: 3.1, settled: true },
+    ] }]);
+    expect(split).toHaveLength(1);
+    expect(split[0]).toMatchObject({ type: "cross_platform", fingerprint: "xsplit:p1", severity: "info" });
+    expect(split[0].title).toBe(`"Fresh out of the oven" did 3.1× your median on Facebook but 0.6× on Instagram`);
+    // too close, or one side still settling: nothing
+    expect(detectCrossPlatformSplit([{ ...base, results: [{ platform: "instagram", label: "Instagram", multiplier: 1.3, settled: true }, { platform: "facebook", label: "Facebook", multiplier: 1.6, settled: true }] }])).toEqual([]);
+    expect(detectCrossPlatformSplit([{ ...base, results: [{ platform: "instagram", label: "Instagram", multiplier: 0.4, settled: false }, { platform: "facebook", label: "Facebook", multiplier: 3, settled: true }] }])).toEqual([]);
+  });
+});

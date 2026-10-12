@@ -8,6 +8,9 @@
 //   competitor_move     a tracked competitor's followers moved (competitor_snapshots)
 //   trend               a niche tag carried by several recent winners (discovered_content)
 //   opportunity         a winning niche format the account barely posts
+//   cross-platform      (Growth+) breakouts on Facebook and TikTok, performance
+//                       changes on YouTube and Facebook, and one post that did
+//                       very differently on the platforms it went to
 // The last three are Growth+ features and run daily for EVERY workspace (not
 // only those with Instagram); their fingerprints are namespaced per workspace.
 
@@ -16,9 +19,14 @@ import { interactionsTotal } from "./engagement";
 import type { IgMediaItem } from "./instagramSync";
 import {
   detectBreakouts, detectPerformanceChange, detectCompetitorMoves, detectNicheTrends, detectFormatGap, detectPlanResults,
-  isoWeekKey, type AlertCandidate, type BreakoutPost, type CompetitorSeries, type PlanResultItem,
+  detectCrossPlatformSplit, isoWeekKey, type AlertCandidate, type BreakoutPost, type CompetitorSeries, type PlanResultItem, type CrossPlatformItem,
 } from "./alertDetectors";
-import { recentPlanOutcomes } from "./planOutcomesLoad";
+import { recentPlanOutcomes, loadDestinationsLite } from "./planOutcomesLoad";
+import { measureDestination, resultLine, PLATFORM_NAME } from "./postResults";
+import { fbPostEngagement } from "./metrics/facebook";
+import type { FbPost } from "./facebookSync";
+import type { TtVideo } from "./tiktokAuth";
+import type { Platform } from "./publishing/types";
 import { recordAlerts, alertsEnabled } from "./alerts";
 import { getEntitlements, canUseFeature, type Entitlements } from "./entitlements";
 import { competitorScopeId, competitorsScopedEnabled } from "./workspaces";
@@ -142,6 +150,134 @@ async function planResultsFor(svc: Supa, userId: string, workspaceId: string | n
   } catch {
     return [];
   }
+}
+
+// ---------------------------------------------------------------------------
+// Cross-platform (Growth+): the other platforms' stored data, no API calls.
+// ---------------------------------------------------------------------------
+
+type PlatSnap = { day: string; followers: number | null; views: number | null; followers_gained: number | null; watch_time_minutes: number | null; source: string | null };
+
+/** A connection row in this workspace (or the user's, before workspaces). */
+async function connectionRow<T>(svc: Supa, table: string, cols: string, userId: string, workspaceId: string | null): Promise<T | null> {
+  try {
+    let q = svc.from(table).select(cols).eq("user_id", userId);
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data, error } = await q.limit(1);
+    if (error) return null;
+    return ((data ?? [])[0] as T) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function platformSnaps(svc: Supa, userId: string, platform: string, accountId: string, now: Date): Promise<PlatSnap[]> {
+  try {
+    const since = new Date(now.getTime() - 15 * dayMs).toISOString().slice(0, 10);
+    const { data, error } = await svc.from("platform_snapshots").select("day, followers, views, followers_gained, watch_time_minutes, source")
+      .eq("user_id", userId).eq("platform", platform).eq("account_id", accountId).gte("day", since);
+    if (error) return [];
+    return (data ?? []) as PlatSnap[];
+  } catch {
+    return [];
+  }
+}
+
+/** Sum of a daily metric over the last 7 days and the 7 before (null when a period has no values). */
+function weekSums(rows: PlatSnap[], pick: (r: PlatSnap) => number | null, now: Date): { cur: number | null; prev: number | null } {
+  const mid = now.getTime() - 7 * dayMs, start = now.getTime() - 14 * dayMs;
+  const t = (d: string) => new Date(`${d}T00:00:00Z`).getTime();
+  const sum = (xs: PlatSnap[]) => { const v = xs.map(pick).filter((x): x is number => x != null); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+  return { cur: sum(rows.filter((r) => t(r.day) >= mid)), prev: sum(rows.filter((r) => t(r.day) >= start && t(r.day) < mid)) };
+}
+
+/** Net follower change over the last 7 days and the 7 before, from point-in-time follower snapshots. */
+function followerNet(rows: PlatSnap[], now: Date): { cur: number | null; prev: number | null } {
+  const byDay = new Map(rows.filter((r) => r.followers != null).map((r) => [r.day, r.followers as number]));
+  const at = (daysAgo: number) => {
+    for (let k = 0; k <= 1; k++) { const d = new Date(now.getTime() - (daysAgo + k) * dayMs).toISOString().slice(0, 10); if (byDay.has(d)) return byDay.get(d)!; }
+    return null;
+  };
+  const f0 = at(0), f7 = at(7), f14 = at(14);
+  return { cur: f0 != null && f7 != null ? f0 - f7 : null, prev: f7 != null && f14 != null ? f7 - f14 : null };
+}
+
+const FB_FORMAT: Record<string, string> = { added_video: "Video", added_photos: "Photo", shared_story: "Link", mobile_status_update: "Post", created_note: "Post" };
+
+async function crossPlatformFor(svc: Supa, userId: string, workspaceId: string | null, igMedia: IgMediaItem[], now: Date): Promise<AlertCandidate[]> {
+  const out: AlertCandidate[] = [];
+  const weekKey = isoWeekKey(now);
+  const [fb, yt, tt] = await Promise.all([
+    connectionRow<{ page_id: string | null; media: unknown; connection_status: string | null }>(svc, "facebook_connections", "page_id, media, connection_status", userId, workspaceId),
+    connectionRow<{ channel_id: string | null }>(svc, "youtube_connections", "channel_id", userId, workspaceId),
+    connectionRow<{ open_id: string | null; videos: unknown }>(svc, "tiktok_connections", "open_id, videos", userId, workspaceId),
+  ]);
+  const fbPosts = fb && fb.connection_status !== "choose_page" && Array.isArray(fb.media) ? (fb.media as FbPost[]) : [];
+
+  // Facebook: breakout posts, and new followers week over week.
+  if (fbPosts.length) {
+    const posts: BreakoutPost[] = fbPosts
+      .map((p) => ({ id: p.id ?? "", format: FB_FORMAT[p.status_type ?? ""] ?? "Post", interactions: fbPostEngagement(p) ?? -1, timestampMs: p.created_time ? new Date(p.created_time).getTime() : NaN, permalink: p.permalink_url ?? null, caption: p.message ?? null }))
+      .filter((p) => p.id && p.interactions >= 0 && Number.isFinite(p.timestampMs));
+    out.push(...detectBreakouts({ platform: "facebook", posts, now: now.getTime(), platformLabel: "Facebook" }));
+  }
+  if (fb?.page_id) {
+    const net = followerNet(await platformSnaps(svc, userId, "facebook", fb.page_id, now), now);
+    const a = detectPerformanceChange({ platform: "facebook", metric: "new_followers", metricLabel: "Facebook new followers", current: net.cur, previous: net.prev, periodDays: 7, weekKey, minPct: 25, floor: 5 });
+    if (a) out.push(a);
+  }
+
+  // YouTube: views, subscribers gained and watch time from the stored daily series.
+  if (yt?.channel_id) {
+    const rows = (await platformSnaps(svc, userId, "youtube", yt.channel_id, now)).filter((r) => r.source === "youtube_api");
+    const metrics: { metric: string; label: string; pick: (r: PlatSnap) => number | null; floor: number }[] = [
+      { metric: "views", label: "YouTube views", pick: (r) => r.views, floor: 50 },
+      { metric: "subscribers_gained", label: "YouTube subscribers gained", pick: (r) => r.followers_gained, floor: 5 },
+      { metric: "watch_time", label: "YouTube watch time", pick: (r) => r.watch_time_minutes, floor: 30 },
+    ];
+    for (const m of metrics) {
+      const w = weekSums(rows, m.pick, now);
+      const a = detectPerformanceChange({ platform: "youtube", metric: m.metric, metricLabel: m.label, current: w.cur, previous: w.prev, periodDays: 7, weekKey, minPct: 25, floor: m.floor });
+      if (a) out.push(a);
+    }
+  }
+
+  // TikTok: breakout videos by views (TikTok's own per-video totals).
+  const videos = tt && Array.isArray(tt.videos) ? (tt.videos as TtVideo[]) : [];
+  if (videos.length) {
+    const posts: BreakoutPost[] = videos
+      .map((v) => ({ id: v.id, format: "Video", interactions: v.views ?? -1, timestampMs: v.createdAt ? new Date(v.createdAt).getTime() : NaN, permalink: v.url ?? null, caption: v.caption ?? null }))
+      .filter((p) => p.id && p.interactions >= 0 && Number.isFinite(p.timestampMs));
+    out.push(...detectBreakouts({ platform: "tiktok", posts, now: now.getTime(), metric: "views", platformLabel: "TikTok" }));
+  }
+
+  // One post on several platforms: Instagram and Facebook are measured from stored data.
+  try {
+    let q = svc.from("scheduled_posts").select("id, caption, status, published_media_id, updated_at, permalink").eq("user_id", userId).eq("status", "published")
+      .gte("updated_at", new Date(now.getTime() - 30 * dayMs).toISOString());
+    if (workspaceId) q = q.eq("workspace_id", workspaceId);
+    const { data } = await q.limit(100);
+    const posts = (data ?? []) as { id: string; caption: string | null }[];
+    if (posts.length) {
+      const dests = await loadDestinationsLite(svc, posts.map((p) => p.id));
+      const sources = { instagram: igMedia.length ? igMedia : null, facebook: fbPosts.length ? fbPosts : null, youtube: null, youtubeRecent: null };
+      const items: CrossPlatformItem[] = [];
+      for (const p of posts) {
+        const published = dests.filter((d) => d.postId === p.id && d.status === "published" && d.externalPostId && (d.platform === "instagram" || d.platform === "facebook"));
+        if (new Set(published.map((d) => d.platform)).size < 2) continue;
+        items.push({
+          postId: p.id,
+          caption: p.caption,
+          results: published.map((d) => {
+            const line = resultLine(measureDestination(d.platform as Platform, d.externalPostId!, sources), d.publishedAt, now);
+            return { platform: d.platform, label: PLATFORM_NAME[d.platform as Platform], multiplier: line.multiplier, settled: line.measured && !line.early };
+          }),
+        });
+      }
+      out.push(...detectCrossPlatformSplit(items));
+    }
+  } catch { /* no comparison this run */ }
+  return out;
 }
 
 /** Niche trend + format-opportunity, from this workspace's discovered content and the account's own posts. */
@@ -289,6 +425,7 @@ async function runWorkspacePhase2(
       if (canUseFeature(ent, "competitor_alerts")) candidates.push(...(await competitorMovesFor(svc, u.userId, u.workspaceId, now)));
       candidates.push(...(await nicheSignalsFor(svc, u.userId, u.workspaceId, ent, u.media, now)));
       candidates.push(...(await planResultsFor(svc, u.userId, u.workspaceId, now)));
+      if (canUseFeature(ent, "cross_platform_alerts")) candidates.push(...(await crossPlatformFor(svc, u.userId, u.workspaceId, u.media, now)));
       if (!candidates.length) continue;
       // Namespace the fingerprint by workspace so the same competitor, tag or
       // format alerts each brand independently (dedup is per user + fingerprint).
