@@ -153,7 +153,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   plan_posts: "available",
   cross_platform_analytics: "available",
   comment_replies: "available",
-  daily_recommendations: "coming_soon",
+  daily_recommendations: "available",
   repurposing: "coming_soon",
   custom_date_ranges: "available",
   platform_reports: "available",
