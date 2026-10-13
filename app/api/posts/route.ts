@@ -5,7 +5,7 @@ import { PLATFORMS, destinationKey, type MediaItem, type Platform } from "@/lib/
 import { availabilityFor, CAPABILITIES } from "@/lib/publishing/capabilities";
 import { validateDestination, type Issue } from "@/lib/publishing/validate";
 import type { CreatePostPayload } from "@/lib/publishing/composer";
-import { loadItem, loadPickerAccountsDetailed, saveItem, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
+import { loadItem, loadPickerAccountsDetailed, saveItem, stampPostWorkspace, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
 import { publishNow, type ClientUploadRequest } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
 
@@ -29,7 +29,7 @@ export const maxDuration = 60;
 // owner's calendar and never on a private copy.
 
 const ACTIONS: CreatePostPayload["action"][] = ["draft", "schedule", "publish"];
-const SOURCES = ["calendar", "composer", "quick", "studio", "plan"];
+const SOURCES = ["calendar", "composer", "quick", "studio", "plan", "repurpose"];
 const BUCKET = "scheduled-media";
 
 // Platforms that schedule natively and whose upload runs in the browser: a
@@ -104,25 +104,7 @@ function parsePayload(body: unknown): { payload: CreatePostPayload } | { error: 
   };
 }
 
-/**
- * Tag a post with the workspace it was saved in. Best-effort and idempotent:
- * only a row without a workspace is stamped (a post never moves between an
- * owner's workspaces on re-save), and a missing `workspace_id` column
- * (workspaces migration not run yet) is answered as an error we ignore.
- */
-async function stampWorkspace(ctx: Ctx, postId: string): Promise<void> {
-  if (!ctx.workspace) return;
-  try {
-    await ctx.client
-      .from("scheduled_posts")
-      .update({ workspace_id: ctx.workspace.id })
-      .eq("id", postId)
-      .eq("user_id", ctx.ownerId)
-      .is("workspace_id", null);
-  } catch {
-    // the post is saved either way
-  }
-}
+const stampWorkspace = (ctx: Ctx, postId: string) => stampPostWorkspace(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, postId);
 
 export async function POST(req: Request) {
   const supabase = await createClient();

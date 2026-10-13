@@ -11,6 +11,8 @@ import { igConfigured } from "@/lib/instagram";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import UpdatedAgo from "./UpdatedAgo";
 import TodayCard, { type TodayCardProps } from "./TodayCard";
+import RepurposeCard from "./RepurposeCard";
+import type { Candidate } from "@/lib/repurpose";
 import type { Upcoming } from "@/lib/overview";
 
 const STATUS: Record<Upcoming["status"], { label: string; tone: string }> = {
@@ -29,6 +31,7 @@ export default function DashboardMultiPlatform({
   upcoming,
   updatedAt,
   today,
+  repurpose,
 }: {
   greeting: string;
   name: string;
@@ -38,6 +41,8 @@ export default function DashboardMultiPlatform({
   updatedAt?: string | null;
   /** The Today card (daily recommendations). */
   today?: TodayCardProps;
+  /** "Worth posting again" (repurposing); empty or absent hides the section. */
+  repurpose?: Candidate[];
 }) {
   const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
   return (
@@ -90,6 +95,8 @@ export default function DashboardMultiPlatform({
           </div>
         )}
       </section>
+
+      {repurpose && repurpose.length > 0 && <div style={{ marginTop: 14 }}><RepurposeCard candidates={repurpose} /></div>}
 
       <div className="db-connect" style={{ marginTop: 14 }}>
         <span className="db-connect-ico"><Link2 size={22} /></span>
