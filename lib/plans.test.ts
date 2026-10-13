@@ -87,7 +87,7 @@ describe("plan configuration", () => {
     const available = FEATURES.filter((k) => FEATURE_STATUS[k] === "available");
     expect(available.sort()).toEqual([
       "auto_build", "breakout_alerts", "build_from_clips", "client_reports", "comment_replies", "competitor_alerts", "content_plan", "cross_platform_alerts", "cross_platform_analytics",
-      "custom_date_ranges", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
+      "custom_date_ranges", "daily_recommendations", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
       "opportunity_alerts", "performance_change_alerts", "period_comparison", "plan_posts", "platform_reports",
       "posting_time_analysis", "report_exports", "scheduling", "team", "trend_alerts", "weekly_summary",
       "weekly_trend_roundup",
@@ -184,10 +184,12 @@ describe("comparison table", () => {
     }
     expect(includedFor("free")).toContain("scheduling");
     expect(includedFor("free")).toContain("breakout_alerts");
-    // Cross-platform performance alerts shipped; daily recommendations are still on the way.
+    // Cross-platform alerts and daily recommendations shipped; repurposing is still on the way.
     expect(includedFor("growth")).toContain("cross_platform_alerts");
     expect(includedFor("starter")).not.toContain("cross_platform_alerts");
-    expect(comingSoonFor("growth")).toContain("daily_recommendations");
+    expect(includedFor("growth")).toContain("daily_recommendations");
+    expect(includedFor("starter")).not.toContain("daily_recommendations");
+    expect(comingSoonFor("growth")).toContain("repurposing");
   });
 
   it("uses the spec's ten sections in order", () => {

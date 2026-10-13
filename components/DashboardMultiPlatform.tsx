@@ -10,6 +10,7 @@ import PlatformSnapshot from "./PlatformSnapshot";
 import { igConfigured } from "@/lib/instagram";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import UpdatedAgo from "./UpdatedAgo";
+import TodayCard, { type TodayCardProps } from "./TodayCard";
 import type { Upcoming } from "@/lib/overview";
 
 const STATUS: Record<Upcoming["status"], { label: string; tone: string }> = {
@@ -27,6 +28,7 @@ export default function DashboardMultiPlatform({
   summaries,
   upcoming,
   updatedAt,
+  today,
 }: {
   greeting: string;
   name: string;
@@ -34,6 +36,8 @@ export default function DashboardMultiPlatform({
   upcoming: Upcoming[];
   /** When the reused live platform reads on this page were fetched (null: none were reused). */
   updatedAt?: string | null;
+  /** The Today card (daily recommendations). */
+  today?: TodayCardProps;
 }) {
   const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
   return (
@@ -48,6 +52,8 @@ export default function DashboardMultiPlatform({
           <Link href="/tool" className="ov-btn primary"><ArrowRight size={14} /> Generate Content</Link>
         </div>
       </header>
+
+      {today && <div style={{ marginBottom: 14 }}><TodayCard {...today} /></div>}
 
       <PlatformSnapshot summaries={summaries} title="Your social presence" sub="every connected platform, with its own metrics" />
 

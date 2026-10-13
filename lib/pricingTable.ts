@@ -114,7 +114,7 @@ export const COMPARISON: ComparisonCategory[] = [
       { label: "Ask SOCIA questions", cells: meterCell("ask_socia") },
       { label: "Content ideas", note: "Quick recommendations built from your recent performance.", cells: meterCell("content_ideas") },
       { label: "Full weekly Content Plan", cells: contentPlanCells() },
-      feature("daily_recommendations", "When enough new data has arrived since the last set."),
+      feature("daily_recommendations", "A Today card on your Dashboard: posts due or failed, comments waiting, gaps in your schedule, your best window and posts taking off."),
       feature("repurposing"),
     ],
   },

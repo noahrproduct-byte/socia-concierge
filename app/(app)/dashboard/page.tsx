@@ -25,7 +25,11 @@ import {
   RANGES, rangeDays, clampRangeId, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
   type PlatformRow,
 } from "@/lib/overview";
-import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { getEntitlements, maxHistoryDays, canUseFeature } from "@/lib/entitlements";
+import { minPlanWithFeature, pricingHref, PLANS } from "@/lib/plans";
+import { loadWaitingComments, loadStudioNext, todayFacts } from "@/lib/dailyRecsLoad";
+import type { TodayCardProps } from "@/components/TodayCard";
+import type { TtVideo } from "@/lib/tiktokAuth";
 import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
 
@@ -74,6 +78,15 @@ export default async function DashboardPage({
 
   const [profile, ent] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)), getEntitlements(ctx.client, ctx.ownerId)]);
   const igConnected = profile?.account_connected ?? false;
+  // Daily recommendations (Growth+): the two reads only the Today card needs
+  // start now, alongside the platform reads.
+  const recsOn = canUseFeature(ent, "daily_recommendations");
+  const todayExtrasP = recsOn
+    ? Promise.all([
+        canUseFeature(ent, "comment_replies") ? loadWaitingComments(ctx.client, ctx.ownerId, wsId) : Promise.resolve(null),
+        canUseFeature(ent, "build_from_clips") ? loadStudioNext(ctx.client, ctx.ownerId, wsId) : Promise.resolve(null),
+      ])
+    : Promise.resolve([null, null] as const);
 
   // Range (per-plan clamp), needed before fetching ranged platform data.
   const maxDays = maxHistoryDays(ent);
@@ -216,6 +229,23 @@ export default async function DashboardPage({
   const [schedRes, plansRes] = await schedPlansP;
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
   const upcoming = buildUpcoming(scheduled);
+  const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
+  const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
+
+  // The Today card: the facts for Growth and up, an upgrade line below that.
+  const [waiting, studioNext] = await todayExtrasP;
+  const lockedPlan = minPlanWithFeature("daily_recommendations") ?? "growth";
+  const today: TodayCardProps = recsOn
+    ? {
+        facts: todayFacts({
+          plan: latestPlan, scheduled,
+          igMedia: live ? snap!.media ?? [] : null,
+          fbPosts: fbConnected ? fb!.posts : null,
+          ttVideos: ttConnected && Array.isArray(ttRow!.videos) ? (ttRow!.videos as TtVideo[]) : null,
+          comments: waiting, studio: studioNext, now: now.getTime(),
+        }),
+      }
+    : { locked: { planName: PLANS[lockedPlan].name, href: pricingHref(lockedPlan) } };
 
   // No live Instagram, but another platform is connected: a real multi-platform
   // home instead of the old Instagram-only wall.
@@ -223,7 +253,7 @@ export default async function DashboardPage({
     const igSummary: PlatformSummary = { platform: "instagram", connected: false, label: "Instagram", audience: null, audienceLabel: "followers", views: null, viewsNote: null, engagement: null, contentPublished: null };
     return (
       <>
-        <DashboardMultiPlatform greeting={greeting} name={name} summaries={[igSummary, fbSummary, ytSummary, ttSummary]} upcoming={upcoming} updatedAt={updatedAt} />
+        <DashboardMultiPlatform greeting={greeting} name={name} summaries={[igSummary, fbSummary, ytSummary, ttSummary]} upcoming={upcoming} updatedAt={updatedAt} today={today} />
       </>
     );
   }
@@ -232,8 +262,6 @@ export default async function DashboardPage({
   const media = snap!.media ?? [];
 
   const dailyRows = dailyRowsLoaded;
-  const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
-  const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
   const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);
@@ -296,6 +324,7 @@ export default async function DashboardPage({
     insights, top, posts, baseline, medianViews, focus, upcoming, goals, trackers,
     timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
     platformSummaries: [igSummary, fbSummary, ytSummary, ttSummary],
+    today,
   };
 
   return (

@@ -15,15 +15,14 @@
 // only those with Instagram); their fingerprints are namespaced per workspace.
 
 import { formatOf } from "./overview";
-import { interactionsTotal } from "./engagement";
 import type { IgMediaItem } from "./instagramSync";
 import {
   detectBreakouts, detectPerformanceChange, detectCompetitorMoves, detectNicheTrends, detectFormatGap, detectPlanResults,
-  detectCrossPlatformSplit, isoWeekKey, type AlertCandidate, type BreakoutPost, type CompetitorSeries, type PlanResultItem, type CrossPlatformItem,
+  detectCrossPlatformSplit, isoWeekKey, type AlertCandidate, type CompetitorSeries, type PlanResultItem, type CrossPlatformItem,
 } from "./alertDetectors";
 import { recentPlanOutcomes, loadDestinationsLite } from "./planOutcomesLoad";
 import { measureDestination, resultLine, PLATFORM_NAME } from "./postResults";
-import { fbPostEngagement } from "./metrics/facebook";
+import { igBreakoutPosts, fbBreakoutPosts, ttBreakoutPosts } from "./breakoutPosts";
 import type { FbPost } from "./facebookSync";
 import type { TtVideo } from "./tiktokAuth";
 import type { Platform } from "./publishing/types";
@@ -43,18 +42,7 @@ const dayMs = 86400000;
 
 /** Breakouts from the account's stored posts. */
 function breakoutsFor(platform: string, media: IgMediaItem[], now: number): AlertCandidate[] {
-  const posts: BreakoutPost[] = media
-    .filter((m) => m.id && m.timestamp)
-    .map((m) => ({
-      id: m.id!,
-      format: formatOf(m),
-      interactions: interactionsTotal(m),
-      timestampMs: new Date(m.timestamp!).getTime(),
-      permalink: m.permalink ?? null,
-      caption: m.caption ?? null,
-    }))
-    .filter((p) => Number.isFinite(p.timestampMs));
-  return detectBreakouts({ platform, posts, now });
+  return detectBreakouts({ platform, posts: igBreakoutPosts(media), now });
 }
 
 /** Reach / views / new-followers, last 7 days vs the 7 before, from stored snapshots. */
@@ -202,8 +190,6 @@ function followerNet(rows: PlatSnap[], now: Date): { cur: number | null; prev: n
   return { cur: f0 != null && f7 != null ? f0 - f7 : null, prev: f7 != null && f14 != null ? f7 - f14 : null };
 }
 
-const FB_FORMAT: Record<string, string> = { added_video: "Video", added_photos: "Photo", shared_story: "Link", mobile_status_update: "Post", created_note: "Post" };
-
 async function crossPlatformFor(svc: Supa, userId: string, workspaceId: string | null, igMedia: IgMediaItem[], now: Date): Promise<AlertCandidate[]> {
   const out: AlertCandidate[] = [];
   const weekKey = isoWeekKey(now);
@@ -216,10 +202,7 @@ async function crossPlatformFor(svc: Supa, userId: string, workspaceId: string |
 
   // Facebook: breakout posts, and new followers week over week.
   if (fbPosts.length) {
-    const posts: BreakoutPost[] = fbPosts
-      .map((p) => ({ id: p.id ?? "", format: FB_FORMAT[p.status_type ?? ""] ?? "Post", interactions: fbPostEngagement(p) ?? -1, timestampMs: p.created_time ? new Date(p.created_time).getTime() : NaN, permalink: p.permalink_url ?? null, caption: p.message ?? null }))
-      .filter((p) => p.id && p.interactions >= 0 && Number.isFinite(p.timestampMs));
-    out.push(...detectBreakouts({ platform: "facebook", posts, now: now.getTime(), platformLabel: "Facebook" }));
+    out.push(...detectBreakouts({ platform: "facebook", posts: fbBreakoutPosts(fbPosts), now: now.getTime(), platformLabel: "Facebook" }));
   }
   if (fb?.page_id) {
     const net = followerNet(await platformSnaps(svc, userId, "facebook", fb.page_id, now), now);
@@ -245,10 +228,7 @@ async function crossPlatformFor(svc: Supa, userId: string, workspaceId: string |
   // TikTok: breakout videos by views (TikTok's own per-video totals).
   const videos = tt && Array.isArray(tt.videos) ? (tt.videos as TtVideo[]) : [];
   if (videos.length) {
-    const posts: BreakoutPost[] = videos
-      .map((v) => ({ id: v.id, format: "Video", interactions: v.views ?? -1, timestampMs: v.createdAt ? new Date(v.createdAt).getTime() : NaN, permalink: v.url ?? null, caption: v.caption ?? null }))
-      .filter((p) => p.id && p.interactions >= 0 && Number.isFinite(p.timestampMs));
-    out.push(...detectBreakouts({ platform: "tiktok", posts, now: now.getTime(), metric: "views", platformLabel: "TikTok" }));
+    out.push(...detectBreakouts({ platform: "tiktok", posts: ttBreakoutPosts(videos), now: now.getTime(), metric: "views", platformLabel: "TikTok" }));
   }
 
   // One post on several platforms: Instagram and Facebook are measured from stored data.
