@@ -5,7 +5,7 @@
 // label, selected state obvious. Platform colour is only a small accent dot on
 // the un-selected items; the selected pill uses SOCIA's primary.
 
-import { LayoutGrid } from "lucide-react";
+import { Briefcase, LayoutGrid } from "lucide-react";
 import { platformMark, PLATFORM_TINT, type PlatformKey } from "./platformMarks";
 
 export type PlatformTab = { id: string; label: string };
@@ -36,7 +36,7 @@ export default function PlatformTabs({
             style={{ ["--tint" as string]: tint } as React.CSSProperties}
           >
             <span className="pswitch-ico">
-              {isPlatform(t.id) ? platformMark(t.id, on ? "currentColor" : tint, 15) : <LayoutGrid size={15} />}
+              {isPlatform(t.id) ? platformMark(t.id, on ? "currentColor" : tint, 15) : t.id === "brands" ? <Briefcase size={15} /> : <LayoutGrid size={15} />}
             </span>
             {t.label}
           </button>
