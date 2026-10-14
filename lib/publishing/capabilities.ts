@@ -54,9 +54,17 @@ export type FormatSpec = {
 export type Feature =
   | "cover" | "altText" | "userTags" | "collaborators" | "location" | "aiDisclosure" | "brandedContent"
   | "commentsToggle" | "duetStitch" | "madeForKids" | "playlist" | "privacy" | "tags" | "title" | "description"
-  | "thumbnail" | "nativeScheduling" | "shareToFeed";
+  | "thumbnail" | "nativeScheduling" | "shareToFeed" | "trialReel";
 
 export type FeatureState = "supported" | "unsupported" | "unverified" | "needs_scope";
+
+/**
+ * Two features on the same post. Each feature can be documented on its own
+ * while the pair has never been tried; "unverified" blocks the pair with an
+ * honest message until a real test passes, and switching it to "supported"
+ * enables it everywhere with no UI change.
+ */
+export type FeaturePair = { features: [Feature, Feature]; state: "supported" | "unverified" | "unsupported"; message: string };
 
 export type PlatformCapabilities = {
   platform: Platform;
@@ -65,6 +73,8 @@ export type PlatformCapabilities = {
   implemented: boolean;
   formats: FormatSpec[];
   features: Record<Feature, FeatureState>;
+  /** Feature pairs whose combination is limited; a pair not listed is allowed. */
+  pairs?: FeaturePair[];
   /** Extra text-field limits the settings form enforces. */
   fields: {
     title?: { max: number; forbiddenChars?: string[] };
@@ -126,7 +136,18 @@ const INSTAGRAM: PlatformCapabilities = {
     aiDisclosure: "supported", brandedContent: "unsupported", commentsToggle: "needs_scope", duetStitch: "unsupported",
     madeForKids: "unsupported", playlist: "unsupported", privacy: "unsupported", tags: "unsupported", title: "unsupported",
     description: "unsupported", thumbnail: "supported", nativeScheduling: "unsupported", shareToFeed: "supported",
+    // Documented in Content Publishing (trial_params on a Reels container,
+    // Instagram Login and Facebook Login). Which accounts may use it is not
+    // published, so Instagram's answer at publish time is the eligibility check.
+    trialReel: "supported",
   },
+  pairs: [
+    {
+      features: ["trialReel", "collaborators"],
+      state: "unverified",
+      message: "Trial Reels with collaborators haven't been tested through SOCIA yet, so this combination is blocked for now. Remove the collaborators or turn off Trial Reel.",
+    },
+  ],
   fields: { altText: { max: 1000 } },
   notes: [
     "Instagram does not schedule posts itself; SOCIA publishes at the chosen time.",
@@ -136,8 +157,14 @@ const INSTAGRAM: PlatformCapabilities = {
   sources: [
     "https://developers.facebook.com/docs/instagram-platform/content-publishing",
     "https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media",
+    "https://developers.facebook.com/docs/instagram-platform/changelog",
   ],
 };
+
+/** The state of a feature pair on a platform; a pair not listed is "supported". */
+export function pairState(platform: Platform, a: Feature, b: Feature): FeaturePair | null {
+  return CAPABILITIES[platform].pairs?.find((x) => (x.features[0] === a && x.features[1] === b) || (x.features[0] === b && x.features[1] === a)) ?? null;
+}
 
 const YOUTUBE: PlatformCapabilities = {
   platform: "youtube",
@@ -159,7 +186,7 @@ const YOUTUBE: PlatformCapabilities = {
     cover: "unsupported", altText: "unsupported", userTags: "unsupported", collaborators: "unsupported", location: "unsupported",
     aiDisclosure: "supported", brandedContent: "unsupported", commentsToggle: "unsupported", duetStitch: "unsupported",
     madeForKids: "supported", playlist: "supported", privacy: "supported", tags: "supported", title: "supported",
-    description: "supported", thumbnail: "supported", nativeScheduling: "supported", shareToFeed: "unsupported",
+    description: "supported", thumbnail: "supported", nativeScheduling: "supported", shareToFeed: "unsupported", trialReel: "unsupported",
   },
   fields: {
     title: { max: 100, forbiddenChars: ["<", ">"] },
@@ -199,7 +226,7 @@ const FACEBOOK: PlatformCapabilities = {
     cover: "supported", altText: "supported", userTags: "unsupported", collaborators: "unsupported", location: "supported",
     aiDisclosure: "supported", brandedContent: "unsupported", commentsToggle: "unsupported", duetStitch: "unsupported",
     madeForKids: "unsupported", playlist: "unsupported", privacy: "unsupported", tags: "unsupported", title: "supported",
-    description: "supported", thumbnail: "supported", nativeScheduling: "supported", shareToFeed: "unsupported",
+    description: "supported", thumbnail: "supported", nativeScheduling: "supported", shareToFeed: "unsupported", trialReel: "unsupported",
   },
   fields: {},
   notes: ["Publishes text, a photo, several photos, or a video to the Page feed. Needs the pages_manage_posts permission: granted to Pages the app admins/testers manage today, and to all users' Pages once Meta approves it. Reconnect Facebook after granting it."],
@@ -227,7 +254,7 @@ const TIKTOK: PlatformCapabilities = {
     cover: "supported", altText: "unsupported", userTags: "unsupported", collaborators: "unsupported", location: "unsupported",
     aiDisclosure: "supported", brandedContent: "supported", commentsToggle: "supported", duetStitch: "supported",
     madeForKids: "unsupported", playlist: "unsupported", privacy: "supported", tags: "unsupported", title: "unsupported",
-    description: "unsupported", thumbnail: "unsupported", nativeScheduling: "unsupported", shareToFeed: "unsupported",
+    description: "unsupported", thumbnail: "unsupported", nativeScheduling: "unsupported", shareToFeed: "unsupported", trialReel: "unsupported",
   },
   fields: {},
   notes: [

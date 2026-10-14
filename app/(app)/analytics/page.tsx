@@ -3,6 +3,8 @@ import { Link2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { trialReelsByMedia } from "@/lib/publishing/db";
+import { instagramSummary, facebookSummary, youtubeSummary, tiktokSummary } from "@/lib/platformSummaries";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
@@ -177,7 +179,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   // ---- Instagram panel + summary (full existing experience, only when live) ----
   let igPanel: ReactNode = null;
-  const igSummary: PlatformSummary = { platform: "instagram", connected: false, label: "Instagram", audience: null, audienceLabel: "followers", views: null, viewsNote: null, engagement: null, contentPublished: null };
+  let igSummary: PlatformSummary = instagramSummary(null);
 
   if (live) {
     const media: IgMediaItem[] = snap!.media ?? [];
@@ -187,6 +189,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
     const baseline = median(media.map(interactionsTotal));
     const posts = postCards(media, baseline);
+    // Trial Reels SOCIA published are labelled from its own record.
+    const trials = await trialReelsByMedia(ctx.client, ctx.ownerId, posts.map((p) => p.id));
+    for (const p of posts) p.trial = trials.get(p.id) ?? null;
     const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
 
     const kpisAll = buildKpis({ media, daily: dailyRows, followers, days, now });
@@ -290,16 +295,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     };
     igPanel = <AnalyticsV3 d={d} />;
 
-    igSummary.connected = true;
-    igSummary.label = snap!.username ? `@${snap!.username}` : "Instagram";
-    igSummary.audience = followers;
-    igSummary.views = series.views.total;
-    igSummary.engagement = series.engagement.total;
-    igSummary.contentPublished = inRange.length;
+    igSummary = instagramSummary({ username: snap!.username ?? null, followers, views: series.views, engagement: series.engagement, postsInRange: inRange.length });
   }
 
   // ---- YouTube overlay + summary ----
-  const ytSummary: PlatformSummary = { platform: "youtube", connected: Boolean(yt), label: yt?.channel.title ?? "YouTube", audience: yt?.channel.subscribers ?? null, audienceLabel: "subscribers", views: yt?.range?.views ?? null, viewsNote: null, engagement: null, contentPublished: null };
+  const ytSummary = youtubeSummary(yt);
   if (yt && yt.series?.length) {
     const mk = (pick: (row: YtDaily) => number, label: string, note: string): GraphSeries => ({ points: onAxis(yt.series.map((dd) => ({ day: dd.day, value: pick(dd), postIds: [] }))), label, provenance: "youtube_daily", trueSeries: true, mode: "sum", note });
     graphAccounts.push({
@@ -310,18 +310,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   // ---- Facebook panel + summary ----
   let fbPanel: ReactNode = null;
-  const fbSummary: PlatformSummary = { platform: "facebook", connected: Boolean(fbConnected), label: fb?.page_name ?? "Facebook", audience: fb?.followers_count ?? null, audienceLabel: "followers", views: null, viewsNote: "Facebook doesn't report post views", engagement: null, contentPublished: null };
+  let fbSummary: PlatformSummary = facebookSummary(fb, null);
   if (fbConnected && fb) {
     const fbSnaps = fbSnapsLoaded;
     const fbInsights = fbInsightsC?.value ?? null;
     const fbData = buildFacebookAnalytics({ snap: fb, snapshots: fbSnaps, days, rangeLabel, now, insights: fbInsights });
     fbPanel = <FacebookAnalytics data={fbData} gate={gate} maxDays={maxDays} />;
-    fbSummary.engagement = fbData.engagement.total;
-    fbSummary.contentPublished = fbData.postsInRange;
-    if (fbData.views && fbData.views.total != null) {
-      fbSummary.views = fbData.views.total;
-      fbSummary.viewsNote = null;
-    }
+    fbSummary = facebookSummary(fb, fbData);
     // The overlay: engagement by publish date (content totals) and, when
     // Insights serve it, a genuine daily Page-views series.
     const fbSeries: GraphAccount["series"] = {};
@@ -336,13 +331,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   // ---- TikTok panel + summary ----
   let ttPanel: ReactNode = null;
-  const ttSummary: PlatformSummary = { platform: "tiktok", connected: ttConnected, label: "TikTok", audience: null, audienceLabel: "followers", views: null, viewsNote: "TikTok reports per-video totals, not a range view count", engagement: null, contentPublished: null };
+  let ttSummary: PlatformSummary = tiktokSummary(null, null);
   if (ttConnected && ttRow) {
     const ttData = buildTikTokAnalytics({ row: ttRow, days, rangeLabel, now });
     ttPanel = <TikTokAnalytics data={ttData} />;
-    ttSummary.label = ttData.profile.username ? `@${ttData.profile.username}` : (ttData.profile.name || "TikTok");
-    ttSummary.audience = (ttRow.follower_count as number | null) ?? null;
-    ttSummary.contentPublished = ttData.videosInRange;
+    ttSummary = tiktokSummary(ttRow, ttData);
     graphAccounts.push({ id: "tiktok:me", platform: "tiktok", label: ttSummary.label, series: {} });
   }
 

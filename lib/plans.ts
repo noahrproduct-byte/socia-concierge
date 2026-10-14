@@ -50,7 +50,10 @@ export type LimitKey =
   // Content Studio · Build from Clips. DEVELOPMENT PLACEHOLDERS until real
   // storage, transcription, AI and rendering costs are measured; never shown
   // on the pricing page. Enforced server-side in app/api/studio/*.
-  | "studio_clips_per_project" | "studio_footage_minutes" | "studio_upload_mb" | "studio_storage_gb" | "studio_retention_days";
+  | "studio_clips_per_project" | "studio_footage_minutes" | "studio_upload_mb" | "studio_storage_gb" | "studio_retention_days"
+  // AI assistants (MCP): requests per minute per connection. DEVELOPMENT
+  // PLACEHOLDER until real usage is measured; tune here or in plan_config_overrides.
+  | "assistant_requests_per_minute";
 
 /**
  * "All retained history": the plan applies no window of its own, the person
@@ -69,7 +72,7 @@ export const isAllHistory = (days: number) => days >= HISTORY_ALL_RETAINED;
  *   content_plan       one full weekly Content Plan generation       (per month)
  *   content_ideas      one batch of quick content ideas              (per week)
  */
-export type MeterKey = "ask_socia" | "content_studio" | "content_generation" | "account_audit" | "content_plan" | "content_ideas" | "content_build" | "video_builds";
+export type MeterKey = "ask_socia" | "content_studio" | "content_generation" | "account_audit" | "content_plan" | "content_ideas" | "content_build" | "video_builds" | "assistant_requests";
 
 export type MeterPeriod = "month" | "week";
 
@@ -82,6 +85,7 @@ export const METER_PERIOD: Record<MeterKey, MeterPeriod> = {
   account_audit: "month",
   content_plan: "month",
   content_ideas: "week",
+  assistant_requests: "month",
 };
 
 /** Meters that appear on pricing cards and in the comparison table. The rest are real but shown only in Settings. */
@@ -93,6 +97,7 @@ export type FeatureKey =
   | "breakout_alerts"
   | "monthly_summary"
   | "build_from_clips"
+  | "ai_assistants"
   // Starter
   | "posting_time_analysis"
   | "growth_analysis"
@@ -119,11 +124,13 @@ export type FeatureKey =
   | "competitor_alerts"
   | "cross_platform_alerts"
   | "priority_support"
+  | "ai_assistant_drafts"
   // Pro
   | "cross_brand_analytics"
   | "client_reports"
   | "approval_workflow"
-  | "dedicated_onboarding";
+  | "dedicated_onboarding"
+  | "developer_api";
 
 /**
  * "available": built and working in production today.
@@ -167,6 +174,11 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   client_reports: "available",
   approval_workflow: "coming_soon",
   dedicated_onboarding: "policy",
+  // AI assistants (MCP): read-only tools on every plan. Draft tools (Phase 2)
+  // and the developer API come later.
+  ai_assistants: "available",
+  ai_assistant_drafts: "coming_soon",
+  developer_api: "coming_soon",
 };
 
 /** Human labels for feature keys, shared by pricing, Settings and limit notices. */
@@ -203,6 +215,9 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   client_reports: "Client-ready reports",
   approval_workflow: "Approval workflows",
   dedicated_onboarding: "Dedicated onboarding",
+  ai_assistants: "Connect Claude, ChatGPT and other AI assistants (read-only)",
+  ai_assistant_drafts: "AI assistants can create drafts",
+  developer_api: "Developer API",
 };
 
 export const LIMIT_LABEL: Record<LimitKey, string> = {
@@ -215,6 +230,7 @@ export const LIMIT_LABEL: Record<LimitKey, string> = {
   studio_upload_mb: "Upload per project",
   studio_storage_gb: "Clip storage",
   studio_retention_days: "Raw footage kept for",
+  assistant_requests_per_minute: "AI assistant requests per minute",
 };
 
 export const METER_LABEL: Record<MeterKey, string> = {
@@ -226,6 +242,7 @@ export const METER_LABEL: Record<MeterKey, string> = {
   account_audit: "Account audits",
   content_plan: "Content Plans",
   content_ideas: "Content ideas",
+  assistant_requests: "AI assistant requests",
 };
 
 /** Unit word for a meter, for "3 analyses left" style copy. */
@@ -238,6 +255,7 @@ export const METER_UNIT: Record<MeterKey, { one: string; many: string }> = {
   account_audit: { one: "audit", many: "audits" },
   content_plan: { one: "plan", many: "plans" },
   content_ideas: { one: "idea", many: "ideas" },
+  assistant_requests: { one: "request", many: "requests" },
 };
 
 /** Unit word for a hard limit, for "Starter includes 2 Brand Workspaces" copy. */
@@ -251,6 +269,7 @@ export const LIMIT_UNIT: Record<LimitKey, { one: string; many: string }> = {
   studio_upload_mb: { one: "MB per project", many: "MB per project" },
   studio_storage_gb: { one: "GB of clip storage", many: "GB of clip storage" },
   studio_retention_days: { one: "day of raw footage retention", many: "days of raw footage retention" },
+  assistant_requests_per_minute: { one: "request per minute", many: "requests per minute" },
 };
 
 export type PlanConfig = {
@@ -277,7 +296,7 @@ const F = (on: FeatureKey[]): Record<FeatureKey, boolean> => {
   return out;
 };
 
-const FREE_FEATURES: FeatureKey[] = ["scheduling", "breakout_alerts", "monthly_summary", "build_from_clips"];
+const FREE_FEATURES: FeatureKey[] = ["scheduling", "breakout_alerts", "monthly_summary", "build_from_clips", "ai_assistants"];
 
 // Build from Clips: DEVELOPMENT PLACEHOLDERS, identical across plans except
 // retention. Not pricing promises; tune here (or in plan_config_overrides)
@@ -295,11 +314,11 @@ const GROWTH_FEATURES: FeatureKey[] = [
   "cross_platform_analytics", "comment_replies", "daily_recommendations", "repurposing",
   "custom_date_ranges", "platform_reports", "report_exports",
   "trend_alerts", "opportunity_alerts", "competitor_alerts", "cross_platform_alerts",
-  "priority_support",
+  "priority_support", "ai_assistant_drafts",
 ];
 const PRO_FEATURES: FeatureKey[] = [
   ...GROWTH_FEATURES,
-  "cross_brand_analytics", "client_reports", "approval_workflow", "dedicated_onboarding",
+  "cross_brand_analytics", "client_reports", "approval_workflow", "dedicated_onboarding", "developer_api",
 ];
 
 export const PLANS: Record<PlanId, PlanConfig> = {
@@ -309,8 +328,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 0,
     tagline: "Understand one brand.",
     audience: "People trying SOCIA and managing one brand.",
-    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_DEV_LIMITS, studio_storage_gb: 5, studio_retention_days: 14 },
-    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 0, content_ideas: 3, content_build: 3, video_builds: 0 },
+    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_DEV_LIMITS, studio_storage_gb: 5, studio_retention_days: 14, assistant_requests_per_minute: 10 },
+    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 0, content_ideas: 3, content_build: 3, video_builds: 0, assistant_requests: 100 },
     features: F(FREE_FEATURES),
     cta: "Get started free",
   },
@@ -320,8 +339,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 19,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
-    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_DEV_LIMITS, studio_storage_gb: 10, studio_retention_days: 14 },
-    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 3, content_build: 10, video_builds: 0 },
+    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_DEV_LIMITS, studio_storage_gb: 10, studio_retention_days: 14, assistant_requests_per_minute: 20 },
+    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 3, content_build: 10, video_builds: 0, assistant_requests: 1000 },
     features: F(STARTER_FEATURES),
     cta: "Start Starter",
   },
@@ -331,8 +350,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 49,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
-    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_DEV_LIMITS, studio_storage_gb: 25, studio_retention_days: 30 },
-    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 3, content_build: 40, video_builds: 30 },
+    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_DEV_LIMITS, studio_storage_gb: 25, studio_retention_days: 30, assistant_requests_per_minute: 30 },
+    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 3, content_build: 40, video_builds: 30, assistant_requests: 5000 },
     features: F(GROWTH_FEATURES),
     cta: "Start Growth",
     popular: true,
@@ -343,9 +362,9 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 99,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
-    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_DEV_LIMITS, studio_storage_gb: 50, studio_retention_days: 60 },
+    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_DEV_LIMITS, studio_storage_gb: 50, studio_retention_days: 60, assistant_requests_per_minute: 60 },
     // Deliberately higher, deliberately finite. Tune in plan_config_overrides.
-    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 3, content_build: 100, video_builds: 100 },
+    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 3, content_build: 100, video_builds: 100, assistant_requests: 20000 },
     features: F(PRO_FEATURES),
     cta: "Start Pro",
   },

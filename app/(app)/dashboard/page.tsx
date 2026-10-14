@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { trialReelsByMedia } from "@/lib/publishing/db";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
@@ -20,7 +21,7 @@ import DashboardV3, { type DashboardData } from "@/components/DashboardV3";
 import DashboardMultiPlatform from "@/components/DashboardMultiPlatform";
 import { buildFacebookAnalytics } from "@/lib/metrics/facebook";
 import { buildTikTokAnalytics } from "@/lib/metrics/tiktok";
-import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
+import { instagramSummary, facebookSummary, youtubeSummary, tiktokSummary } from "@/lib/platformSummaries";
 import {
   RANGES, rangeDays, clampRangeId, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
   type PlatformRow,
@@ -208,25 +209,9 @@ export default async function DashboardPage({
   // dashboard). Each uses the platform's OWN native metrics; nothing is faked.
   const since = now.getTime() - days * DAY_MS;
 
-  const fbSummary: PlatformSummary = { platform: "facebook", connected: fbConnected, label: fb?.page_name ?? "Facebook", audience: fb?.followers_count ?? null, audienceLabel: "followers", views: null, viewsNote: "Facebook doesn't report post views", engagement: null, contentPublished: null };
-  if (fbConnected && fb) {
-    const fbInsights = fbInsightsC?.value ?? null;
-    const fd = buildFacebookAnalytics({ snap: fb, snapshots: [], days, rangeLabel, now, insights: fbInsights });
-    fbSummary.engagement = fd.engagement.total;
-    fbSummary.contentPublished = fd.postsInRange;
-    if (fd.views && fd.views.total != null) {
-      fbSummary.views = fd.views.total;
-      fbSummary.viewsNote = null;
-    }
-  }
-  const ytSummary: PlatformSummary = { platform: "youtube", connected: ytConnected, label: yt?.channel.title ?? "YouTube", audience: yt?.channel.subscribers ?? null, audienceLabel: "subscribers", views: yt?.range?.views ?? null, viewsNote: null, engagement: null, contentPublished: null };
-  const ttSummary: PlatformSummary = { platform: "tiktok", connected: ttConnected, label: "TikTok", audience: null, audienceLabel: "followers", views: null, viewsNote: "TikTok reports per-video totals, not a range view count", engagement: null, contentPublished: null };
-  if (ttConnected && ttRow) {
-    const td = buildTikTokAnalytics({ row: ttRow, days, rangeLabel, now });
-    ttSummary.label = td.profile.username ? `@${td.profile.username}` : (td.profile.name || "TikTok");
-    ttSummary.audience = (ttRow.follower_count as number | null) ?? null;
-    ttSummary.contentPublished = td.videosInRange;
-  }
+  const fbSummary = facebookSummary(fb, fbConnected && fb ? buildFacebookAnalytics({ snap: fb, snapshots: [], days, rangeLabel, now, insights: fbInsightsC?.value ?? null }) : null);
+  const ytSummary = youtubeSummary(yt);
+  const ttSummary = tiktokSummary(ttConnected ? ttRow : null, ttConnected && ttRow ? buildTikTokAnalytics({ row: ttRow, days, rangeLabel, now }) : null);
 
   // Repurposing (Growth+): the best recent posts not yet on the other platforms.
   const repurposeP: Promise<Candidate[]> = canUseFeature(ent, "repurposing")
@@ -262,7 +247,7 @@ export default async function DashboardPage({
   // No live Instagram, but another platform is connected: a real multi-platform
   // home instead of the old Instagram-only wall.
   if (!live) {
-    const igSummary: PlatformSummary = { platform: "instagram", connected: false, label: "Instagram", audience: null, audienceLabel: "followers", views: null, viewsNote: null, engagement: null, contentPublished: null };
+    const igSummary = instagramSummary(null);
     return (
       <>
         <DashboardMultiPlatform greeting={greeting} name={name} summaries={[igSummary, fbSummary, ytSummary, ttSummary]} upcoming={upcoming} updatedAt={updatedAt} today={today} repurpose={repurpose} />
@@ -277,6 +262,9 @@ export default async function DashboardPage({
 
   const baseline = median(media.map(interactionsTotal));
   const posts = postCards(media, baseline);
+  // Trial Reels SOCIA published are labelled from its own record.
+  const trials = await trialReelsByMedia(ctx.client, ctx.ownerId, posts.map((p) => p.id));
+  for (const p of posts) p.trial = trials.get(p.id) ?? null;
   const top = rankPosts(posts, "views", 8);
   const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
 
@@ -324,12 +312,10 @@ export default async function DashboardPage({
     for (const r of platforms) r.share = total > 0 && r.connected && r.value ? r.value / total : 0;
   }
 
-  const igSummary: PlatformSummary = {
-    platform: "instagram", connected: true, label: snap!.username ? `@${snap!.username}` : "Instagram",
-    audience: snap!.followers_count ?? null, audienceLabel: "followers",
-    views: series.views.total, viewsNote: null, engagement: series.engagement.total,
-    contentPublished: media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since).length,
-  };
+  const igSummary = instagramSummary({
+    username: snap!.username ?? null, followers: snap!.followers_count ?? null, views: series.views, engagement: series.engagement,
+    postsInRange: media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since).length,
+  });
 
   const d: DashboardData = {
     greeting, name, handle: snap!.username ?? null, rangeLabel, maxDays, updatedAt, kpis, series, platforms, platformTotal, platformMetric,

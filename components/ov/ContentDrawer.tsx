@@ -8,6 +8,7 @@ import { ExternalLink, Sparkles, CalendarPlus, Play } from "lucide-react";
 import Drawer from "./Drawer";
 import { fmtNum, type PostCard } from "@/lib/overview";
 import { askSocia } from "@/lib/ask";
+import { trialLine } from "@/lib/publishing/trial";
 
 const IG = (
   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -59,6 +60,7 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
             <span className="ov-detail-plat">{IG} Instagram {p.format}</span>
             <span>{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
           </div>
+          {p.trial && <p className="ov-detail-trial">{trialLine(p.trial, true)} Until it is, its numbers come only from people who don&apos;t follow you.</p>}
           <p className="ov-detail-caption">{p.caption || "(no caption)"}</p>
           <dl className="ov-detail-stats">
             {[

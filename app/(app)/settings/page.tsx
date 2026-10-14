@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   SunMoon,
+  Bot,
 } from "lucide-react";
 import AppearanceSettings from "@/components/AppearanceSettings";
 import { getViewer } from "@/lib/supabase/server";
@@ -23,6 +24,8 @@ import StrategistSettings from "@/components/StrategistSettings";
 import IntelligenceCard, { type IntelState } from "@/components/IntelligenceCard";
 import SecurityCard from "@/components/SecurityCard";
 import SettingsNav from "@/components/SettingsNav";
+import AiAssistants from "@/components/settings/AiAssistants";
+import { mcpResource } from "@/lib/oauth/config";
 import ConnectionsManager from "@/components/ConnectionsManager";
 import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
@@ -542,6 +545,16 @@ export default async function SettingsPage({
                   </li>
                 ))}
               </ul>
+            </section>
+
+            {/* Integrations — AI assistants (MCP) */}
+            <section className="st2-card" id="ai-assistants">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Bot size={15} /></span>
+                <h3>AI Assistants</h3>
+                <span className="st2-card-note">Claude, ChatGPT and other MCP apps</span>
+              </div>
+              <AiAssistants mcpUrl={mcpResource()} />
             </section>
 
             {/* 7 — Plan & Billing */}

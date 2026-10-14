@@ -8,14 +8,19 @@
 //
 // Every failure carries Instagram's own code and message verbatim. Nothing is
 // marked published until Instagram returns a media id.
+//
+// Trial Reels: the container carries trial_params. If Instagram refuses it at
+// any step, the destination fails with Instagram's message and nothing is
+// posted; SOCIA never retries it as a normal Reel on its own.
 
 import type { PublishAdapter, PublishContext, PublishOutcome } from "../adapter";
 import type { InstagramSettings, MediaItem } from "../types";
 import { effectiveCaption } from "../validate";
 import {
   canPublish, containerStatus, createContainer, igRetryable, mediaPermalink, publishContainer, publishingLimit,
-  refreshLongLivedToken, IG_CALL_TIMEOUT_MS, IG_TOKEN_LIFETIME_MS, type ContainerInput, type IgResult,
+  refreshLongLivedToken, IG_CALL_TIMEOUT_MS, IG_TOKEN_LIFETIME_MS, TRIAL_GRADUATION, type ContainerInput, type IgResult,
 } from "../../igPublish";
+import { pairState } from "../capabilities";
 
 type Conn = {
   ig_user_id: string;
@@ -55,6 +60,21 @@ const fail = (message: string, code: string | null = null, retryable = false): P
 
 const failFromIg = (r: { error: string; code?: number }, retryableOverride?: boolean): PublishOutcome =>
   fail(r.error, r.code != null ? String(r.code) : null, retryableOverride ?? igRetryable(r.code));
+
+const isTrial = (s: InstagramSettings) => s.format === "reel" && Boolean(s.trial);
+
+/** Failures that are about the connection, the quota or the file, not about Instagram accepting a trial. */
+const NOT_ABOUT_TRIAL = new Set(["no_connection", "plan_suspended", "needs_scope", "media_missing", "quota_exhausted", "container_expired", "trial_not_reel", "trial_collaborators_unverified", "190"]);
+
+/** A Trial Reel failure from Instagram says so, keeps Instagram's own words, and names the person's options. */
+export function trialFailure(outcome: PublishOutcome): PublishOutcome {
+  if (outcome.status !== "failed" || NOT_ABOUT_TRIAL.has(outcome.errorCode ?? "")) return outcome;
+  const said = (outcome.errorMessage ?? "").trim() || "Instagram did not say why.";
+  return {
+    ...outcome,
+    errorMessage: `Instagram didn't accept this as a Trial Reel: ${said} Nothing was posted. Retry, or turn off "Publish as Trial Reel" to post it as a normal Reel.`,
+  };
+}
 
 /** The connection row for (user, ig account); tolerant of the pre-plan schema. */
 async function readConnection(ctx: PublishContext): Promise<Conn | null> {
@@ -133,11 +153,15 @@ export function containerPlan(settings: InstagramSettings, media: MediaItem[], c
   // field existed have none.
   const collaborators = settings.collaborators?.length ? settings.collaborators : null;
   if (settings.format === "reel") {
+    const trial = settings.trial ? TRIAL_GRADUATION[settings.trial.share] ?? null : null;
     return {
       children: [],
       parent: {
         mediaType: "REELS", mediaUrl: url(media[0]), caption, shareToFeed: settings.shareToFeed,
-        thumbOffsetMs: settings.coverTimestampMs, isAiGenerated: settings.aiGenerated, collaborators,
+        thumbOffsetMs: settings.coverTimestampMs, isAiGenerated: settings.aiGenerated,
+        // A trial never carries collaborators (that pair is blocked until tested).
+        collaborators: trial ? null : collaborators,
+        trialGraduation: trial,
       },
     };
   }
@@ -165,6 +189,12 @@ function alreadyPublished(ctx: PublishContext, containerId: string | null): Publ
 }
 
 async function publish(ctx: PublishContext): Promise<PublishOutcome> {
+  const settings = ctx.destination.settings as InstagramSettings;
+  const out = await publishOnce(ctx);
+  return isTrial(settings) ? trialFailure(out) : out;
+}
+
+async function publishOnce(ctx: PublishContext): Promise<PublishOutcome> {
   // A destination that already holds a media id was published; never create another container for it.
   if (ctx.destination.externalPostId) return alreadyPublished(ctx, ctx.destination.externalContainerId);
   const r = await resolve(ctx);
@@ -172,6 +202,10 @@ async function publish(ctx: PublishContext): Promise<PublishOutcome> {
   const { conn, token } = r;
   const settings = ctx.destination.settings as InstagramSettings;
   const media = ctx.item.media;
+  if (settings.trial && settings.format !== "reel") return fail("Trial Reel is on, but this post isn't a Reel.", "trial_not_reel");
+  if (isTrial(settings) && (settings.collaborators?.length ?? 0) > 0 && pairState("instagram", "trialReel", "collaborators")?.state !== "supported") {
+    return fail(pairState("instagram", "trialReel", "collaborators")?.message ?? "Trial Reels with collaborators aren't available yet.", "trial_collaborators_unverified");
+  }
   // Only the URL matters here; size and mime may be unknown (null / "") on legacy rows and are never compared.
   if (!media.length || media.some((m) => !m.url)) return fail("Add media before publishing to Instagram.", "media_missing");
 
@@ -201,9 +235,15 @@ async function publish(ctx: PublishContext): Promise<PublishOutcome> {
 }
 
 async function poll(ctx: PublishContext): Promise<PublishOutcome> {
+  const settings = ctx.destination.settings as InstagramSettings;
+  const out = await pollOnce(ctx);
+  return isTrial(settings) ? trialFailure(out) : out;
+}
+
+async function pollOnce(ctx: PublishContext): Promise<PublishOutcome> {
   const containerId = ctx.destination.externalContainerId;
   // Nothing at Instagram yet: this destination never got its container.
-  if (!containerId) return publish(ctx);
+  if (!containerId) return publishOnce(ctx);
 
   // The media id is already known: nothing left to ask Instagram for.
   if (ctx.destination.externalPostId) return alreadyPublished(ctx, containerId);

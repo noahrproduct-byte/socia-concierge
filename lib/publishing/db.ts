@@ -9,7 +9,8 @@
 //
 // Server only (imports lib/entitlements for the connected-account list).
 
-import type { ContentItem, Destination, DestinationSettings, DestinationStatus, MediaItem, Platform } from "./types";
+import type { ContentItem, Destination, DestinationSettings, DestinationStatus, MediaItem, Platform, TrialShare } from "./types";
+import { trialOf } from "./trial";
 import { PLATFORMS, defaultSettings } from "./types";
 import { aggregateStatus, firstError } from "./status";
 import type { CreatePostPayload, PickerAccount } from "./composer";
@@ -413,6 +414,33 @@ export async function stampPostWorkspace(supabase: Supa, ownerId: string, worksp
   } catch {
     // the post is saved either way
   }
+}
+
+/**
+ * Instagram media SOCIA published as Trial Reels: media id -> the sharing
+ * choice made at submission. Only SOCIA's own record; a trial made in the
+ * Instagram app is unknown here, and nothing says whether one was shared.
+ */
+export async function trialReelsByMedia(supabase: Supa, ownerId: string, mediaIds: string[]): Promise<Map<string, TrialShare>> {
+  const out = new Map<string, TrialShare>();
+  if (!mediaIds.length) return out;
+  try {
+    const { data, error } = await supabase
+      .from("post_destinations")
+      .select("external_post_id, settings")
+      .eq("user_id", ownerId)
+      .eq("platform", "instagram")
+      .eq("status", "published")
+      .in("external_post_id", mediaIds.slice(0, 300));
+    if (error || !data) return out;
+    for (const r of data as { external_post_id: string | null; settings: DestinationSettings | null }[]) {
+      const share = r.external_post_id ? trialOf("instagram", r.settings) : null;
+      if (share) out.set(r.external_post_id!, share);
+    }
+  } catch {
+    // no labels: the posts still render
+  }
+  return out;
 }
 
 export type UpdateDestinationOptions = {

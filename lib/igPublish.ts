@@ -16,9 +16,13 @@
 //   CAROUSEL   children first (is_carousel_item=true, image_url, alt_text), then the
 //              parent with media_type=CAROUSEL, children=<comma-separated ids>, caption
 //   containers expire after 24 h; 100 API publishes per account per 24 h (read at runtime).
+//   TRIAL REEL  a REELS container plus trial_params: { graduation_strategy: MANUAL | SS_PERFORMANCE },
+//              sent as a JSON body exactly like Meta's example (checked 2026-10-14). Meta documents
+//              no API to share a trial with followers and no field that reports whether it was.
 
 const IG_V = "v23.0";
 import { MAX_COLLABORATORS } from "./publishing/igRules";
+import type { TrialShare } from "./publishing/types";
 const BASE = `https://graph.instagram.com/${IG_V}`;
 
 export type IgResult<T> = { ok: true; value: T } | { ok: false; error: string; code?: number; subcode?: number };
@@ -26,11 +30,15 @@ export type IgResult<T> = { ok: true; value: T } | { ok: false; error: string; c
 /** Every call to Instagram gives up after this long unless the caller passes a tighter signal. */
 export const IG_CALL_TIMEOUT_MS = 20000;
 
-async function ig<T>(path: string, init: RequestInit & { params?: Record<string, string>; base?: string }): Promise<IgResult<T>> {
+async function ig<T>(path: string, init: RequestInit & { params?: Record<string, string>; base?: string; json?: Record<string, unknown> }): Promise<IgResult<T>> {
   const u = new URL(`${init.base ?? BASE}${path}`);
   for (const [k, v] of Object.entries(init.params ?? {})) u.searchParams.set(k, v);
   try {
-    const res = await fetch(u, { method: init.method ?? "GET", signal: init.signal ?? AbortSignal.timeout(IG_CALL_TIMEOUT_MS) });
+    const res = await fetch(u, {
+      method: init.method ?? "GET",
+      signal: init.signal ?? AbortSignal.timeout(IG_CALL_TIMEOUT_MS),
+      ...(init.json ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(init.json) } : {}),
+    });
     const j = (await res.json().catch(() => null)) as
       | (T & { error?: { message?: string; code?: number; error_subcode?: number; error_user_msg?: string } })
       | null;
@@ -69,7 +77,15 @@ export type ContainerInput = {
   children?: string[] | null;
   /** CAROUSEL_ITEM children. Implied by mediaType CAROUSEL_ITEM. */
   isCarouselItem?: boolean;
+  /** REELS only: publish as a Trial Reel with this graduation strategy (Instagram's own values). */
+  trialGraduation?: TrialGraduation | null;
 };
+
+/** Instagram's values for how a Trial Reel reaches followers. */
+export type TrialGraduation = "MANUAL" | "SS_PERFORMANCE";
+
+/** SOCIA's choices (lib/publishing/types.ts TrialShare) to Instagram's values; the only place they meet. */
+export const TRIAL_GRADUATION: Record<TrialShare, TrialGraduation> = { manual: "MANUAL", if_performing: "SS_PERFORMANCE" };
 
 /**
  * The exact query parameters Instagram receives for a container, minus the
@@ -108,6 +124,23 @@ export function buildContainerParams(input: ContainerInput): Record<string, stri
 
 export { MAX_COLLABORATORS, IG_USERNAME_RE, normalizeUsername } from "./publishing/igRules";
 
+/**
+ * The JSON body for a Trial Reel container, in the shape of Meta's documented
+ * example: the Reel's fields plus a nested trial_params object. share_to_feed
+ * is left out (a trial goes to non-followers first, and Meta's example sends
+ * none); collaborators are never sent with a trial (SOCIA blocks that pair
+ * until it has been tested). Pure, unit-tested.
+ */
+export function buildTrialReelBody(input: ContainerInput & { trialGraduation: TrialGraduation }): Record<string, unknown> {
+  const body: Record<string, unknown> = { media_type: "REELS" };
+  if (input.mediaUrl) body.video_url = input.mediaUrl;
+  if (input.caption != null) body.caption = input.caption.slice(0, 2200);
+  if (input.thumbOffsetMs != null && input.thumbOffsetMs >= 0) body.thumb_offset = Math.round(input.thumbOffsetMs);
+  if (input.isAiGenerated) body.is_ai_generated = true;
+  body.trial_params = { graduation_strategy: input.trialGraduation };
+  return body;
+}
+
 /** Step 1: a container. The media URL must be publicly fetchable by Instagram's servers.
  *  Legacy callers pass { mediaType: "REELS" | "IMAGE", mediaUrl, caption } and get the
  *  same behaviour as before. */
@@ -116,6 +149,11 @@ export async function createContainer(
   token: string,
   input: ContainerInput,
 ): Promise<IgResult<{ id: string }>> {
+  if (input.mediaType === "REELS" && input.trialGraduation) {
+    return ig<{ id: string }>(`/${igUserId}/media`, {
+      method: "POST", params: { access_token: token }, json: buildTrialReelBody({ ...input, trialGraduation: input.trialGraduation }),
+    });
+  }
   const params = { ...buildContainerParams(input), access_token: token };
   return ig<{ id: string }>(`/${igUserId}/media`, { method: "POST", params });
 }

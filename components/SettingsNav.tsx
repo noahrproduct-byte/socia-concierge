@@ -15,6 +15,7 @@ import {
   CreditCard,
   Lock,
   SunMoon,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,12 @@ const GROUPS: Group[] = [
     items: [
       { id: "appearance", label: "Appearance", Icon: SunMoon },
       { id: "notifications", label: "Notifications & Reports", Icon: Bell },
+    ],
+  },
+  {
+    label: "Integrations",
+    items: [
+      { id: "ai-assistants", label: "AI Assistants", Icon: Bot },
     ],
   },
   {
