@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import CalendarBoard, { type CalPost, type CalItem, type CalDestination, type CalResult, type PublishInfo } from "@/components/CalendarBoard";
+import { trialOf } from "@/lib/publishing/trial";
+import type { DestinationSettings } from "@/lib/publishing/types";
 import { loadDestinationsLite, loadMeasureSources, resultsForPosts } from "@/lib/planOutcomesLoad";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getIgSnapshot, getActiveConnection } from "@/lib/instagramSync";
@@ -35,6 +37,7 @@ type DestinationRow = {
   scheduled_at: string | null;
   error_message: string | null;
   permalink: string | null;
+  settings: DestinationSettings | null;
 };
 
 /** The destinations of these posts, grouped by post id. Before the publishing
@@ -47,7 +50,7 @@ async function loadDestinations(supabase: SupabaseClient, userId: string, postId
   try {
     const { data, error } = await supabase
       .from("post_destinations")
-      .select("id, post_id, platform, account_id, status, scheduled_at, error_message, permalink")
+      .select("id, post_id, platform, account_id, status, scheduled_at, error_message, permalink, settings")
       .eq("user_id", userId)
       .in("post_id", postIds)
       .order("scheduled_at", { ascending: true, nullsFirst: false });
@@ -56,6 +59,7 @@ async function loadDestinations(supabase: SupabaseClient, userId: string, postId
       const d: CalDestination = {
         id: r.id, postId: r.post_id, platform: r.platform, accountId: r.account_id, status: r.status,
         scheduledAt: r.scheduled_at, errorMessage: r.error_message, permalink: r.permalink,
+        trial: trialOf(r.platform, r.settings),
       };
       out.set(r.post_id, [...(out.get(r.post_id) ?? []), d]);
     }

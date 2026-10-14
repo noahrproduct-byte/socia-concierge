@@ -221,3 +221,4 @@
   .cr-tab:active, .cr-status-actions .btn-secondary:active { transform: none; }
   .cr-progress > i, .cr-meter > i { transition: none; }
 }
+.cr-trial { margin-bottom: 4px; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }

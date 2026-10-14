@@ -3,6 +3,7 @@ import { Link2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { trialReelsByMedia } from "@/lib/publishing/db";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
@@ -187,6 +188,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
     const baseline = median(media.map(interactionsTotal));
     const posts = postCards(media, baseline);
+    // Trial Reels SOCIA published are labelled from its own record.
+    const trials = await trialReelsByMedia(ctx.client, ctx.ownerId, posts.map((p) => p.id));
+    for (const p of posts) p.trial = trials.get(p.id) ?? null;
     const medianViews = median(posts.map((p) => p.views).filter((v): v is number => v != null));
 
     const kpisAll = buildKpis({ media, daily: dailyRows, followers, days, now });

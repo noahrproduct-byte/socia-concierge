@@ -25,3 +25,4 @@
 .cal2-mevent .cd-marks { vertical-align: -2px; margin-right: 4px; }
 .cal2-mevent .cd-mark, .cal2-mevent .cd-mark svg { width: 11px; height: 11px; }
 .cal2-mevent.cd-ghost { opacity: 0.55; background: transparent; border-left-style: dashed; color: var(--slate); }
+.cd-trial { display: inline-flex; align-items: center; margin-left: 3px; padding: 0 5px; height: 14px; border-radius: 4px; font-size: 9.5px; font-weight: 750; letter-spacing: 0.02em; color: var(--primary-text); background: var(--primary-subtle); }

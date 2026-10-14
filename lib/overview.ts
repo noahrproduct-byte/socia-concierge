@@ -5,6 +5,7 @@
 //   raw platform data → normalized → calculated here → rendered → AI interprets
 
 import type { IgMediaItem } from "./instagramSync";
+import type { TrialShare } from "./publishing/types";
 import type { DailySnapshot } from "./dashboardMetrics";
 import { median, postsPerWeek, pctChange } from "./metrics";
 import { interactionsTotal, engagementRateOf } from "./engagement";
@@ -77,6 +78,8 @@ export type PostCard = {
   multiplier: number | null;
   thumb: string | null;
   permalink: string | null;
+  /** Submitted by SOCIA as an Instagram Trial Reel (SOCIA's own record); absent otherwise. */
+  trial?: TrialShare | null;
 };
 
 export function displayTitle(caption: string): string {

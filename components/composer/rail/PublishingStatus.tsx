@@ -15,6 +15,7 @@ import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import type { RailProps } from "@/components/composer/contracts";
 import { summarize } from "@/lib/publishing/status";
 import { formatWhen } from "@/lib/publishing/timing";
+import { trialLine, trialOf } from "@/lib/publishing/trial";
 import { PLATFORM_LABEL, STATUS_LABEL, type Destination, type DestinationStatus } from "@/lib/publishing/types";
 import type { ReadinessLevel } from "@/lib/publishing/validate";
 import { PlatformMark, useNow, useViewerZone } from "./ReadinessPanel";
@@ -80,6 +81,9 @@ export default function PublishingStatus({ accounts, submission, onRetry, onEdit
                 </div>
 
                 <div className="cr-status-body">
+                  {trialOf(d.platform, d.settings) && d.status !== "cancelled" && (
+                    <p className="cr-trial">{trialLine(trialOf(d.platform, d.settings)!, d.status === "published")}</p>
+                  )}
                   {d.status === "uploading" && (
                     <>
                       <p>{drivenHere ? `Uploading · ${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` : submission.phase === "uploading" ? "Uploading; progress not reported yet." : "Upload not running in this tab."}</p>
