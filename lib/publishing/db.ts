@@ -98,7 +98,7 @@ export type DestinationRow = {
 };
 
 const PARENT_STATUSES: ContentItem["status"][] = ["draft", "scheduled", "publishing", "published", "failed", "cancelled"];
-const SOURCES: NonNullable<ContentItem["source"]>[] = ["calendar", "composer", "quick", "studio", "plan"];
+const SOURCES: NonNullable<ContentItem["source"]>[] = ["calendar", "composer", "quick", "studio", "plan", "repurpose"];
 const DEST_STATUSES: DestinationStatus[] = ["draft", "ready", "scheduled", "uploading", "processing", "published", "failed", "cancelled"];
 
 const asPlatform = (v: unknown): Platform => (PLATFORMS.includes(v as Platform) ? (v as Platform) : "instagram");
@@ -394,6 +394,26 @@ export async function saveItem(
   const item = await loadItem(supabase, postId, userId);
   if (!item) throw new Error("Post not found after saving.");
   return item;
+}
+
+/**
+ * Tag a post with the workspace it was saved in. Best-effort and idempotent:
+ * only a row without a workspace is stamped (a post never moves between an
+ * owner's workspaces on re-save), and a missing `workspace_id` column
+ * (workspaces migration not run yet) is answered as an error we ignore.
+ */
+export async function stampPostWorkspace(supabase: Supa, ownerId: string, workspaceId: string | null, postId: string): Promise<void> {
+  if (!workspaceId) return;
+  try {
+    await supabase
+      .from("scheduled_posts")
+      .update({ workspace_id: workspaceId })
+      .eq("id", postId)
+      .eq("user_id", ownerId)
+      .is("workspace_id", null);
+  } catch {
+    // the post is saved either way
+  }
 }
 
 /**

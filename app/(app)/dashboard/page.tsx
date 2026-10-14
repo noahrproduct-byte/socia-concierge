@@ -29,6 +29,8 @@ import {
 import { getEntitlements, maxHistoryDays, canUseFeature } from "@/lib/entitlements";
 import { minPlanWithFeature, pricingHref, PLANS } from "@/lib/plans";
 import { loadWaitingComments, loadStudioNext, todayFacts } from "@/lib/dailyRecsLoad";
+import { loadRepurpose } from "@/lib/repurposeLoad";
+import type { Candidate } from "@/lib/repurpose";
 import type { TodayCardProps } from "@/components/TodayCard";
 import type { TtVideo } from "@/lib/tiktokAuth";
 import type { Deliverable } from "@/lib/schema";
@@ -211,6 +213,16 @@ export default async function DashboardPage({
   const ytSummary = youtubeSummary(yt);
   const ttSummary = tiktokSummary(ttConnected ? ttRow : null, ttConnected && ttRow ? buildTikTokAnalytics({ row: ttRow, days, rangeLabel, now }) : null);
 
+  // Repurposing (Growth+): the best recent posts not yet on the other platforms.
+  const repurposeP: Promise<Candidate[]> = canUseFeature(ent, "repurposing")
+    ? loadRepurpose(ctx.client, ctx.ownerId, wsId, {
+        igMedia: live ? snap!.media ?? [] : null,
+        fbPosts: fbConnected ? fb!.posts : null,
+        ttVideos: ttConnected && Array.isArray(ttRow!.videos) ? (ttRow!.videos as TtVideo[]) : null,
+        now: now.getTime(),
+      }).catch(() => [])
+    : Promise.resolve([]);
+
   const [schedRes, plansRes] = await schedPlansP;
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
   const upcoming = buildUpcoming(scheduled);
@@ -218,7 +230,7 @@ export default async function DashboardPage({
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
   // The Today card: the facts for Growth and up, an upgrade line below that.
-  const [waiting, studioNext] = await todayExtrasP;
+  const [[waiting, studioNext], repurpose] = await Promise.all([todayExtrasP, repurposeP]);
   const lockedPlan = minPlanWithFeature("daily_recommendations") ?? "growth";
   const today: TodayCardProps = recsOn
     ? {
@@ -238,7 +250,7 @@ export default async function DashboardPage({
     const igSummary = instagramSummary(null);
     return (
       <>
-        <DashboardMultiPlatform greeting={greeting} name={name} summaries={[igSummary, fbSummary, ytSummary, ttSummary]} upcoming={upcoming} updatedAt={updatedAt} today={today} />
+        <DashboardMultiPlatform greeting={greeting} name={name} summaries={[igSummary, fbSummary, ytSummary, ttSummary]} upcoming={upcoming} updatedAt={updatedAt} today={today} repurpose={repurpose} />
       </>
     );
   }
@@ -311,6 +323,7 @@ export default async function DashboardPage({
     timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
     platformSummaries: [igSummary, fbSummary, ytSummary, ttSummary],
     today,
+    repurpose,
   };
 
   return (

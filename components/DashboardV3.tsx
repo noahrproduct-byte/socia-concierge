@@ -18,6 +18,8 @@ import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
 import PlatformSnapshot from "./PlatformSnapshot";
 import TodayCard, { type TodayCardProps } from "./TodayCard";
+import RepurposeCard from "./RepurposeCard";
+import type { Candidate } from "@/lib/repurpose";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker, type PlatformRow, type Slice } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
@@ -51,6 +53,8 @@ export type DashboardData = {
   platformSummaries?: PlatformSummary[];
   /** The Today card (daily recommendations); absent on legacy callers. */
   today?: TodayCardProps;
+  /** "Worth posting again" (repurposing); empty or absent hides the section. */
+  repurpose?: Candidate[];
 };
 
 const TILE_ICON = { video: Film, map: MapPin, users: Users, target: Target } as const;
@@ -168,6 +172,8 @@ export default function DashboardV3({ d }: { d: DashboardData }) {
             </div>
             <ContentRow posts={d.top} onOpen={setOpen} />
           </section>
+
+          {d.repurpose && d.repurpose.length > 0 && <RepurposeCard candidates={d.repurpose} />}
 
           <div className="dv-bottom">
             <section className="ov-card" aria-labelledby="dv-focus-h">

@@ -89,7 +89,7 @@ describe("plan configuration", () => {
       "ai_assistants", "auto_build", "breakout_alerts", "build_from_clips", "client_reports", "comment_replies", "competitor_alerts", "content_plan", "cross_platform_alerts", "cross_platform_analytics",
       "custom_date_ranges", "daily_recommendations", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
       "opportunity_alerts", "performance_change_alerts", "period_comparison", "plan_posts", "platform_reports",
-      "posting_time_analysis", "report_exports", "scheduling", "team", "trend_alerts", "weekly_summary",
+      "posting_time_analysis", "report_exports", "repurposing", "scheduling", "team", "trend_alerts", "weekly_summary",
       "weekly_trend_roundup",
     ].sort());
   });
@@ -184,12 +184,13 @@ describe("comparison table", () => {
     }
     expect(includedFor("free")).toContain("scheduling");
     expect(includedFor("free")).toContain("breakout_alerts");
-    // Cross-platform alerts and daily recommendations shipped; repurposing is still on the way.
-    expect(includedFor("growth")).toContain("cross_platform_alerts");
-    expect(includedFor("starter")).not.toContain("cross_platform_alerts");
-    expect(includedFor("growth")).toContain("daily_recommendations");
-    expect(includedFor("starter")).not.toContain("daily_recommendations");
-    expect(comingSoonFor("growth")).toContain("repurposing");
+    // Cross-platform alerts, daily recommendations and repurposing shipped; Pro's cross-brand analytics is still on the way.
+    for (const k of ["cross_platform_alerts", "daily_recommendations", "repurposing"] as const) {
+      expect(includedFor("growth")).toContain(k);
+      expect(includedFor("starter")).not.toContain(k);
+    }
+    expect(comingSoonFor("growth")).toEqual([]);
+    expect(comingSoonFor("pro")).toContain("cross_brand_analytics");
   });
 
   it("uses the spec's ten sections in order", () => {

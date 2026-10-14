@@ -12702,6 +12702,27 @@ p.cbp-muted { display: block; }
   .td-acts { flex-direction: row; align-items: center; width: 100%; padding-left: 42px; gap: 12px; }
 }
 
+/* ---- Worth posting again (repurposing) ---- */
+.rp .ov-source { display: block; margin-top: 10px; }
+.rp-list { list-style: none; display: flex; flex-direction: column; margin-top: 4px; }
+.rp-row { display: flex; align-items: center; gap: 12px; padding: 11px 2px; border-top: 1px solid var(--border); }
+.rp-list .rp-row:first-child { border-top: none; }
+.rp-thumb { width: 48px; height: 48px; border-radius: 9px; object-fit: cover; flex-shrink: 0; background: var(--surface-muted); }
+.rp-thumb.ph { display: grid; place-items: center; background: var(--panel-dark); color: var(--panel-dark-text); }
+.rp-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rp-body b { font-size: 13.5px; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-body small { font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.rp-body small a { display: inline-flex; align-items: center; gap: 2px; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
+.rp-body .rp-where { color: var(--text-muted); }
+.rp-body .rp-err { color: var(--danger-text); }
+.rp-go { flex-shrink: 0; background: transparent; font-family: inherit; cursor: pointer; }
+.rp-go:disabled { opacity: 0.6; cursor: default; }
+@media (max-width: 560px) {
+  .rp-row { flex-wrap: wrap; align-items: flex-start; }
+  .rp-body { flex-basis: calc(100% - 60px); }
+  .rp-go { margin-left: 60px; }
+}
+
 /* Trial Reel label on post cards and in the post detail (SOCIA's own record) */
 .ov-card-trial { position: absolute; top: 7px; left: 7px; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 750; letter-spacing: 0.02em; background: rgba(0, 0, 0, 0.6); color: #fff; }
 .ov-detail-trial { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); background: var(--primary-subtle); }

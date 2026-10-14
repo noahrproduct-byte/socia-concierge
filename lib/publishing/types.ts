@@ -231,7 +231,7 @@ export type ContentItem = {
   /** Default publish time; destinations may override per platform. */
   scheduledAt: string | null;
   status: "draft" | "scheduled" | "publishing" | "published" | "failed" | "cancelled";
-  source: "calendar" | "composer" | "quick" | "studio" | "plan" | null;
+  source: "calendar" | "composer" | "quick" | "studio" | "plan" | "repurpose" | null;
   planId: string | null;
   planDay: string | null;
   publishedAt: string | null;

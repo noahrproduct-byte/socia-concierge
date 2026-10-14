@@ -15,6 +15,7 @@ import { enabledDestinations, type ComposerDraft } from "@/lib/publishing/compos
 import { seeMedia, type SeePhase, type Seen } from "@/lib/publishing/captionMedia";
 import { countHashtags } from "@/lib/publishing/validate";
 import { readStudioHandoff, type StudioHandoff } from "@/lib/studioHandoff";
+import { takeRepurposeCaptions } from "@/lib/repurposeHandoff";
 import { PLATFORM_LABEL, type InstagramSettings, type Platform } from "@/lib/publishing/types";
 import type { ComposerAction } from "./contracts";
 
@@ -72,6 +73,9 @@ export default function CaptionGenerator({
   const [handoff, setHandoff] = useState<StudioHandoff | null>(null);
   const [locations, setLocations] = useState<KnownLocation[]>([]);
   const [place, setPlace] = useState("auto");
+  // Repurposing: the person asked for a caption per platform when they made
+  // this draft, so it is written (and put in each platform's caption) once.
+  const [auto, setAuto] = useState<"pending" | "running" | "done" | null>(null);
 
   const enabled = enabledDestinations(draft);
   const caption = draft.masterCaption;
@@ -173,6 +177,25 @@ export default function CaptionGenerator({
     setApplied("all");
   };
 
+  useEffect(() => {
+    if (auto !== null || draft.source !== "repurpose" || !draft.postId) return;
+    if (!takeRepurposeCaptions(draft.postId)) return;
+    setAuto("pending");
+    if (!draft.customizePerPlatform) dispatch({ type: "toggle_customize", on: true });
+  }, [auto, dispatch, draft.customizePerPlatform, draft.postId, draft.source]);
+  useEffect(() => {
+    if (auto !== "pending" || busy !== null || !draft.customizePerPlatform || !enabled.length) return;
+    if (!draft.media.length || !draft.media.every((m) => m.url)) return;
+    setAuto("running");
+    void run("generate");
+  }, [auto, busy, draft.customizePerPlatform, draft.media, enabled.length, run]);
+  useEffect(() => {
+    if (auto !== "running" || busy !== null) return;
+    if (result?.captions.length) useAll();
+    setAuto("done");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, busy, result]);
+
   const working = busy !== null;
   const perPlatform = (result?.captions.length ?? 0) > 1 || result?.captions[0]?.target !== "all";
 
@@ -212,6 +235,7 @@ export default function CaptionGenerator({
         />
       )}
 
+      {auto === "running" && <p className="cp-muted">Repurposed draft: SOCIA is writing a caption for each platform.</p>}
       {busy && <p className="cp-muted cg-busy" role="status"><Loader2 size={12} className="cp-spin" /> {PHASE_COPY[busy as SeePhase | "writing"] ?? busy}…</p>}
       {planError && <PlanNotice error={planError} compact />}
       {error && <p className="cp-error" role="alert">{error}</p>}
