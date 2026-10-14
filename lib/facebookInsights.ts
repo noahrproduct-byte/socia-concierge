@@ -11,7 +11,7 @@
 // inventing numbers. Nothing here is estimated.
 
 import { FB_GRAPH_V } from "./facebook";
-import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
+import { connectionWorkspaceId } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -40,10 +40,10 @@ export type FbInsights = {
 
 type Conn = { page_id: string; access_token: string };
 
-/** The active workspace's usable Facebook connection (token + Page), or null. */
-async function readConn(supabase: Supa, userId: string): Promise<Conn | null> {
+/** A workspace's usable Facebook connection (token + Page), or null. `workspaceId` undefined: the active workspace. */
+async function readConn(supabase: Supa, userId: string, workspaceId?: string | null): Promise<Conn | null> {
   try {
-    const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+    const wsId = await connectionWorkspaceId(supabase, userId, workspaceId);
     let q = supabase
       .from("facebook_connections")
       .select("page_id, access_token, plan_suspended_at, connection_status")
@@ -116,8 +116,8 @@ async function fetchMetricWindow(token: string, pageId: string, metric: string, 
  *  AND the `days` before them (so periods can be compared). null when there is
  *  no usable connection; `available: false` when the connection exists but
  *  read_insights isn't granted (or every metric failed). */
-export async function getFacebookInsights(supabase: Supa, userId: string, days: number): Promise<FbInsights | null> {
-  const conn = await readConn(supabase, userId);
+export async function getFacebookInsights(supabase: Supa, userId: string, days: number, workspaceId?: string | null): Promise<FbInsights | null> {
+  const conn = await readConn(supabase, userId, workspaceId);
   if (!conn) return null;
   const until = Math.floor(Date.now() / 1000);
   const since = until - (2 * days + 1) * 86400;

@@ -21,13 +21,15 @@ export async function loadReport(
   workspaceName: string,
   period: ReportPeriod,
   platform: ReportPlatform | "all" = "all",
+  /** The workspace being reported on (undefined: the person's active one). */
+  workspaceId?: string | null,
 ): Promise<Report> {
   const wantIg = platform === "all" || platform === "instagram";
   const wantYt = platform === "all" || platform === "youtube";
 
   let instagram: Parameters<typeof buildReport>[0]["instagram"] = null;
   if (wantIg) {
-    const snap = await getIgSnapshot(supabase, ownerId).catch(() => null);
+    const snap = await getIgSnapshot(supabase, ownerId, workspaceId ?? undefined).catch(() => null);
     if (snap) {
       let daily: DailySnapshot[] = [];
       try {
@@ -41,7 +43,7 @@ export async function loadReport(
 
   let youtube: Parameters<typeof buildReport>[0]["youtube"] = null;
   if (wantYt) {
-    const yt = await getYouTubeAnalytics(supabase, ownerId, period.days).catch(() => null);
+    const yt = await getYouTubeAnalytics(supabase, ownerId, period.days, { workspaceId: workspaceId ?? undefined }).catch(() => null);
     if (yt) youtube = { title: yt.channel.title, views: yt.range?.views ?? null, minutes: yt.range?.minutes ?? null, subs: yt.range?.subs ?? null };
   }
 

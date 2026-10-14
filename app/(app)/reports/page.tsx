@@ -127,7 +127,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   }
   period = { ...period, days: clampDays(ent, period.days) };
 
-  const report = await loadReport(ctx.client, ctx.ownerId, wsName, period, platform);
+  const report = await loadReport(ctx.client, ctx.ownerId, wsName, period, platform, ctx.workspace?.id ?? undefined);
 
   // ---- Client-ready print view (Pro): a clean, branded document, no shell ----
   if (sp.print === "1" && gate.client) {

@@ -61,7 +61,7 @@ export default async function DashboardPage({
   // Loads start as early as their inputs allow and are awaited together, so
   // the page waits for the slowest read rather than for each in turn.
   const wsId = ctx.workspace?.id ?? null;
-  const fbP = getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null);
+  const fbP = getFbSnapshot(ctx.client, ctx.ownerId, wsId ?? undefined).catch(() => null);
   const ttP = scopeToWorkspace(
     ctx.client.from("tiktok_connections").select("username, display_name, avatar_url, is_verified, follower_count, likes_count, video_count, videos").eq("user_id", ctx.ownerId),
     wsId,
@@ -104,12 +104,12 @@ export default async function DashboardPage({
   const scope = [wsId, ctx.isOwner ? "owner" : `guest:${ctx.viewerId}`];
   const ytP = cachedLive(
     ctx.ownerId, ["yt", ...scope, days],
-    () => getYouTubeAnalytics(ctx.client, ctx.ownerId, days),
+    () => getYouTubeAnalytics(ctx.client, ctx.ownerId, days, { workspaceId: wsId ?? undefined }),
     (v) => v.note == null, // a degraded read (live call failed) is not reused
   ).catch(() => null);
   const fbInsightsP = fbP.then((f) =>
     f?.status === "connected"
-      ? cachedLive(ctx.ownerId, ["fb-insights", ...scope, f.page_id, days], () => getFacebookInsights(ctx.client, ctx.ownerId, days), (v) => v.available).catch(() => null)
+      ? cachedLive(ctx.ownerId, ["fb-insights", ...scope, f.page_id, days], () => getFacebookInsights(ctx.client, ctx.ownerId, days, wsId ?? undefined), (v) => v.available).catch(() => null)
       : null,
   );
   const snapP = igConnected ? getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null) : Promise.resolve(null);

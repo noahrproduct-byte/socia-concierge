@@ -99,7 +99,7 @@ export async function syncCommentDrafts(
   brand: BrandVoice,
 ): Promise<SyncResult> {
   const [fb, ig] = await Promise.all([
-    getFbSnapshot(supabase, ownerId).catch(() => null),
+    getFbSnapshot(supabase, ownerId, workspaceId ?? undefined).catch(() => null),
     getIgSnapshot(supabase, ownerId, workspaceId).catch(() => null),
   ]);
   const fbConnected = fb?.status === "connected";

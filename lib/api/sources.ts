@@ -57,17 +57,17 @@ export async function loadSources(ctx: Ctx, ent: Entitlements, opts: { days?: nu
       }).catch(() => null)
     : Promise.resolve(null);
   const fbP: Promise<Sources["fb"]> = want.has("facebook")
-    ? getFbSnapshot(ctx.client, ctx.ownerId).then(async (snap) => {
+    ? getFbSnapshot(ctx.client, ctx.ownerId, wsId ?? undefined).then(async (snap) => {
         if (!snap || snap.status !== "connected") return null;
         const [snaps, insights] = await Promise.all([
           snap.page_id ? readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", snap.page_id).catch(() => []) : Promise.resolve([]),
-          cachedLive(ctx.ownerId, ["fb-insights", ...scope, snap.page_id, r.days], () => getFacebookInsights(ctx.client, ctx.ownerId, r.days), (v) => v.available).then((c) => c?.value ?? null).catch(() => null),
+          cachedLive(ctx.ownerId, ["fb-insights", ...scope, snap.page_id, r.days], () => getFacebookInsights(ctx.client, ctx.ownerId, r.days, wsId ?? undefined), (v) => v.available).then((c) => c?.value ?? null).catch(() => null),
         ]);
         return { snap, snaps, insights };
       }).catch(() => null)
     : Promise.resolve(null);
   const ytP: Promise<YouTubeAnalytics | null> = want.has("youtube")
-    ? cachedLive(ctx.ownerId, [opts.deepYouTube ? "yt-deep" : "yt", ...scope, r.days], () => getYouTubeAnalytics(ctx.client, ctx.ownerId, r.days, opts.deepYouTube ? { deep: true } : undefined), (v) => v.note == null)
+    ? cachedLive(ctx.ownerId, [opts.deepYouTube ? "yt-deep" : "yt", ...scope, r.days], () => getYouTubeAnalytics(ctx.client, ctx.ownerId, r.days, { deep: Boolean(opts.deepYouTube), workspaceId: wsId ?? undefined }), (v) => v.note == null)
         .then((c) => c?.value ?? null).catch(() => null)
     : Promise.resolve(null);
   const ttP: Promise<Record<string, unknown> | null> = want.has("tiktok")

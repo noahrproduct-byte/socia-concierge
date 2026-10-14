@@ -63,7 +63,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null),
   ]);
   profileSnapP.catch(() => {}); // surfaced when awaited below
-  const fbP = getFbSnapshot(ctx.client, ctx.ownerId).catch(() => null);
+  const fbP = getFbSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? undefined).catch(() => null);
   // TikTok: the active workspace's account row (counts + videos), if any.
   const ttP: Promise<Record<string, unknown> | null> = (async () => {
     try {
@@ -93,7 +93,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const scope = [ctx.workspace?.id, ctx.isOwner ? "owner" : `guest:${ctx.viewerId}`];
   const ytP = cachedLive(
     ctx.ownerId, ["yt-deep", ...scope, days],
-    () => getYouTubeAnalytics(ctx.client, ctx.ownerId, days, { deep: true }),
+    () => getYouTubeAnalytics(ctx.client, ctx.ownerId, days, { deep: true, workspaceId: ctx.workspace?.id ?? undefined }),
     (v) => v.note == null, // a degraded read (live call failed) is not reused
   ).catch(() => null);
   // Facebook: snapshots (SOCIA's own follower history) and Page Insights
@@ -102,7 +102,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const fbSnapsP = fbP.then((f) => (f?.status === "connected" && f.page_id ? readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", f.page_id).catch(() => []) : []));
   const fbInsightsP = fbP.then((f) =>
     f?.status === "connected"
-      ? cachedLive(ctx.ownerId, ["fb-insights", ...scope, f.page_id, days], () => getFacebookInsights(ctx.client, ctx.ownerId, days), (v) => v.available).catch(() => null)
+      ? cachedLive(ctx.ownerId, ["fb-insights", ...scope, f.page_id, days], () => getFacebookInsights(ctx.client, ctx.ownerId, days, ctx.workspace?.id ?? undefined), (v) => v.available).catch(() => null)
       : null,
   );
 

@@ -5,7 +5,7 @@
 import { timedFn } from "@/lib/timing";
 import { scheduleBackground, onceEvery } from "@/lib/background";
 import { FB_GRAPH_V } from "./facebook";
-import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
+import { connectionWorkspaceId } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -228,8 +228,8 @@ type FbRow = {
  * row per user. Reads take the first matching row rather than maybeSingle, so a
  * user with several workspaces never trips "multiple rows returned".
  */
-async function readFbRow(supabase: Supa, userId: string): Promise<FbRow | null> {
-  const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+async function readFbRow(supabase: Supa, userId: string, workspaceId?: string | null): Promise<FbRow | null> {
+  const wsId = await connectionWorkspaceId(supabase, userId, workspaceId);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scope = (q: any) => (wsId ? q.eq("workspace_id", wsId) : q);
   try {
@@ -256,8 +256,9 @@ function idleStatus(row: FbRow): FbSnapshot["status"] {
  *  connection exists; a non-null result with status "expired", "choose_page"
  *  or "suspended" tells the UI what attention is needed. A suspended Page
  *  (paused by a plan downgrade) is never read from Meta. */
-async function getFbSnapshotImpl(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
-  const row = await readFbRow(supabase, userId);
+/** The Facebook Page snapshot for `workspaceId` (undefined: the person's active workspace). */
+async function getFbSnapshotImpl(supabase: Supa, userId: string, workspaceId?: string | null): Promise<FbSnapshot | null> {
+  const row = await readFbRow(supabase, userId, workspaceId);
   if (!row) return null;
 
   if (
