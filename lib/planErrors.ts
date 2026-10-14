@@ -46,6 +46,7 @@ export const METER_PHRASE: Record<MeterKey, string> = {
   account_audit: "account audits",
   content_plan: "Content Plan generations",
   content_ideas: "content ideas",
+  assistant_requests: "AI assistant requests",
 };
 
 const CUSTOM_HREF = `${PRICING_PATH}#custom`;

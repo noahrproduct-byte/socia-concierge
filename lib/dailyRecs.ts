@@ -9,7 +9,7 @@
 // Pure and client-safe. "Today" is the viewer's day, so the card computes in
 // the browser in the viewer's zone; tests pass a named zone.
 import { buildWindows, BLOCK_STARTS, DOW_LONG, type TimedPost, type Window } from "./postingTimes";
-import { zonedParts, zonedToUtc, formatClock, betweenPhrase } from "./publishing/timing";
+import { zonedParts, zonedToUtc, zonedAt, formatClock, betweenPhrase } from "./publishing/timing";
 import { weekdayIndex, type PostStatus } from "./scheduling";
 import { fmtMultiplier } from "./multiplier";
 
@@ -231,7 +231,7 @@ export function dailyRecommendations(f: TodayFacts, now: Date, tz: string): Toda
   }
 
   // Posting windows from the account's own history.
-  const win = f.timed && f.timed.length ? buildWindows(f.timed, (d) => { const p = zonedParts(d, tz); return { day: (p.weekday + 6) % 7, hour: p.hour }; }) : null;
+  const win = f.timed && f.timed.length ? buildWindows(f.timed, zonedAt(tz)) : null;
   const ahead = win?.enough ? windowsAhead(win.best, now, tz, GAP_HOURS / 24) : [];
   const todayWin = ahead.find((o) => dayNum(new Date(o.start), tz) === today) ?? null;
 
