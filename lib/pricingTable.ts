@@ -196,11 +196,18 @@ function publishingCells(): Record<PlanId, Cell> {
 }
 
 /** Features a plan lists that are not built yet, for a separate "coming soon" list. Never mixed into the included list. */
+/**
+ * Real or planned, but not on the pricing page yet: AI assistant access is
+ * listed only once its connection flow has been tested with Claude and
+ * ChatGPT, and the draft tools and developer API once they exist.
+ */
+export const UNANNOUNCED: ReadonlySet<FeatureKey> = new Set<FeatureKey>(["ai_assistants", "ai_assistant_drafts", "developer_api"]);
+
 export function comingSoonFor(plan: PlanId): FeatureKey[] {
-  return (Object.keys(FEATURE_STATUS) as FeatureKey[]).filter((k) => PLANS[plan].features[k] && featureSoon(k));
+  return (Object.keys(FEATURE_STATUS) as FeatureKey[]).filter((k) => PLANS[plan].features[k] && featureSoon(k) && !UNANNOUNCED.has(k));
 }
 
 /** Features a plan includes that are real today (available or policy). */
 export function includedFor(plan: PlanId): FeatureKey[] {
-  return (Object.keys(FEATURE_STATUS) as FeatureKey[]).filter((k) => PLANS[plan].features[k] && !featureSoon(k));
+  return (Object.keys(FEATURE_STATUS) as FeatureKey[]).filter((k) => PLANS[plan].features[k] && !featureSoon(k) && !UNANNOUNCED.has(k));
 }

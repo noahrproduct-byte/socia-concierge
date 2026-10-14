@@ -60,8 +60,16 @@ export type Recommendation = {
 /** Minutes into a block the recommended time lands (6:15 PM for a 6 to 9 PM block). */
 export const MINUTES_INTO_BLOCK = 15;
 
+/** Weekday (0 = Monday) and hour of an instant in a named zone, for buildWindows. */
+export const zonedAt = (tz: string) => (d: Date): { day: number; hour: number } => {
+  const p = zonedParts(d, tz);
+  return { day: (p.weekday + 6) % 7, hour: p.hour };
+};
+
 export function recommendedWindows(timed: TimedPost[], now: Date, tz: string): Recommendation {
-  const w = buildWindows(timed);
+  // Bucketed in the zone asked for (in the browser that is the viewer's own;
+  // on the server, the runtime's zone would be wrong).
+  const w = buildWindows(timed, zonedAt(tz));
   if (!w.enough) return { enough: false, posts: w.posts, best: [], sentence: null };
   const best: RecommendedWindow[] = w.best.map((b) => ({
     day: b.day, block: b.block, label: b.label, n: b.n, rel: b.rel, confidence: b.confidence,
