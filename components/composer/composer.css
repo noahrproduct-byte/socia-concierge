@@ -365,3 +365,12 @@
 .cg-place { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .cg-place-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-right: 2px; }
 .cg-chip.on { color: var(--primary-text); background: var(--primary-subtle); border-color: rgba(var(--primary-rgb), 0.45); }
+
+/* Trial Reel (Instagram Reel settings) */
+.cp-trial { gap: 8px; }
+.cp-trial-body { display: flex; flex-direction: column; gap: 8px; margin-left: 26px; padding: 10px 12px; border-left: 2px solid rgba(var(--primary-rgb), 0.35); border-radius: 0 10px 10px 0; background: var(--surface-muted); }
+.cp-trial-head { font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
+.cp-trial-head b { margin-right: 4px; color: var(--text-primary); }
+.cp-checkrow.off { cursor: default; }
+.cp-checkrow.off > span { color: var(--text-muted); }
+@media (max-width: 520px) { .cp-trial-body { margin-left: 0; } }

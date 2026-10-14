@@ -12701,3 +12701,7 @@ p.cbp-muted { display: block; }
   .td-row { flex-wrap: wrap; }
   .td-acts { flex-direction: row; align-items: center; width: 100%; padding-left: 42px; gap: 12px; }
 }
+
+/* Trial Reel label on post cards and in the post detail (SOCIA's own record) */
+.ov-card-trial { position: absolute; top: 7px; left: 7px; padding: 2px 6px; border-radius: 6px; font-size: 10px; font-weight: 750; letter-spacing: 0.02em; background: rgba(0, 0, 0, 0.6); color: #fff; }
+.ov-detail-trial { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); background: var(--primary-subtle); }

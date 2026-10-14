@@ -6,9 +6,9 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
-import { CAPABILITIES } from "@/lib/publishing/capabilities";
+import { CAPABILITIES, pairState } from "@/lib/publishing/capabilities";
 import type { ComposerDraft, DraftDestination } from "@/lib/publishing/composer";
-import type { CollaboratorsCheck, InstagramFormat, InstagramSettings, MediaItem } from "@/lib/publishing/types";
+import type { CollaboratorsCheck, InstagramFormat, InstagramSettings, MediaItem, TrialShare } from "@/lib/publishing/types";
 import { IG_USERNAME_RE, MAX_COLLABORATORS, normalizeUsername } from "@/lib/publishing/igRules";
 import { fmtDuration, posterFrame, type MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
 import type { ComposerAction } from "../contracts";
@@ -65,9 +65,10 @@ export default function InstagramSettingsForm({
 
       {s.format === "reel" && (
         <>
-          <label className="cp-row cp-checkrow" data-field="shareToFeed">
-            <input type="checkbox" checked={s.shareToFeed} onChange={(e) => set({ shareToFeed: e.target.checked })} />
-            <span>Share to feed<small>Also show this Reel in your profile grid and followers&apos; feeds.</small></span>
+          {CAPABILITIES.instagram.features.trialReel === "supported" && <TrialReelField settings={s} destKey={dest.key} onChange={set} />}
+          <label className={`cp-row cp-checkrow${s.trial ? " off" : ""}`} data-field="shareToFeed">
+            <input type="checkbox" checked={s.trial ? false : s.shareToFeed} disabled={Boolean(s.trial)} onChange={(e) => set({ shareToFeed: e.target.checked })} />
+            <span>Share to feed<small>{s.trial ? "Not used for a Trial Reel: it goes to non-followers first." : <>Also show this Reel in your profile grid and followers&apos; feeds.</>}</small></span>
           </label>
           <CoverPicker video={video} file={video ? fileFor(video.id) : null} valueMs={s.coverTimestampMs} onChange={(ms, poster) => {
             set({ coverTimestampMs: ms });
@@ -134,6 +135,47 @@ export default function InstagramSettingsForm({
 
 // ---------------------------------------------------------------------------
 
+const TRIAL_OPTIONS: { value: TrialShare; label: string; help: string }[] = [
+  { value: "manual", label: "I'll share it with everyone from Instagram", help: "It stays with non-followers until you share it with your followers from the Reel in the Instagram app." },
+  { value: "if_performing", label: "Automatically share it if it performs well", help: "Instagram shares it with your followers on its own if it does well with non-followers." },
+];
+
+/**
+ * Trial Reel: shown to non-followers first. SOCIA records the choice and
+ * sends it to Instagram; it can't share a trial with followers itself and
+ * can't see afterwards whether that happened, so neither is offered.
+ */
+function TrialReelField({ settings, destKey, onChange }: { settings: InstagramSettings; destKey: string; onChange: (patch: Partial<InstagramSettings>) => void }) {
+  const on = Boolean(settings.trial);
+  const pair = pairState("instagram", "trialReel", "collaborators");
+  const blocked = on && (settings.collaborators?.length ?? 0) > 0 && pair != null && pair.state !== "supported";
+  return (
+    <div className="cp-row cp-trial" data-field="trial">
+      <label className="cp-checkrow">
+        <input type="checkbox" checked={on} onChange={(e) => onChange({ trial: e.target.checked ? { share: settings.trial?.share ?? "manual" } : null })} />
+        <span>Publish as Trial Reel<small>Test it with people who don&apos;t follow you before your followers see it.</small></span>
+      </label>
+      {on && (
+        <div className="cp-trial-body">
+          <p className="cp-trial-head"><b>Trial Reel</b> Show this Reel to non-followers first.</p>
+          <span className="cp-label">Graduation</span>
+          <div className="cp-radios stack" role="radiogroup" aria-label="When this Trial Reel reaches your followers">
+            {TRIAL_OPTIONS.map((o) => (
+              <label key={o.value} className={`cp-radio${settings.trial?.share === o.value ? " on" : ""}`}>
+                <input type="radio" name={`ig-trial-${destKey}`} value={o.value} checked={settings.trial?.share === o.value} onChange={() => onChange({ trial: { share: o.value } })} />
+                <span>{o.label}</span>
+                <small>{o.help}</small>
+              </label>
+            ))}
+          </div>
+          {blocked && <small className="cp-help warn">{pair!.message}</small>}
+          <small className="cp-help">Instagram decides which accounts can post Trial Reels. If yours can&apos;t, SOCIA shows Instagram&apos;s answer and doesn&apos;t post it as a normal Reel. SOCIA can&apos;t see later whether a Trial Reel was shared with everyone.</small>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const sortedList = (list: string[]) => Array.from(new Set(list.map(normalizeUsername))).sort();
 
 /**
@@ -144,6 +186,7 @@ const sortedList = (list: string[]) => Array.from(new Set(list.map(normalizeUser
 function CollaboratorsField({ accountId, settings, onChange }: { accountId: string; settings: InstagramSettings; onChange: (patch: Partial<InstagramSettings>) => void }) {
   const list = settings.collaborators ?? [];
   const check = settings.collaboratorsCheck ?? null;
+  const trialPair = pairState("instagram", "trialReel", "collaborators");
   const [checking, setChecking] = useState(false);
   const [inputErr, setInputErr] = useState<string | null>(null);
   // The latest settings, so an answer that arrives after other edits never overwrites them.
@@ -205,6 +248,7 @@ function CollaboratorsField({ accountId, settings, onChange }: { accountId: stri
       </div>
       {inputErr && <small className="cp-help warn">{inputErr}</small>}
       {statusLine}
+      {list.length > 0 && settings.trial && settings.format === "reel" && trialPair && trialPair.state !== "supported" && <small className="cp-help warn">{trialPair.message}</small>}
       <small className="cp-help">A Collab post appears on each collaborator&apos;s profile too, once they accept the invite in the Instagram app. Public accounts only.</small>
     </div>
   );

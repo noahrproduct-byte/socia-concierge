@@ -52,7 +52,8 @@ import {
   type CalPost,
 } from "@/lib/audience";
 import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status";
-import { PLATFORM_LABEL, type Destination, type Platform } from "@/lib/publishing/types";
+import { PLATFORM_LABEL, type Destination, type Platform, type TrialShare } from "@/lib/publishing/types";
+import { trialLine } from "@/lib/publishing/trial";
 import "./calendar-destinations.css";
 
 export type { CalPost };
@@ -61,7 +62,10 @@ export type { CalPost };
 export type CalDestination = Pick<
   Destination,
   "id" | "postId" | "platform" | "accountId" | "status" | "scheduledAt" | "errorMessage" | "permalink"
->;
+> & {
+  /** Submitted as an Instagram Trial Reel, and how it may reach followers (SOCIA's own record). */
+  trial?: TrialShare | null;
+};
 
 /** A scheduled_posts row, plus its destinations when it was created by the
  *  multi-platform composer. Rows without destinations are legacy Instagram
@@ -215,14 +219,19 @@ function Mark({ platform }: { platform: Platform }) {
 
 /** One mark per destination, tinted by that destination's own status, so a
  *  failed YouTube upload reads as failed next to a published Instagram post. */
-function Marks({ destinations }: { destinations: Pick<CalDestination, "id" | "platform" | "status">[] }) {
+function Marks({ destinations }: { destinations: Pick<CalDestination, "id" | "platform" | "status" | "trial">[] }) {
+  const trial = destinations.find((d) => d.trial && d.status !== "cancelled")?.trial ?? null;
   return (
     <span className="cd-marks">
-      {destinations.map((d) => (
-        <span key={d.id} className={`cd-mark st-${d.status}`} title={`${PLATFORM_LABEL[d.platform]}: ${d.status}`} aria-label={`${PLATFORM_LABEL[d.platform]} ${d.status}`}>
-          <Mark platform={d.platform} />
-        </span>
-      ))}
+      {destinations.map((d) => {
+        const what = `${PLATFORM_LABEL[d.platform]}${d.trial ? " Trial Reel" : ""}`;
+        return (
+          <span key={d.id} className={`cd-mark st-${d.status}`} title={`${what}: ${d.status}`} aria-label={`${what} ${d.status}`}>
+            <Mark platform={d.platform} />
+          </span>
+        );
+      })}
+      {trial && <span className="cd-trial" title={trialLine(trial, destinations.some((d) => d.trial && d.status === "published"))}>Trial</span>}
     </span>
   );
 }

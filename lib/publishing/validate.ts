@@ -6,8 +6,8 @@
 //
 // Client-safe: no server imports.
 
-import { CAPABILITIES, formatSpec, type FormatId, type MediaRule, type CaptionRule } from "./capabilities";
-import type { MediaItem, Platform, DestinationSettings, InstagramSettings, YouTubeSettings, TikTokSettings } from "./types";
+import { CAPABILITIES, formatSpec, pairState, type FormatId, type MediaRule, type CaptionRule } from "./capabilities";
+import { TRIAL_SHARES, type MediaItem, type Platform, type DestinationSettings, type InstagramSettings, type YouTubeSettings, type TikTokSettings } from "./types";
 import { MAX_COLLABORATORS, IG_USERNAME_RE, normalizeUsername } from "./igRules";
 
 export type Severity = "block" | "warn";
@@ -172,6 +172,26 @@ export function collaboratorIssues(s: InstagramSettings): Issue[] {
   return out;
 }
 
+/**
+ * Trial Reel. Reels only, with a sharing choice, and not combined with a
+ * feature pair SOCIA hasn't verified yet (the capability model says which).
+ * Whether this account may use Trial Reels at all is Instagram's call at
+ * publish time; Meta publishes no rule or check for it.
+ */
+export function trialIssues(s: InstagramSettings): Issue[] {
+  if (!s.trial) return [];
+  const field = "trial";
+  if (CAPABILITIES.instagram.features.trialReel !== "supported") {
+    return [{ code: "trial_unavailable", severity: "block", field, message: "Trial Reels aren't available through SOCIA right now." }];
+  }
+  if (s.format !== "reel") return [{ code: "trial_not_reel", severity: "block", field, message: "Trial Reels are Reels only. Choose Reel, or turn off Trial Reel." }];
+  const out: Issue[] = [];
+  if (!TRIAL_SHARES.includes(s.trial.share)) out.push({ code: "trial_share_missing", severity: "block", field, message: "Choose how this Trial Reel can reach your followers." });
+  const pair = pairState("instagram", "trialReel", "collaborators");
+  if ((s.collaborators?.length ?? 0) > 0 && pair && pair.state !== "supported") out.push({ code: "trial_collaborators_unverified", severity: "block", field, message: pair.message });
+  return out;
+}
+
 export function validateDestination(input: DestinationInput): Readiness {
   const caps = CAPABILITIES[input.platform];
   const issues: Issue[] = [];
@@ -201,6 +221,7 @@ export function validateDestination(input: DestinationInput): Readiness {
       issues.push({ code: "user_tag_position", severity: "block", field: "userTags", message: "Each tagged user on an image needs a position." });
     }
     issues.push(...collaboratorIssues(s));
+    issues.push(...trialIssues(s));
   }
 
   if (input.platform === "youtube") {

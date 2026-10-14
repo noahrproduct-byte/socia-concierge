@@ -93,7 +93,23 @@ export type InstagramSettings = {
   collaborators: string[];
   /** SOCIA's pre-flight check of `collaborators` with Instagram (lib/publishing/collaborators.ts). */
   collaboratorsCheck: CollaboratorsCheck | null;
+  /**
+   * Trial Reel (Reels only): Instagram shows it to non-followers first. null
+   * or absent is a normal Reel. This is SOCIA's own record of what was asked
+   * for; Instagram does not report afterwards whether a trial was shared with
+   * followers, so nothing here claims it was.
+   */
+  trial?: { share: TrialShare } | null;
 };
+
+/**
+ * How a Trial Reel can reach followers later, in SOCIA's words.
+ *   manual         the creator shares it with everyone from the Instagram app
+ *   if_performing  Instagram shares it with everyone automatically if it performs well
+ * lib/igPublish.ts maps these to Instagram's own values in one place.
+ */
+export type TrialShare = "manual" | "if_performing";
+export const TRIAL_SHARES: TrialShare[] = ["manual", "if_performing"];
 
 /**
  * What Instagram said when SOCIA created an UNPUBLISHED test container with
@@ -170,7 +186,7 @@ export type DestinationSettings = SettingsByPlatform[Platform];
 
 export function defaultSettings<P extends Platform>(platform: P): SettingsByPlatform[P] {
   const all: SettingsByPlatform = {
-    instagram: { format: "reel", caption: null, shareToFeed: true, coverTimestampMs: null, altText: null, userTags: [], aiGenerated: false, collaborators: [], collaboratorsCheck: null },
+    instagram: { format: "reel", caption: null, shareToFeed: true, coverTimestampMs: null, altText: null, userTags: [], aiGenerated: false, collaborators: [], collaboratorsCheck: null, trial: null },
     youtube: {
       title: "", description: null, tags: [], categoryId: null, privacy: "public", madeForKids: null, syntheticMedia: false,
       playlistId: null, notifySubscribers: true, license: "youtube", embeddable: true, recordingDate: null, language: null, thumbnailMediaId: null,
