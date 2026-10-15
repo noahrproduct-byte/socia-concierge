@@ -11,6 +11,7 @@ import type { ComposerPageProps } from "@/components/composer/contracts";
 import PageHeader from "@/components/PageHeader";
 import ComposerPage from "@/components/composer/ComposerPage";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { approvalRole as approvalRoleFor } from "@/lib/approvals";
 import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
 
@@ -89,7 +90,11 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
     timing = { instagram: { timed } };
   }
 
+  // Approvals (Pro): Members submit, the owner and Admins approve.
+  const approvalRole = approvalRoleFor(ctx, checkFeature(ent, "approval_workflow").ok);
+
   const props: ComposerPageProps = {
+    approvalRole,
     userId: user.id,
     accounts: accountsRes.accounts,
     accountsComplete: accountsRes.complete,

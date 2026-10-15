@@ -7,7 +7,9 @@ import { loadDestinationsLite, loadMeasureSources, resultsForPosts } from "@/lib
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getIgSnapshot, getActiveConnection } from "@/lib/instagramSync";
 import { PUBLISH_SCOPE } from "@/lib/igPublish";
-import { serviceConfigured } from "@/lib/supabase/service";
+import { serviceConfigured, createServiceClient } from "@/lib/supabase/service";
+import { approvalItems, approvalRole, approvalsEnabled } from "@/lib/approvals";
+import CalendarApprovals from "@/components/CalendarApprovals";
 import { getEntitlements, checkFeature } from "@/lib/entitlements";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
@@ -69,7 +71,8 @@ async function loadDestinations(supabase: SupabaseClient, userId: string, postId
   return out;
 }
 
-export default async function CalendarPage() {
+export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view } = await searchParams;
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   // The active Brand Workspace: its owner's data, read through ctx.client.
@@ -145,16 +148,27 @@ export default async function CalendarPage() {
     return { ...r, ...(ds ? { destinations: ds } : {}), result };
   });
 
-  return (
-    <>
-      <CalendarBoard
-        posts={posts}
-        igUsername={igUsername}
-        connected={connected}
-        scheduled={scheduled}
-        userId={user.id}
-        publish={publish}
-      />
-    </>
+  const board = (
+    <CalendarBoard
+      posts={posts}
+      igUsername={igUsername}
+      connected={connected}
+      scheduled={scheduled}
+      userId={user.id}
+      publish={publish}
+    />
   );
+
+  // Approvals (Pro): the owner and Admins get "Needs approval", Members "My submissions".
+  const apRole = approvalRole(ctx, checkFeature(ent, "approval_workflow").ok);
+  const svc = createServiceClient();
+  if (apRole && svc && (await approvalsEnabled(svc))) {
+    const items = await approvalItems(svc, ctx.ownerId, wsId, apRole === "approve" ? { role: "approve" } : { role: "submit", viewerId: ctx.viewerId }).catch(() => []);
+    return (
+      <CalendarApprovals role={apRole} items={items} initialTab={view === "approvals" ? "approvals" : "calendar"}>
+        {board}
+      </CalendarApprovals>
+    );
+  }
+  return board;
 }

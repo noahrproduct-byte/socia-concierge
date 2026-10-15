@@ -282,7 +282,7 @@ export async function getPerformanceInsights(ctx: Ctx, ent: Entitlements, input:
   for (const i of yt?.insights ?? []) insights.push({ platform: "YouTube", tag: i.tag, title: i.title, finding: i.body, observed: i.observed, interpretation: i.interpretation, recommendation: i.recommendation });
   const fb = fbView(src);
   for (const i of fb?.insights ?? []) insights.push({ platform: "Facebook", tag: i.tag, title: i.title, finding: i.body, observed: i.observed, interpretation: i.interpretation, recommendation: i.recommendation });
-  const alerts = await getAlerts(ctx.client, ctx.ownerId, 10, ctx.workspace?.id ?? null).catch(() => []);
+  const alerts = await getAlerts(ctx.client, ctx.ownerId, 10, ctx.workspace?.id ?? null, ctx.viewerId).catch(() => []);
   return {
     range: rangeOut(src),
     insights,

@@ -117,8 +117,8 @@ export default async function AppShell({ children }: { children: React.ReactNode
       });
       // Alerts of the active workspace (verified events; the bell inbox).
       const [alertRows, unread] = await Promise.all([
-        getAlerts(ctx.client, ctx.ownerId, 15, ctx.workspace?.id),
-        unreadAlertCount(ctx.client, ctx.ownerId, ctx.workspace?.id),
+        getAlerts(ctx.client, ctx.ownerId, 15, ctx.workspace?.id, ctx.viewerId),
+        unreadAlertCount(ctx.client, ctx.ownerId, ctx.workspace?.id, ctx.viewerId),
       ]);
       alerts = alertRows.map((a) => ({ id: a.id, type: a.type, severity: a.severity, title: a.title, body: a.body, detectedAt: a.detectedAt, readAt: a.readAt, entityRef: a.entityRef }));
       unreadAlerts = unread ?? 0;

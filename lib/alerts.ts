@@ -60,6 +60,7 @@ export async function recordAlerts(
     body: c.body,
     evidence: c.evidence,
     entity_ref: c.entityRef ?? null,
+    ...(c.recipientId ? { recipient_id: c.recipientId } : {}),
   }));
   const { data, error } = await svc
     .from("alert_events")
@@ -85,13 +86,33 @@ const toAlert = (r: Row): Alert => ({
 // null-workspace (legacy) rows, so no past alert is ever hidden. Once those rows
 // are backfilled the null branch simply matches nothing.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function scopeAlerts(q: any, workspaceId: string | null | undefined): any {
-  return workspaceId ? q.or(`workspace_id.is.null,workspace_id.eq.${workspaceId}`) : q;
+function scopeAlerts(q: any, workspaceId: string | null | undefined, recipients?: { enabled: boolean; viewerId?: string | null }): any {
+  let out = workspaceId ? q.or(`workspace_id.is.null,workspace_id.eq.${workspaceId}`) : q;
+  // Alerts addressed to one person (approval requests and decisions) are seen
+  // only by that person; with no viewer named, only workspace-wide alerts.
+  if (recipients?.enabled) out = recipients.viewerId ? out.or(`recipient_id.is.null,recipient_id.eq.${recipients.viewerId}`) : out.is("recipient_id", null);
+  return out;
+}
+
+let recipientsSince: number | null = null;
+
+/** Whether alert_events has recipient_id (supabase/approvals.sql has run). Sticky once seen. */
+export async function alertRecipientsEnabled(supabase: Supa): Promise<boolean> {
+  if (recipientsSince != null) return true;
+  try {
+    const { error } = await supabase.from("alert_events").select("recipient_id", { head: true, count: "exact" }).limit(0);
+    if (error) return false;
+    recipientsSince = Date.now();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The active workspace's alerts, newest first (dismissed ones excluded). */
-export async function getAlerts(supabase: Supa, ownerId: string, limit = 20, workspaceId?: string | null): Promise<Alert[]> {
+export async function getAlerts(supabase: Supa, ownerId: string, limit = 20, workspaceId?: string | null, viewerId?: string | null): Promise<Alert[]> {
   if (!(await alertsEnabled(supabase))) return [];
+  const recipients = { enabled: await alertRecipientsEnabled(supabase), viewerId };
   const { data, error } = await scopeAlerts(
     supabase
       .from("alert_events")
@@ -99,6 +120,7 @@ export async function getAlerts(supabase: Supa, ownerId: string, limit = 20, wor
       .eq("user_id", ownerId)
       .is("dismissed_at", null),
     workspaceId,
+    recipients,
   )
     .order("detected_at", { ascending: false })
     .limit(limit);
@@ -107,8 +129,9 @@ export async function getAlerts(supabase: Supa, ownerId: string, limit = 20, wor
 }
 
 /** How many of the active workspace's alerts are unread. null when the table isn't there. */
-export async function unreadAlertCount(supabase: Supa, ownerId: string, workspaceId?: string | null): Promise<number | null> {
+export async function unreadAlertCount(supabase: Supa, ownerId: string, workspaceId?: string | null, viewerId?: string | null): Promise<number | null> {
   if (!(await alertsEnabled(supabase))) return null;
+  const recipients = { enabled: await alertRecipientsEnabled(supabase), viewerId };
   const { count, error } = await scopeAlerts(
     supabase
       .from("alert_events")
@@ -117,16 +140,18 @@ export async function unreadAlertCount(supabase: Supa, ownerId: string, workspac
       .is("read_at", null)
       .is("dismissed_at", null),
     workspaceId,
+    recipients,
   );
   if (error) return null;
   return count ?? 0;
 }
 
 /** Mark specific alerts, or all of the active workspace's unread, as read. */
-export async function markAlertsRead(supabase: Supa, ownerId: string, ids?: string[], workspaceId?: string | null): Promise<boolean> {
+export async function markAlertsRead(supabase: Supa, ownerId: string, ids?: string[], workspaceId?: string | null, viewerId?: string | null): Promise<boolean> {
   let q = scopeAlerts(
     supabase.from("alert_events").update({ read_at: new Date().toISOString() }).eq("user_id", ownerId).is("read_at", null),
     workspaceId,
+    { enabled: await alertRecipientsEnabled(supabase), viewerId },
   );
   if (ids?.length) q = q.in("id", ids);
   const { error } = await q;
@@ -134,7 +159,7 @@ export async function markAlertsRead(supabase: Supa, ownerId: string, ids?: stri
 }
 
 /** Remove an alert from the feed for good. */
-export async function dismissAlert(supabase: Supa, ownerId: string, id: string, workspaceId?: string | null): Promise<boolean> {
+export async function dismissAlert(supabase: Supa, ownerId: string, id: string, workspaceId?: string | null, viewerId?: string | null): Promise<boolean> {
   const { error } = await scopeAlerts(
     supabase
       .from("alert_events")
@@ -142,6 +167,7 @@ export async function dismissAlert(supabase: Supa, ownerId: string, id: string, 
       .eq("user_id", ownerId)
       .eq("id", id),
     workspaceId,
+    { enabled: await alertRecipientsEnabled(supabase), viewerId },
   );
   return !error;
 }

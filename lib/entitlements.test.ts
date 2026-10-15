@@ -75,11 +75,11 @@ describe("feature checks", () => {
     expect(canUseFeature(ent("free"), "scheduling")).toBe(true);
   });
   it("is false for an unbuilt feature even on the top plan, and says coming soon", () => {
-    const r = checkFeature(ent("pro"), "approval_workflow");
+    const r = checkFeature(ent("pro"), "developer_api");
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error.code).toBe("coming_soon");
-      expect(r.error.error).toBe("Approval workflows is coming soon.");
+      expect(r.error.error).toBe("Developer API is coming soon.");
     }
   });
   it("honours a database override that grants a feature", () => {

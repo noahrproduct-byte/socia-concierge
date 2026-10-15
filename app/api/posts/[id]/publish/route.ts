@@ -6,6 +6,7 @@ import { validateDestination, type Issue } from "@/lib/publishing/validate";
 import { loadItem, updateDestination, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
 import { publishNow } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { approveOnSchedule } from "@/lib/approvals";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -58,6 +59,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     }
     const { uploads } = await publishNow(ctx.client, ctx.ownerId, item, pending, 40_000);
     const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
+    // Publishing a post that was waiting for approval is the approval.
+    await approveOnSchedule(ctx, id, null);
     return NextResponse.json({ item: after, uploads });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });
