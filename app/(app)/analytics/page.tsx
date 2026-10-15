@@ -5,7 +5,8 @@ import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { trialReelsByMedia } from "@/lib/publishing/db";
 import { instagramSummary, facebookSummary, youtubeSummary, tiktokSummary } from "@/lib/platformSummaries";
-import { scopeToWorkspace } from "@/lib/workspaces";
+import { listWorkspaces, scopeToWorkspace } from "@/lib/workspaces";
+import CrossBrandPanel from "@/components/CrossBrandPanel";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import { getFbSnapshot } from "@/lib/facebookSync";
@@ -77,6 +78,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     }
   })();
 
+  // Cross-brand (All brands tab): only an owner's own brands, and only when there are two or more.
+  const ownedP = ctx.isOwner ? listWorkspaces(supabase, user.id).then((ws) => ws.filter((w) => !w.suspended).length).catch(() => 0) : Promise.resolve(0);
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const maxDays = maxHistoryDays(ent);
   const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
@@ -347,6 +350,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   if (ttConnected) connectedTabs.push({ id: "tiktok", label: "TikTok" });
   const multi = connectedTabs.length >= 2;
   const tabs: PlatformTab[] = multi ? [{ id: "all", label: "All Platforms" }, ...connectedTabs] : connectedTabs;
+  const showBrands = (await ownedP) >= 2;
+  if (showBrands) tabs.push({ id: "brands", label: "All brands" });
   const validIds = new Set(tabs.map((t) => t.id));
   const initial = platformParam && validIds.has(platformParam) ? platformParam : multi ? "all" : connectedTabs[0]?.id ?? "all";
 
@@ -355,6 +360,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     facebook: fbPanel,
     youtube: yt ? <YouTubeAnalytics data={buildYouTubeAnalytics({ yt, days, rangeLabel, now })} gate={gate} maxDays={maxDays} /> : null,
     tiktok: ttPanel,
+    ...(showBrands ? { brands: <CrossBrandPanel days={days} locked={lockedTo("cross_brand_analytics")} /> } : {}),
   };
 
   const allData = multi ? buildAllPlatforms([igSummary, fbSummary, ytSummary, ttSummary]) : null;
