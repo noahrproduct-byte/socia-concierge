@@ -75,7 +75,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
         </div>
         {how && (
           <div className="st-how">
-            <p>SOCIA looks at {a.meta.frames} sampled frame{a.meta.frames === 1 ? "" : "s"}{a.meta.hadTranscript ? ", the transcript you provided" : " (no transcript was provided)"} and your caption, then compares with the cover frames and captions of your own top posts. Scores are an editor's judgement of what is visible, never a prediction of views or virality.</p>
+            <p>SOCIA looks at {a.meta.frames} sampled frame{a.meta.frames === 1 ? "" : "s"}{a.meta.hadTranscript ? ", the transcript you provided" : " (no transcript was provided)"} and your caption, then compares with the cover frames and captions of your own top posts. Scores are an editor&apos;s judgement of what is visible, never a prediction of views or virality.</p>
             <ul>
               {a.categories.map((c) => (
                 <li key={c.id}><b>{CATEGORY_INFO[c.id].label}</b> analyzes: {CATEGORY_INFO[c.id].analyzes.join("; ")}.</li>
@@ -159,7 +159,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
             <li key={p.platform}><b>{p.platform}</b><em className={`ov-chip ${FIT_CLS[p.fit]}`}>{p.fit[0].toUpperCase() + p.fit.slice(1)}</em><p>{p.note}</p></li>
           ))}
         </ul>
-        <p className="ov-source">Fit is an editor's read of length, opening and text against each format. SOCIA does not claim platform ranking rules.</p>
+        <p className="ov-source">Fit is an editor&apos;s read of length, opening and text against each format. SOCIA does not claim platform ranking rules.</p>
       </section>
 
       <section className="st-block">
@@ -170,7 +170,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
             <table className="st-cmp"><thead><tr><th>Signal</th><th>This draft</th><th>Your winners</th><th></th></tr></thead><tbody>
               {a.compare.rows.map((r) => (<tr key={r.label}><td>{r.label}</td><td>{r.current}</td><td>{r.winners}</td><td><em className={`ov-chip ${VERDICT[r.verdict][1]}`}>{VERDICT[r.verdict][0]}</em></td></tr>))}
             </tbody></table>
-            <div className="ov-why-block ai"><small>SOCIA's read</small><p>{a.compare.summary}</p></div>
+            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.compare.summary}</p></div>
           </>
         ) : <div className="ov-empty small">No synced posts to compare with yet. Connect Instagram and this fills in with your own top posts.</div>}
       </section>
@@ -181,7 +181,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
           <>
             <p className="ov-source">Observed among {a.niche.basis}. Patterns, not guarantees.</p>
             <ul className="st-list">{a.niche.patterns.map((p) => <li key={p}>{p}</li>)}</ul>
-            <div className="ov-why-block ai"><small>SOCIA's read</small><p>{a.niche.summary}</p></div>
+            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.niche.summary}</p></div>
           </>
         ) : <div className="ov-empty small">No analysed niche content on file yet. Run discovery on Competitors and this compares your draft with what is working around you.</div>}
       </section>
@@ -295,7 +295,7 @@ export function CaptionPanel({ a, w, setCaption, improve }: { a: StudioAnalysis;
         <textarea className="st-textarea" rows={6} value={w.caption} onChange={(e) => setCaption(e.target.value)} placeholder="Write the caption here, or start from SOCIA's suggestion below." aria-label="Caption" />
         {a.caption.suggestion && w.caption.trim() !== a.caption.suggestion.trim() && (
           <div className="st-suggestion">
-            <small>SOCIA's suggestion, in your voice and aimed at your goal</small>
+            <small>SOCIA&apos;s suggestion, in your voice and aimed at your goal</small>
             <p>{a.caption.suggestion}</p>
             <div className="st-opt-actions"><button type="button" className="ov-btn primary small" onClick={() => setCaption(a.caption.suggestion!)}>Use suggestion</button><CopyBtn text={a.caption.suggestion} /></div>
           </div>

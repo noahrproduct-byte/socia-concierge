@@ -109,7 +109,7 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
                   {d.post_caption && <p className="cm-post">on: {d.post_caption}</p>}
                 </div>
                 <div className="cm-draft">
-                  <span className="cm-draft-label"><Sparkles size={12} /> SOCIA's suggested reply</span>
+                  <span className="cm-draft-label"><Sparkles size={12} /> SOCIA&apos;s suggested reply</span>
                   <textarea value={value} onChange={(e) => setEdits((m) => ({ ...m, [d.id]: e.target.value }))} placeholder={d.draft == null ? "SOCIA couldn't draft a reply for this one — write yours here." : ""} aria-label="Reply text" />
                   <div className="cm-actions">
                     <button type="button" className="cm-btn primary" disabled={Boolean(b) || !value.trim()} onClick={() => act(d, "send")}>

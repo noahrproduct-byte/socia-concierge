@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireFeature } from "@/lib/planGuard";
-import { studioRequest, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
+import { studioRequest, isMissingTable } from "@/lib/studioClips/auth";
 import { syncAudioCandidates, audioData } from "@/lib/audio/server";
 
 export const runtime = "nodejs";

@@ -13,7 +13,7 @@ import { Check } from "lucide-react";
 import type { RailProps } from "@/components/composer/contracts";
 import { contentChecks } from "@/lib/publishing/precheck";
 import { publishReadiness } from "@/lib/publishing/readiness";
-import { PLATFORM_LABEL, type Platform } from "@/lib/publishing/types";
+import type { Platform } from "@/lib/publishing/types";
 import type { ReadinessLevel } from "@/lib/publishing/validate";
 import { viewerTimeZone } from "@/lib/publishing/timing";
 

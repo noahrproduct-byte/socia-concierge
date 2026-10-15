@@ -182,7 +182,7 @@ function OpportunityCard({ o, onExamples }: { o: Opportunity | null; onExamples:
   );
 }
 
-export default function NicheSection({ d, active, saved, savedItems, saving, onOpen, onSave }: {
+export default function NicheSection({ d, active, saved, savedItems, onOpen, onSave }: {
   d: CompetitorsData; active: { name: string; patterns: GroupedPatterns } | null;
   saved: Set<string>; savedItems: NichePost[]; saving: string | null; onOpen: (p: NichePost) => void; onSave: (p: NichePost) => void;
 }) {

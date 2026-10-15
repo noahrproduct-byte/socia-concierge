@@ -246,7 +246,8 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
     return [["top", "Top Content"], ["under", `Underperforming (${under})`], ["format", "By Format"], ["breakout", `Breakouts (${brk})`]] as ["top" | "under" | "format" | "breakout", string][];
   }, [d.posts]);
 
-  const fPoints = useMemo(() => followersInRange(d.followerPoints, d.series.followers.current[0]?.day ?? "0000", d.today), [d.followerPoints, d.series.followers.current, d.today]);
+  const followersNow = d.series.followers.current;
+  const fPoints = useMemo(() => followersInRange(d.followerPoints, followersNow[0]?.day ?? "0000", d.today), [d.followerPoints, followersNow, d.today]);
   const fSummary = useMemo(() => summarizeFollowers(fPoints, d.followerPoints), [fPoints, d.followerPoints]);
 
   const byFormat = useMemo(() => {

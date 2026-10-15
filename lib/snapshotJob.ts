@@ -107,7 +107,8 @@ export async function runDailySnapshots(supabase: Supa, now = new Date(), budget
     if (await hasSnapshot(supabase, c.user_id, c.ig_user_id, day)) { run.skipped++; continue; }
     const totals = await fetchTotals(c.access_token);
     if (!totals) { run.errors++; continue; }
-    (await writeDailySnapshot(supabase, c.user_id, c.ig_user_id, day, totals)) ? run.written++ : run.errors++;
+    if (await writeDailySnapshot(supabase, c.user_id, c.ig_user_id, day, totals)) run.written++;
+    else run.errors++;
   }
   return run;
 }

@@ -31,7 +31,6 @@ export type LocalClip = {
   reused: boolean;
 };
 
-const fmtMb = (b: number) => `${(b / 1024 / 1024).toFixed(b >= 100 * 1024 * 1024 ? 0 : 1)} MB`;
 export const fmtMinutes = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")} min` : `${Math.round(s)} sec`);
 
 export function ClipGrid({ clips, onRemove, busy }: { clips: LocalClip[]; onRemove: (c: LocalClip) => void; busy: boolean }) {
@@ -160,9 +159,9 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
 
       {y.rejected.length > 0 && (
         <div className="ov-card cb-rejected">
-          <h3>Didn't make the cut</h3>
+          <h3>Didn&apos;t make the cut</h3>
           <ul>{y.rejected.map((r, i) => <li key={i}><b>{r.title}</b><span>{r.reason}</span></li>)}</ul>
-          <p className="ov-source">An idea is shown only when its clips add up to enough distinct, usable footage. These didn't — more clips of the same moment would change that.</p>
+          <p className="ov-source">An idea is shown only when its clips add up to enough distinct, usable footage. These didn&apos;t — more clips of the same moment would change that.</p>
         </div>
       )}
     </div>
@@ -219,11 +218,11 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
           <ul className="st-progress"><li className="on"><i />Writing the edit guide from the chosen moments</li></ul>
         )}
         {error && !loading && (
-          <div className="st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Couldn't write the guide</b><p>{error}</p><button type="button" className="ov-btn ghost small" onClick={onRetry}>Try again</button></div></div>
+          <div className="st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Couldn&apos;t write the guide</b><p>{error}</p><button type="button" className="ov-btn ghost small" onClick={onRetry}>Try again</button></div></div>
         )}
         {build && !loading && (
           <>
-            {build.footageExpired && <p className="cb-stale"><AlertTriangle size={12} /> Some of this post's raw footage has expired; the steps still describe it.</p>}
+            {build.footageExpired && <p className="cb-stale"><AlertTriangle size={12} /> Some of this post&apos;s raw footage has expired; the steps still describe it.</p>}
             <ol className="cb-steps">
               {build.guide.map((s) => {
                 const c = s.clipId ? byId.get(s.clipId) : null;

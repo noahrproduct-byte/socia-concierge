@@ -15,7 +15,7 @@ import { median, postsPerWeek } from "./metrics";
 import { interactionsTotal, engagementRateOf } from "./engagement";
 import { followerPoints, summarizeFollowers } from "./followers";
 import { buildGaps } from "./gaps";
-import { postCards, buildKpis, buildSeries, buildInsights, bucketize, bucketTitle, detectOutliers, displayTitle, formatOf, rangeDays, fmtNum, type PostCard } from "./overview";
+import { postCards, buildKpis, buildSeries, buildInsights, bucketize, bucketTitle, detectOutliers, rangeDays, fmtNum, type PostCard } from "./overview";
 import { competitorsBlock } from "./planEvidence";
 import { listTracked } from "./trackedCompetitors";
 import type { SavedPlan } from "./schema";

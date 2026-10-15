@@ -47,7 +47,6 @@ const s2l = (c: number) => (c >= 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : 
 const l2s = (c: number) => { const x = Math.max(c, 0); return x >= 0.0031308 ? 1.055 * Math.pow(x, 1 / 2.4) - 0.055 : x * 12.92; };
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smoothstep = (e0: number, e1: number, x: number) => { const t = clamp01((x - e0) / (e1 - e0)); return t * t * (3 - 2 * t); };
-const LIN8 = Array.from({ length: 256 }, (_, i) => s2l(i / 255));
 
 const isNeutral = (p: GradeParams) =>
   p.exposure === 0 && p.contrast === 1 && p.shadows === 0 && p.highlights === 0 && p.temperature === 0 && p.tint === 0 && p.saturation === 1 && p.vibrance === 0;
@@ -128,7 +127,6 @@ export function lookStats(px: Pixels, p: GradeParams = NEUTRAL): LookStats {
 }
 
 const r3 = (x: number) => Math.round(x * 1000) / 1000;
-const r2 = (x: number) => Math.round(x * 100) / 100;
 
 /** Every k-th pixel, so the solver stays fast; stats on the full sample are computed once at the end. */
 export function subsample(px: Pixels, maxPixels = 6000): Pixels {

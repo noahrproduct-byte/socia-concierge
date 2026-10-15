@@ -162,7 +162,7 @@ export default function MasterContent({
     }
   }, [base, platforms]);
 
-  const useForPlatform = (platform: Platform, text: string) => {
+  const applyForPlatform = (platform: Platform, text: string) => {
     for (const d of enabled.filter((x) => x.platform === platform)) {
       const s = d.settings as DestinationSettings & { caption?: string | null; description?: string | null };
       const next = platform === "youtube" ? { ...s, description: text } : { ...s, caption: text };
@@ -266,7 +266,7 @@ export default function MasterContent({
                     <small>{o.label}</small>
                     <p>{o.text}</p>
                   </div>
-                  <button type="button" className="btn-secondary cp-use" onClick={() => useForPlatform(group.platform, o.text)}>
+                  <button type="button" className="btn-secondary cp-use" onClick={() => applyForPlatform(group.platform, o.text)}>
                     Use for {PLATFORM_LABEL[group.platform]}
                   </button>
                 </div>

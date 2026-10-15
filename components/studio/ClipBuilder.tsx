@@ -17,7 +17,7 @@ import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
 import FinishPanel from "./FinishPanel";
-import { timeline, secToFrames } from "@/lib/studioClips/timeline";
+import { timeline } from "@/lib/studioClips/timeline";
 import { clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
@@ -178,7 +178,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
 
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;
-  if (loadErr) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Couldn't open the video builder</b><p>{loadErr}</p></div></div></div>;
+  if (loadErr) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Couldn&apos;t open the video builder</b><p>{loadErr}</p></div></div></div>;
   if (!data || !edl || !tl) return <div className="cbb"><div className="ov-card st-progress"><ul><li className="on"><i />Loading the cut and your clips</li></ul></div></div>;
 
   const busy = Boolean(regen) || saving || (exp.phase !== "idle" && exp.phase !== "done" && exp.phase !== "error");
@@ -194,6 +194,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
           {data.canEdit && <button type="button" className="ov-btn ghost small" disabled={!dirty || busy} onClick={save}>{saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} {dirty ? "Save changes" : "Saved"}</button>}
         </div>
       </div>
+      {saveErr && <p className="cbb-err" role="alert"><AlertTriangle size={13} aria-hidden /> {saveErr}</p>}
 
       <div className="cbb-grid">
         <div className="cbb-player-col">
@@ -273,7 +274,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
               <div className="ov-card cba-current">
                 <b><Music size={14} /> Music line in this cut</b>
                 <p>{edl.music ?? "No music recommendation in this cut."}</p>
-                <small>SOCIA never adds a track to the file. Add music from Instagram's library when you post, or bake in a track you have the rights to.</small>
+                <small>SOCIA never adds a track to the file. Add music from Instagram&apos;s library when you post, or bake in a track you have the rights to.</small>
               </div>
               <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
             </div>
@@ -285,6 +286,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
                 const src = sources[s.clipId];
                 return (
                   <li key={s.id} className={`cbb-seg${src ? "" : " missing"}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
                     {src?.thumb ? <img src={src.thumb} alt="" /> : <span className="cb-clip-ph small" />}
                     <div className="cbb-seg-main">
                       <b>{src ? clipLabel(src.position) : "Expired clip"} <small>{s.role === "opener" ? "opener" : s.role === "ending" ? "ending" : `cut ${i + 1}`}</small></b>
@@ -350,7 +352,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
                 ))}
               </ul>
               {regenErr && <p className="cbb-err"><AlertTriangle size={12} /> {regenErr}</p>}
-              <p className="ov-source">{MAX_REGENERATIONS - build.regenerations} of {MAX_REGENERATIONS} regenerations left for this post. Each one is written from the clips' real moments and transcript, then checked the same way as the first.</p>
+              <p className="ov-source">{MAX_REGENERATIONS - build.regenerations} of {MAX_REGENERATIONS} regenerations left for this post. Each one is written from the clips&apos; real moments and transcript, then checked the same way as the first.</p>
             </div>
           )}
         </div>

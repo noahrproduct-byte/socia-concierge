@@ -276,11 +276,11 @@ export default function OnboardingFlow({
               <h1>Connect your accounts</h1>
               <p>
                 Link where you post and SOCIA reads your account itself: your niche, your
-                content, and how it's doing. No forms to fill.
+                content, and how it&apos;s doing. No forms to fill.
               </p>
             </div>
             {igStatus === "denied" && (
-              <div className="ob-err ob-rise">Instagram connection was cancelled. Try again when you're ready.</div>
+              <div className="ob-err ob-rise">Instagram connection was cancelled. Try again when you&apos;re ready.</div>
             )}
             {igStatus === "error" && (
               <div className="ob-err ob-rise">Something went wrong connecting Instagram. Try again.</div>
@@ -318,7 +318,7 @@ export default function OnboardingFlow({
             <h1 className="ob-rise">Reading your account…</h1>
             <p className="ob-rise" style={{ animationDelay: "60ms" }}>
               The AI is studying {igUsername ? <b>@{igUsername}</b> : <b>your account</b>} so you
-              don't have to explain yourself.
+              don&apos;t have to explain yourself.
             </p>
             <div className="ob-buildlist">
               {ANALYZE_STEPS.map((s, i) => (
@@ -340,7 +340,7 @@ export default function OnboardingFlow({
               {analyzed ? (
                 <>
                   <span className="ob-eyebrow ob-eyebrow-ok"><Check size={13} /> Account read</span>
-                  <h1>Here's what we found</h1>
+                  <h1>Here&apos;s what we found</h1>
                   <p>{extracted?.summary || "We read your account. Check this over and adjust anything."}</p>
                 </>
               ) : (
@@ -477,7 +477,7 @@ export default function OnboardingFlow({
                     <span className="ob-plan-format">{p.format}</span>
                     <span className="ob-plan-score">{p.score}</span>
                   </div>
-                  <p className="ob-plan-hook">"{p.hook}"</p>
+                  <p className="ob-plan-hook">&quot;{p.hook}&quot;</p>
                   <span className="ob-plan-tag">{p.tag}</span>
                 </div>
               ))}

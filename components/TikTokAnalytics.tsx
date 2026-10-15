@@ -70,7 +70,7 @@ export default function TikTokAnalytics({ data }: { data: TikTokAnalyticsData })
 
       <section className="ov-card">
         <div className="ov-card-head"><h2><LineChart size={15} /> Performance history</h2></div>
-        <div className="ov-empty"><b>A daily trend isn't available for TikTok</b><p>{data.historyNote}</p></div>
+        <div className="ov-empty"><b>A daily trend isn&apos;t available for TikTok</b><p>{data.historyNote}</p></div>
       </section>
 
       <section className="ov-card pa-unavail">
