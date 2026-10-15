@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { dropPlatformHistory } from "@/lib/platformSnapshots";
 
 export const runtime = "nodejs";
 
@@ -32,15 +33,18 @@ export async function POST() {
   // grant), fall back to the access token. Never fatal to the disconnect. The
   // read is this workspace's row when one is known (one channel per
   // workspace); a failed filter falls back to the owner-wide read.
+  /** The account whose daily history is removed with it. */
+  let channelId: string | null = null;
   try {
     const read = (withWs: boolean) => {
-      let q = db.from("youtube_connections").select("access_token, refresh_token").eq("user_id", ownerId);
+      let q = db.from("youtube_connections").select("access_token, refresh_token, channel_id").eq("user_id", ownerId);
       if (withWs && wsId) q = q.eq("workspace_id", wsId);
       return q.maybeSingle();
     };
     let { data, error } = await read(true);
     if (error && wsId) ({ data, error } = await read(false));
-    const row = data as { access_token?: string; refresh_token?: string | null } | null;
+    const row = data as { access_token?: string; refresh_token?: string | null; channel_id?: string | null } | null;
+    channelId = row?.channel_id ?? null;
     const token = row?.refresh_token || row?.access_token;
     if (token) {
       await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
@@ -66,6 +70,8 @@ export async function POST() {
       return NextResponse.json({ error: "Couldn't disconnect right now." }, { status: 500 });
     }
   }
+  // Its daily history goes with it (privacy policy: disconnecting deletes it).
+  await dropPlatformHistory(db, ownerId, "youtube", [channelId]);
 
   // Drop YouTube from the OWNER's profile platform list (best effort).
   try {

@@ -5,13 +5,15 @@
 // user id for Facebook Login. SOCIA stores the former on every Instagram
 // connection (ig_user_id) and the latter on the Facebook connection
 // (fb_user_id, captured at connect time). Everything keyed to those ids is
-// deleted: tokens, the synced snapshot, daily account snapshots and, for
-// Facebook, the Page connection. Nothing is estimated or kept "just in case".
+// deleted: tokens, the synced snapshot, daily account history and, for
+// Facebook, the Page connection and its daily history. Nothing is estimated
+// or kept "just in case".
 //
 // Runs with the service role because the request carries no user session.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
+import { dropPlatformHistory } from "./platformSnapshots";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -31,11 +33,14 @@ export async function deleteMetaUserData(supabase: Supa, platformUserId: string,
   // Instagram-scoped id: connections and the snapshots derived from them.
   removed.instagram_connections = await count(supabase.from("instagram_connections").delete({ count: "exact" }).eq("ig_user_id", id));
   removed.account_snapshots = await count(supabase.from("account_snapshots").delete({ count: "exact" }).eq("ig_user_id", id));
+  removed.platform_snapshots = await dropPlatformHistory(supabase, null, "instagram", [id]);
 
   // Facebook-scoped id: the Page connection captured with that user id.
   // The column may not exist on older schemas; a failed filter counts as 0.
   if (source !== "instagram") {
+    const { data: pages } = await supabase.from("facebook_connections").select("page_id").eq("fb_user_id", id).then((r) => r, () => ({ data: null }));
     removed.facebook_connections = await count(supabase.from("facebook_connections").delete({ count: "exact" }).eq("fb_user_id", id));
+    removed.platform_snapshots = (removed.platform_snapshots ?? 0) + await dropPlatformHistory(supabase, null, "facebook", ((pages ?? []) as { page_id?: string | null }[]).map((p) => p.page_id));
   }
 
   const confirmationCode = newCode();

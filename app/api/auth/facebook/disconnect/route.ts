@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { dropPlatformHistory } from "@/lib/platformSnapshots";
 
 export const runtime = "nodejs";
 
@@ -25,18 +26,29 @@ export async function POST() {
 
   // One Page per workspace, so the workspace id names the row. A failed
   // filter (column missing) falls back to the pre-workspaces owner-wide delete.
+  // The Page's daily history goes with it (privacy policy: disconnecting deletes it).
+  const pagesOf = async (withWs: boolean) => {
+    let q = ctx.client.from("facebook_connections").select("page_id").eq("user_id", ctx.ownerId);
+    if (withWs && ctx.workspace) q = q.eq("workspace_id", ctx.workspace.id);
+    const { data } = await q;
+    return ((data ?? []) as { page_id?: string | null }[]).map((r) => r.page_id);
+  };
   if (ctx.workspace) {
+    const pages = await pagesOf(true).catch(() => []);
     const { error } = await ctx.client
       .from("facebook_connections")
       .delete()
       .eq("user_id", ctx.ownerId)
       .eq("workspace_id", ctx.workspace.id);
     if (!error) {
+      await dropPlatformHistory(ctx.client, ctx.ownerId, "facebook", pages);
       clearLiveCache(ctx.ownerId);
       return NextResponse.json({ ok: true });
     }
   }
+  const pages = await pagesOf(false).catch(() => []);
   await ctx.client.from("facebook_connections").delete().eq("user_id", ctx.ownerId);
+  await dropPlatformHistory(ctx.client, ctx.ownerId, "facebook", pages);
   clearLiveCache(ctx.ownerId);
   return NextResponse.json({ ok: true });
 }
