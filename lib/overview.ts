@@ -80,6 +80,8 @@ export type PostCard = {
   permalink: string | null;
   /** Submitted by SOCIA as an Instagram Trial Reel (SOCIA's own record); absent otherwise. */
   trial?: TrialShare | null;
+  /** A collab post another account posted and this one joined: who posted it. */
+  collabWith?: string | null;
 };
 
 export function displayTitle(caption: string): string {
@@ -112,6 +114,7 @@ export function postCards(media: IgMediaItem[], baseline: number | null): PostCa
         multiplier: baseline && baseline > 0 ? e / baseline : null,
         thumb: m.thumbnail_url || m.media_url || null,
         permalink: m.permalink ?? null,
+        ...(m.collab_owner ? { collabWith: m.collab_owner } : {}),
       };
     });
 }

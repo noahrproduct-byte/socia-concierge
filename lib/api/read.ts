@@ -226,6 +226,7 @@ export async function getTopPosts(ctx: Ctx, ent: Entitlements, input: { platform
         views: p.views, reach: p.reach, likes: p.likes, comments: p.comments, saves: p.saves, shares: p.shares, interactions: p.engagements,
         vs_your_median: p.multiplier != null ? Math.round(p.multiplier * 100) / 100 : null,
         ...(p.trial ? { trial_reel: true } : {}),
+        ...(p.collabWith ? { collab_posted_by: p.collabWith } : {}),
       })),
     };
   }

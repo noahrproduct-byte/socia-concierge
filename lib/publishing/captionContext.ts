@@ -307,8 +307,10 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
   // ---- What worked before (style only) -------------------------------------------
   const sum = (...xs: (number | null | undefined)[]) => (xs.every((x) => x == null) ? null : xs.reduce<number>((a, x) => a + (x ?? 0), 0));
   const sources: { platform: Platform; who: string; posts: PastPost[] }[] = [];
-  if (snap?.media?.length) {
-    sources.push({ platform: "instagram", who: snap.username ? at(snap.username) : "this Instagram account", posts: snap.media.map((m) => ({ caption: m.caption ?? null, interactions: interactionsTotal(m), format: formatOf(m), at: m.timestamp ?? null })) });
+  // Collab posts another account posted carry that account's caption, not this one's style.
+  const ownMedia = snap?.media?.filter((m) => !m.collab_owner) ?? [];
+  if (ownMedia.length) {
+    sources.push({ platform: "instagram", who: snap!.username ? at(snap!.username) : "this Instagram account", posts: ownMedia.map((m) => ({ caption: m.caption ?? null, interactions: interactionsTotal(m), format: formatOf(m), at: m.timestamp ?? null })) });
   }
   if (tt?.videos?.length) {
     sources.push({ platform: "tiktok", who: tt.username ? at(tt.username) : "this TikTok account", posts: tt.videos.map((v) => ({ caption: v.caption, interactions: sum(v.likes, v.comments, v.shares), format: "Video", at: v.createdAt })) });

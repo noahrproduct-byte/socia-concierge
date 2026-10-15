@@ -7,6 +7,7 @@
 import { timedFn } from "@/lib/timing";
 import { scheduleBackground, onceEvery } from "@/lib/background";
 import { hasSnapshot, writeDailySnapshot } from "./snapshotJob";
+import { fetchCollabMedia, mergeCollab } from "./igCollab";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -32,6 +33,11 @@ export type IgMediaItem = {
   permalink?: string;
   media_url?: string;
   thumbnail_url?: string; // video poster frame
+  media_product_type?: string;
+  /** Set on a collab post another account posted and this one joined as a
+   *  collaborator (lib/igCollab.ts): that account's username. Its caption is
+   *  theirs, and its numbers are the post's totals as shared with a collaborator. */
+  collab_owner?: string;
   insights?: IgMediaInsights;
 };
 
@@ -426,6 +432,15 @@ async function syncInstagramImpl(supabase: Supa, userId: string, workspaceId?: s
     error: permissionError,
     checked_at: now,
   };
+
+  // Collab posts this account joined (another account posted them). Added
+  // after the insights pass: their insights belong to the account that posted.
+  const collab = await fetchCollabMedia(token);
+  if (collab.ok) fresh.media = mergeCollab(fresh.media, collab.media);
+  (fresh.profile as Record<string, unknown>).collab_status = collab.ok
+    ? { ok: true, count: collab.media.length, checked_at: now }
+    : { ok: false, error: collab.error.slice(0, 300), code: collab.code, checked_at: now };
+  console.log("[ig-collab]", JSON.stringify({ account: igId, ok: collab.ok, ...(collab.ok ? { count: collab.media.length } : { code: collab.code, error: collab.error.slice(0, 200) }) }));
 
   const snap = toSnapshot(fresh.profile, fresh.media, now, igId);
 
