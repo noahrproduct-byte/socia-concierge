@@ -38,7 +38,7 @@ import { buildWindows, type TimedPost } from "@/lib/postingTimes";
 import { timingGap, type Gap } from "@/lib/gaps";
 import type { EngagementRate, Breakdown, QualityNote } from "@/lib/engagement";
 import type { Demographics } from "@/lib/igDemographics";
-import { pricingHref, PLANS, type PlanId } from "@/lib/plans";
+import { pricingHref, PLANS, minPlanWithFeature, type PlanId } from "@/lib/plans";
 import { Lock } from "lucide-react";
 import "./planRange.css";
 import "./platformAnalytics.css";
@@ -440,7 +440,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
               <div className="pn compact gap-upsell" role="status">
                 <div className="pn-body">
                   <p>SOCIA found {lockedGaps} more {lockedGaps === 1 ? "opportunity" : "opportunities"} for this account.</p>
-                  <small>Unlock your full strategy with Starter.</small>
+                  <small>Unlock your full strategy with {PLANS[minPlanWithFeature("deeper_insights")].name}.</small>
                 </div>
                 <Link
                   href={pricingHref("starter")}

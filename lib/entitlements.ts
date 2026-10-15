@@ -12,8 +12,13 @@
 // That is the same rule (a workspace holds at most one account per platform),
 // counted from the accounts themselves.
 //
-// Resolution order: PLANS defaults (lib/plans.ts) <- plan_config_overrides row
-// for that plan <- profiles.entitlement_overrides for that user. All reads are
+// Resolution (resolveConfig): plans are cumulative, FREE ⊂ STARTER ⊂ GROWTH ⊂
+// PRO. A plan has every feature of its tier and every tier below it; a
+// database override may GRANT a feature (and a grant on a plan carries up to
+// every higher plan) but never takes one away. Limits and meters are the
+// current plan's own (never added across plans), floored at any lower plan's
+// so a higher plan never gets less. profiles.entitlement_overrides (a custom
+// deal for one person) applies last: feature grants, and numbers as set. All reads are
 // defensive: a missing table, column or row falls back to the code defaults,
 // and an unreadable plan resolves to Free, so nothing ever gates open by
 // accident. Metering is the one place that fails CLOSED: if the usage counter
@@ -28,7 +33,7 @@
 
 import { timedFn } from "@/lib/timing";
 import {
-  PLANS, FEATURE_STATUS, METER_PERIOD, normalizePlan,
+  PLANS, PLAN_ORDER, FEATURE_STATUS, METER_PERIOD, normalizePlan, planRank, planIncludes, isPlanId, minPlanWithFeature,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey, type MeterPeriod,
 } from "./plans";
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
@@ -99,6 +104,31 @@ export function sanitizeOverrides(v: unknown, base: PlanConfig): Overrides {
   return out;
 }
 
+/**
+ * The plan configuration someone on `plan` actually gets. Pure.
+ *   planOverrides  plan_config_overrides rows by plan (any subset of plans)
+ *   userOverrides  profiles.entitlement_overrides for this person
+ */
+export function resolveConfig(plan: PlanId, planOverrides: Partial<Record<PlanId, unknown>> = {}, userOverrides: unknown = null): PlanConfig {
+  const upTo = PLAN_ORDER.filter((p) => planRank(p) <= planRank(plan));
+  const layers = upTo.map((p) => sanitizeOverrides(planOverrides[p], PLANS[p]));
+  const merged = upTo.map((p, i) => mergeConfig(PLANS[p], layers[i]));
+  const out = mergeConfig(PLANS[plan]);
+  for (const k of Object.keys(out.features) as FeatureKey[]) {
+    // This tier and every tier below it, plus a grant on any plan at or below
+    // this one. An override of `false` never removes an included feature.
+    out.features[k] = planIncludes(plan, k) || layers.some((l) => l.features?.[k] === true);
+  }
+  for (const k of Object.keys(out.limits) as LimitKey[]) out.limits[k] = Math.max(...merged.map((c) => c.limits[k]));
+  for (const k of Object.keys(out.meters) as MeterKey[]) out.meters[k] = Math.max(...merged.map((c) => c.meters[k]));
+  // A custom deal for one person: grants features, sets numbers.
+  const user = sanitizeOverrides(userOverrides, PLANS[plan]);
+  for (const [k, on] of Object.entries(user.features ?? {}) as [FeatureKey, boolean][]) if (on) out.features[k] = true;
+  Object.assign(out.limits, user.limits ?? {});
+  Object.assign(out.meters, user.meters ?? {});
+  return out;
+}
+
 export function mergeConfig(base: PlanConfig, ...layers: (Overrides | null | undefined)[]): PlanConfig {
   const out: PlanConfig = { ...base, limits: { ...base.limits }, meters: { ...base.meters }, features: { ...base.features } };
   for (const l of layers) {
@@ -152,25 +182,26 @@ async function readProfilePlan(supabase: Supa, userId: string): Promise<{ plan: 
   }
 }
 
-async function readPlanOverrides(supabase: Supa, plan: PlanId): Promise<unknown> {
+/** plan_config_overrides for this plan and every plan below it (their grants carry up). */
+async function readPlanOverrides(supabase: Supa, plan: PlanId): Promise<Partial<Record<PlanId, unknown>>> {
   try {
     const { data, error } = await supabase
       .from("plan_config_overrides")
-      .select("limits, meters, features")
-      .eq("plan_id", plan)
-      .maybeSingle();
-    if (error || !data) return null;
-    return data;
+      .select("plan_id, limits, meters, features")
+      .in("plan_id", PLAN_ORDER.filter((p) => planRank(p) <= planRank(plan)));
+    if (error || !data) return {};
+    const out: Partial<Record<PlanId, unknown>> = {};
+    for (const r of data as { plan_id: string }[]) if (isPlanId(r.plan_id)) out[r.plan_id] = r;
+    return out;
   } catch {
-    return null;
+    return {};
   }
 }
 
 async function getEntitlementsImpl(supabase: Supa, userId: string, now: Date = new Date()): Promise<Entitlements> {
   const { plan, overrides: userOverrides } = await readProfilePlan(supabase, userId);
-  const base = PLANS[plan];
   const planOverrides = await readPlanOverrides(supabase, plan);
-  const config = mergeConfig(base, sanitizeOverrides(planOverrides, base), sanitizeOverrides(userOverrides, base));
+  const config = resolveConfig(plan, planOverrides, userOverrides);
   const periods = currentPeriods(now);
   return { userId, plan, config, period: periods.month, periods, source: "profile" };
 }
@@ -190,6 +221,18 @@ export function checkFeature(ent: Entitlements, key: FeatureKey): FeatureCheck {
 
 export function canUseFeature(ent: Entitlements, key: FeatureKey): boolean {
   return checkFeature(ent, key).ok;
+}
+
+/**
+ * The plan to offer for a feature this person can't use: its minimum plan,
+ * and only when the current plan ranks below it. null when the feature is
+ * usable, or when upgrading wouldn't help (not built yet). Every upgrade
+ * prompt is decided here, so a plan never sees an offer for one it outranks.
+ */
+export function upgradeFor(ent: Entitlements, key: FeatureKey): PlanId | null {
+  if (canUseFeature(ent, key) || FEATURE_STATUS[key] === "coming_soon") return null;
+  const min = minPlanWithFeature(key);
+  return planRank(ent.plan) < planRank(min) ? min : null;
 }
 
 export function getLimit(ent: Entitlements, key: LimitKey): number {

@@ -231,7 +231,7 @@ export default async function DashboardPage({
 
   // The Today card: the facts for Growth and up, an upgrade line below that.
   const [[waiting, studioNext], repurpose] = await Promise.all([todayExtrasP, repurposeP]);
-  const lockedPlan = minPlanWithFeature("daily_recommendations") ?? "growth";
+  const lockedPlan = minPlanWithFeature("daily_recommendations");
   const today: TodayCardProps = recsOn
     ? {
         facts: todayFacts({

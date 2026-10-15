@@ -61,6 +61,9 @@ export default async function AppShell({ children }: { children: React.ReactNode
   let ytTitle: string | null = null;
   let platforms: string[] = [];
   let plan: PlanId = "free";
+  let ownsWorkspace = true;
+  /** The signed-in person's own plan, for the account menu (a Member's differs from the workspace's). */
+  let viewerPlan: PlanId = "free";
   let appearance: Appearance | null = null;
   let searchIndex: SearchItem[] = PAGES;
   let activity: Activity[] = [];
@@ -84,8 +87,9 @@ export default async function AppShell({ children }: { children: React.ReactNode
         ctx.client.from("profiles").select("platforms").eq("user_id", ctx.ownerId).maybeSingle(),
         // Viewer's theme. The appearance column may not exist yet: a failed read is simply "no preference".
         supabase.from("profiles").select("appearance").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
-        // Viewer's plan. Already defensive inside; the catch keeps an unexpected throw from blanking the shell.
-        getEntitlements(supabase, user.id).catch(() => null),
+        // The active workspace's plan (its owner's): what the features here follow.
+        // Already defensive inside; the catch keeps an unexpected throw from blanking the shell.
+        getEntitlements(ctx.client, ctx.ownerId).catch(() => null),
         ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
         ctx.client.from("plans").select("id, created_at, client_handle").eq("user_id", ctx.ownerId).order("created_at", { ascending: false }).limit(3),
         // Its own catch so a not-yet-created table never blanks the whole shell.
@@ -99,6 +103,8 @@ export default async function AppShell({ children }: { children: React.ReactNode
       const appRaw = (appRes.data as { appearance?: string } | null)?.appearance;
       appearance = isAppearance(appRaw) ? appRaw : null;
       plan = entRes?.plan ?? "free";
+      ownsWorkspace = ctx.isOwner;
+      viewerPlan = ctx.isOwner ? plan : ((await getEntitlements(supabase, user.id).catch(() => null))?.plan ?? "free");
       const posts: SearchItem[] = (c?.media ?? [])
         .filter((m) => m.caption)
         .slice(0, 60)
@@ -127,7 +133,8 @@ export default async function AppShell({ children }: { children: React.ReactNode
     // sidebar still renders with default rows
   }
 
-  const next = nextPlan(plan);
+  // Only the owner can change the plan, so only the owner sees the upgrade card.
+  const next = ownsWorkspace ? nextPlan(plan) : null;
   const igConnect = igConfigured() ? "/api/auth/instagram/start" : "/settings";
   const accounts = [
     { id: "ig", label: igUsername ? `@${igUsername}` : "Instagram", on: Boolean(igUsername) || platforms.includes("Instagram"), href: igUsername ? "/settings#accounts" : igConnect, icon: <Camera size={14} /> },
@@ -189,7 +196,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
       </aside>
 
       <main className="app-main">
-        <TopBar email={userEmail} plan={plan} index={searchIndex} activity={activity} alerts={alerts} unread={unreadAlerts} />
+        <TopBar email={userEmail} plan={viewerPlan} index={searchIndex} activity={activity} alerts={alerts} unread={unreadAlerts} />
         <div className="app-content">{children}</div>
       </main>
     </div>

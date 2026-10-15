@@ -45,7 +45,7 @@ const link = (path: string) => `${appOrigin()}${path}`;
 /** The section is on a higher plan: say which, never return a zero. */
 function locked(ent: Entitlements, feature: FeatureKey) {
   const plan = minPlanWithFeature(feature);
-  return { available: false as const, reason: `${PLANS[plan ?? "growth"].name} plan and up (this workspace is on ${PLANS[ent.plan].name}).` };
+  return { available: false as const, reason: `${PLANS[plan].name} plan and up (this workspace is on ${PLANS[ent.plan].name}).` };
 }
 
 const total = (s: Series, compare: boolean) => ({

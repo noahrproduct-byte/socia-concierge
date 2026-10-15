@@ -25,7 +25,7 @@ const PRESETS = [
   { id: "90", label: "90 days", days: 90, feature: "monthly_summary" as FeatureKey },
 ];
 
-const lockPlan = (feature: FeatureKey): PlanId => minPlanWithFeature(feature) ?? "starter";
+const lockPlan = (feature: FeatureKey): PlanId => minPlanWithFeature(feature);
 /** The cheapest plan whose history window reaches `days`. */
 const planForDays = (days: number): PlanId => PLAN_ORDER.find((id) => PLANS[id].limits.analytics_history_days >= days) ?? "pro";
 /** The higher-rank of two plans. */
