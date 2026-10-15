@@ -231,7 +231,7 @@ export async function accountContext(client: Supa, ownerId: string, brandWs: Wor
     getProfile(client, ownerId, brandWs).catch(() => null) as Promise<{ niche?: string | null; goals?: string | null; brand_detail?: AccountContext["brand"] } | null>,
     wsId === undefined ? Promise.resolve(null) : studioLearnedLine(client, ownerId, wsId),
   ]);
-  return { niche: p?.niche ?? null, location: p?.brand_detail?.location ?? null, goals: p?.goals ?? null, brand: p?.brand_detail ?? null, learned };
+  return { niche: p?.niche ?? null, location: p?.brand_detail?.location ?? null, goals: p?.goals ?? null, brand: p?.brand_detail ?? null, learned, ownerId };
 }
 
 export function toClipInputs(rows: ClipRow[], urls: Record<string, string>): ClipInput[] {

@@ -18,12 +18,14 @@ export type ProductEventName =
   | "feature_locked"
   | "account_limit_reached"
   | "competitor_limit_reached"
-  | "plan_keep_chosen";
+  | "plan_keep_chosen"
+  /** Token usage of one AI call (lib/aiUsage.ts). Server only. */
+  | "ai_usage";
 
 export const PRODUCT_EVENT_NAMES: ProductEventName[] = [
   "free_audit_completed", "pricing_viewed", "upgrade_clicked", "checkout_started", "subscription_started",
   "subscription_upgraded", "subscription_downgraded", "subscription_cancelled", "usage_limit_reached",
-  "feature_locked", "account_limit_reached", "competitor_limit_reached", "plan_keep_chosen",
+  "feature_locked", "account_limit_reached", "competitor_limit_reached", "plan_keep_chosen", "ai_usage",
 ];
 
 export function isProductEventName(v: unknown): v is ProductEventName {

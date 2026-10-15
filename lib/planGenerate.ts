@@ -4,6 +4,7 @@
 // checks happen in the callers; this only produces and stores the plan.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { anthropic, MODEL, effortFor } from "./anthropic";
+import { recordAiUsage } from "./aiUsage";
 import { SYSTEM, buildUserPrompt } from "./prompt";
 import { deliverableSchema, type Deliverable, type GenerateInput, type SavedPlan } from "./schema";
 import type { BrandDetail } from "./profile";
@@ -44,7 +45,7 @@ export function parsePlanJson(text: string): unknown {
 const SAVED_COLS = "id, client_handle, niche, platform, data, created_at";
 
 /** Ask the strategist for the plan. Throws PlanGenerationError when no plan came out. */
-export async function generatePlanData(input: GenerateInput, brand: BrandDetail | null, evidence: Evidence | null): Promise<Deliverable> {
+export async function generatePlanData(input: GenerateInput, brand: BrandDetail | null, evidence: Evidence | null, ownerId?: string | null): Promise<Deliverable> {
   // Params are cast loosely: `output_config` (structured outputs) is a newer
   // field, and casting keeps the build green across SDK versions while still
   // sending it in the request body.
@@ -57,6 +58,7 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = await anthropic.messages.create(params as any);
+  recordAiUsage(ownerId, "content_plan", res);
   if (res.stop_reason === "refusal") throw new PlanGenerationError("refusal", "The model declined this request. Try rephrasing the brief.");
   const textBlock = res.content.find((b) => b.type === "text");
   const text = textBlock && "text" in textBlock ? textBlock.text : "";
@@ -102,7 +104,7 @@ export async function generatePlan(opts: {
   brand: BrandDetail | null;
   evidence: Evidence | null;
 }): Promise<{ data: Deliverable; saved: SavedPlan | null }> {
-  const data = await generatePlanData(opts.input, opts.brand, opts.evidence);
+  const data = await generatePlanData(opts.input, opts.brand, opts.evidence, opts.ownerId);
   const saved = await savePlan(opts.client, opts.ownerId, opts.workspaceId, opts.input, data);
   return { data, saved };
 }

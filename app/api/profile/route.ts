@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { LIMITS, tooLongResponse } from "@/lib/inputLimits";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, type BrandDetail } from "@/lib/profile";
 import { resolveContext, brandWorkspace, can, forbiddenCopy } from "@/lib/context";
@@ -88,6 +89,8 @@ export async function POST(req: Request) {
       ...body.brand_detail,
       strategist: { ...(existing.strategist ?? {}), ...(body.brand_detail.strategist ?? {}) },
     };
+    // Brand details go into almost every AI prompt, so their size is the cost of every call.
+    if (JSON.stringify(brand.brand_detail).length > LIMITS.brandDetailChars) return tooLongResponse("Your brand details", LIMITS.brandDetailChars);
     brandSaved = true;
   }
 

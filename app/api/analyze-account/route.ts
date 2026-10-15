@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { NICHES } from "@/lib/niches";
@@ -272,6 +273,7 @@ Allowed niches: ${NICHES.join(", ")}`;
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "account_audit", res);
     const block = res.content.find((b: { type: string }) => b.type === "text");
     const text = block && "text" in block ? (block as { text: string }).text : "";
     const extracted = parseJson(text) as Extracted | null;
@@ -365,6 +367,7 @@ export async function POST(req: Request) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "niche_describe", res);
     const block = res.content.find((b: { type: string }) => b.type === "text");
     const text = block && "text" in block ? (block as { text: string }).text : "";
     const extracted = parseJson(text) as Extracted | null;

@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { sendCommentDraft, skipCommentDraft, redraftComment } from "@/lib/commentDrafts";
 import { brandVoiceFrom } from "@/lib/commentBrand";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -38,6 +39,9 @@ export async function POST(req: Request) {
   }
   // redraft
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx));
+  // Each redraft is an AI call with no allowance of its own: an hourly ceiling per account.
+  const limited = await perUserLimit(ctx.ownerId, "comment_redraft", 60, "new reply suggestions");
+  if (limited) return limited;
   const draft = await redraftComment(ctx.client, ctx.ownerId, body.id, brandVoiceFrom(profile, ctx.workspace?.name ?? null));
   return NextResponse.json({ ok: Boolean(draft), draft });
 }

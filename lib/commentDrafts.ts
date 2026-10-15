@@ -10,6 +10,7 @@
 // next sync. Server only (uses the Anthropic SDK).
 
 import { anthropic, MODEL, effortFor } from "./anthropic";
+import { recordAiUsage } from "./aiUsage";
 import { fetchFacebookComments, fetchInstagramComments, replyToComment, type CommentPlatform, type CommentRead, type SocialComment } from "./comments";
 import { getFbSnapshot } from "./facebookSync";
 import { getIgSnapshot } from "./instagramSync";
@@ -50,7 +51,7 @@ const POSTS_PER_PLATFORM = 10;
 
 /** One reply suggestion, in the brand's voice. Short, human, specific to the
  *  comment; never promotional spam, never a promise the brand can't keep. */
-export async function draftReply(input: { comment: SocialComment; brand: BrandVoice }): Promise<string | null> {
+export async function draftReply(input: { comment: SocialComment; brand: BrandVoice; ownerId?: string | null }): Promise<string | null> {
   const { comment, brand } = input;
   const who = brand.name ? `the brand "${brand.name}"` : "a small business";
   const niche = brand.niche ? ` in the ${brand.niche} space` : "";
@@ -80,6 +81,7 @@ Comment: ${comment.text.slice(0, 600)}`;
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(input.ownerId, "comment_reply", res);
     const text = res.content
       .map((b) => ("text" in b ? b.text : ""))
       .join("")
@@ -150,7 +152,7 @@ export async function syncCommentDrafts(
 
   let drafted = 0;
   for (const c of toDraft) {
-    const draft = await draftReply({ comment: c, brand });
+    const draft = await draftReply({ comment: c, brand, ownerId });
     const row = {
       user_id: ownerId,
       workspace_id: workspaceId,
@@ -220,6 +222,7 @@ export async function redraftComment(supabase: Supa, ownerId: string, id: string
   const draft = await draftReply({
     comment: { platform: d.platform, accountId: d.account_id, postId: d.post_id, postCaption: d.post_caption, commentId: d.comment_id, author: d.author, text: d.comment_text, createdAt: d.comment_created_at, likeCount: null },
     brand,
+    ownerId,
   });
   if (draft) await supabase.from("comment_drafts").update({ draft, status: "drafted", updated_at: new Date().toISOString() }).eq("user_id", ownerId).eq("id", id);
   return draft;

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { LIMITS } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
@@ -73,6 +75,7 @@ export async function POST(req: Request) {
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
   if (!Array.isArray(body.frames) || !body.frames.length) return NextResponse.json({ error: "No frames were sent." }, { status: 400 });
+  if (body.frames.some((f) => typeof f !== "string" || f.length > LIMITS.frameChars)) return NextResponse.json({ error: "A frame is too large. Reload the page and analyse again." }, { status: 400 });
   const kind: StudioKind = body.kind === "image" || body.kind === "carousel" ? body.kind : "video";
   const duration = kind === "video" ? Math.max(1, Math.round(body.durationSec || 0)) : 0;
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
@@ -158,6 +161,7 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
     // output_config is newer than this SDK's types; it is sent as-is.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "studio_analyze", res);
     if (res.stop_reason === "refusal") {
       await u.release();
       return NextResponse.json({ error: "SOCIA declined to analyse this content." }, { status: 422 });

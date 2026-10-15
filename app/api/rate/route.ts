@@ -5,7 +5,9 @@
 // Requires: ANTHROPIC_API_KEY in .env.local
 
 import { NextRequest, NextResponse } from "next/server";
+import { LIMITS, tooLongResponse } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { BENCHMARKS, BENCHMARK_VERSION } from "@/lib/benchmarks";
 import { requireUsage, type UsageGuard } from "@/lib/planGuard";
@@ -122,6 +124,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (body.caption.length > LIMITS.rateCaption) return tooLongResponse("The caption", LIMITS.rateCaption);
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
@@ -145,6 +148,7 @@ export async function POST(req: NextRequest) {
     // output_config is newer than this SDK's types; it is sent as-is.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const message = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "rate", message);
 
     const textBlock = message.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { firstTooLong, tooLongResponse } from "@/lib/inputLimits";
 import { getProfile } from "@/lib/profile";
 import type { GenerateInput } from "@/lib/schema";
 import { generatePlan, PlanGenerationError } from "@/lib/planGenerate";
@@ -42,6 +43,18 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
+
+  const long = firstTooLong({
+    clientHandle: { value: input.clientHandle, max: 100, label: "The handle" },
+    niche: { value: input.niche, max: 200, label: "The niche" },
+    platform: { value: input.platform, max: 50, label: "The platform" },
+    brandVoice: { value: input.brandVoice, max: 3_000, label: "Brand voice" },
+    recentPosts: { value: input.recentPosts, max: 10_000, label: "Recent posts" },
+    competitors: { value: input.competitors, max: 4_000, label: "Competitors" },
+    goal: { value: input.goal, max: 1_500, label: "The goal" },
+    audienceWindows: { value: input.audienceWindows, max: 3_000, label: "Audience timing" },
+  });
+  if (long) return tooLongResponse(long.label, long.max);
 
   if (!input.clientHandle?.trim() && !input.niche?.trim()) {
     return NextResponse.json(

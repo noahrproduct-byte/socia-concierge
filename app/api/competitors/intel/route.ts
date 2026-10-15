@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { aiFailureKind, MODEL, effortFor, type AiUnavailable } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { resolveContext, can, forbiddenCopy, brandWorkspace } from "@/lib/context";
 import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
 import {
@@ -131,8 +132,15 @@ export async function GET(req: Request) {
     goal: goalKind(goalText), ownHandle, ownFollowers, ownFormats,
   };
 
+  // Discovery is per-workspace once the competitors migration has run; wsId null
+  // keeps the pooled, pre-migration behaviour. The cache read below must use the
+  // same scope as the writes: unscoped, an owner with several brands matched
+  // several runs, read none, and every Refresh skipped the 6-hour reuse.
+  const scoped = await competitorsScopedEnabled(ctx.client);
+  const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
+
   // ---- cached results, unless a permitted refresh was asked for ----------
-  const cached = await readStored(ctx.client, ctx.ownerId);
+  const cached = await readStored(ctx.client, ctx.ownerId, wsId);
   const ageMs = cached?.ranAt ? Date.now() - new Date(cached.ranAt).getTime() : Infinity;
   let refresh = false;
   let nextRefreshAt: string | null = null;
@@ -277,6 +285,7 @@ Output ONLY this JSON, no other text:
           tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
           messages,
         });
+        recordAiUsage(ctx.ownerId, "competitor_research", res);
         text = res.content
           .filter((b: { type: string }) => b.type === "text")
           .map((b: { text: string }) => b.text)
@@ -344,11 +353,7 @@ Output ONLY this JSON, no other text:
   const trends = rollUpTrends(content);
   const ranAt = new Date().toISOString();
 
-  // Discovery is per-workspace once the competitors migration has run; wsId null
-  // keeps the pooled, pre-migration behaviour. onConflict targets match the
-  // primary key in force.
-  const scoped = await competitorsScopedEnabled(ctx.client);
-  const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
+  // onConflict targets match the primary key in force (wsId: see the cache read).
   const wsCol: Record<string, unknown> = wsId ? { workspace_id: wsId } : {};
   const accConflict = wsId ? "user_id,workspace_id,platform,platform_account_id" : "user_id,platform,platform_account_id";
   const conConflict = wsId ? "user_id,workspace_id,content_url" : "user_id,content_url";

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { LIMITS, clip } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
@@ -7,6 +9,7 @@ import { videoDurationSec, youtubeVideoId, ytConfigured } from "@/lib/youtube";
 import type { NichePost } from "@/lib/nicheTrends";
 import { requireFeature } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -66,6 +69,9 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
   const post = body.post;
   if (!post?.url) return NextResponse.json({ error: "No post given." }, { status: 400 });
+  // Echoed back from SOCIA's own research: trimmed, never refused.
+  post.title = clip(post.title, LIMITS.nicheTitle) || null;
+  post.why = clip(post.why, LIMITS.nicheWhy) || null;
 
   // Cache per workspace: the default keeps the owner-keyed cache, a second
   // brand caches under its own id (its brand context shapes the analysis).
@@ -95,6 +101,9 @@ export async function POST(req: Request) {
   // paid plan stays visible.
   const g = await requireFeature(ctx.client, ctx.ownerId, "niche_intelligence");
   if (g.denied) return g.denied;
+  // Each new post or pattern is a fresh AI call (the cache is keyed on it): an hourly ceiling per account.
+  const limited = await perUserLimit(ctx.ownerId, "niche", 60, "niche analyses");
+  if (limited) return limited;
 
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const observed = [
@@ -134,6 +143,7 @@ Rules:
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "niche_analyze", res);
     const block = res.content.find((b) => b.type === "text");
     return block && "text" in block ? (JSON.parse(block.text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as PostAnalysis) : null;
   };

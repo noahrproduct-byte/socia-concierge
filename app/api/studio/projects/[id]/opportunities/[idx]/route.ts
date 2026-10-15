@@ -4,6 +4,8 @@ import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { getProjectRow, clipRows, loadBuild, buildOpportunity, accountContext } from "@/lib/studioClips/server";
 import { AnalysisError } from "@/lib/studioClips/analysis";
+import { requireFeature } from "@/lib/planGuard";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -11,7 +13,9 @@ export const maxDuration = 120;
 // One post opportunity's build (EDL + edit guide).
 //   GET  -> StudioBuild | 404 when not built yet
 //   POST -> builds it (once; later calls return the saved build). Covered by
-//           the project's clip-build credit; no extra meter in Phase A.
+//           the project's clip-build credit; no extra meter in Phase A, but
+//           it needs Build from Clips on the plan and shares an hourly
+//           ceiling with regenerations (each is an AI call).
 
 async function load(idParam: string, idxParam: string) {
   const idx = Number(idxParam);
@@ -49,6 +53,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const existing = await loadBuild(ctx.client, l.project.id, l.idx, await clipRows(ctx.client, l.project.id));
     if (existing) return NextResponse.json(existing);
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
+    const { denied } = await requireFeature(ctx.client, ctx.ownerId, "build_from_clips");
+    if (denied) return denied;
+    const limited = await perUserLimit(ctx.ownerId, "clip_edl", 40, "video edits");
+    if (limited) return limited;
     const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
     const build = await buildOpportunity(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project: l.project, idx: l.idx, acct });
     return NextResponse.json(build);
