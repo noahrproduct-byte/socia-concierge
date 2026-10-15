@@ -89,7 +89,7 @@ export type InstagramSettings = {
   userTags: { username: string; x?: number; y?: number }[];
   /** is_ai_generated disclosure. */
   aiGenerated: boolean;
-  /** Collab post: up to 3 usernames invited as co-authors (collaborators). Reels, feed images, carousels. */
+  /** Collab post: up to MAX_COLLABORATORS (5) usernames invited as co-authors. Reels, feed images, carousels. */
   collaborators: string[];
   /** SOCIA's pre-flight check of `collaborators` with Instagram (lib/publishing/collaborators.ts). */
   collaboratorsCheck: CollaboratorsCheck | null;

@@ -2,7 +2,8 @@
 // scheduled, so it never fails at its publish time because of them.
 //
 // Meta documents `collaborators` on media containers (up to 3 usernames;
-// feed image, Reels, carousels), but its Instagram-Login publishing guide —
+// feed image, Reels, carousels; SOCIA allows 5 and lets this check decide),
+// but its Instagram-Login publishing guide —
 // how SOCIA connects accounts — does not list it, and the edge that reads
 // invites back is Facebook-Login only. So SOCIA asks Instagram directly:
 //   1. create an UNPUBLISHED image container on the account with the real
@@ -15,6 +16,7 @@
 // Server only.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createContainer, igRetryable, IG_USERNAME_RE, MAX_COLLABORATORS, normalizeUsername, type IgResult } from "@/lib/igPublish";
+import { META_DOCUMENTED_COLLABORATORS } from "./igRules";
 import type { CollaboratorsCheck } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,6 +37,10 @@ export const checkCovers = (check: CollaboratorsCheck | null | undefined, list: 
 export function decideCheck(usernames: string[], real: IgResult<{ id: string }>, probe: IgResult<{ id: string }> | null, at = new Date().toISOString(), control: IgResult<{ id: string }> | null = null): CollaboratorsCheck {
   const base = { usernames: sortedUsernames(usernames), at };
   const who = base.usernames.map((u) => `@${u}`).join(", ");
+  // Past Meta's documented 3, Instagram might accept the list but invite fewer.
+  const beyondDocs = base.usernames.length > META_DOCUMENTED_COLLABORATORS
+    ? ` Meta documents up to ${META_DOCUMENTED_COLLABORATORS} collaborators per post, so once it's live, check in Instagram that all ${base.usernames.length} invites went out.`
+    : "";
   if (!real.ok) {
     if (igRetryable(real.code)) {
       if (control?.ok) {
@@ -48,11 +54,11 @@ export function decideCheck(usernames: string[], real: IgResult<{ id: string }>,
     return { ...base, status: "rejected", message: `Instagram refused ${base.usernames.length === 1 ? "this collaborator" : "these collaborators"}: ${real.error}` };
   }
   if (probe && !probe.ok && !igRetryable(probe.code)) {
-    return { ...base, status: "accepted", message: `Instagram checked ${who} on a test (nothing was posted). The invite${base.usernames.length === 1 ? "" : "s"} go${base.usernames.length === 1 ? "es" : ""} out when this post publishes; each account accepts it in the Instagram app.` };
+    return { ...base, status: "accepted", message: `Instagram checked ${who} on a test (nothing was posted). The invite${base.usernames.length === 1 ? "" : "s"} go${base.usernames.length === 1 ? "es" : ""} out when this post publishes; each account accepts it in the Instagram app.${beyondDocs}` };
   }
   return {
     ...base, status: "unconfirmed",
-    message: `Instagram took ${who} without checking the username${base.usernames.length === 1 ? "" : "s"} for this account, so SOCIA can't confirm the invite${base.usernames.length === 1 ? "" : "s"} in advance. After the post goes live, check it in Instagram: a collaborator shows as pending until they accept.`,
+    message: `Instagram took ${who} without checking the username${base.usernames.length === 1 ? "" : "s"} for this account, so SOCIA can't confirm the invite${base.usernames.length === 1 ? "" : "s"} in advance. After the post goes live, check it in Instagram: a collaborator shows as pending until they accept.${beyondDocs}`,
   };
 }
 
@@ -63,7 +69,7 @@ export type CheckInput = { ownerId: string; igUserId: string; usernames: string[
 export async function checkCollaborators(client: Supa, input: CheckInput): Promise<CollaboratorsCheck | { error: string; status: number }> {
   const list = sortedUsernames(input.usernames);
   if (!list.length) return { error: "Add a collaborator first.", status: 400 };
-  if (list.length > MAX_COLLABORATORS) return { error: `Instagram allows up to ${MAX_COLLABORATORS} collaborators on a post.`, status: 400 };
+  if (list.length > MAX_COLLABORATORS) return { error: `A post can have up to ${MAX_COLLABORATORS} collaborators.`, status: 400 };
   const bad = list.find((u) => !IG_USERNAME_RE.test(u));
   if (bad) return { error: `“${bad}” isn't a valid Instagram username.`, status: 400 };
 
