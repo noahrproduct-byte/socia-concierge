@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { LIMITS, clip, clipList } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
@@ -38,6 +40,11 @@ export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
+  // SOCIA's own analysis and earlier options come back from the browser: trimmed.
+  body.summary = clip(body.summary, LIMITS.studioSummary) || undefined;
+  body.hook = clip(body.hook, LIMITS.hook) || undefined;
+  body.exclude = clipList(body.exclude, LIMITS.listItems, LIMITS.listItem);
+  body.styles = clipList(body.styles, 10, 60);
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
   const promptCtx = [
@@ -74,6 +81,7 @@ export async function POST(req: Request) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "studio_improve", res);
     if (res.stop_reason === "refusal") {
       await u.release();
       return NextResponse.json({ error: "SOCIA declined this one. Try rephrasing." }, { status: 422 });

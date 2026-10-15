@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { anthropic, modelFor, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseUrl } from "@/lib/supabase/env";
 import { resolveContext } from "@/lib/context";
@@ -99,7 +100,7 @@ function schemaFor(targets: string[]) {
 type ModelOut = { understanding: string; purpose: string; captions: Current[] };
 type Img = { type: "image"; source: { type: "base64"; media_type: "image/jpeg"; data: string } | { type: "url"; url: string } };
 
-async function callModel(system: string, content: (Img | { type: "text"; text: string })[], targets: string[]): Promise<{ out: ModelOut | null; refused: boolean }> {
+async function callModel(system: string, content: (Img | { type: "text"; text: string })[], targets: string[], ownerId: string): Promise<{ out: ModelOut | null; refused: boolean }> {
   const model = modelFor("caption");
   const params = {
     model, max_tokens: 3000, system,
@@ -108,6 +109,7 @@ async function callModel(system: string, content: (Img | { type: "text"; text: s
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = await anthropic.messages.create(params as any);
+  recordAiUsage(ownerId, "caption", res);
   if (res.stop_reason === "refusal") return { out: null, refused: true };
   const block = res.content.find((b) => b.type === "text");
   try {
@@ -223,7 +225,7 @@ export async function POST(req: Request) {
   if (u.denied) return u.denied;
 
   try {
-    const first = await callModel(SYSTEM, content, targets);
+    const first = await callModel(SYSTEM, content, targets, ctx.ownerId);
     if (first.refused) { await u.release(); return NextResponse.json({ error: "SOCIA declined this one. Try adding a note about the post." }, { status: 422 }); }
     if (!first.out) { await u.release(); return NextResponse.json({ error: "SOCIA returned no caption. Try again." }, { status: 502 }); }
 
@@ -244,7 +246,7 @@ export async function POST(req: Request) {
     if (needsFix.length) {
       const fixes = needsFix.map((c) => `- ${c.target}: ${[...c.claims.map(describeClaim), c.over ? `it is over ${c.over} characters; shorten it` : ""].filter(Boolean).join("; ")}.`).join("\n");
       const repairText = [facts.prompt, mediaSection, `# Captions to fix (JSON)\n${JSON.stringify(out.captions)}`, `# Task\nThese captions contain things SOCIA can't verify or are too long:\n${fixes}\nRemove each unverified item or replace it with something the brief actually says. Change nothing else. Return all captions, and "understanding" and "purpose" as given.`].join("\n\n");
-      const second = await callModel(SYSTEM, [{ type: "text", text: repairText }], targets).catch(() => null);
+      const second = await callModel(SYSTEM, [{ type: "text", text: repairText }], targets, ctx.ownerId).catch(() => null);
       if (second?.out?.captions?.length) {
         const again = check(second.out);
         // Keep the rewrite only where it is no worse than the original.

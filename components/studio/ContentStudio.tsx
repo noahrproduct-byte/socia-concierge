@@ -24,6 +24,7 @@ import { decodeToMono16k } from "@/lib/audio/decode";
 import { describeQuickAudio, quickAudioFrom, timedTranscript, type QuickAudio } from "@/lib/audio/quick";
 import { saveStudioHandoff } from "@/lib/studioHandoff";
 import type { AskProposal } from "@/lib/ask";
+import { transcriptSkippedNote } from "@/lib/transcribe/limits";
 
 export type DraftItem = { id: string; caption: string; media_url: string | null; media_type: string; scheduled_at: string; status: string };
 
@@ -140,7 +141,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         setAuto(next); setTranscript(t.text);
         return { audio: qa, auto: next, transcript: t.text };
       }
-      setListenNote(t ? "No speech was found in the video." : j?.reason === "not_configured" ? "Speech transcription isn't set up, so the sound is judged from its measurements only." : "Transcription didn't finish, so the sound is judged from its measurements only.");
+      setListenNote(t ? "No speech was found in the video." : `${transcriptSkippedNote(j?.reason, "Transcription didn't finish")}, so the sound is judged from its measurements only.`);
     } catch {
       setListenNote("Transcription didn't finish, so the sound is judged from its measurements only.");
     }

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { LIMITS, clip, clipList } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
 import { requireFeature } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -37,6 +40,11 @@ export async function POST(req: Request) {
   let body: Body;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
   if (!body.tag) return NextResponse.json({ error: "No pattern given." }, { status: 400 });
+  // Echoed back from SOCIA's own research: trimmed, never refused.
+  body.tag = clip(body.tag, LIMITS.nicheTag);
+  body.why = clipList(body.why, 10, LIMITS.listItem);
+  if (body.example) body.example = { title: clip(body.example.title, LIMITS.nicheTitle) || null, accountName: clip(body.example.accountName, 100) || null };
+  body.competitorName = clip(body.competitorName, 100) || null;
 
   const key = `opp:${ctx.ownerId}:${body.tag}`;
   try {
@@ -52,6 +60,9 @@ export async function POST(req: Request) {
   // A fresh concept is part of Niche intelligence on the workspace owner's plan; cached ones above stay free.
   const g = await requireFeature(ctx.client, ctx.ownerId, "niche_intelligence");
   if (g.denied) return g.denied;
+  // Each new post or pattern is a fresh AI call (the cache is keyed on it): an hourly ceiling per account.
+  const limited = await perUserLimit(ctx.ownerId, "niche", 60, "niche analyses");
+  if (limited) return limited;
 
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const brief = [
@@ -73,6 +84,7 @@ export async function POST(req: Request) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "niche_opportunity", res);
     const block = res.content.find((b) => b.type === "text");
     const raw = block && "text" in block ? (JSON.parse(block.text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as OpportunityConcept) : null;
     if (!raw?.concept) throw new Error("empty");

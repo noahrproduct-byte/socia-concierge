@@ -5,6 +5,7 @@
 // sees them. Images reach the model as short-lived signed URLs, never as
 // bytes through this function.
 import { anthropic, modelFor, effortFor } from "@/lib/anthropic";
+import { recordAiUsage, type AiFeature } from "@/lib/aiUsage";
 import { brandContext } from "@/lib/prompt";
 import type { BrandDetail } from "@/lib/profile";
 import type { ClipCard, ClipFacts, Edl, Opportunity, RegenerateDirective, Transcript } from "./types";
@@ -18,6 +19,8 @@ export type AccountContext = {
   audio?: string | null;
   /** how this account's earlier Content Studio posts did against its median (lib/studioClips/learn.ts) */
   learned?: string | null;
+  /** The workspace owner whose plan pays for these calls (AI usage records). */
+  ownerId?: string;
 };
 
 /** The Learn block for passes 2 and 3, with how to use it. */
@@ -92,7 +95,7 @@ const accountText = (acct: AccountContext): string => [
 
 type Content = ({ type: "text"; text: string } | { type: "image"; source: { type: "url"; url: string } })[];
 
-async function structured<T>(task: Parameters<typeof modelFor>[0], system: string, content: Content, schema: unknown, maxTokens: number): Promise<{ data: T; model: string }> {
+async function structured<T>(task: Parameters<typeof modelFor>[0], system: string, content: Content, schema: unknown, maxTokens: number, usage: { ownerId?: string; feature: AiFeature }): Promise<{ data: T; model: string }> {
   const model = modelFor(task);
   const params = {
     model,
@@ -103,6 +106,7 @@ async function structured<T>(task: Parameters<typeof modelFor>[0], system: strin
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = await anthropic.messages.create(params as any);
+  recordAiUsage(usage.ownerId, usage.feature, res);
   if (res.stop_reason === "refusal") throw new AnalysisError("refusal", "The model declined this request.");
   const block = res.content.find((b) => b.type === "text");
   const text = block && "text" in block ? block.text : "";
@@ -146,7 +150,7 @@ ${accountText(acct)}
 The ${clip.frames.length} images that follow are frames at ${clip.frames.map((f) => `${f.t.toFixed(1)}s`).join(", ")}, in that order.` },
     ...clip.frames.map((f) => ({ type: "image" as const, source: { type: "url" as const, url: f.url } })),
   ];
-  const { data, model } = await structured<CardOut>("studio_clip", system, content, CARD_SCHEMA, 1800);
+  const { data, model } = await structured<CardOut>("studio_clip", system, content, CARD_SCHEMA, 1800, { ownerId: acct.ownerId, feature: "clip_card" });
   const d = Math.max(0.1, clip.durationSec);
   const moments = (data.moments ?? [])
     .map((m) => ({ ...m, start: Math.max(0, Math.min(m.start, d)), end: Math.max(0, Math.min(m.end, d)) }))
@@ -210,7 +214,7 @@ ${withCards.map(cardText).join("\n\n")}
 The images that follow are one frame from each clip, in the same order (${withCards.map((c) => clipLabel(c.position)).join(", ")}).` },
     ...withCards.filter((c) => c.frames.length).map((c) => ({ type: "image" as const, source: { type: "url" as const, url: (c.frames[Math.min(1, c.frames.length - 1)] ?? c.frames[0]).url } })),
   ];
-  const { data, model } = await structured<GroupsOut>("studio_batch", system, content, GROUPS_SCHEMA, 4000);
+  const { data, model } = await structured<GroupsOut>("studio_batch", system, content, GROUPS_SCHEMA, 4000, { ownerId: acct.ownerId, feature: "clip_batch" });
   const groups: ProposedGroup[] = (data.groups ?? []).map((g) => ({
     title: g.title, angle: g.angle, clipIds: g.clipIds ?? [], moments: g.moments ?? [],
     opener: g.opener?.clipId ? g.opener : null,
@@ -272,6 +276,6 @@ ${used.map((c) => `${cardText(c)}\n  measurements: ${factsText(c.facts)}${c.tran
 The images that follow are one frame from each clip, in the same order (${used.map((c) => clipLabel(c.position)).join(", ")}).` },
     ...used.filter((c) => c.frames.length).map((c) => ({ type: "image" as const, source: { type: "url" as const, url: (c.frames[Math.min(1, c.frames.length - 1)] ?? c.frames[0]).url } })),
   ];
-  const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, 3000);
+  const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, 3000, { ownerId: acct.ownerId, feature: "clip_edl" });
   return { raw: data, model };
 }

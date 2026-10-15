@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { syncCommentDrafts, listCommentDrafts } from "@/lib/commentDrafts";
 import { brandVoiceFrom } from "@/lib/commentBrand";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -21,6 +22,10 @@ export async function POST() {
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)),
   ]);
   if (!canUseFeature(ent, "comment_replies")) return NextResponse.json({ error: "AI comment replies are on Growth and up." }, { status: 403 });
+
+  // A sync drafts up to 20 replies with AI: an hourly ceiling per account.
+  const limited = await perUserLimit(ctx.ownerId, "comment_sync", 20, "comment syncs");
+  if (limited) return limited;
 
   const wsId = ctx.workspace?.id ?? null;
   const result = await syncCommentDrafts(ctx.client, ctx.ownerId, wsId, brandVoiceFrom(profile, ctx.workspace?.name ?? null));

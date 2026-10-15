@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { LIMITS, tooLongResponse } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { buildAskEvidence } from "@/lib/askContext";
 import { askAnswerSchema, type AskAnswer, type AskContext, type ModelAnswer, type AskProposal } from "@/lib/ask";
@@ -58,6 +60,10 @@ export async function POST(req: Request) {
   const messages = (body.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-12);
   while (messages.length && messages[0].role === "assistant") messages.shift();
   if (!messages.length) return NextResponse.json({ error: "No message to send." }, { status: 400 });
+  const latest = messages[messages.length - 1];
+  if (latest.role === "user" && latest.content.length > LIMITS.question) return tooLongResponse("Your question", LIMITS.question);
+  // Earlier turns are context SOCIA re-sends: trimmed, never refused.
+  for (const m of messages) m.content = m.content.slice(0, LIMITS.historyMessage);
 
   // The evidence window is the client's choice, but never longer than the
   // plan's analytics history.
@@ -83,6 +89,7 @@ export async function POST(req: Request) {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
+    recordAiUsage(ctx.ownerId, "ask", res);
     if (res.stop_reason === "refusal") {
       await u.release();
       return NextResponse.json({ error: "SOCIA can't help with that one. Try rephrasing." }, { status: 422 });

@@ -9,6 +9,7 @@ import { extractFrames, imageFrames } from "@/lib/studio";
 import { decodeToMono16k } from "@/lib/audio/decode";
 import { describeQuickAudio, quickAudioFrom } from "@/lib/audio/quick";
 import type { MediaItem } from "./types";
+import { MAX_TRANSCRIBE_SECONDS, WAV_BYTES_PER_SECOND, transcriptSkippedNote } from "@/lib/transcribe/limits";
 
 export type Seen = {
   kind: "video" | "image" | "carousel" | "none";
@@ -92,16 +93,19 @@ export async function seeMedia(
     } else if (!qa.hasAudio) {
       seen.audio = describeQuickAudio(qa);
       seen.notes.push("The video has no audible sound.");
+    } else if (dec.wav.size > MAX_TRANSCRIBE_SECONDS * WAV_BYTES_PER_SECOND + 44) {
+      seen.audio = describeQuickAudio(qa);
+      seen.notes.push(`${transcriptSkippedNote("too_long", "")}, so SOCIA didn't hear what's said.`);
     } else {
       seen.audio = describeQuickAudio(qa);
       opts.onPhase?.("transcribing");
       try {
         const path = `${opts.userId}/quick/${crypto.randomUUID()}/audio.wav`;
         await uploadMedia(createClient(), "studio-sources", path, new File([dec.wav], "audio.wav", { type: "audio/wav" }));
-        const res = await fetch("/api/studio/transcribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
+        const res = await fetch("/api/studio/transcribe", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, purpose: "caption" }) });
         const j = (await res.json().catch(() => null)) as { transcript?: { text: string; words: unknown[] } | null; reason?: string } | null;
         if (j?.transcript?.text?.trim()) seen.transcript = j.transcript.text.trim().slice(0, 4000);
-        else seen.notes.push(j?.transcript ? "No speech was found in the video." : j?.reason === "not_configured" ? "Speech transcription isn't set up, so SOCIA didn't hear what's said." : "Transcription didn't finish, so SOCIA didn't hear what's said.");
+        else seen.notes.push(j?.transcript ? "No speech was found in the video." : `${transcriptSkippedNote(j?.reason, "Transcription didn't finish")}, so SOCIA didn't hear what's said.`);
       } catch {
         seen.notes.push("Transcription didn't finish, so SOCIA didn't hear what's said.");
       }

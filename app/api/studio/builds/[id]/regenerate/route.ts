@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AI_UNAVAILABLE_COPY, aiFailureKind } from "@/lib/aiStatus";
 import { requireFeature } from "@/lib/planGuard";
+import { perUserLimit } from "@/lib/rateLimit";
 import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { regenerateBuild, accountContext } from "@/lib/studioClips/server";
@@ -27,6 +28,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
+    const limited = await perUserLimit(ctx.ownerId, "clip_edl", 40, "video edits");
+    if (limited) return limited;
     const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
     const build = await regenerateBuild(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, buildId: id, directive, acct });
     return NextResponse.json(build);
