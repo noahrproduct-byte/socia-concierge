@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, modelFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, modelFor, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getSupabaseUrl } from "@/lib/supabase/env";
 import { resolveContext } from "@/lib/context";
@@ -100,9 +100,10 @@ type ModelOut = { understanding: string; purpose: string; captions: Current[] };
 type Img = { type: "image"; source: { type: "base64"; media_type: "image/jpeg"; data: string } | { type: "url"; url: string } };
 
 async function callModel(system: string, content: (Img | { type: "text"; text: string })[], targets: string[]): Promise<{ out: ModelOut | null; refused: boolean }> {
+  const model = modelFor("caption");
   const params = {
-    model: modelFor("caption"), max_tokens: 3000, system,
-    output_config: { format: { type: "json_schema", schema: schemaFor(targets) } },
+    model, max_tokens: 3000, system,
+    output_config: { format: { type: "json_schema", schema: schemaFor(targets) }, ...effortFor(model) },
     messages: [{ role: "user", content }],
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

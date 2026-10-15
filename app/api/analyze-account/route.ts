@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, MODEL } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { NICHES } from "@/lib/niches";
@@ -267,7 +267,7 @@ Allowed niches: ${NICHES.join(", ")}`;
       model: MODEL,
       max_tokens: 1400,
       system: SYSTEM,
-      output_config: { format: { type: "json_schema", schema: extractionSchema } },
+      output_config: { format: { type: "json_schema", schema: extractionSchema }, ...effortFor(MODEL) },
       messages: [{ role: "user", content: userPrompt }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -360,7 +360,7 @@ export async function POST(req: Request) {
       model: MODEL,
       max_tokens: 900,
       system: `You are SOCIA, an AI social media strategist. The creator has described, in their own words, what they plan to post about. Convert it into a structured niche. Pick the closest niche from the allowed list, a specific sub_niche, a content_style, and an audience if implied (empty string otherwise). signals: 3-5 short topic phrases taken from their description. confidence reflects how specific their description was. candidates must be an empty array. brand_name/goal/summary/highlights/best_format: infer briefly from the description; use plain short phrases, and never invent performance numbers (highlights should describe the plan, not results).`,
-      output_config: { format: { type: "json_schema", schema: extractionSchema } },
+      output_config: { format: { type: "json_schema", schema: extractionSchema }, ...effortFor(MODEL) },
       messages: [{ role: "user", content: `What I plan to create content about: ${describe}\n\nAllowed niches: ${NICHES.join(", ")}` }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

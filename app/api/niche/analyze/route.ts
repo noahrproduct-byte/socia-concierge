@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
@@ -129,7 +129,7 @@ Rules:
   const call = async (content: Block[]) => {
     const params = {
       model: MODEL, max_tokens: 1200, system,
-      output_config: { format: { type: "json_schema", schema } },
+      output_config: { format: { type: "json_schema", schema }, ...effortFor(MODEL) },
       messages: [{ role: "user", content }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

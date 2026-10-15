@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
@@ -148,12 +148,16 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
     // The full analysis schema is too large for structured outputs ("compiled
     // grammar is too large"), so the shape is given in the prompt and parsed
     // tolerantly; every field is mapped defensively below.
-    const res = await anthropic.messages.create({
+    const params = {
       model: MODEL,
       max_tokens: 6000,
       system: SYSTEM,
+      output_config: effortFor(MODEL),
       messages: [{ role: "user", content: [...images, { type: "text", text }] }],
-    });
+    };
+    // output_config is newer than this SDK's types; it is sent as-is.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await anthropic.messages.create(params as any);
     if (res.stop_reason === "refusal") {
       await u.release();
       return NextResponse.json({ error: "SOCIA declined to analyse this content." }, { status: 422 });

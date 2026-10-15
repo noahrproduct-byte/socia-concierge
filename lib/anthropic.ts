@@ -3,9 +3,22 @@ import Anthropic from "@anthropic-ai/sdk";
 // Zero-arg constructor reads ANTHROPIC_API_KEY from the environment.
 export const anthropic = new Anthropic();
 
-// Opus 5 is the default; the deliverable quality is the whole product, so we
-// don't downgrade for cost here. Override with ANTHROPIC_MODEL if needed.
-export const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5";
+// Opus 5.5 is the default: it succeeds Opus 5 at a lower price. The
+// deliverable quality is the whole product, so we don't downgrade for cost
+// here. Override with ANTHROPIC_MODEL if needed.
+export const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-5-5";
+
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+/**
+ * `output_config.effort` for a call on `model`, to spread into output_config.
+ * Opus 5.5 defaults to "medium" where Opus 5 ran at "high"; SOCIA keeps "high"
+ * unless a call asks for less. Effort is how much the model thinks (thinking
+ * can't be turned off on Opus 5.5). Models before the 5 family may not take
+ * effort, so an override to one of them gets nothing.
+ */
+export function effortFor(model: string, effort: Effort = "high"): { effort?: Effort } {
+  return /^claude-(opus|sonnet|haiku|fable)-5/.test(model) ? { effort } : {};
+}
 
 // A cheaper, faster model for high-volume, well-bounded work (per-clip
 // summaries in Build from Clips). Override with ANTHROPIC_MODEL_FAST.

@@ -10,7 +10,7 @@ API. It's the thing that earns the first dollars while you validate demand.
 ## Stack
 
 - **Next.js 15** (App Router) + **TypeScript**
-- **Claude Opus 5** via `@anthropic-ai/sdk`, using structured outputs so the
+- **Claude Opus 5.5** via `@anthropic-ai/sdk`, using structured outputs so the
   deliverable is always valid, renderable JSON
 - Plain CSS in the SOCIA brand (cobalt / ivory / Inter)
 

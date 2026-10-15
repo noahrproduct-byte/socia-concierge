@@ -5,18 +5,11 @@
 // Requires: ANTHROPIC_API_KEY in .env.local
 
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { BENCHMARKS, BENCHMARK_VERSION } from "@/lib/benchmarks";
 import { requireUsage, type UsageGuard } from "@/lib/planGuard";
 import { resolveContext } from "@/lib/context";
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// Matches the convention already used elsewhere in this project.
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
 
 // Claude can take a few seconds. Give the route room to breathe.
 export const maxDuration = 60;
@@ -142,12 +135,16 @@ export async function POST(req: NextRequest) {
     u = await requireUsage(ctx.client, ctx.ownerId, "content_studio");
     if (u.denied) return u.denied;
 
-    const message = await anthropic.messages.create({
+    const params = {
       model: MODEL,
       max_tokens: 1500,
       system: SYSTEM_PROMPT,
+      output_config: effortFor(MODEL),
       messages: [{ role: "user", content: buildUserPrompt(body) }],
-    });
+    };
+    // output_config is newer than this SDK's types; it is sent as-is.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const message = await anthropic.messages.create(params as any);
 
     const textBlock = message.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {

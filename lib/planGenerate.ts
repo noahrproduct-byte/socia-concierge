@@ -3,7 +3,7 @@
 // (SOCIA generates the coming week by itself). Usage metering and permission
 // checks happen in the callers; this only produces and stores the plan.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { anthropic, MODEL } from "./anthropic";
+import { anthropic, MODEL, effortFor } from "./anthropic";
 import { SYSTEM, buildUserPrompt } from "./prompt";
 import { deliverableSchema, type Deliverable, type GenerateInput, type SavedPlan } from "./schema";
 import type { BrandDetail } from "./profile";
@@ -52,7 +52,7 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
     model: MODEL,
     max_tokens: 16000,
     system: SYSTEM,
-    output_config: { format: { type: "json_schema", schema: deliverableSchema } },
+    output_config: { format: { type: "json_schema", schema: deliverableSchema }, ...effortFor(MODEL) },
     messages: [{ role: "user", content: buildUserPrompt(input, brand, evidence) }],
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
