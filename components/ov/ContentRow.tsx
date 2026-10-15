@@ -52,6 +52,7 @@ export default function ContentRow({ posts, onOpen, size = "md" }: { posts: Post
               )}
               <span className="ov-card-plat" aria-hidden>{IG}</span>
               {p.trial && <span className="ov-card-trial" title="Submitted as a Trial Reel: shown to non-followers first">Trial</span>}
+              {p.collabWith && <span className="ov-card-trial" title={`Collab post by @${p.collabWith}; you're a collaborator`}>Collab</span>}
               {p.isVideo && <span className="ov-card-play" aria-hidden><Play size={12} fill="currentColor" /></span>}
               <span className="ov-card-stat">
                 {p.isVideo && <Play size={10} fill="currentColor" />}

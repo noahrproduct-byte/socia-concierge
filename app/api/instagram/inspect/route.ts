@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { isAdminEmail } from "@/lib/admin";
+import { fetchCollabMedia } from "@/lib/igCollab";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -127,7 +128,8 @@ export async function GET() {
   );
 
   // ---- media-level insights on one reel and one non-reel ----
-  const media = Array.isArray(conn.media) ? (conn.media as { id?: string; media_type?: string }[]) : [];
+  // Insights belong to the account that posted, so probe only this account's own posts.
+  const media = (Array.isArray(conn.media) ? (conn.media as { id?: string; media_type?: string; collab_owner?: string }[]) : []).filter((m) => !m.collab_owner);
   const reel = media.find((m) => m.media_type === "VIDEO");
   const other = media.find((m) => m.media_type !== "VIDEO");
   const mediaMetrics = ["views", "reach", "saved", "shares", "likes", "comments", "total_interactions"];
@@ -152,5 +154,9 @@ export async function GET() {
     },
     account_insights: account,
     media_insights: mediaProbes,
+    // Collab posts this account joined but didn't post: Instagram's answer as-is.
+    collaborative_media: await fetchCollabMedia(token).then((r) => r.ok
+      ? { ok: true, count: r.media.length, items: r.media.slice(0, 10).map((m) => ({ timestamp: m.timestamp ?? null, media_product_type: m.media_product_type ?? null, posted_by: m.collab_owner, caption: m.caption?.split("\n")[0].slice(0, 60) ?? null, likes: m.like_count ?? null, comments: m.comments_count ?? null, views: m.insights?.views ?? null, permalink: m.permalink ?? null })) }
+      : { ok: false, code: r.code, error: r.error }),
   });
 }

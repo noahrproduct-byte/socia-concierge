@@ -61,6 +61,7 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
             <span>{new Date(p.published).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
           </div>
           {p.trial && <p className="ov-detail-trial">{trialLine(p.trial, true)} Until it is, its numbers come only from people who don&apos;t follow you.</p>}
+          {p.collabWith && <p className="ov-detail-trial">Collab post by @{p.collabWith}. You&apos;re a collaborator, so Instagram shares the post&apos;s totals with you; reach stays with the account that posted it.</p>}
           <p className="ov-detail-caption">{p.caption || "(no caption)"}</p>
           <dl className="ov-detail-stats">
             {[

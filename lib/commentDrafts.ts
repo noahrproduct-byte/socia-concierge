@@ -106,7 +106,8 @@ export async function syncCommentDrafts(
   const igConnected = Boolean(ig && ig.followers_count != null);
 
   const fbPosts = fbConnected ? (fb!.posts ?? []).filter((p) => p.created_time).sort((a, b) => new Date(b.created_time!).getTime() - new Date(a.created_time!).getTime()).slice(0, POSTS_PER_PLATFORM) : [];
-  const igMedia = igConnected ? (ig!.media ?? []).filter((m) => m.timestamp).sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime()).slice(0, POSTS_PER_PLATFORM) : [];
+  // Only this account's own posts: a collab another account posted isn't ours to answer on.
+  const igMedia = igConnected ? (ig!.media ?? []).filter((m) => m.timestamp && !m.collab_owner).sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime()).slice(0, POSTS_PER_PLATFORM) : [];
 
   const none: CommentRead = { comments: [], postsChecked: 0, postsFailed: 0, problem: null, returned: 0 };
   const [fbRead, igRead] = await Promise.all([
