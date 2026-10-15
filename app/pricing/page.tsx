@@ -16,7 +16,7 @@ const geist = Geist({ subsets: ["latin"], weight: ["400", "500", "600"], variabl
 
 export const metadata = {
   title: "Pricing — SOCIA",
-  description: "Four SOCIA plans, from a free account audit to multi-brand workspaces. What is included, what is limited by plan, and what is coming soon.",
+  description: "Four SOCIA plans, from a free account audit to multi-brand workspaces. What each plan includes and what is limited by plan.",
 };
 
 async function readVisitor(): Promise<{ signedIn: boolean; plan: PlanId | null }> {
