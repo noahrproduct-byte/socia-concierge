@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { revokeToken, ttAuthConfigured } from "@/lib/tiktokAuth";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { dropPlatformHistory } from "@/lib/platformSnapshots";
 
 export const runtime = "nodejs";
 
@@ -27,15 +28,18 @@ export async function POST() {
 
   // Best effort revoke of this workspace's token (one account per workspace);
   // a failed filter falls back to the owner-wide read.
+  /** The account whose daily history is removed with it. */
+  let openId: string | null = null;
   try {
     const read = (withWs: boolean) => {
-      let q = db.from("tiktok_connections").select("access_token").eq("user_id", ownerId);
+      let q = db.from("tiktok_connections").select("access_token, open_id").eq("user_id", ownerId);
       if (withWs && wsId) q = q.eq("workspace_id", wsId);
       return q.maybeSingle();
     };
     let { data, error } = await read(true);
     if (error && wsId) ({ data, error } = await read(false));
     const token = (data as { access_token?: string } | null)?.access_token;
+    openId = (data as { open_id?: string | null } | null)?.open_id ?? null;
     if (token && ttAuthConfigured()) await revokeToken(token);
   } catch {
     // revoke is best effort
@@ -55,6 +59,8 @@ export async function POST() {
       return NextResponse.json({ error: "Couldn't disconnect right now." }, { status: 500 });
     }
   }
+  // Its daily history goes with it (privacy policy: disconnecting deletes it).
+  await dropPlatformHistory(db, ownerId, "tiktok", [openId]);
 
   // Drop TikTok from the OWNER's profile platform list (best effort).
   try {

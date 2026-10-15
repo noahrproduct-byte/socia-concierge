@@ -248,3 +248,21 @@ export async function runFacebookDailySnapshots(supabase: Supa, now = new Date()
   }
   return run;
 }
+
+/**
+ * Remove the daily history SOCIA recorded for these accounts on one platform:
+ * disconnecting an account (or Meta's deletion request) deletes its history
+ * too, as the privacy policy says. Best effort; returns rows removed.
+ */
+export async function dropPlatformHistory(db: Supa, ownerId: string | null, platform: string, accountIds: (string | null | undefined)[]): Promise<number> {
+  const ids = accountIds.filter((x): x is string => typeof x === "string" && x.length > 0);
+  if (!ids.length) return 0;
+  try {
+    let q = db.from("platform_snapshots").delete({ count: "exact" }).eq("platform", platform).in("account_id", ids);
+    if (ownerId) q = q.eq("user_id", ownerId);
+    const { count, error } = await q;
+    return error ? 0 : (count ?? 0);
+  } catch {
+    return 0;
+  }
+}
