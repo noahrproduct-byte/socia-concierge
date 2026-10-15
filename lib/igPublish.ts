@@ -117,6 +117,8 @@ export function buildContainerParams(input: ContainerInput): Record<string, stri
   if (!isChild && input.caption != null) p.caption = input.caption.slice(0, 2200);
   // "A list of up to 3 instagram usernames as collaborators on an ig media.
   // For Feed image, Reels and Carousels only." (IG User Media reference)
+  // SOCIA allows up to MAX_COLLABORATORS (5); the collaborator check sends the
+  // same list on a test container first, so Instagram has already accepted it.
   if (!isChild && input.collaborators?.length) p.collaborators = JSON.stringify(input.collaborators.slice(0, MAX_COLLABORATORS));
   if (input.isAiGenerated) p.is_ai_generated = "true";
   return p;

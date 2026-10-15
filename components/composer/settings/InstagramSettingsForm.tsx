@@ -223,7 +223,7 @@ function CollaboratorsField({ accountId, settings, onChange }: { accountId: stri
     if (!u) return null;
     if (!IG_USERNAME_RE.test(u)) { const m = "Usernames use letters, numbers, periods and underscores (up to 30)."; setInputErr(m); return m; }
     if (list.some((x) => normalizeUsername(x) === u)) return null;
-    if (list.length >= MAX_COLLABORATORS) { const m = `Instagram allows up to ${MAX_COLLABORATORS} collaborators.`; setInputErr(m); return m; }
+    if (list.length >= MAX_COLLABORATORS) { const m = `A post can have up to ${MAX_COLLABORATORS} collaborators.`; setInputErr(m); return m; }
     onChange({ collaborators: [...list, u] });
     return null;
   };

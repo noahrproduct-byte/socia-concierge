@@ -154,7 +154,7 @@ export function collaboratorIssues(s: InstagramSettings): Issue[] {
   if (!list.length) return [];
   const out: Issue[] = [];
   const field = "collaborators";
-  if (list.length > MAX_COLLABORATORS) out.push({ code: "collaborators_many", severity: "block", field, message: `Instagram allows up to ${MAX_COLLABORATORS} collaborators on a post.` });
+  if (list.length > MAX_COLLABORATORS) out.push({ code: "collaborators_many", severity: "block", field, message: `A post can have up to ${MAX_COLLABORATORS} collaborators.` });
   const bad = list.find((u) => !IG_USERNAME_RE.test(u.replace(/^@/, "")));
   if (bad) out.push({ code: "collaborator_invalid", severity: "block", field, message: `“${bad}” isn't a valid Instagram username.` });
   if (out.length) return out;

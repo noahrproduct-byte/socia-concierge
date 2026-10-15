@@ -16,7 +16,7 @@ describe("collaborators on Instagram containers", () => {
     expect(buildContainerParams({ mediaType: "CAROUSEL", children: ["1", "2"], collaborators: ["a"] }).collaborators).toBe('["a"]');
     expect(buildContainerParams({ mediaType: "CAROUSEL_ITEM", mediaUrl: "i", collaborators: ["a"] }).collaborators).toBeUndefined();
     expect(buildContainerParams({ mediaType: "IMAGE", mediaUrl: "i", collaborators: [] }).collaborators).toBeUndefined();
-    expect(buildContainerParams({ mediaType: "IMAGE", mediaUrl: "i", collaborators: ["a", "b", "c", "d"] }).collaborators).toBe('["a","b","c"]');
+    expect(buildContainerParams({ mediaType: "IMAGE", mediaUrl: "i", collaborators: ["a", "b", "c", "d", "e", "f"] }).collaborators).toBe('["a","b","c","d","e"]');
   });
 
   it("carries the settings' collaborators onto the parent of every format", () => {
@@ -37,6 +37,15 @@ describe("the pre-flight verdict", () => {
     const v = decideCheck(["Friend", "@other"], { ok: true, value: { id: "c1" } }, { ok: false, error: "Invalid parameter", code: 100 }, AT);
     expect(v).toMatchObject({ status: "accepted", usernames: ["friend", "other"], at: AT });
     expect(v.message).toMatch(/@friend, @other on a test \(nothing was posted\)/);
+  });
+  it("past Meta's documented 3, asks the user to check every invite went out", () => {
+    const ok = { ok: true as const, value: { id: "c1" } };
+    const refused = { ok: false as const, error: "Invalid parameter", code: 100 };
+    expect(decideCheck(["a", "b", "c"], ok, refused, AT).message).not.toMatch(/Meta documents/);
+    const five = decideCheck(["a", "b", "c", "d", "e"], ok, refused, AT);
+    expect(five.status).toBe("accepted");
+    expect(five.message).toMatch(/Meta documents up to 3 collaborators per post, so once it's live, check in Instagram that all 5 invites went out\./);
+    expect(decideCheck(["a", "b", "c", "d"], ok, ok, AT).message).toMatch(/all 4 invites went out/);
   });
   it("unconfirmed when Instagram takes an invented username too (or the probe hiccuped)", () => {
     expect(decideCheck(["friend"], { ok: true, value: { id: "c1" } }, { ok: true, value: { id: "c2" } }, AT).status).toBe("unconfirmed");
@@ -76,7 +85,8 @@ describe("scheduling rules for collaborators", () => {
     expect(collaboratorIssues(ig({ collaborators: ["friend", "new"], collaboratorsCheck: checked("accepted") }))[0].code).toBe("collaborators_unchecked");
     expect(collaboratorIssues(ig({ collaborators: ["friend"], collaboratorsCheck: checked("rejected") }))[0]).toMatchObject({ code: "collaborators_rejected", severity: "block", message: "rejected!" });
     expect(collaboratorIssues(ig({ collaborators: ["bad name"] }))[0].code).toBe("collaborator_invalid");
-    expect(collaboratorIssues(ig({ collaborators: ["a", "b", "c", "d"] }))[0].code).toBe("collaborators_many");
+    expect(collaboratorIssues(ig({ collaborators: ["a", "b", "c", "d", "e", "f"] }))[0].code).toBe("collaborators_many");
+    expect(collaboratorIssues(ig({ collaborators: ["a", "b", "c", "d", "e"] })).map((i) => i.code)).not.toContain("collaborators_many");
   });
   it("lets an accepted list through and warns when Instagram couldn't confirm", () => {
     expect(collaboratorIssues(ig({ collaborators: ["Friend"], collaboratorsCheck: checked("accepted") }))).toEqual([]);
