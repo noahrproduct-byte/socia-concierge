@@ -11,7 +11,7 @@ import { competitorScopeId } from "@/lib/workspaces";
 import { recentPlanOutcomes } from "@/lib/planOutcomesLoad";
 
 export const runtime = "nodejs";
-// Opus 5 thinks before answering; give the request room.
+// Opus 5.5 thinks before answering; give the request room.
 export const maxDuration = 300;
 
 export async function POST(req: Request) {

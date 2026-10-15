@@ -4,7 +4,7 @@
 // go through validateYield, pass-3 EDLs through validateEdl, before anyone
 // sees them. Images reach the model as short-lived signed URLs, never as
 // bytes through this function.
-import { anthropic, modelFor } from "@/lib/anthropic";
+import { anthropic, modelFor, effortFor } from "@/lib/anthropic";
 import { brandContext } from "@/lib/prompt";
 import type { BrandDetail } from "@/lib/profile";
 import type { ClipCard, ClipFacts, Edl, Opportunity, RegenerateDirective, Transcript } from "./types";
@@ -98,7 +98,7 @@ async function structured<T>(task: Parameters<typeof modelFor>[0], system: strin
     model,
     max_tokens: maxTokens,
     system,
-    output_config: { format: { type: "json_schema", schema } },
+    output_config: { format: { type: "json_schema", schema }, ...effortFor(model) },
     messages: [{ role: "user", content }],
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { buildAskEvidence } from "@/lib/askContext";
 import { askAnswerSchema, type AskAnswer, type AskContext, type ModelAnswer, type AskProposal } from "@/lib/ask";
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       model: MODEL,
       max_tokens: 2000,
       system: ev.system,
-      output_config: { format: { type: "json_schema", schema: askAnswerSchema } },
+      output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(MODEL) },
       messages: convo,
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

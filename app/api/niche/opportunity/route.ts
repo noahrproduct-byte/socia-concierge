@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     const params = {
       model: MODEL, max_tokens: 700,
       system: `You are SOCIA's content strategist. Adapt an observed pattern to this specific business. concept: one filmable idea in under 40 words, concrete (what is on screen from the first second to the last). hook: the spoken or on-screen first line, under 12 words. shots: 3 to 4 short shot descriptions. Never predict views, never invent facts about the business, never mention algorithms. Plain text, no markdown, no em dashes.`,
-      output_config: { format: { type: "json_schema", schema } },
+      output_config: { format: { type: "json_schema", schema }, ...effortFor(MODEL) },
       messages: [{ role: "user", content: brief }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

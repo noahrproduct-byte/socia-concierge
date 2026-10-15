@@ -9,7 +9,7 @@
 // sync so AI cost stays bounded; comments beyond the cap simply wait for the
 // next sync. Server only (uses the Anthropic SDK).
 
-import { anthropic, MODEL } from "./anthropic";
+import { anthropic, MODEL, effortFor } from "./anthropic";
 import { fetchFacebookComments, fetchInstagramComments, replyToComment, type CommentPlatform, type CommentRead, type SocialComment } from "./comments";
 import { getFbSnapshot } from "./facebookSync";
 import { getIgSnapshot } from "./instagramSync";
@@ -69,12 +69,17 @@ Post caption: ${comment.postCaption ? comment.postCaption.slice(0, 500) : "(none
 Commenter: ${comment.author ?? "someone"}
 Comment: ${comment.text.slice(0, 600)}`;
   try {
-    const res = await anthropic.messages.create({
+    // Thinking is always on (Opus 5.5) and counts toward max_tokens, so the
+    // limit leaves room for it; low effort keeps a one-line reply quick and cheap.
+    const params = {
       model: MODEL,
-      max_tokens: 160,
+      max_tokens: 1024,
       system,
+      output_config: effortFor(MODEL, "low"),
       messages: [{ role: "user", content: user }],
-    });
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = await anthropic.messages.create(params as any);
     const text = res.content
       .map((b) => ("text" in b ? b.text : ""))
       .join("")

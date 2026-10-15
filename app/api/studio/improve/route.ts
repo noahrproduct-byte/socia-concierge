@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { anthropic, MODEL, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     const params = {
       model: MODEL, max_tokens: 2500,
       system: `You are SOCIA's content editor. Options only, in the account's voice, specific to this content. Never predict performance, never mention algorithms as rules, never invent facts about the business. Plain text, no markdown, no surrounding quotes.`,
-      output_config: { format: { type: "json_schema", schema } },
+      output_config: { format: { type: "json_schema", schema }, ...effortFor(MODEL) },
       messages: [{ role: "user", content: `${promptCtx}\n\n# Task\n${TASK[task]}` }],
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

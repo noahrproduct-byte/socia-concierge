@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
-import { aiFailureKind, type AiUnavailable } from "@/lib/anthropic";
+import { aiFailureKind, MODEL, effortFor, type AiUnavailable } from "@/lib/anthropic";
 import { resolveContext, can, forbiddenCopy, brandWorkspace } from "@/lib/context";
 import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
 import {
@@ -33,7 +33,7 @@ export const maxDuration = 120;
 // owner and admins, and the feature check is against the owner's plan.
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL ?? "claude-opus-5";
+const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL ?? MODEL;
 // A run is reused for six hours. A manual refresh (Niche intelligence, Starter
 // and up) may force a new run at most once an hour; on Free the button is
 // honoured only once the run is stale. Each run spends model web searches and
@@ -273,6 +273,7 @@ Output ONLY this JSON, no other text:
         const res: any = await (anthropic.messages.create as any)({
           model: SEARCH_MODEL,
           max_tokens: 4000,
+          output_config: effortFor(SEARCH_MODEL),
           tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
           messages,
         });
