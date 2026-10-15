@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Loader2 } from "lucide-react";
-import { PLANS, contactHref, type PlanId } from "@/lib/plans";
+import { PLANS, planRank, contactHref, type PlanId } from "@/lib/plans";
 
 // The button on a pricing card. Signed out it goes to sign-up; signed in it
 // starts a Stripe Checkout for the chosen plan (billed monthly). Someone
@@ -30,6 +30,9 @@ export default function PlanCta({
   const [err, setErr] = useState<string | null>(null);
   const p = PLANS[plan];
   const isCurrent = signedIn && currentPlan === plan;
+  // A plan below the current one is already part of it (plans are cumulative):
+  // no offer for it here; moving down happens in Manage billing.
+  const includedIn = signedIn && currentPlan != null && planRank(plan) < planRank(currentPlan) ? currentPlan : null;
   const paidAlready = signedIn && currentPlan != null && currentPlan !== "free";
 
   useEffect(() => {
@@ -77,6 +80,8 @@ export default function PlanCta({
   let body: React.ReactNode;
   if (isCurrent) {
     body = <span className="pr-cta-current">Current plan</span>;
+  } else if (includedIn) {
+    body = <span className="pr-cta-muted">Included in {PLANS[includedIn].name}</span>;
   } else if (plan === "free") {
     body = signedIn
       ? <span className="pr-cta-muted">Included</span>

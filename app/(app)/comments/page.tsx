@@ -24,7 +24,7 @@ export default async function CommentsPage() {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
 
   if (!canUseFeature(ent, "comment_replies")) {
-    const plan = minPlanWithFeature("comment_replies") ?? "growth";
+    const plan = minPlanWithFeature("comment_replies");
     return (
       <>
         <PageHeader title="Comments" sub="SOCIA drafts a reply to every new comment. You approve each one before it's sent." />

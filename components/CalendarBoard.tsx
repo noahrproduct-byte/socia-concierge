@@ -625,7 +625,7 @@ function AutoPublishStatus({
       <div className="cal2-auto off">
         <Info size={14} />
         <span>
-          {pe?.error ?? "Scheduling and publishing is available on Starter."}{" "}
+          {pe?.error ?? "Scheduling and publishing aren't available here."}{" "}
           {pe && (
             <Link href={pe.href} onClick={() => track("upgrade_clicked", { feature: "scheduling", from: "calendar" })}>
               {pe.cta}
@@ -1097,7 +1097,7 @@ function Composer({
   // sentence is shown instead of a plan name.
   const publishLockedReason = planError && !planError.requiredPlan
     ? planError.error
-    : `Publishing is available on ${planError?.requiredPlanName ?? "Starter"}`;
+    : planError?.requiredPlanName ? `Publishing is available on ${planError.requiredPlanName}` : "Publishing isn't available here";
 
   const fail = (e: unknown, fallback: string) => {
     const pe = planErrorOf(e);

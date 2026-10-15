@@ -1,5 +1,6 @@
 import { Eye, Heart, Users, FileText, Radio, type LucideIcon } from "lucide-react";
 import type { Kpi } from "@/lib/overview";
+import { PLANS, minPlanWithFeature } from "@/lib/plans";
 
 const ICON: Record<Kpi["id"], { Icon: LucideIcon; tone: string }> = {
   views: { Icon: Eye, tone: "primary" },
@@ -26,7 +27,7 @@ export default function KpiCard({ kpi, iconLeft = false, showDelta = true }: { k
             <em className={`ov-kpi-delta ${kpi.positive === false ? "down" : "up"}`}>{kpi.deltaText}</em>
           )}
         </span>
-        <small className="ov-kpi-note">{showDelta ? kpi.note : "vs. previous period on Starter"}</small>
+        <small className="ov-kpi-note">{showDelta ? kpi.note : `vs. previous period on ${PLANS[minPlanWithFeature("period_comparison")].name}`}</small>
       </div>
     </div>
   );

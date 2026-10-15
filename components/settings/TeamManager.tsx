@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users, Link2, Copy, Check, Trash2, Loader2, LogOut } from "lucide-react";
+import { PLANS, minPlanWithFeature } from "@/lib/plans";
 
 export type TeamMemberRow = { userId: string; role: "owner" | "admin" | "member"; email: string | null; createdAt: string | null; isYou: boolean };
 export type TeamInviteRow = { id: string; role: "admin" | "member"; email: string | null; expiresAt: string };
@@ -130,7 +131,7 @@ export default function TeamManager({ workspaceName, role, members, invites, sea
         <div className="tm-invite">
           <h4>Invite someone</h4>
           {!teamIncluded ? (
-            <p className="ws-mgr-full">Inviting people is available on Starter and up. <a href="/pricing">See plans</a>.</p>
+            <p className="ws-mgr-full">Inviting people is available on {PLANS[minPlanWithFeature("team")].name} and up. <a href="/pricing">See plans</a>.</p>
           ) : seatsFull ? (
             <p className="ws-mgr-full">All {seats.limit} team {seats.limit === 1 ? "member" : "members"} on {planName} are in use. <a href="/pricing">Upgrade</a> for more.</p>
           ) : (

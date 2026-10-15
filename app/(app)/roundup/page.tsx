@@ -45,7 +45,7 @@ export default async function RoundupPage() {
 
   // Starter and up. A plan without it sees what the feature is and how to get it.
   if (!canUseFeature(ent, "weekly_trend_roundup")) {
-    const plan = minPlanWithFeature("weekly_trend_roundup") ?? "starter";
+    const plan = minPlanWithFeature("weekly_trend_roundup");
     return (
       <>
         <PageHeader title="Weekly roundup" sub="Your niche, your competitors and your wins — rolled up once a week." />

@@ -42,7 +42,7 @@ import {
 import { draftsFromPlan, weekdayIndex } from "@/lib/scheduling";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
-import { pricingHref } from "@/lib/plans";
+import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 
 // Server-assembled context: real prefill from the connected account/profile,
@@ -850,7 +850,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
             onClick={scheduleWeek}
             disabled={sched.busy || sched.ok}
             type="button"
-            title={canSchedule ? "Creates a calendar draft for each day of the plan at your audience's hour" : "Saves a calendar draft for each day of the plan; publishing needs Starter"}
+            title={canSchedule ? "Creates a calendar draft for each day of the plan at your audience's hour" : `Saves a calendar draft for each day of the plan; publishing needs ${PLANS[minPlanWithFeature("scheduling")].name}`}
           >
             <CalendarDays size={14} />{" "}
             {sched.busy ? "Adding to Calendar…" : sched.ok ? "Added to Calendar" : canSchedule ? "Schedule this week" : "Save week as drafts"}
@@ -864,7 +864,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
           {sched.ok && !canSchedule && (
             <>
               {" "}
-              Scheduling is available on <Link href={pricingHref("starter")}>Starter</Link>.
+              Scheduling is available on <Link href={pricingHref(minPlanWithFeature("scheduling"))}>{PLANS[minPlanWithFeature("scheduling")].name}</Link>.
             </>
           )}
           {sched.ok && (

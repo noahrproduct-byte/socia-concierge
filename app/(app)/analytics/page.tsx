@@ -39,8 +39,8 @@ import type { LibraryPost } from "@/components/ContentLibrary";
 import {
   RANGES, rangeDays, clampRangeId, postCards, buildKpis, buildSeries, buildInsights, formatBreakdown, formatOf, DAY_MS, type PlatformRow, type MetricId, type Series, type SeriesPoint, type GraphAccount, type GraphSeries,
 } from "@/lib/overview";
-import { canUseFeature, getEntitlements, maxHistoryDays } from "@/lib/entitlements";
-import { minPlanWithFeature, type PlanId } from "@/lib/plans";
+import { canUseFeature, getEntitlements, maxHistoryDays, upgradeFor } from "@/lib/entitlements";
+import type { PlanId } from "@/lib/plans";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
@@ -156,8 +156,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   // Which analytics sections the plan unlocks — the same gates on every
   // platform's page. A locked section names the plan that opens it.
-  const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null =>
-    canUseFeature(ent, feature) ? null : (minPlanWithFeature(feature) ?? "starter");
+  const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null => upgradeFor(ent, feature);
   const gate: AnalyticsGate = {
     postingTimes: lockedTo("posting_time_analysis"),
     growth: lockedTo("growth_analysis"),

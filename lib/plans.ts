@@ -10,11 +10,16 @@
 // together are still one workspace. Plans cap the number of workspaces, never
 // the number of platforms.
 //
+// Plans are cumulative: FREE ⊂ STARTER ⊂ GROWTH ⊂ PRO. Every feature has ONE
+// minimum plan (FEATURE_MIN_PLAN) and a plan includes it when its rank is at
+// least that plan's (planIncludes). PLANS[plan].features is derived from that,
+// so a higher plan can never lack something a lower plan has.
+//
 // Two independent layers, kept separate on purpose:
 //   1. FEATURE_STATUS: does the feature exist in the product TODAY? This is the
 //      truth layer. A feature that is not built is "coming_soon" no matter what
 //      plan someone is on, and the pricing page says so instead of pretending.
-//   2. PLANS[plan].features: which plans include the feature once it exists.
+//   2. FEATURE_MIN_PLAN: the cheapest plan that includes the feature once it exists.
 // canUseFeature() in lib/entitlements.ts is only true when BOTH say yes.
 //
 // Numbers here are defaults. lib/entitlements.ts merges plan_config_overrides
@@ -25,6 +30,9 @@ export type PlanId = "free" | "starter" | "growth" | "pro";
 
 /** Ascending order; used for "requires Growth or higher" comparisons. */
 export const PLAN_ORDER: PlanId[] = ["free", "starter", "growth", "pro"];
+
+/** A plan's place in the hierarchy. Access is always `rank(current) >= rank(required)`. */
+export const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, growth: 2, pro: 3 };
 
 /** The platforms a workspace can hold, one account each. Not a plan knob. */
 export const WORKSPACE_PLATFORMS = ["instagram", "facebook", "tiktok", "youtube"] as const;
@@ -290,36 +298,68 @@ export type PlanConfig = {
   popular?: boolean;
 };
 
-const F = (on: FeatureKey[]): Record<FeatureKey, boolean> => {
-  const out = {} as Record<FeatureKey, boolean>;
-  for (const k of Object.keys(FEATURE_STATUS) as FeatureKey[]) out[k] = on.includes(k);
-  return out;
+/**
+ * The cheapest plan that includes each feature. The ONE place a feature is
+ * assigned to a tier: every plan ranked at or above it includes it.
+ */
+export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
+  // Free
+  scheduling: "free",
+  breakout_alerts: "free",
+  monthly_summary: "free",
+  build_from_clips: "free",
+  ai_assistants: "free",
+  // Starter
+  posting_time_analysis: "starter",
+  growth_analysis: "starter",
+  period_comparison: "starter",
+  deeper_insights: "starter",
+  content_plan: "starter",
+  niche_intelligence: "starter",
+  weekly_trend_roundup: "starter",
+  performance_change_alerts: "starter",
+  weekly_summary: "starter",
+  team: "starter",
+  // Growth
+  auto_build: "growth",
+  plan_posts: "growth",
+  cross_platform_analytics: "growth",
+  comment_replies: "growth",
+  daily_recommendations: "growth",
+  repurposing: "growth",
+  custom_date_ranges: "growth",
+  platform_reports: "growth",
+  report_exports: "growth",
+  trend_alerts: "growth",
+  opportunity_alerts: "growth",
+  competitor_alerts: "growth",
+  cross_platform_alerts: "growth",
+  priority_support: "growth",
+  ai_assistant_drafts: "growth",
+  // Pro
+  cross_brand_analytics: "pro",
+  client_reports: "pro",
+  approval_workflow: "pro",
+  dedicated_onboarding: "pro",
+  developer_api: "pro",
 };
 
-const FREE_FEATURES: FeatureKey[] = ["scheduling", "breakout_alerts", "monthly_summary", "build_from_clips", "ai_assistants"];
+/** True when `plan` is at or above the feature's minimum plan. */
+export function planIncludes(plan: PlanId, key: FeatureKey): boolean {
+  return PLAN_RANK[plan] >= PLAN_RANK[FEATURE_MIN_PLAN[key]];
+}
+
+/** Every feature a plan includes: its own tier's and every tier below it. */
+const featuresOf = (plan: PlanId): Record<FeatureKey, boolean> => {
+  const out = {} as Record<FeatureKey, boolean>;
+  for (const k of Object.keys(FEATURE_MIN_PLAN) as FeatureKey[]) out[k] = planIncludes(plan, k);
+  return out;
+};
 
 // Build from Clips: DEVELOPMENT PLACEHOLDERS, identical across plans except
 // retention. Not pricing promises; tune here (or in plan_config_overrides)
 // once real storage, transcription, AI and rendering costs are measured.
 const STUDIO_DEV_LIMITS = { studio_clips_per_project: 20, studio_footage_minutes: 10, studio_upload_mb: 500 };
-const STARTER_FEATURES: FeatureKey[] = [
-  ...FREE_FEATURES,
-  "posting_time_analysis", "growth_analysis", "period_comparison", "deeper_insights",
-  "content_plan", "niche_intelligence", "weekly_trend_roundup",
-  "performance_change_alerts", "weekly_summary", "team",
-];
-const GROWTH_FEATURES: FeatureKey[] = [
-  ...STARTER_FEATURES,
-  "auto_build", "plan_posts",
-  "cross_platform_analytics", "comment_replies", "daily_recommendations", "repurposing",
-  "custom_date_ranges", "platform_reports", "report_exports",
-  "trend_alerts", "opportunity_alerts", "competitor_alerts", "cross_platform_alerts",
-  "priority_support", "ai_assistant_drafts",
-];
-const PRO_FEATURES: FeatureKey[] = [
-  ...GROWTH_FEATURES,
-  "cross_brand_analytics", "client_reports", "approval_workflow", "dedicated_onboarding", "developer_api",
-];
 
 export const PLANS: Record<PlanId, PlanConfig> = {
   free: {
@@ -330,7 +370,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     audience: "People trying SOCIA and managing one brand.",
     limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_DEV_LIMITS, studio_storage_gb: 5, studio_retention_days: 14, assistant_requests_per_minute: 10 },
     meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 0, content_ideas: 3, content_build: 3, video_builds: 0, assistant_requests: 100 },
-    features: F(FREE_FEATURES),
+    features: featuresOf("free"),
     cta: "Get started free",
   },
   starter: {
@@ -341,7 +381,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     audience: "Creators and small businesses managing one or two brands.",
     limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_DEV_LIMITS, studio_storage_gb: 10, studio_retention_days: 14, assistant_requests_per_minute: 20 },
     meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 3, content_build: 10, video_builds: 0, assistant_requests: 1000 },
-    features: F(STARTER_FEATURES),
+    features: featuresOf("starter"),
     cta: "Start Starter",
   },
   growth: {
@@ -352,7 +392,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
     limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_DEV_LIMITS, studio_storage_gb: 25, studio_retention_days: 30, assistant_requests_per_minute: 30 },
     meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 3, content_build: 40, video_builds: 30, assistant_requests: 5000 },
-    features: F(GROWTH_FEATURES),
+    features: featuresOf("growth"),
     cta: "Start Growth",
     popular: true,
   },
@@ -365,7 +405,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_DEV_LIMITS, studio_storage_gb: 50, studio_retention_days: 60, assistant_requests_per_minute: 60 },
     // Deliberately higher, deliberately finite. Tune in plan_config_overrides.
     meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 3, content_build: 100, video_builds: 100, assistant_requests: 20000 },
-    features: F(PRO_FEATURES),
+    features: featuresOf("pro"),
     cta: "Start Pro",
   },
 };
@@ -376,21 +416,21 @@ export function isPlanId(v: unknown): v is PlanId {
 
 /** Unknown or missing values resolve to Free: features gate closed until the database says otherwise. */
 export function normalizePlan(v: unknown): PlanId {
-  return isPlanId(v) ? v : "free";
+  const t = typeof v === "string" ? v.trim().toLowerCase() : v;
+  return isPlanId(t) ? t : "free";
 }
 
 export function planRank(p: PlanId): number {
-  return PLAN_ORDER.indexOf(p);
+  return PLAN_RANK[p];
 }
 
 export function isAtLeast(p: PlanId, min: PlanId): boolean {
   return planRank(p) >= planRank(min);
 }
 
-/** The cheapest plan that includes a feature, or null when no plan does. */
-export function minPlanWithFeature(key: FeatureKey): PlanId | null {
-  for (const id of PLAN_ORDER) if (PLANS[id].features[key]) return id;
-  return null;
+/** The cheapest plan that includes a feature. */
+export function minPlanWithFeature(key: FeatureKey): PlanId {
+  return FEATURE_MIN_PLAN[key];
 }
 
 /** The cheapest plan whose limit for `key` is at least `n`, or null when none reaches it (custom pricing). */
