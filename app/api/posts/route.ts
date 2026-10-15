@@ -8,6 +8,7 @@ import type { CreatePostPayload } from "@/lib/publishing/composer";
 import { loadItem, loadPickerAccountsDetailed, saveItem, stampPostWorkspace, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
 import { publishNow, type ClientUploadRequest } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
+import { approveOnSchedule, memberEditBlock } from "@/lib/approvals";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -139,6 +140,11 @@ export async function POST(req: Request) {
     m.url = m.path ? supabase.storage.from(BUCKET).getPublicUrl(m.path).data.publicUrl : null;
   }
 
+  // A Member can't change a post that is waiting for approval or already
+  // scheduled (an approved post is the owner's/admins' from then on).
+  const memberBlock = await memberEditBlock(ctx, payload.id);
+  if (memberBlock) return NextResponse.json({ error: memberBlock }, { status: 409 });
+
   // Editing: the item must be this workspace's and not already published.
   if (payload.id) {
     const cur = await loadItem(ctx.client, payload.id, ctx.ownerId);
@@ -201,6 +207,8 @@ export async function POST(req: Request) {
       let uploads: ClientUploadRequest[] = [];
       if (targets.length) uploads = (await publishNow(ctx.client, ctx.ownerId, saved, targets, 40_000)).uploads;
       const item = targets.length ? (await loadItem(ctx.client, saved.id, ctx.ownerId)) ?? saved : saved;
+      // Scheduling a post that was waiting for approval is the approval.
+      await approveOnSchedule(ctx, saved.id, payload.scheduledAt ?? payload.destinations.map((d) => d.scheduledAt).filter(Boolean).sort()[0] ?? null);
       return NextResponse.json({ item, uploads });
     }
     // publish: every destination is scheduled for now, then run in this request.
@@ -212,6 +220,7 @@ export async function POST(req: Request) {
     const targets = saved.destinations.filter((d) => d.status === "scheduled");
     const { uploads } = await publishNow(ctx.client, ctx.ownerId, saved, targets, 40_000);
     const item = (await loadItem(ctx.client, saved.id, ctx.ownerId)) ?? saved;
+    await approveOnSchedule(ctx, saved.id, null);
     return NextResponse.json({ item, uploads });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });

@@ -374,3 +374,20 @@
 .cp-checkrow.off { cursor: default; }
 .cp-checkrow.off > span { color: var(--text-muted); }
 @media (max-width: 520px) { .cp-trial-body { margin-left: 0; } }
+
+/* Approvals (Pro) */
+.ap-submit { display: flex; flex-direction: column; gap: 8px; }
+.ap-state { display: flex; flex-direction: column; gap: 8px; }
+.ap-state p { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.ap-state p svg { flex-shrink: 0; margin-top: 2px; color: var(--primary-text); }
+.ap-state.ok p svg { color: var(--success-text); }
+.ap-banner { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; padding: 12px 14px; border: 1px solid rgba(var(--primary-rgb), 0.35); border-radius: 12px; background: var(--primary-subtle); }
+.ap-banner > svg { flex-shrink: 0; margin-top: 2px; color: var(--primary-text); }
+.ap-banner.warn { border-color: rgba(var(--warning-rgb), 0.4); background: var(--warning-subtle); }
+.ap-banner.warn > svg { color: var(--warning-text); }
+.ap-banner b { font-size: 13.5px; color: var(--text-primary); }
+.ap-banner p { margin-top: 2px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); }
+.ap-banner-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ap-hint { font-size: 12px !important; color: var(--text-muted) !important; }
+.ap-return { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.ap-row { display: flex; gap: 8px; justify-content: flex-end; }

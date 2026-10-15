@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen, TrendingUp, Zap, Users, Flame, Lightbulb, Shuffle, X } from "lucide-react";
+import { Search, Bell, CalendarCheck2, CheckCircle2, AlertTriangle, FileText, RefreshCw, FilePen, TrendingUp, Zap, Users, Flame, Lightbulb, Shuffle, ClipboardCheck, X } from "lucide-react";
 import AccountMenu from "@/components/AccountMenu";
 import { AskHost } from "@/components/AskSocia";
 import { relTime, type Activity } from "@/lib/overview";
@@ -25,6 +25,7 @@ const ALERT_ICON: Record<string, typeof Zap> = {
   plan_result: CheckCircle2,
   plan_ready: FileText,
   cross_platform: Shuffle,
+  approval: ClipboardCheck,
 };
 
 export default function TopBar({ email, plan, index, activity, alerts = [], unread = 0 }: { email?: string | null; plan: PlanId; index: SearchItem[]; activity: Activity[]; alerts?: AlertItem[]; unread?: number }) {
@@ -136,7 +137,8 @@ export default function TopBar({ email, plan, index, activity, alerts = [], unre
                       <li key={a.id} className={`tb-alert ${a.severity}${a.readAt ? "" : " unread"}`}>
                         <span className="tb-alert-ico"><Icon size={14} /></span>
                         <span className="tb-alert-body">
-                          <b>{a.title}</b>
+                          {/* Only SOCIA's own paths become links (approval notices open the post or the queue). */}
+                          {a.entityRef?.startsWith("/") && !a.entityRef.startsWith("//") ? <Link href={a.entityRef} className="tb-alert-link" onClick={() => setBell(false)}><b>{a.title}</b></Link> : <b>{a.title}</b>}
                           <small>{a.body}</small>
                           <time dateTime={a.detectedAt}>{relTime(a.detectedAt)}</time>
                         </span>

@@ -5,6 +5,7 @@
 // published. A plan restriction returned by the server renders as PlanNotice
 // right here, next to the button it explains.
 
+import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import type { RailProps } from "@/components/composer/contracts";
 import PlanNotice from "@/components/PlanNotice";
@@ -22,7 +23,11 @@ const BUSY_LABEL: Record<string, string> = {
   tracking: "Publishing…",
 };
 
-export default function ReviewPublish({ draft, accounts, submission, onSubmit, accountsComplete = true }: RailProps & { accountsComplete?: boolean }) {
+export default function ReviewPublish({ draft, accounts, submission, onSubmit, accountsComplete = true, primarySlot }: RailProps & {
+  accountsComplete?: boolean;
+  /** Replaces the schedule/publish button, e.g. a Member's "Submit for approval". */
+  primarySlot?: (s: { canAct: boolean; busy: boolean }) => ReactNode;
+}) {
   const tz = useViewerZone();
   const now = useNow(30_000);
   const rev = review(draft, accounts, now ?? undefined);
@@ -75,14 +80,16 @@ export default function ReviewPublish({ draft, accounts, submission, onSubmit, a
       )}
 
       <div className="cr-actions">
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={!canAct}
-          onClick={() => void onSubmit(mode === "now" ? "publish" : "schedule")}
-        >
-          {busy ? (<><Loader2 size={14} className="cr-spin" /> {BUSY_LABEL[submission.phase] ?? "Working…"}</>) : primaryLabel}
-        </button>
+        {primarySlot ? primarySlot({ canAct, busy }) : (
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={!canAct}
+            onClick={() => void onSubmit(mode === "now" ? "publish" : "schedule")}
+          >
+            {busy ? (<><Loader2 size={14} className="cr-spin" /> {BUSY_LABEL[submission.phase] ?? "Working…"}</>) : primaryLabel}
+          </button>
+        )}
         {hasYouTube && <small className="cr-note" style={{ marginTop: 0 }}>{CAPABILITIES.youtube.notes[1]}</small>}
         {!accountsComplete && <p className="cr-blocked"><strong>Blocked:</strong> {ACCOUNTS_UNKNOWN_SENTENCE}</p>}
         {blocked.length > 0 && (

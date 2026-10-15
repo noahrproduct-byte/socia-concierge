@@ -17,6 +17,7 @@ import { useComposer, MIGRATION_SENTENCE } from "./useComposer";
 import DestinationPicker, { accountFor } from "./DestinationPicker";
 import MediaSection from "./MediaSection";
 import MasterContent from "./MasterContent";
+import { ApprovalBanner, ApprovalSubmit, useApproval } from "./ApprovalControls";
 import PlatformTabs, { GENERAL_TAB, tabsFor } from "./PlatformTabs";
 import InstagramSettingsForm from "./settings/InstagramSettingsForm";
 import YouTubeSettingsForm from "./settings/YouTubeSettingsForm";
@@ -50,8 +51,15 @@ function stepForField(field: string): number {
 
 export default function ComposerPage(props: ComposerPageProps & { postId?: string | null }) {
   const { accounts, accountsComplete, timing, canPublish, planError, ready, userId } = props;
+  const approvalRole = props.approvalRole ?? null;
   const c = useComposer(props);
   const { draft, dispatch, submission } = c;
+  const ap = useApproval(draft.postId, Boolean(approvalRole));
+  // After an approver schedules or publishes, the round is closed server-side: refresh the banner.
+  useEffect(() => {
+    if (submission.phase === "done" || submission.phase === "tracking") void ap.reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submission.phase]);
   const quick = draft.mode === "quick";
   const mobile = useMobile();
   const [activeTab, setActiveTab] = useState<string>(GENERAL_TAB);
@@ -142,7 +150,9 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
   const errorLine = mobile && !quick && step < STEPS.length - 1 && submission.phase === "error" && submission.error && (
     <p className="cp-error" role="alert">{submission.error}</p>
   );
-  const planLine = !canPublish && planError && <PlanNotice error={planError} compact />;
+  // A Member on a plan with approvals submits instead, so the "only owners publish" notice would mislead.
+  const planLine = !canPublish && planError && approvalRole !== "submit" && <PlanNotice error={planError} compact />;
+  const approvalBanner = <ApprovalBanner role={approvalRole} current={ap.state?.current ?? null} reload={ap.reload} />;
 
   if (c.loading) {
     return (
@@ -211,7 +221,18 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
   );
 
   const status = <PublishingStatus {...rail} onNew={c.startNew} />;
-  const reviewCard = <ReviewPublish {...rail} accountsComplete={accountsComplete} />;
+  const reviewCard = (
+    <ReviewPublish
+      {...rail}
+      accountsComplete={accountsComplete}
+      primarySlot={approvalRole === "submit" ? ({ canAct, busy }) => (
+        <ApprovalSubmit
+          draft={draft} canAct={canAct} busy={busy} current={ap.state?.current?.mine ? ap.state.current : null}
+          saveDraft={() => c.submit("draft")} ensurePostId={c.ensurePostId} reload={ap.reload}
+        />
+      ) : undefined}
+    />
+  );
   // The rail is one command panel, not five detached cards: the children keep
   // their own headings but the panel supplies the surface and internal dividers.
   const railFull = tracking ? (
@@ -233,6 +254,7 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
       <div className="cp cp-quick">
         {header}
         {restoreBar}
+        {approvalBanner}
         {tracking ? status : (
           <>
             {sectionDestinations(null)}
@@ -259,6 +281,7 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
       <div className="cp cp-mobile">
         {header}
         {restoreBar}
+        {approvalBanner}
         {errorLine}
         {tracking ? status : (
           <>
@@ -291,6 +314,7 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
     <div className="cp">
       {header}
       {restoreBar}
+      {approvalBanner}
       <div className="cp-grid">
         <div className="cp-main">
           {sectionDestinations(1, secState(0))}

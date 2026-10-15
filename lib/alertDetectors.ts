@@ -6,7 +6,7 @@
 // metric measured against the previous equal period. The caller stores them
 // (lib/alerts.ts); the fingerprint keeps re-runs from duplicating.
 
-export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity" | "plan_result" | "plan_ready" | "cross_platform";
+export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity" | "plan_result" | "plan_ready" | "cross_platform" | "approval";
 export type AlertSeverity = "good" | "info" | "warning";
 
 export type AlertCandidate = {
@@ -19,6 +19,8 @@ export type AlertCandidate = {
   body: string;
   evidence: Record<string, unknown>;
   entityRef?: string | null;
+  /** Only this person sees it (approval notices); absent = the whole workspace. */
+  recipientId?: string | null;
 };
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");

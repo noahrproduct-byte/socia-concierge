@@ -105,4 +105,6 @@ export type ComposerPageProps = {
   planError: PlanError | null;
   /** True when post_destinations exists (migration run); false shows a calm "not ready on this server" notice. */
   ready: boolean;
+  /** Approvals (Pro): Members submit, the owner and Admins approve; null when the plan doesn't include it. */
+  approvalRole?: "submit" | "approve" | null;
 };

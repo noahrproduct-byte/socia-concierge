@@ -172,7 +172,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   priority_support: "policy",
   cross_brand_analytics: "available",
   client_reports: "available",
-  approval_workflow: "coming_soon",
+  approval_workflow: "available",
   dedicated_onboarding: "policy",
   // AI assistants (MCP): read-only tools on every plan. Draft tools (Phase 2)
   // and the developer API come later.
