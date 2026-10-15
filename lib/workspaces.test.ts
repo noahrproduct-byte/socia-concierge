@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { activeWorkspaces, getActiveWorkspace, type Workspace } from "./workspaces";
+import { connectionWorkspaceId, activeWorkspaces, getActiveWorkspace, type Workspace } from "./workspaces";
 
 // A tiny stand-in for the parts of the Supabase client these helpers touch:
 // a workspaces table and a profiles.active_workspace_id lookup.
@@ -74,5 +74,26 @@ describe("getActiveWorkspace", () => {
     const sb = fakeSupabase([{ id: "w0", isDefault: true }, { id: "w1", suspended: true }], "w1") as any;
     const active = await getActiveWorkspace(sb, "u1");
     expect(active?.id).toBe("w0");
+  });
+});
+
+describe("connectionWorkspaceId", () => {
+  // A stub that would answer "ws-active" if anyone asked for the active workspace.
+  const asking = { asked: 0 };
+  const supa = {
+    from: () => {
+      asking.asked++;
+      const q: Record<string, unknown> = {};
+      for (const m of ["select", "eq", "limit", "order", "is"]) q[m] = () => q;
+      q.maybeSingle = async () => ({ data: { active_workspace_id: "ws-active" }, error: null });
+      q.then = (res: (v: unknown) => void) => res({ data: [], error: null });
+      return q;
+    },
+  };
+  it("uses the workspace the caller names, without looking up the active one", async () => {
+    asking.asked = 0;
+    expect(await connectionWorkspaceId(supa as never, "u1", "ws-b")).toBe("ws-b");
+    expect(await connectionWorkspaceId(supa as never, "u1", null)).toBeNull();
+    expect(asking.asked).toBe(0);
   });
 });

@@ -146,7 +146,7 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
           null,
         )
       : Promise.resolve(null),
-    wants("facebook") ? settle(getFbSnapshot(client, ownerId), null) : Promise.resolve(null),
+    wants("facebook") ? settle(getFbSnapshot(client, ownerId, wsId ?? undefined), null) : Promise.resolve(null),
   ]);
   const { profile, workspaces, igByWs, current, others } = bits;
 

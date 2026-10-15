@@ -85,7 +85,7 @@ export async function loadRepurpose(
   const ytIds = dests.filter((d) => d.platform === "youtube" && d.status === "published" && d.externalPostId).map((d) => d.externalPostId!);
   const yt = ytConnected
     ? await cachedLive(ownerId, ["repurpose-yt", wsId, [...ytIds].sort().join(",")], async () => {
-        const [recent, videos] = await Promise.all([youtubeRecentUploads(client, ownerId, 50), youtubeVideoStats(client, ownerId, ytIds)]);
+        const [recent, videos] = await Promise.all([youtubeRecentUploads(client, ownerId, 50, wsId ?? undefined), youtubeVideoStats(client, ownerId, ytIds, wsId ?? undefined)]);
         return { recent, videos };
       }, (v) => v.recent.length > 0 || Object.keys(v.videos).length > 0).catch(() => null)
     : null;

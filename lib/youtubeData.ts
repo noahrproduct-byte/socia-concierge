@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refreshAccessToken } from "./youtubeAuth";
 import { recentVideos, isoDurationSec, type YtVideo } from "./youtube";
-import { activeWorkspaceId, workspacesEnabled } from "./workspaces";
+import { connectionWorkspaceId } from "./workspaces";
 import { readPlatformSnapshots } from "./platformSnapshots";
 
 const DATA = "https://www.googleapis.com/youtube/v3";
@@ -106,10 +106,12 @@ async function readConnRow<T extends Record<string, unknown>>(
   supabase: SupabaseClient,
   userId: string,
   cols: string,
+  workspaceId?: string | null,
 ): Promise<T | null> {
   // When Brand Workspaces are enabled, a user may hold one channel per
-  // workspace; read the active workspace's row. Otherwise the one row per user.
-  const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+  // workspace; read the given workspace's row (undefined: the active one).
+  // Otherwise the one row per user.
+  const wsId = await connectionWorkspaceId(supabase, userId, workspaceId);
   const attempts = [`${cols}, scopes, plan_suspended_at`, `${cols}, plan_suspended_at`, cols];
   for (let i = 0; i < attempts.length; i++) {
     try {
@@ -141,8 +143,8 @@ export type YouTubeAccess = {
  * Server only: the token never reaches the browser except inside a YouTube
  * upload session the publish route hands out on purpose.
  */
-export async function youtubeAccessToken(supabase: SupabaseClient, userId: string): Promise<YouTubeAccess | null> {
-  const row = await readConnRow<ConnRow>(supabase, userId, "channel_id, access_token, refresh_token, token_expires_at");
+export async function youtubeAccessToken(supabase: SupabaseClient, userId: string, workspaceId?: string | null): Promise<YouTubeAccess | null> {
+  const row = await readConnRow<ConnRow>(supabase, userId, "channel_id, access_token, refresh_token, token_expires_at", workspaceId);
   if (!row?.access_token) return null;
   if (row.plan_suspended_at != null) return null;
   const scopes = Array.isArray(row.scopes) ? row.scopes : null;
@@ -172,8 +174,9 @@ export async function youtubeAccessToken(supabase: SupabaseClient, userId: strin
 async function validToken(
   supabase: SupabaseClient,
   userId: string,
+  workspaceId?: string | null,
 ): Promise<{ token: string; channelId: string | null } | null> {
-  const a = await youtubeAccessToken(supabase, userId);
+  const a = await youtubeAccessToken(supabase, userId, workspaceId);
   return a ? { token: a.token, channelId: a.channelId } : null;
 }
 
@@ -262,9 +265,9 @@ async function videosByIds(token: string, ids: string[]): Promise<Record<string,
 /** The owner's own videos by id (private and unlisted included), through
  *  their token. For measuring posts SOCIA published. Empty map when YouTube is
  *  not connected or Google did not answer. */
-export async function youtubeVideoStats(supabase: SupabaseClient, userId: string, ids: string[]): Promise<Record<string, YtVideo>> {
+export async function youtubeVideoStats(supabase: SupabaseClient, userId: string, ids: string[], workspaceId?: string | null): Promise<Record<string, YtVideo>> {
   if (!ids.length) return {};
-  const auth = await validToken(supabase, userId);
+  const auth = await validToken(supabase, userId, workspaceId);
   if (!auth) return {};
   return videosByIds(auth.token, ids).catch(() => ({}));
 }
@@ -272,8 +275,8 @@ export async function youtubeVideoStats(supabase: SupabaseClient, userId: string
 /** The channel's recent uploads with public stats: the baseline a published
  *  video is compared with. Uses the channel's uploads playlist (the channel id
  *  with its "UC" prefix swapped for "UU", YouTube's fixed convention). */
-export async function youtubeRecentUploads(supabase: SupabaseClient, userId: string, max = 25): Promise<YtVideo[]> {
-  const auth = await validToken(supabase, userId);
+export async function youtubeRecentUploads(supabase: SupabaseClient, userId: string, max = 25, workspaceId?: string | null): Promise<YtVideo[]> {
+  const auth = await validToken(supabase, userId, workspaceId);
   if (!auth?.channelId || !auth.channelId.startsWith("UC")) return [];
   return recentVideos(`UU${auth.channelId.slice(2)}`, max).catch(() => []);
 }
@@ -346,9 +349,9 @@ export async function getYouTubeAnalytics(
   supabase: SupabaseClient,
   userId: string,
   days: number,
-  opts: { deep?: boolean } = {},
+  opts: { deep?: boolean; workspaceId?: string | null } = {},
 ): Promise<YouTubeAnalytics | null> {
-  const auth = await validToken(supabase, userId);
+  const auth = await validToken(supabase, userId, opts.workspaceId);
   if (!auth) return null;
   const { token, channelId } = auth;
 

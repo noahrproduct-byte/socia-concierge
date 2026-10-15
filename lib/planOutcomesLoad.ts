@@ -61,10 +61,10 @@ export async function loadMeasureSources(supabase: Supa, ownerId: string, worksp
   if (!platforms.size) return EMPTY_SOURCES;
   const [ig, fb, yt] = await Promise.all([
     platforms.has("instagram") ? timed("results.instagram", () => getIgSnapshot(supabase, ownerId, workspaceId)).catch(() => null) : Promise.resolve(null),
-    platforms.has("facebook") ? timed("results.facebook", () => getFbSnapshot(supabase, ownerId)).catch(() => null) : Promise.resolve(null),
+    platforms.has("facebook") ? timed("results.facebook", () => getFbSnapshot(supabase, ownerId, workspaceId ?? undefined)).catch(() => null) : Promise.resolve(null),
     platforms.has("youtube")
       ? cachedLive(ownerId, ["yt-results", workspaceId, [...youtubeIds].sort().join(",")], async () => {
-          const [videos, recent] = await Promise.all([youtubeVideoStats(supabase, ownerId, youtubeIds), youtubeRecentUploads(supabase, ownerId, 25)]);
+          const [videos, recent] = await Promise.all([youtubeVideoStats(supabase, ownerId, youtubeIds, workspaceId ?? undefined), youtubeRecentUploads(supabase, ownerId, 25, workspaceId ?? undefined)]);
           return { videos, recent };
         }, (v) => Object.keys(v.videos).length > 0 || v.recent.length > 0).catch(() => null)
       : Promise.resolve(null),

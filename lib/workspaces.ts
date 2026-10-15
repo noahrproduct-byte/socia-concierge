@@ -203,6 +203,19 @@ export async function ensureDefaultWorkspace(
  * The seam the connection readers use to scope Facebook/YouTube/TikTok rows to
  * the current workspace without changing their public signatures.
  */
+/**
+ * Which workspace a per-workspace connection read (Facebook, YouTube, ...) is
+ * for. A caller that knows the workspace it is serving passes it: a team
+ * member viewing someone else's workspace, an AI assistant asking about one
+ * workspace, a cross-brand view. `undefined` keeps the original behaviour,
+ * the person's active workspace. `null` means no workspace scoping (the
+ * pre-workspaces single row).
+ */
+export async function connectionWorkspaceId(supabase: Supa, userId: string, explicit?: string | null): Promise<string | null> {
+  if (explicit !== undefined) return explicit;
+  return (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+}
+
 export async function activeWorkspaceId(supabase: Supa, userId: string): Promise<string | null> {
   const ws = await getActiveWorkspace(supabase, userId);
   return ws?.id ?? null;

@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
   const ws = await getActiveWorkspace(supabase, user.id);
   const name = ws?.name ?? "My brand";
-  const report = await loadReport(ctx.client, ctx.ownerId, name, period, platform);
+  const report = await loadReport(ctx.client, ctx.ownerId, name, period, platform, ctx.workspace?.id ?? undefined);
   const csv = reportToCsv(report);
   const filename = `socia-report-${period.days}d-${now.toISOString().slice(0, 10)}.csv`;
   return new NextResponse(csv, {
