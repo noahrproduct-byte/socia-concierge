@@ -6,7 +6,7 @@ import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { aiFailureKind, MODEL, effortFor, type AiUnavailable } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { resolveContext, can, forbiddenCopy, brandWorkspace } from "@/lib/context";
-import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
+import { competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
 import {
   searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
 } from "@/lib/youtube";

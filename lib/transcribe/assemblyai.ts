@@ -1,7 +1,7 @@
 // AssemblyAI (https://www.assemblyai.com/docs). Plain REST, no SDK: submit
 // an audio URL, poll the transcript id. Word timestamps come back in
 // milliseconds, which is what Content Studio stores.
-import type { Transcript, TranscriptionJob, TranscriptionPoll, TranscriptionProvider, TranscriptWord } from "./types";
+import type { Transcript, TranscriptionPoll, TranscriptionProvider, TranscriptWord } from "./types";
 
 const BASE = process.env.ASSEMBLYAI_BASE_URL || "https://api.assemblyai.com/v2";
 

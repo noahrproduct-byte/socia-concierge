@@ -68,7 +68,7 @@ function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onPr
         </a>
       )}
       {a.derived.length > 0 && <div className="ov-why-block"><small>Derived</small><ul>{a.derived.map((o, i) => <li key={i}>{o}</li>)}</ul></div>}
-      {a.interpretation && <div className="ov-why-block ai"><small>SOCIA's interpretation</small><p>{a.interpretation}</p></div>}
+      {a.interpretation && <div className="ov-why-block ai"><small>SOCIA&apos;s interpretation</small><p>{a.interpretation}</p></div>}
       {a.recommendation && <div className="ov-why-block rec"><small>Recommendation</small><p>{a.recommendation}</p></div>}
       {a.proposals.map((p, i) => {
         const key = `${p.kind}-${i}`;

@@ -162,7 +162,7 @@ export default function CaptionGenerator({
     }
   }, [caption, draft.customizePerPlatform, draft.media, draft.planDay, draft.planId, draft.postId, enabled, fileFor, handoff, igSettings, notes, onUsage, placeSent, result, seen, userId]);
 
-  const useFor = (c: Caption) => {
+  const applyFor = (c: Caption) => {
     for (const d of enabled.filter((x) => c.platforms.includes(x.platform))) {
       const s = d.settings as typeof d.settings & { caption?: string | null; description?: string | null };
       const next = d.platform === "youtube" ? { ...s, description: c.text } : { ...s, caption: c.text };
@@ -171,8 +171,8 @@ export default function CaptionGenerator({
     if (!draft.customizePerPlatform) dispatch({ type: "toggle_customize", on: true });
   };
 
-  const useAll = () => {
-    for (const c of result?.captions ?? []) useFor(c);
+  const applyAll = () => {
+    for (const c of result?.captions ?? []) applyFor(c);
     if (!caption.trim() && result?.captions[0]) dispatch({ type: "set_caption", caption: result.captions[0].text });
     setApplied("all");
   };
@@ -191,7 +191,7 @@ export default function CaptionGenerator({
   }, [auto, busy, draft.customizePerPlatform, draft.media, enabled.length, run]);
   useEffect(() => {
     if (auto !== "running" || busy !== null) return;
-    if (result?.captions.length) useAll();
+    if (result?.captions.length) applyAll();
     setAuto("done");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto, busy, result]);
@@ -275,7 +275,7 @@ export default function CaptionGenerator({
                       <button type="button" className="btn-primary sm" onClick={() => { dispatch({ type: "set_caption", caption: c.text }); setApplied(c.target); }}>Use caption</button>
                     )
                   ) : (
-                    <button type="button" className="btn-primary sm" onClick={() => { useFor(c); setApplied(c.target); }}>Use for {label}</button>
+                    <button type="button" className="btn-primary sm" onClick={() => { applyFor(c); setApplied(c.target); }}>Use for {label}</button>
                   )}
                   {applied === c.target && <span className="cp-ok">Added.</span>}
                 </div>
@@ -284,7 +284,7 @@ export default function CaptionGenerator({
           })}
           {perPlatform && result.captions.length > 1 && (
             <div className="cg-use">
-              <button type="button" className="btn-secondary sm" onClick={useAll}>Use all {result.captions.length}</button>
+              <button type="button" className="btn-secondary sm" onClick={applyAll}>Use all {result.captions.length}</button>
               {applied === "all" && <span className="cp-ok">Each platform has its own caption now.</span>}
             </div>
           )}

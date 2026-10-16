@@ -6,7 +6,6 @@
 // arrows, and arrow-key navigation; never autoplays.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { ChevronLeft, ChevronRight, Link2 } from "lucide-react";
 import type { LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";

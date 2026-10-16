@@ -49,7 +49,7 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
             <small className="ov-insight-tag big">{open.tag}</small>
             <h3 className="ov-drawer-title">{open.title}</h3>
             <div className="ov-why-block"><small>Observed data</small><ul>{open.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
-            <div className="ov-why-block ai"><small>SOCIA's interpretation</small><p>{open.interpretation}</p></div>
+            <div className="ov-why-block ai"><small>SOCIA&apos;s interpretation</small><p>{open.interpretation}</p></div>
             <div className="ov-why-block rec"><small>Recommendation</small><p>{open.recommendation}</p></div>
             {evidence.length > 0 && (
               <div className="ov-evidence">

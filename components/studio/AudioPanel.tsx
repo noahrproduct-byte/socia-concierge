@@ -97,7 +97,7 @@ export default function AudioPanel({ canEdit, current, onUse, fixture }: { canEd
         {insights.evidence.length > 0 && <ul className="cba-evidence">{insights.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>}
         <div className="st-row-actions">
           {insights.own?.baseline && canEdit && (
-            <button type="button" className="ov-btn primary small" disabled={inUse} onClick={() => onUse(insights.recommendation)}>{inUse ? <><Check size={12} /> Used as this cut's music line</> : "Use as this cut's music line"}</button>
+            <button type="button" className="ov-btn primary small" disabled={inUse} onClick={() => onUse(insights.recommendation)}>{inUse ? <><Check size={12} /> Used as this cut&apos;s music line</> : "Use as this cut's music line"}</button>
           )}
           {pending.length > 0 && (
             <button type="button" className="ov-btn ghost small" disabled={Boolean(measuring)} onClick={() => void measureAll()}>
@@ -108,7 +108,7 @@ export default function AudioPanel({ canEdit, current, onUse, fixture }: { canEd
         </div>
         <p className="ov-source">
           {insights.coverage.total} video posts · {insights.coverage.library} used library music (Instagram hides those files, so only the fact is known) · {insights.coverage.measured} measured · {insights.coverage.pending} waiting{insights.coverage.failed ? ` · ${insights.coverage.failed} couldn't be measured` : ""}.
-          {" "}Posts are compared with each account's own median. SOCIA can't name tracks or see trending audio — the platforms don't expose them.
+          {" "}Posts are compared with each account&apos;s own median. SOCIA can&apos;t name tracks or see trending audio — the platforms don&apos;t expose them.
         </p>
       </div>
 

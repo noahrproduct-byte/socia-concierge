@@ -308,7 +308,8 @@ export function Scatter({ posts, yLabel, height = 210, unit }: { posts: ScatterP
       </svg>
       {hover && (
         <div className="cx2-tip post" style={{ left: `${(hover.x / w) * 100}%`, top: Math.max(4, hover.py - 8), transform: `translate(${hover.x > w * 0.65 ? "-105%" : "10px"}, -100%)` }}>
-          {hover.thumb && /* eslint-disable-next-line @next/next/no-img-element */ <img src={hover.thumb} alt="" />}
+          {/* eslint-disable-next-line @next/next/no-img-element -- a platform CDN thumbnail */}
+          {hover.thumb && <img src={hover.thumb} alt="" />}
           <div>
             {hover.format && <em>{hover.format}</em>}
             <b>{hover.title ?? "Untitled post"}</b>

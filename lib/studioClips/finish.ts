@@ -106,7 +106,6 @@ export function withFinish(edl: Edl, patch: Partial<EdlFinish>, now: Date = new 
   const next: EdlFinish = { ...cur, ...patch, measuredAt: now.toISOString() };
   if (next.look === "off") next.grades = {};
   if (!next.sound) next.sounds = {};
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { finish: _drop, ...rest } = edl;
   return next.look === "off" && !next.sound && !next.pausesCut ? rest : { ...rest, finish: next };
 }

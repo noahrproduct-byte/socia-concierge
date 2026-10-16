@@ -8,7 +8,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, ExternalLink, Link2, Loader2, Plus, Sparkles, TrendingUp, TrendingDown } from "lucide-react";
-import type { LeaderRow } from "@/lib/competitorRollup";
 import { SOURCE_LABEL } from "@/lib/competitorRollup";
 import type { Comparison as Cmp } from "@/lib/similarCompetitor";
 import type { CompetitorRow, Learning, Reason } from "@/lib/competitorIntel";

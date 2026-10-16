@@ -88,7 +88,7 @@ export default function PlanPanel({ projectId, stale }: { projectId: string; sta
         <h3 id="cbp-h"><CalendarDays size={15} /> Plan these posts</h3>
         <span className="cbp-muted">Next two weeks · your time zone ({tz.replace(/_/g, " ")})</span>
       </div>
-      <p className="cbp-muted">{plan.timing} One post a day at most, around what's already in your Calendar, with posts that share footage kept apart.</p>
+      <p className="cbp-muted">{plan.timing} One post a day at most, around what&apos;s already in your Calendar, with posts that share footage kept apart.</p>
       {stale && <p className="cb-stale"><AlertTriangle size={12} /> These ideas are from before your footage changed.</p>}
 
       <ol className="cbp-list">
@@ -151,7 +151,7 @@ export default function PlanPanel({ projectId, stale }: { projectId: string; sta
         ) : (
           <>
             {(planError ?? data.planError) ? <PlanNotice error={(planError ?? data.planError)!} compact /> : <p className="cbp-muted">Only the workspace owner or an admin can put posts in the Calendar.</p>}
-            <p className="cbp-muted">Use this as your plan: open each post's guide and create it in Create Post on the day shown.</p>
+            <p className="cbp-muted">Use this as your plan: open each post&apos;s guide and create it in Create Post on the day shown.</p>
           </>
         )}
       </div>

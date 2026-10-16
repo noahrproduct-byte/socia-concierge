@@ -24,7 +24,7 @@ const DEFINITION: Record<Reason["key"], { label: string; you: string; them: stri
 
 const fmtVal = (unit: Reason["unit"], n: number) => (unit === "pct" ? `${n.toFixed(1)}%` : unit === "perWeek" ? n.toFixed(1) : fmtN(n));
 
-export default function EvidenceDrawer({ item, you, them, days, location, onClose }: {
+export default function EvidenceDrawer({ item, them, days, location, onClose }: {
   item: Evidence | null; you: LeaderRow; them: CompetitorRow | null; days: number; location: string | null; onClose: () => void;
 }) {
   const loc = locationTokens(location);

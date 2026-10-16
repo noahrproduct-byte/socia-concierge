@@ -112,7 +112,7 @@ export default function PointDrawer({ bucket, isOutlier, granularity, series, ba
           <section className="ov-why">
             <h3>{isOutlier ? `Why this ${period} spiked` : `What happened this ${period}`}</h3>
             {observed.length > 0 && <div className="ov-why-block"><small>Observed</small><ul>{observed.map((o) => <li key={o}>{o}</li>)}</ul></div>}
-            {interpretation && <div className="ov-why-block ai"><small>SOCIA's read</small><p>{interpretation}</p></div>}
+            {interpretation && <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{interpretation}</p></div>}
             {recommendation && <div className="ov-why-block rec"><small>Recommendation</small><p>{recommendation}</p></div>}
           </section>
           <div className="ov-detail-actions">

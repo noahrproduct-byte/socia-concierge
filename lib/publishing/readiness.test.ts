@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { publishReadiness, type ContentCheck } from "./readiness";
 import { newDraft, seedDestinations, type PickerAccount } from "./composer";
-import { defaultSettings, type MediaItem, type InstagramSettings, type YouTubeSettings } from "./types";
+import { type MediaItem, type InstagramSettings, type YouTubeSettings } from "./types";
 
 const MB = 1024 * 1024;
 const video = (o: Partial<MediaItem> = {}): MediaItem => ({ id: "v1", kind: "video", name: "a.mp4", mime: "video/mp4", size: 40 * MB, width: 1080, height: 1920, duration: 28, path: "u/p/a.mp4", url: "https://x/a.mp4", ...o });

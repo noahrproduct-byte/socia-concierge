@@ -40,7 +40,7 @@ const errCopy = (e: unknown): string => {
   return m.replace(/^Upload failed: /, "");
 };
 
-export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; modeTabs?: ReactNode }) {
+export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?: ReactNode }) {
   const router = useRouter();
   const params = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -307,7 +307,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
       {modeTabs}
 
       {migration && (
-        <div className="ov-card st-error cb-notice"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Build from Clips isn't set up in the database yet</b><p>{migration}</p></div></div>
+        <div className="ov-card st-error cb-notice"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Build from Clips isn&apos;t set up in the database yet</b><p>{migration}</p></div></div>
       )}
       {planError && <div className="ov-card st-error cb-notice"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact onCta={() => setPlanError(null)} /></div></div>}
       {notice && <div className="cal2-toast cb-toast" role="status">{notice}<button type="button" className="ov-x" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button></div>}
@@ -320,7 +320,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
               <h2>What happens</h2>
               <ul>
                 <li><b>1 · Upload</b><span>Drop everything from the shoot. Each clip is measured here first — length, picture, sound — and uploaded privately.</span></li>
-                <li><b>2 · Understand</b><span>Speech is transcribed with timestamps; SOCIA reads a few frames per clip and writes down what's in it and where the strong moments are. Done once per clip and remembered.</span></li>
+                <li><b>2 · Understand</b><span>Speech is transcribed with timestamps; SOCIA reads a few frames per clip and writes down what&apos;s in it and where the strong moments are. Done once per clip and remembered.</span></li>
                 <li><b>3 · Content Yield</b><span>SOCIA groups clips that belong together and counts only posts with enough distinct, usable footage. If 20 clips make one post, it says one.</span></li>
                 <li><b>4 · Edit guide</b><span>Open a post and get the exact cut: which clip, which seconds, the on-screen text, what to brighten or turn up, the recommended length.</span></li>
               </ul>
@@ -354,7 +354,7 @@ export default function ClipsStudio({ viewerId, modeTabs }: { viewerId: string; 
           {locals.length > 0 && <ClipGrid clips={locals} onRemove={(c) => void removeClip(c)} busy={uploading || view === "understanding"} />}
           {view === "understanding" ? <UnderstandCard progress={project.progress} clipCount={readyClips.length} /> : dropZone(locals.length > 0)}
           {view === "collect" && project.status === "failed" && (
-            <div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Understanding didn't finish</b><p>{project.error ?? "Something went wrong."} Nothing was counted against your plan.</p><button type="button" className="ov-btn ghost small" onClick={() => void understand()}><RefreshCw size={12} /> Try again</button></div></div>
+            <div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Understanding didn&apos;t finish</b><p>{project.error ?? "Something went wrong."} Nothing was counted against your plan.</p><button type="button" className="ov-btn ghost small" onClick={() => void understand()}><RefreshCw size={12} /> Try again</button></div></div>
           )}
         </div>
       )}

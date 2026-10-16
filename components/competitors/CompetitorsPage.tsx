@@ -9,7 +9,6 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Plus, Link2, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";

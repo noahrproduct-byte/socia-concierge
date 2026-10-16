@@ -5,7 +5,6 @@
 // strongest real posts as cards. Every mark is a count over the posts SOCIA
 // actually read; the sample size stays on screen.
 
-import Link from "next/link";
 import { Clock, Info, Link2, PieChart } from "lucide-react";
 import type { CompetitorRow, GroupedPatterns } from "@/lib/competitorIntel";
 import { Donut, Heatmap, postingGrid } from "./viz";

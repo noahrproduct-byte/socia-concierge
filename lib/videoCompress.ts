@@ -61,7 +61,6 @@ export async function compressVideo(file: File, onProgress?: CompressProgress): 
   const ext = file.name.match(/\.[a-z0-9]+$/i)?.[0]?.toLowerCase() || ".mp4";
   const inName = `in${ext}`;
   const outName = "out.mp4";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let onP: ((e: { progress: number }) => void) | null = null;
 
   try {

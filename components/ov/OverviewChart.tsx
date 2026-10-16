@@ -46,8 +46,9 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
 
   const isFollowers = series.metric === "followers";
   const mode = isFollowers ? "last" : "sum";
-  const cur = useMemo(() => bucketize(series.current, granularity, mode, today), [series.current, granularity, mode, today]);
-  const prev = useMemo(() => (showPrevious ? bucketize(series.previous, granularity, mode, today) : []), [series.previous, granularity, mode, showPrevious, today]);
+  const { current, previous } = series;
+  const cur = useMemo(() => bucketize(current, granularity, mode, today), [current, granularity, mode, today]);
+  const prev = useMemo(() => (showPrevious ? bucketize(previous, granularity, mode, today) : []), [previous, granularity, mode, showPrevious, today]);
   const outliers = useMemo(() => (isFollowers ? new Set<number>() : detectOutliers(cur.map((b) => b.value))), [cur, isFollowers]);
   const fit = fitScale ?? outliers.size > 0;
   // A median post (or typical day) is a daily reference; against a week's or
