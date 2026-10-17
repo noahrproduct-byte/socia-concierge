@@ -14,6 +14,7 @@ import { recordAiUsage } from "./aiUsage";
 import { fetchFacebookComments, fetchInstagramComments, replyToComment, type CommentPlatform, type CommentRead, type SocialComment } from "./comments";
 import { getFbSnapshot } from "./facebookSync";
 import { getIgSnapshot } from "./instagramSync";
+import { SUGGEST_SKIP } from "./commentDraftFlags";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -51,7 +52,18 @@ const POSTS_PER_PLATFORM = 10;
 
 /** One reply suggestion, in the brand's voice. Short, human, specific to the
  *  comment; never promotional spam, never a promise the brand can't keep. */
-export async function draftReply(input: { comment: SocialComment; brand: BrandVoice; ownerId?: string | null }): Promise<string | null> {
+/** A suggested reply, or the suggestion not to reply at all. */
+export type Drafted = { text: string | null; skip: boolean };
+
+/** Read the model's output. Pure. NO_REPLY anywhere means "don't reply", so a
+ *  note meant for the brand can never end up as the reply text. */
+export function readDraft(raw: string): Drafted {
+  if (/\bNO_REPLY\b/.test(raw)) return { text: null, skip: true };
+  const text = raw.trim().replace(/^["“]|["”]$/g, "");
+  return { text: text || null, skip: false };
+}
+
+export async function draftReply(input: { comment: SocialComment; brand: BrandVoice; ownerId?: string | null }): Promise<Drafted> {
   const { comment, brand } = input;
   const who = brand.name ? `the brand "${brand.name}"` : "a small business";
   const niche = brand.niche ? ` in the ${brand.niche} space` : "";
@@ -64,7 +76,8 @@ Rules:
 - If they asked a question you can't answer from the post, acknowledge it and invite them to DM or say the team will follow up — never invent facts, prices, hours or promises.
 - No hashtags, no links, no emoji spam (at most one emoji, only if it fits), no "Thanks for your comment!" boilerplate, nothing that reads as automated.
 - Match the commenter's language. If the comment is hostile or sensitive, keep it calm, brief and de-escalating.
-- Output only the reply text.`;
+- If the comment is spam, a bot, a scam, or promotes something unrelated to the post, don't write a reply or advice: output exactly NO_REPLY.
+- Output only the reply text, or exactly NO_REPLY. Never address the brand or explain your choice: whatever you output is posted publicly as the reply.`;
   const user = `Platform: ${comment.platform}
 Post caption: ${comment.postCaption ? comment.postCaption.slice(0, 500) : "(none)"}
 Commenter: ${comment.author ?? "someone"}
@@ -82,14 +95,9 @@ Comment: ${comment.text.slice(0, 600)}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
     recordAiUsage(input.ownerId, "comment_reply", res);
-    const text = res.content
-      .map((b) => ("text" in b ? b.text : ""))
-      .join("")
-      .trim()
-      .replace(/^["“]|["”]$/g, "");
-    return text || null;
+    return readDraft(res.content.map((b) => ("text" in b ? b.text : "")).join(""));
   } catch {
-    return null;
+    return { text: null, skip: false };
   }
 }
 
@@ -162,7 +170,7 @@ export async function syncCommentDrafts(
 
   let drafted = 0;
   for (const c of toDraft) {
-    const draft = await draftReply({ comment: c, brand, ownerId });
+    const d = await draftReply({ comment: c, brand, ownerId });
     const row = {
       user_id: ownerId,
       workspace_id: workspaceId,
@@ -174,8 +182,9 @@ export async function syncCommentDrafts(
       comment_text: c.text,
       comment_created_at: c.createdAt,
       post_caption: c.postCaption,
-      draft,
+      draft: d.text,
       status: "drafted",
+      error: d.skip ? SUGGEST_SKIP : null,
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from("comment_drafts").upsert(row, { onConflict: "user_id,platform,comment_id", ignoreDuplicates: true });
@@ -231,15 +240,15 @@ export async function skipCommentDraft(supabase: Supa, ownerId: string, id: stri
   return !error;
 }
 
-/** Re-draft one comment (e.g. the person wants another suggestion). */
-export async function redraftComment(supabase: Supa, ownerId: string, id: string, brand: BrandVoice): Promise<string | null> {
+/** Re-draft one comment (e.g. the person wants another suggestion). null when it's gone. */
+export async function redraftComment(supabase: Supa, ownerId: string, id: string, brand: BrandVoice): Promise<Drafted | null> {
   const d = await loadDraft(supabase, ownerId, id);
   if (!d || !d.comment_text) return null;
-  const draft = await draftReply({
+  const d2 = await draftReply({
     comment: { platform: d.platform, accountId: d.account_id, postId: d.post_id, postCaption: d.post_caption, commentId: d.comment_id, author: d.author, text: d.comment_text, createdAt: d.comment_created_at, likeCount: null },
     brand,
     ownerId,
   });
-  if (draft) await supabase.from("comment_drafts").update({ draft, status: "drafted", updated_at: new Date().toISOString() }).eq("user_id", ownerId).eq("id", id);
-  return draft;
+  if (d2.text || d2.skip) await supabase.from("comment_drafts").update({ draft: d2.text, status: "drafted", error: d2.skip ? SUGGEST_SKIP : null, updated_at: new Date().toISOString() }).eq("user_id", ownerId).eq("id", id);
+  return d2;
 }

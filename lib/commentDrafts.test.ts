@@ -21,7 +21,7 @@ vi.mock("./comments", () => ({
   replyToComment: async () => ({ ok: true, replyId: "r1" }),
 }));
 
-const { syncCommentDrafts } = await import("./commentDrafts");
+const { syncCommentDrafts, readDraft } = await import("./commentDrafts");
 
 type Res = { data?: unknown; error: { message: string } | null };
 function db(opts: { read: Res; upsert: Res }) {
@@ -69,5 +69,22 @@ describe("drafting replies to new comments", () => {
     expect(upserts).toHaveLength(1);
     expect(r.drafted).toBe(0);
     expect(r.problems[0]).toMatchObject({ platform: "socia" });
+  });
+});
+
+describe("comments not worth replying to", () => {
+  it("never turns advice to the brand into reply text", () => {
+    expect(readDraft("NO_REPLY")).toEqual({ text: null, skip: true });
+    expect(readDraft("Recommend no reply. NO_REPLY — this looks like spam.")).toEqual({ text: null, skip: true });
+    expect(readDraft(' "So glad you loved it!" ')).toEqual({ text: "So glad you loved it!", skip: false });
+    expect(readDraft("  ")).toEqual({ text: null, skip: false });
+  });
+
+  it("stores no reply text and flags the suggestion to skip", async () => {
+    create.mockResolvedValueOnce({ model: "claude-opus-5-5", content: [{ type: "text", text: "NO_REPLY" }], usage: { input_tokens: 10, output_tokens: 2 } } as never);
+    const { client, upserts } = db({ read: { data: [], error: null }, upsert: { error: null } });
+    await syncCommentDrafts(client, "owner", "ws", brand);
+    expect(upserts[0]).toMatchObject({ comment_id: "c1", draft: null, error: "suggest_skip", status: "drafted" });
+    expect(upserts[1]).toMatchObject({ comment_id: "c2", error: null });
   });
 });
