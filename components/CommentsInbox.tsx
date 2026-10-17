@@ -84,8 +84,8 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
         </button>
       </div>
       {syncErr && <p className="cm-err" role="alert"><AlertCircle size={13} /> {syncErr}</p>}
-      {syncInfo?.problems.map((p) => (
-        <p key={p.platform} className="cm-err" role="alert">
+      {syncInfo?.problems.map((p, i) => (
+        <p key={`${p.platform}-${i}`} className="cm-err" role="alert">
           <AlertCircle size={13} /> {p.message}
           {p.postsFailed < p.postsChecked ? ` (${p.postsFailed} of ${p.postsChecked} posts couldn't be read.)` : ""}
         </p>
