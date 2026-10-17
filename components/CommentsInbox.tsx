@@ -12,6 +12,7 @@ import type { CommentDraft } from "@/lib/commentDrafts";
 import "./comments.css";
 
 import type { SyncProblem } from "@/lib/commentDrafts";
+import { SUGGEST_SKIP } from "@/lib/commentDraftFlags";
 
 type SyncInfo = { scanned: number; newComments: number; drafted: number; capped: boolean; facebook: boolean; instagram: boolean; problems: SyncProblem[] };
 
@@ -60,7 +61,7 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
       } else if (action === "skip") {
         if (j.ok) patch(d.id, { status: "skipped" });
       } else {
-        if (j.ok && j.draft) { patch(d.id, { draft: j.draft, status: "drafted", error: null }); setEdits((m) => { const n = { ...m }; delete n[d.id]; return n; }); }
+        if (j.ok && (j.draft || j.skip)) { patch(d.id, { draft: j.draft ?? null, status: "drafted", error: j.skip ? SUGGEST_SKIP : null }); setEdits((m) => { const n = { ...m }; delete n[d.id]; return n; }); }
         else setErrors((m) => ({ ...m, [d.id]: "Couldn't draft another suggestion right now." }));
       }
     } catch {
@@ -97,6 +98,8 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
           {open.map((d) => {
             const b = busy[d.id];
             const value = edits[d.id] ?? d.draft ?? "";
+            // SOCIA suggests not replying (spam, bots): no text, so nothing goes out unless the person writes it.
+            const skipSuggested = d.error === SUGGEST_SKIP;
             return (
               <li key={d.id} className="cm-item">
                 <div className="cm-comment">
@@ -110,7 +113,8 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
                 </div>
                 <div className="cm-draft">
                   <span className="cm-draft-label"><Sparkles size={12} /> SOCIA&apos;s suggested reply</span>
-                  <textarea value={value} onChange={(e) => setEdits((m) => ({ ...m, [d.id]: e.target.value }))} placeholder={d.draft == null ? "SOCIA couldn't draft a reply for this one — write yours here." : ""} aria-label="Reply text" />
+                  {skipSuggested && <p className="cm-skip">SOCIA suggests not replying: this looks like spam or a bot. Skip it, or write a reply yourself.</p>}
+                  <textarea value={value} onChange={(e) => setEdits((m) => ({ ...m, [d.id]: e.target.value }))} placeholder={skipSuggested ? "Write a reply only if you want to answer this one." : d.draft == null ? "SOCIA couldn't draft a reply for this one — write yours here." : ""} aria-label="Reply text" />
                   <div className="cm-actions">
                     <button type="button" className="cm-btn primary" disabled={Boolean(b) || !value.trim()} onClick={() => act(d, "send")}>
                       {b === "send" ? <Loader2 size={14} className="cp-spin" /> : <Send size={14} />} Approve &amp; send
