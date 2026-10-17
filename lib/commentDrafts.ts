@@ -93,8 +93,11 @@ Comment: ${comment.text.slice(0, 600)}`;
   }
 }
 
-/** A platform whose comments could not (all) be read: the inbox says so instead of "all caught up". */
-export type SyncProblem = { platform: CommentPlatform; message: string; postsChecked: number; postsFailed: number };
+/** A platform whose comments could not (all) be read, or SOCIA itself ("socia")
+ *  when drafts can't be saved: the inbox says so instead of "all caught up". */
+export type SyncProblem = { platform: CommentPlatform | "socia"; message: string; postsChecked: number; postsFailed: number };
+
+const DRAFTS_UNSAVED = "SOCIA couldn't save reply drafts, so it didn't draft any. Check for new comments again in a few minutes; if this keeps happening, contact support.";
 export type SyncResult = { scanned: number; newComments: number; drafted: number; capped: boolean; facebook: boolean; instagram: boolean; problems: SyncProblem[] };
 
 /** Read new comments across the workspace's connected platforms and draft
@@ -140,11 +143,18 @@ export async function syncCommentDrafts(
   const igComments: SocialComment[] = igRead.comments;
   const all = [...fbComments, ...igComments].sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
 
-  // Which of these have we already stored?
+  // Which of these have we already stored? If SOCIA can't read its own drafts
+  // (e.g. supabase/comment-replies.sql not run), stop before drafting: replies
+  // that can't be saved would cost AI calls and leave the inbox empty.
   const seen = new Set<string>();
   if (all.length) {
     const ids = all.map((c) => c.commentId);
-    const { data } = await supabase.from("comment_drafts").select("platform, comment_id").eq("user_id", ownerId).in("comment_id", ids);
+    const { data, error } = await supabase.from("comment_drafts").select("platform, comment_id").eq("user_id", ownerId).in("comment_id", ids);
+    if (error) {
+      console.error("[comments] can't read comment_drafts:", error.message);
+      problems.push({ platform: "socia", message: DRAFTS_UNSAVED, postsChecked: 0, postsFailed: 0 });
+      return { scanned: all.length, newComments: 0, drafted: 0, capped: false, facebook: fbConnected, instagram: igConnected, problems };
+    }
     for (const r of (data ?? []) as Array<{ platform: string; comment_id: string }>) seen.add(`${r.platform}:${r.comment_id}`);
   }
   const fresh = all.filter((c) => !seen.has(`${c.platform}:${c.commentId}`));
@@ -169,7 +179,13 @@ export async function syncCommentDrafts(
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from("comment_drafts").upsert(row, { onConflict: "user_id,platform,comment_id", ignoreDuplicates: true });
-    if (!error) drafted++;
+    if (error) {
+      // Say so and stop: the rest would be drafted and lost the same way.
+      console.error("[comments] can't save a draft:", error.message);
+      problems.push({ platform: "socia", message: DRAFTS_UNSAVED, postsChecked: 0, postsFailed: 0 });
+      break;
+    }
+    drafted++;
   }
   return { scanned: all.length, newComments: fresh.length, drafted, capped: fresh.length > toDraft.length, facebook: fbConnected, instagram: igConnected, problems };
 }
