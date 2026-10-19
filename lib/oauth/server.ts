@@ -11,8 +11,8 @@
 //   revoke      RFC 7009
 import { randomUUID } from "node:crypto";
 import {
-  ACCESS_PREFIX, ACCESS_TTL_S, CIMD_TTL_S, CODE_PREFIX, CODE_TTL_S, GRANTABLE_SCOPES, IGNORED_SCOPES, REFRESH_PREFIX, REFRESH_TTL_S,
-  REQUEST_TTL_S, SCOPE_DRAFTS, SCOPE_READ, SUPPORTED_SCOPES, isOurResource, issuer,
+  ACCESS_PREFIX, ACCESS_TTL_S, CIMD_TTL_S, CODE_PREFIX, CODE_TTL_S, CONNECTION_SCOPES, GRANTABLE_SCOPES, IGNORED_SCOPES, REFRESH_PREFIX, REFRESH_TTL_S,
+  REQUEST_TTL_S, SCOPE_DRAFTS, SCOPE_PUBLISH, SCOPE_READ, SUPPORTED_SCOPES, isOurResource, issuer,
 } from "./config";
 import { fetchClientMetadata, isCimdClientId, redirectMatches, type FetchDeps } from "./clients";
 import { CHALLENGE_RE, hashToken, newToken, verifyPkce } from "./tokens";
@@ -51,7 +51,7 @@ export async function resolveClient(store: OAuthStore, clientId: string, now: Da
 export type AuthorizeResult =
   | { kind: "error_page"; message: string }
   | { kind: "redirect"; url: string }
-  | { kind: "ok"; client: ClientRec; redirectUri: string; codeChallenge: string; state: string | null; scopes: string[]; askedForDrafts: boolean; resource: string | null };
+  | { kind: "ok"; client: ClientRec; redirectUri: string; codeChallenge: string; state: string | null; scopes: string[]; askedToPublish: boolean; resource: string | null };
 
 export async function validateAuthorize(store: OAuthStore, params: Record<string, string | undefined>, now: Date, deps?: FetchDeps): Promise<AuthorizeResult> {
   const clientId = params.client_id?.trim();
@@ -82,7 +82,7 @@ export async function validateAuthorize(store: OAuthStore, params: Record<string
   const granted = requested.filter((s) => GRANTABLE_SCOPES.includes(s));
   return {
     kind: "ok", client, redirectUri, codeChallenge: params.code_challenge, state,
-    scopes: granted.length ? granted : [SCOPE_READ], askedForDrafts: requested.includes(SCOPE_DRAFTS), resource,
+    scopes: granted.length ? granted : [SCOPE_READ], askedToPublish: requested.includes(SCOPE_PUBLISH) || requested.includes(SCOPE_DRAFTS), resource,
   };
 }
 
@@ -100,6 +100,8 @@ export type DecideInput = {
   userId: string;
   allow: boolean;
   workspaceIds: string[];
+  /** The person ticked "also let it create, schedule and publish posts". */
+  allowPublish?: boolean;
   /** The workspaces this person can open right now (owned or invited). */
   accessibleWorkspaceIds: string[];
 };
@@ -132,14 +134,16 @@ export async function decide(store: OAuthStore, input: DecideInput, now: Date): 
     return { ok: true, url: redirectWith(req.redirectUri, { error: "access_denied", error_description: "The person declined.", state, iss: issuer() }), connection: null };
   }
   const client = await store.getClient(req.clientId);
+  // Publishing is the person's choice on the consent screen, whatever the app asked for.
+  const scopes = input.allowPublish ? Array.from(new Set([...req.scopes, SCOPE_PUBLISH])) : req.scopes.filter((s) => s !== SCOPE_PUBLISH);
   const connection = await store.upsertConnection({
-    userId: input.userId, clientId: req.clientId, clientName: client?.clientName ?? null, scopes: req.scopes,
+    userId: input.userId, clientId: req.clientId, clientName: client?.clientName ?? null, scopes,
     workspaceIds: Array.from(new Set(input.workspaceIds)), now: now.toISOString(),
   });
   const code = newToken(CODE_PREFIX);
   await store.createCode({
     codeHash: hashToken(code), connectionId: connection.id, clientId: req.clientId, redirectUri: req.redirectUri,
-    codeChallenge: req.codeChallenge, resource: req.resource, scopes: req.scopes, expiresAt: later(now, CODE_TTL_S),
+    codeChallenge: req.codeChallenge, resource: req.resource, scopes, expiresAt: later(now, CODE_TTL_S),
   });
   return { ok: true, url: redirectWith(req.redirectUri, { code, state, iss: issuer() }), connection };
 }
@@ -240,7 +244,8 @@ export async function verifyAccessToken(store: OAuthStore, accessToken: string |
   }
   return {
     userId: conn.userId, connectionId: conn.id, clientId: conn.clientId, clientName: conn.clientName,
-    scopes: t.scopes.filter((s) => conn.scopes.includes(s)), workspaceIds: conn.workspaceIds,
+    // Read access comes from the token; publishing from the connection alone (CONNECTION_SCOPES), so Settings can switch it at once.
+    scopes: conn.scopes.filter((s) => t.scopes.includes(s) || CONNECTION_SCOPES.includes(s)), workspaceIds: conn.workspaceIds,
     expiresAt: Math.floor(new Date(t.expiresAt).getTime() / 1000),
   };
 }

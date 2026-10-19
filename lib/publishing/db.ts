@@ -98,7 +98,7 @@ export type DestinationRow = {
 };
 
 const PARENT_STATUSES: ContentItem["status"][] = ["draft", "scheduled", "publishing", "published", "failed", "cancelled"];
-const SOURCES: NonNullable<ContentItem["source"]>[] = ["calendar", "composer", "quick", "studio", "plan", "repurpose"];
+const SOURCES: NonNullable<ContentItem["source"]>[] = ["calendar", "composer", "quick", "studio", "plan", "repurpose", "assistant"];
 const DEST_STATUSES: DestinationStatus[] = ["draft", "ready", "scheduled", "uploading", "processing", "published", "failed", "cancelled"];
 
 const asPlatform = (v: unknown): Platform => (PLATFORMS.includes(v as Platform) ? (v as Platform) : "instagram");

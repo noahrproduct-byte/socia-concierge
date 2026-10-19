@@ -199,9 +199,9 @@ function publishingCells(): Record<PlanId, Cell> {
 /**
  * Real or planned, but not on the pricing page yet: AI assistant access is
  * listed only once its connection flow has been tested with Claude and
- * ChatGPT, and the draft tools and developer API once they exist.
+ * ChatGPT (publishing included), and the developer API once it exists.
  */
-export const UNANNOUNCED: ReadonlySet<FeatureKey> = new Set<FeatureKey>(["ai_assistants", "ai_assistant_drafts", "developer_api"]);
+export const UNANNOUNCED: ReadonlySet<FeatureKey> = new Set<FeatureKey>(["ai_assistants", "ai_assistant_publishing", "developer_api"]);
 
 export function comingSoonFor(plan: PlanId): FeatureKey[] {
   return (Object.keys(FEATURE_STATUS) as FeatureKey[]).filter((k) => PLANS[plan].features[k] && featureSoon(k) && !UNANNOUNCED.has(k));

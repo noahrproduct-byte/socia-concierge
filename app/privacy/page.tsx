@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: October 15, 2026</p>
+      <p className="legal-date">Last updated: October 19, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -103,8 +103,10 @@ export default function PrivacyPage() {
         <li>
           <b>AI assistants you connect</b>: if you connect SOCIA to an AI
           assistant such as Claude or ChatGPT, we keep which assistant you
-          connected, when, and a log of its requests (what it asked for, the
-          result and the time).
+          connected, when, whether you let it post, and a log of its requests
+          (what it asked for, the result and the time). If it gives SOCIA a
+          link to an image or video for a post, we download that file once and
+          store it like media you upload yourself.
         </li>
         <li>
           <b>Usage records</b>: product events such as viewing the pricing
@@ -162,11 +164,14 @@ export default function PrivacyPage() {
         </li>
         <li>
           <b>AI assistants you connect</b>: when you connect an assistant, it
-          can ask SOCIA for your workspace&apos;s analytics through read-only
-          tools, and SOCIA answers it. What the assistant does with that data is
-          governed by its own terms. It never receives your platform access
-          tokens, and you can disconnect it at any time in Settings, under AI
-          Assistants.
+          can ask SOCIA for your workspace&apos;s analytics, and SOCIA answers
+          it. If you turn on posting for it (on a paid plan), it can also ask
+          SOCIA to create, schedule or publish posts to the accounts in the
+          workspaces you shared, and SOCIA publishes them to Instagram or
+          Facebook exactly as if you had used Create post. What the assistant
+          does with your data is governed by its own terms. It never receives
+          your platform access tokens, and you can turn off posting or
+          disconnect it at any time in Settings, under AI Assistants.
         </li>
       </ul>
       <p>

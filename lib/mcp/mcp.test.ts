@@ -9,10 +9,22 @@ import { ApiFailure } from "../api/context";
 // call goes through), not the reads, which have their own tests.
 const calls: { tool: string; workspace: string | null | undefined }[] = [];
 const audits: { action: string; outcome: string }[] = [];
+const writes: { tool: string; input: unknown }[] = [];
+let rate: "ok" | "limited" | "unavailable" = "ok";
 
 vi.mock("../oauth/runtime", () => ({
   serviceOrNull: () => ({}),
   audit: async (e: { action: string; outcome: string }) => { audits.push({ action: e.action, outcome: e.outcome }); },
+  rateHit: async () => rate,
+}));
+vi.mock("../entitlements", () => ({
+  checkFeature: (ent: { features?: Record<string, boolean> }, key: string) => (ent.features?.[key] === false ? { ok: false, error: { error: `${key} locked` } } : { ok: true }),
+  getLimit: () => 5,
+}));
+vi.mock("../api/media", () => ({ listWorkspaceMedia: async () => [{ media_id: "m1", kind: "image" }] }));
+vi.mock("../api/write", () => ({
+  createPost: async (_ctx: unknown, _ent: unknown, input: unknown) => { writes.push({ tool: "create_post", input }); return { post_id: "p1", result: "published", destinations: [] }; },
+  cancelPost: async (_ctx: unknown, id: string) => { writes.push({ tool: "cancel_post", input: id }); return { post_id: id, cancelled: ["instagram"], not_cancelled: [] }; },
 }));
 vi.mock("../api/context", async (orig) => {
   const real = await orig<typeof import("../api/context")>();
@@ -26,6 +38,7 @@ vi.mock("../api/context", async (orig) => {
     },
     guardRequest: async (_svc: unknown, p: { connectionId: string }) => {
       if (p.connectionId === "over-limit") throw new real.ApiFailure("limited", "This month's AI assistant requests are used up.");
+      if (p.connectionId === "free-plan") return { ent: { plan: "free", features: { ai_assistant_publishing: false } }, usage: { used: 1, limit: 100 } };
       return { ent: { plan: "growth" }, usage: { used: 1, limit: 5000 } };
     },
     listGranted: async () => [{ id: "ws-1", name: "Salvo's", yourRole: "owner", isDefault: true }],
@@ -49,6 +62,8 @@ const TOKENS: Record<string, ReturnType<typeof principal>> = {
   good: principal(),
   two: principal({ workspaceIds: ["ws-1", "ws-2"] }),
   limited: principal({ connectionId: "over-limit" }),
+  poster: principal({ scopes: ["socia:read", "socia:publish"] }),
+  freePoster: principal({ connectionId: "free-plan", scopes: ["socia:read", "socia:publish"] }),
 };
 
 const handler = withMcpAuth(
@@ -70,7 +85,13 @@ async function connect(token: string, mode: "legacy" | "auto") {
   return client;
 }
 
-beforeEach(() => { calls.length = 0; audits.length = 0; });
+beforeEach(() => { calls.length = 0; audits.length = 0; writes.length = 0; rate = "ok"; });
+
+const READ_TOOLS = [
+  "compare_platforms", "get_account_analytics", "get_content_plan", "get_performance_insights", "get_posting_recommendations",
+  "get_scheduled_posts", "get_today", "get_top_posts", "list_connected_accounts", "list_media", "list_workspaces",
+];
+const POST = { caption: "Fresh out of the oven", media: [{ media_id: "m1" }], platforms: [{ platform: "instagram" }], when: "now" };
 
 describe("the MCP endpoint", () => {
   it("answers a request without a token with 401 and the resource metadata to sign in with", async () => {
@@ -80,16 +101,14 @@ describe("the MCP endpoint", () => {
   });
 
   for (const mode of ["legacy", "auto"] as const) {
-    it(`lists ten read-only tools (${mode} protocol)`, async () => {
+    it(`lists the read-only tools and the two posting tools, marked as such (${mode} protocol)`, async () => {
       const client = await connect("good", mode);
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual([
-        "compare_platforms", "get_account_analytics", "get_content_plan", "get_performance_insights", "get_posting_recommendations",
-        "get_scheduled_posts", "get_today", "get_top_posts", "list_connected_accounts", "list_workspaces",
-      ]);
+      expect(tools.map((t) => t.name).sort()).toEqual([...READ_TOOLS, "cancel_post", "create_post"].sort());
       for (const t of tools) {
-        expect(t.annotations?.readOnlyHint).toBe(true);
-        expect(t.annotations?.destructiveHint).toBe(false);
+        const posting = t.name === "create_post" || t.name === "cancel_post";
+        expect(t.annotations?.readOnlyHint).toBe(!posting);
+        expect(t.annotations?.destructiveHint).toBe(posting);
         expect((t.description ?? "").length).toBeGreaterThan(60);
       }
       await client.close();
@@ -148,5 +167,50 @@ describe("the MCP endpoint", () => {
     expect(findSecret({ client_secret: "x" })).toBe("$.client_secret");
     expect(findSecret({ token_hash: "x" })).toBe("$.token_hash");
     expect(findSecret({ tokens_used: 3, tokenizer: "x" })).toBeNull();
+  });
+
+  it("refuses to post when publishing isn't turned on for the connection, and says where to turn it on", async () => {
+    const client = await connect("good", "auto");
+    const r = await client.callTool({ name: "create_post", arguments: POST });
+    expect(r.isError).toBe(true);
+    expect(JSON.stringify(r.content)).toContain("Settings → AI Assistants");
+    expect(writes).toEqual([]);
+    await client.close();
+  });
+
+  it("posts through the gate when publishing is on, and audits it", async () => {
+    const client = await connect("poster", "auto");
+    const r = await client.callTool({ name: "create_post", arguments: POST });
+    expect(r.isError).toBeFalsy();
+    expect(r.structuredContent).toMatchObject({ workspace: { id: "ws-1" }, post_id: "p1", result: "published" });
+    expect(writes).toEqual([{ tool: "create_post", input: POST }]);
+    expect(audits).toEqual([{ action: "create_post", outcome: "ok" }]);
+    await client.close();
+  });
+
+  it("refuses on a plan without assistant publishing, and at the hourly cap, before writing anything", async () => {
+    const free = await connect("freePoster", "auto");
+    const a = await free.callTool({ name: "create_post", arguments: POST });
+    expect(a.isError).toBe(true);
+    expect(JSON.stringify(a.content)).toContain("paid plans");
+    await free.close();
+    rate = "limited";
+    const capped = await connect("poster", "auto");
+    const b = await capped.callTool({ name: "create_post", arguments: POST });
+    expect(b.isError).toBe(true);
+    expect(JSON.stringify(b.content)).toContain("posts an hour");
+    // Withdrawing isn't a new post, so the hourly cap doesn't apply to it.
+    const c = await capped.callTool({ name: "cancel_post", arguments: { post_id: "00000000-0000-4000-8000-000000000001" } });
+    expect(c.isError).toBeFalsy();
+    expect(writes).toEqual([{ tool: "cancel_post", input: "00000000-0000-4000-8000-000000000001" }]);
+    await capped.close();
+  });
+
+  it("lists media with only read access", async () => {
+    const client = await connect("good", "auto");
+    const r = await client.callTool({ name: "list_media", arguments: {} });
+    expect(r.isError).toBeFalsy();
+    expect(r.structuredContent).toMatchObject({ media: [{ media_id: "m1" }] });
+    await client.close();
   });
 });

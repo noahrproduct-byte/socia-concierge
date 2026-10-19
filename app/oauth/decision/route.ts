@@ -34,9 +34,10 @@ export async function POST(req: Request) {
   const requestId = String(form.get("request_id") ?? "");
   const allow = form.get("decision") === "allow";
   const workspaceIds = form.getAll("workspace").map(String);
+  const allowPublish = form.get("publish") === "on";
   const accessible = (await listAccessibleWorkspaces(svc, user.id)).filter((w) => !w.suspended).map((w) => w.id);
 
-  const d = await decide(store, { requestId, userId: user.id, allow, workspaceIds, accessibleWorkspaceIds: accessible }, new Date()).catch((e) => {
+  const d = await decide(store, { requestId, userId: user.id, allow, workspaceIds, allowPublish, accessibleWorkspaceIds: accessible }, new Date()).catch((e) => {
     console.error("[oauth] decision", (e as Error)?.message ?? e);
     return null;
   });

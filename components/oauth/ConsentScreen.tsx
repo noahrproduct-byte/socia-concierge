@@ -1,18 +1,19 @@
 // The consent screen's content: what the app asked for, what it can never
-// do, and which Brand Workspaces it may read. Plain markup posting to
-// /oauth/decision; the page decides everything else.
-import { ShieldCheck, Eye, Ban } from "lucide-react";
+// do, whether it may also post (unticked unless the person ticks it), and
+// which Brand Workspaces it may use. Plain markup posting to /oauth/decision;
+// the page decides everything else.
+import { ShieldCheck, Eye, Ban, Send } from "lucide-react";
 import { SCOPE_LABEL } from "@/lib/oauth/config";
 
 export type ConsentWorkspace = { id: string; name: string; note: string | null; checked: boolean };
 
 export default function ConsentScreen({
-  name, host, scopes, askedForDrafts, workspaces, requestId, email,
+  name, host, scopes, askedToPublish, workspaces, requestId, email,
 }: {
   name: string;
   host: string;
   scopes: string[];
-  askedForDrafts: boolean;
+  askedToPublish: boolean;
   workspaces: ConsentWorkspace[];
   requestId: string;
   email: string | null;
@@ -32,15 +33,26 @@ export default function ConsentScreen({
           <ul className="oa-list">
             {scopes.map((s) => <li key={s}><Eye size={14} aria-hidden /> {SCOPE_LABEL[s] ?? s}</li>)}
           </ul>
-          {askedForDrafts && <p className="oa-note">It also asked to create drafts. That isn&apos;t available yet, so it gets read access only.</p>}
           <ul className="oa-list muted">
-            <li><Ban size={14} aria-hidden /> It can&apos;t publish, schedule, delete or change anything.</li>
+            <li><Ban size={14} aria-hidden /> It can&apos;t delete posts or change your settings.</li>
             <li><ShieldCheck size={14} aria-hidden /> It never sees your Instagram, Facebook, YouTube or TikTok logins.</li>
           </ul>
         </section>
 
         <section className="oa-sec">
-          <h2>Which Brand Workspaces can it see?</h2>
+          <h2>Posting</h2>
+          <label className="oa-check oa-check-long">
+            <input type="checkbox" name="publish" />
+            <span className="oa-check-text">
+              <span><Send size={13} aria-hidden /> Also let {name} create, schedule and publish posts</span>
+              <small>Only to accounts connected in the Brand Workspaces below, on a paid plan. It posts as soon as you ask it to, without asking SOCIA again. You can turn this off at any time in Settings → AI Assistants.</small>
+            </span>
+          </label>
+          {askedToPublish && <p className="oa-note">{name} asked to be able to post. Leave this unticked to give it read access only.</p>}
+        </section>
+
+        <section className="oa-sec">
+          <h2>Which Brand Workspaces can it use?</h2>
           <div className="oa-ws">
             {workspaces.map((w) => (
               <label key={w.id} className="oa-check">

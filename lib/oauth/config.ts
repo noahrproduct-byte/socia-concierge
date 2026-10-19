@@ -3,18 +3,28 @@
 // the canonical site origin (https://sociaos.com in production), and the only
 // protected resource is the MCP endpoint on that origin.
 
-/** What an assistant may be granted. Phase 1 grants read only. */
+/** What an assistant may be granted. */
 export const SCOPE_READ = "socia:read";
+/** Never granted: kept so a client that still asks for it isn't refused (it gets read, and publishing if the person ticks it). */
 export const SCOPE_DRAFTS = "socia:drafts";
-export const SUPPORTED_SCOPES = [SCOPE_READ, SCOPE_DRAFTS] as const;
-/** Scopes a person can grant today. Drafts arrive with Phase 2 tools. */
+/** Create, schedule and publish posts. Granted only when the person ticks it on SOCIA's consent screen or in Settings. */
+export const SCOPE_PUBLISH = "socia:publish";
+export const SUPPORTED_SCOPES = [SCOPE_READ, SCOPE_DRAFTS, SCOPE_PUBLISH] as const;
+/** Scopes an app gets from its request alone. Publishing is never among them: only the person's own choice adds it. */
 export const GRANTABLE_SCOPES: readonly string[] = [SCOPE_READ];
+/**
+ * Scopes read from the connection at every call rather than from the token, so
+ * switching publishing on or off in Settings takes effect at once without the
+ * app having to connect again.
+ */
+export const CONNECTION_SCOPES: readonly string[] = [SCOPE_PUBLISH];
 /** OpenID scopes some clients add by default; SOCIA isn't an OpenID provider, so they are ignored, not refused. */
 export const IGNORED_SCOPES = ["openid", "email", "profile", "offline_access"];
 
 export const SCOPE_LABEL: Record<string, string> = {
   [SCOPE_READ]: "Read your analytics, posts, plans and recommendations",
-  [SCOPE_DRAFTS]: "Create and edit drafts (nothing is ever published)",
+  [SCOPE_DRAFTS]: "Create and edit drafts",
+  [SCOPE_PUBLISH]: "Create, schedule and publish posts to your connected accounts",
 };
 
 export const ACCESS_TTL_S = 60 * 60;
@@ -76,7 +86,7 @@ export function protectedResourceMetadata() {
   return {
     resource: mcpResource(),
     authorization_servers: [issuer()],
-    scopes_supported: [SCOPE_READ],
+    scopes_supported: [SCOPE_READ, SCOPE_PUBLISH],
     bearer_methods_supported: ["header"],
     resource_name: "SOCIA",
     resource_documentation: `${issuer()}/settings#ai-assistants`,

@@ -75,7 +75,7 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
         name={name}
         host={host}
         scopes={a.scopes}
-        askedForDrafts={a.askedForDrafts}
+        askedToPublish={a.askedToPublish}
         requestId={requestId}
         email={user.email ?? null}
         workspaces={workspaces.map((w) => ({

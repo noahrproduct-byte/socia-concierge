@@ -79,6 +79,8 @@ export interface OAuthStore {
   getConnection(id: string): Promise<ConnectionRec | null>;
   listConnections(userId: string): Promise<ConnectionRec[]>;
   revokeConnection(userId: string, id: string, now: string): Promise<boolean>;
+  /** Replace a live connection's scopes (Settings → AI Assistants). Only the person's own connection. */
+  setConnectionScopes(userId: string, id: string, scopes: string[], now: string): Promise<ConnectionRec | null>;
   touchConnection(id: string, now: string): Promise<void>;
 
   createCode(rec: Omit<CodeRec, "usedAt">): Promise<void>;
@@ -172,6 +174,11 @@ export function supabaseStore(svc: Supa): OAuthStore {
       must(await svc.from("oauth_tokens").update({ revoked_at: now }).eq("connection_id", id).is("revoked_at", null));
       return true;
     },
+    async setConnectionScopes(userId, id, scopes, now) {
+      const data = must(await svc.from("ai_connections").update({ scopes, updated_at: now }).eq("id", id).eq("user_id", userId).is("revoked_at", null).select("*"));
+      const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : undefined;
+      return row ? toConnection(row) : null;
+    },
     async touchConnection(id, now) {
       await svc.from("ai_connections").update({ last_used_at: now }).eq("id", id);
     },
@@ -240,6 +247,12 @@ export function memoryStore(): OAuthStore & { dump(): { connections: ConnectionR
       c.revokedAt = now;
       for (const t of tokens.values()) if (t.connectionId === i && !t.revokedAt) t.revokedAt = now;
       return true;
+    },
+    async setConnectionScopes(userId, i, scopes) {
+      const c = connections.get(i);
+      if (!c || c.userId !== userId || c.revokedAt) return null;
+      c.scopes = [...scopes];
+      return { ...c };
     },
     async touchConnection(i, now) { const c = connections.get(i); if (c) c.lastUsedAt = now; },
     async createCode(rec) { codes.set(rec.codeHash, { ...rec, usedAt: null }); },
