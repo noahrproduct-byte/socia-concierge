@@ -23,11 +23,11 @@ const params = (over: Record<string, string | undefined> = {}) => ({
 });
 
 /** Authorize, consent and exchange: a full connection. */
-async function connect(s: OAuthStore = store, opts: { workspaces?: string[] } = {}) {
-  const a = await validateAuthorize(s, params(), NOW);
+async function connect(s: OAuthStore = store, opts: { workspaces?: string[]; publish?: boolean; scope?: string } = {}) {
+  const a = await validateAuthorize(s, params(opts.scope ? { scope: opts.scope } : {}), NOW);
   if (a.kind !== "ok") throw new Error(a.kind);
   const reqId = await createConsentRequest(s, "user-1", a, NOW);
-  const d = await decide(s, { requestId: reqId, userId: "user-1", allow: true, workspaceIds: opts.workspaces ?? ["ws-1"], accessibleWorkspaceIds: ["ws-1", "ws-2"] }, NOW);
+  const d = await decide(s, { requestId: reqId, userId: "user-1", allow: true, workspaceIds: opts.workspaces ?? ["ws-1"], allowPublish: opts.publish, accessibleWorkspaceIds: ["ws-1", "ws-2"] }, NOW);
   if (!d.ok) throw new Error(d.message);
   const code = new URL(d.url).searchParams.get("code")!;
   const t = await token(s, new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id: "dcr-1", code_verifier: VERIFIER, resource: mcpResource() }), NOW);
@@ -45,7 +45,7 @@ describe("metadata", () => {
     expect(m.registration_endpoint).toBe("https://sociaos.com/oauth/register");
   });
   it("describes the MCP endpoint as the only protected resource", () => {
-    expect(protectedResourceMetadata()).toMatchObject({ resource: "https://sociaos.com/mcp", authorization_servers: ["https://sociaos.com"], scopes_supported: ["socia:read"] });
+    expect(protectedResourceMetadata()).toMatchObject({ resource: "https://sociaos.com/mcp", authorization_servers: ["https://sociaos.com"], scopes_supported: ["socia:read", "socia:publish"] });
     expect(isOurResource("https://SOCIAOS.com/mcp/")).toBe(true);
     expect(isOurResource("https://sociaos.com/other")).toBe(false);
     expect(isOurResource("https://evil.example/mcp")).toBe(false);
@@ -103,9 +103,12 @@ describe("client rules", () => {
 });
 
 describe("authorize", () => {
-  it("accepts a good request and grants read only, even when drafts are asked for", async () => {
+  it("accepts a good request and grants read only, even when drafts or publishing are asked for", async () => {
     const a = await validateAuthorize(store, params({ scope: "socia:read socia:drafts openid" }), NOW);
-    expect(a).toMatchObject({ kind: "ok", scopes: ["socia:read"], askedForDrafts: true, state: "st-1" });
+    expect(a).toMatchObject({ kind: "ok", scopes: ["socia:read"], askedToPublish: true, state: "st-1" });
+    const b = await validateAuthorize(store, params({ scope: "socia:read socia:publish" }), NOW);
+    expect(b).toMatchObject({ kind: "ok", scopes: ["socia:read"], askedToPublish: true });
+    expect(await validateAuthorize(store, params({ scope: "socia:read" }), NOW)).toMatchObject({ askedToPublish: false });
   });
   it("shows problems with the app on SOCIA's page instead of redirecting", async () => {
     expect((await validateAuthorize(store, params({ client_id: "nope" }), NOW)).kind).toBe("error_page");
@@ -135,6 +138,26 @@ describe("consent", () => {
     expect(u.searchParams.get("state")).toBe("st-1");
     expect(u.searchParams.get("iss")).toBe("https://sociaos.com");
     expect(store.dump().connections).toEqual([expect.objectContaining({ userId: "user-1", clientId: "dcr-1", workspaceIds: ["ws-1"], scopes: ["socia:read"] })]);
+  });
+  it("adds publishing only when the person ticks it, whatever the app asked for", async () => {
+    const asked = await connect(store, { scope: "socia:read socia:publish" });
+    expect(asked.t.body.scope).toBe("socia:read");
+    const s = memoryStore();
+    await s.putClient({ clientId: "dcr-1", kind: "dcr", clientName: "Claude", clientUri: null, logoUri: null, redirectUris: [REDIRECT], fetchedAt: null });
+    const ticked = await connect(s, { publish: true });
+    expect(ticked.t.body.scope).toBe("socia:read socia:publish");
+    expect((await verifyAccessToken(s, ticked.t.body.access_token as string, NOW))?.scopes).toEqual(["socia:read", "socia:publish"]);
+  });
+  it("switches publishing on and off from Settings at once, for live tokens too", async () => {
+    const { t } = await connect();
+    const access = t.body.access_token as string;
+    const conn = store.dump().connections[0];
+    expect((await verifyAccessToken(store, access, NOW))?.scopes).toEqual(["socia:read"]);
+    expect(await store.setConnectionScopes("user-2", conn.id, ["socia:read", "socia:publish"], NOW.toISOString())).toBeNull();
+    await store.setConnectionScopes("user-1", conn.id, ["socia:read", "socia:publish"], NOW.toISOString());
+    expect((await verifyAccessToken(store, access, NOW))?.scopes).toEqual(["socia:read", "socia:publish"]);
+    await store.setConnectionScopes("user-1", conn.id, ["socia:read"], NOW.toISOString());
+    expect((await verifyAccessToken(store, access, NOW))?.scopes).toEqual(["socia:read"]);
   });
   it("declining sends access_denied and creates nothing", async () => {
     const a = await validateAuthorize(store, params(), NOW);

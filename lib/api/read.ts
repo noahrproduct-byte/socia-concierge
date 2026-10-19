@@ -119,7 +119,7 @@ export async function listConnectedAccounts(ctx: Ctx) {
     accounts: accounts.map((a) => {
       const av = availabilityFor(a.platform, { status: a.status, suspended: a.suspended, scopes: a.scopes });
       return {
-        platform: a.platform, name: a.label, handle: a.handle,
+        platform: a.platform, account_id: a.accountId, name: a.label, handle: a.handle,
         connection: a.suspended ? "paused_by_plan" : a.status === "expired" ? "needs_reconnect" : "connected",
         publishing_through_socia: av.state === "available" ? "available" : av.state,
         ...(av.state !== "available" && "reason" in av ? { publishing_note: av.reason } : {}),

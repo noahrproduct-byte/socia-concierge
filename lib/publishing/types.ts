@@ -231,7 +231,8 @@ export type ContentItem = {
   /** Default publish time; destinations may override per platform. */
   scheduledAt: string | null;
   status: "draft" | "scheduled" | "publishing" | "published" | "failed" | "cancelled";
-  source: "calendar" | "composer" | "quick" | "studio" | "plan" | "repurpose" | null;
+  /** "assistant": made by an AI assistant through SOCIA's MCP server (lib/api/write.ts). */
+  source: "calendar" | "composer" | "quick" | "studio" | "plan" | "repurpose" | "assistant" | null;
   planId: string | null;
   planDay: string | null;
   publishedAt: string | null;
