@@ -73,9 +73,12 @@ export function validateRegistration(body: unknown, opts: { metadataDocument?: b
   if (auth !== undefined && auth !== "none" && !(opts.metadataDocument && auth === "private_key_jwt")) {
     return { ok: false, error: { error: "invalid_client_metadata", error_description: "SOCIA registers public clients only: token_endpoint_auth_method must be \"none\" (PKCE is required)." } };
   }
+  // Extra grant types are ignored, not refused: Claude's metadata document also
+  // lists jwt-bearer (enterprise SSO). SOCIA's token endpoint only ever honours
+  // authorization_code and refresh_token, so a declared extra grants nothing.
   const grants = b.grant_types;
-  if (grants !== undefined && (!Array.isArray(grants) || grants.some((g) => g !== "authorization_code" && g !== "refresh_token"))) {
-    return { ok: false, error: { error: "invalid_client_metadata", error_description: "Supported grant_types: authorization_code, refresh_token." } };
+  if (grants !== undefined && (!Array.isArray(grants) || !grants.includes("authorization_code"))) {
+    return { ok: false, error: { error: "invalid_client_metadata", error_description: "grant_types must include authorization_code." } };
   }
   const responses = b.response_types;
   if (responses !== undefined && (!Array.isArray(responses) || responses.some((r) => r !== "code"))) {

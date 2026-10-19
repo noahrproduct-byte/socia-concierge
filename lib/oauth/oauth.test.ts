@@ -75,6 +75,14 @@ describe("client rules", () => {
     expect(validateRegistration({ redirect_uris: [] }).ok).toBe(false);
     expect(validateRegistration({ redirect_uris: ["http://evil.example/cb"] }).ok).toBe(false);
     expect(validateRegistration({ redirect_uris: [REDIRECT], grant_types: ["client_credentials"] }).ok).toBe(false);
+    expect(validateRegistration({ redirect_uris: [REDIRECT], grant_types: "authorization_code" }).ok).toBe(false);
+  });
+  it("accepts Claude's metadata document, ignoring the grant types SOCIA doesn't use", async () => {
+    // Served at https://claude.ai/oauth/mcp-oauth-client-metadata (fetched 2026-10-19).
+    const url = "https://claude.ai/oauth/mcp-oauth-client-metadata";
+    const doc = { client_id: url, client_name: "Claude", client_uri: "https://claude.ai", redirect_uris: [REDIRECT], grant_types: ["authorization_code", "refresh_token", "urn:ietf:params:oauth:grant-type:jwt-bearer"], response_types: ["code"], token_endpoint_auth_method: "none" };
+    const r = await fetchClientMetadata(url, { resolve: async () => ["160.79.104.10"], fetch: async () => new Response(JSON.stringify(doc)) });
+    expect(r).toEqual({ ok: true, metadata: { clientName: "Claude", clientUri: "https://claude.ai/", logoUri: null, redirectUris: [REDIRECT] } });
   });
   it("never treats private or loopback addresses as fetchable", () => {
     for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1"]) expect(isPrivateAddress(ip)).toBe(true);
