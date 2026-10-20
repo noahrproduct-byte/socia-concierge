@@ -2,150 +2,184 @@
 
 The synthesis across all references. "Show me what you've learned" reads from here. Update it whenever a principle recurs across references or one reference has an unusually strong solution.
 
-**Library as of 2026-10-19:** 6 references: Metricool, Apple, ElevenLabs, Framer, EnduroSat, Higgsfield. App screens behind logins (Metricool, ElevenLabs, Framer, Higgsfield) are thin; see INDEX.md.
+**Library as of 2026-10-19:**
+- **References:** 6 (Metricool, Apple, ElevenLabs, Framer, EnduroSat, Higgsfield).
+- **Logged-in screens studied** (signed in by Noah, look-only): Metricool, ElevenLabs, Framer and Higgsfield.
+- **Gaps remaining:**
+  - Framer's project was empty, so its populated CMS and Analytics weren't seen.
+  - Metricool had no posts, so its post cards weren't seen.
+  - No live AI generation was watched in any product.
 
 ## Recurring principles
 
 1. **Few weights; hierarchy comes from size steps and text-colour steps.**
    - **Evidence:**
-     - Apple: 2 weights (400/600) across ~48 named roles, and 12 sizes.
-     - ElevenLabs: 400/500, with headings *lighter* (300) but larger.
-     - Framer: 342 of 347 pricing text nodes at 400; white at 100/80/60/40%.
-     - Higgsfield: 4 weights on a 12/14/16/20 core.
+     - Apple: 2 weights (400/600) across about 48 named roles.
+     - ElevenLabs app: 400 and 500 used about equally.
+     - Framer app: six named sizes and two weights (450/550).
+     - Higgsfield app: 400–700 on a 10–24px scale.
+     - Metricool app: 12–30px with light 30px KPI values.
      - EnduroSat configurator: 2 weights.
-   - **Mechanism:** when weight is held constant, every size or contrast step reads as deliberate. Text-colour steps survive theme changes.
-   - **SOCIA gap:** 8 weights (500 to 800) and 10 sizes between 9 and 13.5px (baseline).
-   - **Caution:** Framer's weight-400 titles scan weakly in dense lists [Framer weaknesses]. A dense app needs a clear label/heading weight.
+   - **Mechanism:** with weight held steady, each step in size or contrast reads as deliberate.
+   - **SOCIA gap:** 8 weights and 10 sizes between 9 and 13.5px.
+   - **Caution:** pure-400 titles scan weakly in dense lists.
 
-2. **One accent, reserved for action or state; everything else in the chrome is neutral, so colour means data.**
+2. **One accent, kept for the consequential action; the chrome stays neutral, so colour means data or state.**
    - **Evidence:**
-     - Apple (blue only on links, CTAs, selection, focus)
-     - ElevenLabs (black actions; colour only in charts and avatars)
-     - Framer (accent almost absent from the chrome)
-     - Higgsfield (lime = act/selected)
-     - EnduroSat (cyan = active; orange only for "the old way")
-     - Metricool (a strict two-colour core)
-   - **Mechanism:** a scarce accent becomes information, and the eye finds it first.
-   - **SOCIA:** already the rule (purple = action). Extend it: no tinted cards or coloured section headers; chart series and status are the only other colour.
+     - Framer app: the accent fills exactly one button per screen (Publish / New project); every other button is neutral.
+     - Apple: blue only on links, CTAs, selection and focus.
+     - ElevenLabs: black actions; colour only in data.
+     - Higgsfield: lime = spend/act; white = create.
+     - EnduroSat: cyan = active.
+     - Metricool: a strict two-colour core.
+   - **SOCIA:** purple for action only. Go further: **at most one filled purple button per screen.**
 
-3. **Radius grows with element size.**
+3. **One control height and concentric radii (outer radius = inner radius + padding).**
    - **Evidence:**
-     - Apple: 5 / 8 / 12 / 18 / 28
-     - ElevenLabs: pills for controls, then 12 / 16 / 20 / 24
-     - Higgsfield: 4 / 8 / 10–12 / 16 / 20
-     - Framer marketplace: 5 / 8 / 16 / 18 / 20
-   - **Mechanism:** nested corners look related.
-   - **SOCIA gap:** a loose 6 / 8 / 9 / 10 / 12 / 14 set.
+     - Framer app: every control is 30px; menu 13px = item 8px + padding 5px.
+     - The same growth-with-size rule shows in Apple, ElevenLabs, Higgsfield and the Metricool app (8px dominant, 16px banners).
+   - **SOCIA gap:** loose 6/8/9/10/12/14px corners and mixed control heights.
 
-4. **Surfaces separate by fill steps and hairlines, with almost no shadows.**
+4. **Elevation by fill steps and hairlines, not shadows.**
    - **Evidence:**
-     - Apple: no shadows on product or compare pages.
-     - Metricool: zero shadows, 1px outlines.
-     - Framer: inset 8–10% hairlines.
-     - EnduroSat: no shadows at all.
+     - Framer app: a surface ladder from `#111` to `#303030`, with tiny shadows always paired with a 1px ring.
+     - Apple, EnduroSat and the Metricool marketing site: no shadows.
      - Higgsfield: inset highlights.
      - ElevenLabs: 0.5px rings.
-   - **Mechanism:** fewer edges make calmer, denser screens.
-   - **SOCIA:** already mostly subtle shadows. Keep it that way, and drop the coloured primary-button glow shadows.
 
-5. **Motion uses named tokens: fast for colour, a little slower for movement, exits faster than entrances, never replayed.**
+5. **Apps move faster than their marketing sites; motion uses a few named tokens.**
    - **Evidence:**
-     - Apple: 0.24 / 0.32s; exit at most 0.24s with no delay; no re-stagger between menus.
-     - ElevenLabs: 0.15s colour, 0.3s transform.
-     - Framer marketplace: fast .1 / base .15 / slow .2.
-     - Higgsfield: fast / normal / slow / slower tokens, plus the same ease-out-quart SOCIA uses.
-   - **Mechanism:** timing follows what the person is doing; speed is respect for a tool used daily.
-   - **Counter-example:** EnduroSat's 0.45–0.8s weighty easing suits a marketing story, not an app.
-   - **SOCIA gap:** 0.15 / 0.18 / 0.2 / 0.25s used interchangeably.
+     - Framer app: 80ms menus, 150ms tooltips, no springs.
+     - ElevenLabs app: 0.15s colour, 0.1s value fades.
+     - Higgsfield app: 0.2s.
+     - Apple: exits faster than entrances, no replay between menus.
+     - Metricool's 0.28s is the slowest of the apps.
+   - **Mechanism:** speed is respect for a tool used daily.
+   - **SOCIA gap:** mixed 0.15/0.18/0.2/0.25s.
 
-6. **Unknown is shown as unknown ("—", `--:--`), never as 0 and never silently hidden.**
-   - **Evidence:**
-     - Higgsfield: `GENERATE —` when the cost can't be computed.
-     - ElevenLabs: `--:--` and a disabled Play button.
-     - Framer: the baseline lift is "—".
-     - EnduroSat: "—" until the prerequisite is set.
-     - Apple: an aligned dash plus screen-reader "Not available".
-     - Metricool: no % without an equal prior period.
-   - **Metricool's weakness:** it shows "0" for unconnected networks and hides sections with no data.
-   - **SOCIA:** already its rule. Add Apple's screen-reader text, and never hide a section silently.
+6. **Unknown is shown as unknown; empty is an instruction, never a fake.**
+   - **Positive:**
+     - Framer: a grey dash glyph for unknown usage, and empty views that name the missing prerequisite plus one existing control.
+     - ElevenLabs: `--:--`, "—" in Assets, "No data has been collected" plus the metric's scope.
+     - Apple: a dash plus screen-reader text.
+     - EnduroSat: "—" until the input exists.
+     - Metricool: connect pages that describe the future page.
+   - **Negative:**
+     - Metricool: unconnected networks vanish, blank boxes, zeros for unknown competitors.
+     - ElevenLabs: **unlabelled fake example rows** in empty tables.
+   - **SOCIA:** its rule is right. Add reason text for screen readers, never hide a section, never fake rows.
 
-7. **Show the consequence at the point of decision.**
+7. **Show the consequence, and the cost, at the point of decision, before the click.**
    - **Evidence:**
-     - Higgsfield: cost on the Generate button, updating live.
-     - Apple: a sticky running total, and price deltas inside options.
-     - EnduroSat: one slider recalculates every readout, chart marker and timeline.
-     - Framer: the credit-tier select reprices the plan.
-     - Metricool: best times painted into calendar slots.
-     - ElevenLabs: a live recommended plan.
-   - **Mechanism:** no translate-and-remember step; cause and effect teach the model by feel. This is where "futuristic" comes from: behaviour, not decoration.
+     - ElevenLabs app: "N credits / M credits" beside every generate button.
+     - Higgsfield: the price on the button, updated live.
+     - Framer app: a used/limit meter in the panel footer where the credits are spent.
+     - Metricool: "N out of M posts this month" in the Planner.
+     - Apple: a sticky running total.
+     - EnduroSat: one slider recalculates everything.
+   - **Mechanism:** this is where "futuristic" really comes from: cause and effect you can see.
 
-8. **Progressive disclosure driven by the person's own choice.**
+8. **Progressive disclosure driven by the person's choice.**
    - **Evidence:**
-     - Higgsfield: the preset rewrites the form.
-     - Apple: later steps visible but locked; nested options only inside the selected card; constraints stated in collapsed summaries.
-     - EnduroSat: gated steps; collapsed sections show their chosen values.
-     - Metricool: one shared caption, with an opt-in split per network.
-     - ElevenLabs: the selected row reveals its action.
-   - **Mechanism:** each decision stays small, and the form never asks for something this output can't use.
+     - Higgsfield: the model rewrites the form, confirmed signed in.
+     - Apple: locked-but-visible steps.
+     - EnduroSat: gated steps and summarised sections.
+     - Metricool: per-network split.
+     - ElevenLabs: settings collapse to "label … value".
 
-9. **Translate abstract units into the outcomes people think in.**
+9. **Translate abstract units into outcomes.**
    - **Evidence:**
-     - ElevenLabs: credits become minutes, with "everything in X, plus".
-     - Higgsfield: credits become "~80 videos", with an expected-usage meter.
-     - Framer: credit tiers in the plan card.
-     - Metricool: named units ("per brand/month") and "uses AI credits or included" per feature.
-   - **SOCIA:** meters should read as outcomes ("about N videos a month").
+     - ElevenLabs: credits → minutes; a "Credits used" card.
+     - Higgsfield: credits → videos, money next to credits on the Usage page.
+     - Metricool: named units per brand.
+     - Framer: "Everything from Basic, with:".
 
 10. **Tabular numbers for anything that changes or lines up.**
-    - **Evidence:** ElevenLabs (times), Framer (`tnum` in mocks).
-    - **Counter-example:** EnduroSat's lack of it makes live figures jitter.
-    - **SOCIA:** apply `font-variant-numeric: tabular-nums` to every metric and time readout.
+    - **Evidence:** the Framer app (usage, steppers), ElevenLabs (account balance, times).
+    - **Weakness:** ElevenLabs' own KPI tiles and EnduroSat don't use them.
 
-11. **The legend lives in the numbers.**
+11. **The legend lives in the numbers, and KPI tiles select the chart.**
     - **Evidence:**
-      - Metricool: the KPI card is also the legend and the series toggle.
-      - EnduroSat: a coloured dash in the KPI label, a marker on the curve, and the nearest tick in bold.
-    - **Mechanism:** proximity and shared colour remove the lookup step.
+      - Metricool: the KPI card = legend = toggle, confirmed in the real app.
+      - ElevenLabs usage analytics: KPI tiles switch a single chart.
+      - EnduroSat: a colour dash in the KPI label.
 
-12. **AI shows its work, offers named alternatives, and always leaves a manual path.**
+12. **AI is scoped, explained, and never the only path.**
     - **Evidence:**
-      - Framer: real steps with elapsed time, named explorations, and "Start without AI".
-      - ElevenLabs: AI output stays an editable draft.
-      - Metricool: bounded one-click transforms instead of a blank prompt.
-      - Higgsfield: every result shows the recipe that produced it, with "Recreate".
-    - **SOCIA:** fits its verified-context and claim-checker approach. Keep the steps real (never fake progress).
+      - Framer: the agent placeholder changes per screen and inapplicable tools disappear; standing instructions live in Skills.
+      - Metricool: AI Configuration with brand-wide and per-network instructions you can read and edit.
+      - Framer: an audit is approved before any deletion.
+      - ElevenLabs and Higgsfield: starters before input; results carry next steps.
+    - **Weakness:** ElevenLabs' ⌘K makes an AI chat the default Enter target.
+
+13. **Settings are rows of label, current value and one action, grouped by scope and deep-linkable.**
+    - **Evidence:**
+      - ElevenLabs settings rows.
+      - Framer: scope groups, every tab a URL, Plans openable for one feature.
+      - Metricool: a brand vs account divider.
+      - Higgsfield: settings led by the workspace name.
+
+14. **Paywalls are contextual, quantified and non-destructive.**
+    - **Evidence:**
+      - Metricool: gated controls stay visible with one marker; clicking opens "Unlock <tool>" with numbers for the lowest qualifying plan and "Maybe later".
+      - Higgsfield: a sheet titled with the gated choice; closing it leaves the selection intact.
+      - Framer: a deep link to Plans per feature.
+    - **Weakness seen in all four apps:** upsell overload (stacked banners, toasts, modals, a watermark, "Upgrade now" in the canvas toolbar).
+
+15. **One command menu (⌘K) that reaches every action and object.**
+    - **Evidence:**
+      - ElevenLabs: Quick actions plus Recent when empty; grouped, capped results.
+      - Framer: grouped commands with shortcuts; unavailable commands dimmed, not hidden.
+
+16. **Usage answered at three depths.**
+    - **Evidence:**
+      - Higgsfield: a 30-day mini chart with zero days as dots, summary tiles plus a share bar, and a ledger with filters in the column headers.
+      - ElevenLabs: a balance ring on the avatar, a Balance card in the account menu, a usage analytics page.
 
 ## Standout solutions
-- **Apple's configurator** steps through choices: visible locked steps, absolute prices at the top level, deltas inside a choice, constraints stated in collapsed summaries, "Need help choosing?" next to each decision, and a sticky running total. This is the model for SOCIA's Create Post composer and onboarding.
-- **Apple's Compare page:** self-labelling cells (value over caption) remove the label column, so 2 columns fit at 375px. The selection lives in the URL and the tab title. This is the model for All brands and Competitors.
-- **EnduroSat's chapter progress** compresses the past (done chapters become filled marks), expands the present (labelled segments), and lets you click any segment. This is the model for multi-step flows (onboarding connect, Make This Video, Plan These Posts).
-- **Metricool's best times are painted into the calendar slots.** The insight sits where the decision is made. SOCIA must add the source and sample size, which Metricool hides.
-- **Higgsfield puts the cost on the commit button,** with "—" when unknown, and lets the chosen preset decide the form.
-- **ElevenLabs:**
-  - The thumbnail is the play control, with a progress ring and one shared player.
-  - The selected row cross-fades its label into its action in the same slot.
-  - Transcript words have three states.
-- **Framer's winner row:** the winner at full contrast, the others muted but kept, and the baseline shown as "—".
+- **Apple's configurator and Compare page:**
+  - Configurator: locked visible steps, deltas, constraint summaries, a running total.
+  - Compare: self-labelling cells that keep two columns on a phone.
+- **EnduroSat's compressing progress bar:** finished steps shrink to marks, the current step expands.
+- **ElevenLabs' prompt island:** each option shows its current value; the cost and the balance sit beside send.
+- **Framer's app discipline:** one accent button per screen, one 30px control height, concentric radii, 80ms menus, empty states that name the prerequisite.
+- **Metricool's real composer:**
+  - A format chip per network.
+  - A counter that names the network setting its limit.
+  - Submit options with one-line consequences.
+  - A preview that admits it's approximate.
+- **Higgsfield's usage page** (three depths, money next to credits) and its **Info / Edit / Comments item viewer.**
+
+## Corrections made after the logged-in study (2026-10-19)
+- **Higgsfield:** "GENERATE —" was a signed-out loading artefact. Signed in, an incomplete form disables the button and drops the price.
+- **Metricool:**
+  - Unconnected networks are omitted, not shown as "0".
+  - On Free, KPI cards show no change, and comparing periods is a paid tool.
+  - The best-time shading couldn't be confirmed visually, and its source is never stated.
+- **Framer:** the credit-tier select exists only on the marketing page. "1%" is the canvas zoom.
+- **ElevenLabs app:** neutral greys, 500 and 400 weights, 8–12px radii, its own icons (not lucide), a large modal voice picker, and visible slider values.
 
 ## Where references disagree
-- **How many weights in dense UI.** Framer and ElevenLabs lean on 400 almost everywhere; Apple uses 400/600; Higgsfield 400–700. For a dense analytics app, pure-400 titles scan weakly. **For SOCIA:** 3 weights. A proposal, not yet decided (see below).
-- **Comparison tables on phones.** Framer, ElevenLabs and Metricool show one plan at a time with a switcher. Apple keeps 2 columns side by side using self-labelling cells. **For SOCIA:** Apple's approach where comparison is the task (All brands, Competitors). One-at-a-time is acceptable for a 4-plan pricing table.
-- **Motion character.** EnduroSat is slow (0.45–0.8s, weighty). Apple, Framer, ElevenLabs and Higgsfield are fast (0.1–0.32s). **For SOCIA:** fast, because it's a daily tool.
-- **Pills.** Apple, ElevenLabs and Higgsfield use pill CTAs. SOCIA forbids giant pill buttons. **For SOCIA:** pills only for chips, toggles and badges; buttons follow the radius scale.
-- **Plan recommendation input.** Higgsfield and ElevenLabs ask about needs (what and how much you make). **For SOCIA:** use the person's *measured* usage when it exists, ask about needs only for new visitors, and never invent numbers.
-- **Marketing site vs app.** Metricool, ElevenLabs, Framer and Higgsfield all run two design systems. This is common rather than a defect, but SOCIA should decide it deliberately (its homepage uses Geist and a blue pill CTA; the app uses Inter and purple).
+- **Weights in dense UI:** 2 (Apple, Framer app) vs 4 (Higgsfield, Metricool). **For SOCIA:** 3.
+- **Comparison tables on phones:** one plan at a time (Framer, ElevenLabs, Metricool) vs two self-labelling columns (Apple). **For SOCIA:** Apple's approach for real comparisons; one at a time is acceptable for the pricing table.
+- **Motion:** slow and weighty (EnduroSat, Metricool's 0.28s) vs fast (the others). **For SOCIA:** fast.
+- **Pills:** used for CTAs by Apple, ElevenLabs and Higgsfield. **For SOCIA:** pills only for chips, toggles and badges.
+- **Hover-only menus:** Higgsfield opens the account menu on hover. **For SOCIA:** click to open; hover only as a preview.
+- **Where the balance lives:** in the header chrome (ElevenLabs' ring) vs only in the account menu (Higgsfield). **For SOCIA:** the account menu, plus a meter at the point of use. A ring only if AI allowance becomes the main limit.
 
 ## Proposed improvements (not yet decided: each needs Noah's go-ahead and solves a stated problem)
 | # | Problem in SOCIA today | Proposed approach | Sources |
 |---|---|---|---|
-| 1 | Hierarchy is muddy: 10 sizes within 4.5px, 8 weights (baseline) | About 6 size tokens with tracking baked in, and 3 weights (400 body, 500 labels/names, 600 headings and key numbers). Hierarchy comes from `--text-primary/secondary/muted`. System-wide through tokens. | Apple, ElevenLabs, Framer, Higgsfield |
-| 2 | Radii and durations drift (6/8/9/10/12/14px; 0.15/0.18/0.2/0.25s) | A radius rule (chips 6, controls 8, cards 12, popovers and dialogs 16; pills only for chips and toggles), plus fast/base/slow duration tokens on SOCIA's existing ease-out-quint. Exits faster than entrances. | Apple, Higgsfield, Framer, ElevenLabs |
-| 3 | The posting-time insight lives away from where posts are scheduled | Tint Calendar slots and the composer's time picker by SOCIA's best-time windows, labelled with the source and post count. No tint, plus a reason, when history is thin. | Metricool (+ SOCIA's honesty rule) |
-| 4 | Analytics tiles and charts need a separate legend; deltas need context | KPI tile = legend = series toggle. % only with an equal prior period; hover shows the absolute change and the compared dates. A formula or definition sits by derived metrics. | Metricool, EnduroSat |
-| 5 | The composer asks for everything at once | The platform and format choice decides which fields appear; format chips sit inline in the destination row; settings are label-over-value tiles with named defaults ("Auto · Tue 6pm"); collapsed panels summarise their choices; a sticky summary. | Higgsfield, Metricool, Apple, EnduroSat |
-| 6 | Unknowns are visible but not announced; numbers jitter | Keep "—", add screen-reader reason text, and apply `tabular-nums` to every metric and time. | Apple, ElevenLabs, Framer |
-| 7 | AI flows (Make This Video, Plan These Posts, Generate Caption) can feel like black boxes | Real step list with timings, 2–3 named options, the manual path one click away, and the allowance or "—" on the action button where metered. | Framer, Higgsfield, ElevenLabs |
-| 8 | Plan limits are abstract | Meters shown as outcomes, a cumulative "everything in X, plus" line, one source of truth for limit copy, and a usage counter at the point of action ("2 of 5 brands"). | ElevenLabs, Higgsfield, Metricool |
+| 1 | Hierarchy is muddy: 10 sizes within 4.5px, 8 weights | About 6 size tokens with tracking built in; 3 weights; hierarchy carried by the text-colour tokens. System-wide. | Apple, ElevenLabs, Framer, Higgsfield |
+| 2 | Radii, control heights and durations drift | One control height (about 32px), concentric radii (outer = inner + padding), fast/base/slow duration tokens on SOCIA's existing curve, menus at about 100ms | Framer app, Apple, Higgsfield, ElevenLabs |
+| 3 | Several filled purple buttons compete on some screens [to verify per screen] | At most one filled purple button per screen; others neutral | Framer app, Apple |
+| 4 | The posting-time insight lives away from scheduling | Tint Calendar and composer time slots by SOCIA's best-time windows, **labelled with source and post count** (Metricool never says where its numbers come from) | Metricool (+ SOCIA's honesty rule) |
+| 5 | Analytics needs a separate legend; deltas lack context; platform caveats get lost | KPI tiles select and toggle the chart; % only with an equal prior period plus a hover with the absolute change; platform tabs show connected / connect / plan-gated; caveats as ⓘ on the metric | Metricool, ElevenLabs, EnduroSat |
+| 6 | The composer asks for everything at once | The format chip decides the fields; "label … value ›" settings with named defaults; a counter that names its binding platform; one-line consequences in the submit menu; a preview that states its limits | Metricool, Higgsfield, ElevenLabs, Apple |
+| 7 | AI allowance and plan limits are abstract or found late | Allowance shown beside every metered action before the click; plan and allowance in the account menu; a contextual, quantified upgrade sheet with "Maybe later", deep-linked through `upgradeFor`; a Settings → Usage page (tiles, share by feature, ledger); one upgrade message at a time | ElevenLabs, Higgsfield, Metricool, Framer |
+| 8 | Unknowns aren't announced; numbers jitter | Keep "—" with screen-reader reason text, never hide sections, never fake rows; `tabular-nums` on every metric | Apple, Framer, ElevenLabs |
+| 9 | Settings is one long page | Scope groups (Account, Workspace and brand, Connections, Plan and usage); rows of label, value and one action; every tab a URL | ElevenLabs, Framer, Metricool |
+| 10 | No fast way to reach actions and objects | A ⌘K menu: Create / Go to / Workspace / Recent, grouped and capped results, unavailable items dimmed with a reason, "Ask SOCIA" as a labelled option | ElevenLabs, Framer, Apple |
 
 ## Decisions for SOCIA
 | Problem | Approach adopted | Sources | Why this one | How SOCIA adapted it | Date |

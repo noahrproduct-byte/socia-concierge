@@ -43,3 +43,20 @@ Motion in SOCIA should communicate state changes quickly and consistently. Durat
   - Stagger 15–20ms only for menus of 4+ items.
   - Animate a number only when it actually updates live; never count up from 0 on load.
   - Pause looping motion off-screen and under `prefers-reduced-motion`.
+
+## Added from the logged-in apps (2026-10-19)
+- **Framer app** [measured]:
+  - Menus open in **80ms** (opacity plus a scale from 0.96, starting at the anchor).
+  - Tooltips in **150ms**, expo-out.
+  - Hover colour changes at 0.1–0.2s with no movement.
+  - The marketing site's springs don't appear in the app.
+- **ElevenLabs app** [measured]:
+  - Colour changes at 0.15s.
+  - Value pills fade in over 0.1s.
+  - The sidebar collapse animates over 0.15s.
+- **Higgsfield app** [measured]:
+  - 0.2s standard easing nearly everywhere.
+  - Tiles pop in over 0.2s.
+- **Metricool app** [measured]: Vuetify's default 0.28s, the slowest of the four.
+
+**Confirms:** apps run faster than their marketing sites. 80–150ms for menus and tooltips and about 0.15–0.2s for state changes are the norm. That supports the proposed `--dur-fast 0.12s` / `--dur-base 0.18s` / `--dur-slow 0.26s` tokens; the menu entrance could use the fast token.

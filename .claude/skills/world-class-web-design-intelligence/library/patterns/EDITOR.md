@@ -49,3 +49,27 @@ Both should ask only for what matters to the chosen output, and make previewing 
   - A waveform scrubber drawn from the real RMS windows.
   - Current-word highlight using the AssemblyAI timestamps.
   - `—:—` until a duration is known.
+
+## Added from the logged-in apps (2026-10-19)
+- **Metricool composer (real)** [measured]:
+  - A large modal: on the left, the network row with a format chip per network, the editor, a toolbar (media, emoji, first comment, AI assistant, saved texts) and a counter whose tooltip names the binding network. Presets for each network collapse below.
+  - On the right, one preview tab per network, with a mobile/desktop toggle and a **note that the preview is an approximation**, naming what it can't show.
+  - A split submit menu where each option carries a one-line consequence.
+- **ElevenLabs Text to Speech** [measured]:
+  - Editor in the centre, a settings/history panel on the right, a voice chip at the top.
+  - With no text, the action bar is replaced by starter chips.
+  - Settings collapse to "label … value ›".
+  - History is searchable and grouped by day, with 64px one-line rows and actions shown on hover.
+  - Sound Effects and Music use a bottom "prompt island" where every option shows only its current value, and the cost of the next generation sits beside the send button.
+- **Higgsfield item viewer** [measured]: one deep-linked viewer with three tabs:
+  - **Info:** the prompt and details, and next-step actions.
+  - **Edit:** the same screen becomes an editor.
+  - **Comments.**
+
+  One object, three jobs, no navigation.
+
+## Updated recommendation (additions)
+- **PreviewRail** says it's an approximation and names what it can't show (for example, Trial Reel distribution).
+- **The composer submit menu** gives one line of consequence under Draft, Submit for approval, Schedule and Publish now.
+- **Generate Caption and Plan These Posts** keep a side history grouped by day.
+- **A post drawer** with Info, Edit (draft a new version) and Comments (the approval thread), deep-linked by post id.

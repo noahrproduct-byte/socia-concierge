@@ -16,7 +16,7 @@ SOCIA's AI features must be trusted, editable and predictable:
   - Starter chips are offered, and "Start without AI" is always available.
   - The AI page teaches through example prompts grouped by job, each with a copy button.
 - **Higgsfield** [observed and measured]:
-  - The cost sits on the Generate button and updates live ("—" when unknown).
+  - The cost sits on the Generate button and updates live. Signed in, the button greys out with no price until the input is valid.
   - Smart defaults are named "Auto".
   - Every gallery result shows its recipe (prompt and details) with a "Recreate" action.
   - The empty state is a three-step tutorial.
@@ -49,3 +49,19 @@ SOCIA's AI features must be trusted, editable and predictable:
 - **Metered actions:** show the allowance or "—" on the action button.
 - **Settings → AI Assistants:** list SOCIA's MCP tools (read vs posting), plus 4–6 example prompts with copy buttons.
 - **Learn from a result:** "What was used" sits beside any AI or performance result, with "Use as starting point".
+
+## Added from the logged-in apps (2026-10-19)
+- **The AI states its scope per screen.** Framer's agent placeholder changes per view ("Ask about your site analytics…" in Analytics), and tools that can't apply there disappear. [observed]
+- **Standing instructions are visible and editable:**
+  - Metricool's AI Configuration holds brand-wide and per-network instructions, written by hand or generated from recent posts. [observed]
+  - Framer's Skills list starts with a default, always-applied instruction set. [observed]
+- **Approval before destructive AI work.** Framer's audit skill "hands back a summary for approval before any deletion". [from app code]
+- **AI in the command menu as a labelled option.** ElevenLabs' ⌘K puts "Generate '<query>'… Start a new chat" first, so Enter starts AI. That's a weakness: a metered call shouldn't be the default Enter target. [measured]
+- **Starters before input:** ElevenLabs' Home rotates example requests in the placeholder and offers mode tiles; Text to Speech shows starter chips. [measured]
+- **Results carry next steps.** Higgsfield results show Reference, Animate and Create 3D on hover; history is shared across tools. [measured]
+
+## Updated recommendation (additions)
+- Each screen's "Ask SOCIA" entry names its scope ("Ask about this week's results").
+- Brand voice and posting rules sit in a visible, editable per-workspace panel, showing what SOCIA inferred from past posts.
+- Any AI action that publishes, schedules or deletes shows a summary for approval first.
+- In ⌘K, "Ask SOCIA" is offered as a labelled option, never the default.

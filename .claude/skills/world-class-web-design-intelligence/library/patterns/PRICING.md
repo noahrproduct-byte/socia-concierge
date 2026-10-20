@@ -14,7 +14,7 @@ SOCIA's /pricing and Settings → Plan must make the plans ($19 / $49 / $99, cum
   - Credits are translated into outputs.
   - **Cost:** five discount badges.
 - **Framer** [measured]:
-  - The credit tier is a select inside the plan card, and the price updates live.
+  - **On the marketing page only,** the credit tier is a select inside the plan card, and the price updates live. The in-app Plans page lists fixed credits, with the higher plan opening "Everything from <lower plan>, with:".
   - Each compare row has a one-line explanation and its own overage terms.
   - Rows are grouped.
   - On phones, the compare table shows one plan at a time with a sticky switcher.
@@ -44,3 +44,17 @@ SOCIA's /pricing and Settings → Plan must make the plans ($19 / $49 / $99, cum
 - **Upgrade prompts** show the delta ("+$30/mo vs your plan").
 - **Phones:** one plan at a time with a sticky switcher (44px targets).
 - **Recommender:** from measured usage when signed in, from needs otherwise. Never invented numbers.
+
+## Added from the logged-in apps (2026-10-19)
+- **ElevenLabs Subscription:**
+  - A "Credits used" card and one plain sentence about the current plan and any scheduled change.
+  - Monthly / Yearly as a segmented control with the saving in the label.
+  - The current plan's button is an inert "Current plan".
+  - Each card starts with the cumulative line. [measured]
+- **Metricool billing (weakness):** the plan cards you could buy come first; your current plan and its usage sit about 1,450px further down. [observed]
+- **Higgsfield:** everything billing on one page (plan, credits left with a bar, invoices, payment methods, billing details), loading with skeletons shaped like each card. [observed]
+
+## Updated recommendation (additions)
+- Settings → Plan leads with the **current plan and its usage**, then the options.
+- The current plan's button is inert ("Current plan").
+- Show the yearly saving in the toggle label, if annual billing ever ships.

@@ -48,3 +48,12 @@ Choices with dependencies, where later options depend on earlier ones: onboardin
 - Unknowns are "—".
 - Limit counters are visible before the limit is reached.
 - A "Need help choosing?" link sits beside real decisions (Trial Reel, plan).
+
+## Added from the logged-in apps (2026-10-19)
+- **Higgsfield:**
+  - "Optional" tags, a 0/500 counter, and a Generate button disabled until the required input exists.
+  - Switching the model rewrites the form completely, confirming that the choice decides the form. [measured]
+- **ElevenLabs Text to Speech:**
+  - Every setting is either explained in place (a tooltip on the label, named slider ends) or collapsed to "label … value ›".
+  - The placeholder teaches the syntax with an inline example. [measured]
+- **Metricool composer:** a split submit menu where each option carries a one-line consequence; the character counter names its binding constraint. [measured]

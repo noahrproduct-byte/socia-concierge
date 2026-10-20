@@ -36,3 +36,24 @@ Inside SOCIA's sidebar app, people need to know where they are in a page and in 
 - **Multi-step flows:** a compressing progress indicator driven by step state (done = `--primary`, current = labelled, future = muted).
 - **2–3 step micro-flows:** a one-line step indicator.
 - The sidebar stays as it is.
+
+## Added from the logged-in apps (2026-10-19)
+- **ElevenLabs sidebar:**
+  - 32px rows; active = a near-black label and icon on a 4% fill, inactive = 53% for both.
+  - A short fixed top group, then the tools the person pinned, with the rest under "More tools".
+  - A breadcrumb in the header.
+  - The Docs link changes per page, opening the guide for that screen. [measured]
+- **ElevenLabs uses two distinct controls,** consistently:
+  - underline tabs to move between a page's sections
+  - segmented controls to show the same thing differently (units, ranges, list/grid)
+
+  The shape tells you which is which. [measured]
+- **Framer:** one menu lists the views, with the current one disabled as a "you are here". Menus that don't apply dim instead of disappearing. The frame stays put while the left panel's tabs change with the job. [measured]
+- **Metricool:** the Analytics sidebar doubles as connection status (connected, connect "+", plan-gated tint). [measured]
+- **Higgsfield on phones:** 22 desktop destinations collapse to 8 at 44px each; a destination that isn't usable on a phone says so honestly, with a preview. [observed]
+
+## Updated recommendation (additions)
+- **Underline tabs** for Analytics sections; **segmented controls** for range, unit or view toggles.
+- **A per-page Help link** that opens the article for that screen.
+- **Sidebar active state:** check that inactive icons dim along with their labels.
+- **Phones:** don't squeeze the Content Studio editor onto a phone. Show an honest "best on a larger screen" note with a preview.

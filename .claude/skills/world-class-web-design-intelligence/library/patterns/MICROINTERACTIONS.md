@@ -30,3 +30,25 @@ These don't compete: each solves a different small problem. Together they cover 
 - **Meters:** the label flips colour at the fill edge.
 - **Focus ring:** consider a 2px solid `--primary` outline with a 1px offset, set inside the sidebar.
 - **Repeated actions:** unique `aria-label`s ("Draft again, <post>").
+
+## Added from the logged-in apps (2026-10-19)
+- **Framer:**
+  - On a project tile, the plan badge slot turns into a "…" menu on hover. [observed]
+  - Tooltips teach the shortcut: a label plus a shortcut chip, rising in 150ms. [measured]
+- **ElevenLabs:**
+  - The avatar wears a thin usage ring at rest and shows the percentage when the menu opens.
+  - Slider labels are focusable tooltip triggers.
+  - The ends of each slider are named in words ("Creative / Robust").
+  - The focus ring follows the shape of whatever it surrounds. [measured]
+- **Higgsfield:**
+  - Overlay controls on media tiles scale with the tile's size.
+  - Fields mark "Optional" instead of asterisking the required ones.
+  - The primary button loses its colour and its price until the form is valid. [measured]
+- **Metricool:** the character counter's tooltip names which network sets the limit. [observed]
+
+## Updated recommendation (additions)
+- **Swap status chips for "…" on hover** on Calendar cards and brand tiles, keeping the menu reachable by keyboard.
+- **Icon-only buttons:** a tooltip with a shortcut chip.
+- **Sliders:** the ends named in plain words, with the exact value shown.
+- **Composer counter:** say which destination sets the limit.
+- **"Optional" tags** on optional fields.
