@@ -6,7 +6,7 @@ SOCIA's Analytics and Dashboard must make a creator's real numbers readable at a
 ## Approaches seen
 ### Metricool: KPI card = legend = toggle; one comparison rule
 - Result cards are filled with their series colour and toggle that series; a hidden series fades but keeps its value. [observed, help docs]
-- Every % compares with the previous equal-length period and is omitted when that period doesn't exist; hover shows the absolute change. [observed]
+- Every % compares with the previous equal-length period and is omitted when that period doesn't exist; hover shows the absolute change. [observed in help docs] **Corrected in the real app (Free plan):** KPI cards show no change at all, and comparing periods is a paid tool (Studio) behind an upgrade dialog.
 - **Costs:**
   - Comparing against a custom range opens a separate tool.
   - Unconnected networks show "0".
@@ -47,3 +47,20 @@ SOCIA's Analytics and Dashboard must make a creator's real numbers readable at a
 - **Breakdowns:** ranked lists with linear, zero-based bars inside the rows.
 - **All brands and Competitors:** self-labelling cells.
 - **Comparison stays in Analytics,** never in a separate tool.
+
+## Added from the logged-in apps (2026-10-19)
+- **KPI tiles as tabs for one chart.**
+  - ElevenLabs' usage analytics has five tiles; the selected one is white with a 1.5px bottom rule, and it switches the single chart below. [measured]
+  - Metricool's KPI card = legend = series toggle is confirmed in the real app.
+  - This replaces a wall of charts with one chart and a choice.
+- **Caveats on the metric:**
+  - Metricool puts a tooltip on the Impressions label explaining a platform's switch to views (good). It also shows page-level banners that can be dismissed for good (weaker).
+  - ElevenLabs puts a one-line note under charts limited by their data. [observed]
+- **A labelled query bar.** ElevenLabs uses small labels (View, Time, Granularity, Refine), each followed by a compact control, with previous/next period arrows. [measured]
+- **Connection state in the platform list.** Metricool's sidebar marks each network as connected (avatar), not connected ("+"), or plan-gated (tinted row and badge). [measured]
+- **Negative examples confirmed:** truncated y-axes with fractional ticks on flat series, blank boxes for missing demographics, zeros for unknown competitors, and a Free-plan watermark tiled over the charts (Metricool).
+
+## Updated recommendation (additions)
+- Analytics platform tabs carry three states: connected, connect, or plan-gated.
+- KPI tiles select the chart rather than adding more charts.
+- Every platform caveat sits on the affected metric (an ⓘ), not only in a dismissible banner.

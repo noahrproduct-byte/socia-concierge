@@ -36,3 +36,11 @@ SOCIA's lucide icons should stay one consistent family, with sizes and meanings 
 - Format glyphs at 12px beside platform marks.
 - Hit areas of 44px or more around small icons.
 - One stroke per size class (2 at 17px or more; keep lucide's default at smaller sizes).
+
+## Added from the logged-in apps (2026-10-19)
+- **Correction (ElevenLabs):** the signed-in app uses its own icon set at 18px in the sidebar, not lucide. Only the open-source component kit uses lucide. [measured]
+- **Framer app:** 12px icons at stroke 1.5 in rows (`#888` when inactive, white when active), 20px icon boxes in toolbars, 8px dropdown chevrons. [measured]
+- **Metricool app:** Font Awesome light and regular at 12/14/16px in controls, and a 64px light icon in empty states. [measured]
+- **Higgsfield settings:** each settings item has a different coloured icon tile. Don't adopt this; it breaks the "colour means data or action" rule. [measured]
+
+**Confirms:** every app keeps one icon family, at a **fixed size per context** (row, toolbar, empty state). SOCIA's lucide sizes already fit this; write the per-context sizes down as tokens.

@@ -40,3 +40,14 @@ SOCIA's comparison and breakdown tables must stay readable when dense and on pho
 - **Results:** winner at full contrast, others muted but kept.
 - **Lists:** expand rows in place, and offer a chart/table toggle where a chart exists.
 - **Everywhere:** "—" with reason text, never 0.
+
+## Added from the logged-in apps (2026-10-19)
+- **Higgsfield usage ledger:**
+  - The **column headers are the filters** ("All features ▾"), so there's no toolbar.
+  - A row-count badge, 51px rows, and every amount links to what it bought. [measured]
+- **ElevenLabs:**
+  - "Spotlight rows" are a table without table chrome: 42px rows with columns aligned across rows, each with a small icon.
+  - The Assets table shows "—" in muted text for unknown cells. [measured]
+- **Metricool:**
+  - The list toolbar: search, Columns, CSV, then "Add to dashboard" with row checkboxes, then pagination. [observed]
+  - **Negative:** a competitor with no data shows `0` in every column.
