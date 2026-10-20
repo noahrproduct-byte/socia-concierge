@@ -1,0 +1,79 @@
+/* ============================================================================
+   Base: the browser surfaces the design must own (focus, selection, caret,
+   scrollbars, numerals, text wrapping) and the one spinner. Kept small on
+   purpose; everything component-shaped lives in primitives.css.
+   ========================================================================= */
+
+html {
+  scrollbar-color: var(--border-strong) transparent;
+  accent-color: var(--accent);
+  caret-color: var(--accent);
+}
+
+::selection {
+  background: rgba(var(--accent-rgb), 0.24);
+}
+
+/* One focus ring for everything that can take focus. */
+:where(button, a, input, select, textarea, summary, [tabindex], [role="tab"], [role="radio"], [role="option"]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-chip);
+}
+
+:where(h1, h2, h3) {
+  text-wrap: balance;
+}
+:where(p) {
+  text-wrap: pretty;
+}
+
+/* Numbers that line up or change never jitter. */
+.num,
+[data-num] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Thin, themed scrollbars inside scrolling regions. */
+.s-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.s-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.s-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--r-pill);
+}
+
+/* The one permitted keyframe set: a spinner for a Loader icon. */
+@keyframes s-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.s-spin {
+  animation: s-spin 0.9s linear infinite;
+}
+
+/* Screen-reader-only text (Tailwind's utility is not available in every
+   stylesheet layer, so the system carries its own). */
+.s-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-spin {
+    animation-duration: 1.8s;
+  }
+}
