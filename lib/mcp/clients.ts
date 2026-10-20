@@ -6,7 +6,7 @@ export type AssistantClient = { id: string; name: string; tested: boolean; steps
 
 export const ASSISTANT_CLIENTS: AssistantClient[] = [
   {
-    id: "claude", name: "Claude", tested: false,
+    id: "claude", name: "Claude", tested: true,
     steps: [
       "In Claude, open Settings → Connectors and choose Add custom connector.",
       "Name it SOCIA and paste the address above, then Connect.",
