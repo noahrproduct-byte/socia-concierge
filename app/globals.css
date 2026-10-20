@@ -1,116 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* The design system: tokens, browser surfaces, primitives. Everything below
+   this line is the old generation being migrated page by page (see
+   docs/design/redesign-direction.md). */
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/primitives.css";
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-  color-scheme: light;
-
-  /* ============================================================
-     SOCIA design tokens — LIGHT. One theme-aware system: every
-     component reads these; [data-theme="dark"] redefines them.
-     ============================================================ */
-  --background: #f5f6fa;
-  --surface: #ffffff;
-  --surface-elevated: #ffffff;
-  --surface-muted: #eef0f5;
-  --surface-hover: #f2f3f8;
-  --inverse-surface: #0f1424;
-  --inverse-text: #ffffff;
-
-  /* the sidebar stays dark navy in both appearances */
-  --sidebar: #0b101d;
-  --sidebar-hover: rgba(255, 255, 255, 0.05);
-  --sidebar-active: rgba(123, 108, 246, 0.2);
-  --sidebar-active-text: #b6acff;
-  --sidebar-text: rgba(255, 255, 255, 0.64);
-  --sidebar-text-strong: #ffffff;
-  --sidebar-muted: rgba(255, 255, 255, 0.36);
-  --sidebar-border: rgba(255, 255, 255, 0.07);
-
-  --text-primary: #0f1424;
-  --text-secondary: #5b6477;
-  --text-muted: #8a93a6;
-  --text-disabled: #b3bac8;
-
-  --border: #e3e6ee;
-  --border-strong: #cdd3df;
-
-  --primary: #5b4bd6;
-  --primary-hover: #4b3cc4;
-  --primary-bright: #7466ee;
-  --primary-text: #4f3fcf;
-  --primary-subtle: rgba(91, 75, 214, 0.1);
-  --primary-rgb: 91, 75, 214;
-  --on-primary: #ffffff;
-
-  --success: #16a34a; --success-text: #15803d; --success-subtle: #e6f6ec; --success-rgb: 22, 163, 74;
-  --warning: #d97706; --warning-text: #b45309; --warning-subtle: #fdf1e0; --warning-rgb: 217, 119, 6;
-  --danger: #dc2626;  --danger-text: #b91c1c;  --danger-subtle: #fdecec;  --danger-rgb: 220, 38, 38;
-  --info: #2563eb;    --info-text: #1d4ed8;    --info-subtle: #e8efff;    --info-rgb: 37, 99, 235;
-
-  --shadow-rgb: 15, 20, 36;
-  --panel-dark: #0f1a35;
-  --panel-dark-text: #ffffff;
-  --chart-grid: #e6e9f0;
-  --chart-axis: #8a93a6;
-  --chart-tooltip-bg: #0f1424;
-  --chart-tooltip-text: #ffffff;
-
-  /* legacy brand names, now aliases (hundreds of usages keep working) */
-  --ivory: var(--background);
-  --silver: var(--border);
-  --cobalt: var(--primary);
-  --sky: var(--info);
-  --charcoal: var(--text-primary);
-  --slate: var(--text-secondary);
-  --line: var(--border);
-  --good: var(--success);
-  --warn: var(--warning);
-  --card: var(--surface);
-
-  --font: var(--font-sans), "Inter", -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-
-  /* shadcn names → SOCIA tokens, so utility classes follow the theme too */
-  --foreground: var(--text-primary);
-  --card-foreground: var(--text-primary);
-  --popover: var(--surface-elevated);
-  --popover-foreground: var(--text-primary);
-  --primary-foreground: var(--on-primary);
-  --secondary: var(--surface-muted);
-  --secondary-foreground: var(--text-primary);
-  --muted: var(--surface-muted);
-  --muted-foreground: var(--text-secondary);
-  --shadcn-accent: var(--surface-muted);
-  --accent-foreground: var(--text-primary);
-  --destructive: var(--danger);
-  --input: var(--border-strong);
-  --ring: var(--primary);
-  --chart-1: var(--primary);
-  --chart-2: var(--success);
-  --chart-3: var(--warning);
-  --chart-4: var(--info);
-  --chart-5: var(--text-muted);
-  --radius: 0.625rem;
-  --sidebar-foreground: var(--sidebar-text-strong);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: var(--on-primary);
-  --sidebar-accent: var(--sidebar-hover);
-  --sidebar-accent-foreground: var(--sidebar-text-strong);
-  --sidebar-ring: var(--primary);
-
-  /* Motion system. One vocabulary so transitions feel like one product, not
-     ad-hoc per component. Entrances ease-out, exits ease-in, small controls a
-     restrained spring. Honour prefers-reduced-motion (see the reduce block). */
-  --dur-fast: 120ms;
-  --dur: 190ms;
-  --dur-slow: 300ms;
-  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --ease-in: cubic-bezier(0.55, 0.06, 0.68, 0.19);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-}
 
 /* Wrapped in @layer base so Tailwind/shadcn utility classes (layer utilities)
    and our own component classes (unlayered) still win over the global reset. */
@@ -2345,12 +2244,7 @@ a.hub-card:hover {
 /* ============================================================
    PREMIUM DESIGN SYSTEM — sidebar + dashboard command center
    ============================================================ */
-:root {
-  --accent: var(--primary);
-  --accent-strong: var(--primary-hover);
-  --accent-soft: var(--primary-subtle);
-  --amber: var(--warning);
-}
+/* --accent, --accent-strong, --accent-soft and --amber now live in styles/tokens.css */
 
 /* ---------- refined sidebar ---------- */
 .app {
@@ -3946,50 +3840,6 @@ a.hub-card:hover {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-.dark,
-[data-theme="dark"] {
-  color-scheme: dark;
-
-  /* SOCIA design tokens — DARK: deep navy, elevated surfaces, subtle borders */
-  --background: #0b1220;
-  --surface: #121a2e;
-  --surface-elevated: #172238;
-  --surface-muted: #0e1626;
-  --surface-hover: #1a2540;
-  --inverse-surface: #e9edf6;
-  --inverse-text: #0f1424;
-
-  --sidebar: #070c17;
-  --sidebar-active: rgba(123, 108, 246, 0.24);
-
-  --text-primary: #eef1f8;
-  --text-secondary: #a6afc3;
-  --text-muted: #7b8499;
-  --text-disabled: #536078;
-
-  --border: #223050;
-  --border-strong: #31416a;
-
-  --primary: #7b6cf6;
-  --primary-hover: #8d80ff;
-  --primary-bright: #9c90ff;
-  --primary-text: #ab9fff;
-  --primary-subtle: rgba(123, 108, 246, 0.16);
-  --primary-rgb: 123, 108, 246;
-
-  --success: #22c55e; --success-text: #4ade80; --success-subtle: rgba(34, 197, 94, 0.14); --success-rgb: 34, 197, 94;
-  --warning: #f59e0b; --warning-text: #fbbf24; --warning-subtle: rgba(245, 158, 11, 0.14); --warning-rgb: 245, 158, 11;
-  --danger: #ef4444;  --danger-text: #f87171;  --danger-subtle: rgba(239, 68, 68, 0.14);  --danger-rgb: 239, 68, 68;
-  --info: #60a5fa;    --info-text: #93c5fd;    --info-subtle: rgba(96, 165, 250, 0.14);   --info-rgb: 96, 165, 250;
-
-  --shadow-rgb: 0, 0, 0;
-  --panel-dark: #172238;
-  --panel-dark-text: #eef1f8;
-  --chart-grid: #223050;
-  --chart-axis: #7b8499;
-  --chart-tooltip-bg: #1c2742;
-  --chart-tooltip-text: #eef1f8;
-}
 
 @layer base {
   * {
