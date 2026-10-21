@@ -34,25 +34,36 @@ export function MenuContent({
   );
 }
 
-/** An item. `href` makes it a link; `why` explains a disabled item instead of hiding it. */
+/** API and external links navigate with a plain anchor (no RSC prefetch); app paths use Link. */
+function isPlainHref(href: string) {
+  return href.startsWith("/api/") || href.startsWith("http");
+}
+
+/**
+ * An item: an optional leading icon, the label in a span, and `end` at the
+ * right (a shortcut, a check, a pill). `href` makes it a link; `why` explains
+ * a disabled item instead of hiding it.
+ */
 export function MenuItem({
   href,
   why,
   shortcut,
+  end,
   className,
   children,
   disabled,
   ...props
-}: MenuPrimitive.Item.Props & { href?: string; why?: string; shortcut?: string }) {
+}: MenuPrimitive.Item.Props & { href?: string; why?: string; shortcut?: string; end?: ReactNode }) {
+  const trailing = disabled && why ? why : shortcut ? <kbd className="s-kbd">{shortcut}</kbd> : end;
   return (
     <MenuPrimitive.Item
       className={cn("s-menu-item", className)}
       disabled={disabled}
-      render={href ? <Link href={href} /> : undefined}
+      render={href ? (isPlainHref(href) ? <a href={href} /> : <Link href={href} />) : undefined}
       {...props}
     >
       {children}
-      {disabled && why ? <span className="s-why">{why}</span> : shortcut ? <kbd className="s-kbd">{shortcut}</kbd> : null}
+      {trailing != null && trailing !== false ? <span className="s-menu-end">{trailing}</span> : null}
     </MenuPrimitive.Item>
   );
 }
