@@ -1,0 +1,232 @@
+/* Dashboard (components/dashboard/Dashboard.tsx). Tokens only; the primitives
+   carry the chrome, these rows carry the page's own shapes. */
+
+.dash-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* ---- rows that need action: today, upcoming, worth posting again ------- */
+.dash-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dash-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: var(--row-h);
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--rule);
+}
+.dash-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.dash-row > svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+  flex: none;
+}
+.dash-row.is-urgent > svg {
+  color: var(--negative-ink);
+}
+.dash-row.is-chance > svg {
+  color: var(--positive-ink);
+}
+.dash-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dash-row-body b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.dash-row-body small {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-row-body small a {
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+.dash-row-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+.dash-when {
+  width: 72px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.dash-when b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.dash-when small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.dash-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-control);
+  object-fit: cover;
+  background: var(--surface-raised);
+  flex: none;
+}
+.dash-thumb--ph {
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+.dash-thumb--ph svg {
+  width: 16px;
+  height: 16px;
+}
+.dash-thumb--lg {
+  width: 48px;
+  height: 48px;
+}
+
+/* ---- the plan card ------------------------------------------------------- */
+.dash-plan-headline {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-medium);
+  max-width: 60ch;
+}
+.dash-plan-outcome {
+  margin-top: var(--sp-1);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.dash-plan-list {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dash-plan-list li {
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--rule);
+}
+.dash-plan-list b {
+  display: block;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.dash-plan-list p {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-goals {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-3) 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.dash-goal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--sp-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  color: var(--ink-2);
+}
+.dash-goal b {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.dash-goal-track {
+  grid-column: 1 / -1;
+  height: 2px;
+  background: var(--surface-hover);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.dash-goal-track i {
+  display: block;
+  height: 100%;
+  background: var(--ink-2);
+}
+
+/* ---- platform table ------------------------------------------------------- */
+.dash-plat {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.dash-plat b {
+  font-weight: var(--fw-medium);
+}
+
+/* ---- table foot inside a flush card ----------------------------------------- */
+.dash-table-source {
+  padding: 0 var(--card-pad) var(--sp-4);
+}
+
+/* ---- notice ----------------------------------------------------------------- */
+.dash-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.dash-notice svg {
+  width: 16px;
+  height: 16px;
+  color: var(--positive-ink);
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .dash-row {
+    flex-wrap: wrap;
+  }
+  .dash-row-acts {
+    width: 100%;
+    padding-left: calc(16px + var(--sp-3));
+  }
+  .dash-when {
+    width: auto;
+    flex-direction: row;
+    gap: var(--sp-1);
+    align-items: baseline;
+  }
+}

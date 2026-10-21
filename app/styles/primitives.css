@@ -402,7 +402,7 @@
   display: grid;
   gap: var(--gap);
   grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
 }
 @media (max-width: 900px) {
   .s-grid {
@@ -496,6 +496,12 @@
     grid-column: 2;
     grid-row: 1;
     text-align: right;
+  }
+  .s-table--stack td.key::before {
+    content: attr(data-label) " ";
+    color: var(--ink-3);
+    font-size: var(--fs-meta);
+    font-weight: var(--fw-regular);
   }
   .s-table--stack td:not(:first-child):not(.key) {
     grid-column: 1 / -1;
