@@ -27,6 +27,7 @@
   --border: #e8e9ec;
   --border-strong: #cfd3db;
   --rule: #f0f1f4;
+  --nav-active: #e8eaf0;
   --inverse-surface: #0f172a;
   --inverse-text: #ffffff;
 
@@ -235,6 +236,7 @@
   --border: #262b35;
   --border-strong: #343a46;
   --rule: #1b1f27;
+  --nav-active: #232833;
   --inverse-surface: #eef1f8;
   --inverse-text: #0f172a;
 

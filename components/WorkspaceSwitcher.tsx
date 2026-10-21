@@ -1,42 +1,27 @@
 "use client";
 
-// The Brand Workspace switcher, in the shell. Lists the workspaces the person
-// owns, switches which one the whole app reads through (one call to
-// /api/workspaces/[id] with { active: true }, then a refresh), and links to
-// Settings to create or manage them. Hidden until the workspaces migration has
-// run (GET returns { enabled: false }); shown even with a single workspace, so
-// the concept is visible and the upgrade path is clear.
+// The Brand Workspace switcher at the top of the sidebar. Its panel lists the
+// workspaces the person can use, switches which one the whole app reads
+// through (one PATCH, then a refresh), and shows the active workspace's
+// connected accounts with a Connect link for each platform that is not.
 //
-// A switch re-renders the whole server tree (shell + page) for the new
-// workspace, which takes a second or two; a refresh shows no route skeleton.
-// So the switcher shows the new name at once, keeps a spinner and marks the
-// document (lib/workspaceSwitching.ts → dimmed content + "Switching to …")
-// until the refreshed tree has actually rendered. AppShell keys the whole
-// shell by workspace id, so that render remounts every client component with
-// the new workspace's data (a plain refresh would keep their old state).
+// A switch re-renders the whole server tree for the new workspace, which
+// takes a second or two; the trigger shows the new name at once and the
+// document is marked (lib/workspaceSwitching.ts → dimmed content and
+// "Switching to …") until the refreshed tree has rendered. AppShell keys the
+// shell by workspace id, so that render remounts every client component.
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Check, Briefcase, Plus, Settings2, Loader2 } from "lucide-react";
-import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup,
-  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { markSwitching } from "@/lib/workspaceSwitching";
+import { Briefcase, Check, ChevronDown, Loader2, Plus, Settings2 } from "lucide-react";
+import { Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger, PlatformMark, StatusPill, type Platform } from "@/components/system";
+import { fetchWorkspaces, markSwitching, requestSwitch, type WorkspaceRow, type WorkspacesData } from "@/lib/workspaceSwitching";
 
-type WS = { id: string; name: string; isDefault: boolean; suspended: boolean; active: boolean; role?: "owner" | "admin" | "member" };
-type Data = { enabled: boolean; workspaces?: WS[]; activeId?: string | null; canCreate?: boolean; limit?: number; used?: number };
+export type ShellAccount = { platform: Platform; label: string; connected: boolean; href: string };
 
-/**
- * `initial` is the server-resolved active workspace (AppShell): the trigger
- * renders with the right name at once, and the full list follows from
- * /api/workspaces. The shell is keyed by workspace id, so after a successful
- * switch this component remounts with the new `initial` — which is also what
- * clears the switching state (see the unmount cleanup).
- */
-export default function WorkspaceSwitcher({ initial }: { initial?: { id: string; name: string } | null }) {
+export default function WorkspaceSwitcher({ initial, accounts }: { initial?: { id: string; name: string } | null; accounts: ShellAccount[] }) {
   const router = useRouter();
-  const [data, setData] = useState<Data | null>(() =>
+  const [data, setData] = useState<WorkspacesData | null>(() =>
     initial ? { enabled: true, activeId: initial.id, workspaces: [{ id: initial.id, name: initial.name, isDefault: false, suspended: false, active: true }] } : null,
   );
   const [switching, setSwitching] = useState<string | null>(null);
@@ -45,84 +30,88 @@ export default function WorkspaceSwitcher({ initial }: { initial?: { id: string;
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/workspaces")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: Data | null) => alive && j && setData(j))
-      .catch(() => alive && !initial && setData({ enabled: false }));
-    return () => { alive = false; markSwitching(null); };
+    fetchWorkspaces().then((j) => {
+      if (!alive) return;
+      if (j) setData(j);
+      else if (!initial) setData({ enabled: false });
+    });
+    return () => {
+      alive = false;
+      markSwitching(null);
+    };
   }, [initial]);
 
-  // The refresh rendered without remounting us (nothing changed), or never
-  // started: clear the switching state.
+  // The refresh rendered without remounting us, or never started: clear the state.
   useEffect(() => {
     if (isPending || saving.current) return;
     markSwitching(null);
   }, [isPending]);
 
-  if (!data?.enabled || !data.workspaces?.length) return null;
-  const list = data.workspaces;
+  const enabled = Boolean(data?.enabled && data.workspaces?.length);
+  const list = enabled ? (data?.workspaces ?? []) : [];
   const active = list.find((w) => w.active) ?? list.find((w) => !w.suspended) ?? list[0];
   const busy = Boolean(switching) || isPending;
 
-  async function switchTo(w: WS) {
+  async function switchTo(w: WorkspaceRow) {
     if (w.active || w.suspended || busy) return;
     const previous = data;
     saving.current = true;
     setSwitching(w.id);
     markSwitching(w.name);
-    // Optimistic: the trigger reads the new name while the server catches up.
     setData((d) => (d ? { ...d, activeId: w.id, workspaces: d.workspaces?.map((x) => ({ ...x, active: x.id === w.id })) } : d));
-    try {
-      const res = await fetch(`/api/workspaces/${w.id}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ active: true }),
-      });
-      if (!res.ok) { setData(previous); markSwitching(null); return; }
-      startTransition(() => { router.refresh(); });
-    } catch {
+    const ok = await requestSwitch(w.id);
+    if (!ok) {
       setData(previous);
       markSwitching(null);
-    } finally {
-      saving.current = false;
-      setSwitching(null);
+    } else {
+      startTransition(() => router.refresh());
     }
+    saving.current = false;
+    setSwitching(null);
   }
 
+  const used = typeof data?.used === "number" && typeof data?.limit === "number" ? ` ${data.used} of ${data.limit}` : "";
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="ws-switch" aria-label="Switch Brand Workspace" aria-busy={busy || undefined}>
-        <Briefcase size={14} className="ws-switch-ico" />
-        <span className="ws-switch-name">{active.name}</span>
-        {busy ? <Loader2 size={14} className="acsw-spin drop-chev" /> : <ChevronDown size={14} className="drop-chev" />}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>
-            Brand Workspaces{typeof data.used === "number" && typeof data.limit === "number" ? ` · ${data.used}/${data.limit}` : ""}
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {list.map((w) => (
-            <DropdownMenuItem key={w.id} onClick={() => switchTo(w)} disabled={w.suspended || busy} className="gap-2">
-              <Briefcase size={14} />
-              <span className="flex-1">{w.name}</span>
-              {w.role && w.role !== "owner" && <span className="ws-tag muted">{w.role === "admin" ? "Admin" : "Member"}</span>}
-              {w.suspended ? (
-                <span className="ws-tag">Paused</span>
-              ) : switching === w.id ? (
-                <Loader2 size={14} className="acsw-spin" />
-              ) : (
-                w.active && <Check size={14} />
-              )}
-            </DropdownMenuItem>
+    <Menu>
+      <MenuTrigger className="s-btn s-btn--secondary s-ws" aria-label="Brand Workspace and connected accounts" aria-busy={busy || undefined}>
+        <Briefcase aria-hidden />
+        <span className="s-ws-name">{active?.name ?? "Brand Workspace"}</span>
+        {busy ? <Loader2 className="s-spin" aria-hidden /> : <ChevronDown aria-hidden />}
+      </MenuTrigger>
+      <MenuContent align="start" style={{ minWidth: 260 }}>
+        {enabled && (
+          <>
+            <MenuGroup label={`Brand Workspaces${used}`}>
+              {list.map((w) => (
+                <MenuItem
+                  key={w.id}
+                  onClick={() => void switchTo(w)}
+                  disabled={w.suspended || busy}
+                  why={w.suspended ? "Paused" : undefined}
+                  end={switching === w.id ? <Loader2 className="s-spin" aria-hidden /> : w.active ? <Check aria-label="Active" /> : w.role && w.role !== "owner" ? (w.role === "admin" ? "Admin" : "Member") : undefined}
+                >
+                  <Briefcase aria-hidden />
+                  <span>{w.name}</span>
+                </MenuItem>
+              ))}
+              <MenuItem href="/settings#workspaces">
+                {data?.canCreate ? <Plus aria-hidden /> : <Settings2 aria-hidden />}
+                <span>{data?.canCreate ? "New workspace" : "Manage workspaces"}</span>
+              </MenuItem>
+            </MenuGroup>
+            <MenuSeparator />
+          </>
+        )}
+        <MenuGroup label="Connected accounts">
+          {accounts.map((a) => (
+            <MenuItem key={a.platform} href={a.href} end={a.connected ? <StatusPill tone="positive" dot>Connected</StatusPill> : <span className="s-link">Connect</span>}>
+              <PlatformMark platform={a.platform} brand={a.connected} />
+              <span>{a.label}</span>
+            </MenuItem>
           ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="gap-2" onClick={() => { window.location.href = "/settings#workspaces"; }}>
-            {data.canCreate ? <Plus size={14} /> : <Settings2 size={14} />}
-            <span className="flex-1">{data.canCreate ? "New workspace" : "Manage workspaces"}</span>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </MenuGroup>
+      </MenuContent>
+    </Menu>
   );
 }

@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
 import { usePathname } from "next/navigation";
 import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
 import Drawer from "./ov/Drawer";
@@ -252,6 +253,14 @@ export function AskHost() {
     return () => { window.removeEventListener(ASK_EVENT, onEvent); document.removeEventListener("click", onClick, true); };
   }, [openWith]);
 
+  // The command menu (⌘K → "Ask SOCIA") opens the drawer through this event.
+  useEffect(() => {
+    const onAsk = () => openWith({});
+    window.addEventListener("socia:ask", onAsk);
+    return () => window.removeEventListener("socia:ask", onAsk);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // /chat?q=… redirects here with ?ask=…; open once.
   useEffect(() => {
     try {
@@ -268,7 +277,7 @@ export function AskHost() {
 
   return (
     <>
-      <button type="button" className="tb-ask" onClick={() => openWith({})} aria-label="Ask SOCIA"><Sparkles size={14} /> <span>Ask SOCIA</span></button>
+      <button type="button" className="s-btn s-btn--secondary s-ask" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={16} /> <span>Ask SOCIA</span></button>
       <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} />
     </>
   );

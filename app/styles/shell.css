@@ -1,0 +1,630 @@
+/* ============================================================================
+   The app shell: an open-plane sidebar on the page ground, a 48px top bar
+   that holds real things (search, Ask SOCIA, alerts), the content column,
+   the command menu and the phone sheet. Tokens only.
+   ========================================================================= */
+
+.s-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+/* ---- sidebar ---------------------------------------------------------------- */
+.s-side {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border-right: 1px solid var(--border);
+  background: var(--ground);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.s-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--topbar-h);
+  padding: 0 var(--sp-2);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  flex: none;
+}
+.s-brand .brandmark {
+  border-radius: var(--r-chip);
+}
+.s-ws {
+  width: 100%;
+  justify-content: flex-start;
+  margin-bottom: var(--sp-2);
+}
+.s-ws-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.s-ws svg:last-child {
+  color: var(--ink-3);
+}
+.s-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.s-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.s-nav-group + .s-nav-group {
+  margin-top: var(--sp-3);
+}
+.s-nav-label {
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--nav-row);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+}
+.s-nav-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+  flex: none;
+}
+.s-nav-item span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.s-nav-item[aria-current="page"] {
+  background: var(--nav-active);
+  color: var(--accent-ink);
+}
+.s-nav-item[aria-current="page"] svg {
+  color: var(--accent-ink);
+}
+.s-nav-count {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-nav-item:hover:not([aria-current="page"]) {
+    background: var(--surface-hover);
+    color: var(--ink);
+  }
+}
+.s-side-foot {
+  margin-top: auto;
+  padding-top: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.s-upgrade {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  text-decoration: none;
+}
+.s-upgrade b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.s-upgrade .s-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.s-upgrade .s-link svg {
+  width: 12px;
+  height: 12px;
+}
+.s-account {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--row-h);
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-press) var(--ease-out);
+}
+.s-account[data-popup-open],
+.s-account[aria-expanded="true"] {
+  background: var(--surface-hover);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-account:hover {
+    background: var(--surface-hover);
+  }
+}
+.s-avatar {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--accent-subtle);
+  color: var(--accent-ink);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
+  flex: none;
+}
+.s-account-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.s-account-name {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-account-plan {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-account > svg:last-child {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+  flex: none;
+}
+
+/* ---- main column and top bar ------------------------------------------------ */
+.s-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.s-topbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--topbar-h);
+  padding: 0 var(--page-pad);
+  border-bottom: 1px solid var(--border);
+  background: var(--ground);
+}
+.s-topbar-menu,
+.s-topbar-title {
+  display: none;
+}
+.s-topbar-title {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-search {
+  flex: 1;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--control-h);
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-align: left;
+  cursor: text;
+  transition: border-color var(--t-press) var(--ease-out);
+}
+.s-search svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.s-search span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-search:hover {
+    border-color: var(--ink-3);
+  }
+}
+.s-topbar-end {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+  flex: none;
+}
+.s-content {
+  padding: var(--sp-5) var(--page-pad) var(--sp-10);
+  width: 100%;
+  max-width: 1560px;
+  min-width: 0;
+}
+
+/* Workspace switching: dim the content and say what is happening. */
+html[data-ws-switching] .s-content {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity var(--t-panel) var(--ease-out);
+}
+html[data-ws-switching]::after {
+  content: "Switching to " attr(data-ws-switching) "\2026";
+  position: fixed;
+  left: 50%;
+  bottom: var(--sp-5);
+  transform: translateX(-50%);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-card);
+  background: var(--inverse-surface);
+  color: var(--inverse-text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+  box-shadow: var(--shadow-float);
+  z-index: var(--z-toast);
+}
+
+/* ---- bell ---------------------------------------------------------------------- */
+.s-bell-btn {
+  position: relative;
+}
+.s-bell-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--negative);
+  color: var(--on-accent);
+  font-size: var(--fs-meta);
+  line-height: 16px;
+  font-weight: var(--fw-semibold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.s-bell-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--negative);
+}
+.s-bell-pop {
+  width: 380px;
+  padding: 0;
+  overflow: hidden;
+}
+.s-bell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+}
+.s-bell-head + .s-bell-head {
+  border-top: 1px solid var(--border);
+}
+.s-bell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.s-bell-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: start;
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--rule);
+}
+.s-bell-item > svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--ink-3);
+}
+.s-bell-item.is-good > svg {
+  color: var(--positive-ink);
+}
+.s-bell-item.is-warning > svg {
+  color: var(--warning-ink);
+}
+.s-bell-item.is-failed > svg {
+  color: var(--negative-ink);
+}
+.s-bell-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.s-bell-body b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.s-bell-body a {
+  color: inherit;
+  text-decoration: none;
+}
+.s-bell-body small {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-bell-body time {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-bell-item.is-unread b::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 6px 2px 0;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+.s-bell-empty {
+  padding: var(--sp-3);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* ---- command menu -------------------------------------------------------------- */
+.s-cmd {
+  inset: 0;
+  margin: 12vh auto auto;
+  width: min(560px, calc(100vw - 32px));
+  max-height: 70vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.s-cmd-input {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--row-h);
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+.s-cmd-input svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+  flex: none;
+}
+.s-cmd-input input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  outline: none;
+}
+.s-cmd-input input::placeholder {
+  color: var(--ink-3);
+}
+.s-cmd-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-1);
+  overflow-y: auto;
+  min-height: 0;
+}
+.s-cmd-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 36px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-chip);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  cursor: pointer;
+}
+.s-cmd-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+  flex: none;
+}
+.s-cmd-item span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-cmd-item small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+.s-cmd-item[aria-selected="true"] {
+  background: var(--surface-raised);
+}
+.s-cmd-item[aria-disabled="true"] {
+  color: var(--ink-3);
+  cursor: default;
+}
+.s-cmd-empty {
+  padding: var(--sp-4);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.s-cmd-foot {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* ---- phone sheet ------------------------------------------------------------------ */
+.s-sheet {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3) var(--sp-4);
+  background: var(--ground);
+  color: var(--ink);
+  overflow-y: auto;
+  z-index: var(--z-dialog);
+  outline: none;
+  transition: opacity var(--t-panel) var(--ease-out), transform var(--t-panel) var(--ease-out);
+}
+.s-sheet[data-starting-style],
+.s-sheet[data-ending-style] {
+  opacity: 0;
+  transform: translateX(-16px);
+}
+.s-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--topbar-h);
+  flex: none;
+}
+.s-sheet .s-nav-item,
+.s-sheet .s-account {
+  min-height: var(--row-h);
+  height: auto;
+}
+
+/* ---- phones and small tablets ------------------------------------------------------ */
+@media (max-width: 860px) {
+  .s-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .s-side {
+    display: none;
+  }
+  .s-topbar {
+    padding: 0 var(--sp-4);
+    gap: var(--sp-1);
+  }
+  .s-topbar-menu {
+    display: inline-flex;
+  }
+  .s-topbar-title {
+    display: block;
+    margin-right: auto;
+  }
+  .s-search {
+    display: none;
+  }
+  .s-topbar .s-ask span {
+    display: none;
+  }
+  .s-topbar .s-ask {
+    width: var(--control-h);
+    padding: 0;
+  }
+  .s-content {
+    padding: var(--sp-4);
+  }
+  .s-bell-pop {
+    width: calc(100vw - 32px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-sheet[data-starting-style],
+  .s-sheet[data-ending-style] {
+    transform: none;
+  }
+}

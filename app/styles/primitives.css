@@ -686,15 +686,25 @@
 .s-menu-item[aria-disabled="true"] {
   color: var(--ink-3);
 }
-.s-menu-item .s-kbd {
-  margin-left: auto;
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
+.s-menu-item > span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.s-menu-item .s-why {
+.s-menu-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
   margin-left: auto;
+  padding-left: var(--sp-3);
   color: var(--ink-3);
   font-size: var(--fs-meta);
+  flex: none;
+}
+.s-menu-end svg {
+  color: var(--ink-2);
 }
 .s-menu-sep {
   height: 1px;

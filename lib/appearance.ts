@@ -6,7 +6,7 @@ export type Appearance = "light" | "dark" | "system";
 export type Resolved = "light" | "dark";
 
 export const APPEARANCE_KEY = "socia-appearance";
-export const THEME_COLOR: Record<Resolved, string> = { light: "#f5f6fa", dark: "#0b1220" };
+export const THEME_COLOR: Record<Resolved, string> = { light: "#f5f6fa", dark: "#0f1115" };
 
 export const isAppearance = (v: unknown): v is Appearance =>
   v === "light" || v === "dark" || v === "system";
