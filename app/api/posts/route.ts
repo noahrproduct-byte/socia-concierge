@@ -149,7 +149,7 @@ export async function POST(req: Request) {
   if (payload.id) {
     const cur = await loadItem(ctx.client, payload.id, ctx.ownerId);
     if (!cur) return NextResponse.json({ error: "Post not found." }, { status: 404 });
-    if (cur.status === "published") return NextResponse.json({ error: "Published posts stay in the record." }, { status: 409 });
+    if (cur.status === "published") return NextResponse.json({ error: "Published posts stay in the record. To take one down, open it and use Delete from the platform." }, { status: 409 });
   }
 
   // Destinations: the account must be this workspace's and able to publish now.

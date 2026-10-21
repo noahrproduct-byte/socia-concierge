@@ -37,7 +37,7 @@ export const SERVER_INSTRUCTIONS = [
   "Every number comes from SOCIA's stored platform data and the same calculations SOCIA's own dashboard uses. A null value means the platform doesn't provide it or SOCIA doesn't have it yet; never present it as zero.",
   "If several Brand Workspaces are shared, call list_workspaces and ask which one, or pass workspace_id.",
   "Posting: if the person turned on publishing for this app, create_post publishes to Instagram and Facebook right away or at a set time, or saves a draft on any platform; cancel_post withdraws a post that hasn't gone out. Only post what the person asked for, with the caption and media they approved in this conversation, because create_post publishes without another confirmation. If posting isn't turned on, the tools say how to turn it on.",
-  "Nothing can be deleted or edited after publishing, and settings can't be changed.",
+  "Nothing can be edited after publishing through these tools, and settings can't be changed. A live post can be deleted from the post in SOCIA (Delete from the platform) or in the platform's own app.",
 ].join(" ");
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false } as const;
@@ -314,7 +314,7 @@ export function registerTools(server: McpServer): void {
 
   server.registerTool("cancel_post", {
     title: "Cancel a scheduled post",
-    description: "Withdraws a post's platforms that haven't started going out (scheduled, draft or failed), so nothing more is published. Platforms already uploading, processing or published are left as they are and listed; a live post is deleted in the platform's own app. Takes a post_id from create_post or get_scheduled_posts.",
+    description: "Withdraws a post's platforms that haven't started going out (scheduled, draft or failed), so nothing more is published. Platforms already uploading, processing or published are left as they are and listed; a live post is deleted from the post in SOCIA (Delete from the platform) or in the platform's own app. Takes a post_id from create_post or get_scheduled_posts.",
     inputSchema: z.object({ workspace_id: workspaceId, post_id: z.string().uuid().describe("The SOCIA post id.") }),
     annotations: WITHDRAW,
   }, async (a, c) => runPosting(c as ToolCtx, "cancel_post", a.workspace_id, false, (ctx) => cancelPost(ctx, a.post_id)));

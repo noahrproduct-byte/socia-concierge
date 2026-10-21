@@ -23,6 +23,10 @@ export type ScheduledPost = {
   container_id: string | null;
   published_media_id: string | null;
   permalink: string | null;
+  /** Set when the post was deleted from Instagram through SOCIA (lib/platformDelete); absent before the migration. */
+  deleted_at?: string | null;
+  /** The last measurement before that deletion (jsonb); null when nothing was recorded. */
+  deleted_result?: unknown;
   error: string | null;
   attempts: number;
   created_at: string;

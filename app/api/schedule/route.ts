@@ -280,7 +280,7 @@ export async function DELETE(req: Request) {
       .eq("user_id", ctx.ownerId),
     ctx.workspace?.id,
   ).maybeSingle();
-  if (cur?.status === "published") return NextResponse.json({ error: "Published posts stay in the record." }, { status: 409 });
+  if (cur?.status === "published") return NextResponse.json({ error: "Published posts stay in the record. To take one down, open it and use Delete from the platform." }, { status: 409 });
   if (cur?.media_path && ownsPath(ctx, cur.media_path)) {
     await ctx.client.storage.from("scheduled-media").remove([cur.media_path]).catch(() => null);
   }

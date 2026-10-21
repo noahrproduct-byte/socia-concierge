@@ -59,7 +59,19 @@ export const FB_GRAPH_V = "v23.0";
 //                            (Growth+; every reply is approved by a person
 //                            before it's sent). Advanced Access for public
 //                            users; admins/testers in Dev Mode now.
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "pages_manage_engagement", "read_insights", "instagram_basic", "business_management"].join(",");
+//   instagram_manage_contents -> delete a post, Reel, Story or carousel on
+//                            the Instagram account linked to the Page
+//                            (DELETE graph.facebook.com/{ig-media-id} with the
+//                            Facebook USER token). The Instagram Login token
+//                            SOCIA publishes with cannot delete, so this is
+//                            the only route. Advanced Access via App Review;
+//                            app admins/testers in Dev Mode now. Facebook
+//                            Login omits an un-granted scope rather than
+//                            failing, so requesting it before the review is
+//                            safe: the delete resolver (lib/platformDelete)
+//                            then answers "Reconnect Facebook".
+export const FB_IG_DELETE_SCOPE = "instagram_manage_contents";
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "pages_manage_engagement", "read_insights", "instagram_basic", FB_IG_DELETE_SCOPE, "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

@@ -57,6 +57,23 @@ async function pagesViaBusiness(base: string, token: string): Promise<PageEntry[
   return out;
 }
 
+// The permission names Facebook actually granted (names only, never tokens).
+// With Facebook Login for Business the login configuration in the Meta
+// dashboard decides them, not the scope parameter, so this is the truth.
+async function grantedPermissions(base: string, token: string): Promise<string[] | null> {
+  try {
+    const permUrl = new URL(`${base}/me/permissions`);
+    permUrl.searchParams.set("access_token", token);
+    const permRes = await fetch(permUrl, { signal: AbortSignal.timeout(10000) });
+    if (!permRes.ok) return null;
+    const permJson = (await permRes.json().catch(() => null)) as { data?: { permission?: string; status?: string }[] } | null;
+    if (!Array.isArray(permJson?.data)) return null;
+    return permJson.data.filter((x) => x.status === "granted" && x.permission).map((x) => x.permission!);
+  } catch {
+    return null;
+  }
+}
+
 // Step 2: exchange the code for a long-lived token, list the user's Pages,
 // and either connect the single Page or ask the user to choose.
 export async function GET(req: Request) {
@@ -107,6 +124,10 @@ export async function GET(req: Request) {
     const longRes = await fetch(longUrl, { signal: AbortSignal.timeout(10000) });
     const longJson = await longRes.json().catch(() => null);
     const userToken: string = longJson?.access_token ?? shortJson.access_token;
+    // Long-lived user tokens last about 60 days; Meta says how long in expires_in.
+    const expiresIn = Number(longJson?.access_token ? longJson?.expires_in : shortJson?.expires_in);
+    const userTokenExpiresAt = Number.isFinite(expiresIn) && expiresIn > 0 ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
+    const granted = await grantedPermissions(BASE, userToken);
 
     // The app-scoped Facebook user id, so a later deauthorize or data
     // deletion request from Meta (which carries only this id) can find the
@@ -147,27 +168,14 @@ export async function GET(req: Request) {
       // configuration in the Meta dashboard, NOT from the scope parameter, so
       // a config missing pages_show_list returns no Pages however many the
       // user grants.
-      let granted: string[] = [];
-      try {
-        const permUrl = new URL(`${BASE}/me/permissions`);
-        permUrl.searchParams.set("access_token", userToken);
-        const permRes = await fetch(permUrl, { signal: AbortSignal.timeout(10000) });
-        const permJson = (await permRes.json().catch(() => null)) as
-          | { data?: { permission?: string; status?: string }[] }
-          | null;
-        granted = (permJson?.data ?? [])
-          .filter((x) => x.status === "granted" && x.permission)
-          .map((x) => x.permission!);
-      } catch {
-        /* fall through to the generic message */
-      }
+      const grantedNames = granted ?? [];
       // Diagnostic: /me/accounts returned no Pages. Surface what Facebook
       // actually granted so a missing pages_show_list in the login
       // configuration is distinguishable from an account with no Page. Names
       // only, no tokens. Remove once the connect path is confirmed.
-      console.error("[fb connect] no pages returned. granted=", granted, " viaBusiness=", viaBusiness, " accountsRaw=", JSON.stringify(pagesJson).slice(0, 400));
-      const reason = granted.length && !granted.includes("pages_show_list") ? "noperm" : "nopages";
-      return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(granted.join(",") || "none")}&fbbiz=${viaBusiness}`);
+      console.error("[fb connect] no pages returned. granted=", grantedNames, " viaBusiness=", viaBusiness, " accountsRaw=", JSON.stringify(pagesJson).slice(0, 400));
+      const reason = grantedNames.length && !grantedNames.includes("pages_show_list") ? "noperm" : "nopages";
+      return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(grantedNames.join(",") || "none")}&fbbiz=${viaBusiness}`);
     }
 
     // Plan gate, server-side, before anything is written, judged on the
@@ -183,6 +191,13 @@ export async function GET(req: Request) {
     const onConflict = ws ? "workspace_id" : "user_id";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scopeFb = (q: any) => (ws ? q.eq("workspace_id", ws.id) : q);
+    // The long-lived USER token is kept beside the Page token: deleting an
+    // Instagram post needs it (lib/platformDelete). Written separately, best
+    // effort, so a database without supabase/platform-deletions.sql still
+    // connects; the delete resolver then says "Reconnect Facebook".
+    const storeUserToken = () =>
+      scopeFb(ctx.client.from("facebook_connections").update({ user_access_token: userToken, user_token_expires_at: userTokenExpiresAt, scopes: granted }).eq("user_id", ctx.ownerId))
+        .then((r: { error?: { message?: string } | null }) => { if (r?.error) console.warn("[fb connect] user token not stored:", r.error.message); }, () => null);
     const limitHit = async () => {
       await trackEvent(supabase, user.id, "account_limit_reached", { platform: "facebook", plan: ent.plan });
       return done("limit");
@@ -221,6 +236,7 @@ export async function GET(req: Request) {
       }
       if (error) return done("error");
       if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
+      await storeUserToken();
       await syncFacebook(ctx.client, ctx.ownerId).catch(() => null);
       return done("connected");
     }
@@ -244,6 +260,8 @@ export async function GET(req: Request) {
     const { error } = await ctx.client.from("facebook_connections").upsert(pendingRow, { onConflict });
     if (error) return done("error");
     if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
+    // Kept on the pending row; /api/auth/facebook/select upserts the same row, so it carries over.
+    await storeUserToken();
     return done("choose");
   } catch {
     return done("error");
