@@ -14,7 +14,8 @@ import { fromItem, newDraft, seedDestinations, toPayload, type ComposerDraft, ty
 import { PLATFORM_LABEL, type ContentItem } from "@/lib/publishing/types";
 import { isPlanError } from "@/lib/planErrors";
 import { uploadToYouTube, fetchMediaBlob } from "@/lib/publishing/youtubeUpload";
-import type { MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
+import { measureUrl, needsMeasurement, type MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
+import type { MediaItem } from "@/lib/publishing/types";
 
 export const MIGRATION_SENTENCE = "SOCIA's database needs the publishing migration (supabase/post-destinations.sql) before posts can be created.";
 export const ACCOUNTS_UNKNOWN_SENTENCE = "SOCIA could not read your connected accounts just now. Reload to try again.";
@@ -226,6 +227,31 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedPostId]);
+
+  // ---- measure media that arrived unmeasured ------------------------------------
+  // A draft an assistant created through the API, or a legacy calendar row,
+  // carries files nobody measured in a browser. Read their metadata from the
+  // stored URL once, so the readiness checks can judge the real length and
+  // dimensions instead of warning that they are unknown. The next save or
+  // publish records the values; nothing is written just for this.
+  const measuredIds = useRef(new Set<string>());
+  useEffect(() => {
+    if (loading) return;
+    let cancelled = false;
+    for (const m of draft.media) {
+      if (measuredIds.current.has(m.id) || !needsMeasurement(m)) continue;
+      measuredIds.current.add(m.id);
+      void measureUrl(m.url as string, m.kind).then((r) => {
+        if (cancelled) return;
+        const patch: Partial<MediaItem> = {};
+        if (m.width == null && r.width) patch.width = r.width;
+        if (m.height == null && r.height) patch.height = r.height;
+        if (m.kind === "video" && m.duration == null && r.duration) patch.duration = r.duration;
+        if (Object.keys(patch).length) rawDispatch({ type: "update_media", id: m.id, patch });
+      });
+    }
+    return () => { cancelled = true; };
+  }, [loading, draft.media]);
 
   // ---- local autosave + one-time restore prompt --------------------------------
   const localKey = storageKey(userId, draft.postId ?? requestedPostId);

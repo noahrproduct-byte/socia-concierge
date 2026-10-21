@@ -97,6 +97,41 @@ export async function measure(file: File): Promise<Measured> {
   }
 }
 
+/** True when a file that is already stored still lacks a measurement the readiness checks warn about. */
+export function needsMeasurement(m: Pick<MediaItem, "kind" | "url" | "width" | "height" | "duration">): boolean {
+  if (!m.url) return false;
+  if (m.width == null || m.height == null) return true;
+  return m.kind === "video" && m.duration == null;
+}
+
+function imageSizeFromUrl(url: string): Promise<{ width: number | null; height: number | null }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth || null, height: img.naturalHeight || null });
+    img.onerror = () => resolve({ width: null, height: null });
+    img.src = url;
+  });
+}
+
+/**
+ * Measure a file that is already stored (a draft an assistant created through
+ * the API, a legacy calendar row): the browser reads the metadata from the
+ * public URL the same way it reads a picked file. Never throws; anything that
+ * cannot be read stays null and the readiness checks keep their warning.
+ */
+export async function measureUrl(url: string, kind: MediaKind): Promise<{ width: number | null; height: number | null; duration: number | null }> {
+  if (typeof document === "undefined") return { width: null, height: null, duration: null };
+  try {
+    if (kind === "image") {
+      const s = await withTimeout(imageSizeFromUrl(url), { width: null, height: null });
+      return { ...s, duration: null };
+    }
+    return await withTimeout(videoMeta(url), { width: null, height: null, duration: null });
+  } catch {
+    return { width: null, height: null, duration: null };
+  }
+}
+
 /**
  * Render one frame of a video as a JPEG data URL, for cover pickers and the
  * preview. Resolves null when the frame cannot be drawn (cross-origin video
