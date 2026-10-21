@@ -7,12 +7,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Deliverable } from "./schema";
 import type { ScheduledPost } from "./scheduling";
 import type { Platform } from "./publishing/types";
-import { loadDestinationRows, type DestinationRow } from "./publishing/db";
+import { loadDestinationRows, rowToDestination, type DestinationRow } from "./publishing/db";
+import { deletedResultFromJson } from "./platformDelete/frozen";
 import { getIgSnapshot } from "./instagramSync";
 import { getFbSnapshot } from "./facebookSync";
 import { youtubeRecentUploads, youtubeVideoStats } from "./youtubeData";
 import { cachedLive } from "./liveCache";
-import { EMPTY_SOURCES, resultLine, measureDestination, type MeasureSources, type ResultLine } from "./postResults";
+import { EMPTY_SOURCES, destinationLine, type MeasureSources, type ResultLine } from "./postResults";
 import { buildPlanOutcome, type DestinationLite, type PlanOutcome } from "./planOutcomes";
 import { timed } from "./timing";
 
@@ -26,6 +27,8 @@ const toLite = (r: DestinationRow): DestinationLite => ({
   externalPostId: r.external_post_id,
   publishedAt: r.published_at,
   permalink: r.permalink,
+  deletedAt: r.deleted_at ?? null,
+  deletedResult: rowToDestination(r).deletedResult ?? null,
 });
 
 /** Destination rows for these posts; none when the table is missing or unreadable. */
@@ -43,11 +46,12 @@ function needsOf(posts: ScheduledPost[], dests: DestinationLite[]): { platforms:
   const platforms = new Set<Platform>();
   const youtubeIds: string[] = [];
   for (const d of dests) {
-    if (d.status !== "published" || !d.externalPostId) continue;
+    // A post deleted from its platform keeps its frozen result; nothing is read for it.
+    if (d.status !== "published" || !d.externalPostId || d.deletedAt) continue;
     platforms.add(d.platform);
     if (d.platform === "youtube") youtubeIds.push(d.externalPostId);
   }
-  if (posts.some((p) => p.status === "published" && p.published_media_id)) platforms.add("instagram");
+  if (posts.some((p) => p.status === "published" && p.published_media_id && !p.deleted_at)) platforms.add("instagram");
   return { platforms, youtubeIds };
 }
 
@@ -87,10 +91,10 @@ export function resultsForPosts(posts: ScheduledPost[], dests: DestinationLite[]
   for (const p of posts) {
     const published = (byPost.get(p.id) ?? []).filter((d) => d.status === "published" && d.externalPostId);
     if (!published.length && p.status === "published" && p.published_media_id) {
-      published.push({ postId: p.id, platform: "instagram", status: "published", externalPostId: p.published_media_id, publishedAt: p.updated_at, permalink: p.permalink });
+      published.push({ postId: p.id, platform: "instagram", status: "published", externalPostId: p.published_media_id, publishedAt: p.updated_at, permalink: p.permalink, deletedAt: p.deleted_at ?? null, deletedResult: deletedResultFromJson(p.deleted_result) });
     }
     if (!published.length) continue;
-    const lines = published.map((d) => ({ platform: d.platform, ...resultLine(measureDestination(d.platform, d.externalPostId!, sources), d.publishedAt, now) }));
+    const lines = published.map((d) => ({ platform: d.platform, ...destinationLine({ ...d, externalPostId: d.externalPostId! }, sources, now) }));
     const measured = lines.filter((l) => l.measured);
     const best = measured.filter((l) => l.multiplier != null).sort((a, b) => (b.multiplier ?? 0) - (a.multiplier ?? 0))[0] ?? measured[0] ?? lines[0];
     out.set(p.id, best);

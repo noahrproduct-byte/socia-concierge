@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: October 19, 2026</p>
+      <p className="legal-date">Last updated: October 21, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -45,9 +45,13 @@ export default function PrivacyPage() {
           (<code>pages_show_list</code>, <code>pages_read_engagement</code>,{" "}
           <code>pages_read_user_content</code>, <code>pages_manage_posts</code>,{" "}
           <code>pages_manage_engagement</code>, <code>read_insights</code>,{" "}
-          <code>instagram_basic</code>, <code>business_management</code>), we
-          read the Page&apos;s details, posts, engagement, insights and comments.
-          We publish and reply only when you do.
+          <code>instagram_basic</code>, <code>instagram_manage_contents</code>,{" "}
+          <code>business_management</code>), we read the Page&apos;s details,
+          posts, engagement, insights and comments. We publish and reply only
+          when you do. We keep your Facebook user token next to the Page token
+          because Meta lets an Instagram post be deleted only with it; we use
+          it, and <code>instagram_manage_contents</code>, only to delete a post
+          from the Instagram account linked to your Page when you ask SOCIA to.
         </li>
         <li>
           <b>YouTube</b>: when you connect your channel, Google gives us OAuth
@@ -120,6 +124,7 @@ export default function PrivacyPage() {
       <ul>
         <li>To analyze your accounts and generate scores, plans, captions, reply suggestions, alerts and summaries.</li>
         <li>To publish what you schedule, at the time you schedule it, and to reply to comments when you approve a reply.</li>
+        <li>To delete a post from Instagram, Facebook or YouTube when you ask SOCIA to, and to keep a record of that deletion with the last numbers SOCIA measured for the post.</li>
         <li>To run teams, workspaces, approvals and billing.</li>
         <li>To operate, secure, debug and improve the product, and to prevent abuse.</li>
       </ul>
@@ -244,6 +249,12 @@ export default function PrivacyPage() {
           analyze or caption is deleted as soon as the transcript is back.
         </li>
         <li>Media you schedule, until you delete the post.</li>
+        <li>
+          The record of a post you deleted from a platform through SOCIA (when,
+          by whom, its link, the start of its caption and its last measured
+          numbers), for as long as your account exists, so your results
+          history stays complete.
+        </li>
         <li>
           AI assistant sign-in tokens expire after an hour (renewal tokens
           after 30 days) and are removed within a week of expiring; the log of

@@ -35,7 +35,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   const item = await loadItem(ctx.client, id, ctx.ownerId);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (item.status === "published" || item.destinations.some((d) => d.status === "published")) {
-    return NextResponse.json({ error: "Published posts stay in the record." }, { status: 409 });
+    return NextResponse.json({ error: "Published posts stay in the record. To take one down, open it and use Delete from the platform." }, { status: 409 });
   }
   // Files live under their uploader's folder: the viewer's, or the workspace
   // owner's. Only those are removed, never a path from elsewhere in the bucket.

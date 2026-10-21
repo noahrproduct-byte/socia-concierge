@@ -15,6 +15,8 @@ import { PLATFORMS, defaultSettings } from "./types";
 import { aggregateStatus, firstError } from "./status";
 import type { CreatePostPayload, PickerAccount } from "./composer";
 import { listConnectedAccountsDetailed } from "../entitlements";
+import { deletedResultFromJson } from "../platformDelete/frozen";
+export { deletedResultFromJson };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -95,6 +97,10 @@ export type DestinationRow = {
   settings: unknown;
   created_at: string;
   updated_at: string;
+  /** lib/platformDelete; absent before supabase/platform-deletions.sql. */
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  deleted_result?: unknown;
 };
 
 const PARENT_STATUSES: ContentItem["status"][] = ["draft", "scheduled", "publishing", "published", "failed", "cancelled"];
@@ -183,6 +189,9 @@ export function rowToDestination(r: DestinationRow): Destination {
     settings: settingsFromJson(platform, r.settings),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    deletedAt: r.deleted_at ?? null,
+    deletedBy: r.deleted_by ?? null,
+    deletedResult: deletedResultFromJson(r.deleted_result),
   };
 }
 
@@ -216,6 +225,7 @@ export function destinationPatchToRow(patch: Partial<Destination>): Record<strin
     externalPostId: "external_post_id", externalContainerId: "external_container_id", permalink: "permalink",
     errorCode: "error_code", errorMessage: "error_message", retryCount: "retry_count", nextRetryAt: "next_retry_at",
     settings: "settings", accountId: "account_id",
+    deletedAt: "deleted_at", deletedBy: "deleted_by", deletedResult: "deleted_result",
   };
   for (const [k, col] of Object.entries(map)) {
     if (k in patch) out[col] = (patch as Record<string, unknown>)[k];

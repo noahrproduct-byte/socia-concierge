@@ -108,6 +108,8 @@ export type ResultLine = {
   early: boolean;
   /** false while the platform has not reported this post yet. */
   measured: boolean;
+  /** Set when the post was deleted from the platform through SOCIA; the line is then frozen. */
+  deletedAt?: string | null;
 };
 
 const hoursSince = (iso: string | null, now: Date): number | null => (iso ? (now.getTime() - new Date(iso).getTime()) / 3_600_000 : null);
@@ -139,4 +141,37 @@ export function resultLine(m: Measurement, publishedAt: string | null, now: Date
     short: `${mult} your median${early ? " so far" : ""}`,
     multiplier: m.multiplier, early, measured: true,
   };
+}
+
+/** "Oct 21, 2026" in UTC, so the server and the browser print the same date. */
+const fmtDay = (iso: string): string =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/**
+ * The frozen line for a post deleted from its platform through SOCIA. It
+ * reports the last measurement taken before the deletion and never says
+ * "measuring": the platform will not report the post again.
+ */
+export function deletedResultLine(platform: Platform, frozen: (Measurement & { measuredAt?: string }) | null | undefined, deletedAt: string): ResultLine {
+  const name = PLATFORM_NAME[platform];
+  const head = `Deleted from ${name} on ${fmtDay(deletedAt)}.`;
+  if (!frozen || !frozen.found || frozen.value == null) {
+    return { text: `${head} No result was recorded before the deletion.`, short: "deleted", multiplier: null, early: false, measured: false, deletedAt };
+  }
+  const unit = frozen.metric === "views" ? "views" : "interactions";
+  const n = frozen.value.toLocaleString("en-US");
+  const last = frozen.multiplier != null && frozen.median != null
+    ? `Last measured: ${fmtMultiplier(frozen.multiplier)} your typical ${name} post (${n} ${unit} against a median of ${Math.round(frozen.median).toLocaleString("en-US")} over ${frozen.sampleSize} posts).`
+    : `Last measured: ${n} ${unit}.`;
+  return { text: `${head} ${last}`, short: "deleted", multiplier: frozen.multiplier, early: false, measured: true, deletedAt };
+}
+
+/** One published destination's line: frozen when deleted, otherwise measured against `sources`. */
+export function destinationLine(
+  d: { platform: Platform; externalPostId: string; publishedAt: string | null; deletedAt?: string | null; deletedResult?: (Measurement & { measuredAt?: string }) | null },
+  sources: MeasureSources,
+  now: Date = new Date(),
+): ResultLine {
+  if (d.deletedAt) return deletedResultLine(d.platform, d.deletedResult ?? null, d.deletedAt);
+  return resultLine(measureDestination(d.platform, d.externalPostId, sources), d.publishedAt, now);
 }

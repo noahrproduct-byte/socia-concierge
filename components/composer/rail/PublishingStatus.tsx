@@ -19,6 +19,13 @@ import { trialLine, trialOf } from "@/lib/publishing/trial";
 import { PLATFORM_LABEL, STATUS_LABEL, type Destination, type DestinationStatus } from "@/lib/publishing/types";
 import type { ReadinessLevel } from "@/lib/publishing/validate";
 import { PlatformMark, useNow, useViewerZone } from "./ReadinessPanel";
+import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
+
+type DeleteAnswer = { canDelete: boolean; targets: DeleteInfo[] };
+const pickDelete = (j: unknown): DeleteAnswer | null => {
+  const o = j as Partial<DeleteAnswer> | null;
+  return o && Array.isArray(o.targets) ? { canDelete: Boolean(o.canDelete), targets: o.targets } : null;
+};
 
 const IN_FLIGHT: DestinationStatus[] = ["uploading", "processing"];
 /** The platform's error is about the file itself, so offering a replacement is the honest next step. */
@@ -33,6 +40,10 @@ export default function PublishingStatus({ accounts, submission, onRetry, onEdit
   const now = useNow(15_000);
   const [retrying, setRetrying] = useState<string | null>(null);
   const item = submission.item;
+  // Published destinations can be deleted from their platform; ask once per
+  // newly published destination (the count is in the URL so a publish refetches).
+  const publishedCount = (item?.destinations ?? []).filter((d) => d.status === "published" && d.externalPostId).length;
+  const del = useDeleteInfo(item && publishedCount ? `/api/posts/${item.id}/platform-delete?n=${publishedCount}` : null, pickDelete);
   if (!item) return null;
 
   const dests: Destination[] = item.destinations ?? [];
@@ -112,7 +123,7 @@ export default function PublishingStatus({ accounts, submission, onRetry, onEdit
                   )}
                   {d.status === "published" && (
                     <>
-                      {d.permalink ? (
+                      {d.deletedAt || del.data?.targets.find((t) => t.destinationId === d.id)?.deletedAt ? null : d.permalink ? (
                         <a href={d.permalink} target="_blank" rel="noreferrer" className="cr-permalink">
                           {permalinkLabel} <ExternalLink size={12} />
                         </a>
@@ -120,6 +131,16 @@ export default function PublishingStatus({ accounts, submission, onRetry, onEdit
                         <p>Published{d.publishedAt && tz && now ? ` ${formatWhen(d.publishedAt, now, tz)}` : ""}. {PLATFORM_LABEL[d.platform]} did not return a link.</p>
                       )}
                       {d.errorMessage && <p className="cr-published-note">{d.errorMessage}</p>}
+                      {(() => {
+                        const info = del.data?.targets.find((t) => t.destinationId === d.id);
+                        if (!info && d.deletedAt) return <DeleteOnPlatform info={{ destinationId: d.id, platform: d.platform, permalink: d.permalink, deletedAt: d.deletedAt, noun: "post", capability: null }} canDelete={false} request={{ url: "", method: "POST" }} />;
+                        if (!info || !del.data) return null;
+                        return (
+                          <div className="cr-status-actions">
+                            <DeleteOnPlatform info={info} canDelete={del.data.canDelete} request={{ url: `/api/posts/${item.id}/platform-delete`, method: "POST", body: { destinationId: d.id } }} onDeleted={del.reload} />
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                   {d.status === "failed" && (

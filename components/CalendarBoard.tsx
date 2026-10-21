@@ -55,6 +55,7 @@ import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status"
 import { PLATFORM_LABEL, type Destination, type Platform, type TrialShare } from "@/lib/publishing/types";
 import { trialLine } from "@/lib/publishing/trial";
 import "./calendar-destinations.css";
+import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
 
 export type { CalPost };
 
@@ -1056,6 +1057,27 @@ function Modal({
 
 /** Create or edit one post: time, caption, media (uploaded to the user's own
  *  folder in the `scheduled-media` bucket), then save, publish now, or remove. */
+type PostDeleteAnswer = { canDelete: boolean; targets: DeleteInfo[] };
+const pickPostDelete = (j: unknown): PostDeleteAnswer | null => {
+  const o = j as Partial<PostDeleteAnswer> | null;
+  return o && Array.isArray(o.targets) ? { canDelete: Boolean(o.canDelete), targets: o.targets } : null;
+};
+
+/** Delete a published legacy Instagram post from Instagram (lib/platformDelete). */
+function LegacyPlatformDelete({ post, onDeleted }: { post: ScheduledPost; onDeleted: (deletedAt: string) => void }) {
+  const { data } = useDeleteInfo(`/api/posts/${post.id}/platform-delete`, pickPostDelete);
+  const info = data?.targets[0];
+  if (!info) return null;
+  return (
+    <DeleteOnPlatform
+      info={info}
+      canDelete={data.canDelete}
+      request={{ url: `/api/posts/${post.id}/platform-delete`, method: "POST", body: { destinationId: null } }}
+      onDeleted={onDeleted}
+    />
+  );
+}
+
 function Composer({
   post,
   at,
@@ -1211,12 +1233,13 @@ function Composer({
         <div className={`cal2-status st-${post.status}`}>
           <StatusChip p={post} />
           {post.plan_day && <span className="cal2-from-plan">From your Content Plan · {post.plan_day}</span>}
-          {post.status === "published" && post.permalink && (
+          {post.status === "published" && post.permalink && !post.deleted_at && (
             <a href={post.permalink} target="_blank" rel="noreferrer" className="cal2-permalink">
               View on Instagram <ExternalLink size={12} />
             </a>
           )}
           {post.status === "failed" && post.error && <p className="cal2-status-err">{post.error}</p>}
+          {post.status === "published" && <LegacyPlatformDelete post={post} onDeleted={(deletedAt) => onSaved({ ...post, deleted_at: deletedAt })} />}
         </div>
       )}
 
