@@ -3,15 +3,17 @@
 // The Dashboard's Today card (daily recommendations, Growth and up). The
 // server sends the facts; the card works out "today" in the viewer's own time
 // zone after mount, so the server (UTC) and the browser never disagree on what
-// today is. Every line comes from lib/dailyRecs.ts.
+// today is. Every line comes from lib/dailyRecs.ts. The Dashboard computes the
+// summary once (useTodaySummary) and shares it with its Next line.
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Sun, TriangleAlert, CalendarClock, ClipboardList, MessageSquare, CalendarPlus, Clock, TrendingUp, Clapperboard, ArrowRight, ArrowUpRight, CheckCircle2, Lock } from "lucide-react";
+import { CalendarClock, CalendarPlus, CheckCircle2, Clapperboard, ClipboardList, Clock, MessageSquare, TrendingUp, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Button, ButtonLink, Card, CardHeader, CardSource, Empty, Skeleton } from "@/components/system";
 import { dailyRecommendations, type RecKind, type TodayFacts, type TodaySummary } from "@/lib/dailyRecs";
 import { viewerTimeZone } from "@/lib/publishing/timing";
+import { cn } from "@/lib/utils";
 
-const ICON: Record<RecKind, typeof Sun> = {
+const ICON: Record<RecKind, LucideIcon> = {
   failed: TriangleAlert,
   today_post: CalendarClock,
   plan_item: ClipboardList,
@@ -26,9 +28,10 @@ export type TodayCardProps =
   | { locked: { planName: string; href: string }; facts?: undefined }
   | { facts: TodayFacts; locked?: undefined };
 
-export default function TodayCard(props: TodayCardProps) {
-  const [view, setView] = useState<{ summary: TodaySummary; date: string } | null>(null);
-  const facts = props.facts;
+export type TodayView = { summary: TodaySummary; date: string };
+
+export function useTodaySummary(facts: TodayFacts | undefined): TodayView | null {
+  const [view, setView] = useState<TodayView | null>(null);
   useEffect(() => {
     if (!facts) return;
     const tz = viewerTimeZone() ?? "UTC";
@@ -38,61 +41,78 @@ export default function TodayCard(props: TodayCardProps) {
       date: now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: tz }),
     });
   }, [facts]);
+  return view;
+}
 
+export default function TodayCard(props: TodayCardProps & { view: TodayView | null }) {
   if (props.locked) {
     return (
-      <section className="ov-card td" aria-labelledby="td-h">
-        <div className="ov-card-head">
-          <h2 id="td-h"><span className="ov-h-ico primary"><Sun size={14} /></span> Today</h2>
-        </div>
-        <div className="td-locked">
-          <Lock size={14} aria-hidden />
-          <p>Daily recommendations are on {props.locked.planName}: the few things worth doing today, from your own Calendar, plan, comments and posts.</p>
-          <Link href={props.locked.href} className="ov-link">See {props.locked.planName} <ArrowRight size={13} /></Link>
-        </div>
-      </section>
+      <Card>
+        <CardHeader title="Today" />
+        <Empty
+          action={
+            <ButtonLink href={props.locked.href} size="sm">
+              See {props.locked.planName}
+            </ButtonLink>
+          }
+        >
+          <b>Daily recommendations are on {props.locked.planName}.</b> The few things worth doing today, from your own Calendar, plan, comments and posts.
+        </Empty>
+      </Card>
     );
   }
 
+  const view = props.view;
   return (
-    <section className="ov-card td" aria-labelledby="td-h">
-      <div className="ov-card-head">
-        <h2 id="td-h"><span className="ov-h-ico primary"><Sun size={14} /></span> Today</h2>
-        <span className="ov-range-label">{view?.date ?? " "}</span>
-      </div>
+    <Card>
+      <CardHeader title="Today" period={view?.date} />
       {!view ? (
-        <ul className="td-list" aria-busy="true">
-          {[0, 1, 2].map((i) => <li key={i} className="td-row td-ph" aria-hidden><span className="td-ico" /><span className="td-body"><i /><i /></span></li>)}
-        </ul>
+        <div className="s-stack" aria-busy="true">
+          <Skeleton variant="text" width="70%" />
+          <Skeleton variant="text" width="50%" />
+        </div>
       ) : view.summary.recs.length ? (
-        <ul className="td-list">
+        <ul className="dash-rows">
           {view.summary.recs.map((r) => {
             const Icon = ICON[r.kind];
             return (
-              <li key={r.kind} className={`td-row ${r.tone}`}>
-                <span className="td-ico"><Icon size={15} /></span>
-                <span className="td-body">
+              <li key={r.kind} className={cn("dash-row", `is-${r.tone}`)}>
+                <Icon aria-hidden />
+                <span className="dash-row-body">
                   <b>{r.title}</b>
-                  <small>{r.detail}</small>
+                  <small>
+                    {r.detail}
+                    {r.external && (
+                      <>
+                        {" "}
+                        <a href={r.external.href} target="_blank" rel="noopener noreferrer">
+                          {r.external.label}
+                        </a>
+                      </>
+                    )}
+                  </small>
                 </span>
-                <span className="td-acts">
-                  <Link href={r.href} className="td-cta">{r.cta} <ArrowRight size={12} /></Link>
-                  {r.external && <a href={r.external.href} target="_blank" rel="noopener noreferrer" className="td-ext">{r.external.label} <ArrowUpRight size={12} /></a>}
+                <span className="dash-row-acts">
+                  <ButtonLink href={r.href} size="sm" variant={r.tone === "urgent" ? "primary" : "secondary"}>
+                    {r.cta}
+                  </ButtonLink>
                 </span>
               </li>
             );
           })}
         </ul>
       ) : (
-        <div className="td-clear">
-          <CheckCircle2 size={16} aria-hidden />
-          <p>
-            <b>Nothing needs you today.</b>{" "}
-            {view.summary.next ? <>Your next post, {`“${view.summary.next.title}”`}, goes out {view.summary.next.when}.</> : null}
-          </p>
-        </div>
+        <p className="dash-notice">
+          <CheckCircle2 aria-hidden />
+          <span>
+            <b>Nothing needs you today.</b>
+            {view.summary.next ? ` Your next post, "${view.summary.next.title}", goes out ${view.summary.next.when}.` : ""}
+          </span>
+        </p>
       )}
-      <small className="ov-source">From your Calendar, Content Plan, comments and posts, in your time zone.</small>
-    </section>
+      <CardSource>From your Calendar, Content Plan, comments and posts, in your time zone.</CardSource>
+    </Card>
   );
 }
+
+export { Button as TodayButton };

@@ -8,7 +8,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Repeat2, Film, Image as ImageIcon, Loader2, ArrowUpRight } from "lucide-react";
+import { Film, Image as ImageIcon } from "lucide-react";
+import { Button, Card, CardHeader, CardSource } from "@/components/system";
 import { fmtMultiplier } from "@/lib/multiplier";
 import { markRepurposeCaptions } from "@/lib/repurposeHandoff";
 import type { Candidate } from "@/lib/repurpose";
@@ -53,40 +54,55 @@ export default function RepurposeCard({ candidates }: { candidates: Candidate[] 
   }
 
   return (
-    <section className="ov-card rp" aria-labelledby="rp-h">
-      <div className="ov-card-head">
-        <div>
-          <h2 id="rp-h"><span className="ov-h-ico primary"><Repeat2 size={14} /></span> Worth posting again</h2>
-          <p className="ov-card-sub">Your best recent posts that aren&apos;t on your other platforms yet. One click makes a draft with a caption written for each one.</p>
-        </div>
-      </div>
-      <ul className="rp-list">
+    <Card>
+      <CardHeader title="Worth posting again" />
+      <p className="s-source" style={{ margin: "0 0 var(--sp-3)" }}>
+        Your best recent posts that are not on your other platforms yet. One click makes a draft with a caption written for each one.
+      </p>
+      <ul className="dash-rows">
         {candidates.map((c) => (
-          <li key={c.key} className="rp-row">
+          <li key={c.key} className="dash-row">
             {c.thumb ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={c.thumb} alt="" width={48} height={48} className="rp-thumb" />
-            ) : <span className="rp-thumb ph">{c.kind === "image" ? <ImageIcon size={16} /> : <Film size={16} />}</span>}
-            <span className="rp-body">
+              <img src={c.thumb} alt="" width={48} height={48} className="dash-thumb dash-thumb--lg" />
+            ) : (
+              <span className="dash-thumb dash-thumb--lg dash-thumb--ph" aria-hidden>
+                {c.kind === "image" ? <ImageIcon /> : <Film />}
+              </span>
+            )}
+            <span className="dash-row-body">
               <b>{c.title}</b>
               <small>
-                {fmtMultiplier(c.multiplier)} your median {NAME[c.from]} {c.metric === "views" ? "views" : "engagement"} ({c.sample} posts)
-                {" · "}{new Date(c.postedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                {c.permalink && <> {" · "}<a href={c.permalink} target="_blank" rel="noopener noreferrer">See it <ArrowUpRight size={11} /></a></>}
+                {fmtMultiplier(c.multiplier)} your median {NAME[c.from]} {c.metric === "views" ? "views" : "engagement"} ({c.sample} posts), posted{" "}
+                {new Date(c.postedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                {c.permalink && (
+                  <>
+                    {". "}
+                    <a href={c.permalink} target="_blank" rel="noopener noreferrer">
+                      See it
+                    </a>
+                  </>
+                )}
               </small>
-              <small className="rp-where">
+              <small>
                 {c.checked.length ? `Not found on your ${list(c.checked)}.` : null}
                 {c.checked.length < c.targets.length ? `${c.checked.length ? " " : ""}${both(c.targets.filter((p) => !c.checked.includes(p)))}: SOCIA couldn't check.` : null}
               </small>
-              {error?.key === c.key && <small className="rp-err" role="alert">{error.text}</small>}
+              {error?.key === c.key && (
+                <small className="s-error" role="alert">
+                  {error.text}
+                </small>
+              )}
             </span>
-            <button type="button" className="td-cta rp-go" disabled={busy !== null} onClick={() => void repurpose(c)}>
-              {busy === c.key ? <><Loader2 size={12} className="cp-spin" /> Copying</> : <>Post to {both(c.targets)}</>}
-            </button>
+            <span className="dash-row-acts">
+              <Button size="sm" busy={busy === c.key} disabled={busy !== null} onClick={() => void repurpose(c)}>
+                {busy === c.key ? "Copying" : `Post to ${both(c.targets)}`}
+              </Button>
+            </span>
           </li>
         ))}
       </ul>
-      <small className="ov-source">Measured against your own median on each platform over the last 90 days. A post counts as already there when SOCIA sent it there or finds the same caption.</small>
-    </section>
+      <CardSource>Measured against your own median on each platform over the last 90 days. A post counts as already there when SOCIA sent it there or finds the same caption.</CardSource>
+    </Card>
   );
 }

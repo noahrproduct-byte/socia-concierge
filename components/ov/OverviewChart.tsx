@@ -23,6 +23,8 @@ type Props = {
   postById?: Record<string, PostCard>;
   onPick?: (b: Bucket, isOutlier: boolean) => void;
   today?: string;
+  /** Draw the final state at once: no bar growth or line draw-in on mount or on metric change. */
+  still?: boolean;
 };
 
 const GRAN_WORD: Record<Granularity, string> = { day: "day", week: "week", month: "month", year: "year" };
@@ -35,14 +37,15 @@ export function driverOf(ids: string[], postById?: Record<string, PostCard>): Po
   return [...ps].sort((a, b) => (haveViews ? b.views! - a.views! : b.engagements - a.engagements))[0];
 }
 
-export default function OverviewChart({ series, granularity = "day", showPrevious = true, height = 240, compact = false, fitScale, baseline = null, postById, onPick, today }: Props) {
+export default function OverviewChart({ series, granularity = "day", showPrevious = true, height = 240, compact = false, fitScale, baseline = null, postById, onPick, today, still = false }: Props) {
   const [hover, setHover] = useState<number | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(still);
   useEffect(() => {
+    if (still) return;
     setMounted(false);
     const t = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(t);
-  }, [series.metric, granularity]);
+  }, [series.metric, granularity, still]);
 
   const isFollowers = series.metric === "followers";
   const mode = isFollowers ? "last" : "sum";

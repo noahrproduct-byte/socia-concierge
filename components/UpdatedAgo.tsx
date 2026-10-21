@@ -22,9 +22,5 @@ export default function UpdatedAgo({ at }: { at: string | null }) {
     return () => clearInterval(t);
   }, []);
   if (!at || now == null) return null;
-  return (
-    <small className="upd-ago" title={`Fetched from the platforms at ${new Date(at).toLocaleTimeString()}. Reused for up to 15 minutes.`}>
-      Platform data updated {ago(at, now)}
-    </small>
-  );
+  return <span title={`Fetched from the platforms at ${new Date(at).toLocaleTimeString()}. Reused for up to 15 minutes.`}>Updated {ago(at, now)}</span>;
 }

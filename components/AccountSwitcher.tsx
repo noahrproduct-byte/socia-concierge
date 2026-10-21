@@ -1,24 +1,15 @@
 "use client";
 
-// The account switcher. It lists the Instagram accounts actually connected to
-// this user, switches which one is active (every page reads through the
-// active account, so a switch changes the whole app), and gates adding
-// accounts by the plan's Brand Workspace limit (one Instagram account per
-// workspace). The limit and plan names come from /api/accounts, never from here.
+// The Instagram account switcher. It lists the Instagram accounts actually
+// connected to this user, switches which one is active (every page reads
+// through the active account, so a switch changes the whole app), and gates
+// adding accounts by the plan's Brand Workspace limit (one Instagram account
+// per workspace). The limit and plan names come from /api/accounts.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Check, Camera, Plus, Gem, Loader2 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-} from "@/components/ui/dropdown-menu";
+import { Camera, Check, ChevronDown, Gem, Loader2, Plus } from "lucide-react";
+import { Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from "@/components/system";
 
 type Account = {
   ig_user_id: string | null;
@@ -28,6 +19,15 @@ type Account = {
   suspended?: boolean;
   avatar: string | null;
 };
+
+function Avatar({ src, size = 16 }: { src: string | null; size?: number }) {
+  return src ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: "var(--r-pill)", flex: "none" }} />
+  ) : (
+    <Camera aria-hidden />
+  );
+}
 
 export default function AccountSwitcher() {
   const router = useRouter();
@@ -68,9 +68,7 @@ export default function AccountSwitcher() {
         body: JSON.stringify({ ig_user_id: a.ig_user_id }),
       });
       if (res.ok) {
-        setAccounts((xs) =>
-          (xs ?? []).map((x) => ({ ...x, is_active: x.ig_user_id === a.ig_user_id })),
-        );
+        setAccounts((xs) => (xs ?? []).map((x) => ({ ...x, is_active: x.ig_user_id === a.ig_user_id })));
         router.refresh();
       }
     } finally {
@@ -82,70 +80,40 @@ export default function AccountSwitcher() {
   const canAdd = accounts.filter((a) => !a.suspended).length < limit;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="pill-btn" aria-label="Switch account">
-        {active.avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={active.avatar} alt="" width={16} height={16} className="acsw-avatar" />
-        ) : (
-          <Camera size={15} />
-        )}
+    <Menu>
+      <MenuTrigger className="s-btn s-btn--secondary" aria-label={`Instagram account: @${active.username ?? "unknown"}. Switch account`}>
+        <Avatar src={active.avatar} />
         {active.username ? `@${active.username}` : "Account"}
-        <ChevronDown size={14} className="drop-chev" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Instagram accounts</DropdownMenuLabel>
-          <DropdownMenuSeparator />
+        <ChevronDown aria-hidden />
+      </MenuTrigger>
+      <MenuContent align="start" style={{ minWidth: 240 }}>
+        <MenuGroup label="Instagram accounts">
           {accounts.map((a) => (
-            <DropdownMenuItem
+            <MenuItem
               key={a.ig_user_id ?? a.username ?? "?"}
-              onClick={() => switchTo(a)}
+              onClick={() => void switchTo(a)}
               disabled={Boolean(a.suspended)}
-              className="gap-2"
+              why={a.suspended ? "Paused" : undefined}
+              end={switching === a.ig_user_id ? <Loader2 className="s-spin" aria-hidden /> : a.is_active ? <Check aria-label="Active" /> : undefined}
             >
-              {a.avatar ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.avatar} alt="" width={18} height={18} className="acsw-avatar" />
-              ) : (
-                <Camera size={15} />
-              )}
-              <span className="flex-1">@{a.username ?? "unknown"}</span>
-              {a.suspended ? (
-                <DropdownMenuShortcut>Paused</DropdownMenuShortcut>
-              ) : switching === a.ig_user_id ? (
-                <Loader2 size={14} className="acsw-spin" />
-              ) : (
-                a.is_active && <Check size={14} />
-              )}
-            </DropdownMenuItem>
+              <Avatar src={a.avatar} size={18} />
+              <span>@{a.username ?? "unknown"}</span>
+            </MenuItem>
           ))}
-          <DropdownMenuSeparator />
-          {canAdd ? (
-            <DropdownMenuItem
-              className="gap-2"
-              onClick={() => {
-                window.location.href = "/api/auth/instagram/start";
-              }}
-            >
-              <Plus size={15} />
-              <span className="flex-1">Add Instagram account</span>
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              className="gap-2"
-              onClick={() => {
-                window.location.href = "/settings#plan";
-              }}
-            >
-              <Gem size={14} />
-              <span className="flex-1">
-                {nextPlanName ? `More workspaces with ${nextPlanName}` : `Workspace limit reached (${limit})`}
-              </span>
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </MenuGroup>
+        <MenuSeparator />
+        {canAdd ? (
+          <MenuItem href="/api/auth/instagram/start">
+            <Plus aria-hidden />
+            <span>Add Instagram account</span>
+          </MenuItem>
+        ) : (
+          <MenuItem href="/settings#plan">
+            <Gem aria-hidden />
+            <span>{nextPlanName ? `More workspaces with ${nextPlanName}` : `Workspace limit reached (${limit})`}</span>
+          </MenuItem>
+        )}
+      </MenuContent>
+    </Menu>
   );
 }
