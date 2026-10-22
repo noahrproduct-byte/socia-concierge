@@ -6,8 +6,8 @@
 
 html {
   scrollbar-color: var(--border-strong) transparent;
-  accent-color: var(--accent);
-  caret-color: var(--accent);
+  accent-color: var(--action);
+  caret-color: var(--ink);
 }
 
 ::selection {
@@ -62,6 +62,9 @@ html {
    stylesheet layer, so the system carries its own). */
 .s-sr {
   position: absolute;
+  /* pinned to the start so hidden text inside a clipped, nowrap line never widens the page */
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;

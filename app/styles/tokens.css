@@ -5,10 +5,16 @@
    counts). Light values on :root, dark values under [data-theme="dark"] and
    .dark (ThemeScript sets both on <html>).
 
-   Contrast (WCAG, sRGB) was computed for every text pair on 2026-10-20:
-   ink-2 7.5:1 and ink-3 5.4:1 on white, 7.0 and 5.0 on the ground; accent
-   with white text 4.9:1; accent-ink 6.7:1 on white and 7.4:1 on the dark
-   ground; status inks 5.0:1 or better on both themes.
+   2026-10-21: retuned to the language measured in the ElevenLabs study
+   (library/references/elevenlabs.md): hue-less neutrals, alpha-black fills
+   and text tiers, near-black actions, one ring-and-drop recipe for raised
+   surfaces and one six-layer recipe for floating ones, concentric radii,
+   75ms colour changes. Colour is kept for data only: the cobalt accent is
+   the chart series, links and the focus ring, never the chrome.
+
+   Contrast (WCAG, sRGB), light: ink-2 8.6:1 and ink-3 5.0:1 on white;
+   action with white text 19:1; accent-ink 6.7:1 on white. Dark: ink-3
+   6.3:1 on the page; accent-ink 7.4:1; status inks 5.0:1 or better.
 
    Old names (--primary, --text-primary, --cobalt, the shadcn names, --dur…)
    are kept as aliases so every existing rule keeps working while pages
@@ -19,25 +25,33 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  /* ---- surfaces ---------------------------------------------------------- */
-  --ground: #f5f6fa;
+  /* ---- surfaces: the page is white, the sidebar a shade off ------------- */
+  --ground: #fafafa;
   --surface: #ffffff;
-  --surface-raised: #f5f6fa;
-  --surface-hover: #edeff3;
-  --border: #e8e9ec;
-  --border-strong: #cfd3db;
-  --rule: #f0f1f4;
-  --nav-active: #e8eaf0;
-  --inverse-surface: #0f172a;
+  --surface-raised: rgba(15, 15, 16, 0.02);
+  --surface-hover: rgba(15, 15, 16, 0.043);
+  --surface-strong: rgba(15, 15, 16, 0.075);
+  --border: rgba(15, 15, 16, 0.075);
+  --border-strong: rgba(15, 15, 16, 0.12);
+  --rule: rgba(15, 15, 16, 0.06);
+  --nav-active: rgba(15, 15, 16, 0.043);
+  --inverse-surface: #0f0f10;
   --inverse-text: #ffffff;
+  --overlay: rgba(15, 15, 16, 0.32);
 
-  /* ---- ink ----------------------------------------------------------------- */
-  --ink: #0f172a;
-  --ink-2: #4b5565;
-  --ink-3: #646b7a;
-  --ink-disabled: #a3abb8;
+  /* ---- ink: one black, three alpha tiers ----------------------------------- */
+  --ink: #0f0f10;
+  --ink-2: rgba(15, 15, 16, 0.74);
+  --ink-3: rgba(15, 15, 16, 0.6);
+  --ink-disabled: rgba(15, 15, 16, 0.36);
 
-  /* ---- the one accent ------------------------------------------------------ */
+  /* ---- action: near-black, the only solid fill in the chrome --------------- */
+  --action: #0f0f10;
+  --action-hover: #2b2b2e;
+  --action-rgb: 15, 15, 16;
+  --on-action: #ffffff;
+
+  /* ---- accent: data, links and focus only ---------------------------------- */
   --accent: #2563ff;
   --accent-hover: #1d4ed8;
   --accent-ink: #1d4ed8;
@@ -62,19 +76,31 @@
   --brand-facebook: #1877f2;
   --brand-tiktok: #0ea5b7;
 
-  /* ---- charts -------------------------------------------------------------- */
-  --chart-grid: #e8e9ec;
-  --chart-axis: #646b7a;
+  /* ---- charts: the accent on the data, neutrals for the rest --------------- */
+  --chart-grid: rgba(15, 15, 16, 0.075);
+  --chart-axis: rgba(15, 15, 16, 0.6);
   --chart-series: var(--accent);
-  --chart-series-2: #94a3b8;
-  --chart-series-3: #475569;
-  --chart-tooltip-bg: #0f172a;
+  --chart-series-2: #a3a3a8;
+  --chart-series-3: #55555b;
+  --chart-tooltip-bg: #0f0f10;
   --chart-tooltip-text: #ffffff;
 
-  /* ---- shadows: only on what floats ---------------------------------------- */
-  --shadow-rgb: 15, 23, 42;
-  --shadow-float: 0 8px 24px rgba(var(--shadow-rgb), 0.12);
-  --shadow-dialog: 0 16px 48px rgba(var(--shadow-rgb), 0.18);
+  /* ---- elevation: a ring for raised, six layers for floating --------------- */
+  --shadow-rgb: 15, 15, 16;
+  --shadow-ring: 0 0 0 1px rgba(15, 15, 16, 0.06);
+  --shadow-raised:
+    0 0 0 1px rgba(15, 15, 16, 0.06),
+    0 1px 1px -0.5px rgba(15, 15, 16, 0.06),
+    0 3px 3px -1.5px rgba(15, 15, 16, 0.06);
+  --shadow-float:
+    0 0 0 1px rgba(15, 15, 16, 0.06),
+    0 1px 1px -0.5px rgba(15, 15, 16, 0.06),
+    0 3px 3px -1.5px rgba(15, 15, 16, 0.06),
+    0 6px 6px -3px rgba(15, 15, 16, 0.06),
+    0 12px 12px -6px rgba(15, 15, 16, 0.06),
+    0 24px 24px -12px rgba(15, 15, 16, 0.06);
+  --shadow-dialog: var(--shadow-float);
+  --shadow-seg: 0 1px 2px rgba(15, 15, 16, 0.08), 0 0 0 1px rgba(15, 15, 16, 0.04);
 
   /* ---- type: one family, five app sizes, three weights --------------------- */
   --font: var(--font-sans), "Inter", -apple-system, BlinkMacSystemFont,
@@ -102,27 +128,31 @@
   --card-pad: 20px;
   --page-pad: 24px;
 
-  /* ---- shape: tight and concentric ----------------------------------------- */
-  --r-chip: 4px;
-  --r-control: 6px;
-  --r-card: 8px;
-  --r-panel: 12px;
+  /* ---- shape: concentric, growing with the element -------------------------
+     chip 6 sits inside control 8 with 2px padding; card 12 inside panel 16
+     with 4px padding; dialogs 24. Pills for badges and round buttons. ------ */
+  --r-chip: 6px;
+  --r-control: 8px;
+  --r-card: 12px;
+  --r-panel: 16px;
+  --r-dialog: 24px;
   --r-pill: 999px;
 
   /* ---- sizes --------------------------------------------------------------- */
   --control-h: 32px;
   --control-h-sm: 28px;
   --control-h-lg: 44px;
-  --nav-row: 34px;
+  --nav-row: 32px;
   --row-h: 44px;
-  --topbar-h: 48px;
-  --sidebar-w: 232px;
+  --topbar-h: 52px;
+  --sidebar-w: 240px;
 
-  /* ---- motion: feedback only ---------------------------------------------- */
-  --t-press: 100ms;
+  /* ---- motion: colour changes are near-instant, movement is short ---------- */
+  --t-press: 75ms;
   --t-menu: 150ms;
   --t-panel: 200ms;
   --t-dialog: 250ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-move: cubic-bezier(0.77, 0, 0.175, 1);
 
@@ -135,9 +165,10 @@
 
   /* ======================================================================
      Aliases: the names the existing stylesheets use. Remove each alias once
-     nothing references it (grep before deleting).
+     nothing references it (grep before deleting). --primary now means the
+     action colour, so legacy buttons turn near-black with the system.
      ====================================================================== */
-  --background: var(--ground);
+  --background: var(--surface);
   --surface-elevated: var(--surface);
   --surface-muted: var(--surface-raised);
   --text-primary: var(--ink);
@@ -145,13 +176,13 @@
   --text-muted: var(--ink-3);
   --text-disabled: var(--ink-disabled);
 
-  --primary: var(--accent);
-  --primary-hover: var(--accent-hover);
-  --primary-bright: #4f7dff;
+  --primary: var(--action);
+  --primary-hover: var(--action-hover);
+  --primary-bright: var(--action-hover);
   --primary-text: var(--accent-ink);
-  --primary-subtle: var(--accent-subtle);
-  --primary-rgb: var(--accent-rgb);
-  --on-primary: var(--on-accent);
+  --primary-subtle: var(--surface-hover);
+  --primary-rgb: var(--action-rgb);
+  --on-primary: var(--on-action);
   --accent-strong: var(--accent-hover);
   --accent-soft: var(--accent-subtle);
   --amber: var(--warning);
@@ -167,18 +198,18 @@
   --panel-dark: var(--inverse-surface);
   --panel-dark-text: var(--inverse-text);
 
-  /* the sidebar keeps its own tokens until phase 2 moves it onto the ground */
-  --sidebar: #0b101d;
-  --sidebar-hover: rgba(255, 255, 255, 0.05);
-  --sidebar-active: rgba(37, 99, 255, 0.22);
-  --sidebar-active-text: #9dbbff;
-  --sidebar-text: rgba(255, 255, 255, 0.64);
-  --sidebar-text-strong: #ffffff;
-  --sidebar-muted: rgba(255, 255, 255, 0.36);
-  --sidebar-border: rgba(255, 255, 255, 0.07);
+  /* the legacy sidebar names now read the shell's own tokens */
+  --sidebar: var(--ground);
+  --sidebar-hover: var(--surface-hover);
+  --sidebar-active: var(--nav-active);
+  --sidebar-active-text: var(--ink);
+  --sidebar-text: var(--ink-3);
+  --sidebar-text-strong: var(--ink);
+  --sidebar-muted: var(--ink-disabled);
+  --sidebar-border: var(--border);
 
   /* legacy brand names */
-  --ivory: var(--ground);
+  --ivory: var(--surface);
   --silver: var(--border);
   --cobalt: var(--accent);
   --sky: var(--accent-ink);
@@ -194,7 +225,7 @@
   --card-foreground: var(--ink);
   --popover: var(--surface);
   --popover-foreground: var(--ink);
-  --primary-foreground: var(--on-accent);
+  --primary-foreground: var(--on-action);
   --secondary: var(--surface-raised);
   --secondary-foreground: var(--ink);
   --muted: var(--surface-raised);
@@ -209,10 +240,10 @@
   --chart-3: var(--chart-series-3);
   --chart-4: var(--positive);
   --chart-5: var(--warning);
-  --radius: 0.5rem;
+  --radius: 0.625rem;
   --sidebar-foreground: var(--sidebar-text-strong);
-  --sidebar-primary: var(--accent);
-  --sidebar-primary-foreground: var(--on-accent);
+  --sidebar-primary: var(--action);
+  --sidebar-primary-foreground: var(--on-action);
   --sidebar-accent: var(--sidebar-hover);
   --sidebar-accent-foreground: var(--sidebar-text-strong);
   --sidebar-ring: var(--accent);
@@ -229,21 +260,28 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --ground: #0f1115;
-  --surface: #161920;
-  --surface-raised: #1d2129;
-  --surface-hover: #232833;
-  --border: #262b35;
-  --border-strong: #343a46;
-  --rule: #1b1f27;
-  --nav-active: #232833;
-  --inverse-surface: #eef1f8;
-  --inverse-text: #0f172a;
+  --ground: #141416;
+  --surface: #0f0f10;
+  --surface-raised: rgba(255, 255, 255, 0.04);
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --surface-strong: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --rule: rgba(255, 255, 255, 0.07);
+  --nav-active: rgba(255, 255, 255, 0.07);
+  --inverse-surface: #f5f5f6;
+  --inverse-text: #0f0f10;
+  --overlay: rgba(0, 0, 0, 0.6);
 
-  --ink: #eef1f8;
-  --ink-2: #a8b0c0;
-  --ink-3: #8a93a6;
-  --ink-disabled: #566070;
+  --ink: #f5f5f6;
+  --ink-2: rgba(245, 245, 246, 0.74);
+  --ink-3: rgba(245, 245, 246, 0.6);
+  --ink-disabled: rgba(245, 245, 246, 0.36);
+
+  --action: #f5f5f6;
+  --action-hover: #ffffff;
+  --action-rgb: 245, 245, 246;
+  --on-action: #0f0f10;
 
   --accent: #2563ff;
   --accent-hover: #3b76ff;
@@ -262,25 +300,31 @@
   --negative-ink: #f87171;
   --negative-bg: rgba(239, 68, 68, 0.14);
 
-  --chart-grid: #262b35;
-  --chart-axis: #8a93a6;
+  --chart-grid: rgba(255, 255, 255, 0.08);
+  --chart-axis: rgba(245, 245, 246, 0.6);
   --chart-series: var(--accent-ink);
-  --chart-series-2: #64748b;
-  --chart-series-3: #94a3b8;
-  --chart-tooltip-bg: #1d2129;
-  --chart-tooltip-text: #eef1f8;
+  --chart-series-2: #6b6b70;
+  --chart-series-3: #a0a0a6;
+  --chart-tooltip-bg: #1c1c1f;
+  --chart-tooltip-text: #f5f5f6;
 
   --shadow-rgb: 0, 0, 0;
-  --shadow-float: 0 8px 24px rgba(var(--shadow-rgb), 0.4);
-  --shadow-dialog: 0 16px 48px rgba(var(--shadow-rgb), 0.5);
+  --shadow-ring: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-raised:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 1px 1px -0.5px rgba(0, 0, 0, 0.4),
+    0 3px 3px -1.5px rgba(0, 0, 0, 0.4);
+  --shadow-float:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 1px 1px -0.5px rgba(0, 0, 0, 0.5),
+    0 3px 3px -1.5px rgba(0, 0, 0, 0.5),
+    0 6px 6px -3px rgba(0, 0, 0, 0.5),
+    0 12px 12px -6px rgba(0, 0, 0, 0.5),
+    0 24px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-dialog: var(--shadow-float);
+  --shadow-seg: 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
 
-  --primary-bright: #4f7dff;
   --success-rgb: 34, 197, 94;
   --warning-rgb: 245, 158, 11;
   --danger-rgb: 239, 68, 68;
-
-  --sidebar: #0f1115;
-  --sidebar-active: rgba(96, 165, 250, 0.18);
-  --sidebar-active-text: #9dbbff;
-  --sidebar-border: #262b35;
 }
