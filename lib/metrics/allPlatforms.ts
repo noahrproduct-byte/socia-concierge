@@ -73,7 +73,7 @@ export function buildAllPlatforms(summaries: PlatformSummary[]): AllPlatformsDat
     },
     engagement: {
       value: sumOf((s) => s.engagement),
-      note: `Likes, comments, shares and reactions across platforms — directional, since each platform defines engagement a little differently.`,
+      note: `Likes, comments, shares and reactions across platforms. Directional, since each platform defines engagement a little differently.`,
     },
   };
 
@@ -85,7 +85,7 @@ export function buildAllPlatforms(summaries: PlatformSummary[]): AllPlatformsDat
     insights.push({
       id: "audience",
       title: "Largest audience",
-      body: `Your biggest audience is on ${PLATFORM_NAME[top.platform]} — ${top.audience!.toLocaleString("en-US")} ${top.audienceLabel}.`,
+      body: `Your biggest audience is on ${PLATFORM_NAME[top.platform]}: ${top.audience!.toLocaleString("en-US")} ${top.audienceLabel}.`,
     });
   }
 

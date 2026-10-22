@@ -8,7 +8,7 @@
   display: grid;
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
-  background: var(--ground);
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -85,7 +85,7 @@
   border: 0;
   border-radius: var(--r-control);
   background: transparent;
-  color: var(--ink-2);
+  color: var(--ink-3);
   font-family: var(--font);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -93,7 +93,7 @@
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+  transition: background-color var(--t-press) var(--ease-standard), color var(--t-press) var(--ease-standard);
 }
 .s-nav-item svg {
   width: 16px;
@@ -109,10 +109,10 @@
 }
 .s-nav-item[aria-current="page"] {
   background: var(--nav-active);
-  color: var(--accent-ink);
+  color: var(--ink);
 }
 .s-nav-item[aria-current="page"] svg {
-  color: var(--accent-ink);
+  color: var(--ink);
 }
 .s-nav-count {
   color: var(--ink-3);
@@ -139,9 +139,9 @@
   gap: 2px;
   padding: var(--sp-2);
   margin-bottom: var(--sp-2);
-  border: 1px solid var(--border);
   border-radius: var(--r-card);
   background: var(--surface);
+  box-shadow: var(--shadow-ring);
   color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
@@ -178,7 +178,7 @@
   font-family: var(--font);
   text-align: left;
   cursor: pointer;
-  transition: background-color var(--t-press) var(--ease-out);
+  transition: background-color var(--t-press) var(--ease-standard);
 }
 .s-account[data-popup-open],
 .s-account[aria-expanded="true"] {
@@ -195,10 +195,10 @@
   width: 24px;
   height: 24px;
   border-radius: var(--r-pill);
-  background: var(--accent-subtle);
-  color: var(--accent-ink);
+  background: var(--surface-strong);
+  color: var(--ink);
   font-size: var(--fs-meta);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   flex: none;
 }
 .s-account-meta {
@@ -243,7 +243,7 @@
   height: var(--topbar-h);
   padding: 0 var(--page-pad);
   border-bottom: 1px solid var(--border);
-  background: var(--ground);
+  background: var(--surface);
 }
 .s-topbar-menu,
 .s-topbar-title {
@@ -253,7 +253,7 @@
   color: var(--ink);
   font-size: var(--fs-section);
   line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -277,7 +277,7 @@
   line-height: var(--lh-body);
   text-align: left;
   cursor: text;
-  transition: border-color var(--t-press) var(--ease-out);
+  transition: border-color var(--t-press) var(--ease-standard);
 }
 .s-search svg {
   width: 16px;
@@ -304,7 +304,7 @@
   flex: none;
 }
 .s-content {
-  padding: var(--sp-5) var(--page-pad) var(--sp-10);
+  padding: var(--sp-6) var(--page-pad) var(--sp-12);
   width: 100%;
   max-width: 1560px;
   min-width: 0;
@@ -364,7 +364,7 @@ html[data-ws-switching]::after {
   background: var(--negative);
 }
 .s-bell-pop {
-  width: 380px;
+  width: 400px;
   padding: 0;
   overflow: hidden;
 }
@@ -377,7 +377,7 @@ html[data-ws-switching]::after {
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
 }
 .s-bell-head + .s-bell-head {
   border-top: 1px solid var(--border);
@@ -458,9 +458,10 @@ html[data-ws-switching]::after {
 .s-cmd {
   inset: 0;
   margin: 12vh auto auto;
-  width: min(560px, calc(100vw - 32px));
+  width: min(640px, calc(100vw - 32px));
   max-height: 70vh;
   padding: 0;
+  border-radius: var(--r-panel);
   display: flex;
   flex-direction: column;
 }
@@ -468,7 +469,7 @@ html[data-ws-switching]::after {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  height: var(--row-h);
+  height: var(--topbar-h);
   padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--border);
 }
@@ -504,12 +505,13 @@ html[data-ws-switching]::after {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  height: 36px;
+  height: 40px;
   padding: 0 var(--sp-2);
-  border-radius: var(--r-chip);
+  border-radius: var(--r-card);
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
   cursor: pointer;
 }
 .s-cmd-item svg {
@@ -531,7 +533,7 @@ html[data-ws-switching]::after {
   white-space: nowrap;
 }
 .s-cmd-item[aria-selected="true"] {
-  background: var(--surface-raised);
+  background: var(--surface-hover);
 }
 .s-cmd-item[aria-disabled="true"] {
   color: var(--ink-3);
