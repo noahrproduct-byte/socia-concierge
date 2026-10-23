@@ -74,7 +74,7 @@ create or replace function public.socia_guard_workspace_insert()
 returns trigger
 language plpgsql
 security invoker
-set search_path = public
+set search_path = public, pg_temp
 as $$
 begin
   if public.socia_is_privileged() then
@@ -108,7 +108,7 @@ create or replace function public.socia_guard_connection_write()
 returns trigger
 language plpgsql
 security invoker
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   identity_col text := tg_argv[0];
@@ -167,7 +167,7 @@ create or replace function public.socia_ai_cleanup()
 returns void
 language sql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   delete from public.oauth_requests where expires_at < now() - interval '1 day';
   delete from public.oauth_codes where expires_at < now() - interval '1 day';
@@ -233,7 +233,7 @@ create or replace function public.socia_guard_workspace_fk()
 returns trigger
 language plpgsql
 security invoker
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   ws uuid := nullif(to_jsonb(new) ->> 'workspace_id', '')::uuid;

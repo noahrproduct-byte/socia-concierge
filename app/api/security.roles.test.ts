@@ -85,3 +85,14 @@ describe("the calendar's own endpoints", () => {
     expect(writes).toEqual([]);
   });
 });
+
+describe("removing people", () => {
+  it("an Admin's removal fails closed when SOCIA can't confirm the person is a Member", async () => {
+    role = "admin";
+    const { DELETE } = await import("./team/[userId]/route");
+    // The stub's member list is empty, as when the read fails: nothing is removed.
+    const res = await DELETE(new Request("https://sociaos.com/x", { method: "DELETE" }), { params: Promise.resolve({ userId: "someone-else" }) });
+    expect(res.status).toBe(409);
+    expect(writes).toEqual([]);
+  });
+});

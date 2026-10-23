@@ -42,10 +42,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ user
   const self = userId === user.id;
   if (!self) {
     if (!can(ctx, "remove_member")) return NextResponse.json({ error: forbiddenCopy("remove_member") }, { status: 403 });
-    // An admin may remove members, never other admins.
+    // An admin may remove members, never other admins. Fails closed: unless the
+    // person was read and is a Member, an admin's removal is refused.
     if (ctx.role === "admin") {
       const target = (await listMembers(supabase, ctx.workspace.id)).find((m) => m.userId === userId);
-      if (target?.role === "admin") return NextResponse.json({ error: "Only the workspace owner can remove an admin." }, { status: 403 });
+      if (!target) return NextResponse.json({ error: "That person isn't in this workspace, or SOCIA couldn't check. Try again." }, { status: 409 });
+      if (target.role !== "member") return NextResponse.json({ error: "Only the workspace owner can remove an admin." }, { status: 403 });
     }
   }
   // Owner and self go through the session (RLS allows both); an admin removing a member goes through the server.

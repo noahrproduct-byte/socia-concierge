@@ -4,7 +4,7 @@ import { requireFeature } from "@/lib/planGuard";
 import { getActiveConnection, getIgSnapshot } from "@/lib/instagramSync";
 import { interactionsTotal } from "@/lib/engagement";
 import { formatOf } from "@/lib/overview";
-import { scopeToWorkspace } from "@/lib/workspaces";
+import { scopeToWorkspace, isMissingColumnError } from "@/lib/workspaces";
 import { can } from "@/lib/context";
 import type { TimedPost } from "@/lib/postingTimes";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
@@ -150,7 +150,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (ins.error) {
         const { source: _s, ...plain } = draft; void _s;
         ins = wsId ? await ctx.client.from("scheduled_posts").insert({ ...plain, workspace_id: wsId }).select("id").single() : await ctx.client.from("scheduled_posts").insert(plain).select("id").single();
-        if (ins.error && wsId) ins = await ctx.client.from("scheduled_posts").insert(plain).select("id").single();
+        if (ins.error && wsId && isMissingColumnError(ins.error)) ins = await ctx.client.from("scheduled_posts").insert(plain).select("id").single();
       }
       if (ins.error) throw ins.error;
       const postId = (ins.data as { id: string }).id;

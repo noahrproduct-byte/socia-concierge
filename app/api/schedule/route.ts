@@ -6,7 +6,7 @@ import { getEntitlements, canUseFeature, checkFeature, type Entitlements } from 
 import type { PlanError } from "@/lib/planErrors";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
-import { scopeToWorkspace } from "@/lib/workspaces";
+import { scopeToWorkspace, isMissingColumnError } from "@/lib/workspaces";
 import { memberEditBlock } from "@/lib/approvals";
 import { isOwnPath } from "@/lib/storagePaths";
 import { dbErrorResponse } from "@/lib/dbError";
@@ -188,7 +188,8 @@ export async function POST(req: Request) {
   let { data, error } = ctx.workspace
     ? await ctx.client.from("scheduled_posts").insert(rows.map((r) => ({ ...r, workspace_id: ctx.workspace!.id }))).select("*")
     : await ctx.client.from("scheduled_posts").insert(rows).select("*");
-  if (error && ctx.workspace) ({ data, error } = await ctx.client.from("scheduled_posts").insert(rows).select("*"));
+  // Without the column only when the column is missing, never on another error.
+  if (error && ctx.workspace && isMissingColumnError(error)) ({ data, error } = await ctx.client.from("scheduled_posts").insert(rows).select("*"));
   if (error) return dbErrorResponse("schedule", error);
   return NextResponse.json({ posts: data ?? [], skipped, plan });
 }

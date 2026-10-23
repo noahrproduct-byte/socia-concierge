@@ -74,7 +74,7 @@ create or replace function public.socia_apply_plan_keep(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_now timestamptz := now();

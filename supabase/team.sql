@@ -52,12 +52,12 @@ alter table public.workspace_invites enable row level security;
 -- 2. Helpers (security definer so policies can consult workspaces without recursion)
 -- ---------------------------------------------------------------------------
 create or replace function public.socia_is_ws_owner(p_ws uuid)
-returns boolean language sql stable security definer set search_path = public as $fn$
+returns boolean language sql stable security definer set search_path = public, pg_temp as $fn$
   select exists (select 1 from public.workspaces w where w.id = p_ws and w.owner_id = auth.uid());
 $fn$;
 
 create or replace function public.socia_ws_role(p_ws uuid)
-returns text language sql stable security definer set search_path = public as $fn$
+returns text language sql stable security definer set search_path = public, pg_temp as $fn$
   select case
     when exists (select 1 from public.workspaces w where w.id = p_ws and w.owner_id = auth.uid()) then 'owner'
     else (select m.role from public.workspace_members m where m.workspace_id = p_ws and m.user_id = auth.uid())
@@ -73,7 +73,7 @@ grant execute on function public.socia_ws_role(uuid) to authenticated, service_r
 -- their workspaces. Internal (service role); the app shows the count from
 -- rows the owner can already read.
 create or replace function public.socia_seat_count(p_owner uuid)
-returns integer language sql stable security definer set search_path = public as $fn$
+returns integer language sql stable security definer set search_path = public, pg_temp as $fn$
   select 1 + count(distinct m.user_id)::integer
     from public.workspace_members m
     join public.workspaces w on w.id = m.workspace_id
@@ -100,11 +100,28 @@ begin
   create policy "workspace_members remove" on public.workspace_members for delete
     using (public.socia_is_ws_owner(workspace_id) or user_id = auth.uid());
 
-  -- Invites: owner and admins manage them. Nobody else can read a token.
+  -- Invites: the owner manages every invite; an Admin sees, creates and
+  -- cancels Member invites only; an invite is never edited except to cancel
+  -- it. (Same rules as security-hardening.sql section 12, so re-running this
+  -- file can't bring back the older, open policy.)
   drop policy if exists "workspace_invites manage" on public.workspace_invites;
-  create policy "workspace_invites manage" on public.workspace_invites for all
-    using (public.socia_is_ws_owner(workspace_id) or public.socia_ws_role(workspace_id) = 'admin')
-    with check (public.socia_is_ws_owner(workspace_id) or public.socia_ws_role(workspace_id) = 'admin');
+  drop policy if exists "workspace_invites read" on public.workspace_invites;
+  drop policy if exists "workspace_invites create" on public.workspace_invites;
+  drop policy if exists "workspace_invites cancel" on public.workspace_invites;
+  create policy "workspace_invites read" on public.workspace_invites for select
+    using (public.socia_is_ws_owner(workspace_id)
+           or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin'));
+  create policy "workspace_invites create" on public.workspace_invites for insert
+    with check (created_by = auth.uid()
+                and (public.socia_is_ws_owner(workspace_id)
+                     or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin')));
+  create policy "workspace_invites cancel" on public.workspace_invites for update
+    using (public.socia_is_ws_owner(workspace_id)
+           or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin'))
+    with check (public.socia_is_ws_owner(workspace_id)
+                or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin'));
+  revoke update, delete on public.workspace_invites from anon, authenticated;
+  grant update (revoked_at) on public.workspace_invites to authenticated;
 
   -- A member may read the workspace row they belong to (name, brand). Never update or delete it.
   drop policy if exists "workspaces member select" on public.workspaces;
@@ -121,7 +138,7 @@ create or replace function public.socia_accept_invite(p_token text, p_user uuid,
 returns table (workspace_id uuid, role text)
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $fn$
 declare
   v_inv public.workspace_invites%rowtype;
@@ -174,7 +191,7 @@ returns table (workspace_id uuid, workspace_name text, owner_id uuid, role text,
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $fn$
   select i.workspace_id, w.name, w.owner_id, i.role,
          case when i.revoked_at is not null then 'revoked'
@@ -199,7 +216,7 @@ create or replace function public.socia_consume_usage_for(p_user uuid, p_meter t
 returns table (used_count integer, allowed boolean)
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $fn$
 declare
   v_used integer;
