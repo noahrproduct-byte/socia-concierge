@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const id = new URL(req.url).searchParams.get("id") ?? "";
   if (!id) return NextResponse.json({ error: "id required." }, { status: 400 });
   try {
-    const src = await resolveMediaUrl(r.ctx.client, r.ctx.ownerId, id);
+    const src = await resolveMediaUrl(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     // Only Instagram's and Facebook's CDN, on every redirect: the stored link
     // is a row its owner can edit, so it is never trusted as is.
     if (!src || !isPlatformMediaUrl(src)) return NextResponse.json({ error: "That post's file isn't available to measure." }, { status: 404 });

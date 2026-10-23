@@ -71,7 +71,7 @@ describe("which rows are due", () => {
 });
 
 describe("browser work without a browser", () => {
-  const action = { kind: "youtube_resumable_upload" as const, sessionUri: "https://u", accessToken: "t", mediaId: "m1", videoId: null };
+  const action = { kind: "youtube_resumable_upload" as const, uploadHandle: "sealed", mediaId: "m1", videoId: null };
   it("the cron records a failed, non-retryable row a person can retry instead of an upload nobody starts", () => {
     const out = withoutBrowser({ status: "uploading", clientAction: action }, false);
     expect(out).toEqual({ status: "failed", errorCode: "needs_browser", errorMessage: NEEDS_BROWSER_MESSAGE, retryable: false });

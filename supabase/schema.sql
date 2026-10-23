@@ -1,3 +1,11 @@
+-- ===========================================================================
+-- RUN ONCE. This is the base schema, applied once in pieces as it grew. Do not
+-- run it again on a live database: later files (plans-security-fix.sql,
+-- billing.sql, security-hardening.sql) replaced several of the policies
+-- created here with stricter ones, and a re-run would try to restore the
+-- originals. On an empty database it runs cleanly from top to bottom.
+-- ===========================================================================
+
 -- SOCIA database schema
 -- Run this in your Supabase project: Dashboard → SQL Editor → New query → paste → Run.
 
@@ -448,12 +456,23 @@ create table if not exists public.ig_competitor_snapshots (
 );
 
 alter table public.ig_competitor_snapshots enable row level security;
-create policy "Users read their own ig competitor snapshots"
-  on public.ig_competitor_snapshots for select using (auth.uid() = user_id);
-create policy "Users write their own ig competitor snapshots"
-  on public.ig_competitor_snapshots for insert with check (auth.uid() = user_id);
-create policy "Users update their own ig competitor snapshots"
-  on public.ig_competitor_snapshots for update using (auth.uid() = user_id);
+-- (The same three policies are created above; guarded so a first run on an
+--  empty database does not fail on the duplicate.)
+do $$
+begin
+  if not exists (select 1 from pg_policies where tablename = 'ig_competitor_snapshots' and policyname = 'Users read their own ig competitor snapshots') then
+    create policy "Users read their own ig competitor snapshots"
+    on public.ig_competitor_snapshots for select using (auth.uid() = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where tablename = 'ig_competitor_snapshots' and policyname = 'Users write their own ig competitor snapshots') then
+    create policy "Users write their own ig competitor snapshots"
+    on public.ig_competitor_snapshots for insert with check (auth.uid() = user_id);
+  end if;
+  if not exists (select 1 from pg_policies where tablename = 'ig_competitor_snapshots' and policyname = 'Users update their own ig competitor snapshots') then
+    create policy "Users update their own ig competitor snapshots"
+    on public.ig_competitor_snapshots for update using (auth.uid() = user_id);
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- Scheduling: posts the user has queued for SOCIA to publish.

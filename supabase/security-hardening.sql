@@ -67,10 +67,13 @@ create policy "post_destinations owner update" on public.post_destinations
 --    (service role), which enforces the plan's workspace limit. Before, a
 --    direct REST insert skipped the limit.
 -- ---------------------------------------------------------------------------
+-- Security invoker on purpose: socia_is_privileged() reads current_user, which
+-- inside a security definer function is always the owner (postgres), so a
+-- definer guard would wave every browser write through.
 create or replace function public.socia_guard_workspace_insert()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 begin
@@ -98,10 +101,13 @@ create trigger socia_guard_workspace_insert
 --    Token refreshes and syncs (which update tokens and cached data on the
 --    same row) are unaffected.
 -- ---------------------------------------------------------------------------
+-- Security invoker on purpose: socia_is_privileged() reads current_user, which
+-- inside a security definer function is always the owner (postgres), so a
+-- definer guard would wave every browser write through.
 create or replace function public.socia_guard_connection_write()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
@@ -211,6 +217,8 @@ revoke execute on function public.socia_rate_hit(text, integer, integer) from an
 revoke execute on function public.socia_ai_cleanup() from anon, authenticated;
 revoke execute on function public.socia_guard_connection_write() from anon, authenticated;
 revoke execute on function public.socia_guard_workspace_insert() from anon, authenticated;
+-- Signed-out callers had it too (it refuses them, but they have no use for it).
+revoke execute on function public.socia_consume_usage(text, date, integer) from anon;
 
 -- ---------------------------------------------------------------------------
 -- 9. A row's workspace must be one the caller owns. Without this a person who
@@ -218,10 +226,13 @@ revoke execute on function public.socia_guard_workspace_insert() from anon, auth
 --    table this blocked the real owner from ever connecting that platform).
 --    The server writes guests' rows with the service role, which passes.
 -- ---------------------------------------------------------------------------
+-- Security invoker on purpose: socia_is_privileged() reads current_user, which
+-- inside a security definer function is always the owner (postgres), so a
+-- definer guard would wave every browser write through.
 create or replace function public.socia_guard_workspace_fk()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = public
 as $$
 declare
@@ -264,3 +275,54 @@ end $blk$;
 -- ---------------------------------------------------------------------------
 revoke update on public.workspace_members from authenticated;
 grant update (role) on public.workspace_members to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 11. Platform tokens are server-only. The browser (anon key, or a signed-in
+--     session) gets no access at all to the tables that hold Instagram,
+--     Facebook, YouTube and TikTok tokens: not even its own rows. SOCIA's
+--     server reaches them with the service role (lib/supabase/privateTables.ts),
+--     always filtered by the signed-in owner. Deploy that code first: before
+--     it, the server read these tables with the person's session.
+-- ---------------------------------------------------------------------------
+do $blk$
+declare
+  t text;
+begin
+  foreach t in array array['instagram_connections', 'facebook_connections', 'youtube_connections', 'tiktok_connections', 'facebook_pending_tokens'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('revoke all on public.%I from anon, authenticated', t);
+      execute format('grant all on public.%I to service_role', t);
+    end if;
+  end loop;
+end $blk$;
+
+-- ---------------------------------------------------------------------------
+-- 12. Invites. An invite's token is the key to a seat, so:
+--     - the owner sees, creates and cancels any invite in their workspaces;
+--     - an Admin sees, creates and cancels Member invites only. Before, an
+--       Admin could read the owner's Admin links, or insert an Admin invite
+--       straight through REST (the app refuses that; the database didn't);
+--     - nobody edits an invite after creating it except to cancel it (a
+--       Member link could otherwise be turned into an Admin link).
+--     Accepting runs on the server with the service role, unaffected.
+-- ---------------------------------------------------------------------------
+drop policy if exists "workspace_invites manage" on public.workspace_invites;
+drop policy if exists "workspace_invites read" on public.workspace_invites;
+drop policy if exists "workspace_invites create" on public.workspace_invites;
+drop policy if exists "workspace_invites cancel" on public.workspace_invites;
+
+create policy "workspace_invites read" on public.workspace_invites for select
+  using (public.socia_is_ws_owner(workspace_id)
+         or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin'));
+create policy "workspace_invites create" on public.workspace_invites for insert
+  with check (created_by = auth.uid()
+              and (public.socia_is_ws_owner(workspace_id)
+                   or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin')));
+create policy "workspace_invites cancel" on public.workspace_invites for update
+  using (public.socia_is_ws_owner(workspace_id)
+         or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin'))
+  with check (public.socia_is_ws_owner(workspace_id)
+              or (role = 'member' and public.socia_ws_role(workspace_id) = 'admin'));
+
+revoke update, delete on public.workspace_invites from anon, authenticated;
+grant update (revoked_at) on public.workspace_invites to authenticated;

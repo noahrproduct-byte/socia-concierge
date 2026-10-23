@@ -17,6 +17,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createContainer, igRetryable, IG_USERNAME_RE, MAX_COLLABORATORS, normalizeUsername, type IgResult } from "@/lib/igPublish";
 import { META_DOCUMENTED_COLLABORATORS } from "./igRules";
+import { scopeToWorkspace } from "@/lib/workspaces";
 import type { CollaboratorsCheck } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,7 +65,7 @@ export function decideCheck(usernames: string[], real: IgResult<{ id: string }>,
 
 type ConnRow = { ig_user_id: string; username: string | null; access_token: string | null; token_expires_at: string | null; plan_suspended_at?: string | null };
 
-export type CheckInput = { ownerId: string; igUserId: string; usernames: string[]; imageUrl: string };
+export type CheckInput = { ownerId: string; workspaceId?: string | null; igUserId: string; usernames: string[]; imageUrl: string };
 
 export async function checkCollaborators(client: Supa, input: CheckInput): Promise<CollaboratorsCheck | { error: string; status: number }> {
   const list = sortedUsernames(input.usernames);
@@ -73,13 +74,14 @@ export async function checkCollaborators(client: Supa, input: CheckInput): Promi
   const bad = list.find((u) => !IG_USERNAME_RE.test(u));
   if (bad) return { error: `“${bad}” isn't a valid Instagram username.`, status: 400 };
 
-  const { data, error } = await client
+  // The account must be connected to the active Brand Workspace, not just to the owner.
+  const { data, error } = await scopeToWorkspace(client
     .from("instagram_connections")
     .select("ig_user_id, username, access_token, token_expires_at, plan_suspended_at")
     .eq("user_id", input.ownerId)
-    .eq("ig_user_id", input.igUserId)
+    .eq("ig_user_id", input.igUserId), input.workspaceId ?? null)
     .limit(1);
-  if (error) return { error: error.message, status: 500 };
+  if (error) return { error: "SOCIA couldn't read the connected account. Try again.", status: 500 };
   const conn = ((data ?? []) as ConnRow[])[0];
   if (!conn?.access_token) return { error: "This Instagram account isn't connected to SOCIA.", status: 404 };
   if (conn.plan_suspended_at) return { error: "This Instagram account is paused by your plan.", status: 409 };

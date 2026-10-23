@@ -52,6 +52,8 @@ const PUBLIC_OK = new Set([
   // Signed out these answer an empty result ({ profile: null }, { plans: [] }); checked below.
   "/api/profile GET",
   "/api/plans GET",
+  // Browsers post CSP violation reports without cookies; it only logs (lib/cspReport.ts).
+  "/api/csp-report POST",
 ]);
 
 const routes: Record<string, () => Promise<unknown>> = (import.meta as unknown as { glob: (p: string[]) => Record<string, () => Promise<unknown>> }).glob(["../**/route.ts", "../../oauth/**/route.ts", "../../mcp/route.ts", "../../auth/**/route.ts", "../../.well-known/**/route.ts"]);

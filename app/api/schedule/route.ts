@@ -9,6 +9,7 @@ import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { memberEditBlock } from "@/lib/approvals";
 import { isOwnPath } from "@/lib/storagePaths";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -188,7 +189,7 @@ export async function POST(req: Request) {
     ? await ctx.client.from("scheduled_posts").insert(rows.map((r) => ({ ...r, workspace_id: ctx.workspace!.id }))).select("*")
     : await ctx.client.from("scheduled_posts").insert(rows).select("*");
   if (error && ctx.workspace) ({ data, error } = await ctx.client.from("scheduled_posts").insert(rows).select("*"));
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("schedule", error);
   return NextResponse.json({ posts: data ?? [], skipped, plan });
 }
 

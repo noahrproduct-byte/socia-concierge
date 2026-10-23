@@ -50,8 +50,8 @@ export function reduce(draft: ComposerDraft, action: ComposerAction): ComposerDr
 export type ClientUpload = {
   destinationId: string;
   kind: "youtube_resumable_upload";
-  sessionUri: string;
-  accessToken: string;
+  /** Sealed by the server; the browser never sees the YouTube token or session. */
+  uploadHandle: string;
   mediaId: string;
 };
 

@@ -5,6 +5,7 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { loadBuildRow, markRendered } from "@/lib/studioClips/server";
 import { isOwnPath } from "@/lib/storagePaths";
 import { verifyExportPath } from "@/lib/studioClips/exportToken";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
-    const row = await loadBuildRow(ctx.client, ctx.ownerId, id);
+    const row = await loadBuildRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!row) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
 
     const conn = (await getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id", ctx.workspace?.id ?? null)) as { ig_user_id?: string } | null;
@@ -39,8 +40,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           media_path: body.path, media_url: pub.publicUrl, media_type: "REELS",
           caption: (body.caption ?? row.caption ?? "").slice(0, 2200), updated_at: new Date().toISOString(),
         }).eq("id", row.post_id).eq("user_id", ctx.ownerId);
-        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-        await markRendered(ctx.client, ctx.ownerId, id, { path: body.path, durationSec: typeof body.durationSec === "number" ? body.durationSec : null, postId: row.post_id });
+        if (error) return dbErrorResponse("studio/draft", error);
+        await markRendered(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, { path: body.path, durationSec: typeof body.durationSec === "number" ? body.durationSec : null, postId: row.post_id });
         return NextResponse.json({ postId: row.post_id, planned: true });
       }
     }
@@ -63,7 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (ins.error && ctx.workspace) ins = await ctx.client.from("scheduled_posts").insert(draft).select("id").single();
     if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 500 });
     const postId = (ins.data as { id: string }).id;
-    await markRendered(ctx.client, ctx.ownerId, id, { path: body.path, durationSec: typeof body.durationSec === "number" ? body.durationSec : null, postId });
+    await markRendered(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, { path: body.path, durationSec: typeof body.durationSec === "number" ? body.durationSec : null, postId });
     return NextResponse.json({ postId });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });

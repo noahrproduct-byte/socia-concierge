@@ -17,6 +17,7 @@ import { parentsWithDestinations } from "@/lib/publishing/db";
 import { runDueDestinations, type RunReport } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { isCronRequest } from "@/lib/cronAuth";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -237,7 +238,7 @@ async function run(req: Request) {
     .lte("scheduled_at", now.toISOString())
     .order("scheduled_at", { ascending: true })
     .limit(20);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("schedule/publish", error);
   const candidateRows = (candidates ?? []) as ScheduledPost[];
 
   // Parents with destination rows belong to the destination runner below;

@@ -238,8 +238,7 @@ export async function persistOutcome(supabase: Supa, dest: Destination, outcome:
 export type ClientUploadRequest = {
   destinationId: string;
   kind: "youtube_resumable_upload";
-  sessionUri: string;
-  accessToken: string;
+  uploadHandle: string;
   mediaId: string;
 };
 
@@ -266,7 +265,7 @@ export async function publishNow(
     outcomes[d.id] = outcome;
     const a = outcome.clientAction;
     if (a && a.kind === "youtube_resumable_upload") {
-      uploads.push({ destinationId: d.id, kind: a.kind, sessionUri: a.sessionUri, accessToken: a.accessToken, mediaId: a.mediaId });
+      uploads.push({ destinationId: d.id, kind: a.kind, uploadHandle: a.uploadHandle, mediaId: a.mediaId });
     }
   }
   return { uploads, outcomes };

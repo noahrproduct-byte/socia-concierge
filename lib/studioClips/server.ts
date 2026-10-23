@@ -192,8 +192,8 @@ export async function registerClip(client: Supa, args: { ownerId: string; viewer
 export type CompleteInput = { sourcePath: string; frames: { t: number; path: string }[]; audioPath: string | null; facts: ClipFacts | null };
 
 /** The browser finished uploading the bytes, frames and audio and measured the facts. */
-export async function completeClip(client: Supa, ownerId: string, clipId: string, input: CompleteInput): Promise<StudioClip | null> {
-  const { data: cur } = await client.from("studio_clips").select("*").eq("id", clipId).eq("user_id", ownerId).limit(1);
+export async function completeClip(client: Supa, ownerId: string, wsId: string | null, clipId: string, input: CompleteInput): Promise<StudioClip | null> {
+  const { data: cur } = await scopeToWorkspace(client.from("studio_clips").select("*").eq("id", clipId).eq("user_id", ownerId), wsId).limit(1);
   const row = ((cur ?? []) as ClipRow[])[0];
   if (!row) return null;
   const patch: Record<string, unknown> = {
@@ -202,20 +202,20 @@ export async function completeClip(client: Supa, ownerId: string, clipId: string
     facts: input.facts ?? row.facts,
     status: row.card ? "ready" : "uploaded", error: null, updated_at: now(),
   };
-  const { data, error } = await client.from("studio_clips").update(patch).eq("id", clipId).eq("user_id", ownerId).select("*").single();
+  const { data, error } = await scopeToWorkspace(client.from("studio_clips").update(patch).eq("id", clipId).eq("user_id", ownerId), wsId).select("*").single();
   if (error) throw error;
   await updateProject(client, row.project_id, {}).catch(() => null);
   const r = data as ClipRow;
   return rowToClip(r, await frameUrls(client, [r]));
 }
 
-export async function deleteClip(client: Supa, ownerId: string, clipId: string): Promise<boolean> {
-  const { data } = await client.from("studio_clips").select("*").eq("id", clipId).eq("user_id", ownerId).limit(1);
+export async function deleteClip(client: Supa, ownerId: string, wsId: string | null, clipId: string): Promise<boolean> {
+  const { data } = await scopeToWorkspace(client.from("studio_clips").select("*").eq("id", clipId).eq("user_id", ownerId), wsId).limit(1);
   const row = ((data ?? []) as ClipRow[])[0];
   if (!row) return false;
   const folder = !row.purged_at ? clipFolderOf(row) : null;
   if (folder) await removeFolder(client, folder);
-  const { error } = await client.from("studio_clips").delete().eq("id", clipId).eq("user_id", ownerId);
+  const { error } = await scopeToWorkspace(client.from("studio_clips").delete().eq("id", clipId).eq("user_id", ownerId), wsId);
   if (error) throw error;
   // Positions stay stable (labels in existing guides refer to them); a project
   // whose footage changed needs a new Understand to get a trustworthy yield.
@@ -289,17 +289,18 @@ export async function loadBuild(client: Supa, projectId: string, idx: number, ro
   return b ? rowToBuild(b, rows) : null;
 }
 
-export async function loadBuildRow(client: Supa, ownerId: string, buildId: string): Promise<BuildRow | null> {
+/** A build of this owner, in this Brand Workspace only (a guest of one brand never reaches another's). */
+export async function loadBuildRow(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<BuildRow | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [b] = await selectBuilds(client, (q: any) => q.eq("id", buildId).eq("user_id", ownerId).limit(1));
+  const [b] = await selectBuilds(client, (q: any) => scopeToWorkspace(q.eq("id", buildId).eq("user_id", ownerId), wsId).limit(1));
   return b ?? null;
 }
 
 // ------------------------------------------------------ Make This Video ----
 
 /** Everything the Player and renderer need: the build plus signed clip sources. */
-export async function buildPlayerData(client: Supa, ownerId: string, buildId: string, canEdit: boolean): Promise<BuildPlayerData | null> {
-  const row = await loadBuildRow(client, ownerId, buildId);
+export async function buildPlayerData(client: Supa, ownerId: string, wsId: string | null, buildId: string, canEdit: boolean): Promise<BuildPlayerData | null> {
+  const row = await loadBuildRow(client, ownerId, wsId, buildId);
   if (!row) return null;
   const rows = (await clipRows(client, row.project_id)).filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && clipOwnsPath(r, r.source_path));
   const paths = rows.flatMap((r) => [r.source_path!, ...(r.frames?.[0] && clipOwnsPath(r, r.frames[0].path) ? [r.frames[0].path] : [])]);
@@ -317,8 +318,8 @@ export async function buildPlayerData(client: Supa, ownerId: string, buildId: st
 }
 
 /** A person's edit, re-validated and saved; the guide is re-rendered from the same EDL. */
-export async function saveBuildEdl(client: Supa, ownerId: string, buildId: string, edited: Edl): Promise<StudioBuild> {
-  const row = await loadBuildRow(client, ownerId, buildId);
+export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string | null, buildId: string, edited: Edl): Promise<StudioBuild> {
+  const row = await loadBuildRow(client, ownerId, wsId, buildId);
   if (!row) throw new Error("That build does not exist.");
   const rows = await clipRows(client, row.project_id);
   const forEdl = rows.map(toClipForEdl);
@@ -326,7 +327,7 @@ export async function saveBuildEdl(client: Supa, ownerId: string, buildId: strin
   if (!edl.segments.length) throw new Error("A cut needs at least one clip.");
   const history = [...(row.edl_history ?? []), row.edl].slice(-HISTORY_MAX);
   const guide = guideFromEdl(edl, forEdl);
-  const { error } = await client.from("studio_builds").update({ edl, edl_history: history, guide, caption: edl.caption || null, updated_at: now() }).eq("id", buildId).eq("user_id", ownerId);
+  const { error } = await scopeToWorkspace(client.from("studio_builds").update({ edl, edl_history: history, guide, caption: edl.caption || null, updated_at: now() }).eq("id", buildId).eq("user_id", ownerId), wsId);
   if (error) throw error;
   return rowToBuild({ ...row, edl, edl_history: history, guide, caption: edl.caption || null }, rows);
 }
@@ -334,7 +335,7 @@ export async function saveBuildEdl(client: Supa, ownerId: string, buildId: strin
 /** Pass 3 again with a directive ("faster", "different hook", …); the previous cut goes to history. */
 export async function regenerateBuild(client: Supa, args: { ownerId: string; wsId: string | null; buildId: string; directive: RegenerateDirective; acct: AccountContext }): Promise<StudioBuild> {
   const { ownerId, wsId, buildId, directive, acct } = args;
-  const row = await loadBuildRow(client, ownerId, buildId);
+  const row = await loadBuildRow(client, ownerId, wsId, buildId);
   if (!row) throw new Error("That build does not exist.");
   if ((row.regenerations ?? 0) >= MAX_REGENERATIONS) throw new Error(`This post has been regenerated ${MAX_REGENERATIONS} times, the limit for one build. Edit the cut directly, or open another post.`);
   const project = await getProjectRow(client, ownerId, wsId, row.project_id);
@@ -363,10 +364,10 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
 }
 
 /** The browser finished rendering and uploading; the draft post exists. */
-export async function markRendered(client: Supa, ownerId: string, buildId: string, info: { path: string; durationSec: number | null; postId: string | null }): Promise<void> {
+export async function markRendered(client: Supa, ownerId: string, wsId: string | null, buildId: string, info: { path: string; durationSec: number | null; postId: string | null }): Promise<void> {
   const base: Record<string, unknown> = { render_path: info.path, render_status: "done", post_id: info.postId, updated_at: now() };
-  let { error } = await client.from("studio_builds").update({ ...base, rendered_at: now(), render_duration_s: info.durationSec }).eq("id", buildId).eq("user_id", ownerId);
-  if (error && /column|does not exist/i.test(error.message ?? "")) ({ error } = await client.from("studio_builds").update(base).eq("id", buildId).eq("user_id", ownerId));
+  let { error } = await scopeToWorkspace(client.from("studio_builds").update({ ...base, rendered_at: now(), render_duration_s: info.durationSec }).eq("id", buildId).eq("user_id", ownerId), wsId);
+  if (error && /column|does not exist/i.test(error.message ?? "")) ({ error } = await scopeToWorkspace(client.from("studio_builds").update(base).eq("id", buildId).eq("user_id", ownerId), wsId));
   if (error) throw error;
 }
 

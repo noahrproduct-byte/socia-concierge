@@ -34,12 +34,14 @@ const reportOnlyCsp = [
   "img-src 'self' data: blob: https:",
   `media-src 'self' blob: data: ${supabaseOrigin} https://*.cdninstagram.com https://*.fbcdn.net`,
   "font-src 'self' data: https://fonts.gstatic.com",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseWs} https://www.googleapis.com https://fonts.gstatic.com https://*.cdninstagram.com https://*.fbcdn.net blob: data:`,
+  `connect-src 'self' ${supabaseOrigin} ${supabaseWs} https://fonts.gstatic.com https://*.cdninstagram.com https://*.fbcdn.net blob: data:`,
   "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'self'",
   "form-action 'self' https: http://localhost:* http://127.0.0.1:*",
+  // Violations land in the server logs as "[csp]" lines (app/api/csp-report).
+  "report-uri /api/csp-report",
 ].join("; ");
 
 const nextConfig = {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseCrossSite } from "@/lib/crossSite";
 import { requireFeature } from "@/lib/planGuard";
 import { studioRequest, isMissingTable } from "@/lib/studioClips/auth";
 import { syncAudioCandidates, audioData } from "@/lib/audio/server";
@@ -10,6 +11,8 @@ export const maxDuration = 60;
 // workspace's account (and its tracked Instagram competitors when a Facebook
 // Page is linked), plus the posts whose files the browser can still measure.
 export async function GET(req: Request) {
+  const crossSite = refuseCrossSite(req);
+  if (crossSite) return crossSite;
   const r = await studioRequest();
   if (!r.ok) return r.res;
   const { ctx } = r;
