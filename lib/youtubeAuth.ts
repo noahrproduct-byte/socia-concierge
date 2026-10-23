@@ -39,6 +39,17 @@ export const YT_SCOPES = [...YT_READ_SCOPES, YT_WRITE_SCOPE];
 // back in the OAuth `state`, so a stray callback cannot attach someone else's
 // channel to the signed-in user.
 export const YT_OAUTH_STATE_COOKIE = "yt_oauth_state";
+/** PKCE (RFC 7636, S256): the verifier stays in this HttpOnly cookie; Google only ever sees its hash. */
+export const YT_PKCE_COOKIE = "yt_oauth_pkce";
+
+const b64url = (b: ArrayBuffer | Uint8Array) => Buffer.from(b instanceof Uint8Array ? b : new Uint8Array(b)).toString("base64url");
+
+/** A fresh verifier (43 chars) and its S256 challenge. */
+export async function pkcePair(): Promise<{ verifier: string; challenge: string }> {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  return { verifier, challenge };
+}
 export const YT_OAUTH_STATE_MAX_AGE = 600; // 10 minutes to finish the round trip
 
 // .trim(): pasting a client ID/secret into a dashboard often drags a trailing
@@ -60,7 +71,7 @@ export function ytRedirectUri(reqOrigin: string): string {
 // The Google consent URL. access_type=offline + prompt=consent so Google always
 // returns a refresh token (even when the user reconnects an already-granted
 // channel), which we need to keep reading after the 1-hour access token expires.
-export function ytAuthUrl(state: string, redirectUri: string, opts: { write?: boolean } = {}): string {
+export function ytAuthUrl(state: string, redirectUri: string, opts: { write?: boolean; challenge?: string } = {}): string {
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.searchParams.set("client_id", ytClientId()!);
   u.searchParams.set("redirect_uri", redirectUri);
@@ -72,6 +83,10 @@ export function ytAuthUrl(state: string, redirectUri: string, opts: { write?: bo
   u.searchParams.set("prompt", "consent");
   u.searchParams.set("include_granted_scopes", "true");
   u.searchParams.set("state", state);
+  if (opts.challenge) {
+    u.searchParams.set("code_challenge", opts.challenge);
+    u.searchParams.set("code_challenge_method", "S256");
+  }
   return u.toString();
 }
 
@@ -100,7 +115,7 @@ function parseTokens(j: {
 
 // Trade the one-time authorization code for tokens. Returns null on any failure
 // (the caller shows a generic error; the real reason is logged server-side).
-export async function exchangeCode(code: string, redirectUri: string): Promise<YtTokens | null> {
+export async function exchangeCode(code: string, redirectUri: string, verifier?: string | null): Promise<YtTokens | null> {
   const body = new URLSearchParams({
     code,
     client_id: ytClientId()!,
@@ -108,6 +123,7 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<Y
     redirect_uri: redirectUri,
     grant_type: "authorization_code",
   });
+  if (verifier) body.set("code_verifier", verifier);
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -183,13 +199,13 @@ export async function fetchMyChannel(accessToken: string): Promise<MyChannel | n
 
 // Read the state nonce cookie off a raw request (route handlers receive the
 // Web Request; the cookie is HttpOnly so it never appears client-side).
-export function readStateCookie(req: Request): string | null {
+export function readStateCookie(req: Request, name: string = YT_OAUTH_STATE_COOKIE): string | null {
   const raw = req.headers.get("cookie");
   if (!raw) return null;
   for (const part of raw.split(";")) {
     const eq = part.indexOf("=");
     if (eq === -1) continue;
-    if (part.slice(0, eq).trim() === YT_OAUTH_STATE_COOKIE) {
+    if (part.slice(0, eq).trim() === name) {
       return decodeURIComponent(part.slice(eq + 1).trim());
     }
   }

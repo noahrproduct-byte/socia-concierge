@@ -13,7 +13,7 @@ import { reduce, idleSubmission, type ComposerAction, type ClientUpload, type Co
 import { fromItem, newDraft, seedDestinations, toPayload, type ComposerDraft, type PickerAccount } from "@/lib/publishing/composer";
 import { PLATFORM_LABEL, type ContentItem } from "@/lib/publishing/types";
 import { isPlanError } from "@/lib/planErrors";
-import { uploadToYouTube, fetchMediaBlob } from "@/lib/publishing/youtubeUpload";
+import { uploadToYouTube, fetchMediaBlob, relayEndpoint } from "@/lib/publishing/youtubeUpload";
 import { measureUrl, needsMeasurement, type MediaItemWithPreview } from "@/lib/publishing/mediaInfo";
 import type { MediaItem } from "@/lib/publishing/types";
 
@@ -423,7 +423,7 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
         // No progress figure exists yet, so no entry: the bar stays indeterminate until YouTube reports bytes.
         setSubmission((s) => ({ ...s, phase: "uploading" }));
         const result = await uploadToYouTube({
-          sessionUri: u.sessionUri, accessToken: u.accessToken, blob, mime: media.mime,
+          endpoint: relayEndpoint(item.id, u.destinationId), handle: u.uploadHandle, blob,
           onProgress: (f) => setSubmission((s) => ({ ...s, progress: { ...s.progress, [u.destinationId]: Math.max(0, Math.min(1, f)) } })),
         });
         videoId = result.videoId;
@@ -467,7 +467,8 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
       setSaveState({ status: "saved", at: new Date().toISOString(), message: null });
       return;
     }
-    // The upload sessions carry an access token: they go straight to the uploader and never into state.
+    // The upload handles go straight to the uploader and never into state (they carry no token, but
+    // there is no reason to keep them).
     const uploads = res.uploads ?? [];
     setSubmission((s) => ({ ...s, item, uploads: [] }));
     if (uploads.length) await runUploads(item, uploads);

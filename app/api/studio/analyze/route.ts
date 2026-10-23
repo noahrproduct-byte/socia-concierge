@@ -14,6 +14,7 @@ import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, 
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
+import { fetchAllowed, isPlatformMediaUrl } from "@/lib/fetchGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -61,8 +62,12 @@ Hard rules:
 - "Compare to my winners" and "niche patterns" compare only against the material provided (the account's top posts and cover frames, the niche content list). If the material is missing, say so in the summary and return no rows.
 - Sentinels: t=-1 when a moment has no timestamp; subjectAppearsAt=-1 when unknown; applyField="none" when a fix isn't a paste-able line; an empty cuts.edits array with suggestedSec=-1 when nothing should be cut (images: always).`;
 
+/** A cover frame from Instagram's CDN only (the stored thumbnail URL is never trusted as is). */
 function fetchB64(url: string): Promise<string | null> {
-  return fetch(url, { signal: AbortSignal.timeout(6000) }).then(async (r) => (r.ok ? Buffer.from(await r.arrayBuffer()).toString("base64") : null)).catch(() => null);
+  if (!isPlatformMediaUrl(url)) return Promise.resolve(null);
+  return fetchAllowed(url, isPlatformMediaUrl, { signal: AbortSignal.timeout(6000) })
+    .then(async (r) => (r?.ok ? Buffer.from(await r.arrayBuffer()).toString("base64") : null))
+    .catch(() => null);
 }
 
 export async function POST(req: Request) {

@@ -55,7 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!externalPostId && !uploadError) return NextResponse.json({ error: "externalPostId is required." }, { status: 400 });
   if (externalPostId.length > 200) return NextResponse.json({ error: "externalPostId is not valid." }, { status: 400 });
 
-  const item = await loadItem(ctx.client, id, ctx.ownerId);
+  const item = await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   const dest = item.destinations.find((d) => d.id === did);
   if (!dest) return NextResponse.json({ error: "Destination not found." }, { status: 404 });
@@ -75,7 +75,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (dest.status === "uploading" && !dest.externalPostId) {
         await persistOutcome(ctx.client, dest, { status: "failed", errorCode: "client_upload_failed", errorMessage: uploadError, retryable: true }, now);
       }
-      const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
+      const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;
       return NextResponse.json({ item: after });
     }
 
@@ -96,7 +96,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       outcome = { status: "processing", externalPostId, errorCode: outcome.errorCode ?? null, errorMessage: outcome.errorMessage ?? null };
     }
     await persistOutcome(ctx.client, dest, outcome, now);
-    const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
+    const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;
     return NextResponse.json({ item: after });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });

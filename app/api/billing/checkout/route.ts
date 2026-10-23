@@ -61,7 +61,15 @@ export async function POST(req: Request) {
     await saveCustomerId(svc, user.id, customer);
   }
 
-  const trial = trialEligible(billing);
+  // Stripe is the truth, not the profile (a webhook may not have arrived yet):
+  // a second checkout while one subscription is live goes to the Portal, and
+  // only a customer who never had a subscription gets the trial.
+  const existing = await stripe.subscriptions.list({ customer, status: "all", limit: 10 }).catch(() => null);
+  if (existing?.data.some((x) => ["active", "trialing", "past_due"].includes(x.status))) {
+    const portal = await stripe.billingPortal.sessions.create({ customer, return_url: `${origin}/settings#plan` });
+    return NextResponse.json({ url: portal.url, portal: true });
+  }
+  const trial = trialEligible(billing) && existing != null && existing.data.length === 0;
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer,

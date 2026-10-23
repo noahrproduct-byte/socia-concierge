@@ -24,6 +24,7 @@ import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "./supabase/service";
 import { getActiveWorkspace, type Workspace } from "./workspaces";
+import { canUseFeature, getEntitlements } from "./entitlements";
 import type { WorkspaceRole } from "./team";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +51,11 @@ async function resolveContextUncached(supabase: Supa, viewerId: string): Promise
   // cannot read the owner's data, so the person falls back to their own.
   const svc = createServiceClient();
   if (!svc) return asSelf(null);
+  // Guest access lasts only while the owner's plan includes a team: after a
+  // downgrade or a cancelled trial the invited people fall back to their own
+  // account instead of keeping service-role access to the owner's data.
+  const ownerEnt = await getEntitlements(svc, ws.ownerId).catch(() => null);
+  if (!ownerEnt || !canUseFeature(ownerEnt, "team")) return asSelf(null);
   return { viewerId, ownerId: ws.ownerId, workspace: ws, role: ws.role === "admin" ? "admin" : "member", client: svc, isOwner: false };
 }
 
@@ -104,4 +110,15 @@ export function forbiddenCopy(action: Action): string {
     case "delete_workspace": return "Only the workspace owner can delete a workspace.";
     case "manage_workspace": return "Only the workspace owner or an admin can change workspace settings.";
   }
+}
+
+/**
+ * The key part for per-brand caches in niche_trends ("saved:<scope>",
+ * "analysis:<scope>:<url>"). It always starts with the owner's id, which the
+ * table's row policy requires; a non-default brand adds its workspace id. A
+ * key of only the workspace id was refused for the owner's own session.
+ */
+export function nicheScopeId(ctx: Pick<Ctx, "ownerId" | "workspace">): string {
+  const ws = brandWorkspace(ctx);
+  return ws ? `${ctx.ownerId}:${ws.id}` : ctx.ownerId;
 }

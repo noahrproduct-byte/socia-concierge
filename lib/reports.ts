@@ -127,7 +127,10 @@ export function buildReport(input: {
 /** CSV for the whole report: one metrics block per platform, then top posts. RFC-4180 quoting. */
 export function reportToCsv(report: Report): string {
   const q = (v: string | number | null) => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // A text cell starting with = + - @ (or a tab/CR) would run as a formula
+    // in Excel or Sheets: captions and workspace names are user text.
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines: string[] = [];

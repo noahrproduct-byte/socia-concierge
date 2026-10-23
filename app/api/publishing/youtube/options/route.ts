@@ -31,7 +31,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
 
-  const auth = await youtubeAccessToken(ctx.client, ctx.ownerId);
+  const auth = await youtubeAccessToken(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!auth) return NextResponse.json({ error: "YouTube is not connected." }, { status: 404 });
   if (!auth.scopes || !auth.scopes.some((s) => YT_WRITE_SCOPES.includes(s))) {
     return NextResponse.json({ error: "Reconnect YouTube to allow uploads.", code: "needs_scope" }, { status: 409 });

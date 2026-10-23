@@ -58,7 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const g = await requireFeature(ctx.client, ctx.ownerId, "scheduling");
   if (g.denied) return g.denied;
-  const item = await loadItem(ctx.client, a.postId, ctx.ownerId);
+  const item = await loadItem(ctx.client, a.postId, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   const pending = item.destinations.filter((d) => d.status !== "published" && d.status !== "cancelled");
   if (!pending.length) return NextResponse.json({ error: "Nothing left to schedule on this post." }, { status: 409 });

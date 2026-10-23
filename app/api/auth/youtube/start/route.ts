@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import {
   YT_OAUTH_STATE_COOKIE,
   YT_OAUTH_STATE_MAX_AGE,
+  YT_PKCE_COOKIE,
+  pkcePair,
   ytAuthConfigured,
   ytAuthUrl,
   ytRedirectUri,
@@ -34,14 +36,18 @@ export async function GET(req: Request) {
 
   // CSRF nonce: stored HttpOnly and echoed in `state`; the callback rejects any
   // response whose state does not match this cookie.
+  // PKCE: an intercepted code is useless without the verifier in this browser's cookie.
   const nonce = crypto.randomUUID();
-  const res = NextResponse.redirect(ytAuthUrl(`${nonce}.${dest}`, ytRedirectUri(origin), { write }));
-  res.cookies.set(YT_OAUTH_STATE_COOKIE, nonce, {
+  const { verifier, challenge } = await pkcePair();
+  const res = NextResponse.redirect(ytAuthUrl(`${nonce}.${dest}`, ytRedirectUri(origin), { write, challenge }));
+  const cookie = {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: YT_OAUTH_STATE_MAX_AGE,
-  });
+  };
+  res.cookies.set(YT_OAUTH_STATE_COOKIE, nonce, cookie);
+  res.cookies.set(YT_PKCE_COOKIE, verifier, cookie);
   return res;
 }

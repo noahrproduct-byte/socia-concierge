@@ -140,6 +140,11 @@ const issueText = (issues: Record<string, Issue[]>) =>
 
 type Deps = { svc: Supa; origin: string; deadline: number; link?: LinkDeps };
 
+/** The most one post may copy in from links (assistant create_post). */
+export const MAX_LINKED_BYTES_PER_POST = 250 * 1024 * 1024;
+/** Time left in the request below which no further link is started (one link may take 25 s). */
+const LINK_IMPORT_RESERVE_MS = 30_000;
+
 export type CreatePostResult = Record<string, unknown>;
 
 export async function createPost(ctx: Ctx, ent: Entitlements, input: CreatePostInput, deps: Deps): Promise<CreatePostResult> {
@@ -181,9 +186,25 @@ export async function createPost(ctx: Ctx, ent: Entitlements, input: CreatePostI
     if (created.length) await deps.svc.storage.from(MEDIA_BUCKET).remove(created).catch(() => undefined);
   };
   try {
+    let linkedBytes = 0;
     for (const m of input.media) {
+      if (m.url) {
+        // Copying from links is slow and fills storage at SOCIA's cost: stop
+        // before the request runs out of time (files would be left behind with
+        // no post) and cap what one post may copy in.
+        if (deps.deadline - Date.now() < LINK_IMPORT_RESERVE_MS) {
+          throw new ApiFailure("invalid_input", "Too many links to copy in one request. Use fewer links, or upload the files in SOCIA and pass their media_id.");
+        }
+        if (linkedBytes >= MAX_LINKED_BYTES_PER_POST) {
+          throw new ApiFailure("invalid_input", `One post can copy at most ${MAX_LINKED_BYTES_PER_POST / (1024 * 1024)} MB from links. Upload larger files in SOCIA and pass their media_id.`);
+        }
+      }
       const item = m.media_id ? await copyWorkspaceMedia(ctx, deps.svc, m.media_id) : await importLinkedMedia(ctx, deps.svc, m.url!, deps.link);
       if (item.path) created.push(item.path);
+      if (m.url) linkedBytes += item.size ?? 0;
+      if (linkedBytes > MAX_LINKED_BYTES_PER_POST) {
+        throw new ApiFailure("invalid_input", `One post can copy at most ${MAX_LINKED_BYTES_PER_POST / (1024 * 1024)} MB from links. Upload larger files in SOCIA and pass their media_id.`);
+      }
       media.push(item);
     }
 
@@ -251,7 +272,7 @@ export async function createPost(ctx: Ctx, ent: Entitlements, input: CreatePostI
       result = "publishing";
     }
 
-    const item = await loadItem(ctx.client, postId, ctx.ownerId);
+    const item = await loadItem(ctx.client, postId, ctx.ownerId, ctx.workspace?.id ?? null);
     const dests = (item?.destinations ?? []).filter((d) => d.status !== "cancelled");
     if (result === "publishing" && dests.length && dests.every((d) => d.status === "published")) result = "published";
     if (result === "publishing" && dests.length && dests.every((d) => d.status === "failed")) result = "failed";
@@ -291,7 +312,7 @@ export async function cancelPost(ctx: Ctx, postId: string): Promise<Record<strin
   if (!row) throw new ApiFailure("not_found", "That post isn't in this Brand Workspace.");
   const block = await memberEditBlock(ctx, postId);
   if (block) throw new ApiFailure("forbidden", block);
-  const item = await loadItem(ctx.client, postId, ctx.ownerId);
+  const item = await loadItem(ctx.client, postId, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item || !item.destinations.length) throw new ApiFailure("not_found", "That post has no platforms to cancel; change it in SOCIA's Calendar.");
 
   const { data: done, error: upErr } = await ctx.client.from("post_destinations")
@@ -301,7 +322,7 @@ export async function cancelPost(ctx: Ctx, postId: string): Promise<Record<strin
   if (upErr) throw new ApiFailure("unavailable", "SOCIA couldn't cancel it just now. Try again shortly.");
   await refreshParent(ctx.client, postId);
   const cancelled = ((done ?? []) as { platform: Platform }[]).map((d) => d.platform);
-  const after = await loadItem(ctx.client, postId, ctx.ownerId);
+  const after = await loadItem(ctx.client, postId, ctx.ownerId, ctx.workspace?.id ?? null);
   const live = (after?.destinations ?? []).filter((d) => d.status !== "cancelled").map((d) => ({ platform: d.platform, status: d.status, link: d.permalink }));
   return {
     post_id: postId,

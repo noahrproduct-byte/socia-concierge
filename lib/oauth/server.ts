@@ -64,10 +64,15 @@ export async function validateAuthorize(store: OAuthStore, params: Record<string
     return { kind: "error_page", message: "The app asked SOCIA to send you to an address it didn't register, so SOCIA stopped here." };
   }
 
-  // From here on, errors go back to the app.
+  // Errors are shown on SOCIA's own page, never redirected: anyone can
+  // register an app with any https redirect address, so redirecting on a
+  // malformed request would turn sociaos.com into an open redirect that sends
+  // people anywhere without a click (RFC 9700 section 4.11.2). A real app
+  // never sends these malformed requests.
   const state = params.state ?? null;
-  const back = (error: string, description: string): AuthorizeResult => ({
-    kind: "redirect", url: redirectWith(redirectUri, { error, error_description: description, state, iss: issuer() }),
+  void state;
+  const back = (_error: string, description: string): AuthorizeResult => ({
+    kind: "error_page", message: `The app's request was not valid: ${description}`,
   });
   if (params.response_type !== "code") return back("unsupported_response_type", "Only response_type=code is supported.");
   if (params.code_challenge_method !== "S256" || !params.code_challenge || !CHALLENGE_RE.test(params.code_challenge)) {
@@ -251,8 +256,11 @@ export async function verifyAccessToken(store: OAuthStore, accessToken: string |
 }
 
 /** RFC 7009: revoking either token ends every token of that connection. Unknown tokens are not an error. */
-export async function revokeToken(store: OAuthStore, tokenValue: string | null, now: Date): Promise<void> {
-  if (!tokenValue) return;
+/** Revokes every token of the token's connection. Returns the connection when the token was known, else null. */
+export async function revokeToken(store: OAuthStore, tokenValue: string | null, now: Date): Promise<{ connectionId: string } | null> {
+  if (!tokenValue || tokenValue.length > 512) return null;
   const t = await store.findToken(hashToken(tokenValue));
-  if (t) await store.revokeConnectionTokens(t.connectionId, now.toISOString());
+  if (!t) return null;
+  await store.revokeConnectionTokens(t.connectionId, now.toISOString());
+  return { connectionId: t.connectionId };
 }

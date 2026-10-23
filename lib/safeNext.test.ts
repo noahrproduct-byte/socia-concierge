@@ -7,7 +7,7 @@ describe("safeNext", () => {
     expect(safeNext("/settings#ai-assistants")).toBe("/settings#ai-assistants");
   });
   it("never leaves the site", () => {
-    for (const bad of ["@evil.example", "//evil.example", "/\\evil.example", "https://evil.example", "javascript:alert(1)", "evil", ""]) {
+    for (const bad of ["@evil.example", "//evil.example", "/\\evil.example", "https://evil.example", "javascript:alert(1)", "evil", "", "/.//evil.example", "/..//evil.example", "/a/..//evil.example", "/./\\evil.example", "/%2e//evil.example"]) {
       expect(safeNext(bad)).toBe("/dashboard");
     }
     expect(safeNext(null, "/x")).toBe("/x");

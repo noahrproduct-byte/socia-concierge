@@ -5,6 +5,7 @@ import { runFacebookDailySnapshots } from "@/lib/platformSnapshots";
 import { runYouTubeDailySnapshots } from "@/lib/youtubeSnapshots";
 import { runAlertDetection } from "@/lib/alertRun";
 import { recordCompetitorSnapshots } from "@/lib/competitorHistory";
+import { isCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,10 +15,7 @@ export const maxDuration = 60;
 // a fixed hour (see supabase/daily-snapshot-cron.sql). Same secret as the
 // publisher.
 async function run(req: Request) {
-  const clean = (s: string | null | undefined) => (s ?? "").trim().replace(/^["']|["']$/g, "");
-  const bearer = clean(req.headers.get("authorization")).match(/^bearer\s+(.+)$/i)?.[1];
-  const secret = clean(process.env.CRON_SECRET);
-  if (!secret || bearer === undefined || clean(bearer) !== secret) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  if (!isCronRequest(req)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const now = new Date();

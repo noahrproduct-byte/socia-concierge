@@ -41,6 +41,7 @@ import {
 } from "@/lib/overview";
 import { canUseFeature, getEntitlements, maxHistoryDays, upgradeFor } from "@/lib/entitlements";
 import type { PlanId } from "@/lib/plans";
+import { withoutComparison } from "@/lib/analyticsGate";
 
 export const metadata = { title: "Analytics — SOCIA" };
 
@@ -295,7 +296,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
       timed, followers, followerPoints: fPoints, engagement, formats, graphAccounts, gate, changes, nextStep,
     };
-    igPanel = <AnalyticsV3 d={d} />;
+    // A locked comparison is removed from the payload, not just hidden.
+    igPanel = <AnalyticsV3 d={gate.comparison ? withoutComparison(d, rangeLabel.toLowerCase()) : d} />;
 
     igSummary = instagramSummary({ username: snap!.username ?? null, followers, views: series.views, engagement: series.engagement, postsInRange: inRange.length });
   }
@@ -317,7 +319,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     const fbSnaps = fbSnapsLoaded;
     const fbInsights = fbInsightsC?.value ?? null;
     const fbData = buildFacebookAnalytics({ snap: fb, snapshots: fbSnaps, days, rangeLabel, now, insights: fbInsights });
-    fbPanel = <FacebookAnalytics data={fbData} gate={gate} maxDays={maxDays} />;
+    fbPanel = <FacebookAnalytics data={gate.comparison ? withoutComparison(fbData, rangeLabel.toLowerCase()) : fbData} gate={gate} maxDays={maxDays} />;
     fbSummary = facebookSummary(fb, fbData);
     // The overlay: engagement by publish date (content totals) and, when
     // Insights serve it, a genuine daily Page-views series.
@@ -357,7 +359,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const panels: Record<string, ReactNode> = {
     instagram: igPanel,
     facebook: fbPanel,
-    youtube: yt ? <YouTubeAnalytics data={buildYouTubeAnalytics({ yt, days, rangeLabel, now })} gate={gate} maxDays={maxDays} /> : null,
+    youtube: yt ? <YouTubeAnalytics data={(() => { const y = buildYouTubeAnalytics({ yt, days, rangeLabel, now }); return gate.comparison ? withoutComparison(y, rangeLabel.toLowerCase()) : y; })()} gate={gate} maxDays={maxDays} /> : null,
     tiktok: ttPanel,
     ...(showBrands ? { brands: <CrossBrandPanel days={days} locked={lockedTo("cross_brand_analytics")} /> } : {}),
   };

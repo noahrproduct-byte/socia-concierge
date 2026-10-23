@@ -102,16 +102,55 @@ export function isCimdClientId(id: string): boolean {
   }
 }
 
-/** Addresses SOCIA must never fetch from (loopback, private, link-local, CGNAT, multicast, reserved). */
+/** "::ffff:7f00:1" -> [0,0,0,0,0,0xffff,0x7f00,1]; null when not IPv6. Handles "::" and a dotted IPv4 tail. */
+function ipv6Hextets(ip: string): number[] | null {
+  if (isIP(ip) !== 6) return null;
+  let s = ip.toLowerCase().split("%")[0];
+  const dotted = s.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const [a, b, c, d] = dotted[1].split(".").map(Number);
+    s = s.slice(0, -dotted[1].length) + `${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, tail] = s.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail !== undefined && tail ? tail.split(":") : [];
+  const fill = s.includes("::") ? 8 - h.length - t.length : 0;
+  const parts = [...h, ...Array(fill).fill("0"), ...t].map((x) => parseInt(x || "0", 16));
+  return parts.length === 8 && parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 0xffff) ? parts : null;
+}
+
+const v4FromHextets = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+
+/**
+ * Addresses SOCIA must never fetch from: loopback, private, link-local, CGNAT,
+ * multicast, reserved and documentation ranges, and any IPv6 form that
+ * carries such an IPv4 address (mapped ::ffff:0:0/96, compatible ::/96,
+ * NAT64 64:ff9b::/96, 6to4 2002::/16), whatever notation the URL parser
+ * produced ("::ffff:7f00:1" is 127.0.0.1).
+ */
 export function isPrivateAddress(ip: string): boolean {
   if (isIP(ip) === 4) {
     const [a, b] = ip.split(".").map(Number);
-    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19));
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19));
   }
-  const v6 = ip.toLowerCase();
-  if (v6 === "::" || v6 === "::1") return true;
-  if (v6.startsWith("::ffff:")) return isPrivateAddress(v6.slice(7));
-  return /^(fc|fd|fe8|fe9|fea|feb|ff)/.test(v6);
+  const h = ipv6Hextets(ip);
+  if (!h) return true; // unparseable: never fetch
+  const zeros = (n: number) => h.slice(0, n).every((x) => x === 0);
+  if (h.every((x) => x === 0)) return true; // ::
+  if (zeros(7) && h[7] === 1) return true; // ::1
+  if (zeros(5) && h[5] === 0xffff) return isPrivateAddress(v4FromHextets(h[6], h[7])); // ::ffff:a.b.c.d
+  if (zeros(6)) return isPrivateAddress(v4FromHextets(h[6], h[7])); // ::a.b.c.d (deprecated)
+  if (h[0] === 0x64 && h[1] === 0xff9b && h.slice(2, 6).every((x) => x === 0)) return isPrivateAddress(v4FromHextets(h[6], h[7])); // NAT64
+  if (h[0] === 0x2002) return isPrivateAddress(v4FromHextets(h[1], h[2])); // 6to4
+  if (h[0] === 0x100 && h.slice(1, 4).every((x) => x === 0)) return true; // discard 100::/64
+  if (h[0] === 0x2001 && h[1] === 0xdb8) return true; // documentation
+  if (h[0] === 0x2001 && h[1] < 0x200) return true; // 2001::/23 IETF special (Teredo, ORCHID, benchmarking)
+  const top = h[0] >> 8;
+  if (top === 0xff) return true; // multicast
+  if ((h[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+  if ((h[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  if ((h[0] & 0xffc0) === 0xfec0) return true; // fec0::/10 site-local (deprecated)
+  return false;
 }
 
 export type FetchDeps = { fetch: typeof fetch; resolve: (host: string) => Promise<string[]> };
