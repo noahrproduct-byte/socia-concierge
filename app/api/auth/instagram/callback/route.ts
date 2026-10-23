@@ -247,7 +247,8 @@ async function connect(req: Request, dest: ConnectDest): Promise<NextResponse> {
     if (dest === "onboarding") return settings("connected");
     return NextResponse.redirect(`${origin}/dashboard?ig=connected`);
   } catch (e) {
-    console.error("IG callback error:", e);
+    // The message only: an error object can carry the request it failed on.
+    console.error("IG callback error:", e instanceof Error ? e.message : "unknown");
     return settings("error");
   }
 }

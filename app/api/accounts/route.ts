@@ -5,6 +5,7 @@ import { limitError } from "@/lib/planErrors";
 import { deny } from "@/lib/planGuard";
 import { PLANS, nextPlan } from "@/lib/plans";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
+import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -48,11 +49,16 @@ async function readRows(client: Ctx["client"], ownerId: string, workspaceId: str
       if (s.ws && workspaceId) q = q.eq("workspace_id", workspaceId);
       const { data, error } = await q.order("connected_at", { ascending: true });
       if (!error) return (data ?? []) as unknown as IgRow[];
+      // The workspace read failed for another reason than a missing column:
+      // never widen to every brand's accounts. Show none and let a reload retry.
+      if (s.ws && !isMissingColumnError(error)) return [];
     } catch {
       /* try the next shape */
     }
   }
   // Oldest schema: no is_active (and no workspace_id) column, at most one row.
+  // Never for a Brand Workspace: that would widen past the workspace.
+  if (workspaceId) return [];
   const { data } = await client
     .from("instagram_connections")
     .select("ig_user_id, username, profile")
@@ -117,6 +123,8 @@ export async function POST(req: Request) {
     if (wsId) q = q.eq("workspace_id", wsId);
     const { data, error } = await q.limit(1);
     if (!error) target = data ?? [];
+    // Only a missing column may fall back to the owner-wide lookup below.
+    else if (!isMissingColumnError(error)) return NextResponse.json({ error: "SOCIA couldn't check that account just now. Try again." }, { status: 503 });
   } catch {
     /* column may not exist yet */
   }

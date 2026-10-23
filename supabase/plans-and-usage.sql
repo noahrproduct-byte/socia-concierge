@@ -126,7 +126,7 @@ create or replace function public.socia_consume_usage(p_meter text, p_period_sta
 returns table (used_count integer, allowed boolean)
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_user uuid := auth.uid();
@@ -166,7 +166,7 @@ create or replace function public.socia_release_usage(p_meter text, p_period_sta
 returns integer
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_user uuid := auth.uid();
@@ -269,7 +269,7 @@ create or replace function public.socia_add_competitor(p_user uuid, p_platform t
 returns table (added boolean, already boolean, active_count integer)
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_active boolean;
@@ -319,7 +319,7 @@ create or replace function public.socia_apply_plan_keep(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_now timestamptz := now();

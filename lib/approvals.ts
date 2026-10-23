@@ -14,6 +14,7 @@ import { listMembers } from "./team";
 import { recordAlerts } from "./alerts";
 import { createServiceClient } from "./supabase/service";
 import { displayTitle } from "./overview";
+import { isMissingTableError } from "./publishing/db";
 import type { AlertCandidate } from "./alertDetectors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -203,9 +204,16 @@ export async function memberEditBlock(ctx: Ctx, postId: string | null): Promise<
     const { data } = await svc.from("post_approvals").select("id").eq("user_id", ctx.ownerId).eq("post_id", postId).eq("status", "pending").limit(1);
     if (data?.length) return "This post is waiting for approval. Withdraw it from approval to make changes.";
   }
-  const { data: dests } = await svc.from("post_destinations").select("status").eq("user_id", ctx.ownerId).eq("post_id", postId);
+  const LOCKED = "Scheduled and published posts can only be changed by the owner or an admin.";
+  // The post itself: a legacy calendar post has no destinations, so its own
+  // status is what says it is going out. Fails closed when it can't be read.
+  const { data: post, error: postErr } = await svc.from("scheduled_posts").select("status").eq("user_id", ctx.ownerId).eq("id", postId).maybeSingle();
+  if (postErr) return "SOCIA couldn't check this post just now. Try again.";
+  if (post && ["scheduled", "publishing", "published"].includes((post as { status: string }).status)) return LOCKED;
+  const { data: dests, error: destErr } = await svc.from("post_destinations").select("status").eq("user_id", ctx.ownerId).eq("post_id", postId);
+  if (destErr && !isMissingTableError(destErr)) return "SOCIA couldn't check this post just now. Try again.";
   const live = ((dests ?? []) as { status: string }[]).some((d) => ["scheduled", "uploading", "processing", "published"].includes(d.status));
-  if (live) return "Scheduled and published posts can only be changed by the owner or an admin.";
+  if (live) return LOCKED;
   return null;
 }
 

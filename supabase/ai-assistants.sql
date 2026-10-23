@@ -125,7 +125,7 @@ create or replace function public.socia_rate_hit(p_key text, p_window_seconds in
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_start timestamptz := to_timestamp(floor(extract(epoch from now()) / p_window_seconds) * p_window_seconds);
@@ -147,7 +147,7 @@ create or replace function public.socia_ai_cleanup()
 returns void
 language sql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   delete from public.oauth_requests where expires_at < now() - interval '1 day';
   delete from public.oauth_codes where expires_at < now() - interval '1 day';

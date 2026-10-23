@@ -85,11 +85,12 @@ export default async function AppShell({ children }: { children: React.ReactNode
         supabase.from("profiles").select("appearance").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
         // The active workspace's plan (its owner's): what the features here follow.
         getEntitlements(ctx.client, ctx.ownerId).catch(() => null),
-        ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled").order("updated_at", { ascending: false }).limit(12),
-        ctx.client.from("plans").select("id, created_at, client_handle").eq("user_id", ctx.ownerId).order("created_at", { ascending: false }).limit(3),
+        // Activity is the active brand's only: a guest of one brand never sees another brand's posts or plans.
+        scopeToWorkspace(ctx.client.from("scheduled_posts").select("*").eq("user_id", ctx.ownerId).neq("status", "cancelled"), ctx.workspace?.id).order("updated_at", { ascending: false }).limit(12),
+        scopeToWorkspace(ctx.client.from("plans").select("id, created_at, client_handle").eq("user_id", ctx.ownerId), ctx.workspace?.id).order("created_at", { ascending: false }).limit(3),
         // Their own catches so a not-yet-created table never blanks the whole shell.
         scopeToWorkspace(ctx.client.from("youtube_connections").select("title").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle().then((r) => r, () => ({ data: null })),
-        ctx.client.from("tiktok_connections").select("username, display_name").eq("user_id", ctx.ownerId).limit(1).maybeSingle().then((r) => r, () => ({ data: null })),
+        scopeToWorkspace(ctx.client.from("tiktok_connections").select("username, display_name").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle().then((r) => r, () => ({ data: null })),
       ]);
       const c = conn as { username?: string; media?: { id?: string; caption?: string; timestamp?: string; permalink?: string }[]; last_synced_at?: string } | null;
       igUsername = c?.username ?? null;

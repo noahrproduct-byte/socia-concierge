@@ -2,7 +2,7 @@
   "name": "socia-concierge",
   "version": "0.1.0",
   "private": true,
-  "description": "SOCIA concierge engine — generate an audit + competitor breakdown + weekly content plan for a client account.",
+  "description": "SOCIA concierge engine \u2014 generate an audit + competitor breakdown + weekly content plan for a client account.",
   "scripts": {
     "dev": "next dev -p 3000",
     "prebuild": "node scripts/copy-ffmpeg-core.mjs",
@@ -60,6 +60,9 @@
   "overrides": {
     "next": {
       "postcss": "^8.5.23"
+    },
+    "@remotion/media": {
+      "zod": "$zod"
     }
   }
 }

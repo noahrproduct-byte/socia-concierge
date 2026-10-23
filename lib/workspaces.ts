@@ -301,8 +301,19 @@ export async function deleteWorkspace(supabase: Supa, userId: string, workspaceI
     const active = await getActiveWorkspace(supabase, userId);
     if (active?.id === workspaceId) await setActiveWorkspace(supabase, fallback.id);
   }
+  // The brand's posts outlive it (their workspace becomes empty, which reads as
+  // "from before workspaces"), but nothing it scheduled may still go out: its
+  // accounts are disconnected with it, and an unscheduled post must never be
+  // published from another brand's account. Refused if that can't be done.
+  const now = new Date().toISOString();
+  const stopPosts = await supabase.from("scheduled_posts").update({ status: "cancelled", updated_at: now })
+    .eq("user_id", userId).eq("workspace_id", workspaceId).eq("status", "scheduled");
+  const stopDests = await supabase.from("post_destinations").update({ status: "cancelled", updated_at: now })
+    .eq("user_id", userId).eq("workspace_id", workspaceId).eq("status", "scheduled");
+  const stopErr = [stopPosts.error, stopDests.error].find((e) => e && !isMissingColumnError(e) && !/relation .* does not exist|PGRST205/i.test(e.message ?? ""));
+  if (stopErr) return { ok: false, error: "SOCIA couldn't stop this workspace's scheduled posts, so it wasn't deleted. Try again." };
   const { error } = await supabase.from("workspaces").delete().eq("owner_id", userId).eq("id", workspaceId);
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: "SOCIA couldn't delete the workspace just now. Try again." };
   return { ok: true };
 }
 

@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { brandContext } from "@/lib/prompt";
 import { requireFeature } from "@/lib/planGuard";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { resolveContext, brandWorkspace, nicheScopeId } from "@/lib/context";
 import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -46,7 +46,8 @@ export async function POST(req: Request) {
   if (body.example) body.example = { title: clip(body.example.title, LIMITS.nicheTitle) || null, accountName: clip(body.example.accountName, 100) || null };
   body.competitorName = clip(body.competitorName, 100) || null;
 
-  const key = `opp:${ctx.ownerId}:${body.tag}`;
+  // Per brand, like the analysis cache: one brand's concept is built from its own profile.
+  const key = `opp:${nicheScopeId(ctx)}:${body.tag}`;
   try {
     const { data } = await ctx.client.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();
     const doc = data?.data as OpportunityConcept | undefined;

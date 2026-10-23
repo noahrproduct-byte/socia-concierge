@@ -252,7 +252,7 @@ create or replace function public.socia_create_workspace(p_user uuid, p_name tex
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $fn$
 declare
   v_active integer;
@@ -284,7 +284,7 @@ create or replace function public.socia_set_active_workspace(p_workspace uuid)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $fn$
 declare
   v_user uuid := auth.uid();
