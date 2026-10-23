@@ -2,7 +2,7 @@ import { cache } from "react";
 import { timed } from "@/lib/timing";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
+import { SESSION_COOKIE_OPTIONS, getSupabaseAnonKey, getSupabaseUrl } from "./env";
 
 // The Supabase client for use on the server (server components, route
 // handlers, server actions). It reads/writes the login session via cookies.
@@ -16,6 +16,8 @@ export const createClient = cache(async () => {
     getSupabaseUrl(),
     getSupabaseAnonKey(),
     {
+      // Session cookies are sent over https only in production.
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();

@@ -340,8 +340,10 @@ export async function runDueDestinations(svc: Supa, opts: { now: Date; budgetMs:
         row.result = "failed: upload stale";
         continue;
       }
-      const item = await loadItem(svc, d.postId, null);
-      if (!item) { row.result = "skipped: parent missing"; continue; }
+      // The post must belong to the destination's owner: a destination planted
+      // on someone else's post is never published (and never touches it).
+      const item = await loadItem(svc, d.postId, d.userId);
+      if (!item) { row.result = "skipped: parent missing or not the owner's"; continue; }
       const outcome = await publishDestination({
         supabase: svc, userId: d.userId, item, destination: d,
         budgetMs: Math.min(STEP_BUDGET_MS, deadline - Date.now() - 1_000), now,

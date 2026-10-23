@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getTranscriptionProvider, type TranscriptionJob, type TranscriptionProvider } from "@/lib/transcribe";
 import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
-import { signUrls } from "./storage";
+import { clipOwnsPath, signUrls } from "./storage";
 import { clipCard, batchGroups, AnalysisError, type AccountContext } from "./analysis";
 import { validateYield, type ClipForYield } from "./yield";
 import { clipRows, frameUrls, toClipInputs, updateProject, type ClipRow } from "./server";
@@ -98,7 +98,7 @@ export async function runUnderstand(client: Supa, args: { projectId: string; acc
 
 /** Submit every clip's audio, poll together, store transcripts as they land. */
 async function transcribeClips(client: Supa, provider: TranscriptionProvider, rows: ClipRow[], deadlineAt: number, onProgress: (pending: number, stage: UnderstandStage) => Promise<void>): Promise<void> {
-  const urls = await signUrls(client, rows.map((r) => r.audio_path!));
+  const urls = await signUrls(client, rows.map((r) => r.audio_path!).filter((p, i) => clipOwnsPath(rows[i], p)));
   const jobs = new Map<string, TranscriptionJob>();
   for (const r of rows) {
     const url = urls[r.audio_path!];

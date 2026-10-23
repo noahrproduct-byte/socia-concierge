@@ -3,6 +3,8 @@ import { requireFeature } from "@/lib/planGuard";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { loadBuildRow, markRendered } from "@/lib/studioClips/server";
+import { isOwnPath } from "@/lib/storagePaths";
+import { verifyExportPath } from "@/lib/studioClips/exportToken";
 
 export const runtime = "nodejs";
 
@@ -18,7 +20,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const forbidden = requireMutate(ctx);
   if (forbidden) return forbidden;
   const body = (await req.json().catch(() => null)) as { path?: string; durationSec?: number; caption?: string } | null;
-  if (!body?.path || !body.path.startsWith(`${viewerId}/studio/${id}/`)) return NextResponse.json({ error: "That media file is not yours." }, { status: 403 });
+  // The path must be one the export step signed: proof the video build was counted.
+  if (!body?.path || !isOwnPath(body.path, [viewerId]) || !verifyExportPath(body.path, viewerId, id)) return NextResponse.json({ error: "That media file is not yours." }, { status: 403 });
   try {
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LIMITS, tooLongResponse } from "@/lib/inputLimits";
+import { LIMITS, clipList, firstTooLong, tooLongResponse } from "@/lib/inputLimits";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, type BrandDetail } from "@/lib/profile";
 import { resolveContext, brandWorkspace, can, forbiddenCopy } from "@/lib/context";
@@ -61,7 +61,17 @@ export async function POST(req: Request) {
     user_id: user.id,
     updated_at: new Date().toISOString(),
   };
-  if (Array.isArray(body.platforms)) row.platforms = body.platforms;
+  // These fields go into most AI prompts, so they are bounded here once.
+  const tooLong = firstTooLong({
+    niche: { value: body.niche, max: LIMITS.niche, label: "Your niche" },
+    brand_name: { value: body.brand_name, max: LIMITS.brandName, label: "Your brand name" },
+    goals: { value: body.goals, max: LIMITS.goals, label: "Your goals" },
+  });
+  if (tooLong) return tooLongResponse(tooLong.label, tooLong.max);
+  for (const k of ["niche", "brand_name", "goals"] as const) {
+    if (k in body && body[k] != null && typeof body[k] !== "string") return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+  }
+  if (Array.isArray(body.platforms)) row.platforms = clipList(body.platforms, 10, LIMITS.platformName);
   if (typeof body.account_connected === "boolean") row.account_connected = body.account_connected;
   if ("appearance" in body) row.appearance = body.appearance;
 

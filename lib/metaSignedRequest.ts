@@ -19,7 +19,10 @@ export type SignedPayload = {
 
 const b64url = (s: string): Buffer => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64");
 
-export function verifySignedRequest(signed: string, secrets: (string | undefined)[]): { ok: true; payload: SignedPayload; via: number } | { ok: false; reason: string } {
+/** A signed_request older than this is refused, so a leaked one can't be replayed later. */
+export const SIGNED_REQUEST_MAX_AGE_S = 7 * 24 * 3600;
+
+export function verifySignedRequest(signed: string, secrets: (string | undefined)[], now: Date = new Date()): { ok: true; payload: SignedPayload; via: number } | { ok: false; reason: string } {
   const [sigPart, payloadPart] = signed.split(".", 2);
   if (!sigPart || !payloadPart) return { ok: false, reason: "malformed" };
   let payload: SignedPayload;
@@ -34,7 +37,13 @@ export function verifySignedRequest(signed: string, secrets: (string | undefined
     const secret = secrets[i];
     if (!secret) continue;
     const expected = createHmac("sha256", secret).update(payloadPart).digest();
-    if (expected.length === sig.length && timingSafeEqual(expected, sig)) return { ok: true, payload, via: i };
+    if (expected.length === sig.length && timingSafeEqual(expected, sig)) {
+      // Freshness, checked only after the signature proves Meta wrote issued_at.
+      const issued = Number(payload.issued_at);
+      const age = now.getTime() / 1000 - issued;
+      if (!Number.isFinite(issued) || age > SIGNED_REQUEST_MAX_AGE_S || age < -3600) return { ok: false, reason: "stale" };
+      return { ok: true, payload, via: i };
+    }
   }
   return { ok: false, reason: "bad_signature" };
 }

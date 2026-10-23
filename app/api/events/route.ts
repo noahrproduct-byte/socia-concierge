@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isClientEventName, trackEvent } from "@/lib/events";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,8 @@ export async function POST(req: Request) {
     const raw = JSON.stringify(body.props);
     if (raw.length <= 2000) props = body.props as Record<string, unknown>;
   }
+  // An hourly ceiling: the events table is not free storage.
+  if (await perUserLimit(user.id, "events", 300, "events")) return NextResponse.json({ ok: true, dropped: true });
   await trackEvent(supabase, user.id, body.name, props);
   return NextResponse.json({ ok: true });
 }

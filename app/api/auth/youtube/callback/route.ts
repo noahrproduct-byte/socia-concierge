@@ -13,6 +13,7 @@ import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,9 @@ export async function GET(req: Request) {
   // through ctx.client. Auth, the state nonce and event attribution stay on
   // the viewer. Refused before the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connection rows (tokens) are written only by SOCIA's server role: the
+  // database refuses direct writes from a browser session (security-hardening.sql).
+  const connDb = createServiceClient() ?? ctx.client;
   // Connections or their data are about to change: drop the reused live
   // platform reads so the next page view asks the platforms again.
   clearLiveCache(ctx.ownerId);
@@ -91,7 +95,7 @@ export async function GET(req: Request) {
     // each workspace.
     let refreshToken = tok.refresh_token;
     if (!refreshToken) {
-      let prevQ = ctx.client.from("youtube_connections").select("refresh_token").eq("user_id", ctx.ownerId);
+      let prevQ = connDb.from("youtube_connections").select("refresh_token").eq("user_id", ctx.ownerId);
       if (ws) prevQ = prevQ.eq("workspace_id", ws.id);
       const { data: prev } = await prevQ.maybeSingle();
       refreshToken = (prev as { refresh_token?: string | null } | null)?.refresh_token ?? null;
@@ -111,7 +115,7 @@ export async function GET(req: Request) {
       connected_at: new Date().toISOString(),
     };
     if (ws) row.workspace_id = ws.id;
-    const { error: upErr } = await ctx.client
+    const { error: upErr } = await connDb
       .from("youtube_connections")
       .upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
     if (upErr) {

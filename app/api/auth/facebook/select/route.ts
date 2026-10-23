@@ -8,6 +8,8 @@ import { deny } from "@/lib/planGuard";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { createServiceClient } from "@/lib/supabase/service";
+import { takePageToken, type PendingPage } from "@/lib/facebookPending";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,6 +27,9 @@ export async function POST(req: Request) {
   // the pending row and the saved Page are the workspace OWNER's, read and
   // written through ctx.client. Event attribution stays on the viewer.
   const ctx = await resolveContext(supabase, user.id);
+  // Connection rows (tokens) are written only by SOCIA's server role: the
+  // database refuses direct writes from a browser session (security-hardening.sql).
+  const connDb = createServiceClient() ?? ctx.client;
   // Connections or their data are about to change: drop the reused live
   // platform reads so the next page view asks the platforms again.
   clearLiveCache(ctx.ownerId);
@@ -40,19 +45,17 @@ export async function POST(req: Request) {
   // Scope the pending row to the owner's active workspace when Brand
   // Workspaces are on (a user may then have a Facebook row per workspace).
   const ws = ctx.workspace ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId));
-  let pendingQ = ctx.client.from("facebook_connections").select("pending_pages").eq("user_id", ctx.ownerId);
+  let pendingQ = connDb.from("facebook_connections").select("pending_pages").eq("user_id", ctx.ownerId);
   if (ws) pendingQ = pendingQ.eq("workspace_id", ws.id);
   const { data: rows } = await pendingQ.limit(1);
   const row = ((rows as { pending_pages?: unknown }[] | null) ?? [])[0] ?? null;
-  type PageEntry = {
-    id: string; name?: string; username?: string; followers_count?: number;
-    fan_count?: number; picture?: { data?: { url?: string } }; access_token?: string;
-  };
-  const pages: PageEntry[] = Array.isArray(row?.pending_pages) ? row!.pending_pages : [];
-  const p = pages.find((x) => x.id === pageId);
-  if (!p?.access_token) {
-    return NextResponse.json({ error: "That Page isn't in your pending list — reconnect Facebook." }, { status: 400 });
+  const pages: PendingPage[] = Array.isArray(row?.pending_pages) ? row!.pending_pages : [];
+  const listed = pages.find((x) => x.id === pageId);
+  const token = listed ? await takePageToken(createServiceClient(), ctx.ownerId, ws?.id ?? null, pageId, pages) : null;
+  if (!listed || !token) {
+    return NextResponse.json({ error: "That Page isn't in your pending list. Reconnect Facebook." }, { status: 400 });
   }
+  const p = { ...listed, access_token: token };
 
   // Plan gate, server-side, before the write. Picking the Page already on
   // file is a reconnect and never counts as a new slot. This route is called
@@ -85,7 +88,7 @@ export async function POST(req: Request) {
     pending_pages: null,
   };
   if (ws) selectRow.workspace_id = ws.id;
-  const { error } = await ctx.client.from("facebook_connections").upsert(selectRow, { onConflict: ws ? "workspace_id" : "user_id" });
+  const { error } = await connDb.from("facebook_connections").upsert(selectRow, { onConflict: ws ? "workspace_id" : "user_id" });
   if (error) return NextResponse.json({ error: "Couldn't save the connection." }, { status: 500 });
 
   await syncFacebook(ctx.client, ctx.ownerId).catch(() => null);

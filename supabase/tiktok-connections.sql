@@ -1,3 +1,9 @@
+-- ===========================================================================
+-- DO NOT RUN. Superseded by tiktok-catchup.sql (production never ran this
+-- file). Running it after plans-security-fix.sql would replace
+-- socia_apply_plan_keep with an older version.
+-- ===========================================================================
+
 -- TikTok account connection (Login Kit, OAuth 2.0). One row per SOCIA user.
 -- Tokens are server-only: RLS lets the owner read/write their row through the
 -- user client, and nothing here is ever sent to the browser except the public

@@ -21,10 +21,11 @@ type ConnRow = {
   plan_suspended_at?: string | null;
 };
 
-async function readConnRow(supabase: SupabaseClient, userId: string): Promise<ConnRow | null> {
-  // Active workspace scoping when Brand Workspaces are enabled (one TikTok
-  // account per workspace); otherwise the one row per user.
-  const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+async function readConnRow(supabase: SupabaseClient, userId: string, workspaceId?: string | null): Promise<ConnRow | null> {
+  // Workspace scoping when Brand Workspaces are enabled (one TikTok account
+  // per workspace): the workspace asked for, else the owner's active one;
+  // otherwise the one row per user.
+  const wsId = workspaceId !== undefined ? workspaceId : (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
   const full = "open_id, access_token, refresh_token, token_expires_at, scopes, plan_suspended_at";
   let q = supabase.from("tiktok_connections").select(full).eq("user_id", userId);
   if (wsId) q = q.eq("workspace_id", wsId);
@@ -43,8 +44,8 @@ async function readConnRow(supabase: SupabaseClient, userId: string): Promise<Co
  * remain; TikTok rotates the refresh token on every refresh, so the new one is
  * always stored.
  */
-export async function tiktokAccessToken(supabase: SupabaseClient, userId: string): Promise<TikTokAccess | null> {
-  const row = await readConnRow(supabase, userId);
+export async function tiktokAccessToken(supabase: SupabaseClient, userId: string, workspaceId?: string | null): Promise<TikTokAccess | null> {
+  const row = await readConnRow(supabase, userId, workspaceId);
   if (!row?.access_token) return null;
   if (row.plan_suspended_at != null) return null;
   const scopes = Array.isArray(row.scopes) ? row.scopes : null;

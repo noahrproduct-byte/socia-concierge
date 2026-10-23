@@ -129,7 +129,7 @@ export async function syncCommentDrafts(
 
   const none: CommentRead = { comments: [], postsChecked: 0, postsFailed: 0, problem: null, returned: 0 };
   const [fbRead, igRead] = await Promise.all([
-    fbPosts.length ? fetchFacebookComments(supabase, ownerId, fbPosts) : Promise.resolve(none),
+    fbPosts.length ? fetchFacebookComments(supabase, ownerId, fbPosts, 25, workspaceId) : Promise.resolve(none),
     igMedia.length ? fetchInstagramComments(supabase, ownerId, igMedia, 25, workspaceId) : Promise.resolve(none),
   ]);
   const problems: SyncProblem[] = [];
@@ -214,14 +214,17 @@ export async function listCommentDrafts(supabase: Supa, ownerId: string, workspa
   }
 }
 
-async function loadDraft(supabase: Supa, ownerId: string, id: string): Promise<CommentDraft | null> {
-  const { data } = await supabase.from("comment_drafts").select("*").eq("user_id", ownerId).eq("id", id).maybeSingle();
+/** One draft of the owner's, in `workspaceId` when given (a guest never reaches another brand's drafts). */
+async function loadDraft(supabase: Supa, ownerId: string, id: string, workspaceId?: string | null): Promise<CommentDraft | null> {
+  let q = supabase.from("comment_drafts").select("*").eq("user_id", ownerId).eq("id", id);
+  if (workspaceId) q = q.eq("workspace_id", workspaceId);
+  const { data } = await q.maybeSingle();
   return (data as CommentDraft | null) ?? null;
 }
 
 /** Approve + send. `text` is the final reply (the draft, possibly edited). */
-export async function sendCommentDraft(supabase: Supa, ownerId: string, id: string, text: string): Promise<{ ok: boolean; error?: string; draft?: CommentDraft }> {
-  const d = await loadDraft(supabase, ownerId, id);
+export async function sendCommentDraft(supabase: Supa, ownerId: string, id: string, text: string, workspaceId?: string | null): Promise<{ ok: boolean; error?: string; draft?: CommentDraft }> {
+  const d = await loadDraft(supabase, ownerId, id, workspaceId);
   if (!d) return { ok: false, error: "That comment is no longer in your inbox." };
   if (d.status === "sent") return { ok: false, error: "This reply was already sent." };
   const now = new Date().toISOString();
@@ -235,14 +238,15 @@ export async function sendCommentDraft(supabase: Supa, ownerId: string, id: stri
   return { ok: false, error: r.error, draft: { ...d, status: "failed", draft: text, error: r.error } };
 }
 
-export async function skipCommentDraft(supabase: Supa, ownerId: string, id: string): Promise<boolean> {
+export async function skipCommentDraft(supabase: Supa, ownerId: string, id: string, workspaceId?: string | null): Promise<boolean> {
+  if (!(await loadDraft(supabase, ownerId, id, workspaceId))) return false;
   const { error } = await supabase.from("comment_drafts").update({ status: "skipped", updated_at: new Date().toISOString() }).eq("user_id", ownerId).eq("id", id);
   return !error;
 }
 
 /** Re-draft one comment (e.g. the person wants another suggestion). null when it's gone. */
-export async function redraftComment(supabase: Supa, ownerId: string, id: string, brand: BrandVoice): Promise<Drafted | null> {
-  const d = await loadDraft(supabase, ownerId, id);
+export async function redraftComment(supabase: Supa, ownerId: string, id: string, brand: BrandVoice, workspaceId?: string | null): Promise<Drafted | null> {
+  const d = await loadDraft(supabase, ownerId, id, workspaceId);
   if (!d || !d.comment_text) return null;
   const d2 = await draftReply({
     comment: { platform: d.platform, accountId: d.account_id, postId: d.post_id, postCaption: d.post_caption, commentId: d.comment_id, author: d.author, text: d.comment_text, createdAt: d.comment_created_at, likeCount: null },

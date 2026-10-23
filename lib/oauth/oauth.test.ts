@@ -87,6 +87,10 @@ describe("client rules", () => {
   it("never treats private or loopback addresses as fetchable", () => {
     for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1"]) expect(isPrivateAddress(ip)).toBe(true);
     for (const ip of ["104.18.1.1", "2606:4700::1111"]) expect(isPrivateAddress(ip)).toBe(false);
+    // IPv6 spellings of internal IPv4 addresses, as the URL parser writes them
+    for (const ip of ["::ffff:7f00:1", "::ffff:a9fe:a9fe", "::ffff:a00:1", "64:ff9b::a9fe:a9fe", "64:ff9b::7f00:1", "2002:a9fe:a9fe::1", "::7f00:1", "100::1", "2001:db8::1", "ff02::1", "fec0::1", "not-an-ip"]) expect(isPrivateAddress(ip), ip).toBe(true);
+    for (const ip of ["::ffff:6812:101", "64:ff9b::6812:101", "2a03:2880:f12f:83:face:b00c::25de"]) expect(isPrivateAddress(ip), ip).toBe(false);
+    expect(isPrivateAddress(new URL("https://[::ffff:127.0.0.1]/").hostname.slice(1, -1))).toBe(true);
   });
   it("fetches a client metadata document only from a public address, and only if it names itself", async () => {
     const url = "https://chatgpt.com/oauth/client.json";
@@ -115,16 +119,11 @@ describe("authorize", () => {
     expect((await validateAuthorize(store, params({ redirect_uri: "https://evil.example/cb" }), NOW)).kind).toBe("error_page");
     expect((await validateAuthorize(store, params({ redirect_uri: undefined }), NOW)).kind).toBe("error_page");
   });
-  it("sends request errors back to the app with state and iss", async () => {
-    const r = await validateAuthorize(store, params({ code_challenge_method: "plain" }), NOW);
-    expect(r.kind).toBe("redirect");
-    const u = new URL((r as { url: string }).url);
-    expect(u.searchParams.get("error")).toBe("invalid_request");
-    expect(u.searchParams.get("state")).toBe("st-1");
-    expect(u.searchParams.get("iss")).toBe("https://sociaos.com");
-    expect(new URL(((await validateAuthorize(store, params({ scope: "admin" }), NOW)) as { url: string }).url).searchParams.get("error")).toBe("invalid_scope");
-    expect(new URL(((await validateAuthorize(store, params({ resource: "https://evil.example/mcp" }), NOW)) as { url: string }).url).searchParams.get("error")).toBe("invalid_target");
-    expect(new URL(((await validateAuthorize(store, params({ response_type: "token" }), NOW)) as { url: string }).url).searchParams.get("error")).toBe("unsupported_response_type");
+  it("shows request errors on SOCIA's page and never redirects (no open redirect)", async () => {
+    for (const bad of [{ code_challenge_method: "plain" }, { scope: "admin" }, { resource: "https://evil.example/mcp" }, { response_type: "token" }, { response_type: undefined }]) {
+      const r = await validateAuthorize(store, params(bad as unknown as Record<string, string>), NOW);
+      expect(r.kind, JSON.stringify(bad)).toBe("error_page");
+    }
   });
   it("keeps a redirect's own query", () => {
     expect(redirectWith("https://app.example/cb?x=1", { code: "c", state: null })).toBe("https://app.example/cb?x=1&code=c");

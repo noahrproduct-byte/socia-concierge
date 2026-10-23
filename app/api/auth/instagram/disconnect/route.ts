@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -80,9 +81,10 @@ export async function POST(req: Request) {
         .eq("workspace_id", wsId)
         .eq("ig_user_id", body.ig_user_id);
       if (!scopedDel.error) return finish();
+      if (!isMissingColumnError(scopedDel.error)) return NextResponse.json({ error: "Couldn't disconnect right now. Try again." }, { status: 500 });
     }
     const { error } = await db.from("instagram_connections").delete().eq("user_id", ownerId).eq("ig_user_id", body.ig_user_id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: "Couldn't disconnect right now. Try again." }, { status: 500 });
     return finish();
   }
 
@@ -93,6 +95,8 @@ export async function POST(req: Request) {
   if (wsId) {
     const wsDel = await db.from("instagram_connections").delete().eq("user_id", ownerId).eq("workspace_id", wsId);
     if (!wsDel.error) return finish();
+    // Only a missing workspace column falls through to the owner-wide paths.
+    if (!isMissingColumnError(wsDel.error)) return NextResponse.json({ error: "Couldn't disconnect right now. Try again." }, { status: 500 });
   }
   // Delete only the active row when the column exists; a failed filter
   // falls through to the single-row world below.

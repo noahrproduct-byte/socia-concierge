@@ -156,8 +156,9 @@ async function fetchPage(token: string, pageId: string): Promise<{
 }
 
 /** Force-sync the connected Page; returns the fresh snapshot or null. */
-async function syncFacebookImpl(supabase: Supa, userId: string): Promise<FbSnapshot | null> {
-  const conn = await readFbRow(supabase, userId);
+/** `workspaceId`: the workspace being synced (undefined: the owner's active one, the pre-workspaces behaviour). */
+async function syncFacebookImpl(supabase: Supa, userId: string, workspaceId?: string | null): Promise<FbSnapshot | null> {
+  const conn = await readFbRow(supabase, userId, workspaceId);
   // A Page paused by a plan downgrade is never read, not even on a manual sync.
   if (!conn?.access_token || !conn.page_id || conn.plan_suspended_at != null) return null;
 

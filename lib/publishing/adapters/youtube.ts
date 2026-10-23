@@ -265,7 +265,9 @@ export function storageOrigin(env: Record<string, string | undefined> = process.
 export function storageFetchUrl(media: { path: string | null; url: string | null }, origin: string | null): string | null {
   if (!origin) return null;
   if (media.path) {
-    const segments = media.path.split("/").filter(Boolean).map(encodeURIComponent);
+    const raw = media.path.split("/").filter(Boolean);
+    if (raw.some((x) => x === "." || x === ".." || x.includes("\\"))) return null;
+    const segments = raw.map(encodeURIComponent);
     if (segments.length) return `${origin}/storage/v1/object/public/${MEDIA_BUCKET}/${segments.join("/")}`;
   }
   if (media.url) {

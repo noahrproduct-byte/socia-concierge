@@ -68,6 +68,8 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => null)) as { role?: unknown; email?: unknown } | null;
   const role: MemberRole = body?.role === "admin" ? "admin" : "member";
+  // Only the owner decides who else gets admin rights; an Admin invites Members.
+  if (role === "admin" && !ctx.isOwner) return NextResponse.json({ error: "Only the workspace owner can invite an admin." }, { status: 403 });
   const email = typeof body?.email === "string" ? body.email.slice(0, 200) : null;
 
   // Seat pre-check so the link is not handed out when nobody could accept it.

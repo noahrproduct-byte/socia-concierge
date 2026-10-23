@@ -30,7 +30,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
 
-  const auth = await tiktokAccessToken(ctx.client, ctx.ownerId);
+  const auth = await tiktokAccessToken(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!auth) return NextResponse.json({ error: "TikTok is not connected." }, { status: 404 });
   if (!canUpload(auth.scopes)) {
     return NextResponse.json({ error: "Reconnect TikTok to allow uploads.", code: "needs_scope" }, { status: 409 });

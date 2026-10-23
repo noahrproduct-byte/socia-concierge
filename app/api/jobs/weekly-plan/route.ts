@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runWeeklyPlans } from "@/lib/weeklyPlanJob";
+import { isCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 // A plan takes one to three minutes per owner; the run continues after the
@@ -11,10 +12,7 @@ export const maxDuration = 300;
 // the work in the background, so the caller's short timeout does not matter.
 // ?force=1 runs it on any day (manual trigger); ?sync=1 waits for the result.
 async function run(req: Request) {
-  const clean = (s: string | null | undefined) => (s ?? "").trim().replace(/^["']|["']$/g, "");
-  const bearer = clean(req.headers.get("authorization")).match(/^bearer\s+(.+)$/i)?.[1];
-  const secret = clean(process.env.CRON_SECRET);
-  if (!secret || bearer === undefined || clean(bearer) !== secret) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  if (!isCronRequest(req)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: "ANTHROPIC_API_KEY is not set." }, { status: 503 });

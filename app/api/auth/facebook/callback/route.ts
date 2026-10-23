@@ -8,6 +8,9 @@ import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { FB_STATE_COOKIE, clearStateCookie, verifyOAuthState } from "@/lib/oauthState";
+import { createServiceClient } from "@/lib/supabase/service";
+import { stashPageTokens } from "@/lib/facebookPending";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -61,6 +64,21 @@ async function pagesViaBusiness(base: string, token: string): Promise<PageEntry[
 // and either connect the single Page or ask the user to choose.
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  // CSRF: the state must carry the nonce this browser was given at start,
+  // checked before anything else; every exit clears the one-time cookie.
+  const st = verifyOAuthState(req, FB_STATE_COOKIE);
+  const denied = url.searchParams.get("error_reason") === "user_denied" || url.searchParams.get("error") === "access_denied";
+  const res = denied
+    ? NextResponse.redirect(`${url.origin}/settings?fb=denied`)
+    : st.ok
+      ? await connect(req)
+      : NextResponse.redirect(`${url.origin}/settings?fb=error`);
+  clearStateCookie(res, FB_STATE_COOKIE);
+  return res;
+}
+
+async function connect(req: Request): Promise<NextResponse> {
+  const url = new URL(req.url);
   const origin = url.origin;
   const done = (q: string) => NextResponse.redirect(`${origin}/settings?fb=${q}`);
 
@@ -82,6 +100,9 @@ export async function GET(req: Request) {
   // ctx.client. Auth and event attribution stay on the viewer. Refused before
   // the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connection rows (tokens) are written only by SOCIA's server role: the
+  // database refuses direct writes from a browser session (security-hardening.sql).
+  const connDb = createServiceClient() ?? ctx.client;
   // Connections or their data are about to change: drop the reused live
   // platform reads so the next page view asks the platforms again.
   clearLiveCache(ctx.ownerId);
@@ -208,19 +229,19 @@ export async function GET(req: Request) {
         ig_business_username: ig?.username ?? null,
       };
       if (ws) row.workspace_id = ws.id;
-      let { error } = await ctx.client
+      let { error } = await connDb
         .from("facebook_connections")
         .upsert(row, { onConflict });
       if (error) {
         // ig_business_* columns may not exist yet — connect without them.
         delete row.ig_business_id;
         delete row.ig_business_username;
-        ({ error } = await ctx.client
+        ({ error } = await connDb
           .from("facebook_connections")
           .upsert(row, { onConflict }));
       }
       if (error) return done("error");
-      if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
+      if (fbUserId) await scopeFb(connDb.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
       await syncFacebook(ctx.client, ctx.ownerId).catch(() => null);
       return done("connected");
     }
@@ -238,12 +259,13 @@ export async function GET(req: Request) {
       username: null,
       access_token: null,
       connection_status: "choose_page",
-      pending_pages: pages,
+      // Names only: the Page tokens are kept server-side (lib/facebookPending.ts).
+      pending_pages: await stashPageTokens(createServiceClient(), ctx.ownerId, ws?.id ?? null, pages),
     };
     if (ws) pendingRow.workspace_id = ws.id;
-    const { error } = await ctx.client.from("facebook_connections").upsert(pendingRow, { onConflict });
+    const { error } = await connDb.from("facebook_connections").upsert(pendingRow, { onConflict });
     if (error) return done("error");
-    if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
+    if (fbUserId) await scopeFb(connDb.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
     return done("choose");
   } catch {
     return done("error");

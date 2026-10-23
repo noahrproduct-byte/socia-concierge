@@ -14,6 +14,7 @@ import { canConnectAnother, getEntitlements, listConnectedAccounts } from "@/lib
 import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -59,6 +60,9 @@ export async function GET(req: Request) {
   // through ctx.client. Auth, the state nonce and event attribution stay on
   // the viewer. Refused before the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connection rows (tokens) are written only by SOCIA's server role: the
+  // database refuses direct writes from a browser session (security-hardening.sql).
+  const connDb = createServiceClient() ?? ctx.client;
   if (!can(ctx, "connect")) return done("forbidden");
 
   try {
@@ -103,7 +107,7 @@ export async function GET(req: Request) {
       connected_at: new Date(now).toISOString(),
     };
     if (ws) row.workspace_id = ws.id;
-    const { error: upErr } = await ctx.client.from("tiktok_connections").upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
+    const { error: upErr } = await connDb.from("tiktok_connections").upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
     if (upErr) {
       console.error("TikTok connection upsert failed:", upErr.message);
       return done("error");

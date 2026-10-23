@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { resolveContext, brandWorkspace, can, forbiddenCopy } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { sendCommentDraft, skipCommentDraft, redraftComment } from "@/lib/commentDrafts";
@@ -26,15 +26,24 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Body;
   if (!body.id || !body.action) return NextResponse.json({ error: "Missing id or action." }, { status: 400 });
 
+  // Sending replies publicly as the brand, and skipping changes the shared
+  // inbox: both are publishing, which Members can't do. Members may still ask
+  // for another suggestion.
+  if ((body.action === "send" || body.action === "skip") && !can(ctx, "publish")) {
+    return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
+  }
+  if (body.action !== "send" && body.action !== "skip" && body.action !== "redraft") return NextResponse.json({ error: "Unknown action." }, { status: 400 });
+  const wsId = ctx.workspace?.id ?? null;
+
   if (body.action === "send") {
     const text = (body.text ?? "").trim();
     if (!text) return NextResponse.json({ error: "The reply is empty." }, { status: 400 });
     if (text.length > 2000) return NextResponse.json({ error: "The reply is too long." }, { status: 400 });
-    const r = await sendCommentDraft(ctx.client, ctx.ownerId, body.id, text);
+    const r = await sendCommentDraft(ctx.client, ctx.ownerId, body.id, text, wsId);
     return NextResponse.json(r, { status: r.ok ? 200 : 422 });
   }
   if (body.action === "skip") {
-    const ok = await skipCommentDraft(ctx.client, ctx.ownerId, body.id);
+    const ok = await skipCommentDraft(ctx.client, ctx.ownerId, body.id, wsId);
     return NextResponse.json({ ok });
   }
   // redraft
@@ -42,6 +51,6 @@ export async function POST(req: Request) {
   // Each redraft is an AI call with no allowance of its own: an hourly ceiling per account.
   const limited = await perUserLimit(ctx.ownerId, "comment_redraft", 60, "new reply suggestions");
   if (limited) return limited;
-  const r = await redraftComment(ctx.client, ctx.ownerId, body.id, brandVoiceFrom(profile, ctx.workspace?.name ?? null));
+  const r = await redraftComment(ctx.client, ctx.ownerId, body.id, brandVoiceFrom(profile, ctx.workspace?.name ?? null), wsId);
   return NextResponse.json({ ok: Boolean(r && (r.text || r.skip)), draft: r?.text ?? null, skip: r?.skip ?? false });
 }

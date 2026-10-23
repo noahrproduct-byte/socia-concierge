@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
 import { dropPlatformHistory } from "@/lib/platformSnapshots";
+import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -45,6 +46,8 @@ export async function POST() {
       clearLiveCache(ctx.ownerId);
       return NextResponse.json({ ok: true });
     }
+    // Only a missing workspace column widens the delete to every brand.
+    if (!isMissingColumnError(error)) return NextResponse.json({ error: "Couldn't disconnect right now. Try again." }, { status: 500 });
   }
   const pages = await pagesOf(false).catch(() => []);
   await ctx.client.from("facebook_connections").delete().eq("user_id", ctx.ownerId);

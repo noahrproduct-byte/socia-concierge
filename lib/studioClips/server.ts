@@ -7,7 +7,7 @@ import { getLimit, type Entitlements } from "@/lib/entitlements";
 import { getProfile } from "@/lib/profile";
 import type { Workspace } from "@/lib/workspaces";
 import { scopeToWorkspace } from "@/lib/workspaces";
-import { signUrls, clipFolder, removeFolder } from "./storage";
+import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder } from "./storage";
 import { checkClipFits, projectTotals, ownerStorageBytes, expiryFor, type FitResult } from "./limits";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
@@ -90,7 +90,7 @@ export async function clipRows(client: Supa, projectId: string): Promise<ClipRow
 
 /** Signed URLs for every keyframe of these clips (footage that expired has none). */
 export async function frameUrls(client: Supa, rows: ClipRow[]): Promise<Record<string, string>> {
-  const paths = rows.flatMap((r) => (r.purged_at ? [] : (r.frames ?? []).map((f) => f.path)));
+  const paths = rows.flatMap((r) => (r.purged_at ? [] : (r.frames ?? []).map((f) => f.path).filter((p) => clipOwnsPath(r, p))));
   return signUrls(client, paths);
 }
 
@@ -126,7 +126,10 @@ export async function deleteProject(client: Supa, ownerId: string, wsId: string 
   const row = await getProjectRow(client, ownerId, wsId, id);
   if (!row) return false;
   const rows = await clipRows(client, id);
-  for (const c of rows) if (c.source_path && !c.purged_at) await removeFolder(client, c.source_path.split("/").slice(0, 3).join("/"));
+  for (const c of rows) {
+    const folder = !c.purged_at ? clipFolderOf(c) : null;
+    if (folder) await removeFolder(client, folder);
+  }
   const { error } = await client.from("studio_projects").delete().eq("id", id).eq("user_id", ownerId);
   if (error) throw error;
   return true;
@@ -210,7 +213,8 @@ export async function deleteClip(client: Supa, ownerId: string, clipId: string):
   const { data } = await client.from("studio_clips").select("*").eq("id", clipId).eq("user_id", ownerId).limit(1);
   const row = ((data ?? []) as ClipRow[])[0];
   if (!row) return false;
-  if (row.source_path && !row.purged_at) await removeFolder(client, row.source_path.split("/").slice(0, 3).join("/"));
+  const folder = !row.purged_at ? clipFolderOf(row) : null;
+  if (folder) await removeFolder(client, folder);
   const { error } = await client.from("studio_clips").delete().eq("id", clipId).eq("user_id", ownerId);
   if (error) throw error;
   // Positions stay stable (labels in existing guides refer to them); a project
@@ -297,8 +301,8 @@ export async function loadBuildRow(client: Supa, ownerId: string, buildId: strin
 export async function buildPlayerData(client: Supa, ownerId: string, buildId: string, canEdit: boolean): Promise<BuildPlayerData | null> {
   const row = await loadBuildRow(client, ownerId, buildId);
   if (!row) return null;
-  const rows = (await clipRows(client, row.project_id)).filter((r) => r.source_path && !r.purged_at && r.status !== "expired");
-  const paths = rows.flatMap((r) => [r.source_path!, ...(r.frames?.[0] ? [r.frames[0].path] : [])]);
+  const rows = (await clipRows(client, row.project_id)).filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && clipOwnsPath(r, r.source_path));
+  const paths = rows.flatMap((r) => [r.source_path!, ...(r.frames?.[0] && clipOwnsPath(r, r.frames[0].path) ? [r.frames[0].path] : [])]);
   const urls = await signUrls(client, paths);
   const sources: BuildSource[] = rows
     .filter((r) => urls[r.source_path!])

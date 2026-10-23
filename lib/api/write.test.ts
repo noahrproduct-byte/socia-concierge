@@ -165,3 +165,28 @@ describe("cancelling", () => {
     expect(r).toMatchObject({ cancelled: ["facebook"], note: "Withdrawn. Nothing will be published." });
   });
 });
+
+describe("copying media from links", () => {
+  const links = (n: number) => Array.from({ length: n }, (_, i) => ({ url: `https://cdn.example/${i}.mp4` }));
+
+  it("stops at the per-post cap and removes what it already copied", async () => {
+    nextMedia = jpeg({ kind: "video", mime: "video/mp4", size: 100 * 1024 * 1024, path: "owner-1/assistant/v.mp4" });
+    const r = await createPost(ctx(), ent(), post({ media: links(5), when: "draft" }), deps).catch((e) => e);
+    expect(r).toBeInstanceOf(ApiFailure);
+    expect(String(r.message)).toMatch(/at most 250 MB/);
+    expect(saved).toEqual([]);
+    expect(removed.flat().length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("starts no new link when the request is about to run out of time", async () => {
+    const r = await createPost(ctx(), ent(), post({ media: links(1), when: "draft" }), { ...deps, deadline: Date.now() + 5_000 }).catch((e) => e);
+    expect(r).toBeInstanceOf(ApiFailure);
+    expect(String(r.message)).toMatch(/Too many links/);
+    expect(saved).toEqual([]);
+  });
+
+  it("still takes files already in SOCIA however close the deadline", async () => {
+    const r = await createPost(ctx(), ent(), post({ when: "draft" }), { ...deps, deadline: Date.now() + 5_000 });
+    expect(r).toMatchObject({ result: "draft" });
+  });
+});

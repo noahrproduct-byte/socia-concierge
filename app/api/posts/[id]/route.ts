@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { loadItem } from "@/lib/publishing/db";
 import { resolveContext } from "@/lib/context";
+import { memberEditBlock } from "@/lib/approvals";
+import { isOwnPath } from "@/lib/storagePaths";
 
 export const runtime = "nodejs";
 
@@ -18,7 +20,7 @@ export async function GET(_req: Request, { params }: Params) {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
   const { id } = await params;
-  const item = await loadItem(ctx.client, id, ctx.ownerId);
+  const item = await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   return NextResponse.json({ item });
 }
@@ -32,19 +34,23 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
   const { id } = await params;
-  const item = await loadItem(ctx.client, id, ctx.ownerId);
+  const item = await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (item.status === "published" || item.destinations.some((d) => d.status === "published")) {
     return NextResponse.json({ error: "Published posts stay in the record." }, { status: 409 });
   }
+  const blocked = await memberEditBlock(ctx, id);
+  if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
   // Files live under their uploader's folder: the viewer's, or the workspace
   // owner's. Only those are removed, never a path from elsewhere in the bucket.
-  const prefixes = [`${ctx.viewerId}/`, `${ctx.ownerId}/`];
-  const paths = item.media.map((m) => m.path).filter((p): p is string => Boolean(p) && prefixes.some((x) => (p as string).startsWith(x)));
+  const paths = item.media.map((m) => m.path).filter((p): p is string => isOwnPath(p, [ctx.viewerId, ctx.ownerId]));
   if (paths.length) {
     try { await ctx.client.storage.from("scheduled-media").remove(paths); } catch { /* the row still goes */ }
   }
   const { error } = await ctx.client.from("scheduled_posts").delete().eq("id", id).eq("user_id", ctx.ownerId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[posts] delete", error.message);
+    return NextResponse.json({ error: "SOCIA couldn't remove that post. Try again." }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

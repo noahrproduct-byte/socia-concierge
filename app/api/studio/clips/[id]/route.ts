@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { completeClip, deleteClip, type CompleteInput } from "@/lib/studioClips/server";
 import type { ClipFacts } from "@/lib/studioClips/types";
+import { isOwnPath } from "@/lib/storagePaths";
 
 export const runtime = "nodejs";
 
@@ -19,7 +20,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = (await req.json().catch(() => null)) as Partial<CompleteInput> | null;
   if (!body || typeof body.sourcePath !== "string" || !Array.isArray(body.frames)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   // The browser may only point at objects under its own uid prefix.
-  const mine = (p: unknown) => typeof p === "string" && p.startsWith(`${viewerId}/`);
+  const mine = (p: unknown) => typeof p === "string" && isOwnPath(p, [viewerId]) && p.split("/")[2] === id;
   if (!mine(body.sourcePath) || body.frames.some((f) => !mine(f?.path)) || (body.audioPath != null && !mine(body.audioPath))) {
     return NextResponse.json({ error: "Storage paths must be your own." }, { status: 400 });
   }

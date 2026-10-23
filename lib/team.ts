@@ -197,7 +197,15 @@ export async function acceptInvite(
 export async function removeMember(supabase: Supa, workspaceId: string, userId: string, viaService = false): Promise<boolean> {
   const client = viaService ? createServiceClient() ?? supabase : supabase;
   const { error } = await client.from("workspace_members").delete().eq("workspace_id", workspaceId).eq("user_id", userId);
-  return !error;
+  if (error) return false;
+  // Links this person made stop working too: someone removed must not be able
+  // to come back through an invite they kept (or hand one on). Server role,
+  // because an Admin removing a member can't update invites through RLS.
+  const svc = createServiceClient() ?? client;
+  await svc.from("workspace_invites").update({ revoked_at: new Date().toISOString() })
+    .eq("workspace_id", workspaceId).eq("created_by", userId).is("accepted_at", null).is("revoked_at", null)
+    .then(() => undefined, () => undefined);
+  return true;
 }
 
 /** Change a member's role. Owner only (RLS). */
