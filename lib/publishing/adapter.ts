@@ -32,7 +32,8 @@ export type PublishOutcome = {
    * Work the browser must do to finish (YouTube resumable upload). The route
    * returns it to the client verbatim; the runner never blocks on it.
    */
-  clientAction?: { kind: "youtube_resumable_upload"; sessionUri: string; accessToken: string; mediaId: string; videoId: string | null };
+  /** A sealed handle (youtubeRelay.ts): never a token or the raw session URI. */
+  clientAction?: { kind: "youtube_resumable_upload"; uploadHandle: string; mediaId: string; videoId: string | null };
 };
 
 export type PublishContext = {

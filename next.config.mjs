@@ -34,7 +34,7 @@ const reportOnlyCsp = [
   "img-src 'self' data: blob: https:",
   `media-src 'self' blob: data: ${supabaseOrigin} https://*.cdninstagram.com https://*.fbcdn.net`,
   "font-src 'self' data: https://fonts.gstatic.com",
-  `connect-src 'self' ${supabaseOrigin} ${supabaseWs} https://www.googleapis.com https://fonts.gstatic.com https://*.cdninstagram.com https://*.fbcdn.net blob: data:`,
+  `connect-src 'self' ${supabaseOrigin} ${supabaseWs} https://fonts.gstatic.com https://*.cdninstagram.com https://*.fbcdn.net blob: data:`,
   "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",

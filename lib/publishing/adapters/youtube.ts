@@ -1,8 +1,9 @@
 // YouTube publisher behind the PublishAdapter contract. Server only.
 //
 // publish():  builds the video resource from YouTubeSettings, opens a resumable
-//             upload session and hands the browser the session URI (the bytes
-//             go browser -> YouTube; SOCIA's server never relays the file).
+//             upload session and hands the browser a sealed handle to it. The
+//             browser sends the chunks to SOCIA, which forwards them with the
+//             token (youtubeRelay.ts): the browser never holds the token.
 // complete(): the browser reports the video id; the id is confirmed to belong
 //             to the connected channel, then the thumbnail and playlist are set
 //             best-effort and the real upload state is returned.
@@ -18,6 +19,7 @@ import type { YouTubePrivacy, YouTubeSettings } from "../types";
 import { effectiveCaption } from "../validate";
 import { YT_WRITE_SCOPES } from "../capabilities";
 import { youtubeAccessToken, type YouTubeAccess } from "../../youtubeData";
+import { sealSession } from "../youtubeRelay";
 
 const UPLOAD = "https://www.googleapis.com/upload/youtube/v3";
 const DATA = "https://www.googleapis.com/youtube/v3";
@@ -172,9 +174,14 @@ const authFailure = (e: ReturnType<typeof describeGoogle>, status: number): Publ
 };
 
 async function resolve(ctx: PublishContext): Promise<{ auth: YouTubeAccess } | { failure: PublishOutcome }> {
-  const auth = await youtubeAccessToken(ctx.supabase, ctx.userId);
+  return uploadAccess(ctx.supabase, ctx.userId, ctx.destination.accountId);
+}
+
+/** A fresh token for the owner's channel, only when it is the destination's channel and may upload. */
+export async function uploadAccess(supabase: PublishContext["supabase"], ownerId: string, accountId: string): Promise<{ auth: YouTubeAccess } | { failure: PublishOutcome }> {
+  const auth = await youtubeAccessToken(supabase, ownerId);
   if (!auth) return { failure: fail("YouTube is not connected to SOCIA, or the channel is paused by your plan.", "no_connection") };
-  if (auth.channelId && auth.channelId !== ctx.destination.accountId) {
+  if (auth.channelId && auth.channelId !== accountId) {
     return { failure: fail("The connected YouTube channel is not the one this post was created for.", "channel_mismatch") };
   }
   if (!hasWriteScope(auth.scopes)) return { failure: fail(RECONNECT_MESSAGE, "needs_scope") };
@@ -233,12 +240,15 @@ async function publish(ctx: PublishContext): Promise<PublishOutcome> {
   if (!start.ok) return authFailure(start.error, start.status) ?? fail(start.error.message, start.error.code, start.error.retryable);
   const sessionUri = start.headers.get("location");
   if (!sessionUri) return fail("YouTube did not return an upload session.", "no_session", true);
+  const total = typeof media.size === "number" && Number.isFinite(media.size) && media.size > 0 ? Math.floor(media.size) : null;
+  const uploadHandle = sealSession({ sessionUri, destinationId: ctx.destination.id, ownerId: ctx.userId, total });
+  if (!uploadHandle) return fail("SOCIA's server is missing its upload key, so the video can't be sent.", "no_upload_key", false);
 
   return {
     status: "uploading",
     errorCode: null,
     errorMessage: null,
-    clientAction: { kind: "youtube_resumable_upload", sessionUri, accessToken: token, mediaId: media.id, videoId: null },
+    clientAction: { kind: "youtube_resumable_upload", uploadHandle, mediaId: media.id, videoId: null },
   };
 }
 
