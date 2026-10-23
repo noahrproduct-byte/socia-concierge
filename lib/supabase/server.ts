@@ -3,6 +3,7 @@ import { timed } from "@/lib/timing";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_OPTIONS, getSupabaseAnonKey, getSupabaseUrl } from "./env";
+import { withPrivateTables } from "./privateTables";
 
 // The Supabase client for use on the server (server components, route
 // handlers, server actions). It reads/writes the login session via cookies.
@@ -12,7 +13,8 @@ import { SESSION_COOKIE_OPTIONS, getSupabaseAnonKey, getSupabaseUrl } from "./en
 export const createClient = cache(async () => {
   const cookieStore = await cookies();
 
-  return createServerClient(
+  // Token tables are reached through the server role only (privateTables.ts).
+  return withPrivateTables(createServerClient(
     getSupabaseUrl(),
     getSupabaseAnonKey(),
     {
@@ -34,7 +36,7 @@ export const createClient = cache(async () => {
         },
       },
     },
-  );
+  ));
 });
 
 /** The signed-in person and the request's client, checked with Supabase once
