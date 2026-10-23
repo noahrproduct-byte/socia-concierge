@@ -22,7 +22,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const forbidden = requireMutate(ctx);
   if (forbidden) return forbidden;
   try {
-    const row = await loadBuildRow(ctx.client, ctx.ownerId, id);
+    const row = await loadBuildRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!row) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     const path = signedExportPath(viewerId, id);
     if (!path) return NextResponse.json({ error: "Exporting isn't set up on this server." }, { status: 503 });
@@ -47,7 +47,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   const path = typeof body?.path === "string" ? body.path : "";
   if (!verifyExportPath(path, viewerId, id)) return NextResponse.json({ error: "Nothing to give back for that export." }, { status: 400 });
   try {
-    const row = await loadBuildRow(ctx.client, ctx.ownerId, id);
+    const row = await loadBuildRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!row) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     // A render that was kept is not refunded.
     if ((row as { render_path?: string | null }).render_path === path) return NextResponse.json({ ok: true, refunded: false });

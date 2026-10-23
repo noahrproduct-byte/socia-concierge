@@ -121,18 +121,22 @@ export async function audioData(client: Supa, ownerId: string, wsId: string | nu
 }
 
 /** The CDN link for a post the owner is entitled to analyse, or null. */
-export async function resolveMediaUrl(client: Supa, ownerId: string, mediaId: string): Promise<string | null> {
-  const { data, error } = await client.from("audio_media").select("media_url, has_media_url").eq("user_id", ownerId).eq("media_id", mediaId).limit(1);
+export async function resolveMediaUrl(client: Supa, ownerId: string, wsId: string | null, mediaId: string): Promise<string | null> {
+  let q = client.from("audio_media").select("media_url, has_media_url").eq("user_id", ownerId).eq("media_id", mediaId);
+  if (wsId) q = q.eq("workspace_id", wsId);
+  const { data, error } = await q.limit(1);
   if (error) throw error;
   const r = ((data ?? []) as { media_url: string | null; has_media_url: boolean }[])[0];
   return r?.has_media_url && r.media_url ? r.media_url : null;
 }
 
-export async function storeMeasurement(client: Supa, ownerId: string, mediaId: string, result: { features: AudioFeatures } | { error: string }): Promise<void> {
+export async function storeMeasurement(client: Supa, ownerId: string, wsId: string | null, mediaId: string, result: { features: AudioFeatures } | { error: string }): Promise<void> {
   const patch = "features" in result
     ? { features: result.features, error: null, analyzed_at: now(), updated_at: now() }
     : { error: result.error.slice(0, 300), analyzed_at: now(), updated_at: now() };
-  const { error } = await client.from("audio_media").update(patch).eq("user_id", ownerId).eq("media_id", mediaId);
+  let q = client.from("audio_media").update(patch).eq("user_id", ownerId).eq("media_id", mediaId);
+  if (wsId) q = q.eq("workspace_id", wsId);
+  const { error } = await q;
   if (error) throw error;
 }
 

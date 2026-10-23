@@ -25,7 +25,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Storage paths must be your own." }, { status: 400 });
   }
   try {
-    const clip = await completeClip(ctx.client, ctx.ownerId, id, {
+    const clip = await completeClip(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, {
       sourcePath: body.sourcePath,
       frames: body.frames.filter((f) => typeof f?.t === "number").map((f) => ({ t: Number(f.t), path: String(f.path) })).slice(0, 12),
       audioPath: typeof body.audioPath === "string" ? body.audioPath : null,
@@ -46,7 +46,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const forbidden = requireMutate(r.ctx);
   if (forbidden) return forbidden;
   try {
-    const ok = await deleteClip(r.ctx.client, r.ctx.ownerId, id);
+    const ok = await deleteClip(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!ok) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (e) {

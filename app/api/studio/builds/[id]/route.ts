@@ -23,7 +23,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const ent = await getEntitlements(ctx.client, ctx.ownerId);
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build", ent);
     if (denied) return denied;
-    const data = await buildPlayerData(ctx.client, ctx.ownerId, id, checkFeature(ent, "auto_build").ok && can(ctx, "publish"));
+    const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, checkFeature(ent, "auto_build").ok && can(ctx, "publish"));
     if (!data) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     return NextResponse.json(data);
   } catch (e) {
@@ -44,7 +44,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
-    const build = await saveBuildEdl(ctx.client, ctx.ownerId, id, body.edl);
+    const build = await saveBuildEdl(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, body.edl);
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });

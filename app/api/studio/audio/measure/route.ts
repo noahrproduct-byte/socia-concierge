@@ -23,9 +23,9 @@ export async function POST(req: Request) {
         energyDb: num(f.energyDb), peakDb: num(f.peakDb), bpm: num(f.bpm), bpmConfidence: Math.max(0, Math.min(1, num(f.bpmConfidence) ?? 0)),
         flatness: num(f.flatness), musicScore: Math.max(0, Math.min(1, num(f.musicScore) ?? 0)), musicLikely: Boolean(f.musicLikely),
       };
-      await storeMeasurement(r.ctx.client, r.ctx.ownerId, body.mediaId, { features: clean });
+      await storeMeasurement(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, body.mediaId, { features: clean });
     } else {
-      await storeMeasurement(r.ctx.client, r.ctx.ownerId, body.mediaId, { error: String(body.error) });
+      await storeMeasurement(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, body.mediaId, { error: String(body.error) });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {
