@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { clipFolderOf, removeFolder } from "@/lib/studioClips/storage";
 import { isCronRequest } from "@/lib/cronAuth";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -24,7 +25,7 @@ async function run(req: Request) {
     .is("purged_at", null)
     .order("expires_at", { ascending: true })
     .limit(200);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("studio-purge", error);
 
   const run = { due: (data ?? []).length, purged: 0, errors: 0 };
   for (const c of (data ?? []) as { id: string; project_id: string; source_path: string | null }[]) {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseCrossSite } from "@/lib/crossSite";
 import { perUserLimit } from "@/lib/rateLimit";
 import { isSocialContentUrl } from "@/lib/fetchGuard";
 import Anthropic from "@anthropic-ai/sdk";
@@ -74,6 +75,8 @@ function parseJsonArray(text: string): unknown[] {
 }
 
 export async function GET(req: Request) {
+  const crossSite = refuseCrossSite(req);
+  if (crossSite) return crossSite;
   const supabase = await createClient();
   const {
     data: { user },

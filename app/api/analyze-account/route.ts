@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseCrossSite } from "@/lib/crossSite";
 import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
@@ -162,7 +163,9 @@ type IgMedia = {
   timestamp?: string;
 };
 
-export async function GET() {
+export async function GET(req: Request) {
+  const crossSite = refuseCrossSite(req);
+  if (crossSite) return crossSite;
   const supabase = await createClient();
   const {
     data: { user },

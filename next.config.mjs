@@ -40,6 +40,8 @@ const reportOnlyCsp = [
   "base-uri 'self'",
   "frame-ancestors 'self'",
   "form-action 'self' https: http://localhost:* http://127.0.0.1:*",
+  // Violations land in the server logs as "[csp]" lines (app/api/csp-report).
+  "report-uri /api/csp-report",
 ].join("; ");
 
 const nextConfig = {

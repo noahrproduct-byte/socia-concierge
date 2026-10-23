@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
 import { isMissingColumnError } from "@/lib/workspaces";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
   if (!activeDel.error) return finish();
 
   const { error } = await db.from("instagram_connections").delete().eq("user_id", ownerId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("instagram/disconnect", error);
   return finish();
 }
 

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   YT_OAUTH_STATE_COOKIE,
   exchangeCode,
+  YT_PKCE_COOKIE,
   fetchMyChannel,
   readStateCookie,
   ytAuthConfigured,
@@ -33,6 +34,7 @@ export async function GET(req: Request) {
   const done = (q: string) => {
     const res = NextResponse.redirect(`${origin}/${dest}?yt=${q}`);
     res.cookies.set(YT_OAUTH_STATE_COOKIE, "", { path: "/", maxAge: 0 });
+    res.cookies.set(YT_PKCE_COOKIE, "", { path: "/", maxAge: 0 });
     return res;
   };
 
@@ -41,6 +43,8 @@ export async function GET(req: Request) {
   // CSRF: the nonce echoed in state must match the cookie set at start.
   const cookieNonce = readStateCookie(req);
   if (!nonce || !cookieNonce || nonce !== cookieNonce) return done("error");
+  // PKCE: the verifier set at start must still be here.
+  if (!readStateCookie(req, YT_PKCE_COOKIE)) return done("error");
 
   const code = url.searchParams.get("code");
   if (!code) return done("error");
@@ -67,7 +71,7 @@ export async function GET(req: Request) {
   if (!can(ctx, "connect")) return done("forbidden");
 
   try {
-    const tok = await exchangeCode(code, ytRedirectUri(origin));
+    const tok = await exchangeCode(code, ytRedirectUri(origin), readStateCookie(req, YT_PKCE_COOKIE));
     if (!tok) return done("error");
 
     const channel = await fetchMyChannel(tok.access_token);
