@@ -40,3 +40,11 @@ export function getSupabaseAnonKey(): string {
   // cleaned value, else fall back to the known public key.
   return v || FALLBACK_ANON_KEY;
 }
+
+/**
+ * Options for the sign-in session cookies. Secure in production so they never
+ * travel over plain http. They stay readable by the page's own script because
+ * the browser Supabase client needs them (Supabase's design); the content
+ * security policy is what limits scripts on the page.
+ */
+export const SESSION_COOKIE_OPTIONS = { secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/" };

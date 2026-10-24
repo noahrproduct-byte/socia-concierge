@@ -1,3 +1,12 @@
+-- ===========================================================================
+-- DO NOT RUN THIS FILE AGAIN. It was applied once and has been superseded.
+-- Re-running it would undo security fixes made later: it re-creates
+-- socia_release_usage(text, date) callable from the browser, an older
+-- profile-column lock that leaves billing columns writable, and the browser
+-- insert policy on product_events. The current versions live in
+-- plans-security-fix.sql, billing.sql and security-hardening.sql.
+-- ===========================================================================
+
 -- Plans, entitlements, usage metering and the downgrade model.
 -- Run this in the Supabase SQL editor BEFORE deploying the code that uses it.
 -- Safe to run more than once: every statement is guarded, so a re-run never

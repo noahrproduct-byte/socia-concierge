@@ -24,7 +24,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
   const { id } = await params;
 
-  const item = await loadItem(ctx.client, id, ctx.ownerId);
+  const item = await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (!item.destinations.length) {
     return NextResponse.json({ error: "This post has no destinations; publish it from the Calendar." }, { status: 409 });
@@ -58,7 +58,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       d.status = "scheduled"; d.scheduledAt = nowIso; d.errorCode = null; d.errorMessage = null; d.nextRetryAt = null; d.retryCount = 0;
     }
     const { uploads } = await publishNow(ctx.client, ctx.ownerId, item, pending, 40_000);
-    const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
+    const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;
     // Publishing a post that was waiting for approval is the approval.
     await approveOnSchedule(ctx, id, null);
     return NextResponse.json({ item: after, uploads });

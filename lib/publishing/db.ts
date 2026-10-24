@@ -275,14 +275,18 @@ export async function parentsWithDestinations(supabase: Supa, postIds: string[])
 // ---------------------------------------------------------------------------
 
 /** Owner-scoped when userId is given; the service client passes null. */
-export async function loadItem(supabase: Supa, id: string, userId: string | null): Promise<ContentItem | null> {
+export async function loadItem(supabase: Supa, id: string, userId: string | null, workspaceId?: string | null): Promise<ContentItem | null> {
   let q = supabase.from("scheduled_posts").select("*").eq("id", id);
   if (userId) q = q.eq("user_id", userId);
   const { data: parent, error } = await q.maybeSingle();
   if (error || !parent) return null;
+  // A post in another of the owner's Brand Workspaces is not found from this
+  // one. Posts from before workspaces (workspace_id null) stay reachable.
+  const ws = (parent as { workspace_id?: string | null }).workspace_id ?? null;
+  if (workspaceId && ws && ws !== workspaceId) return null;
   let rows: DestinationRow[] = [];
   try {
-    rows = await loadDestinationRows(supabase, [id]);
+    rows = (await loadDestinationRows(supabase, [id])).filter((r) => r.user_id === (parent as ParentRow).user_id);
   } catch (e) {
     // Legacy rows keep working before the migration.
     if (!(e instanceof MissingTableError)) throw e;
@@ -477,6 +481,12 @@ export async function refreshParent(supabase: Supa, postId: string): Promise<voi
     if (e instanceof MissingTableError) return;
     throw e;
   }
+  // Only the post owner's own destinations count: a row someone else attached
+  // to this post id must never change its status or links.
+  const { data: parent } = await supabase.from("scheduled_posts").select("user_id").eq("id", postId).maybeSingle();
+  const ownerId = (parent as { user_id?: string } | null)?.user_id;
+  if (!ownerId) return;
+  rows = rows.filter((r) => r.user_id === ownerId);
   if (!rows.length) return;
   const dests = rows.map(rowToDestination);
   const live = dests.filter((d) => d.status !== "cancelled");

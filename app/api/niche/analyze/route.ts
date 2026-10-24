@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LIMITS, clip } from "@/lib/inputLimits";
+import { LIMITS, clipList, clip } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
@@ -8,7 +8,7 @@ import { brandContext } from "@/lib/prompt";
 import { videoDurationSec, youtubeVideoId, ytConfigured } from "@/lib/youtube";
 import type { NichePost } from "@/lib/nicheTrends";
 import { requireFeature } from "@/lib/planGuard";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { resolveContext, brandWorkspace, nicheScopeId } from "@/lib/context";
 import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -72,10 +72,15 @@ export async function POST(req: Request) {
   // Echoed back from SOCIA's own research: trimmed, never refused.
   post.title = clip(post.title, LIMITS.nicheTitle) || null;
   post.why = clip(post.why, LIMITS.nicheWhy) || null;
+  // Every other text field reaches the prompt too: bounded the same way.
+  post.tags = clipList(post.tags, LIMITS.listItems, LIMITS.nicheTag);
+  post.accountName = clip(post.accountName, LIMITS.nicheTitle) || null;
+  post.platform = clip(post.platform, LIMITS.platformName) as typeof post.platform;
+  post.format = clip(post.format, LIMITS.platformName) || null;
 
   // Cache per workspace: the default keeps the owner-keyed cache, a second
   // brand caches under its own id (its brand context shapes the analysis).
-  const scopeId = brandWorkspace(ctx)?.id ?? ctx.ownerId;
+  const scopeId = nicheScopeId(ctx);
   const key = `analysis:${scopeId}:${post.url}`.slice(0, 900);
   try {
     const { data } = await ctx.client.from("niche_trends").select("data, updated_at").eq("niche", key).maybeSingle();

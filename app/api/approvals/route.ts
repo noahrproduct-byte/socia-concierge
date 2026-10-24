@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     requestedAt = new Date(t).toISOString();
   }
 
-  const item = await loadItem(ctx.client, postId, ctx.ownerId);
+  const item = await loadItem(ctx.client, postId, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   const dests = item.destinations.filter((d) => d.status !== "cancelled" && d.status !== "published");
   if (!dests.length) return NextResponse.json({ error: "Choose at least one place to post it." }, { status: 400 });

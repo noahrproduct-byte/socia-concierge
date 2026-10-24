@@ -21,7 +21,7 @@ import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 import { getEntitlements, clampDays, maxHistoryDays } from "@/lib/entitlements";
 import { listTracked } from "@/lib/trackedCompetitors";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { resolveContext, brandWorkspace, nicheScopeId } from "@/lib/context";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
@@ -129,8 +129,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   })();
   const savedP: Promise<NichePost[]> = (async () => {
     try {
-      // Keyed by the owner; the service client is what lets a guest read it.
-      const { data } = await ctx.client.from("niche_trends").select("data").eq("niche", `saved:${ctx.ownerId}`).maybeSingle();
+      // The same per-brand key the save route writes; the service client is what lets a guest read it.
+      const { data } = await ctx.client.from("niche_trends").select("data").eq("niche", `saved:${nicheScopeId(ctx)}`).maybeSingle();
       const doc = data?.data as { v: number; items: NichePost[] } | undefined;
       return doc?.v === 1 && Array.isArray(doc.items) ? doc.items : [];
     } catch { return []; } // none

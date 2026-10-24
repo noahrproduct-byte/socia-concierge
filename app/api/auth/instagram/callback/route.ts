@@ -9,6 +9,7 @@ import { PLATFORMS_PER_WORKSPACE } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
 import { resolveContext, can } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { IG_STATE_COOKIE, clearStateCookie, verifyOAuthState, type ConnectDest } from "@/lib/oauthState";
 
 export const runtime = "nodejs";
 
@@ -30,13 +31,22 @@ async function connectionWorkspace(client: any, ownerId: string, igId: string): 
 // long-lived token, fetch the account, and save it to the user's row.
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const origin = url.origin;
-  // The start route put the return page in the OAuth state param.
-  const dest = url.searchParams.get("state") === "onboarding" ? "onboarding" : "settings";
-  const settings = (state: string) => NextResponse.redirect(`${origin}/${dest}?ig=${state}`);
+  // CSRF: the state must carry the nonce this browser was given at start,
+  // checked before anything else; every exit clears the one-time cookie.
+  const st = verifyOAuthState(req, IG_STATE_COOKIE);
+  const res = url.searchParams.get("error")
+    ? NextResponse.redirect(`${url.origin}/${st.dest}?ig=denied`)
+    : st.ok
+      ? await connect(req, st.dest)
+      : NextResponse.redirect(`${url.origin}/${st.dest}?ig=error`);
+  clearStateCookie(res, IG_STATE_COOKIE);
+  return res;
+}
 
-  const error = url.searchParams.get("error");
-  if (error) return settings("denied");
+async function connect(req: Request, dest: ConnectDest): Promise<NextResponse> {
+  const url = new URL(req.url);
+  const origin = url.origin;
+  const settings = (state: string) => NextResponse.redirect(`${origin}/${dest}?ig=${state}`);
 
   // Instagram appends a "#_" fragment; strip it defensively.
   const code = url.searchParams.get("code")?.replace(/#_$/, "");
@@ -55,6 +65,9 @@ export async function GET(req: Request) {
   // through ctx.client. Auth, the OAuth state and event attribution stay on
   // the viewer. Refused before the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connection rows (tokens) are written only by SOCIA's server role: the
+  // database refuses direct writes from a browser session (security-hardening.sql).
+  const connDb = createServiceClient() ?? ctx.client;
   // Connections or their data are about to change: drop the reused live
   // platform reads so the next page view asks the platforms again.
   clearLiveCache(ctx.ownerId);
@@ -195,14 +208,14 @@ export async function GET(req: Request) {
     // Deactivate the others FIRST: a partial unique index enforces one active
     // row per user, so activating before deactivating would violate it.
     // (Errors ignored pre-migration, where is_active doesn't exist.)
-    await ctx.client
+    await connDb
       .from("instagram_connections")
       .update({ is_active: false })
       .eq("user_id", ctx.ownerId)
       .then(() => undefined, () => undefined);
     // Post-migration identity is (user_id, ig_user_id); pre-migration it is
     // user_id alone, so fall back when the composite constraint isn't there.
-    const { error: upsertErr } = await ctx.client
+    const { error: upsertErr } = await connDb
       .from("instagram_connections")
       .upsert({ ...connRow, is_active: true }, { onConflict: "user_id,ig_user_id" });
     if (upsertErr) {
@@ -210,7 +223,7 @@ export async function GET(req: Request) {
       // pre-migration shape without the new column.
       const { scopes: _scopes, ...legacy } = connRow;
       void _scopes;
-      await ctx.client.from("instagram_connections").upsert(legacy, { onConflict: "user_id" });
+      await connDb.from("instagram_connections").upsert(legacy, { onConflict: "user_id" });
     }
 
     // The OWNER's profile reflects the connection.

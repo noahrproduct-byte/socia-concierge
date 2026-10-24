@@ -6,6 +6,7 @@ import { deny, recordEvent } from "@/lib/planGuard";
 import { listTracked, trackedState } from "@/lib/trackedCompetitors";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -133,7 +134,7 @@ export async function POST(req: Request) {
       ? { p_user: ctx.ownerId, p_workspace: wsId, p_platform: platform, p_handle: key, p_limit: limit }
       : { p_user: ctx.ownerId, p_platform: platform, p_handle: key, p_limit: limit });
     if (error && !isMissingFunction(error) && !isConstraintMismatch(error)) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return dbErrorResponse("competitors", error);
     }
     if (!error) {
       const row = (Array.isArray(data) ? data[0] : data) as { added?: boolean; already?: boolean; active_count?: number } | null;
@@ -171,7 +172,7 @@ export async function POST(req: Request) {
   };
   let { error } = await upsert(wsRow, wsId ? "user_id,workspace_id,platform,handle" : "user_id,platform,handle");
   if (error && wsId && isConstraintMismatch(error)) ({ error } = await upsert(pooledRow, "user_id,platform,handle"));
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("competitors", error);
   return NextResponse.json({ ok: true });
 }
 
@@ -204,6 +205,6 @@ export async function DELETE(req: Request) {
     .eq("handle", handle);
   if (cwid) del = del.eq("workspace_id", cwid);
   const { error } = await del;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("competitors", error);
   return NextResponse.json({ ok: true });
 }

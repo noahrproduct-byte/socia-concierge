@@ -7,7 +7,7 @@ import { resolveContext } from "@/lib/context";
 import { getEntitlements, getUsage } from "@/lib/entitlements";
 import { perUserLimit } from "@/lib/rateLimit";
 import { recordTranscription } from "@/lib/aiUsage";
-import { MAX_TRANSCRIBE_SECONDS, wavSeconds } from "@/lib/transcribe/limits";
+import { MAX_TRANSCRIBE_SECONDS, isExpectedWav, wavSeconds } from "@/lib/transcribe/limits";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -47,11 +47,18 @@ export async function POST(req: Request) {
   const slash = path.lastIndexOf("/");
   const listed = await storage.list(path.slice(0, slash), { search: path.slice(slash + 1), limit: 1 }).catch(() => null);
   const bytes = Number((listed?.data?.[0]?.metadata as { size?: unknown } | undefined)?.size);
+  // Length is known only for the exact WAV format the browser makes: an
+  // unknown size, or a file that isn't that format, is not sent (it is billed
+  // by length, and a compressed file of the same size could be hours long).
   const seconds = Number.isFinite(bytes) ? wavSeconds(bytes) : null;
-  if (seconds != null && seconds > MAX_TRANSCRIBE_SECONDS) return skip("too_long");
+  if (seconds == null || seconds > MAX_TRANSCRIBE_SECONDS) return skip("too_long");
   try {
     const url = (await signUrls(supabase, [path], 600))[path];
     if (!url) return NextResponse.json({ transcript: null, reason: "failed" });
+    const head = await fetch(url, { headers: { range: "bytes=0-255" }, signal: AbortSignal.timeout(10_000) })
+      .then(async (r) => (r.ok ? new Uint8Array(await r.arrayBuffer()).subarray(0, 256) : null))
+      .catch(() => null);
+    if (!head || !isExpectedWav(head)) return NextResponse.json({ transcript: null, reason: "failed" });
     if (seconds != null) recordTranscription(ctx.ownerId, purpose, seconds);
     const transcript = await transcribeUrl(provider, url, Date.now() + 75_000);
     return NextResponse.json(transcript ? { transcript } : { transcript: null, reason: "timeout" });

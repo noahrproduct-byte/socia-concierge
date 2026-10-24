@@ -7,7 +7,10 @@ export function safeNext(raw: string | null | undefined, fallback = "/dashboard"
     const base = "https://socia.invalid";
     const u = new URL(raw, base);
     if (u.origin !== base) return fallback;
-    return `${u.pathname}${u.search}${u.hash}`;
+    const out = `${u.pathname}${u.search}${u.hash}`;
+    // "/.//evil.com" normalises to "//evil.com", which a browser reads as another host.
+    if (out.startsWith("//") || out.startsWith("/\\")) return fallback;
+    return out;
   } catch {
     return fallback;
   }

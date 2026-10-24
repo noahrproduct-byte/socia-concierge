@@ -140,7 +140,7 @@ export default function TeamManager({ workspaceName, role, members, invites, sea
                 <input className="ws-mgr-input" placeholder="Email (optional, for your reference)" value={inviteEmail} maxLength={200} onChange={(e) => setInviteEmail(e.target.value)} disabled={busy === "invite"} />
                 <select className="tm-role" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "admin" | "member")} aria-label="Invite as">
                   <option value="member">Member</option>
-                  <option value="admin">Admin</option>
+                  {isOwner && <option value="admin">Admin</option>}
                 </select>
                 <button type="button" className="btn-primary sm" onClick={makeLink} disabled={busy === "invite"}>
                   {busy === "invite" ? <Loader2 size={13} className="acsw-spin" /> : <><Link2 size={13} /> Create invite link</>}

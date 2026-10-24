@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { refuseCrossSite } from "@/lib/crossSite";
+import { perUserLimit } from "@/lib/rateLimit";
+import { isSocialContentUrl } from "@/lib/fetchGuard";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
@@ -16,6 +19,10 @@ import {
   type AccountCandidate, type ContentCandidate, type DiscoveryProfile,
   type ScoredAccount, type ScoredContent, type TrendRollup,
 } from "@/lib/discovery";
+
+/** Fresh research runs one account may start per hour. */
+const INTEL_RUNS_PER_HOUR = 6;
+
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -68,6 +75,8 @@ function parseJsonArray(text: string): unknown[] {
 }
 
 export async function GET(req: Request) {
+  const crossSite = refuseCrossSite(req);
+  if (crossSite) return crossSite;
   const supabase = await createClient();
   const {
     data: { user },
@@ -163,6 +172,13 @@ export async function GET(req: Request) {
       profileGaps,
     });
   }
+
+  // A fresh run spends about 500 units of SOCIA's shared daily YouTube quota
+  // and up to three web-search model calls: a hard hourly ceiling per account,
+  // checked atomically, so neither a loop nor parallel requests can drain the
+  // quota every customer depends on.
+  const limited = await perUserLimit(ctx.ownerId, "competitor_intel", INTEL_RUNS_PER_HOUR, "competitor research runs");
+  if (limited) return limited;
 
   const queries = buildQueries(profile);
   const sources: IntelSources = { youtube: "not_configured", web: "failed" };
@@ -318,13 +334,9 @@ Output ONLY this JSON, no other text:
             note: typeof r.why === "string" ? r.why : null,
           });
         } else if (r.kind === "content" && typeof r.url === "string") {
-          let host = "";
-          try {
-            host = new URL(r.url).hostname;
-          } catch {
-            continue;
-          }
-          if (!/instagram\.com|facebook\.com|fb\.watch/.test(host)) continue;
+          // Only real Instagram and Facebook links, over https: the URL comes
+          // from web research a page could steer, and it is shown as a link.
+          if (!isSocialContentUrl(r.url)) continue;
           contentCandidates.push({
             platform,
             contentUrl: canonicalUrl(r.url),

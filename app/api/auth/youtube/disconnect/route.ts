@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
 import { dropPlatformHistory } from "@/lib/platformSnapshots";
+import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -42,7 +43,7 @@ export async function POST() {
       return q.maybeSingle();
     };
     let { data, error } = await read(true);
-    if (error && wsId) ({ data, error } = await read(false));
+    if (error && wsId && isMissingColumnError(error)) ({ data, error } = await read(false));
     const row = data as { access_token?: string; refresh_token?: string | null; channel_id?: string | null } | null;
     channelId = row?.channel_id ?? null;
     const token = row?.refresh_token || row?.access_token;
@@ -58,9 +59,13 @@ export async function POST() {
 
   // Delete this workspace's row; a failed filter (column missing) falls back
   // to the pre-workspaces owner-wide delete.
+  // Only a missing workspace column (before that migration) widens the
+  // delete to the owner: any other error stops here, so a database blip can
+  // never remove every brand's channel.
   let deleted = false;
   if (wsId) {
     const { error } = await db.from("youtube_connections").delete().eq("user_id", ownerId).eq("workspace_id", wsId);
+    if (error && !isMissingColumnError(error)) return NextResponse.json({ error: "Couldn't disconnect right now. Try again." }, { status: 500 });
     deleted = !error;
   }
   if (!deleted) {

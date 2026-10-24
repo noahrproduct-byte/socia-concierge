@@ -25,7 +25,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
   const { id, did } = await params;
 
-  const item = await loadItem(ctx.client, id, ctx.ownerId);
+  const item = await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!item) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   const dest = item.destinations.find((d) => d.id === did);
   if (!dest) return NextResponse.json({ error: "Destination not found." }, { status: 404 });
@@ -37,7 +37,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (dest.externalPostId) {
       if (dest.status === "published") return NextResponse.json({ error: ALREADY_THERE, item }, { status: 409 });
       await publishDestination({ supabase: ctx.client, userId: ctx.ownerId, item, destination: dest, budgetMs: 15_000, now: new Date(), interactive: true });
-      const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
+      const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;
       return NextResponse.json({ error: ALREADY_THERE, item: after }, { status: 409 });
     }
     const interrupted = dest.status === "uploading";
@@ -49,7 +49,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     await updateDestination(ctx.client, dest.id, { status: "scheduled", scheduledAt: nowIso, errorCode: null, errorMessage: null, nextRetryAt: null, retryCount: 0 });
     const fresh = { ...dest, status: "scheduled" as const, scheduledAt: nowIso, errorCode: null, errorMessage: null, nextRetryAt: null, retryCount: 0 };
     const { uploads } = await publishNow(ctx.client, ctx.ownerId, item, [fresh], 40_000);
-    const after = (await loadItem(ctx.client, id, ctx.ownerId)) ?? item;
+    const after = (await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? item;
     return NextResponse.json({ item: after, uploads });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });

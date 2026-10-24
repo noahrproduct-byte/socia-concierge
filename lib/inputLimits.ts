@@ -20,7 +20,32 @@ export const LIMITS = {
   nicheTag: 120,
   /** One base64 JPEG frame from the browser (480px wide is ~40–110K). */
   frameChars: 400_000,
+  /** Everything the page sends alongside a question, as JSON. */
+  askContextChars: 24_000,
+  /** Profile and workspace brand fields that go into most prompts. */
+  niche: 200,
+  brandName: 120,
+  goals: 1_500,
+  platformName: 40,
 } as const;
+
+/**
+ * A copy of untrusted JSON with every string cut to `each` characters, every
+ * list to `items` entries, and nothing deeper than `depth` levels: what a
+ * prompt may receive from a request body, whatever the client sent.
+ */
+export function clipDeep(v: unknown, each = LIMITS.studioSummary, items = LIMITS.listItems, depth = 5): unknown {
+  if (typeof v === "string") return v.slice(0, each);
+  if (typeof v === "number" || typeof v === "boolean" || v == null) return v;
+  if (depth <= 0) return null;
+  if (Array.isArray(v)) return v.slice(0, items).map((x) => clipDeep(x, each, items, depth - 1));
+  if (typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 40)) out[k.slice(0, 60)] = clipDeep(x, each, items, depth - 1);
+    return out;
+  }
+  return null;
+}
 
 /** The text, cut to `max` characters; "" when it isn't a string. */
 export function clip(v: unknown, max: number): string {

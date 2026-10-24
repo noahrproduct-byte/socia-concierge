@@ -7,6 +7,7 @@ import {
   storageFetchUrl, storageOrigin, readBodyWithin, youtubeAdapter,
 } from "./adapters/youtube";
 import { chunkRange, parseRangeHeader, isAligned, CHUNK_BYTES, CHUNK_ALIGN } from "./youtubeUpload";
+import { openSession } from "./youtubeRelay";
 import type { PublishContext } from "./adapter";
 import { defaultSettings, type ContentItem, type Destination, type MediaItem, type YouTubeSettings, type InstagramSettings } from "./types";
 
@@ -215,6 +216,20 @@ describe("YouTube complete()", () => {
     expect(out.errorMessage).toContain("YouTube lists this video as private, not public.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it("hands the browser a sealed handle: never the access token, never the session URI", async () => {
+    const sessionUri = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&upload_id=SECRET-UPLOAD-ID";
+    fetchMock.mockResolvedValueOnce(json(200, {}, { location: sessionUri }));
+    const out = await youtubeAdapter.publish(ctxFor(dest(), [video]));
+    expect(out.status).toBe("uploading");
+    const sent = JSON.stringify(out);
+    expect(sent).not.toContain("tok");
+    expect(sent).not.toContain("SECRET-UPLOAD-ID");
+    expect(Object.keys(out.clientAction ?? {}).sort()).toEqual(["kind", "mediaId", "uploadHandle", "videoId"]);
+    // The handle opens on the server, for this destination and owner only.
+    expect(openSession(out.clientAction!.uploadHandle, { destinationId: "d1", ownerId: "u1" })?.sessionUri).toBe(sessionUri);
+    expect(openSession(out.clientAction!.uploadHandle, { destinationId: "d2", ownerId: "u1" })).toBeNull();
+    expect(openSession(out.clientAction!.uploadHandle, { destinationId: "d1", ownerId: "u2" })).toBeNull();
+  });
   it("never opens a second session for a destination that already holds a video id", async () => {
     fetchMock.mockResolvedValueOnce(json(200, { items: [{ id: "vid1", snippet: { channelId: "UC1" }, status: { uploadStatus: "uploaded" } }] }));
     const out = await youtubeAdapter.publish(ctxFor(dest({ externalPostId: "vid1", status: "scheduled" }), [video]));
@@ -276,13 +291,14 @@ describe("Instagram poll budget", () => {
 });
 
 describe("YouTube resumable chunk math", () => {
-  it("chunks are 8 MiB, a multiple of 256 KiB, and the last one is shorter", () => {
+  it("chunks are 4 MiB (under Vercel's request limit), a multiple of 256 KiB, and the last one is shorter", () => {
     expect(isAligned(CHUNK_BYTES)).toBe(true);
     expect(CHUNK_BYTES % CHUNK_ALIGN).toBe(0);
-    const total = 20 * MB + 123;
-    expect(chunkRange(0, total)).toEqual({ start: 0, end: 8 * MB - 1, length: 8 * MB });
-    expect(chunkRange(8 * MB, total)).toEqual({ start: 8 * MB, end: 16 * MB - 1, length: 8 * MB });
-    expect(chunkRange(16 * MB, total)).toEqual({ start: 16 * MB, end: total - 1, length: 4 * MB + 123 });
+    expect(CHUNK_BYTES).toBeLessThan(4.5 * 1000 * 1000);
+    const total = 10 * MB + 123;
+    expect(chunkRange(0, total)).toEqual({ start: 0, end: 4 * MB - 1, length: 4 * MB });
+    expect(chunkRange(4 * MB, total)).toEqual({ start: 4 * MB, end: 8 * MB - 1, length: 4 * MB });
+    expect(chunkRange(8 * MB, total)).toEqual({ start: 8 * MB, end: total - 1, length: 2 * MB + 123 });
   });
   it("a 308 Range header resumes at the byte after the last received", () => {
     expect(parseRangeHeader("bytes=0-524287")).toBe(524288);

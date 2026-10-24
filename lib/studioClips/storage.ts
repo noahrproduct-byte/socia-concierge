@@ -20,6 +20,24 @@ export const storageClient = (fallback: Supa): Supa => createServiceClient() ?? 
 
 export const SIGNED_URL_TTL_S = 3600;
 
+/**
+ * True when `path` is inside this clip's own folder: <uploader>/<project>/<clip>/...
+ * with no empty, "." or ".." segments. A clip row's paths can be edited by its
+ * owner, and the server signs and deletes with the service role, so a path is
+ * only ever used when it points into the row's own folder.
+ */
+export function clipOwnsPath(row: { id: string; project_id: string }, path: string | null | undefined): boolean {
+  if (!path || path.includes("\\")) return false;
+  const parts = path.split("/");
+  if (parts.length < 4 || parts.some((p) => p === "" || p === "." || p === "..")) return false;
+  return parts[1] === row.project_id && parts[2] === row.id;
+}
+
+/** The clip's own folder from its source path, or null when the path isn't the clip's. */
+export function clipFolderOf(row: { id: string; project_id: string; source_path: string | null }): string | null {
+  return clipOwnsPath(row, row.source_path) ? row.source_path!.split("/").slice(0, 3).join("/") : null;
+}
+
 /** Signed URLs for many paths at once; paths that fail to sign are left out. */
 export async function signUrls(client: Supa, paths: string[], expiresIn = SIGNED_URL_TTL_S): Promise<Record<string, string>> {
   const out: Record<string, string> = {};

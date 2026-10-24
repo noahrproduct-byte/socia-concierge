@@ -40,9 +40,10 @@ export type ReplyResult = { ok: true; replyId: string | null } | { ok: false; er
 
 type FbConn = { page_id: string; access_token: string };
 
-async function readFbConn(supabase: Supa, userId: string): Promise<FbConn | null> {
+/** The Page connected in `workspaceId` (undefined: the owner's active workspace, the pre-workspaces behaviour). */
+async function readFbConn(supabase: Supa, userId: string, workspaceId?: string | null): Promise<FbConn | null> {
   try {
-    const wsId = (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
+    const wsId = workspaceId !== undefined ? workspaceId : (await workspacesEnabled(supabase)) ? await activeWorkspaceId(supabase, userId) : null;
     let q = supabase.from("facebook_connections").select("page_id, access_token, plan_suspended_at, connection_status").eq("user_id", userId);
     if (wsId) q = q.eq("workspace_id", wsId);
     const { data, error } = await q.limit(1);
@@ -87,8 +88,9 @@ export async function fetchFacebookComments(
   userId: string,
   posts: Array<{ id?: string; message?: string }>,
   perPost = 25,
+  workspaceId?: string | null,
 ): Promise<CommentRead> {
-  const conn = await readFbConn(supabase, userId);
+  const conn = await readFbConn(supabase, userId, workspaceId);
   if (!conn) return { comments: [], postsChecked: 0, postsFailed: 0, problem: "Facebook isn't connected in this workspace.", returned: 0 };
   const out: SocialComment[] = [];
   let checked = 0, failed = 0, returned = 0;
@@ -244,7 +246,7 @@ export async function replyToComment(supabase: Supa, userId: string, platform: C
   const text = message.trim();
   if (!text) return { ok: false, error: "The reply is empty." };
   if (platform === "facebook") {
-    const conn = await readFbConn(supabase, userId);
+    const conn = await readFbConn(supabase, userId, workspaceId);
     if (!conn) return { ok: false, error: "Facebook isn't connected in this workspace." };
     return postReply(new URL(`${FB_BASE}/${commentId}/comments`), { message: text, access_token: conn.access_token });
   }

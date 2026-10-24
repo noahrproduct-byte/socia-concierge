@@ -167,7 +167,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
         setData((cur) => (cur ? { ...cur, build: { ...cur.build, renderPath: path, postId: dj.postId } } : cur));
       } catch (e) {
         // The render happened but nothing was saved: give the video build back.
-        await fetch(`/api/studio/builds/${buildId}/export`, { method: "DELETE" }).catch(() => null);
+        await fetch(`/api/studio/builds/${buildId}/export`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) }).catch(() => null);
         throw e;
       }
     } catch (e) {
