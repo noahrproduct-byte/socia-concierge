@@ -70,6 +70,16 @@
   --negative-ink: #b91c1c;
   --negative-bg: #fdecec;
 
+  /* ---- SOCIA's brand palette: the marketing site's two colour worlds -------
+     Cobalt is the brand field (the first screen), charcoal the canvas after it
+     and the ink on cobalt, silver the text on charcoal. The app's chrome never
+     uses these directly; it uses the semantic tokens above. ----------------- */
+  --brand-cobalt: #2563ff;
+  --brand-sky: #60a5fa;
+  --brand-charcoal: #0f1115;
+  --brand-navy: #0f172a;
+  --brand-silver: #e8e9ec;
+
   /* ---- platform brands: only inside PlatformMark, never on data ------------ */
   --brand-instagram: #d6357a;
   --brand-youtube: #e0332a;
@@ -120,6 +130,10 @@
   --fs-m-lead: clamp(20px, 1.1rem + 0.7vw, 24px);
   --fs-m-h2: clamp(32px, 1.6rem + 2.4vw, 56px);
   --fs-m-display: clamp(44px, 2rem + 4vw, 80px);
+  /* the SOCIA wordmark on the first screen: the page's one oversized element */
+  --fs-m-mark: clamp(104px, 25vw, 440px);
+  --font-display: var(--font-inter-tight, var(--font-sans)), "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
   /* ---- space on a 4px base ------------------------------------------------- */
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;

@@ -1,12 +1,8 @@
 {
-  "fake-proof": {
-    "components/CinematicLanding.tsx": 8
-  },
   "ai-icon": {
     "app/(app)/settings/page.tsx": 3,
     "components/AnalyticsV3.tsx": 1,
     "components/AskSocia.tsx": 1,
-    "components/CinematicLanding.tsx": 1,
     "components/CommentsInbox.tsx": 1,
     "components/ContentLibrary.tsx": 1,
     "components/ContentPlanClient.tsx": 1,
@@ -48,13 +44,11 @@
     "app/oauth/authorize/page.tsx": 1,
     "app/oauth/error/page.tsx": 1,
     "app/opengraph-image.tsx": 2,
-    "app/page.tsx": 2,
     "app/pricing/page.tsx": 1,
     "app/privacy/page.tsx": 1,
     "app/terms/page.tsx": 1,
     "components/BrandSettings.tsx": 6,
     "components/CalendarBoard.tsx": 2,
-    "components/CinematicLanding.tsx": 1,
     "components/CommentsInbox.tsx": 2,
     "components/ConnectionsManager.tsx": 1,
     "components/ContentPlanClient.tsx": 11,

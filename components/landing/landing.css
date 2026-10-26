@@ -1,0 +1,795 @@
+/* ============================================================================
+   The public homepage. Two colour worlds and nothing else: the cobalt brand
+   field with charcoal ink (the first screen, the page's one bold moment),
+   then a charcoal canvas where SOCIA's own screens carry the story. Product
+   frames are the app itself (light theme, system components), so the site
+   and the product read as one thing. Tokens only (lib/designBudget.test.ts);
+   anti-slop rules in docs/design/anti-slop-standard.md.
+   ========================================================================= */
+
+.lp-root {
+  /* resolved here, below the element that loads Inter Tight (app/page.tsx) */
+  --font-display: var(--font-inter-tight), var(--font);
+  background: var(--brand-charcoal);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+
+.lp-wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-inline: var(--sp-5);
+}
+
+/* ---- the first screen: the wordmark on cobalt ------------------------------ */
+.lp-intro {
+  min-height: 100svh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: var(--sp-5) var(--sp-5) var(--sp-6);
+  background: var(--brand-cobalt);
+  color: var(--brand-charcoal);
+}
+
+.lp-intro-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.lp-intro-nav .brandmark { border-radius: var(--r-control); }
+
+.lp-intro-links {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-6);
+}
+
+.lp-intro-link {
+  /* small text on cobalt is white: 4.9:1 (charcoal is 3.9:1, enough only for the wordmark) */
+  color: var(--on-accent);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  text-underline-offset: 4px;
+}
+
+.lp-intro-link:hover { text-decoration: underline; }
+
+.lp-ink-btn {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  padding-inline: var(--sp-4);
+  border-radius: var(--r-control);
+  background: var(--brand-charcoal);
+  color: var(--brand-silver);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  transition: background-color var(--t-press) var(--ease-standard);
+}
+
+.lp-ink-btn:hover { background: var(--brand-navy); }
+
+.lp-intro .lp-ink-btn:focus-visible,
+.lp-intro .lp-intro-link:focus-visible {
+  outline: 2px solid var(--on-accent);
+  outline-offset: 3px;
+}
+
+.lp-mark {
+  align-self: center;
+  justify-self: center;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-m-mark);
+  font-weight: var(--fw-semibold);
+  line-height: 0.82;
+  letter-spacing: -0.045em;
+  /* optical correction: the negative tracking pulls the last letter past the box */
+  padding-inline-end: 0.045em;
+  user-select: none;
+}
+
+.lp-intro-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4) var(--sp-8);
+  flex-wrap: wrap;
+}
+
+.lp-promise {
+  margin: 0;
+  color: var(--on-accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-m-lead);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tr-title);
+}
+
+.lp-platform-list {
+  color: var(--on-accent);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+.lp-platform-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ---- the bar that stays with you on the canvas ----------------------------- */
+.lp-bar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background: var(--brand-charcoal);
+  border-bottom: 1px solid var(--rule);
+}
+
+.lp-bar-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  height: var(--topbar-h);
+}
+
+.lp-brand {
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.lp-brand .brandmark { border-radius: var(--r-chip); }
+
+.lp-bar-links {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+.lp-bar-link {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  text-decoration: none;
+  transition: color var(--t-press) var(--ease-standard);
+}
+
+.lp-bar-link:hover { color: var(--ink); }
+
+/* ---- hero: headline, actions, the product -------------------------------- */
+.lp-hero { padding-block: var(--sp-16) var(--sp-12); }
+
+.lp-h1 {
+  max-width: 22ch;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-m-display);
+  font-weight: var(--fw-semibold);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.lp-lede {
+  max-width: 62ch;
+  margin: var(--sp-5) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-m-body);
+  line-height: 1.55;
+}
+
+.lp-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-top: var(--sp-8);
+}
+
+.lp-actions-main {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.lp-news {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  text-decoration: none;
+}
+
+.lp-news b { color: var(--ink); font-weight: var(--fw-medium); }
+.lp-news:hover span { text-decoration: underline; text-underline-offset: 4px; }
+
+/* ---- product frames: the app itself, light theme --------------------------- */
+.lp-frame {
+  overflow: hidden;
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+}
+
+.lp-frame-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 44px;
+  padding-inline: var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--ground);
+  font-size: var(--fs-body);
+}
+
+.lp-frame-top .brandmark { border-radius: var(--r-chip); }
+.lp-frame-top b { font-weight: var(--fw-medium); }
+.lp-frame-top span { color: var(--ink-3); }
+
+.lp-example {
+  margin-inline-start: auto;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--surface-strong);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.lp-frame-body { padding: var(--sp-5); }
+
+.lp-hero-frame { margin-top: var(--sp-12); }
+
+.lp-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--sp-5);
+}
+
+.lp-chart {
+  margin-top: var(--sp-4);
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-ring);
+}
+
+.lp-chart-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+.lp-chart-head b { color: var(--ink); font-weight: var(--fw-medium); }
+
+.lp-chart svg {
+  display: block;
+  width: 100%;
+  height: 168px;
+  margin-top: var(--sp-2);
+}
+
+.lp-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-next {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding-inline-start: var(--sp-5);
+  border-inline-start: 1px solid var(--border);
+}
+
+.lp-next h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+
+.lp-next ul {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-next li,
+.lp-next p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.lp-next li b,
+.lp-next p b { color: var(--ink); font-weight: var(--fw-medium); }
+
+.lp-source {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* ---- the platforms SOCIA connects to (a fact, not a logo wall) ------------- */
+.lp-works {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4) var(--sp-8);
+  flex-wrap: wrap;
+  padding-block: var(--sp-8);
+  border-block: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+}
+
+.lp-works ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+}
+
+.lp-works li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ---- sections ------------------------------------------------------------ */
+.lp-section { padding-block: calc(var(--sp-16) * 1.5) 0; }
+
+.lp-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-10);
+}
+
+.lp-h2 {
+  max-width: 20ch;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-m-h2);
+  font-weight: var(--fw-semibold);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.lp-h2-sub {
+  max-width: 56ch;
+  margin: var(--sp-3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-m-body);
+  line-height: 1.55;
+}
+
+/* a large product panel beside a narrow one, then the caption */
+.lp-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.lp-pair-main {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-panel);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-ring);
+}
+
+.lp-pair-stage { padding: var(--sp-6) var(--sp-6) 0; }
+.lp-pair-stage .lp-frame { border-end-start-radius: 0; border-end-end-radius: 0; }
+
+.lp-caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-5) var(--sp-6) var(--sp-6);
+  border-top: 1px solid var(--rule);
+}
+
+.lp-caption h3 {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+}
+
+.lp-caption p {
+  max-width: 64ch;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* the narrow panel: what SOCIA says, with its source */
+.lp-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border-radius: var(--r-panel);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-ring);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.lp-side-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+.lp-ask {
+  padding: var(--sp-3);
+  border-radius: var(--r-card);
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+
+.lp-answer {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.lp-answer b { color: var(--ink); font-weight: var(--fw-medium); }
+
+.lp-steps {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-steps li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-2);
+}
+
+.lp-steps li:last-child { border-bottom: 0; padding-bottom: 0; }
+.lp-steps li span:last-child { color: var(--ink-3); white-space: nowrap; }
+
+/* ---- small UI inside the light frames ------------------------------------- */
+.lp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-body);
+}
+
+.lp-table th {
+  padding: 0 var(--sp-3) var(--sp-2) 0;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-regular);
+  text-align: start;
+}
+
+.lp-table td {
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) 0;
+  border-top: 1px solid var(--border);
+  color: var(--ink-2);
+  vertical-align: top;
+}
+
+.lp-table td:first-child { color: var(--ink); font-weight: var(--fw-medium); white-space: nowrap; }
+.lp-table .lp-why { display: block; margin-top: 2px; color: var(--ink-3); font-size: var(--fs-meta); font-weight: var(--fw-regular); }
+
+.lp-studio {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: var(--sp-5);
+}
+
+.lp-clips {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-body);
+}
+
+.lp-clips li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-2);
+  border-radius: var(--r-control);
+  color: var(--ink-2);
+}
+
+.lp-clips li.is-used { background: var(--surface-hover); color: var(--ink); }
+.lp-clips li span:last-child { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+.lp-cut {
+  display: flex;
+  gap: 2px;
+  height: 44px;
+  margin: var(--sp-2) 0 var(--sp-4);
+}
+
+.lp-cut span {
+  display: flex;
+  align-items: flex-end;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-chip);
+  background: var(--accent-subtle);
+  color: var(--accent-ink);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-label {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+.lp-draft {
+  margin: var(--sp-1) 0 0;
+  padding: var(--sp-3);
+  border-radius: var(--r-control);
+  box-shadow: var(--shadow-ring);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.lp-dests {
+  display: grid;
+  gap: 0;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-dests li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-block: var(--sp-3);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-body);
+}
+
+.lp-dests li small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+
+/* ---- everything around the post: one bordered grid ------------------------ */
+.lp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-ring);
+  overflow: hidden;
+}
+
+.lp-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sp-8);
+  padding: var(--sp-6);
+  border-inline-end: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.lp-tile.is-wide { grid-column: span 2; }
+
+.lp-tile-name {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-medium);
+}
+
+.lp-tile-name + p {
+  margin: var(--sp-1) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.lp-mini {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-body);
+}
+
+.lp-mini li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+  color: var(--ink-2);
+}
+
+.lp-mini li b { color: var(--ink); font-weight: var(--fw-medium); }
+.lp-mini li span:last-child { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.lp-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--sp-1);
+  font-size: var(--fs-meta);
+}
+
+.lp-week div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-height: 112px;
+  padding: var(--sp-2);
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+  color: var(--ink-3);
+}
+
+.lp-week i {
+  padding: 2px var(--sp-1);
+  border-radius: var(--r-chip);
+  background: var(--surface-strong);
+  color: var(--ink);
+  font-style: normal;
+}
+
+.lp-week i.is-draft { background: transparent; box-shadow: var(--shadow-ring); color: var(--ink-2); }
+
+
+.lp-tile .s-kpi { padding-inline: 0; background: transparent; box-shadow: none; }
+
+/* ---- plans ---------------------------------------------------------------- */
+.lp-plans {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--rule);
+}
+
+.lp-plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-6) var(--sp-6) var(--sp-6) 0;
+}
+
+.lp-plan + .lp-plan { padding-inline-start: var(--sp-6); border-inline-start: 1px solid var(--rule); }
+.lp-plan h3 { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-medium); }
+
+.lp-price {
+  margin: var(--sp-2) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.lp-price small { color: var(--ink-3); font-family: var(--font); font-size: var(--fs-body); font-weight: var(--fw-regular); letter-spacing: 0; }
+.lp-plan p { margin: 0; color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+
+.lp-link {
+  color: var(--accent-ink);
+  font-size: var(--fs-body);
+  text-decoration: none;
+}
+
+.lp-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* ---- the last word and the footer --------------------------------------- */
+.lp-end {
+  margin-top: calc(var(--sp-16) * 1.5);
+  padding-block: var(--sp-16);
+  border-top: 1px solid var(--rule);
+}
+
+.lp-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+  padding-block: var(--sp-8);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: var(--fs-body);
+}
+
+.lp-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+}
+
+.lp-footer a { color: inherit; text-decoration: none; }
+.lp-footer a:hover { color: var(--ink); }
+
+.lp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- narrower screens: re-composed, not just stacked -------------------- */
+@media (max-width: 1024px) {
+  .lp-hero-grid,
+  .lp-pair { grid-template-columns: minmax(0, 1fr); }
+  .lp-next { padding-inline-start: 0; padding-top: var(--sp-5); border-inline-start: 0; border-top: 1px solid var(--border); }
+  .lp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lp-tile.is-wide { grid-column: span 2; }
+  .lp-plans { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lp-plan:nth-child(3) { padding-inline-start: 0; border-inline-start: 0; }
+  .lp-plan:nth-child(n + 3) { border-top: 1px solid var(--rule); }
+}
+
+@media (max-width: 640px) {
+  .lp-intro-links .lp-intro-link { display: none; }
+  .lp-bar-links .lp-bar-link { display: none; }
+  .lp-hero { padding-block: var(--sp-12) var(--sp-8); }
+  .lp-frame-body { padding: var(--sp-4); }
+  .lp-frame-top span { display: none; }
+  .lp-pair-stage { padding: var(--sp-4) var(--sp-4) 0; }
+  .lp-studio { grid-template-columns: minmax(0, 1fr); }
+  .lp-grid { grid-template-columns: minmax(0, 1fr); }
+  .lp-tile.is-wide { grid-column: auto; }
+  .lp-tile { min-height: 0; }
+  .lp-week { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .lp-plans { grid-template-columns: minmax(0, 1fr); }
+  .lp-plan,
+  .lp-plan + .lp-plan { padding-inline-start: 0; border-inline-start: 0; }
+  .lp-plan + .lp-plan { border-top: 1px solid var(--rule); }
+}
