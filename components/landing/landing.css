@@ -23,112 +23,173 @@
   padding-inline: var(--sp-5);
 }
 
-/* ---- the first screen: the wordmark on cobalt ------------------------------ */
+/* ---- the first screen ------------------------------------------------------
+   Final state by default (what no-JS and reduced-motion visitors see): the
+   cobalt field closed to a band across the middle, SOCIA's screens behind
+   it. The opening sequence (Intro.tsx) starts from [data-lp-intro], set
+   before paint only when it is going to run, and animates to this state. */
 .lp-intro {
-  min-height: 100svh;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: var(--sp-5) var(--sp-5) var(--sp-6);
-  background: var(--brand-cobalt);
-  color: var(--brand-charcoal);
-}
-
-.lp-intro-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-}
-
-.lp-intro-nav .brandmark { border-radius: var(--r-control); }
-
-.lp-intro-links {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-6);
-}
-
-.lp-intro-link {
-  /* small text on cobalt is white: 4.9:1 (charcoal is 3.9:1, enough only for the wordmark) */
-  color: var(--on-accent);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  text-decoration: none;
-  text-underline-offset: 4px;
-}
-
-.lp-intro-link:hover { text-decoration: underline; }
-
-.lp-ink-btn {
-  display: inline-flex;
-  align-items: center;
-  height: var(--control-h);
-  padding-inline: var(--sp-4);
-  border-radius: var(--r-control);
+  --lp-band-h: 96px;
+  --lp-group: 920px;
+  position: relative;
+  height: 100svh;
+  min-height: 560px;
+  overflow: hidden;
   background: var(--brand-charcoal);
-  color: var(--brand-silver);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-  text-decoration: none;
-  transition: background-color var(--t-press) var(--ease-standard);
 }
 
-.lp-ink-btn:hover { background: var(--brand-navy); }
-
-.lp-intro .lp-ink-btn:focus-visible,
-.lp-intro .lp-intro-link:focus-visible {
-  outline: 2px solid var(--on-accent);
-  outline-offset: 3px;
+.lp-reel {
+  position: absolute;
+  inset: 0;
 }
 
-.lp-mark {
-  align-self: center;
-  justify-self: center;
+.lp-reel-scene {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-16) var(--sp-5);
+  opacity: 0;
+  transition: opacity var(--t-dialog) var(--ease-standard);
+}
+
+.lp-reel-scene.is-on { opacity: 1; }
+.lp-reel-scene > * { width: 1080px; }
+
+/* The reel is a picture of the desktop app at every screen size: narrower
+   screens zoom the same composition down instead of restacking it. */
+.lp-reel .lp-hero-grid { grid-template-columns: minmax(0, 1fr) 300px; }
+.lp-reel .lp-next { padding: 0 0 0 var(--sp-5); border-top: 0; border-inline-start: 1px solid var(--border); }
+.lp-reel .lp-studio { grid-template-columns: 180px minmax(0, 1fr); }
+.lp-reel .s-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.lp-reel .lp-frame-top span { display: inline; }
+.lp-reel .lp-frame-body { padding: var(--sp-5); }
+
+@media (max-width: 1180px) { .lp-reel-scene > * { zoom: 0.8; } }
+@media (max-width: 900px) { .lp-reel-scene > * { zoom: 0.62; } }
+@media (max-width: 640px) {
+  /* a portrait screen can't hold one landscape screen: show all four,
+     stacked, the current one at full strength */
+  .lp-reel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-16) var(--sp-3) var(--sp-8);
+  }
+  .lp-reel-scene { position: static; padding: 0; opacity: 0.38; }
+  .lp-reel-scene.is-on { opacity: 1; }
+  .lp-reel-scene > * { zoom: 0.4; }
+}
+@media (max-width: 400px) { .lp-reel-scene > * { zoom: 0.33; } }
+
+.lp-field {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--brand-cobalt);
+  clip-path: inset(calc(50% - var(--lp-band-h) / 2) 0 calc(50% - var(--lp-band-h) / 2) 0);
+}
+
+.lp-band {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(50% - var(--lp-band-h) / 2);
+  height: var(--lp-band-h);
+  overflow: hidden;
+}
+
+.lp-track {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: flex;
+  height: 100%;
+  /* the centre copy (index 3 of 7) sits in the middle of the screen */
+  transform: translateX(calc(var(--lp-group) * -3.5));
+}
+
+.lp-copy {
+  flex: 0 0 var(--lp-group);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-8);
+  padding-inline: var(--sp-6);
+  transition: opacity var(--t-dialog) var(--ease-standard);
+}
+
+.lp-copy:not(.is-center) { opacity: 0; }
+.lp-intro.is-live .lp-copy { opacity: 1; }
+
+.lp-band-mark {
+  color: var(--brand-charcoal);
+  font-family: var(--font-display);
+  font-size: var(--fs-m-h2);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+
+.lp-band-info {
+  display: flex;
+  flex-direction: column;
   margin: 0;
+  /* small text on cobalt is white: 4.9:1 (charcoal is 3.9:1) */
+  color: var(--on-accent);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.lp-band-info b { font-weight: var(--fw-semibold); }
+.lp-band-info:first-child { justify-self: end; text-align: end; }
+
+.lp-bigmark {
+  position: relative;
+  margin: 0;
+  color: var(--brand-charcoal);
   font-family: var(--font-display);
   font-size: var(--fs-m-mark);
   font-weight: var(--fw-semibold);
   line-height: 0.82;
   letter-spacing: -0.045em;
-  /* optical correction: the negative tracking pulls the last letter past the box */
   padding-inline-end: 0.045em;
+  white-space: nowrap;
   user-select: none;
+  transform-origin: center;
+  visibility: hidden;
 }
 
-.lp-intro-foot {
+.lp-l { display: inline-block; }
+
+.lp-stage-nav {
+  position: absolute;
+  top: var(--sp-5);
+  right: var(--sp-5);
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--sp-4) var(--sp-8);
-  flex-wrap: wrap;
-}
-
-.lp-promise {
-  margin: 0;
-  color: var(--on-accent);
-  font-family: var(--font-display);
-  font-size: var(--fs-m-lead);
-  font-weight: var(--fw-medium);
-  letter-spacing: var(--tr-title);
-}
-
-.lp-platform-list {
-  color: var(--on-accent);
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--fs-body);
-  font-weight: var(--fw-medium);
-}
-
-.lp-platform-list li {
-  display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-5);
 }
+
+.lp-stage-link {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  text-decoration: none;
+  transition: color var(--t-press) var(--ease-standard);
+}
+
+.lp-stage-link:hover { color: var(--ink); }
+
+/* the sequence's start: a full cobalt field, the letters not yet there */
+[data-lp-intro] .lp-field { clip-path: inset(0 0 0 0); }
+[data-lp-intro] .lp-bigmark { visibility: visible; }
+[data-lp-intro] .lp-l,
+[data-lp-intro] .lp-copy.is-center .lp-band-info,
+[data-lp-intro] .lp-stage-nav { opacity: 0; }
+[data-lp-intro] .lp-copy.is-center .lp-band-mark { visibility: hidden; }
 
 /* ---- the bar that stays with you on the canvas ----------------------------- */
 .lp-bar {
@@ -777,7 +838,10 @@
 }
 
 @media (max-width: 640px) {
-  .lp-intro-links .lp-intro-link { display: none; }
+  .lp-intro { --lp-band-h: 76px; --lp-group: 600px; }
+  .lp-copy { gap: var(--sp-4); padding-inline: var(--sp-4); }
+  .lp-stage-link { display: none; }
+  .lp-reel-scene { padding-inline: var(--sp-3); }
   .lp-bar-links .lp-bar-link { display: none; }
   .lp-hero { padding-block: var(--sp-12) var(--sp-8); }
   .lp-frame-body { padding: var(--sp-4); }

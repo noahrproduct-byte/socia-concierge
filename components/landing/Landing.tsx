@@ -3,6 +3,8 @@ import BrandMark from "@/components/BrandMark";
 import { ButtonLink, KpiCell, PlatformMark, type Platform } from "@/components/system";
 import { PLANS, type PlanId } from "@/lib/plans";
 import HeroFrame from "./HeroFrame";
+import Intro from "./Intro";
+import { INTRO_FLAG } from "./introFlag";
 import "./landing.css";
 
 // SOCIA's public homepage. First screen: the wordmark on cobalt, the brand's
@@ -46,31 +48,74 @@ function Pair({ frame, side, title, text }: { frame: React.ReactNode; side: Reac
   );
 }
 
+/**
+ * Runs before paint: sets the opening sequence's start state only when it is
+ * going to play (first visit this session, motion allowed). If the page's
+ * JavaScript never takes over, the start state is lifted after 4 seconds so
+ * the finished first screen still shows.
+ */
+const INTRO_SCRIPT = `(function(){try{var d=document.documentElement;if(matchMedia("(prefers-reduced-motion: reduce)").matches||sessionStorage.getItem("${INTRO_FLAG}"))return;d.setAttribute("data-lp-intro","play");setTimeout(function(){if(d.getAttribute("data-lp-intro")==="play")d.removeAttribute("data-lp-intro")},4000)}catch(e){}})();`;
+
+const PLAN_FRAME = (
+  <Frame key="plan" title="Content plan" context="Week of Oct 27" label="a weekly content plan with the reason for each post">
+                <table className="lp-table">
+                  <thead>
+                    <tr><th>Day</th><th>Post</th><th>Format</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Mon</td><td>Behind the counter at opening<span className="lp-why">Your two best Reels in October were filmed before opening.</span></td><td>Reel</td></tr>
+                    <tr><td>Wed</td><td>Three questions customers ask most<span className="lp-why">Carousels with questions were saved twice as often as other carousels.</span></td><td>Carousel</td></tr>
+                    <tr><td>Thu</td><td>The new seasonal menu, start to finish<span className="lp-why">Thursday evening is your strongest window (14 posts).</span></td><td>Reel</td></tr>
+                    <tr><td>Sat</td><td>Weekend hours and what&apos;s on<span className="lp-why">Short photo posts on Saturday keep reach steady.</span></td><td>Image</td></tr>
+                  </tbody>
+                </table>
+              </Frame>
+);
+
+const STUDIO_FRAME = (
+  <Frame key="studio" title="Content Studio" context="Seasonal menu shoot" label="Content Studio with uploaded clips, a suggested cut and its caption">
+                <div className="lp-studio">
+                  <ul className="lp-clips" aria-label="Clips">
+                    <li className="is-used"><span>Pouring</span><span>0:14</span></li>
+                    <li className="is-used"><span>Plating</span><span>0:22</span></li>
+                    <li><span>Counter wide</span><span>0:41</span></li>
+                    <li className="is-used"><span>First bite</span><span>0:09</span></li>
+                    <li><span>Menu board</span><span>0:18</span></li>
+                  </ul>
+                  <div>
+                    <span className="lp-label">Suggested cut, 24 seconds: three of your five clips</span>
+                    <div className="lp-cut" aria-hidden="true">
+                      <span style={{ flex: 5 }}>Pouring</span>
+                      <span style={{ flex: 12 }}>Plating</span>
+                      <span style={{ flex: 7 }}>First bite</span>
+                    </div>
+                    <span className="lp-label">Caption draft</span>
+                    <p className="lp-draft">The autumn menu is here. Four new plates, one first bite. In store from Thursday.</p>
+                  </div>
+                </div>
+              </Frame>
+);
+
+const PUBLISH_FRAME = (
+  <Frame key="publish" title="Create post" context="Scheduled for Thu, Oct 30, 7:00pm" label="the post composer with four destinations and their status">
+                <span className="lp-label">Destinations</span>
+                <ul className="lp-dests">
+                  <li><PlatformMark platform="instagram" brand /><span>Instagram Reel<small>Also shared to the feed</small></span><span>Scheduled</span></li>
+                  <li><PlatformMark platform="youtube" brand /><span>YouTube Short<small>Public at 7:00pm</small></span><span>Scheduled</span></li>
+                  <li><PlatformMark platform="facebook" brand /><span>Facebook Page<small>Same caption</small></span><span>Scheduled</span></li>
+                  <li><PlatformMark platform="tiktok" brand /><span>TikTok<small>Arrives in your TikTok inbox as a draft</small></span><span>Draft</span></li>
+                </ul>
+              </Frame>
+);
+
 export default function Landing() {
   const year = new Date().getFullYear();
 
   return (
     <div className="lp-root" data-theme="dark">
       {/* ---------------------------------------------------------------- the brand */}
-      <section className="lp-intro" aria-label="SOCIA">
-        <nav className="lp-intro-nav" aria-label="Main">
-          <Link href="/" aria-label="SOCIA home"><BrandMark size={32} /></Link>
-          <div className="lp-intro-links">
-            <Link href="/pricing" className="lp-intro-link">Pricing</Link>
-            <Link href="/login" className="lp-intro-link">Log in</Link>
-            <Link href="/signup" className="lp-ink-btn">Start free</Link>
-          </div>
-        </nav>
-        <p className="lp-mark" aria-hidden="true">SOCIA</p>
-        <div className="lp-intro-foot">
-          <p className="lp-promise">Know what to do next.</p>
-          <ul className="lp-platform-list" aria-label="Works with">
-            {PLATFORMS.map((p) => (
-              <li key={p}><PlatformMark platform={p} size="sm" />{PLATFORM_LABEL[p]}</li>
-            ))}
-          </ul>
-        </div>
-      </section>
+      <script dangerouslySetInnerHTML={{ __html: INTRO_SCRIPT }} />
+      <Intro scenes={[<HeroFrame key="analytics" />, PLAN_FRAME, STUDIO_FRAME, PUBLISH_FRAME]} />
 
       {/* ---------------------------------------------------------------- the canvas */}
       <header className="lp-bar">
@@ -124,21 +169,7 @@ export default function Landing() {
           <Pair
             title="Plan the week from what worked"
             text="Each idea in the weekly plan says which of your posts it comes from. Change anything, then send a day to the calendar."
-            frame={
-              <Frame title="Content plan" context="Week of Oct 27" label="a weekly content plan with the reason for each post">
-                <table className="lp-table">
-                  <thead>
-                    <tr><th>Day</th><th>Post</th><th>Format</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr><td>Mon</td><td>Behind the counter at opening<span className="lp-why">Your two best Reels in October were filmed before opening.</span></td><td>Reel</td></tr>
-                    <tr><td>Wed</td><td>Three questions customers ask most<span className="lp-why">Carousels with questions were saved twice as often as other carousels.</span></td><td>Carousel</td></tr>
-                    <tr><td>Thu</td><td>The new seasonal menu, start to finish<span className="lp-why">Thursday evening is your strongest window (14 posts).</span></td><td>Reel</td></tr>
-                    <tr><td>Sat</td><td>Weekend hours and what&apos;s on<span className="lp-why">Short photo posts on Saturday keep reach steady.</span></td><td>Image</td></tr>
-                  </tbody>
-                </table>
-              </Frame>
-            }
+            frame={PLAN_FRAME}
             side={
               <>
                 <span className="lp-side-title">Ask SOCIA</span>
@@ -155,29 +186,7 @@ export default function Landing() {
           <Pair
             title="Turn a shoot into finished posts"
             text="Upload the clips from a shoot. SOCIA suggests cuts, captions and on-screen text from what it hears and sees; you edit the cut and render it in your browser."
-            frame={
-              <Frame title="Content Studio" context="Seasonal menu shoot" label="Content Studio with uploaded clips, a suggested cut and its caption">
-                <div className="lp-studio">
-                  <ul className="lp-clips" aria-label="Clips">
-                    <li className="is-used"><span>Pouring</span><span>0:14</span></li>
-                    <li className="is-used"><span>Plating</span><span>0:22</span></li>
-                    <li><span>Counter wide</span><span>0:41</span></li>
-                    <li className="is-used"><span>First bite</span><span>0:09</span></li>
-                    <li><span>Menu board</span><span>0:18</span></li>
-                  </ul>
-                  <div>
-                    <span className="lp-label">Suggested cut, 24 seconds: three of your five clips</span>
-                    <div className="lp-cut" aria-hidden="true">
-                      <span style={{ flex: 5 }}>Pouring</span>
-                      <span style={{ flex: 12 }}>Plating</span>
-                      <span style={{ flex: 7 }}>First bite</span>
-                    </div>
-                    <span className="lp-label">Caption draft</span>
-                    <p className="lp-draft">The autumn menu is here. Four new plates, one first bite. In store from Thursday.</p>
-                  </div>
-                </div>
-              </Frame>
-            }
+            frame={STUDIO_FRAME}
             side={
               <>
                 <span className="lp-side-title">Studio project</span>
@@ -195,17 +204,7 @@ export default function Landing() {
           <Pair
             title="Publish everywhere from one post"
             text="One caption and one video, with the settings each platform needs. SOCIA checks every destination before it goes out and shows exactly what happened after."
-            frame={
-              <Frame title="Create post" context="Scheduled for Thu, Oct 30, 7:00pm" label="the post composer with four destinations and their status">
-                <span className="lp-label">Destinations</span>
-                <ul className="lp-dests">
-                  <li><PlatformMark platform="instagram" brand /><span>Instagram Reel<small>Also shared to the feed</small></span><span>Scheduled</span></li>
-                  <li><PlatformMark platform="youtube" brand /><span>YouTube Short<small>Public at 7:00pm</small></span><span>Scheduled</span></li>
-                  <li><PlatformMark platform="facebook" brand /><span>Facebook Page<small>Same caption</small></span><span>Scheduled</span></li>
-                  <li><PlatformMark platform="tiktok" brand /><span>TikTok<small>Arrives in your TikTok inbox as a draft</small></span><span>Draft</span></li>
-                </ul>
-              </Frame>
-            }
+            frame={PUBLISH_FRAME}
             side={
               <>
                 <span className="lp-side-title">Before it goes out</span>
