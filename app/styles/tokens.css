@@ -80,6 +80,21 @@
   --brand-navy: #0f172a;
   --brand-silver: #e8e9ec;
 
+  /* ---- the landing page's own world (docs/design: Nothin' study, 2026-10-26)
+     Monochrome with one warm accent, used on the public homepage only. The
+     app never reads these. ------------------------------------------------ */
+  --ed-black: #0a0a0a;
+  --ed-charcoal: #1a1a1c;
+  --ed-paper: #f2efe9;
+  --ed-paper-ink: #0a0a0a;
+  --ed-paper-ink-2: rgba(10, 10, 10, 0.64);
+  --ed-ink: #f2efe9;
+  --ed-ink-2: rgba(242, 239, 233, 0.62);
+  --ed-rule: rgba(242, 239, 233, 0.14);
+  --ed-rule-paper: rgba(10, 10, 10, 0.12);
+  --ed-gold: #c9b27c;
+  --ed-gold-ink: #a8905a;
+
   /* ---- platform brands: only inside PlatformMark, never on data ------------ */
   --brand-instagram: #d6357a;
   --brand-youtube: #e0332a;
@@ -131,7 +146,8 @@
   --fs-m-h2: clamp(32px, 1.6rem + 2.4vw, 56px);
   --fs-m-display: clamp(44px, 2rem + 4vw, 80px);
   /* the SOCIA wordmark on the first screen: the page's one oversized element */
-  --fs-m-mark: clamp(104px, 25vw, 440px);
+  --fs-m-mark: clamp(100px, 32vw, 560px);
+  --fs-m-statement: clamp(40px, 2rem + 3.2vw, 80px);
   --font-display: var(--font-inter-tight, var(--font-sans)), "Inter", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 

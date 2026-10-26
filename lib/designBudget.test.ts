@@ -15,7 +15,7 @@ const SYSTEM_CSS = ["app/styles/base.css", "app/styles/primitives.css", "app/sty
 const SYSTEM_TSX = ["components/system"];
 
 const BUDGET = {
-  fontSizes: 10, // five app sizes, four marketing sizes, and the first-screen wordmark
+  fontSizes: 11, // five app sizes, four marketing sizes, the wordmark and the chapter statement
   fontWeights: 3,
   radii: 6, // chip, control, card, panel, dialog, pill
   durations: 4,

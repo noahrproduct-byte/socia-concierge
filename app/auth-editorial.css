@@ -1,0 +1,94 @@
+/* ============================================================================
+   /login, /signup and the other auth pages in the homepage's monochrome.
+   The forms and their logic are unchanged (AuthShell, the .auth-/.field
+   classes in globals.css); this restyles them: a black brand panel with the
+   wordmark, a paper form panel, gold on the focus ring only. The panel's
+   invented "Content Score 87" card and the three sales bullets are hidden:
+   the wordmark and the promise are the brand.
+   ========================================================================= */
+
+.auth-shell {
+  --font-display: var(--font-inter-tight), var(--font);
+  background: var(--ed-paper);
+  color: var(--ed-paper-ink);
+}
+
+.auth-shell :focus-visible { outline: 2px solid var(--ed-gold); outline-offset: 3px; }
+
+/* the brand panel: black, the wordmark, one line */
+.auth-brand { background: var(--ed-black); color: var(--ed-ink); }
+.auth-brand::before,
+.auth-brand::after { display: none; }
+.auth-brand-inner { max-width: none; padding: var(--sp-8); }
+.auth-brand .brand-word { color: var(--ed-ink); font-family: var(--font-display); font-weight: var(--fw-medium); letter-spacing: -0.02em; }
+.auth-brand .brand-word em { color: var(--ed-ink-2); font-style: normal; }
+.auth-brand .brand-mid { display: grid; align-content: end; gap: var(--sp-5); flex: 1; }
+.auth-brand .brand-head {
+  max-width: 12ch;
+  font-family: var(--font-display);
+  font-size: var(--fs-m-statement);
+  font-weight: var(--fw-medium);
+  line-height: 0.98;
+  letter-spacing: -0.025em;
+  color: var(--ed-ink);
+}
+.auth-brand .brand-head .grad { background: none; -webkit-text-fill-color: currentColor; color: var(--ed-gold); }
+.auth-brand .brand-sub { max-width: 44ch; color: var(--ed-ink-2); font-size: var(--fs-m-body); line-height: 1.5; }
+.auth-brand .brand-features,
+.auth-brand .score-card { display: none; }
+.auth-brand .brand-foot { color: var(--ed-ink-2); font-size: var(--fs-meta); }
+
+/* the form panel */
+.auth-panel { background: var(--ed-paper); }
+.auth-formcard h1 { font-family: var(--font-display); font-weight: var(--fw-medium); letter-spacing: -0.025em; color: var(--ed-paper-ink); }
+.auth-sub { color: var(--ed-paper-ink-2); }
+.auth-formcard input[type="checkbox"] { accent-color: var(--ed-paper-ink); }
+.auth-formcard input {
+  border: 1px solid var(--ed-rule-paper);
+  border-radius: var(--r-control);
+  background: #ffffff;
+  color: var(--ed-paper-ink);
+  box-shadow: none;
+}
+.auth-formcard input:focus { border-color: var(--ed-paper-ink); box-shadow: none; }
+.field .field-ico { color: var(--ed-paper-ink-2); }
+.field:focus-within .field-ico { color: var(--ed-paper-ink); }
+
+.authbtn,
+.authbtn:hover {
+  border-radius: var(--r-pill);
+  background: var(--ed-paper-ink);
+  color: var(--ed-paper);
+  box-shadow: none;
+  transform: none;
+}
+.authbtn:disabled { background: var(--ed-paper-ink-2); }
+.authbtn svg,
+.authbtn:hover svg { display: none; }
+.gbtn,
+.gbtn:hover {
+  border: 1px solid var(--ed-paper-ink);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ed-paper-ink);
+}
+.divider { color: var(--ed-paper-ink-2); }
+.divider::before,
+.divider::after { background: var(--ed-rule-paper); }
+.linkbtn,
+.auth-mini,
+.authfoot a,
+.tos a { color: var(--ed-paper-ink); }
+.authmsg.ok { background: #ffffff; border: 1px solid var(--ed-rule-paper); color: var(--ed-paper-ink); }
+.authmsg.err { background: #ffffff; border: 1px solid var(--negative); color: var(--negative-ink); }
+.auth-mobilelogo { font-family: var(--font-display); font-weight: var(--fw-medium); }
+
+/* the form's labels and small print, which globals.css sets for a dark panel */
+.auth-formcard label { color: var(--ed-paper-ink); }
+.authfoot,
+.tos,
+.auth-formcard .hint { color: var(--ed-paper-ink-2); }
+.authfoot .tos,
+.authfoot .tos a { color: var(--ed-paper-ink-2); }
+.authfoot .tos a { color: var(--ed-paper-ink); }
+.auth-formcard input::placeholder { color: var(--ed-paper-ink-2); }
