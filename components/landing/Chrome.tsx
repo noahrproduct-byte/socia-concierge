@@ -7,16 +7,18 @@ import BrandMark from "@/components/BrandMark";
 // The fixed chrome and the chapter rail. Both sit over the page in
 // difference blend, so they read black on the paper bands and off-white on
 // the black ones without any script. The rail's current mark follows the
-// chapter in view.
+// chapter in view, and names it; the other names show on hover and focus.
 
 const CHAPTERS = [
-  { id: "chapter-1", name: "Introduction" },
-  { id: "chapter-2", name: "The problem" },
-  { id: "chapter-3", name: "Intelligence" },
-  { id: "chapter-4", name: "Content Studio" },
-  { id: "chapter-5", name: "Planning and publishing" },
-  { id: "chapter-6", name: "Explore" },
-  { id: "chapter-7", name: "Start" },
+  { id: "chapter-1", name: "SOCIA" },
+  { id: "chapter-2", name: "The reveal" },
+  { id: "chapter-3", name: "The problem" },
+  { id: "chapter-4", name: "How SOCIA thinks" },
+  { id: "chapter-5", name: "Content Studio" },
+  { id: "chapter-6", name: "Ask SOCIA" },
+  { id: "chapter-7", name: "The loop" },
+  { id: "chapter-8", name: "Before and after" },
+  { id: "chapter-9", name: "Start" },
 ];
 
 export default function Chrome() {
@@ -46,10 +48,13 @@ export default function Chrome() {
           <Link href="/signup" className="lp-btn is-sm">Get started free</Link>
         </nav>
       </header>
-      <ol className={current === "chapter-7" ? "lp-rail is-done" : "lp-rail"} aria-label="Chapters">
+      <ol className={current === "chapter-9" ? "lp-rail is-done" : "lp-rail"} aria-label="Chapters">
         {CHAPTERS.map((c) => (
           <li key={c.id}>
-            <a href={`#${c.id}`} className={current === c.id ? "is-current" : undefined} aria-label={c.name} aria-current={current === c.id ? "true" : undefined} />
+            <a href={`#${c.id}`} className={current === c.id ? "is-current" : undefined} aria-current={current === c.id ? "true" : undefined}>
+              <span className="lp-rail-name">{c.name}</span>
+              <span className="lp-rail-line" aria-hidden="true" />
+            </a>
           </li>
         ))}
       </ol>
