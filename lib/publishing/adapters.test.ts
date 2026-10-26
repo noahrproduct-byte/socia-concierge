@@ -180,6 +180,19 @@ describe("YouTube thumbnail source", () => {
   });
 });
 
+describe("a YouTube token Google won't renew", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("stops with a reconnect message instead of sending the dead token", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(youtubeAccessToken).mockResolvedValueOnce({ token: "expired", channelId: "UC1", scopes: ["https://www.googleapis.com/auth/youtube.upload"], stale: true });
+    const out = await youtubeAdapter.publish(ctxFor(dest(), [video]));
+    expect(out).toMatchObject({ status: "failed", errorCode: "token_refresh_failed", retryable: false });
+    expect(out.errorMessage).toMatch(/Reconnect YouTube/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("YouTube complete()", () => {
   const fetchMock = vi.fn<typeof fetch>();
   beforeEach(() => {

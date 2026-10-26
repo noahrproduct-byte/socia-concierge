@@ -185,6 +185,9 @@ export async function uploadAccess(supabase: PublishContext["supabase"], ownerId
     return { failure: fail("The connected YouTube channel is not the one this post was created for.", "channel_mismatch") };
   }
   if (!hasWriteScope(auth.scopes)) return { failure: fail(RECONNECT_MESSAGE, "needs_scope") };
+  // Google refused to renew SOCIA's access (revoked in the Google account, or
+  // the grant expired): sending the dead token would only fail with a cryptic error.
+  if (auth.stale) return { failure: fail("Google stopped accepting SOCIA's access to this YouTube channel. Reconnect YouTube in Settings (with uploads turned on), then retry.", "token_refresh_failed") };
   return { auth };
 }
 
