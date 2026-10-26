@@ -74,27 +74,6 @@ function Words({ text, blue }: { text: string; blue?: string }) {
   );
 }
 
-/** Counts up when scrolled into view. */
-function Num({ value, suffix = "", duration = 1200 }: { value: number; suffix?: string; duration?: number }) {
-  const [ref, inView] = useInView<HTMLSpanElement>(0.6);
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    if (!inView) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(value); return; }
-    const t0 = performance.now();
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - t0) / duration);
-      setN(Math.round(value * (1 - Math.pow(1 - p, 3)) * 10) / 10);
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, value, duration]);
-  const shown = Number.isInteger(value) ? Math.round(n) : n.toFixed(1);
-  return <span ref={ref}>{shown}{suffix}</span>;
-}
-
 /** Simple reveal wrapper. */
 function Rise({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const [ref, inView] = useInView<HTMLDivElement>(0.2);
@@ -133,8 +112,8 @@ function AskDemo() {
   return (
     <div ref={ref} className="so-chat" data-cursor="ASK">
       <div className="so-chat-head">
-        <span className="so-chat-dot" /> SOCIA · AI Strategist
-        <span className="so-chat-live">reasoning from your data</span>
+        SOCIA · AI Strategist
+        <span className="so-chat-live">Example conversation</span>
       </div>
       <div className="so-chat-body">
         <div className={`so-msg user ${step >= 1 ? "in" : ""}`}>What should I post Thursday?</div>
@@ -399,7 +378,7 @@ const FAQS = [
   { q: "Can SOCIA predict whether content will perform?", a: "It scores every idea on hook, retention, relevance, and originality against what your audience already responds to. A score is a forecast, not a promise, and SOCIA is honest about that." },
   { q: "Does SOCIA replace a social media manager?", a: "For solo creators, it covers the strategy work a manager would do. For teams and agencies, it makes the manager faster: audits, plans, and scoring in minutes instead of afternoons." },
   { q: "How does SOCIA use my data?", a: "Your synced account data is used to build your dashboard and your plans. It stays yours, it isn't sold, and you can disconnect and delete it anytime." },
-  { q: "Can I cancel anytime?", a: "Yes — no lock-in, ever. You can change or cancel your plan whenever you want; self-serve billing is on the way, so for now just reach out and we'll take care of it the same day." },
+  { q: "Can I cancel anytime?", a: "Yes. No lock-in, ever. You can change or cancel your plan whenever you want; self-serve billing is on the way, so for now just reach out and we'll take care of it the same day." },
 ];
 
 function Faq() {
@@ -566,7 +545,7 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
             {/* NO CLEAR STRATEGY */}
             <Rise className="so-pcard-w">
               <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><CalendarDays size={14} /></span> NO CLEAR STRATEGY</div>
+                <div className="so-pcard-head"><span className="so-pcard-ico"><CalendarDays size={14} /></span> NO CLEAR STRATEGY<em className="so-example">Example</em></div>
                 <div className="so-pcard-cols">
                   <div className="so-pcard-copy">
                     <p>Posting without a plan creates inconsistent results.</p>
@@ -598,7 +577,7 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
             {/* WRONG CONTENT */}
             <Rise delay={80} className="so-pcard-w">
               <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><Play size={13} /></span> WRONG CONTENT</div>
+                <div className="so-pcard-head"><span className="so-pcard-ico"><Play size={13} /></span> WRONG CONTENT<em className="so-example">Example</em></div>
                 <div className="so-pcard-cols">
                   <div className="so-pcard-copy">
                     <p>Guessing what works wastes time and reach.</p>
@@ -632,7 +611,7 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
             {/* MISSED OPPORTUNITIES */}
             <Rise delay={140} className="so-pcard-w">
               <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><TrendingUp size={14} /></span> MISSED OPPORTUNITIES</div>
+                <div className="so-pcard-head"><span className="so-pcard-ico"><TrendingUp size={14} /></span> MISSED OPPORTUNITIES<em className="so-example">Example</em></div>
                 <div className="so-pcard-cols chart">
                   <div className="so-pcard-copy">
                     <p>Winning formats and topics are often visible before creators notice them.</p>
@@ -677,7 +656,7 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
             {/* FALLING BEHIND */}
             <Rise delay={200} className="so-pcard-w">
               <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><Users size={14} /></span> FALLING BEHIND</div>
+                <div className="so-pcard-head"><span className="so-pcard-ico"><Users size={14} /></span> FALLING BEHIND<em className="so-example">Example</em></div>
                 <div className="so-pcard-cols chart">
                   <div className="so-pcard-copy">
                     <p>Competitors learn faster while you&apos;re still interpreting yesterday&apos;s analytics.</p>
@@ -685,8 +664,8 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
                   </div>
                   <div className="so-chartbox">
                     <div className="so-legend">
-                      <span><i className="ca" /> Competitor A</span>
-                      <span><i className="cb" /> Competitor B</span>
+                      <span><i className="ca" /> Bakery across town</span>
+                      <span><i className="cb" /> Café near campus</span>
                       <span><i className="cy" /> Your account</span>
                     </div>
                     <div className="so-endlabels">
@@ -699,10 +678,10 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
                       <path className="so-draw l d2" d="M20,98 L70,92 L120,84 L170,72 L220,60 L270,50 L330,40" fill="none" stroke="#a78bfa" strokeWidth="2" />
                       <path className="so-draw l d3" d="M20,100 L70,98 L120,97 L170,95 L220,94 L270,92 L330,90" fill="none" stroke="#4c86ff" strokeWidth="2" />
                       {[[20, 96], [120, 74], [220, 44], [330, 18]].map(([x, y]) => (
-                        <circle key={`a${x}`} className="so-pt ga" cx={x} cy={y} r="2.5"><title>Competitor A</title></circle>
+                        <circle key={`a${x}`} className="so-pt ga" cx={x} cy={y} r="2.5"><title>Bakery across town</title></circle>
                       ))}
                       {[[20, 98], [120, 84], [220, 60], [330, 40]].map(([x, y]) => (
-                        <circle key={`b${x}`} className="so-pt gb" cx={x} cy={y} r="2.5"><title>Competitor B</title></circle>
+                        <circle key={`b${x}`} className="so-pt gb" cx={x} cy={y} r="2.5"><title>Café near campus</title></circle>
                       ))}
                       {[[20, 100], [120, 97], [220, 94], [330, 90]].map(([x, y]) => (
                         <circle key={`y${x}`} className="so-pt gy" cx={x} cy={y} r="2.5"><title>Your account</title></circle>
@@ -786,6 +765,7 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
                 <div className="so-ecard-head">
                   <span className="so-ecard-ico"><ScanSearch size={13} /></span> CONTENT AUDIT
                   <span className="so-echip up">+12 vs last week</span>
+                  <em className="so-example">Example</em>
                 </div>
                 <div className="so-audit-flex">
                   <div className="so-audit-left">
@@ -822,21 +802,21 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
             {/* COMPETITOR INTELLIGENCE */}
             <Rise delay={120} className="so-eng-area e-comp">
               <div className="so-ecard" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><Radar size={13} /></span> COMPETITOR INTELLIGENCE</div>
+                <div className="so-ecard-head"><span className="so-ecard-ico"><Radar size={13} /></span> COMPETITOR INTELLIGENCE<em className="so-example">Example</em></div>
                 <div className="so-crows">
                   <div className="so-crow">
-                    <i>A</i>
-                    <div><b>Competitor A</b><span className="up">+31% momentum</span></div>
+                    <i>B</i>
+                    <div><b>Bakery across town</b><span className="up">+31% momentum</span></div>
                     <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,18 L14,15 L28,16 L42,11 L56,8 L70,6 L84,2" fill="none" stroke="#16a34a" strokeWidth="1.6" /></svg>
                   </div>
                   <div className="so-crow">
-                    <i>B</i>
-                    <div><b>Competitor B</b><span>2 outlier posts detected</span></div>
+                    <i>C</i>
+                    <div><b>Café near campus</b><span>2 outlier posts detected</span></div>
                     <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,14 L14,16 L28,7 L42,15 L56,4 L70,13 L84,10" fill="none" stroke="#a78bfa" strokeWidth="1.6" /></svg>
                   </div>
                   <div className="so-crow">
-                    <i>C</i>
-                    <div><b>Competitor C</b><span>Educational Reels gaining traction</span></div>
+                    <i>R</i>
+                    <div><b>Roastery downtown</b><span>Educational Reels gaining traction</span></div>
                     <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,17 L14,16 L28,14 L42,14 L56,10 L70,9 L84,6" fill="none" stroke="#2563ff" strokeWidth="1.6" /></svg>
                   </div>
                 </div>
@@ -847,15 +827,15 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
             {/* RECOMMENDATION ENGINE */}
             <Rise delay={550} className="so-eng-area e-rec">
               <div className="so-ecard rec" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE</div>
+                <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE<em className="so-example">Example</em></div>
                 <span className="so-rec-tag">HIGH IMPACT</span>
                 <h3>Publish another educational Reel this week.</h3>
                 <p className="so-rec-why"><b>Why?</b> Your educational videos are generating 2.4× your average engagement.</p>
                 <div className="so-predictbox" title="Projected from your last 30 posts">
                   <div>
                     <small>PREDICTED PERFORMANCE</small>
-                    <b>+<Num value={31} suffix="%" duration={900} /></b>
-                    <span>above baseline</span>
+                    <b>+31%</b>
+                    <span>above your last 30 posts</span>
                   </div>
                   <svg viewBox="0 0 120 54" preserveAspectRatio="none" aria-hidden>
                     <path className="so-draw l" d="M4,48 L22,44 L40,45 L58,38 L76,30 L94,20 L116,8" fill="none" stroke="#2563ff" strokeWidth="2" />
@@ -887,6 +867,7 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
                 <div className="so-ecard-head">
                   <span className="so-ecard-ico"><Video size={13} /></span> VIDEO SCORER
                   <span className="so-vplay" aria-hidden><Play size={10} fill="currentColor" /></span>
+                  <em className="so-example">Example</em>
                 </div>
                 <div className="so-vsgrid">
                   {[["HOOK", 91, "How well the first seconds stop the scroll"], ["RETENTION", 78, "How much of the video people watch"], ["CLARITY", 86, "How easy the message is to follow"], ["PACING", 74, "How well the edit holds attention"]].map(([l, v, t]) => (
@@ -911,7 +892,7 @@ export default function CinematicLanding({ intro }: { intro: React.ReactNode }) 
             {/* SMART SCHEDULING */}
             <Rise delay={280} className="so-eng-area e-sched">
               <div className="so-ecard" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING</div>
+                <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING<em className="so-example">Example</em></div>
                 <div className="so-sweek">
                   {[["M", "", ""], ["T", "6:20", "PM"], ["W", "", ""], ["T", "6:40", "PM"], ["F", "", ""], ["S", "11:15", "AM"], ["S", "", ""]].map(([d, t, m], i) => (
                     <div key={i} className="so-sdaycol">

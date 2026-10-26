@@ -3852,6 +3852,10 @@ a.hub-card:hover {
 [data-lp-intro] .so-nav,
 [data-lp-intro] .so-rail { opacity: 0; pointer-events: none; }
 .so-intro { position: relative; z-index: 1; }
+/* every mockup on the homepage says it is an example; the chip follows its card's ink */
+.so-example { margin-left: auto; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.07); color: var(--so-dimmer); font-size: 9px; font-style: normal; font-weight: 600; letter-spacing: 0.06em; text-transform: none; white-space: nowrap; }
+.so-echip + .so-example, .so-vplay + .so-example { margin-left: 8px; }
+.so-theme-light .so-example, .so-ecard .so-example { background: rgba(15, 17, 21, 0.06); color: rgba(15, 17, 21, 0.55); }
 
 .so-vignette {
   position: fixed;
