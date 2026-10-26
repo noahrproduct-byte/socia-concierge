@@ -112,11 +112,11 @@ export default function Opening({ footage }: { footage: string | null }) {
           // footage through the letters, with the same SVG text mask as the
           // reveal, so the letters match exactly
           <div className="lp-open-film" aria-hidden="true">
-            <svg className="lp-tear-svg" width="100%" height="100%">
+            <svg className="lp-mask-svg" width="100%" height="100%">
               <defs>
                 <mask id="lp-open-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="100%" height="100%">
                   <rect width="100%" height="100%" fill="black" />
-                  <text className="lp-tear-text" x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fill="white">SOCIA</text>
+                  <text className="lp-mask-text" x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fill="white">SOCIA</text>
                 </mask>
               </defs>
             </svg>

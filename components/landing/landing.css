@@ -754,47 +754,32 @@
   .lp-close-top { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ---- chapter 2: the SOCIA reveal (Tear.tsx) ------------------------------- */
+/* ---- the reveal: three cards, straight after the name (Tear.tsx) ---------- */
 .lp-tear {
   position: relative;
-  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: clamp(80px, 12vh, 140px) var(--lp-pad);
   background: var(--ed-black);
   color: var(--ed-ink);
   overflow: hidden;
 }
 
-.lp-tear-stage {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-}
-
-.lp-tear-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.lp-tear-text {
-  font-family: var(--font-display);
-  font-size: var(--fs-m-mark);
-  font-weight: var(--fw-medium);
-  letter-spacing: -0.045em;
-}
-.lp-rv-mark { fill: var(--ed-ink); }
-
-/* the three elements and their captions, in a row */
+/* the three elements, their captions, the line, and one honest note */
 .lp-rv {
   position: relative;
-  z-index: 1;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto auto auto;
   gap: var(--sp-4) var(--sp-8);
-  width: min(100% - 2 * var(--lp-pad), 1180px);
+  width: min(100%, 1180px);
   align-items: stretch;
 }
 
 /* the line draws along the captions, from the signal to the next move */
 .lp-rv-line {
   grid-column: 2 / 4;
-  grid-row: 2;
+  grid-row: 3;
   align-self: end;
   width: 100%;
   height: 6px;
@@ -804,6 +789,7 @@
 
 .lp-rv-card {
   position: relative;
+  grid-row: 1;
   display: grid;
   align-content: start;
   gap: var(--sp-3);
@@ -847,314 +833,21 @@
 .lp-rv-cap.is-1 { grid-column: 1; }
 .lp-rv-cap.is-2 { grid-column: 2; }
 .lp-rv-cap.is-3 { grid-column: 3; }
+.lp-rv-note { grid-column: 1 / -1; grid-row: 4; margin: var(--sp-2) 0 0; color: var(--ed-ink-2); font-size: var(--fs-meta); }
 
-/* the complete screen the three resolve into, in the same place */
-.lp-rv-screen {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  padding: var(--lp-pad);
-  opacity: 0;
-  pointer-events: none;
-}
-.lp-rv-screen .lp-screen { width: min(100%, 1180px); }
-
-/* the statement, after */
-.lp-tear-after {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  display: flex;
-  align-items: flex-end;
-  padding: var(--lp-pad);
-  opacity: 0;
-}
-
-/* phones and reduced motion: the finished composition, in flow */
+/* phones and reduced motion: the finished row, stacked in reading order */
 @media (max-width: 760px), (prefers-reduced-motion: reduce) {
-  .lp-tear { display: grid; gap: var(--sp-10); padding: var(--lp-pad); }
-  .lp-tear-stage { position: relative; inset: auto; gap: var(--sp-6); }
-  .lp-tear-svg.lp-rv-mark { display: none; }
+  .lp-tear { padding-block: var(--sp-16); }
   .lp-rv { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; width: 100%; }
   .lp-rv-line { display: none; }
-  .lp-rv-cap, .lp-rv-cap.is-1, .lp-rv-cap.is-2, .lp-rv-cap.is-3 { grid-row: auto; grid-column: 1; }
+  .lp-rv-card, .lp-rv-cap, .lp-rv-cap.is-1, .lp-rv-cap.is-2, .lp-rv-cap.is-3, .lp-rv-note { grid-row: auto; grid-column: 1; }
   .lp-rv-card { order: 0; }
   .lp-rv-cap.is-1 { order: -3; }
   .lp-rv-post { order: -2; }
   .lp-rv-cap.is-2 { order: -1; }
   .lp-rv-cap.is-3 { order: 1; }
   .lp-rv-move { order: 2; }
-  .lp-rv-screen { display: none; }
-  .lp-tear-after { position: relative; inset: auto; padding: 0; opacity: 1; }
-}
-
-.lp-wrap { max-width: 1240px; }
-
-/* ---- facts strip: the problem figures -------------------------------------- */
-.lp-fact-fig {
-  color: var(--ed-paper-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.lp-after-facts,
-.lp-after-screen {
-  display: grid;
-  gap: var(--sp-4);
-  margin-top: clamp(48px, 7vw, 112px);
-}
-
-.lp-statement.is-small {
-  max-width: 20ch;
-  font-size: var(--fs-m-h2);
-}
-
-/* ---- the engine screen ----------------------------------------------------- */
-.lp-engine {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-4);
-}
-
-.lp-panel {
-  display: grid;
-  align-content: start;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  border-radius: var(--r-card);
-  box-shadow: var(--shadow-ring);
-}
-
-.lp-panel.is-wide { grid-column: span 2; }
-
-.lp-panel-label {
-  margin: 0;
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
-  font-weight: var(--fw-medium);
-}
-
-.lp-panel-foot {
-  margin: 0;
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
-}
-
-.lp-panel-foot b { color: var(--ink); font-weight: var(--fw-medium); }
-
-.lp-health {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: var(--sp-4);
-  align-items: start;
-}
-
-.lp-health > div { display: grid; gap: var(--sp-2); }
-.lp-ring { width: 96px; height: 96px; }
-.lp-ring-num { font-family: var(--font-display); font-size: var(--fs-title); font-weight: var(--fw-semibold); fill: var(--ink); }
-.lp-health-word { font-size: var(--fs-section); font-weight: var(--fw-medium); }
-.lp-health-delta { color: var(--ink-3); font-size: var(--fs-meta); }
-
-.lp-bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 100px auto;
-  align-items: center;
-  gap: var(--sp-3);
-  color: var(--ink-2);
-  font-size: var(--fs-meta);
-}
-
-.lp-bar b { font-weight: var(--fw-medium); color: var(--ink); font-variant-numeric: tabular-nums; min-width: 2ch; text-align: end; }
-.lp-bar-track { display: block; height: 4px; border-radius: var(--r-pill); background: var(--surface-strong); overflow: hidden; }
-.lp-bar-track span { display: block; height: 100%; background: var(--ink); }
-
-.lp-rows {
-  display: grid;
-  gap: var(--sp-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--fs-body);
-}
-
-.lp-rows li {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-control);
-  background: var(--surface-raised);
-  color: var(--ink-2);
-}
-
-.lp-rows li b { color: var(--ink); font-weight: var(--fw-medium); }
-.lp-rows li span:last-child { color: var(--ink-3); white-space: nowrap; }
-
-.lp-rows.is-inline {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--sp-2);
-}
-
-.lp-rows.is-inline li { flex-direction: column; gap: 2px; }
-.lp-rows.is-inline li span { color: var(--ink-3); font-size: var(--fs-meta); white-space: normal; }
-
-.lp-rec { margin: 0; color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
-.lp-rec b { color: var(--ink); font-weight: var(--fw-medium); }
-
-.lp-panel .lp-week {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--sp-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.lp-panel .lp-week li {
-  display: grid;
-  gap: 2px;
-  min-height: 56px;
-  padding: var(--sp-2);
-  border-radius: var(--r-control);
-  background: var(--surface-raised);
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
-  text-align: center;
-}
-
-.lp-panel .lp-week li.is-best { background: var(--ink); color: var(--surface); }
-.lp-panel .lp-week small { font-size: var(--fs-meta); }
-
-/* ---- the strategist ---------------------------------------------------------- */
-.lp-chat {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: var(--sp-5);
-}
-
-.lp-chat-qs { display: grid; align-content: start; gap: var(--sp-2); }
-
-.lp-chat-q {
-  padding: var(--sp-3);
-  border: 0;
-  border-radius: var(--r-control);
-  background: var(--surface-raised);
-  color: var(--ink-2);
-  font: inherit;
-  font-size: var(--fs-body);
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
-}
-
-.lp-chat-q[aria-selected="true"] { background: var(--ink); color: var(--surface); }
-
-@media (hover: hover) and (pointer: fine) {
-  .lp-chat-q:not([aria-selected="true"]):hover { background: var(--surface-hover); }
-}
-
-.lp-chat-a {
-  display: grid;
-  align-content: start;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  border-radius: var(--r-card);
-  box-shadow: var(--shadow-ring);
-}
-
-.lp-chat-text { margin: 0; font-size: var(--fs-section); line-height: var(--lh-section); }
-.lp-chat-concept { display: grid; gap: 2px; margin: 0; padding: var(--sp-3); border-radius: var(--r-control); background: var(--surface-raised); font-size: var(--fs-body); }
-.lp-chat-concept span { color: var(--ink-3); font-size: var(--fs-meta); }
-.lp-chat-concept b { font-weight: var(--fw-medium); }
-
-/* ---- the loop, seven across ---------------------------------------------------- */
-.lp-chain.is-seven { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-.lp-chain.is-seven h3 { font-size: var(--fs-section); }
-
-/* ---- before and after ------------------------------------------------------------- */
-.lp-ba {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-3);
-  margin-top: clamp(48px, 7vw, 112px);
-}
-
-.lp-ba-col {
-  padding: var(--sp-6);
-  border-radius: var(--r-panel);
-  box-shadow: inset 0 0 0 1px var(--ed-rule-paper);
-}
-
-.lp-ba-col.is-with {
-  background: var(--ed-black);
-  color: var(--ed-ink);
-  box-shadow: none;
-}
-
-.lp-ba-col.is-with .lp-label { color: var(--ed-gold); }
-
-.lp-ba ol {
-  display: grid;
-  gap: 0;
-  margin: var(--sp-4) 0 0;
-  padding: 0;
-  list-style: none;
-  counter-reset: ba;
-}
-
-.lp-ba li {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: var(--sp-3);
-  padding: var(--sp-3) 0;
-  border-top: 1px solid var(--ed-rule-paper);
-  font-size: var(--fs-section);
-  counter-increment: ba;
-}
-
-.lp-ba li::before { content: counter(ba, decimal-leading-zero); color: var(--ed-paper-ink-2); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; padding-top: 4px; }
-.lp-ba-col.is-with li { border-top-color: var(--ed-rule); }
-.lp-ba-col.is-with li::before { color: var(--ed-gold); }
-
-/* ---- faq ------------------------------------------------------------------- */
-.lp-faq { display: grid; gap: var(--sp-4); }
-.lp-faq .lp-index { margin-top: 0; }
-.lp-index-row.is-faq { grid-template-columns: minmax(0, 1fr) auto; padding: var(--sp-5) 0; }
-.lp-index-row.is-faq h3 { font-size: var(--fs-lead); }
-.lp-faq-a { max-width: 64ch; margin: 0 0 var(--sp-5); color: var(--ed-ink-2); font-size: var(--fs-m-body); line-height: 1.5; }
-
-/* ---- the close: the wordmark rises letter by letter ------------------------- */
-.lp-close-mark { display: flex; justify-content: center; }
-.lp-close-l { display: inline-block; transform: translateY(0.16em); }
-
-/* ---- hover: the screens lean toward the pointer ---------------------------- */
-.lp-tilt { perspective: 1400px; }
-.lp-tilt > * { transform-style: preserve-3d; }
-
-/* ---- the footer ------------------------------------------------------------ */
-.lp-footer-brand { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--ed-ink); }
-.lp-footer-brand .brandmark { border-radius: var(--r-chip); }
-
-/* ---- text reveals: the mask SplitText wraps each word in ---------------------- */
-.lp-w { display: inline-block; }
-
-/* ---- narrower screens ----------------------------------------------------------- */
-@media (max-width: 1100px) {
-  .lp-chain.is-seven { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .lp-chain.is-seven li:nth-child(5) { padding-inline-start: 0; border-inline-start: 0; }
-  .lp-chat { grid-template-columns: minmax(0, 1fr); }
-  .lp-chat-qs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-
-@media (max-width: 760px) {
-  .lp-engine { grid-template-columns: minmax(0, 1fr); }
-  .lp-panel.is-wide { grid-column: auto; }
-  .lp-rows.is-inline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lp-chat-qs { grid-template-columns: minmax(0, 1fr); }
-  .lp-chain.is-seven { grid-template-columns: minmax(0, 1fr); }
-  .lp-ba { grid-template-columns: minmax(0, 1fr); }
+  .lp-rv-note { order: 3; }
 }
 
 /* ---- chapter 3: the problem, scattered then in one frame (Chaos.tsx) --------- */
@@ -1525,6 +1218,13 @@
 }
 
 /* ---- the opening's footage layer: through the letters, then gone ------------ */
+.lp-mask-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.lp-mask-text {
+  font-family: var(--font-display);
+  font-size: var(--fs-m-mark);
+  font-weight: var(--fw-medium);
+  letter-spacing: -0.045em;
+}
 .lp-open-film {
   position: absolute;
   inset: 0;
