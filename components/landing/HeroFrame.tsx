@@ -45,15 +45,15 @@ export default function HeroFrame() {
   const m = METRICS[metric];
 
   return (
-    <div className="lp-frame lp-hero-frame" data-theme="light">
-      <div className="lp-frame-top">
+    <div className="lp-screen" data-theme="light">
+      <div className="lp-screen-top">
         <BrandMark size={18} />
         <b>Analytics</b>
         <span>Instagram, last 30 days</span>
         <em className="lp-example">Example data</em>
       </div>
 
-      <div className="lp-frame-body lp-hero-grid">
+      <div className="lp-screen-body lp-hero-grid">
         <div>
           <KpiStrip cols={4}>
             {(Object.keys(METRICS) as MetricId[]).map((id) => (
