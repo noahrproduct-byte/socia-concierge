@@ -3847,6 +3847,12 @@ a.hub-card:hover {
   overflow-x: clip;
 }
 .so-field { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+/* the cinematic intro (components/landing/Intro.tsx) stands in for the hero:
+   the original nav and chapter rail wait until its opening sequence is over */
+[data-lp-intro] .so-nav,
+[data-lp-intro] .so-rail { opacity: 0; pointer-events: none; }
+.so-intro { position: relative; z-index: 1; }
+
 .so-vignette {
   position: fixed;
   inset: 0;

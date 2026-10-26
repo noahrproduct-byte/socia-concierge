@@ -1,20 +1,25 @@
-import { Inter_Tight } from "next/font/google";
-import Landing from "@/components/landing/Landing";
+import { Geist, Inter_Tight } from "next/font/google";
+import CinematicLanding from "@/components/CinematicLanding";
+import Intro from "@/components/landing/Intro";
+import { landingAssets } from "@/lib/landingAssets";
 
-// The display cut of SOCIA's Inter, for the wordmark and the marketing
-// headlines only; body text and the app stay on Inter (tokens.css --font-display).
+const geist = Geist({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-display" });
 const interTight = Inter_Tight({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-inter-tight" });
 
 export const metadata = {
-  title: "SOCIA: know what to post next",
+  title: "SOCIA: know what to post before you post it",
   description:
-    "SOCIA reads your Instagram, Facebook, YouTube and TikTok accounts, builds a weekly plan from what worked, and helps you make, schedule and publish each post.",
+    "SOCIA analyzes your content, competitors, audience, and performance, then tells you what to create, why it should work, and when to publish it.",
 };
 
-export default function Home() {
+// The homepage: the cinematic intro (components/landing) in place of the
+// original hero, then the original SOCIA landing page from its second
+// section on (components/CinematicLanding).
+export default function Landing() {
+  const assets = landingAssets();
   return (
-    <div className={interTight.variable}>
-      <Landing />
+    <div className={`${geist.variable} ${interTight.variable}`}>
+      <CinematicLanding intro={<Intro footage={assets.opening} />} />
     </div>
   );
 }
