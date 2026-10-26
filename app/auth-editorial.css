@@ -88,3 +88,7 @@
 .authfoot,
 .tos,
 .auth-formcard .hint { color: var(--ed-paper-ink-2); }
+.authfoot .tos,
+.authfoot .tos a { color: var(--ed-paper-ink-2); }
+.authfoot .tos a { color: var(--ed-paper-ink); }
+.auth-formcard input::placeholder { color: var(--ed-paper-ink-2); }
