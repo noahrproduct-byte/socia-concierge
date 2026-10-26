@@ -1,29 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { INTRO_FLAG } from "./introFlag";
 import { gsap, EASE } from "./motion";
 
-// Chapter 1. The opening sequence, after the method in the reference
-// (library/references/nothin.md, "What the recording shows"): the letters
-// of the name assemble from blocks rising out of the floor, the name holds,
-// then the two halves part and SOCIA's work comes through the gap. SOCIA's
-// work is its product, so the window shows the live Analytics screen.
+// Chapter 1. The opening, after the reference (library/references/nothin.md):
+// the page is the name. The letters of SOCIA rise out of the floor one after
+// another, each a block that clips open into its glyph, and the name holds
+// across the width of the viewport. The tagline and the two actions rise
+// under it. The product arrives in the next chapter, through the letters.
 //
-// Timeline (s): 0 black; 0.3 the letters rise in, 0.09s apart, each a solid
-// block that clips open into the glyph; 1.5 the halves part and the screen
-// comes through; 2.3 the tagline and actions rise; 2.8 done, the chrome.
+// Timeline (s): 0 black; 0.3 the letters rise in, 0.09s apart; 1.3 the
+// tagline and actions rise; 1.9 done, the chrome.
 //
 // Rules kept (docs/design/anti-slop-standard.md, section 5): plays once per
 // browser session; any scroll, key or tap finishes it; reduced motion skips
 // it; without JavaScript the page already shows the finished state (the
 // start state is set before paint, only when the sequence will run).
 
-const LEFT = ["S", "O", "C"];
-const RIGHT = ["I", "A"];
+const LETTERS = ["S", "O", "C", "I", "A"];
 
-export default function Opening({ screen }: { screen: ReactNode }) {
+export default function Opening() {
   const root = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -39,17 +37,11 @@ export default function Opening({ screen }: { screen: ReactNode }) {
     try { sessionStorage.setItem(INTRO_FLAG, "1"); } catch { /* private mode: it may play again */ }
 
     const letters = el.querySelectorAll<HTMLElement>(".lp-l");
-    const halves = el.querySelectorAll<HTMLElement>(".lp-half");
-    const win = el.querySelector<HTMLElement>(".lp-window");
     const foot = el.querySelector<HTMLElement>(".lp-open-foot");
-    const gap = el.clientWidth * 0.34;
 
     const tl = gsap.timeline({ defaults: { ease: EASE } });
     tl.fromTo(letters, { y: "0.45em", opacity: 0, clipPath: "inset(0 0 100% 0)" }, { y: 0, opacity: 1, clipPath: "inset(0 0 0% 0)", duration: 0.9, stagger: 0.09 }, 0.3)
-      .to(halves[0], { x: -gap, opacity: 0, duration: 0.9 }, 1.5)
-      .to(halves[1], { x: gap, opacity: 0, duration: 0.9 }, 1.5)
-      .fromTo(win, { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.8 }, 1.7)
-      .fromTo(foot, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6 }, 2.3);
+      .fromTo(foot, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6 }, 1.3);
 
     const SKIP = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
     const finish = () => {
@@ -57,12 +49,12 @@ export default function Opening({ screen }: { screen: ReactNode }) {
       for (const e of SKIP) window.removeEventListener(e, finish);
       tl.progress(1).kill();
       // the finished state is the CSS's own; the timeline's inline styles can go
-      gsap.set([letters, halves, win, foot], { clearProps: "all" });
+      gsap.set([letters, foot], { clearProps: "all" });
       html.removeAttribute("data-lp-intro");
       setOpen(true);
     };
     for (const e of SKIP) window.addEventListener(e, finish, { passive: true });
-    const timer = window.setTimeout(finish, 2800);
+    const timer = window.setTimeout(finish, 1900);
     return () => {
       window.clearTimeout(timer);
       for (const e of SKIP) window.removeEventListener(e, finish);
@@ -73,10 +65,8 @@ export default function Opening({ screen }: { screen: ReactNode }) {
   return (
     <section ref={root} className={open ? "lp-open is-open" : "lp-open"} id="chapter-1" aria-label="SOCIA">
       <div className="lp-open-stage">
-        <div className="lp-window" aria-hidden="true" inert>{screen}</div>
         <p className="lp-wordmark" aria-hidden="true">
-          <span className="lp-half">{LEFT.map((l) => <span key={l} className="lp-l">{l}</span>)}</span>
-          <span className="lp-half">{RIGHT.map((l) => <span key={l} className="lp-l">{l}</span>)}</span>
+          {LETTERS.map((l) => <span key={l} className="lp-l">{l}</span>)}
         </p>
         <span className="lp-sr">SOCIA</span>
       </div>

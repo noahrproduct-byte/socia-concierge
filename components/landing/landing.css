@@ -234,9 +234,11 @@
   position: relative;
   z-index: 1;
   display: flex;
+  justify-content: center;
   align-items: center;
   gap: 0;
   margin: 0;
+  max-width: 100%;
   font-family: var(--font-display);
   font-size: var(--fs-m-mark);
   font-weight: var(--fw-medium);
@@ -245,27 +247,7 @@
   user-select: none;
 }
 
-.lp-wordmark .lp-half { display: flex; }
-
-/* the slot the halves open up: as wide as the gap they leave, the screen scaled to fit it */
-.lp-window {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(68vw, 980px);
-  height: min(60svh, 560px);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border-radius: var(--r-chip);
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.lp-window > * { width: 1080px; zoom: 0.78; }
-.lp-open.is-open .lp-window { opacity: 1; }
-.lp-open.is-open .lp-wordmark { opacity: 0; pointer-events: none; }
+/* the name holds the width of the page; the stage centres it */
 .lp-l { display: inline-block; }
 
 
@@ -725,8 +707,6 @@
 
 /* ---- narrower screens: re-composed ---------------------------------------- */
 @media (max-width: 1100px) {
-  .lp-window { width: 88vw; }
-  .lp-window > * { zoom: 0.62; }
   .lp-two { grid-template-columns: minmax(0, 1fr); }
   .lp-facts,
   .lp-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -738,8 +718,6 @@
 
 @media (max-width: 760px) {
   .lp-chrome-link { display: none; }
-  .lp-window { width: 92vw; height: 46svh; }
-  .lp-window > * { zoom: 0.31; }
   .lp-open-foot { grid-template-columns: minmax(0, 1fr); }
   .lp-statement { max-width: 12ch; }
   .lp-facts,
@@ -757,127 +735,6 @@
   .lp-index-panel .lp-mini-screen { margin-inline-start: 0; }
   .lp-close-top { grid-template-columns: minmax(0, 1fr); }
 }
-
-/* ---- the Analytics screen (HeroFrame.tsx) ---------------------------------- */
-.lp-hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: var(--sp-5);
-}
-
-.lp-chart {
-  margin-top: var(--sp-4);
-  padding: var(--sp-4) var(--sp-4) var(--sp-2);
-  border-radius: var(--r-card);
-  box-shadow: var(--shadow-ring);
-}
-
-.lp-chart-head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
-}
-
-.lp-chart-head b { color: var(--ink); font-weight: var(--fw-medium); }
-
-.lp-chart svg {
-  display: block;
-  width: 100%;
-  height: 168px;
-  margin-top: var(--sp-2);
-}
-
-.lp-chart-axis {
-  display: flex;
-  justify-content: space-between;
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
-  font-variant-numeric: tabular-nums;
-}
-
-.lp-next {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-  padding-inline-start: var(--sp-5);
-  border-inline-start: 1px solid var(--border);
-}
-
-.lp-next h3 {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-semibold);
-}
-
-.lp-next ul {
-  display: grid;
-  gap: var(--sp-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.lp-next li,
-.lp-next p {
-  margin: 0;
-  color: var(--ink-2);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-}
-
-.lp-next li b,
-.lp-next p b { color: var(--ink); font-weight: var(--fw-medium); }
-
-.lp-source {
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
-}
-
-/* the opening's window and narrow screens show the desktop composition, scaled */
-.lp-window .lp-hero-grid { grid-template-columns: minmax(0, 1fr) 300px; }
-
-@media (max-width: 1100px) {
-  .lp-bleed .lp-hero-grid { grid-template-columns: minmax(0, 1fr); }
-  .lp-bleed .lp-next { padding: var(--sp-5) 0 0; border-inline-start: 0; border-top: 1px solid var(--border); }
-}
-
-/* the chain on the charcoal band */
-.lp-chain.is-dark { border-top-color: var(--ed-rule); }
-.lp-chain.is-dark li { border-bottom-color: var(--ed-rule); }
-.lp-chain.is-dark li + li { border-inline-start-color: var(--ed-rule); }
-.lp-chain.is-dark p { color: var(--ed-ink-2); }
-.lp-chain.is-dark .lp-label { color: var(--ed-gold); }
-
-/* destinations list inside the Create post screen */
-.lp-dests {
-  display: grid;
-  margin: var(--sp-2) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.lp-dests li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--sp-3);
-  padding-block: var(--sp-3);
-  border-top: 1px solid var(--border);
-  font-size: var(--fs-body);
-}
-
-.lp-dests li small {
-  display: block;
-  color: var(--ink-3);
-  font-size: var(--fs-meta);
-}
-
-/* ============================================================================
-   The live site's content, told the reference's way (2026-10-26)
-   ========================================================================= */
 
 /* ---- chapter 2: the tear ---------------------------------------------------
    Pinned for 1.6 viewports; scroll drives the tear open and the screens up

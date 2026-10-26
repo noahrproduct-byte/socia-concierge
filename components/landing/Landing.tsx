@@ -2,7 +2,6 @@ import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import { PlatformMark, type Platform } from "@/components/system";
 import { PLANS, type PlanId } from "@/lib/plans";
-import HeroFrame from "./HeroFrame";
 import EngineFrame from "./EngineFrame";
 import Opening from "./Opening";
 import Tear from "./Tear";
@@ -56,7 +55,7 @@ export default function Landing() {
       <Chrome />
 
       {/* -------------------------------------------------- 01 promise */}
-      <Opening screen={<HeroFrame />} />
+      <Opening />
 
       <main>
         {/* ------------------------------------------------ 02 problem: the tear */}
