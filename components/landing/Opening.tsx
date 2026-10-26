@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { INTRO_FLAG } from "./introFlag";
+import { gsap, EASE } from "./motion";
 
 // Chapter 1. The opening sequence, after the method in the reference
-// (library/references/nothin.md): the name arrives, opens in the middle to
-// reveal the work, then settles. SOCIA's work is its product, so the window
-// between SOC and IA shows the live Analytics screen.
+// (library/references/nothin.md, "What the recording shows"): the letters
+// of the name assemble from blocks rising out of the floor, the name holds,
+// then the two halves part and SOCIA's work comes through the gap. SOCIA's
+// work is its product, so the window shows the live Analytics screen.
 //
-// Timeline (ms): 0 black; 300 the letters arrive, 110 apart; 1300 the two
-// halves part and the screen fades in behind; 2300 the tagline and actions
-// rise; 2700 the chrome appears. About 3 seconds, then the page.
+// Timeline (s): 0 black; 0.3 the letters rise in, 0.09s apart, each a solid
+// block that clips open into the glyph; 1.5 the halves part and the screen
+// comes through; 2.3 the tagline and actions rise; 2.8 done, the chrome.
 //
 // Rules kept (docs/design/anti-slop-standard.md, section 5): plays once per
 // browser session; any scroll, key or tap finishes it; reduced motion skips
@@ -38,37 +40,33 @@ export default function Opening({ screen }: { screen: ReactNode }) {
 
     const letters = el.querySelectorAll<HTMLElement>(".lp-l");
     const halves = el.querySelectorAll<HTMLElement>(".lp-half");
-    const foot = el.querySelector<HTMLElement>(".lp-open-foot");
     const win = el.querySelector<HTMLElement>(".lp-window");
-    const anims: Animation[] = [];
-    const run = (node: Element | null, frames: Keyframe[], opts: KeyframeAnimationOptions) => {
-      if (node) anims.push(node.animate(frames, { fill: "forwards", easing: "cubic-bezier(0.23, 1, 0.32, 1)", ...opts }));
-    };
-
-    letters.forEach((l, i) => run(l, [{ opacity: 0, transform: "translateY(0.08em)" }, { opacity: 1, transform: "none" }], { duration: 500, delay: 300 + 110 * i }));
-    // the halves part to the edges and dim as the screen comes through
+    const foot = el.querySelector<HTMLElement>(".lp-open-foot");
     const gap = el.clientWidth * 0.34;
-    run(halves[0], [{ transform: "none", opacity: 1 }, { transform: `translateX(-${gap}px)`, opacity: 0 }], { duration: 800, delay: 1400 });
-    run(halves[1], [{ transform: "none", opacity: 1 }, { transform: `translateX(${gap}px)`, opacity: 0 }], { duration: 800, delay: 1400 });
-    run(win, [{ opacity: 0, transform: "translate(-50%, -50%) scale(0.96)" }, { opacity: 1, transform: "translate(-50%, -50%) scale(1)" }], { duration: 700, delay: 1600 });
-    run(foot, [{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }], { duration: 500, delay: 2300 });
+
+    const tl = gsap.timeline({ defaults: { ease: EASE } });
+    tl.fromTo(letters, { y: "0.45em", opacity: 0, clipPath: "inset(0 0 100% 0)" }, { y: 0, opacity: 1, clipPath: "inset(0 0 0% 0)", duration: 0.9, stagger: 0.09 }, 0.3)
+      .to(halves[0], { x: -gap, opacity: 0, duration: 0.9 }, 1.5)
+      .to(halves[1], { x: gap, opacity: 0, duration: 0.9 }, 1.5)
+      .fromTo(win, { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 0.8 }, 1.7)
+      .fromTo(foot, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6 }, 2.3);
 
     const SKIP = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
     const finish = () => {
       window.clearTimeout(timer);
       for (const e of SKIP) window.removeEventListener(e, finish);
-      anims.forEach((a) => { a.finish(); });
+      tl.progress(1).kill();
+      // the finished state is the CSS's own; the timeline's inline styles can go
+      gsap.set([letters, halves, win, foot], { clearProps: "all" });
       html.removeAttribute("data-lp-intro");
       setOpen(true);
-      // the finished state is the CSS's own; the animations' fills can go
-      window.setTimeout(() => anims.forEach((a) => a.cancel()), 50);
     };
     for (const e of SKIP) window.addEventListener(e, finish, { passive: true });
-    const timer = window.setTimeout(finish, 2700);
+    const timer = window.setTimeout(finish, 2800);
     return () => {
       window.clearTimeout(timer);
       for (const e of SKIP) window.removeEventListener(e, finish);
-      anims.forEach((a) => a.cancel());
+      tl.kill();
     };
   }, []);
 

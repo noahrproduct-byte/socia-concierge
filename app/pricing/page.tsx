@@ -1,4 +1,4 @@
-import { Geist } from "next/font/google";
+import { Geist, Inter_Tight } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements";
 import { recordEvent } from "@/lib/planGuard";
@@ -7,12 +7,14 @@ import { Nav, Footer } from "@/components/MarketingChrome";
 import PricingCards from "@/components/pricing/PricingCards";
 import ComparisonTable from "@/components/pricing/ComparisonTable";
 import "./pricing.css";
+import "./pricing-editorial.css";
 
 // Public pricing page. Everything on it is generated from lib/plans.ts and
 // lib/pricingTable.ts; this file only lays it out. Reading the visitor is
 // optional: signed out, the page renders the same cards with sign-up CTAs.
 
 const geist = Geist({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-display" });
+const interTight = Inter_Tight({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-inter-tight" });
 
 export const metadata = {
   title: "Pricing — SOCIA",
@@ -40,7 +42,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   const pro = PLANS.pro.limits;
 
   return (
-    <div className={`${geist.variable} so pr-page`}>
+    <div className={`${geist.variable} ${interTight.variable} so pr-page`}>
       <Nav signedIn={signedIn} current="/pricing" />
 
       <main className="pr-main">

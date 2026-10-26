@@ -1,12 +1,16 @@
 import Link from "next/link";
+import { Inter_Tight } from "next/font/google";
+import "@/app/auth-editorial.css";
 import { Zap, Target, CalendarDays } from "lucide-react";
 import BrandMark from "./BrandMark";
 
 // The premium split-screen wrapper shared by every auth page:
 // a branded showcase panel on the left, the form on the right.
+const interTight = Inter_Tight({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-inter-tight" });
+
 export default function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="auth-shell">
+    <div className={`auth-shell ${interTight.variable}`}>
       <aside className="auth-brand">
         <div className="auth-brand-inner">
           <Link href="/" className="brand-logo">
