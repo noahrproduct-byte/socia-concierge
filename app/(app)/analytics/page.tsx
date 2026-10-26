@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Link2 } from "lucide-react";
+import { Download, Link2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
@@ -19,7 +19,7 @@ import { interactionsTotal, engagementRateOf, engagementBreakdown, engagementQua
 import { followerPoints } from "@/lib/followers";
 import { buildGaps } from "@/lib/gaps";
 import { fetchDemographics } from "@/lib/igDemographics";
-import PageHeader from "@/components/PageHeader";
+import { Card, PageTitle, buttonClass } from "@/components/system";
 import AnalyticsV3, { type AnalyticsData, type AnalyticsGate } from "@/components/AnalyticsV3";
 import YouTubeAnalytics from "@/components/YouTubeAnalytics";
 import FacebookAnalytics from "@/components/FacebookAnalytics";
@@ -42,8 +42,9 @@ import {
 import { canUseFeature, getEntitlements, maxHistoryDays, upgradeFor } from "@/lib/entitlements";
 import type { PlanId } from "@/lib/plans";
 import { withoutComparison } from "@/lib/analyticsGate";
+import "./analytics.css";
 
-export const metadata = { title: "Analytics — SOCIA" };
+export const metadata = { title: "Analytics · SOCIA" };
 
 // Analytics. One experience, switched by platform. Each platform's panel is
 // built from the data that platform actually provides (Instagram keeps its full
@@ -102,7 +103,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   ).catch(() => null);
   // Facebook: snapshots (SOCIA's own follower history) and Page Insights
   // (read_insights), only for a connected Page. Insights degrade to
-  // "unavailable" when the permission isn't granted — never to zeros.
+  // "unavailable" when the permission isn't granted, never to zeros.
   const fbSnapsP = fbP.then((f) => (f?.status === "connected" && f.page_id ? readPlatformSnapshots(ctx.client, ctx.ownerId, "facebook", f.page_id).catch(() => []) : []));
   const fbInsightsP = fbP.then((f) =>
     f?.status === "connected"
@@ -133,29 +134,34 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   const connectedCount = [live, fbConnected, Boolean(yt), ttConnected].filter(Boolean).length;
 
-  // Nothing connected: the connect wall (unchanged).
+  // Nothing connected: one quiet empty state that says what fills the page.
   if (connectedCount === 0) {
     const igHref = igConfigured() ? "/api/auth/instagram/start" : "/settings";
     const ytHref = ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings";
     return (
-      <>
-        <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." />
-        <div className="db-connect">
-          <span className="db-connect-ico"><Link2 size={22} /></span>
-          <div className="db-connect-copy">
-            <h2>Connect an account to see your analytics</h2>
+      <div className="an-stack">
+        <PageTitle
+          title="Analytics"
+          next="See what happened, understand why, and find what your strategy is missing."
+          meta={<span>{[ctx.workspace?.name, rangeLabel].filter(Boolean).join(" · ")}</span>}
+        />
+        <Card>
+          <div className="s-empty">
+            <Link2 aria-hidden />
+            <b>Connect an account to see your analytics</b>
             <p>Analytics fills with your real numbers the moment you connect a platform, and SOCIA starts recording your growth from that moment. Nothing here is estimated.</p>
+            <div className="an-actions">
+              {/* OAuth starts are API routes, so plain links rather than client navigation. */}
+              <a href={igHref} className={buttonClass("primary")}>Connect Instagram</a>
+              <a href={ytHref} className={buttonClass("secondary")}>Connect YouTube</a>
+            </div>
           </div>
-          <span className="db-connect-actions">
-            <a href={igHref} className="db-connect-cta">Connect Instagram</a>
-            <a href={ytHref} className="db-connect-cta ghost">Connect YouTube</a>
-          </span>
-        </div>
-      </>
+        </Card>
+      </div>
     );
   }
 
-  // Which analytics sections the plan unlocks — the same gates on every
+  // Which analytics sections the plan unlocks: the same gates on every
   // platform's page. A locked section names the plan that opens it.
   const lockedTo = (feature: Parameters<typeof canUseFeature>[1]): PlanId | null => upgradeFor(ent, feature);
   const gate: AnalyticsGate = {
@@ -183,6 +189,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // ---- Instagram panel + summary (full existing experience, only when live) ----
   let igPanel: ReactNode = null;
   let igSummary: PlatformSummary = instagramSummary(null);
+  // The page title's Next line: one finding from this account's own numbers.
+  let finding: ReactNode = null;
 
   if (live) {
     const media: IgMediaItem[] = snap!.media ?? [];
@@ -262,7 +270,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     });
 
     // "What changed": the period's headline numbers against the one before,
-    // from totals already computed above. No previous period → no delta shown.
+    // from totals already computed above. No previous period, no delta shown.
     const pctChg = (cur: number | null, prev: number | null) => {
       if (cur == null || prev == null || prev <= 0) return { delta: null as string | null, positive: null as boolean | null };
       const p = ((cur - prev) / prev) * 100;
@@ -291,6 +299,32 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     // One plain "do this next": the top-ranked gap's action, else the first
     // insight's recommendation. Both are already tied to this account's data.
     const nextStep = gaps[0]?.action ?? insights[0]?.recommendation ?? null;
+    const doNext = nextStep && !gate.deeperInsights ? nextStep : null;
+
+    // The Next line: the largest real movement against the period before
+    // (only when the plan includes comparisons), then the one thing to do.
+    if (!gate.comparison) {
+      let top: { label: string; p: number; cur: number; prev: number } | null = null;
+      for (const m of ["views", "reach", "engagement"] as const) {
+        const s = series[m];
+        if (s.total == null || s.prevTotal == null || s.prevTotal <= 0) continue;
+        const p = ((s.total - s.prevTotal) / s.prevTotal) * 100;
+        if (Math.abs(p) < 0.05) continue;
+        if (!top || Math.abs(p) > Math.abs(top.p)) top = { label: m === "engagement" ? "Interactions" : s.label, p, cur: s.total, prev: s.prevTotal };
+      }
+      if (top) {
+        const pct = Math.abs(top.p).toFixed(Math.abs(top.p) >= 100 ? 0 : 1);
+        finding = (
+          <>
+            <b>
+              {top.label} {top.p >= 0 ? "up" : "down"} {pct}% on the {days} days before
+            </b>{" "}
+            ({fmtN(top.cur)} against {fmtN(top.prev)}).{doNext ? ` ${doNext}` : ""}
+          </>
+        );
+      }
+    }
+    if (!finding && doNext) finding = <><b>Do this next:</b> {doNext}</>;
 
     const d: AnalyticsData = {
       handle: snap!.username ?? null, rangeLabel, rangeDays: days, maxDays, today, firstDataDay, kpis, series, gains, insights, gaps, lockedGaps, posts, library, baseline, medianViews, breakdown, platforms, demo,
@@ -350,7 +384,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   if (yt) connectedTabs.push({ id: "youtube", label: "YouTube" });
   if (ttConnected) connectedTabs.push({ id: "tiktok", label: "TikTok" });
   const multi = connectedTabs.length >= 2;
-  const tabs: PlatformTab[] = multi ? [{ id: "all", label: "All Platforms" }, ...connectedTabs] : connectedTabs;
+  const tabs: PlatformTab[] = multi ? [{ id: "all", label: "All platforms" }, ...connectedTabs] : connectedTabs;
   const showBrands = (await ownedP) >= 2;
   if (showBrands) tabs.push({ id: "brands", label: "All brands" });
   const validIds = new Set(tabs.map((t) => t.id));
@@ -370,13 +404,33 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     .map((a) => ({ id: a.id, platform: a.platform, label: a.label, points: a.series.views!.points, mode: "sum", trueSeries: true }));
   const overlay = {
     lines: overlayLines,
-    note: "Daily views from the platforms that report a real daily series — Instagram and YouTube. Facebook and TikTok don't provide a daily views trend, so they aren't drawn here.",
+    note: "Daily views from the platforms that report a real daily series: Instagram and YouTube. Facebook and TikTok don't provide a daily views trend, so they aren't drawn here.",
   };
 
+  // Without an Instagram finding, the cross-platform read leads (never the
+  // "still collecting" placeholder).
+  if (!finding && allData) {
+    const ins = allData.insights.find((i) => i.id !== "collecting");
+    if (ins) finding = <><b>{ins.title}.</b> {ins.body}</>;
+  }
+
+  const handle = live && snap?.username ? `@${snap.username}` : null;
+  const scopeLine = [ctx.workspace?.name, handle, rangeLabel].filter(Boolean).join(" · ");
+
   return (
-    <>
-      <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." status={<UpdatedAgo at={updatedAt} />} />
-      <AnalyticsShell tabs={tabs} initial={initial} panels={panels} allData={allData} overlay={overlay} today={today} />
-    </>
+    <div className="an-stack">
+      <PageTitle
+        title="Analytics"
+        next={finding ?? "See what happened, understand why, and find what your strategy is missing."}
+        meta={<span>{scopeLine}</span>}
+        stamp={updatedAt ? <UpdatedAgo at={updatedAt} /> : undefined}
+        actions={
+          <a href="/api/export" download className={buttonClass("secondary")}>
+            <Download aria-hidden /> Export data
+          </a>
+        }
+      />
+      <AnalyticsShell tabs={tabs} initial={initial} panels={panels} allData={allData} overlay={overlay} today={today} maxDays={maxDays} instagram={live} />
+    </div>
   );
 }

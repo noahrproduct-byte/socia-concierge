@@ -2,6 +2,12 @@
    Primitives. One of each. Every class starts with `s-` and reads tokens
    only. Hover rules are gated to real pointers; motion is feedback only
    (press, menus, panels, toasts); nothing performs an entrance.
+
+   The language (measured in the ElevenLabs study): near-black actions and
+   hairline secondaries, alpha fills instead of tinted surfaces, a ring plus
+   two soft drops on raised surfaces, six layers under floating ones, radii
+   that grow with the element and stay concentric when nested, 500 for
+   controls and names, 400 for prose, 75ms colour changes.
    ========================================================================= */
 
 /* ---- buttons ------------------------------------------------------------ */
@@ -26,23 +32,20 @@
   user-select: none;
   flex: none;
   transition:
-    background-color var(--t-press) var(--ease-out),
-    border-color var(--t-press) var(--ease-out),
-    color var(--t-press) var(--ease-out),
-    transform var(--t-press) var(--ease-out);
+    background-color var(--t-press) var(--ease-standard),
+    border-color var(--t-press) var(--ease-standard),
+    color var(--t-press) var(--ease-standard),
+    box-shadow var(--t-press) var(--ease-standard);
 }
 .s-btn svg {
   width: 16px;
   height: 16px;
   flex: none;
 }
-.s-btn:active:not(:disabled):not([aria-disabled="true"]) {
-  transform: scale(0.97);
-}
 .s-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--on-action);
 }
 .s-btn--secondary {
   background: var(--surface);
@@ -52,12 +55,13 @@
   color: var(--ink-2);
 }
 .s-btn--danger {
-  background: var(--negative-bg);
+  border-color: var(--negative);
   color: var(--negative-ink);
 }
 .s-btn--sm {
   height: var(--control-h-sm);
   padding: 0 var(--sp-2);
+  border-radius: var(--r-chip);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
 }
@@ -68,6 +72,7 @@
 .s-btn--lg {
   height: var(--control-h-lg);
   padding: 0 var(--sp-5);
+  border-radius: var(--r-card);
   font-size: var(--fs-section);
   line-height: var(--lh-section);
 }
@@ -78,26 +83,31 @@
 .s-btn--icon.s-btn--sm {
   width: var(--control-h-sm);
 }
+.s-btn--round {
+  border-radius: var(--r-pill);
+}
 .s-btn:disabled,
 .s-btn[aria-disabled="true"] {
-  background: var(--surface-raised);
-  border-color: var(--border);
-  color: var(--ink-3);
+  background: var(--surface-hover);
+  border-color: transparent;
+  color: var(--ink-disabled);
   cursor: not-allowed;
 }
 @media (hover: hover) and (pointer: fine) {
   .s-btn--primary:hover:not(:disabled) {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
+    background: var(--action-hover);
+    border-color: var(--action-hover);
   }
-  .s-btn--secondary:hover:not(:disabled),
-  .s-btn--ghost:hover:not(:disabled) {
+  .s-btn--secondary:hover:not(:disabled) {
     background: var(--surface-raised);
+    border-color: var(--border-strong);
+  }
+  .s-btn--ghost:hover:not(:disabled) {
+    background: var(--surface-hover);
     color: var(--ink);
   }
   .s-btn--danger:hover:not(:disabled) {
-    background: var(--negative);
-    color: var(--on-accent);
+    background: var(--negative-bg);
   }
 }
 
@@ -114,16 +124,17 @@
   }
 }
 
-/* ---- segmented control (tabs or radiogroup, decided by the role) ------- */
+/* ---- segmented control (tabs or radiogroup, decided by the role) -------
+   A faint track with 2px padding; the chosen segment is a white (surface)
+   tile with a micro-shadow. Track 8, segment 6: concentric. */
 .s-seg {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   height: var(--control-h);
   padding: 2px;
-  border: 1px solid var(--border);
   border-radius: var(--r-control);
-  background: var(--surface-raised);
+  background: var(--surface-hover);
   flex: none;
   max-width: 100%;
   overflow-x: auto;
@@ -133,30 +144,38 @@
   display: none;
 }
 .s-seg > * {
-  height: 26px;
+  height: 100%;
   padding: 0 var(--sp-3);
   border: 0;
   border-radius: var(--r-chip);
   background: transparent;
   color: var(--ink-2);
   font-family: var(--font);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   font-weight: var(--fw-medium);
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+  transition: background-color var(--t-press) var(--ease-standard), color var(--t-press) var(--ease-standard), box-shadow var(--t-press) var(--ease-standard);
 }
 .s-seg > [aria-selected="true"],
 .s-seg > [aria-checked="true"],
 .s-seg > [data-selected] {
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 0 0 1px var(--border);
+  box-shadow: var(--shadow-seg);
 }
 .s-seg > :disabled {
   color: var(--ink-disabled);
   cursor: not-allowed;
+}
+.s-seg--sm {
+  height: var(--control-h-sm);
+}
+.s-seg--sm > * {
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
 }
 @media (hover: hover) and (pointer: fine) {
   .s-seg > :hover:not([aria-selected="true"]):not([aria-checked="true"]):not(:disabled) {
@@ -164,7 +183,7 @@
   }
 }
 
-/* ---- underline tabs ------------------------------------------------------ */
+/* ---- underline tabs: going somewhere else on the page ------------------- */
 .s-tabs {
   display: flex;
   gap: var(--sp-5);
@@ -177,13 +196,13 @@
 }
 .s-tabs > [role="tab"],
 .s-tabs > a {
-  height: 36px;
+  height: 42px;
   padding: 0 2px;
   margin-bottom: -1px;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-bottom: 1.5px solid transparent;
   background: none;
-  color: var(--ink-2);
+  color: var(--ink-3);
   font-family: var(--font);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -192,7 +211,7 @@
   text-decoration: none;
   cursor: pointer;
   flex: none;
-  transition: color var(--t-press) var(--ease-out), border-color var(--t-press) var(--ease-out);
+  transition: color var(--t-press) var(--ease-standard), border-color var(--t-press) var(--ease-standard);
 }
 .s-tabs > [aria-selected="true"],
 .s-tabs > [aria-current="page"],
@@ -205,6 +224,7 @@
   margin-left: var(--sp-1);
   color: var(--ink-3);
   font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
 }
 @media (hover: hover) and (pointer: fine) {
   .s-tabs > [role="tab"]:hover,
@@ -219,10 +239,10 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  height: 22px;
+  height: 24px;
   padding: 0 var(--sp-2);
   border-radius: var(--r-chip);
-  background: var(--surface-raised);
+  background: var(--surface-hover);
   color: var(--ink-2);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
@@ -234,6 +254,10 @@
 .s-pill svg {
   width: 12px;
   height: 12px;
+}
+.s-chip--outline {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .s-pill {
   border-radius: var(--r-pill);
@@ -266,28 +290,44 @@
   flex: none;
 }
 
-/* ---- KPI strip: one container, hairline-divided, label over value ------- */
+/* ---- KPI tiles: label over value; the selected tile is the chart's tab --
+   Tiles rest on a faint fill with a hairline ring; the selected one lifts
+   to the surface colour with a 1.5px rule along its bottom edge. */
 .s-kpis {
   display: grid;
   grid-template-columns: repeat(var(--kpi-cols, 4), minmax(0, 1fr));
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  overflow: hidden;
+  gap: var(--sp-2);
 }
 .s-kpi {
+  position: relative;
   min-width: 0;
-  padding: var(--sp-4) var(--sp-5);
-  border-left: 1px solid var(--border);
+  padding: var(--sp-3) var(--sp-4);
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-ring);
+  color: var(--ink);
+  font-family: var(--font);
+  text-align: left;
+  transition: background-color var(--t-press) var(--ease-standard), box-shadow var(--t-press) var(--ease-standard);
 }
-.s-kpi:first-child {
-  border-left: 0;
+.s-kpi.is-selected {
+  background: var(--surface);
+  box-shadow: var(--shadow-ring), inset 0 -1.5px 0 var(--ink);
+}
+button.s-kpi {
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.s-kpi:hover:not(.is-selected) {
+    background: var(--surface-hover);
+  }
 }
 .s-kpi-label {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  color: var(--ink-2);
+  color: var(--ink-3);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
   font-weight: var(--fw-medium);
@@ -300,8 +340,8 @@
 .s-kpi-value {
   margin-top: var(--sp-1);
   color: var(--ink);
-  font-size: var(--fs-title);
-  line-height: var(--lh-title);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
   font-weight: var(--fw-medium);
   letter-spacing: var(--tr-title);
   font-variant-numeric: tabular-nums;
@@ -333,43 +373,40 @@
 .s-kpi-delta.is-bad b {
   color: var(--negative-ink);
 }
-.s-kpi.is-selected {
-  box-shadow: inset 0 -2px 0 var(--ink);
-}
 @media (max-width: 640px) {
   .s-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .s-kpi:nth-child(odd) {
-    border-left: 0;
-  }
-  .s-kpi:nth-child(n + 3) {
-    border-top: 1px solid var(--border);
   }
   .s-kpi:last-child:nth-child(odd) {
     grid-column: 1 / -1;
   }
 }
 
-/* ---- card ----------------------------------------------------------------- */
+/* ---- card: a raised tile, no border ------------------------------------- */
 .s-card {
   min-width: 0;
   padding: var(--card-pad);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--surface);
+  box-shadow: var(--shadow-raised);
 }
 .s-card--flush {
   padding: 0;
+  overflow: hidden;
 }
 .s-card--flush > .s-card-head {
   padding: var(--sp-4) var(--card-pad) 0;
 }
+.s-card--quiet {
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-ring);
+}
 .s-card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--sp-3);
+  gap: var(--sp-1) var(--sp-3);
   margin-bottom: var(--sp-3);
   min-width: 0;
 }
@@ -377,14 +414,13 @@
   color: var(--ink);
   font-size: var(--fs-section);
   line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   min-width: 0;
 }
 .s-card-period {
   color: var(--ink-3);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
-  white-space: nowrap;
 }
 .s-card-head-actions {
   display: flex;
@@ -410,7 +446,7 @@
   }
 }
 
-/* ---- table: rules and alignment, no bands, no zebra ---------------------- */
+/* ---- table: aligned rows with rules, no bands, no zebra ----------------- */
 .s-table-wrap {
   overflow-x: auto;
 }
@@ -422,18 +458,19 @@
   line-height: var(--lh-body);
 }
 .s-table th {
-  height: 36px;
+  height: 40px;
   padding: 0 var(--sp-3);
   text-align: left;
   color: var(--ink-3);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
-  font-weight: var(--fw-regular);
+  font-weight: var(--fw-medium);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 .s-table td {
-  padding: var(--sp-3);
+  height: var(--row-h);
+  padding: var(--sp-2) var(--sp-3);
   border-top: 1px solid var(--rule);
   vertical-align: middle;
 }
@@ -452,6 +489,7 @@
   color: var(--ink-3);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
+  font-weight: var(--fw-regular);
 }
 .s-table .act {
   text-align: right;
@@ -485,6 +523,7 @@
   }
   .s-table--stack td {
     display: block;
+    height: auto;
     padding: 0;
     border: 0;
   }
@@ -546,12 +585,12 @@
   font-family: var(--font);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
-  transition: border-color var(--t-press) var(--ease-out);
+  transition: border-color var(--t-press) var(--ease-standard), box-shadow var(--t-press) var(--ease-standard);
 }
 .s-select {
   padding-right: var(--sp-8);
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23646b7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23757576' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right var(--sp-2) center;
 }
@@ -569,8 +608,8 @@
 .s-input:focus-visible,
 .s-select:focus-visible,
 .s-textarea:focus-visible {
-  outline-offset: 0;
-  border-color: var(--accent);
+  outline: none;
+  border-color: var(--ink);
   border-radius: var(--r-control);
 }
 .s-input[aria-invalid="true"],
@@ -607,7 +646,7 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: var(--accent);
+  accent-color: var(--action);
 }
 /* switch: 32 x 18, on = positive (a state, not the action colour) */
 .s-switch {
@@ -619,7 +658,7 @@
   background: var(--border-strong);
   cursor: pointer;
   flex: none;
-  transition: background-color var(--t-press) var(--ease-out);
+  transition: background-color var(--t-press) var(--ease-standard);
 }
 .s-switch::after {
   content: "";
@@ -630,7 +669,8 @@
   height: 14px;
   border-radius: var(--r-pill);
   background: var(--surface);
-  transition: transform var(--t-press) var(--ease-out);
+  box-shadow: var(--shadow-seg);
+  transition: transform var(--t-menu) var(--ease-standard);
 }
 .s-switch[aria-checked="true"] {
   background: var(--positive);
@@ -643,18 +683,19 @@
   cursor: not-allowed;
 }
 
-/* ---- menus, popovers, tooltips (base-ui popups) --------------------------- */
+/* ---- menus, popovers, tooltips (base-ui popups) ---------------------------
+   Floating layers carry the six-layer shadow and no border. A 16px menu
+   with 4px padding holds 12px items: concentric. */
 .s-menu {
-  min-width: 200px;
+  min-width: 220px;
   max-width: 320px;
   padding: var(--sp-1);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-float);
   transform-origin: var(--transform-origin);
-  transition: opacity var(--t-menu) var(--ease-out), transform var(--t-menu) var(--ease-out);
+  transition: opacity var(--t-menu) var(--ease-standard), transform var(--t-menu) var(--ease-standard);
   outline: none;
 }
 .s-menu[data-starting-style],
@@ -668,10 +709,11 @@
   gap: var(--sp-2);
   height: var(--control-h);
   padding: 0 var(--sp-2);
-  border-radius: var(--r-chip);
+  border-radius: var(--r-card);
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
   text-decoration: none;
   cursor: default;
   outline: none;
@@ -685,7 +727,7 @@
 }
 .s-menu-item[data-highlighted],
 .s-menu-item:focus-visible {
-  background: var(--surface-raised);
+  background: var(--surface-hover);
   outline: none;
 }
 .s-menu-item[data-disabled],
@@ -707,6 +749,7 @@
   padding-left: var(--sp-3);
   color: var(--ink-3);
   font-size: var(--fs-meta);
+  font-weight: var(--fw-regular);
   flex: none;
 }
 .s-menu-end svg {
@@ -714,7 +757,7 @@
 }
 .s-menu-sep {
   height: 1px;
-  margin: var(--sp-1) 0;
+  margin: var(--sp-1) var(--sp-2);
   background: var(--border);
 }
 .s-menu-label {
@@ -722,16 +765,16 @@
   color: var(--ink-3);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
 }
 .s-popover {
   padding: var(--sp-4);
-  border: 1px solid var(--border);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-float);
   transform-origin: var(--transform-origin);
-  transition: opacity var(--t-menu) var(--ease-out), transform var(--t-menu) var(--ease-out);
+  transition: opacity var(--t-menu) var(--ease-standard), transform var(--t-menu) var(--ease-standard);
   outline: none;
   max-width: min(360px, calc(100vw - 32px));
 }
@@ -741,14 +784,14 @@
   transform: scale(0.97);
 }
 .s-tooltip {
-  max-width: 280px;
-  padding: var(--sp-1) var(--sp-2);
-  border-radius: var(--r-chip);
+  max-width: 320px;
+  padding: 6px var(--sp-2);
+  border-radius: var(--r-control);
   background: var(--inverse-surface);
   color: var(--inverse-text);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
-  transition: opacity var(--t-menu) var(--ease-out);
+  transition: opacity var(--t-menu) var(--ease-standard);
 }
 .s-tooltip[data-starting-style],
 .s-tooltip[data-ending-style] {
@@ -756,22 +799,24 @@
 }
 .s-kbd {
   display: inline-block;
+  min-width: 18px;
   padding: 0 var(--sp-1);
-  border: 1px solid var(--border);
   border-radius: var(--r-chip);
+  background: var(--surface-hover);
   color: var(--ink-3);
   font-family: var(--font);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
+  text-align: center;
 }
 
 /* ---- drawer and dialog ----------------------------------------------------- */
 .s-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--overlay);
   z-index: var(--z-drawer);
-  transition: opacity var(--t-panel) var(--ease-out);
+  transition: opacity var(--t-panel) var(--ease-standard);
 }
 .s-backdrop[data-starting-style],
 .s-backdrop[data-ending-style] {
@@ -785,10 +830,9 @@
   width: min(var(--drawer-w, 480px), 92vw);
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--border);
   background: var(--surface);
   color: var(--ink);
-  box-shadow: var(--shadow-dialog);
+  box-shadow: var(--shadow-float);
   z-index: var(--z-drawer);
   outline: none;
   transition: transform var(--t-panel) var(--ease-out);
@@ -813,7 +857,12 @@
   color: var(--ink);
   font-size: var(--fs-section);
   line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
+}
+.s-dialog-title {
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  letter-spacing: var(--tr-title);
 }
 .s-drawer-body {
   flex: 1;
@@ -837,11 +886,10 @@
   max-height: calc(100vh - 32px);
   overflow: auto;
   padding: var(--sp-6);
-  border: 1px solid var(--border);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-dialog);
   background: var(--surface);
   color: var(--ink);
-  box-shadow: var(--shadow-dialog);
+  box-shadow: var(--shadow-float);
   z-index: var(--z-dialog);
   outline: none;
   transition: opacity var(--t-dialog) var(--ease-out), transform var(--t-dialog) var(--ease-out);
@@ -911,21 +959,28 @@
   opacity: 0.85;
 }
 
-/* ---- empty, skeleton, unavailable ------------------------------------------ */
+/* ---- empty, skeleton, unavailable ------------------------------------------
+   An empty state is quiet: an optional 24px muted icon, one 500 line, one
+   400 line. No dashed box, no illustration. */
 .s-empty {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--sp-2);
-  padding: var(--sp-4);
-  border: 1px dashed var(--border-strong);
+  padding: var(--sp-5) var(--sp-4);
   border-radius: var(--r-card);
+  background: var(--surface-raised);
   color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
 .s-empty--full {
   grid-column: 1 / -1;
+}
+.s-empty > svg {
+  width: 24px;
+  height: 24px;
+  color: var(--ink-3);
 }
 .s-empty b {
   color: var(--ink);
@@ -935,7 +990,7 @@
   display: block;
   height: 1em;
   border-radius: var(--r-chip);
-  background: var(--surface-raised);
+  background: var(--surface-hover);
 }
 .s-skel--meta {
   height: var(--lh-meta);
@@ -950,12 +1005,13 @@
   width: 40%;
 }
 .s-skel--value {
-  height: var(--lh-title);
+  height: var(--lh-lead);
   width: 72px;
 }
 .s-skel--block {
   height: 160px;
   width: 100%;
+  border-radius: var(--r-card);
 }
 .s-stack {
   display: flex;
@@ -979,8 +1035,9 @@
   align-items: center;
   gap: var(--sp-2) var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
-  border: 1px solid var(--border);
   border-radius: var(--r-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-ring);
   color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
@@ -998,14 +1055,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-4);
-  margin-bottom: var(--sp-5);
+  margin-bottom: var(--sp-6);
   min-width: 0;
 }
 .s-title h1 {
   color: var(--ink);
   font-size: var(--fs-title);
   line-height: var(--lh-title);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   letter-spacing: var(--tr-title);
 }
 .s-title-next {
@@ -1064,8 +1121,34 @@
   color: var(--ink);
   font-size: var(--fs-section);
   line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
+  font-weight: var(--fw-medium);
   margin-bottom: var(--sp-3);
+}
+/* A labelled compact query bar: small muted labels before small controls. */
+.s-query {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-4);
+  min-width: 0;
+  max-width: 100%;
+}
+.s-query-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  max-width: 100%;
+}
+/* a long segmented control scrolls inside the item instead of widening the page */
+.s-query-item > .s-seg {
+  min-width: 0;
+}
+.s-query-item > small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  white-space: nowrap;
 }
 @media (max-width: 640px) {
   .s-title {
@@ -1111,9 +1194,6 @@
 
 /* ---- reduced motion: keep opacity, drop movement ------------------------------ */
 @media (prefers-reduced-motion: reduce) {
-  .s-btn:active:not(:disabled) {
-    transform: none;
-  }
   .s-menu[data-starting-style],
   .s-menu[data-ending-style],
   .s-popover[data-starting-style],
@@ -1131,5 +1211,8 @@
   .s-drawer[data-ending-style] {
     transform: none;
     opacity: 0;
+  }
+  .s-switch::after {
+    transition: none;
   }
 }

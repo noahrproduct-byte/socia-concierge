@@ -6,7 +6,7 @@ import { ArrowRight, Menu, X } from "lucide-react";
 import BrandMark from "./BrandMark";
 
 // Nav and footer for public marketing pages other than the landing. Same
-// classes and structure as the landing's inline chrome (CinematicLanding), so
+// classes and structure as the old landing chrome (pricing migrates next), so
 // /pricing reads as the same site without importing that page.
 
 const NAV_LINKS: { href: string; label: string }[] = [

@@ -29,7 +29,8 @@ function Avatar({ src, size = 16 }: { src: string | null; size?: number }) {
   );
 }
 
-export default function AccountSwitcher() {
+/** `label`: render inside a labelled query-bar item; the label disappears with the control when nothing is connected. */
+export default function AccountSwitcher({ label }: { label?: string } = {}) {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [limit, setLimit] = useState(1);
@@ -79,7 +80,7 @@ export default function AccountSwitcher() {
   // Paused rows hold no plan slot, so they do not count toward the cap here.
   const canAdd = accounts.filter((a) => !a.suspended).length < limit;
 
-  return (
+  const menu = (
     <Menu>
       <MenuTrigger className="s-btn s-btn--secondary" aria-label={`Instagram account: @${active.username ?? "unknown"}. Switch account`}>
         <Avatar src={active.avatar} />
@@ -115,5 +116,12 @@ export default function AccountSwitcher() {
         )}
       </MenuContent>
     </Menu>
+  );
+  if (!label) return menu;
+  return (
+    <div className="s-query-item">
+      <small>{label}</small>
+      {menu}
+    </div>
   );
 }

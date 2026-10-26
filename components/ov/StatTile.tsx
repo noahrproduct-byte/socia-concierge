@@ -1,11 +1,12 @@
 import type { LucideIcon } from "lucide-react";
+import { KpiCell } from "@/components/system";
 
-/** A platform-general KPI tile (the sibling of KpiCard, which is bound to the
- *  Instagram Kpi type). Same ov-kpi visual language; "—" with the reason for
- *  unavailable data, never a zero. */
+/** A platform-general KPI tile (the Instagram view renders KpiCell directly).
+ *  It is the system KpiCell: label over value, the change in words, and a grey
+ *  dash with its reason for unavailable data, never a zero. `tone` is kept for
+ *  existing callers; the system draws every tile in the same neutral. */
 export default function StatTile({
   Icon,
-  tone,
   label,
   value,
   note,
@@ -22,19 +23,15 @@ export default function StatTile({
   delta?: string | null;
   positive?: boolean | null;
 }) {
+  const na = status === "unavailable";
   return (
-    <div className="ov-kpi" title={note}>
-      <span className={`ov-kpi-ico ${tone}`}>
-        <Icon size={16} />
-      </span>
-      <div className="ov-kpi-body">
-        <span className="ov-kpi-label">{label}</span>
-        <span className="ov-kpi-row">
-          <b className={`ov-kpi-value${status === "unavailable" ? " dim" : ""}`}>{value}</b>
-          {delta && <em className={`ov-kpi-delta ${positive === false ? "down" : "up"}`}>{delta}</em>}
-        </span>
-        <small className="ov-kpi-note">{note}</small>
-      </div>
-    </div>
+    <KpiCell
+      icon={<Icon aria-hidden />}
+      label={label}
+      value={na ? null : value}
+      reason={note}
+      delta={delta ? { text: delta, tone: positive === false ? "bad" : positive ? "good" : undefined } : undefined}
+      note={na ? undefined : note}
+    />
   );
 }

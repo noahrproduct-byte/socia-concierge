@@ -22,12 +22,12 @@ export default function CustomRange({ from, to, platform, maxDays }: { from?: st
   }
 
   return (
-    <div className="rep-custom" role="group" aria-label="Custom date range">
-      <CalendarRange size={14} className="rep-custom-ico" />
+    <div className="an-custom" role="group" aria-label="Custom date range">
+      <CalendarRange size={14} className="an-custom-ico" />
       <input type="date" value={f} min={earliest} max={t || today} onChange={(e) => setF(e.target.value)} aria-label="From" />
-      <span className="rep-custom-dash">to</span>
+      <span className="an-custom-dash">to</span>
       <input type="date" value={t} min={f || earliest} max={today} onChange={(e) => setT(e.target.value)} aria-label="To" />
-      <button type="button" className="btn-secondary sm" onClick={apply} disabled={!f || !t || f > t}>Apply</button>
+      <button type="button" className="s-btn s-btn--secondary s-btn--sm" onClick={apply} disabled={!f || !t || f > t}>Apply</button>
     </div>
   );
 }

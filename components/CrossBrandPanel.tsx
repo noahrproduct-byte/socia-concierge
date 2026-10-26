@@ -1,14 +1,15 @@
 "use client";
 
-// Analytics → All brands (Pro): every Brand Workspace the person owns, side
-// by side. Loaded when the tab is opened, so the rest of Analytics stays fast.
+// Analytics, All brands (Pro): every Brand Workspace the person owns, side by
+// side. Loaded when the tab is opened, so the rest of Analytics stays fast.
 // Each brand is measured against its own median, never against the others'
-// totals; a "—" carries the reason SOCIA has no number there.
+// totals; a dash carries the reason SOCIA has no number there.
 
+import "@/app/(app)/analytics/analytics.css";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Loader2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Locked } from "./AnalyticsV3";
-import { platformMark } from "./platformMarks";
+import { Card, CardHeader, CardSource, Chip, KpiCell, KpiStrip, PlatformMark, Skeleton, StatusPill, TableWrap, Unavailable } from "@/components/system";
 import { fmtMultiplier } from "@/lib/multiplier";
 import type { BrandRow, BrandPlatform } from "@/lib/crossBrand";
 import type { PlanId } from "@/lib/plans";
@@ -20,18 +21,39 @@ const num = (n: number | null) => (n == null ? null : n >= 1e6 ? `${(n / 1e6).to
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${num(Math.abs(n))}`;
 
 function Missing({ why }: { why: string | null }) {
-  return <span className="cb-none" title={why ?? undefined} aria-label={why ?? "Not available"}>—</span>;
+  return <Unavailable reason={why ?? "Not available"} />;
 }
 
 function growthCell(p: BrandPlatform) {
   if (p.growth.value == null) return <Missing why={p.growth.note} />;
-  return <span className={p.growth.value > 0 ? "cb-up" : p.growth.value < 0 ? "cb-down" : ""} title={p.growth.note ?? undefined}>{signed(p.growth.value)}{p.growth.kind === "gained" ? <small> gained</small> : null}</span>;
+  const tone = p.growth.value > 0 ? "an-good" : p.growth.value < 0 ? "an-bad" : undefined;
+  return (
+    <>
+      <span className={tone}>{signed(p.growth.value)}</span>
+      {(p.growth.note || p.growth.kind === "gained") && <span className="sub">{p.growth.note ?? "gained"}</span>}
+    </>
+  );
 }
 
 function typicalCell(p: BrandPlatform) {
   if (p.typical.multiplier == null) return <Missing why={p.typical.note} />;
   const m = p.typical.multiplier;
-  return <span className={m >= 1.1 ? "cb-up" : m <= 0.9 ? "cb-down" : ""}>{fmtMultiplier(m)}</span>;
+  return <StatusPill tone={m >= 1.1 ? "positive" : m <= 0.9 ? "negative" : "neutral"}>{fmtMultiplier(m)}</StatusPill>;
+}
+
+/** Brand-level totals. Audience levels and post counts add up; multipliers never do. */
+function totalsOf(data: Data) {
+  const plats = data.brands.flatMap((b) => b.platforms);
+  const aud = plats.map((p) => p.audience).filter((v): v is number => v != null);
+  const posts = plats.map((p) => p.posts).filter((v): v is number => v != null);
+  return {
+    brands: data.brands.length,
+    accounts: plats.length,
+    audience: aud.length ? aud.reduce((a, b) => a + b, 0) : null,
+    audienceFrom: aud.length,
+    posts: posts.length ? posts.reduce((a, b) => a + b, 0) : null,
+    postsSkipped: plats.length - posts.length,
+  };
 }
 
 export default function CrossBrandPanel({ days, locked }: { days: number; locked: PlanId | null }) {
@@ -54,82 +76,153 @@ export default function CrossBrandPanel({ days, locked }: { days: number; locked
     return <Locked plan={locked} title="Compare every brand side by side" blurb="See each Brand Workspace's audience, growth, posting and typical post against its own usual, with each brand's best post, in one table." from="analytics_all_brands" />;
   }
 
-  return (
-    <section className="ov-card cb" aria-labelledby="cb-h">
-      <div className="ov-card-head">
-        <div>
-          <h2 id="cb-h">All brands</h2>
-          <p className="ov-card-sub">Each brand is compared with its own usual, so a smaller brand isn&apos;t marked down for being smaller.</p>
+  if (error) {
+    return (
+      <Card>
+        <CardHeader title="All brands" />
+        <div className="s-error-block" role="alert">
+          <AlertCircle aria-hidden />
+          <span>{error}</span>
         </div>
-        {data && <span className="ov-range-label">{data.range.label}</span>}
-      </div>
+      </Card>
+    );
+  }
 
-      {error ? (
-        <p className="cb-err" role="alert">{error}</p>
-      ) : !data ? (
-        <p className="cb-loading"><Loader2 size={14} className="cp-spin" /> Reading every brand…</p>
-      ) : (
-        <>
-          <div className="cb-scroll">
-            <table className="cb-table">
-              <thead>
-                <tr>
-                  <th scope="col">Brand</th>
-                  <th scope="col">Platform</th>
-                  <th scope="col" className="num">Audience</th>
-                  <th scope="col" className="num">Growth</th>
-                  <th scope="col" className="num">Posts</th>
-                  <th scope="col" className="num">Typical post</th>
-                  <th scope="col">Best post</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.brands.map((b) => {
-                  const rows = b.platforms.length ? b.platforms : [null];
-                  return rows.map((p, i) => (
-                    <tr key={`${b.id}-${p?.platform ?? "none"}`} className={i === 0 ? "cb-first" : ""}>
-                      {i === 0 && (
-                        <th scope="row" rowSpan={rows.length} className="cb-brand">
-                          <b>{b.name}</b>
-                          {b.active && <small className="cb-chip">Open now</small>}
-                        </th>
-                      )}
-                      {p ? (
-                        <>
-                          <td className="cb-plat"><span className="cb-mark">{platformMark(p.platform, "currentColor", 13)}</span>{NAME[p.platform]}<small>{p.account}</small></td>
-                          <td className="num">{p.audience == null ? <Missing why="The platform didn't report it." /> : <>{num(p.audience)}<small> {p.audienceLabel}</small></>}</td>
-                          <td className="num">{growthCell(p)}</td>
-                          <td className="num">{p.posts == null ? <Missing why={p.postsNote} /> : p.posts}</td>
-                          <td className="num">{typicalCell(p)}</td>
-                        </>
-                      ) : (
-                        <td colSpan={5} className="cb-empty">{"error" in b && b.error ? "SOCIA couldn't read this brand just now." : "No accounts connected in this brand."}</td>
-                      )}
-                      {i === 0 && (
-                        <td rowSpan={rows.length} className="cb-best">
-                          {b.best ? (
-                            <>
-                              <b>{b.best.title}</b>
-                              <small>{NAME[b.best.platform]} · {fmtMultiplier(b.best.multiplier)} this brand&apos;s usual</small>
-                              {b.best.url && <a href={b.best.url} target="_blank" rel="noopener noreferrer">See it <ArrowUpRight size={11} /></a>}
-                            </>
-                          ) : <Missing why="No post in this window has enough history behind it to compare." />}
-                        </td>
-                      )}
-                    </tr>
-                  ));
-                })}
-              </tbody>
-            </table>
+  if (!data) {
+    return (
+      <div className="an-stack" aria-busy="true">
+        <KpiStrip cols={4}>
+          {["Brands", "Accounts", "Combined audience", "Posts"].map((l) => (
+            <div key={l} className="s-kpi">
+              <div className="s-kpi-label">{l}</div>
+              <Skeleton variant="value" />
+            </div>
+          ))}
+        </KpiStrip>
+        <Card>
+          <CardHeader title="All brands" />
+          <p className="s-hint">Reading every brand…</p>
+          <Skeleton variant="block" />
+        </Card>
+      </div>
+    );
+  }
+
+  const t = totalsOf(data);
+  const hasYouTube = data.brands.some((b) => b.platforms.some((p) => p.platform === "youtube" && p.posts == null));
+
+  return (
+    <div className="an-stack">
+      <KpiStrip cols={4}>
+        <KpiCell label="Brands" value={String(t.brands)} note={data.paused > 0 ? `${data.paused} paused ${data.paused === 1 ? "brand isn't" : "brands aren't"} shown.` : undefined} />
+        <KpiCell label="Accounts" value={String(t.accounts)} note="Connected platform accounts across these brands." />
+        <KpiCell
+          label="Combined audience"
+          value={num(t.audience)}
+          reason="No connected account reported its audience."
+          note={t.audience != null ? `Followers and subscribers across ${t.audienceFrom} ${t.audienceFrom === 1 ? "account" : "accounts"}.` : undefined}
+        />
+        <KpiCell
+          label="Posts"
+          value={t.posts != null ? String(t.posts) : null}
+          reason="No connected account reported posts for this window."
+          note={t.posts != null ? (hasYouTube ? "Published in this window. YouTube uploads are counted on the YouTube tab." : "Published in this window.") : undefined}
+        />
+      </KpiStrip>
+
+      <Card flush aria-labelledby="cb-h">
+        <div className="s-card-head">
+          <h2 id="cb-h" className="s-card-title">All brands</h2>
+          <div className="s-card-head-actions">
+            <span className="s-card-period">{data.range.label}</span>
           </div>
-          <ul className="cb-notes">
-            <li><b>Growth</b> is the net change in followers from SOCIA&apos;s daily counts. YouTube shows subscribers gained, as YouTube reports it. TikTok doesn&apos;t provide follower history.</li>
-            <li><b>Typical post</b> is the median post published in this window against that brand&apos;s own median post on the platform (1× is usual). It needs at least 3 posts in the window and 5 overall.</li>
-            {data.range.note && <li>{data.range.note}</li>}
-            {data.paused > 0 && <li>{data.paused} paused {data.paused === 1 ? "brand isn't" : "brands aren't"} shown.</li>}
-          </ul>
-        </>
-      )}
-    </section>
+        </div>
+        <TableWrap>
+          <table className="s-table an-brand-table">
+            <thead>
+              <tr>
+                <th scope="col">Brand</th>
+                <th scope="col">Platform</th>
+                <th scope="col" className="num">Audience</th>
+                <th scope="col" className="num">Growth</th>
+                <th scope="col" className="num">Posts</th>
+                <th scope="col" className="num">Typical post</th>
+                <th scope="col">Best post</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.brands.map((b) => {
+                const rows = b.platforms.length ? b.platforms : [null];
+                return rows.map((p, i) => (
+                  <tr key={`${b.id}-${p?.platform ?? "none"}`}>
+                    {i === 0 && (
+                      <th scope="row" rowSpan={rows.length} className="an-rowhead">
+                        {b.name}
+                        {b.active && (
+                          <span className="sub">
+                            <Chip>Open now</Chip>
+                          </span>
+                        )}
+                      </th>
+                    )}
+                    {p ? (
+                      <>
+                        <td>
+                          <PlatformMark platform={p.platform} /> {NAME[p.platform]}
+                          <span className="sub">{p.account}</span>
+                        </td>
+                        <td className="num">
+                          {p.audience == null ? (
+                            <Missing why="The platform didn't report it." />
+                          ) : (
+                            <>
+                              {num(p.audience)}
+                              <span className="sub">{p.audienceLabel}</span>
+                            </>
+                          )}
+                        </td>
+                        <td className="num">{growthCell(p)}</td>
+                        <td className="num">{p.posts == null ? <Missing why={p.postsNote} /> : p.posts}</td>
+                        <td className="num">{typicalCell(p)}</td>
+                      </>
+                    ) : (
+                      <td colSpan={5}>
+                        <span className="s-na-why">{"error" in b && b.error ? "SOCIA couldn't read this brand just now." : "No accounts connected in this brand."}</span>
+                      </td>
+                    )}
+                    {i === 0 && (
+                      <td rowSpan={rows.length}>
+                        {b.best ? (
+                          <>
+                            <span className="id">{b.best.title}</span>
+                            <span className="sub">
+                              {NAME[b.best.platform]} · {fmtMultiplier(b.best.multiplier)} this brand&apos;s usual
+                            </span>
+                            {b.best.url && (
+                              <a className="s-link" href={b.best.url} target="_blank" rel="noopener noreferrer">
+                                See it<span className="s-sr"> (opens {NAME[b.best.platform]} in a new tab)</span>
+                              </a>
+                            )}
+                          </>
+                        ) : (
+                          <Missing why="No post in this window has enough history behind it to compare." />
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ));
+              })}
+            </tbody>
+          </table>
+        </TableWrap>
+        <div className="an-flush-foot">
+          <CardSource>Each brand is compared with its own usual, so a smaller brand isn&apos;t marked down for being smaller.</CardSource>
+          <CardSource>Growth is the net change in followers from SOCIA&apos;s daily counts. YouTube shows subscribers gained, as YouTube reports it. TikTok doesn&apos;t provide follower history.</CardSource>
+          <CardSource>Typical post is the median post published in this window against that brand&apos;s own median post on the platform (1× is usual). It needs at least 3 posts in the window and 5 overall.</CardSource>
+          {data.range.note && <CardSource>{data.range.note}</CardSource>}
+          {data.paused > 0 && <CardSource>{data.paused} paused {data.paused === 1 ? "brand isn't" : "brands aren't"} shown.</CardSource>}
+        </div>
+      </Card>
+    </div>
   );
 }

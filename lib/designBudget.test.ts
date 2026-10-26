@@ -11,13 +11,13 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = process.cwd();
 const TOKENS = "app/styles/tokens.css";
-const SYSTEM_CSS = ["app/styles/base.css", "app/styles/primitives.css", "app/styles/shell.css", "app/(app)/dashboard/dashboard.css"];
+const SYSTEM_CSS = ["app/styles/base.css", "app/styles/primitives.css", "app/styles/shell.css", "app/styles/charts.css", "app/(app)/dashboard/dashboard.css", "app/(app)/analytics/analytics.css", "components/landing/landing.css"];
 const SYSTEM_TSX = ["components/system"];
 
 const BUDGET = {
-  fontSizes: 9, // five app sizes plus four marketing sizes
+  fontSizes: 10, // five app sizes, four marketing sizes, and the first-screen wordmark
   fontWeights: 3,
-  radii: 5,
+  radii: 6, // chip, control, card, panel, dialog, pill
   durations: 4,
   keyframes: 1, // the spinner
 };
@@ -86,7 +86,7 @@ describe("design budget: system stylesheets", () => {
   it("use one class namespace", () => {
     const withoutUrls = system.replace(/url\([^)]*\)/g, "url()");
     const classes = new Set(Array.from(withoutUrls.matchAll(/\.([a-zA-Z][\w-]*)/g), (m) => m[1]));
-    const allowed = /^(s-|is-|dash-|num$|id$|sub$|act$|key$|sorted$|dark$|brandmark$|instagram$|youtube$|facebook$|tiktok$)/;
+    const allowed = /^(s-|is-|has-|dash-|an-|lp-|num$|id$|sub$|act$|key$|sorted$|dark$|brandmark$|instagram$|youtube$|facebook$|tiktok$)/;
     const strays = [...classes].filter((c) => !allowed.test(c));
     expect(strays, "classes outside the s- namespace").toEqual([]);
   });

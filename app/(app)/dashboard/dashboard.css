@@ -201,9 +201,9 @@
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--border);
   border-radius: var(--r-card);
   background: var(--surface);
+  box-shadow: var(--shadow-ring);
   color: var(--ink-2);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
