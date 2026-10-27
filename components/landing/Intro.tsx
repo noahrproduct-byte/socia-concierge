@@ -11,12 +11,12 @@ import "./landing.css";
 
 const INTRO_SCRIPT = `(function(){try{var d=document.documentElement;if(matchMedia("(prefers-reduced-motion: reduce)").matches||sessionStorage.getItem("${INTRO_FLAG}"))return;d.setAttribute("data-lp-intro","play");setTimeout(function(){if(d.getAttribute("data-lp-intro")==="play")d.removeAttribute("data-lp-intro")},6000)}catch(e){}})();`;
 
-export default function Intro({ footage }: { footage: string | null }) {
+export default function Intro({ footage, reel, poster }: { footage: string | null; reel: string | null; poster: string | null }) {
   return (
     <div className="lp-root is-intro" data-theme="dark">
       <script dangerouslySetInnerHTML={{ __html: INTRO_SCRIPT }} />
       <Opening footage={footage} />
-      <Tear />
+      <Tear reel={reel} poster={poster} />
     </div>
   );
 }

@@ -19,7 +19,7 @@ export default function Landing() {
   const assets = landingAssets();
   return (
     <div className={`${geist.variable} ${interTight.variable}`}>
-      <CinematicLanding intro={<Intro footage={assets.opening} />} />
+      <CinematicLanding intro={<Intro footage={assets.opening} reel={assets.reel} poster={assets.reelPoster} />} />
     </div>
   );
 }
