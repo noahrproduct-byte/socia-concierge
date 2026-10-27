@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { INTRO_FLAG } from "./introFlag";
 import { gsap, EASE } from "./motion";
-import { introSound, SOUND_PREF } from "./sound";
+import { introSound, makeContext, SOUND_PREF, type Synth } from "./sound";
 
 // Chapter 1. The opening, after the reference (library/references/nothin.md):
 // the page is the name. The letters of SOCIA rise out of the floor one after
@@ -37,7 +37,8 @@ export default function Opening({ footage }: { footage: string | null }) {
   const [open, setOpen] = useState(false);
   const [sound, setSound] = useState(false);
   const [run, setRun] = useState(0);
-  const synth = useRef<ReturnType<typeof introSound>>(null);
+  const ctx = useRef<AudioContext | null>(null);
+  const synth = useRef<Synth | null>(null);
 
   useEffect(() => { setSound(readPref()); }, []);
 
@@ -61,13 +62,19 @@ export default function Opening({ footage }: { footage: string | null }) {
     const film = el.querySelector<HTMLElement>(".lp-open-film");
     const video = el.querySelector<HTMLVideoElement>(".lp-open-film video");
 
-    // sound, only if it is on and the browser lets the context run now
-    let audio: ReturnType<typeof introSound> = null;
+    // sound, only if it is on and the browser lets the context run now; the
+    // context comes from the click that turned sound on, or is made here and
+    // simply stays silent until the browser allows it
+    let audio: Synth | null = null;
     let audioOn = false;
     if (readPref()) {
-      audio = introSound();
-      synth.current = audio;
-      void audio?.ready().then((ok) => { audioOn = ok; });
+      if (!ctx.current) ctx.current = makeContext();
+      if (ctx.current) {
+        audio = introSound(ctx.current);
+        synth.current = audio;
+        audioOn = ctx.current.state === "running";
+        void audio.ready().then((ok) => { audioOn = ok; });
+      }
     }
 
     const tl = gsap.timeline({ defaults: { ease: EASE } });
@@ -117,7 +124,6 @@ export default function Opening({ footage }: { footage: string | null }) {
       gsap.set([letters, foot, film], { clearProps: "all" });
       video?.pause();
       html.removeAttribute("data-lp-intro");
-      audio?.close();
       synth.current = null;
       setOpen(true);
     };
@@ -130,7 +136,7 @@ export default function Opening({ footage }: { footage: string | null }) {
       for (const e of SKIP) window.removeEventListener(e, skip);
       tl.kill();
       filmTl?.kill();
-      audio?.close();
+      audio?.stop();
     };
   }, [run]);
 
@@ -139,10 +145,14 @@ export default function Opening({ footage }: { footage: string | null }) {
     setSound(next);
     try { localStorage.setItem(SOUND_PREF, next ? "1" : "0"); } catch { /* fine */ }
     if (next) {
-      // the click is the gesture the browser wants: play it again, with sound
+      // the click is the gesture the browser wants: the context is made and
+      // resumed inside it, then the opening plays again, this time with sound
+      if (!ctx.current) ctx.current = makeContext();
+      void ctx.current?.resume().catch(() => {});
       setRun((r) => r + 1);
     } else {
       synth.current?.mute();
+      synth.current?.stop();
     }
   }, [sound]);
 
