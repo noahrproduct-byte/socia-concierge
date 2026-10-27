@@ -1,10 +1,12 @@
 /* ============================================================================
    SOCIA public homepage, 2026-10-27. The visual system is the FeedHive
    reference (styles.refero.design/style/45080e55), with the Captions reference
-   (…/196dc658) for the media card and the FAQ rows: a near-white lavender
-   canvas, white cards that lift off it, one blue-violet used as punctuation
-   (fills, the accent phrase, the focus ring), pills for every control, one
-   geometric sans at generous sizes, flat surfaces except the single violet
+   (…/196dc658) for the media card and the FAQ rows. The reference's lavender
+   and violet were swapped on 2026-10-27, at Noah's request, for SOCIA's own
+   colours: a white canvas, navy ink, cobalt #2563ff as the one accent (fills,
+   the accent phrase, the focus ring), with cards edged by a hairline since
+   white no longer lifts off the canvas. Pills for every control, one
+   geometric sans at generous sizes, flat surfaces except the single cobalt
    glow under the product mockup.
 
    Tokens live here, scoped to .hm, because this is the marketing skin and the
@@ -12,7 +14,7 @@
    substitute for Thicccboi (a paid face).
 
    Deliberate departures from the reference, with the reason:
-   - The CTA fill and the accent phrase are solid violet, not the brand
+   - The CTA fill and the accent phrase are a solid colour, not the brand
      gradient: lib/antiSlop.test.ts refuses new gradients and gradient text.
    - No floating 3D hearts, no AI chat orb, no "Trusted by" logos, no
      testimonial grid: decoration and invented proof fail the standard (P0/P1).
@@ -21,18 +23,19 @@
    ========================================================================= */
 
 .hm {
-  --hm-canvas: #f3f5ff;
+  --hm-canvas: #ffffff;
   --hm-card: #ffffff;
-  --hm-ink: #181c31;
-  --hm-muted: #757693;
-  --hm-muted-2: #6b7280;
-  --hm-border: #e5e7eb;
-  --hm-wash: #dbeafe;
-  --hm-violet: #4457ff;
-  --hm-violet-light: #7583fd;
-  --hm-violet-hover: #3346e6;
-  --hm-glow: rgba(32, 36, 138, 0.25) -19px 5px 60px 4px;
-  --hm-air: #effbff;
+  --hm-ink: #0f172a;
+  --hm-muted: #5b6475;
+  --hm-muted-2: #475569;
+  --hm-border: #e2e8f0;
+  --hm-wash: #e9effe;
+  --hm-accent: #2563ff;
+  --hm-accent-2: #60a5fa;
+  --hm-accent-hover: #1d4ed8;
+  --hm-accent-ink: #1d4ed8;
+  --hm-glow: rgba(37, 99, 255, 0.22) -19px 5px 60px 4px;
+  --hm-air: #eef4ff;
 
   --hm-font: var(--font-dm), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --hm-fs-caption: 12px;
@@ -69,13 +72,13 @@
 .hm *::after { box-sizing: border-box; }
 
 .hm a { color: inherit; text-decoration: none; }
-.hm :focus-visible { outline: 2px solid var(--hm-violet); outline-offset: 3px; border-radius: var(--hm-r-sm); }
+.hm :focus-visible { outline: 2px solid var(--hm-accent); outline-offset: 3px; border-radius: var(--hm-r-sm); }
 .hm b, .hm strong { font-weight: 600; color: var(--hm-ink); }
 .hm img, .hm video { display: block; max-width: 100%; }
 
 .hm-wrap { max-width: var(--hm-max); margin-inline: auto; padding-inline: var(--hm-pad); }
 .hm [id] { scroll-margin-top: 84px; }
-html:has(.hm) { background: #f3f5ff; }
+html:has(.hm) { background: #ffffff; }
 
 /* ---- type ---------------------------------------------------------------- */
 .hm-eyebrow {
@@ -84,7 +87,7 @@ html:has(.hm) { background: #f3f5ff; }
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--hm-violet);
+  color: var(--hm-accent-ink);
   margin-bottom: 14px;
 }
 .hm-h1 {
@@ -96,8 +99,8 @@ html:has(.hm) { background: #f3f5ff; }
   margin: 0;
 }
 .hm-h1 .hm-accent {
-  color: var(--hm-violet);
-  text-decoration: underline dotted var(--hm-violet-light);
+  color: var(--hm-accent);
+  text-decoration: underline dotted var(--hm-accent-2);
   text-decoration-thickness: 3px;
   text-underline-offset: 0.14em;
 }
@@ -136,8 +139,8 @@ html:has(.hm) { background: #f3f5ff; }
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .hm-btn svg { width: 16px; height: 16px; flex: none; }
-.hm-btn--primary { background: var(--hm-violet); color: #ffffff; }
-.hm-btn--primary:hover { background: var(--hm-violet-hover); }
+.hm-btn--primary { background: var(--hm-accent); color: #ffffff; }
+.hm-btn--primary:hover { background: var(--hm-accent-hover); }
 .hm-btn--ghost { background: transparent; color: var(--hm-muted); padding-inline: 14px; }
 .hm-btn--ghost:hover { color: var(--hm-ink); }
 .hm-btn--outline { background: var(--hm-card); color: var(--hm-ink); border-color: var(--hm-border); }
@@ -180,7 +183,7 @@ html:has(.hm) { background: #f3f5ff; }
 .hm-brand .brandmark { border-radius: 8px; }
 .hm-nav-links { display: flex; align-items: center; gap: 4px; margin-inline: auto; }
 .hm-nav-links a { padding: 8px 12px; border-radius: var(--hm-r-pill); color: var(--hm-muted); font-weight: 500; font-size: 15px; }
-.hm-nav-links a:hover { color: var(--hm-ink); background: var(--hm-canvas); }
+.hm-nav-links a:hover { color: var(--hm-ink); background: var(--hm-wash); }
 .hm-nav-actions { display: flex; align-items: center; gap: 6px; }
 .hm-nav-toggle { display: none; }
 .hm-nav-menu { display: none; }
@@ -195,7 +198,7 @@ html:has(.hm) { background: #f3f5ff; }
   .hm-nav-toggle svg { width: 20px; height: 20px; }
   .hm-nav-menu.is-open { display: grid; gap: 4px; padding: 8px 0 16px; border-top: 1px solid var(--hm-border); }
   .hm-nav-menu a { padding: 12px 8px; border-radius: var(--hm-r-sm); font-weight: 500; color: var(--hm-ink); }
-  .hm-nav-menu a:hover { background: var(--hm-canvas); }
+  .hm-nav-menu a:hover { background: var(--hm-wash); }
 }
 
 /* ---- hero ---------------------------------------------------------------- */
@@ -208,11 +211,11 @@ html:has(.hm) { background: #f3f5ff; }
 .hm-with span { font-size: var(--hm-fs-sm); color: var(--hm-muted); }
 .hm-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .hm-checks li { display: flex; gap: 12px; align-items: flex-start; color: var(--hm-muted); }
-.hm-checks svg { width: 18px; height: 18px; flex: none; margin-top: 3px; color: var(--hm-violet); }
+.hm-checks svg { width: 18px; height: 18px; flex: none; margin-top: 3px; color: var(--hm-accent); }
 .hm-cta-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 6px; }
 .hm-cta-note { display: grid; font-size: var(--hm-fs-sm); color: var(--hm-muted); line-height: 1.5; }
 
-/* the product mockup: the one element that casts the violet glow */
+/* the product mockup: the one element that casts the cobalt glow */
 .hm-mock {
   background: var(--hm-card);
   border-radius: var(--hm-r-mid);
@@ -231,10 +234,10 @@ html:has(.hm) { background: #f3f5ff; }
 .hm-today { list-style: none; margin: 0; padding: 0; display: grid; }
 .hm-today li { display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; align-items: start; padding: 11px 0; border-top: 1px solid var(--hm-border); }
 .hm-today li:first-child { border-top: 0; }
-.hm-today svg { width: 18px; height: 18px; color: var(--hm-violet); margin-top: 2px; }
+.hm-today svg { width: 18px; height: 18px; color: var(--hm-accent); margin-top: 2px; }
 .hm-today b { display: block; font-size: var(--hm-fs-sm); font-weight: 600; line-height: 1.4; }
 .hm-today span { display: block; font-size: var(--hm-fs-caption); color: var(--hm-muted); line-height: 1.5; }
-.hm-today-act { align-self: center; font-size: var(--hm-fs-caption); font-weight: 600; color: var(--hm-violet); white-space: nowrap; }
+.hm-today-act { align-self: center; font-size: var(--hm-fs-caption); font-weight: 600; color: var(--hm-accent-ink); white-space: nowrap; }
 
 @media (max-width: 960px) {
   .hm-hero-grid { grid-template-columns: 1fr; }
@@ -256,7 +259,7 @@ html:has(.hm) { background: #f3f5ff; }
 .hm-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--hm-border); border-bottom: 1px solid var(--hm-border); }
 .hm-step { padding: 32px 28px 36px 0; display: grid; gap: 12px; align-content: start; }
 .hm-step + .hm-step { padding-left: 28px; border-left: 1px solid var(--hm-border); }
-.hm-step-n { font-size: var(--hm-fs-sm); font-weight: 600; color: var(--hm-violet); }
+.hm-step-n { font-size: var(--hm-fs-sm); font-weight: 600; color: var(--hm-accent-ink); }
 .hm-step h3 { font-size: var(--hm-fs-sub); font-weight: 600; margin: 0; line-height: 1.3; }
 .hm-step p { margin: 0; color: var(--hm-muted); }
 .hm-step small { font-size: var(--hm-fs-caption); color: var(--hm-muted); }
@@ -295,7 +298,7 @@ html:has(.hm) { background: #f3f5ff; }
 @media (max-width: 860px) { .hm-demo { grid-template-columns: 1fr; } }
 
 /* the loop */
-.hm-loop { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--hm-card); border-radius: var(--hm-r-card); overflow: hidden; }
+.hm-loop { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--hm-card); border: 1px solid var(--hm-border); border-radius: var(--hm-r-card); overflow: hidden; }
 .hm-loop-item { padding: 28px 24px; display: grid; gap: 8px; align-content: start; }
 .hm-loop-item + .hm-loop-item { border-left: 1px solid var(--hm-border); }
 .hm-loop-item b { font-size: var(--hm-fs-lg); }
@@ -361,7 +364,7 @@ html:has(.hm) { background: #f3f5ff; }
 .hm-bars li > span:first-child { display: grid; gap: 4px; min-width: 0; }
 .hm-bars em { font-style: normal; color: var(--hm-muted); font-size: var(--hm-fs-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hm-bar { height: 6px; border-radius: var(--hm-r-pill); background: var(--hm-wash); overflow: hidden; }
-.hm-bar i { display: block; height: 100%; background: var(--hm-violet); border-radius: var(--hm-r-pill); }
+.hm-bar i { display: block; height: 100%; background: var(--hm-accent); border-radius: var(--hm-r-pill); }
 .hm-bar.is-median i { background: var(--hm-muted); }
 .hm-bars output { font-variant-numeric: tabular-nums; font-weight: 600; font-size: var(--hm-fs-sm); }
 .hm-week { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
@@ -370,7 +373,7 @@ html:has(.hm) { background: #f3f5ff; }
 .hm-week li > span:first-child { font-weight: 600; color: var(--hm-muted); font-size: var(--hm-fs-caption); }
 .hm-week b { display: block; font-size: var(--hm-fs-sm); }
 .hm-week em { font-style: normal; color: var(--hm-muted); font-size: var(--hm-fs-caption); }
-.hm-status { font-size: var(--hm-fs-caption); font-weight: 600; padding: 3px 9px; border-radius: var(--hm-r-pill); background: var(--hm-canvas); color: var(--hm-muted); white-space: nowrap; }
+.hm-status { font-size: var(--hm-fs-caption); font-weight: 600; padding: 3px 9px; border-radius: var(--hm-r-pill); background: #f1f5f9; color: var(--hm-muted); white-space: nowrap; }
 .hm-status.is-on { background: var(--hm-wash); color: var(--hm-ink); }
 .hm-approve { display: grid; gap: 10px; }
 .hm-approve-item { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--hm-border); border-radius: var(--hm-r-img); font-size: var(--hm-fs-sm); }
@@ -388,7 +391,7 @@ html:has(.hm) { background: #f3f5ff; }
 
 /* pricing */
 .hm-plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.hm-plan { background: var(--hm-card); border-radius: var(--hm-r-card); padding: 24px; display: grid; gap: 14px; align-content: start; }
+.hm-plan { background: var(--hm-card); border: 1px solid var(--hm-border); border-radius: var(--hm-r-card); padding: 24px; display: grid; gap: 14px; align-content: start; }
 .hm-plan h3 { font-size: var(--hm-fs-sub); font-weight: 600; margin: 0; }
 .hm-price { display: flex; align-items: baseline; gap: 6px; }
 .hm-price b { font-size: var(--hm-fs-h2); font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -396,7 +399,7 @@ html:has(.hm) { background: #f3f5ff; }
 .hm-plan p { margin: 0; color: var(--hm-muted); font-size: 15px; }
 .hm-plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: var(--hm-fs-sm); }
 .hm-plan li { display: flex; gap: 8px; align-items: flex-start; }
-.hm-plan li svg { width: 16px; height: 16px; flex: none; margin-top: 3px; color: var(--hm-violet); }
+.hm-plan li svg { width: 16px; height: 16px; flex: none; margin-top: 3px; color: var(--hm-accent); }
 .hm-plan .hm-btn { margin-top: 4px; }
 .hm-plans-note { margin-top: 18px; text-align: center; }
 .hm-link-ink { color: var(--hm-ink); text-decoration: underline; text-underline-offset: 3px; }
