@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   BarChart3,
@@ -27,7 +28,8 @@ type Row = {
   icon: LucideIcon;
   title: string;
   sub: string;
-  key: string;
+  /** Shows the example Reel's poster in the row (the post the row is about). */
+  thumb?: boolean;
   why: string;
   action: string;
   href: string;
@@ -38,7 +40,7 @@ const ROWS: Row[] = [
     icon: CalendarClock,
     title: "Today's post goes out at 6:30 PM",
     sub: "Instagram Reel, from Friday on this week's plan",
-    key: "Open",
+    thumb: true,
     why: "This is Friday's item on this week's Content Plan. It is an educational Reel because your Reels got 1.8× the median views of your other posts over the last 90 days, across 64 posts. 6:30 PM is your best Friday window over the same 90 days.",
     action: "Open the Calendar",
     href: "/calendar",
@@ -46,9 +48,8 @@ const ROWS: Row[] = [
   {
     icon: Clock,
     title: "Your best window today: 5 to 7 PM",
-    sub: "1.6× your median post, from 38 Tuesday posts in the last 90 days",
-    key: "Why",
-    why: "Your median post is the middle value of views across everything you posted in the last 90 days. The posts you published on Tuesdays between 5 and 7 PM, in your own time zone, got 1.6× that median, across 38 posts. When a window has fewer than 20 posts behind it, SOCIA says there is not enough history instead of guessing.",
+    sub: "1.6× your median post, across 31 posts in that window, last 90 days",
+    why: "Your median post is the middle value of views across everything you posted in the last 90 days. The 31 posts you published between 5 and 7 PM, in your own time zone, got 1.6× that median. When a window has fewer than 20 posts behind it, SOCIA says there is not enough history instead of guessing.",
     action: "See posting times",
     href: "/analytics",
   },
@@ -56,7 +57,6 @@ const ROWS: Row[] = [
     icon: MessageSquare,
     title: "3 comments waiting for a reply",
     sub: "Each has a reply drafted, ready to review",
-    key: "Reply",
     why: "Three comments arrived since you last opened the inbox. SOCIA drafted a reply to each from the way you have replied before. Nothing is sent until you approve it, and you can edit every word.",
     action: "Open the Comments inbox",
     href: "/comments",
@@ -65,7 +65,7 @@ const ROWS: Row[] = [
     icon: TrendingUp,
     title: "Your Instagram Reel is taking off",
     sub: "2.4× your median post, 48 hours after it went out",
-    key: "Plan it",
+    thumb: true,
     why: "48 hours after publishing, this Reel has 2.4× the median views your last 20 posts had at the same age. A breakout alert fires above 2×. Next week's plan will suggest a follow-up on the same concept.",
     action: "Draft the follow-up",
     href: "/create",
@@ -92,7 +92,7 @@ export default function HomeWindow({ signedIn }: { signedIn: boolean }) {
           <i />
           <i />
         </span>
-        <span className="hm-app-url">sociaos.com/dashboard</span>
+        <span className="hm-app-url">Example account: Northside Roasters, a fictional café</span>
         <span className="hm-example">Example data</span>
       </div>
       <div className="hm-app-body">
@@ -114,7 +114,7 @@ export default function HomeWindow({ signedIn }: { signedIn: boolean }) {
         <div className="hm-app-main">
           <div className="hm-window-bar">
             <h3>Today</h3>
-            <span className="hm-caption">Tue, Oct 27, 4 things</span>
+            <span className="hm-mono">Tuesday, 4 things</span>
           </div>
           <div className="hm-window-body">
             {ROWS.map((r, i) => {
@@ -135,7 +135,12 @@ export default function HomeWindow({ signedIn }: { signedIn: boolean }) {
                       <b>{r.title}</b>
                       <span>{r.sub}</span>
                     </span>
-                    <kbd>{on ? "Close" : r.key}</kbd>
+                    {r.thumb ? (
+                      <Image className="hm-row-thumb" src="/landing/reel.jpg" alt="" width={28} height={50} sizes="28px" />
+                    ) : (
+                      <i className="hm-row-thumb is-empty" aria-hidden />
+                    )}
+                    <kbd>{on ? "Close" : "Why"}</kbd>
                   </button>
                   <div id={panel} className="hm-row-why" hidden={!on}>
                     <p>{r.why}</p>

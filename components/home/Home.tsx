@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BarChart3, Check, Clapperboard, ClipboardList, Send } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BarChart3, Check, Clapperboard, ClipboardList, Send } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { CONTACT_EMAIL, PLANS, PLAN_ORDER, formatHistory, type PlanId } from "@/lib/plans";
@@ -17,51 +17,35 @@ import "./home.css";
 // what it is compared with. Nothing here is a testimonial, a logo wall or a
 // count SOCIA has not measured. The visual system is documented in home.css.
 
-const JOBS: { icon: React.ComponentType<{ "aria-hidden"?: boolean }>; job: string; line: string; parts: { name: string; what: string }[] }[] = [
+const JOBS: {
+  icon: React.ComponentType<{ "aria-hidden"?: boolean }>;
+  job: string;
+  core: { name: string; what: string };
+  parts: string[];
+}[] = [
   {
     icon: BarChart3,
     job: "Understand",
-    line: "What happened, against your own baseline.",
-    parts: [
-      { name: "Analytics", what: "every post against your median" },
-      { name: "Posting times", what: "when your audience shows up" },
-      { name: "Competitors", what: "what the accounts you follow post" },
-      { name: "Alerts", what: "breakouts, drops and gaps" },
-      { name: "Weekly roundup", what: "what changed, every Monday" },
-    ],
+    core: { name: "Analytics", what: "Every post against your own median, with the timing behind it." },
+    parts: ["Posting times", "Competitors", "Alerts", "Weekly roundup"],
   },
   {
     icon: ClipboardList,
     job: "Decide",
-    line: "What to post next, with the reason.",
-    parts: [
-      { name: "Content Plan", what: "a week of posts, each with its why" },
-      { name: "Today", what: "the few things worth doing today" },
-      { name: "Worth posting again", what: "posts that earned a second run" },
-      { name: "AI assistants", what: "ask Claude or ChatGPT about your numbers" },
-    ],
+    core: { name: "Content Plan", what: "A week of posts, each with its day, hook, format and reason." },
+    parts: ["Today", "Worth posting again", "AI assistants"],
   },
   {
     icon: Clapperboard,
     job: "Make",
-    line: "Reels from the footage you have.",
-    parts: [
-      { name: "Content Studio", what: "first cuts from your own clips" },
-      { name: "Captions", what: "drafted from what the post shows" },
-      { name: "Trial Reels", what: "test a Reel on non-followers first" },
-      { name: "Collaborators", what: "co-author with other accounts" },
-    ],
+    core: { name: "Content Studio", what: "First cuts of Reels from the clips you already have." },
+    parts: ["Captions", "Trial Reels", "Collaborators"],
   },
   {
     icon: Send,
     job: "Publish",
-    line: "Scheduled, approved, posted.",
-    parts: [
-      { name: "Calendar", what: "Instagram, Facebook and YouTube" },
-      { name: "Approvals", what: "members submit, admins approve" },
-      { name: "Comments inbox", what: "replies drafted for you to send" },
-      { name: "Reports", what: "client-ready, on your dates" },
-    ],
+    core: { name: "Calendar", what: "Schedule once for Instagram, Facebook and YouTube." },
+    parts: ["Approvals", "Comments inbox", "Reports"],
   },
 ];
 
@@ -136,11 +120,6 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
               <span>Instagram, Facebook, YouTube</span>
             </p>
           </div>
-          {assets.heroMark && (
-            <div className="hm-hero-art">
-              <Image src={assets.heroMark} alt="" aria-hidden width={1600} height={912} sizes="(max-width: 760px) 92vw, 640px" priority unoptimized />
-            </div>
-          )}
         </section>
 
         {/* ---- the question --------------------------------------------- */}
@@ -156,7 +135,7 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
         </section>
 
         {/* ---- the app window: the Dashboard's Today card ----------------- */}
-        <section className="hm-section hm-window-sec" aria-labelledby="hm-window">
+        <section className="hm-section hm-window-sec" id="today" aria-labelledby="hm-window">
           <div className="hm-wrap">
             <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">The answer, every morning</span>
@@ -178,33 +157,38 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
                 Every post teaches the next plan.
               </h2>
             </div>
-            <ol className="hm-four" data-reveal="children">
-              <li className="hm-four-item">
-                <span className="hm-step-n">01</span>
-                <b>Plan.</b>
-                <p>A weekly Content Plan with a diagnosis, the top fixes and each post&apos;s day, concept, hook and format.</p>
-              </li>
-              <li className="hm-four-item">
-                <span className="hm-step-n">02</span>
-                <b>Publish.</b>
-                <p>Schedule from the plan, or from Content Studio. Approvals for teams. Nothing goes out without a person.</p>
-              </li>
-              <li className="hm-four-item">
-                <span className="hm-step-n">03</span>
-                <b>Result.</b>
-                <p>Each published post is measured against your own median, in the window that matters for its format.</p>
-              </li>
-              <li className="hm-four-item">
-                <span className="hm-step-n">04</span>
-                <b>Next plan.</b>
-                <p>What worked gets more of the week. What did not gets a different concept, not a repeat. Then back to 01.</p>
-              </li>
-            </ol>
-            <svg className="hm-loop-return" viewBox="0 0 1200 72" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-              <path d="M 1050 2 V 36 Q 1050 60 1026 60 H 174 Q 150 60 150 36 V 10" fill="none" stroke="#6a6b6c" strokeWidth="1.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-              <path d="M 143 16 L 150 6 L 157 16" fill="none" stroke="#6a6b6c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-            </svg>
-            <p className="hm-mono hm-four-note">04 leads back to 01. The next week starts from what the last one taught.</p>
+            <div className="hm-cycle">
+              <svg className="hm-cycle-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                <rect x="25" y="25" width="50" height="50" rx="3" fill="none" stroke="#454647" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              </svg>
+              <span className="hm-cycle-arrow is-right" aria-hidden><ArrowRight /></span>
+              <span className="hm-cycle-arrow is-down" aria-hidden><ArrowDown /></span>
+              <span className="hm-cycle-arrow is-left" aria-hidden><ArrowLeft /></span>
+              <span className="hm-cycle-arrow is-up" aria-hidden><ArrowUp /></span>
+              <ol className="hm-four" data-reveal="children">
+                <li className="hm-four-item">
+                  <span className="hm-step-n">01</span>
+                  <b>Plan</b>
+                  <p>A weekly Content Plan: the diagnosis, the top fixes, and each post&apos;s day, concept, hook and format.</p>
+                </li>
+                <li className="hm-four-item">
+                  <span className="hm-step-n">02</span>
+                  <b>Publish</b>
+                  <p>Schedule from the plan or from Content Studio. Teams approve first. Nothing goes out without a person.</p>
+                </li>
+                <li className="hm-four-item">
+                  <span className="hm-step-n">03</span>
+                  <b>Result</b>
+                  <p>Each post is measured against your own median, in the window that matters for its format.</p>
+                </li>
+                <li className="hm-four-item">
+                  <span className="hm-step-n">04</span>
+                  <b>Next plan</b>
+                  <p>What worked gets more of the week. What did not gets a new concept. Then the cycle starts again at 01.</p>
+                </li>
+              </ol>
+            </div>
+            <p className="hm-caption hm-four-note">Daily recommendations and the Today card are on Growth and up.</p>
           </div>
         </section>
 
@@ -222,20 +206,13 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
                 const Icon = j.icon;
                 return (
                   <li key={j.job} className="hm-job">
-                    <div className="hm-job-head">
-                      <i>
-                        <Icon aria-hidden />
-                      </i>
-                      <b>{j.job}</b>
-                    </div>
-                    <p>{j.line}</p>
-                    <ul>
-                      {j.parts.map((part) => (
-                        <li key={part.name}>
-                          <b>{part.name}</b> {part.what}
-                        </li>
-                      ))}
-                    </ul>
+                    <span className="hm-job-head">
+                      <Icon aria-hidden />
+                      {j.job}
+                    </span>
+                    <b className="hm-job-core">{j.core.name}</b>
+                    <p>{j.core.what}</p>
+                    <span className="hm-job-also">Also: {j.parts.join(", ")}</span>
                   </li>
                 );
               })}
@@ -419,7 +396,7 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
                       <span>Mon</span>
                       <span>
                         <b>Behind the counter: the 6 AM open</b>
-                        <em>Reel, educational. Your Reels do 1.8× your posts.</em>
+                        <em>Reel, educational. Your Reels did 1.8× your median post over 90 days.</em>
                       </span>
                       <span className="hm-status is-on">Published</span>
                     </li>
@@ -646,24 +623,22 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
         </section>
 
         {/* ---- end ---------------------------------------------------------- */}
-        <section className="hm-end" aria-labelledby="hm-end">
+        <section className="hm-end" id="start" aria-labelledby="hm-end">
           <div className="hm-wrap" data-reveal="children">
-            <span className="hm-end-mark" aria-hidden>
-              <BrandMark size={48} />
-            </span>
+            {assets.heroMark && (
+              <span className="hm-end-mark" aria-hidden>
+                <Image src={assets.heroMark} alt="" width={1600} height={912} sizes="360px" loading="eager" unoptimized />
+              </span>
+            )}
             <h2 id="hm-end" className="hm-h2 is-center">
-              Your next post, decided by your own numbers.
+              Know what to post, why, and when.
             </h2>
             <div className="hm-end-cta">
               <Link href={startHref} className="hm-btn hm-btn--primary hm-btn--lg">
                 {startLabel}
               </Link>
             </div>
-            <p className="hm-meta">
-              <span>Free plan</span>
-              <span>No card needed</span>
-              <span>Cancel any month</span>
-            </p>
+            <p className="hm-end-facts">Free plan. No card needed. Cancel any month.</p>
           </div>
         </section>
       </main>
