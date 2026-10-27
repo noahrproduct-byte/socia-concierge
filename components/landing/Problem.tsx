@@ -47,6 +47,21 @@ function CafeMark() {
   );
 }
 
+/** The small picture on each selector row: the calendar, the post, the trend, the bars. */
+function Thumb({ k, quiet }: { k: Key; quiet: string | null }) {
+  if (k === "strategy") return (
+    <svg viewBox="0 0 52 40"><g fill="var(--ed-ink-2)">{[0, 1, 2, 3].map((r) => [0, 1, 2, 3, 4, 5, 6].map((c) => <rect key={`${r}${c}`} x={6 + c * 6} y={7 + r * 7} width="4" height="4" rx="1" opacity={AS_IT_WAS[r][c] === "1" ? 1 : 0.18} />))}</g></svg>
+  );
+  // eslint-disable-next-line @next/next/no-img-element
+  if (k === "content") return quiet ? <img src={quiet} alt="" loading="lazy" /> : <svg viewBox="0 0 52 40" />;
+  if (k === "opportunity") return (
+    <svg viewBox="0 0 52 40"><path d={TREND.map((v, i) => `${i ? "L" : "M"}${6 + i * 5.7} ${34 - ((v - 90) / 90) * 26}`).join(" ")} fill="none" stroke="var(--ed-gold)" strokeWidth="1.5" /></svg>
+  );
+  return (
+    <svg viewBox="0 0 52 40">{RIVALS.map((r, i) => <rect key={r.who} x="6" y={8 + i * 9} width={(r.posts / 14) * 40} height="5" rx="1" fill={r.who === "You" ? "var(--ed-gold)" : "var(--ed-ink-2)"} />)}</svg>
+  );
+}
+
 function fmt(s: number) {
   const m = Math.floor(s / 60);
   const r = Math.floor(s % 60);
@@ -220,6 +235,7 @@ export default function Problem({ reel, poster, quiet }: { reel: string | null; 
                 >
                   <span className="lp-pb-n">{p.n}</span>
                   <span className="lp-pb-text"><b>{p.name}</b><span>{p.line}</span></span>
+                  <span className="lp-pb-thumb" aria-hidden="true"><Thumb k={p.key} quiet={quiet} /></span>
                   <ChevronRight size={16} aria-hidden="true" />
                 </button>
               );
