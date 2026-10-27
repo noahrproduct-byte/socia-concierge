@@ -1,47 +1,44 @@
 "use client";
 
-// The top-level platform switcher for Analytics (and reused by the Dashboard
-// filter). Compact, horizontally scrollable on small screens, platform icon +
-// label, selected state obvious. Platform colour is only a small accent dot on
-// the un-selected items; the selected pill uses SOCIA's primary.
+// The platform switch for Analytics: underline tabs on a full-width rule
+// (components/system Tabs, so roles, arrow keys and the panel link come from
+// Base UI). Tabs switch the page's platform; a view or unit inside a platform
+// is a segmented control in that view, never here. `between` renders under the
+// rule and above the panel (the page's query bar); `children` is the panel.
 
-import { Briefcase, LayoutGrid } from "lucide-react";
-import { platformMark, PLATFORM_TINT, type PlatformKey } from "./platformMarks";
+import type { ReactNode } from "react";
+import { Tab, TabList, TabPanel, Tabs } from "@/components/system";
 
 export type PlatformTab = { id: string; label: string };
-
-const isPlatform = (id: string): id is PlatformKey => id === "instagram" || id === "youtube" || id === "facebook" || id === "tiktok";
 
 export default function PlatformTabs({
   tabs,
   active,
   onSelect,
+  between,
+  children,
 }: {
   tabs: PlatformTab[];
   active: string;
   onSelect: (id: string) => void;
+  between?: ReactNode;
+  children?: ReactNode;
 }) {
   return (
-    <div className="pswitch" role="tablist" aria-label="Platform">
-      {tabs.map((t) => {
-        const on = active === t.id;
-        const tint = isPlatform(t.id) ? PLATFORM_TINT[t.id] : "var(--primary)";
-        return (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={on}
-            className={on ? "on" : ""}
-            onClick={() => onSelect(t.id)}
-            style={{ ["--tint" as string]: tint } as React.CSSProperties}
-          >
-            <span className="pswitch-ico">
-              {isPlatform(t.id) ? platformMark(t.id, on ? "currentColor" : tint, 15) : t.id === "brands" ? <Briefcase size={15} /> : <LayoutGrid size={15} />}
-            </span>
+    <Tabs value={active} onValueChange={(v) => onSelect(String(v))} className="an-stack">
+      <TabList aria-label="Platform">
+        {tabs.map((t) => (
+          <Tab key={t.id} value={t.id}>
             {t.label}
-          </button>
-        );
-      })}
-    </div>
+          </Tab>
+        ))}
+      </TabList>
+      {between}
+      {children !== undefined && (
+        <TabPanel value={active}>
+          {children}
+        </TabPanel>
+      )}
+    </Tabs>
   );
 }

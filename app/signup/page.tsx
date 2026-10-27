@@ -5,8 +5,16 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { safeNext } from "@/lib/safeNext";
 import BrandMark from "@/components/BrandMark";
 import AuthShell, { GoogleIcon } from "@/components/AuthShell";
+
+/** Where to go after signing up: ?next= when it is a path on this site (the login page does the same). */
+const nextPath = () => safeNext(typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next"));
+const callbackUrl = () => {
+  const next = nextPath();
+  return `${window.location.origin}/auth/callback${next === "/dashboard" ? "" : `?next=${encodeURIComponent(next)}`}`;
+};
 
 export default function SignupPage() {
   const router = useRouter();
@@ -22,7 +30,7 @@ export default function SignupPage() {
   // Already signed in? Straight to the app instead of a signup form.
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) router.replace("/dashboard");
+      if (data.user) router.replace(nextPath());
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -60,7 +68,7 @@ export default function SignupPage() {
     setErr(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl() },
     });
     if (error) setErr(error.message);
   }
@@ -124,7 +132,7 @@ export default function SignupPage() {
 
       <div className="authfoot">
         <span>
-          Already have an account? <Link href="/login">Log in</Link>
+          Already have an account? <Link href={nextPath() === "/dashboard" ? "/login" : `/login?next=${encodeURIComponent(nextPath())}`}>Log in</Link>
         </span>
         <span className="tos">
           By signing up you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.

@@ -5,18 +5,15 @@
 // it, and, for a breakout, what drove it. Observed data, SOCIA's read and the
 // recommendation stay in separate blocks.
 
-import Link from "next/link";
-import { ExternalLink, Sparkles, Search, Play } from "lucide-react";
+import "@/app/(app)/analytics/analytics.css";
+import { ExternalLink, Sparkles, Search, ImageOff } from "lucide-react";
 import Drawer from "./Drawer";
+import { Button, ButtonLink, PlatformMark, StatusPill, buttonClass } from "@/components/system";
 import { driverOf } from "./OverviewChart";
 import { bucketTitle, fmtNum, type Bucket, type Granularity, type Series, type Baseline, type PostCard } from "@/lib/overview";
 import { askSocia } from "@/lib/ask";
 
-const IG = (
-  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-    <rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
-  </svg>
-);
+const DASH = String.fromCharCode(0x2014);
 
 const WORD: Record<Granularity, string> = { day: "day", week: "week", month: "month", year: "year" };
 
@@ -62,64 +59,98 @@ export default function PointDrawer({ bucket, isOutlier, granularity, series, ba
     <Drawer open={Boolean(b)} title={`${series.label} detail`} onClose={onClose}>
       {b && (
         <>
-          <h3 className="ov-drawer-title">{bucketTitle(b, granularity)}{b.partial ? " (so far)" : ""}</h3>
-          <div className="ov-point-num">
-            <b>{value == null ? "—" : value.toLocaleString("en-US")}</b>
+          <h3 className="s-section-title">{bucketTitle(b, granularity)}{b.partial ? " (so far)" : ""}</h3>
+          <div className={value == null ? "an-stat is-na" : "an-stat"}>
+            <b>{value == null ? DASH : value.toLocaleString("en-US")}</b>
             <span>{unit}</span>
-            {isOutlier && <em className="ov-chip warning">Breakout {period}</em>}
           </div>
-          {baseline && mult != null && (
-            <p className="ov-point-vs">{mult >= 1 ? `${mult.toFixed(mult >= 10 ? 0 : 1)}× your ${baseline.label.toLowerCase()}` : `${Math.round(mult * 100)}% of your ${baseline.label.toLowerCase()}`} · {baseline.label} {fmtNum(Math.round(baseline.value))} {unit}</p>
+          {isOutlier && (
+            <p className="an-meta">
+              <StatusPill tone="warning">Breakout {period}</StatusPill>
+            </p>
           )}
-          {driver && (
-            <section className="ov-driver">
-              <small>Primary driver</small>
-              <div className="ov-driver-card">
-                <span className="ov-driver-media">
-                  {driver.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={driver.thumb} alt="" />
-                  ) : <span className="ov-card-ph" aria-hidden />}
-                  {driver.isVideo && <span className="ov-card-play big" aria-hidden><Play size={14} fill="currentColor" /></span>}
-                </span>
-                <span className="ov-driver-body">
-                  <b>“{driver.title}”</b>
-                  <span className="ov-detail-plat">{IG} Instagram {driver.format}</span>
-                  <dl className="ov-driver-stats">
+          {baseline && mult != null && (
+            <p className="an-note">{mult >= 1 ? `${mult.toFixed(mult >= 10 ? 0 : 1)}× your ${baseline.label.toLowerCase()}` : `${Math.round(mult * 100)}% of your ${baseline.label.toLowerCase()}`} · {baseline.label} {fmtNum(Math.round(baseline.value))} {unit}</p>
+          )}
+          {(driver || inBucket.length > 1) && (
+            <div className="an-why">
+              {driver && (
+                <section className="an-why-block">
+                  <small>Primary driver</small>
+                  <div className="an-row">
+                    {driver.thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={driver.thumb} alt="" width={40} height={40} className="an-thumb" />
+                    ) : (
+                      <span className="an-thumb an-avatar is-ph" aria-hidden><ImageOff /></span>
+                    )}
+                    <span className="an-row-body">
+                      <b>“{driver.title}”</b>
+                      <small>
+                        <PlatformMark platform="instagram" size="sm" /> Instagram {driver.format}{driver.isVideo ? " · video" : ""}
+                      </small>
+                    </span>
+                  </div>
+                  <dl className="an-stats">
                     {([["Views", driver.views], ["Likes", driver.likes], ["Comments", driver.comments], ["Saves", driver.saves], ["Shares", driver.shares], ["Reach", driver.reach]] as const).map(([k, v]) => (
-                      <div key={k}><dt>{k}</dt><dd>{v == null ? "—" : fmtNum(v)}</dd></div>
+                      <div key={k}>
+                        <dt>{k}</dt>
+                        <dd className={v == null ? "is-na" : undefined}>{v == null ? DASH : fmtNum(v)}</dd>
+                      </div>
                     ))}
                   </dl>
-                  {driver.multiplier != null && <small className="ov-driver-perf">Performance: {driver.multiplier.toFixed(driver.multiplier >= 10 ? 0 : 1)}× your median post</small>}
-                </span>
-              </div>
-            </section>
-          )}
-          {inBucket.length > 1 && (
-            <div className="ov-evidence">
-              <small>Also published this {period}</small>
-              {inBucket.filter((p) => p.id !== driver?.id).map((p) => (
-                <button key={p.id} type="button" className="ov-evidence-row" onClick={() => onAnalyze(p)}>
-                  {p.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.thumb} alt="" width={40} height={40} />
-                  ) : <span className="ov-card-ph" />}
-                  <span><b>{p.title}</b><em>{p.views != null ? `${p.views.toLocaleString("en-US")} views · ` : ""}{p.engagements.toLocaleString("en-US")} interactions</em></span>
-                </button>
-              ))}
+                  {driver.multiplier != null && <p className="s-hint">Performance: {driver.multiplier.toFixed(driver.multiplier >= 10 ? 0 : 1)}× your median post</p>}
+                </section>
+              )}
+              {inBucket.length > 1 && (
+                <section className="an-why-block">
+                  <small>Also published this {period}</small>
+                  <div className="an-list">
+                    {inBucket.filter((p) => p.id !== driver?.id).map((p) => (
+                      <button key={p.id} type="button" className="an-row" onClick={() => onAnalyze(p)}>
+                        {p.thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.thumb} alt="" width={40} height={40} className="an-thumb" />
+                        ) : (
+                          <span className="an-thumb an-avatar is-ph" aria-hidden><ImageOff /></span>
+                        )}
+                        <span className="an-row-body">
+                          <b>{p.title}</b>
+                          <small>{p.views != null ? `${p.views.toLocaleString("en-US")} views · ` : ""}{p.engagements.toLocaleString("en-US")} interactions</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
-          <section className="ov-why">
+          <section className="an-why">
             <h3>{isOutlier ? `Why this ${period} spiked` : `What happened this ${period}`}</h3>
-            {observed.length > 0 && <div className="ov-why-block"><small>Observed</small><ul>{observed.map((o) => <li key={o}>{o}</li>)}</ul></div>}
-            {interpretation && <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{interpretation}</p></div>}
-            {recommendation && <div className="ov-why-block rec"><small>Recommendation</small><p>{recommendation}</p></div>}
+            {observed.length > 0 && (
+              <div className="an-why-block">
+                <small>Observed</small>
+                <ul>{observed.map((o) => <li key={o}>{o}</li>)}</ul>
+              </div>
+            )}
+            {interpretation && (
+              <div className="an-why-block is-read">
+                <small>SOCIA&apos;s read</small>
+                <p>{interpretation}</p>
+              </div>
+            )}
+            {recommendation && (
+              <div className="an-why-block">
+                <small>Recommendation</small>
+                <p>{recommendation}</p>
+              </div>
+            )}
           </section>
-          <div className="ov-detail-actions">
-            {driver && <button type="button" className="ov-btn primary" onClick={() => onAnalyze(driver)}><Search size={13} /> Analyze post</button>}
-            {granularity === "day" && <button type="button" className="ov-btn ghost" onClick={() => askSocia({ context: { page: "analytics", day: b.start, postId: driver?.id }, contextLabel: bucketTitle(b, "day"), question: isOutlier ? `Why did my ${unit} spike on ${bucketTitle(b, "day")}?` : `What happened with my ${unit} on ${bucketTitle(b, "day")}?`, autoSend: true })}><Sparkles size={13} /> Ask SOCIA why</button>}
-            {driver?.permalink && <a href={driver.permalink} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View post</a>}
-            {driver && <Link href={`/tool?note=${encodeURIComponent(`Build on “${driver.title.slice(0, 60)}” (${mult != null ? `${mult.toFixed(1)}× my ${baseline?.label.toLowerCase() ?? "median"}` : `${fmtNum(driverValue)} ${unit}`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add to Content Plan</Link>}
+          <div className="an-actions">
+            {driver && <Button variant="primary" size="sm" onClick={() => onAnalyze(driver)}><Search aria-hidden /> Analyze post</Button>}
+            {granularity === "day" && <Button size="sm" onClick={() => askSocia({ context: { page: "analytics", day: b.start, postId: driver?.id }, contextLabel: bucketTitle(b, "day"), question: isOutlier ? `Why did my ${unit} spike on ${bucketTitle(b, "day")}?` : `What happened with my ${unit} on ${bucketTitle(b, "day")}?`, autoSend: true })}><Sparkles aria-hidden /> Ask SOCIA why</Button>}
+            {driver?.permalink && <a href={driver.permalink} target="_blank" rel="noreferrer" className={buttonClass("ghost", "sm")}><ExternalLink aria-hidden /> View post</a>}
+            {driver && <ButtonLink href={`/tool?note=${encodeURIComponent(`Build on “${driver.title.slice(0, 60)}” (${mult != null ? `${mult.toFixed(1)}× my ${baseline?.label.toLowerCase() ?? "median"}` : `${fmtNum(driverValue)} ${unit}`}).`)}`} variant="ghost" size="sm"><Sparkles aria-hidden /> Add to Content Plan</ButtonLink>}
           </div>
         </>
       )}

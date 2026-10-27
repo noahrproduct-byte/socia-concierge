@@ -23,10 +23,7 @@ import {
   Zap,
   Target,
   Users,
-  LayoutDashboard,
-  FileText,
   BarChart3,
-  Settings,
 } from "lucide-react";
 import IntelligenceField from "./IntelligenceField";
 import BrandMark from "./BrandMark";
@@ -77,27 +74,6 @@ function Words({ text, blue }: { text: string; blue?: string }) {
   );
 }
 
-/** Counts up when scrolled into view. */
-function Num({ value, suffix = "", duration = 1200 }: { value: number; suffix?: string; duration?: number }) {
-  const [ref, inView] = useInView<HTMLSpanElement>(0.6);
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    if (!inView) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(value); return; }
-    const t0 = performance.now();
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - t0) / duration);
-      setN(Math.round(value * (1 - Math.pow(1 - p, 3)) * 10) / 10);
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [inView, value, duration]);
-  const shown = Number.isInteger(value) ? Math.round(n) : n.toFixed(1);
-  return <span ref={ref}>{shown}{suffix}</span>;
-}
-
 /** Simple reveal wrapper. */
 function Rise({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const [ref, inView] = useInView<HTMLDivElement>(0.2);
@@ -136,8 +112,8 @@ function AskDemo() {
   return (
     <div ref={ref} className="so-chat" data-cursor="ASK">
       <div className="so-chat-head">
-        <span className="so-chat-dot" /> SOCIA · AI Strategist
-        <span className="so-chat-live">reasoning from your data</span>
+        SOCIA · AI Strategist
+        <span className="so-chat-live">Example conversation</span>
       </div>
       <div className="so-chat-body">
         <div className={`so-msg user ${step >= 1 ? "in" : ""}`}>What should I post Thursday?</div>
@@ -402,7 +378,7 @@ const FAQS = [
   { q: "Can SOCIA predict whether content will perform?", a: "It scores every idea on hook, retention, relevance, and originality against what your audience already responds to. A score is a forecast, not a promise, and SOCIA is honest about that." },
   { q: "Does SOCIA replace a social media manager?", a: "For solo creators, it covers the strategy work a manager would do. For teams and agencies, it makes the manager faster: audits, plans, and scoring in minutes instead of afternoons." },
   { q: "How does SOCIA use my data?", a: "Your synced account data is used to build your dashboard and your plans. It stays yours, it isn't sold, and you can disconnect and delete it anytime." },
-  { q: "Can I cancel anytime?", a: "Yes — no lock-in, ever. You can change or cancel your plan whenever you want; self-serve billing is on the way, so for now just reach out and we'll take care of it the same day." },
+  { q: "Can I cancel anytime?", a: "Yes. No lock-in, ever. You can change or cancel your plan whenever you want; self-serve billing is on the way, so for now just reach out and we'll take care of it the same day." },
 ];
 
 function Faq() {
@@ -424,10 +400,9 @@ function Faq() {
 
 /* ---------------- main ---------------- */
 
-export default function CinematicLanding() {
+export default function CinematicLanding({ intro, problem }: { intro: React.ReactNode; problem: React.ReactNode }) {
   const [active, setActive] = useState(0);
   const [menu, setMenu] = useState(false);
-  const heroRef = useRef<HTMLElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const [cursorLabel, setCursorLabel] = useState("");
 
@@ -454,17 +429,11 @@ export default function CinematicLanding() {
     return () => io.disconnect();
   }, []);
 
-  /* hero scroll parallax */
+  /* the nav compacts once the page has scrolled */
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     const nav = document.querySelector(".so-nav");
     const tick = () => {
-      const el = heroRef.current;
-      if (el) {
-        const p = Math.min(1.4, window.scrollY / window.innerHeight);
-        el.style.setProperty("--p", String(p));
-      }
       if (nav) nav.classList.toggle("compact", window.scrollY > 40);
       raf = requestAnimationFrame(tick);
     };
@@ -550,377 +519,11 @@ export default function CinematicLanding() {
         ))}
       </aside>
 
-      {/* ================= 01 PROMISE ================= */}
-      <section id="promise" ref={heroRef} className="so-ch so-hero">
-        <div className="so-hgrid">
-          <div className="so-hleft">
-            <Rise><span className="so-label">AI SOCIAL INTELLIGENCE</span></Rise>
-            <h1>
-              <Words text="Know what to post" />
-              <br />
-              <span className="so-blue"><Words text="before you post it." /></span>
-            </h1>
-            <Rise delay={320}>
-              <p className="so-hero-sub">
-                SOCIA studies your content, audience, competitors, and performance. Then it
-                tells you what to post, why it should work, and when to publish.
-              </p>
-            </Rise>
-            <Rise delay={420}>
-              <div className="so-hero-ctas">
-                <Link href="/signup" className="so-btn so-btn-blue" data-cursor="AUDIT">
-                  Start Free Audit <ArrowRight size={15} />
-                </Link>
-                <button className="so-btn so-btn-ghost play" onClick={() => jump("engine")} data-cursor="VIEW">
-                  <span className="so-play"><Play size={10} fill="currentColor" /></span> See How It Works
-                </button>
-              </div>
-              <span className="so-micro">No credit card · Audit in under 60 seconds</span>
-            </Rise>
-          </div>
+      {/* ================= 01 PROMISE: the cinematic intro ================= */}
+      <div id="promise" className="so-intro">{intro}</div>
 
-          {/* dimensional product interface */}
-          <div className="so-hright" data-cursor="EXPLORE">
-            <div className="so-dash">
-              <div className="so-dash-head">
-                <BrandMark size={18} /> <b>SOCIA</b>
-                <span className="so-dash-live"><i /> Live</span>
-                <span className="so-dash-updated">Last updated 2 min ago</span>
-              </div>
-              <div className="so-dash-body">
-                <aside className="so-dash-side" aria-hidden>
-                  {[
-                    ["Overview", LayoutDashboard, true],
-                    ["Strategist", Sparkles, false],
-                    ["Content", FileText, false],
-                    ["Analytics", BarChart3, false],
-                    ["Competitors", Radar, false],
-                    ["Calendar", CalendarDays, false],
-                    ["Settings", Settings, false],
-                  ].map(([label, Icon, on]) => {
-                    const I = Icon as typeof LayoutDashboard;
-                    return (
-                      <span key={label as string} className={on ? "on" : ""}>
-                        <I size={11} /> {label as string}
-                      </span>
-                    );
-                  })}
-                </aside>
-                <div className="so-dash-main">
-                  <div className="so-dash-row1">
-                    <small>CONTENT PERFORMANCE</small>
-                    <span className="so-dash-chip">Last 7 days</span>
-                  </div>
-                  <div className="so-dash-mid">
-                    <div className="so-radial">
-                      <svg viewBox="0 0 84 84" aria-hidden>
-                        <defs>
-                          <linearGradient id="soring" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor="#4c86ff" />
-                            <stop offset="100%" stopColor="#60a5fa" />
-                          </linearGradient>
-                        </defs>
-                        <circle cx="42" cy="42" r="34" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
-                        <circle className="so-ring-fill" cx="42" cy="42" r="34" fill="none" stroke="url(#soring)" strokeWidth="7" strokeLinecap="round" strokeDasharray="213.6" transform="rotate(-90 42 42)" />
-                      </svg>
-                      <span className="so-radial-num"><Num value={92} /><small>HEALTH</small></span>
-                    </div>
-                    <div className="so-dash-stats">
-                      <div><span>Engagement</span><b className="up">+18.6%</b></div>
-                      <div><span>Reach</span><b className="up">+24.3%</b></div>
-                      <div><span>Followers</span><b className="up">+12.7%</b></div>
-                    </div>
-                  </div>
-                  <div className="so-dash-chartwrap">
-                    <span className="so-chart-chip">+18.6%</span>
-                    <svg className="so-dash-chart" viewBox="0 0 320 70" preserveAspectRatio="none" aria-hidden>
-                      <defs>
-                        <linearGradient id="soga" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563ff" stopOpacity="0.30" />
-                          <stop offset="100%" stopColor="#2563ff" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path className="so-chart-area" d="M0,56 L46,50 L92,53 L138,42 L184,46 L230,32 L276,24 L320,12 L320,70 L0,70 Z" fill="url(#soga)" />
-                      <path className="so-chart-line" d="M0,56 L46,50 L92,53 L138,42 L184,46 L230,32 L276,24 L320,12" fill="none" stroke="#60a5fa" strokeWidth="2" />
-                    </svg>
-                    <div className="so-dash-days">
-                      {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-                        <span key={d}>{d}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="so-dash-bottom">
-                    <div className="so-dash-panel">
-                      <small>BEST POSTING WINDOW</small>
-                      <b>Thursday · 6:40 PM</b>
-                      <div className="so-winbars" aria-hidden>
-                        {[34, 48, 40, 88, 56, 44, 30].map((h, i) => (
-                          <i key={i} className={i === 3 ? "hot" : ""} style={{ height: `${h}%` }} />
-                        ))}
-                      </div>
-                    </div>
-                    <div className="so-dash-panel">
-                      <small>CONTENT OPPORTUNITIES</small>
-                      <b>3 detected</b>
-                      <span className="so-dash-link">View insights <ArrowRight size={11} /></span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="so-fcard f1">
-              <small>COMPETITOR MOVEMENT</small>
-              <b className="up">+24%</b>
-              <svg viewBox="0 0 90 26" preserveAspectRatio="none" aria-hidden>
-                <path d="M0,20 L15,16 L30,18 L45,10 L60,13 L75,6 L90,3" fill="none" stroke="#4c86ff" strokeWidth="2" />
-              </svg>
-            </div>
-            <div className="so-fcard f2">
-              <span className="so-fcard-ico"><Sparkles size={13} /></span>
-              <div>
-                <small>AI RECOMMENDATION</small>
-                <b>Post a behind-the-scenes video.</b>
-                <span>It&apos;s performing well for your top competitors.</span>
-              </div>
-              <ArrowRight size={14} className="so-fcard-arrow" />
-            </div>
-          </div>
-        </div>
-
-        {/* data landscape */}
-        <div className="so-terrain" aria-hidden>
-          <svg viewBox="0 0 1440 220" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="soterr" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2563ff" stopOpacity="0.12" />
-                <stop offset="100%" stopColor="#2563ff" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d="M0,150 L110,118 L230,142 L350,96 L470,128 L590,86 L710,120 L830,78 L950,112 L1070,70 L1190,104 L1310,64 L1440,92 L1440,220 L0,220 Z" fill="url(#soterr)" />
-            <path d="M0,150 L110,118 L230,142 L350,96 L470,128 L590,86 L710,120 L830,78 L950,112 L1070,70 L1190,104 L1310,64 L1440,92" fill="none" stroke="rgba(76,134,255,0.30)" strokeWidth="1.2" />
-            <path d="M0,190 L140,168 L280,184 L420,152 L560,176 L700,146 L840,170 L980,140 L1120,162 L1260,132 L1440,150" fill="none" stroke="rgba(76,134,255,0.14)" strokeWidth="1" />
-            <circle className="so-tnode" cx="350" cy="96" r="3" />
-            <circle className="so-tnode d2" cx="830" cy="78" r="3" />
-            <circle className="so-tnode d3" cx="1190" cy="104" r="3" />
-            <circle cx="590" cy="86" r="2" fill="rgba(139,176,255,0.5)" />
-            <circle cx="1070" cy="70" r="2" fill="rgba(139,176,255,0.5)" />
-          </svg>
-        </div>
-
-        {/* proof band */}
-        <div className="so-proof">
-          <small>TRUSTED BY CREATORS &amp; TEAMS</small>
-          <div className="so-prooflogos">
-            {["northloop", "Verve", "STUDIO/9", "Hatch&Co", "Meridian", "bloomtide"].map((l) => (
-              <span key={l}>{l}</span>
-            ))}
-          </div>
-          <div className="so-proofstats">
-            <div><span className="so-proof-ico"><Zap size={16} /></span><b><Num value={3.2} suffix="×" /></b><span>more engagement</span></div>
-            <div><span className="so-proof-ico"><Clock size={16} /></span><b><Num value={6} suffix="hrs" /></b><span>saved per week</span></div>
-            <div><span className="so-proof-ico"><Target size={16} /></span><b><Num value={92} suffix="%" /></b><span>score-to-hit rate</span></div>
-            <div><span className="so-proof-ico"><Users size={16} /></span><b><Num value={40} suffix="k+" /></b><span>accounts audited</span></div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= 02 PROBLEM ================= */}
-      <section id="problem" className="so-ch so-problem">
-        <div className="so-wrap">
-          <Rise><span className="so-label">02 PROBLEM</span></Rise>
-          <h2 className="so-h2">
-            <Words text="Posting shouldn’t" />
-            <br />
-            <Words text="be guesswork." />
-          </h2>
-          <Rise delay={120}>
-            <p className="so-lead">
-              Creators produce more content than ever, but most still make decisions using
-              instinct, outdated analytics, and whatever happened to work last week.
-            </p>
-          </Rise>
-          <Rise delay={200}>
-            <p className="so-prob-emph"><span className="so-blue">SOCIA</span> turns those signals into decisions.</p>
-          </Rise>
-
-          <div className="so-probgrid">
-            {/* NO CLEAR STRATEGY */}
-            <Rise className="so-pcard-w">
-              <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><CalendarDays size={14} /></span> NO CLEAR STRATEGY</div>
-                <div className="so-pcard-cols">
-                  <div className="so-pcard-copy">
-                    <p>Posting without a plan creates inconsistent results.</p>
-                    <small className="so-mlabel">POSTING CONSISTENCY</small>
-                    <b className="so-mval">42%</b>
-                    <span className="so-mbar"><em style={{ width: "42%" }} /></span>
-                  </div>
-                  <div className="so-weekdots" aria-label="Posting activity, four weeks">
-                    {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-                      <span key={i} className="so-wd-day">{d}</span>
-                    ))}
-                    {[
-                      [0, 0, 2, 0, 0, 0, 1],
-                      [0, 1, 0, 0, 1, 0, 1],
-                      [1, 0, 1, 0, 0, 1, 0],
-                      [1, 0, 0, 1, 0, 1, 0],
-                    ].map((week, w) =>
-                      week.map((n, d) => (
-                        <span key={`${w}-${d}`} className={`so-dot n${n}`} tabIndex={-1}>
-                          <i className="so-tip">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]} · {n} {n === 1 ? "post" : "posts"}</i>
-                        </span>
-                      )),
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Rise>
-
-            {/* WRONG CONTENT */}
-            <Rise delay={80} className="so-pcard-w">
-              <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><Play size={13} /></span> WRONG CONTENT</div>
-                <div className="so-pcard-cols">
-                  <div className="so-pcard-copy">
-                    <p>Guessing what works wastes time and reach.</p>
-                    <small className="so-mlabel">CONTENT FIT</small>
-                    <b className="so-mval low">LOW</b>
-                    <span className="so-mbar low"><em style={{ width: "18%" }} /></span>
-                  </div>
-                  <div className="so-thumbs">
-                    {[
-                      { views: "4.2K", eng: "0.8%", g: "g1", win: false },
-                      { views: "6.1K", eng: "1.1%", g: "g2", win: false },
-                      { views: "28.7K", eng: "4.6%", g: "g3", win: true },
-                      { views: "3.3K", eng: "0.6%", g: "g4", win: false },
-                    ].map((t, i) => (
-                      <div key={i} className={`so-thumb ${t.win ? "win" : ""}`}>
-                        <span className={`so-thumb-media ${t.g}`}>
-                          <Play size={12} fill="currentColor" />
-                          {t.win && <i className="so-thumb-check"><Check size={9} strokeWidth={3.5} /></i>}
-                        </span>
-                        <b>{t.views}</b>
-                        <small>views</small>
-                        <b className={t.win ? "so-blue" : ""}>{t.eng}</b>
-                        <small>engagement</small>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Rise>
-
-            {/* MISSED OPPORTUNITIES */}
-            <Rise delay={140} className="so-pcard-w">
-              <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><TrendingUp size={14} /></span> MISSED OPPORTUNITIES</div>
-                <div className="so-pcard-cols chart">
-                  <div className="so-pcard-copy">
-                    <p>Winning formats and topics are often visible before creators notice them.</p>
-                  </div>
-                  <div className="so-chartbox">
-                    <div className="so-anno">
-                      <small>EDUCATIONAL REELS</small>
-                      <b>+68%</b>
-                      <span>niche momentum</span>
-                      <em>Opportunity missed</em>
-                    </div>
-                    <svg viewBox="0 0 340 130" preserveAspectRatio="none" aria-hidden>
-                      <defs>
-                        <linearGradient id="sopm" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563ff" stopOpacity="0.25" />
-                          <stop offset="100%" stopColor="#2563ff" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      {[0, 25, 50, 75, 100].map((v) => (
-                        <g key={v}>
-                          <text x="26" y={112 - v * 0.96} textAnchor="end" fontSize="7" fill="#5c6474">{v}</text>
-                          <line x1="34" y1={108 - v * 0.96} x2="330" y2={108 - v * 0.96} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
-                        </g>
-                      ))}
-                      <path className="so-draw a" d="M36,100 L66,98 L96,99 L126,95 L156,94 L186,90 L216,83 L246,71 L276,55 L306,43 L330,33 L330,108 L36,108 Z" fill="url(#sopm)" stroke="none" />
-                      <path className="so-draw l" d="M36,100 L66,98 L96,99 L126,95 L156,94 L186,90 L216,83 L246,71 L276,55 L306,43 L330,33" fill="none" stroke="#4c86ff" strokeWidth="2" />
-                      <line x1="276" y1="55" x2="276" y2="108" stroke="rgba(76,134,255,0.4)" strokeWidth="1" strokeDasharray="3 3" />
-                      {[[36, 100, 8], [126, 95, 13], [216, 83, 26], [276, 55, 55], [330, 33, 78]].map(([x, y, v]) => (
-                        <circle key={x} className={x === 276 ? "so-pt hot" : "so-pt"} cx={x} cy={y} r={x === 276 ? 4 : 2.5}>
-                          <title>{`+${v}% momentum`}</title>
-                        </circle>
-                      ))}
-                    </svg>
-                    <div className="so-xaxis">
-                      {["APR 1", "APR 8", "APR 15", "APR 22", "APR 29"].map((d) => <span key={d}>{d}</span>)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Rise>
-
-            {/* FALLING BEHIND */}
-            <Rise delay={200} className="so-pcard-w">
-              <div className="so-pcard">
-                <div className="so-pcard-head"><span className="so-pcard-ico"><Users size={14} /></span> FALLING BEHIND</div>
-                <div className="so-pcard-cols chart">
-                  <div className="so-pcard-copy">
-                    <p>Competitors learn faster while you&apos;re still interpreting yesterday&apos;s analytics.</p>
-                    <span className="so-outlier"><Radar size={12} /> 2 OUTLIER POSTS DETECTED</span>
-                  </div>
-                  <div className="so-chartbox">
-                    <div className="so-legend">
-                      <span><i className="ca" /> Competitor A</span>
-                      <span><i className="cb" /> Competitor B</span>
-                      <span><i className="cy" /> Your account</span>
-                    </div>
-                    <div className="so-endlabels">
-                      <b className="ca">+31%</b>
-                      <b className="cb">+24%</b>
-                      <b className="cy">+3%</b>
-                    </div>
-                    <svg viewBox="0 0 340 120" preserveAspectRatio="none" aria-hidden>
-                      <path className="so-draw l" d="M20,96 L70,88 L120,74 L170,58 L220,44 L270,30 L330,18" fill="none" stroke="#48c78e" strokeWidth="2" />
-                      <path className="so-draw l d2" d="M20,98 L70,92 L120,84 L170,72 L220,60 L270,50 L330,40" fill="none" stroke="#a78bfa" strokeWidth="2" />
-                      <path className="so-draw l d3" d="M20,100 L70,98 L120,97 L170,95 L220,94 L270,92 L330,90" fill="none" stroke="#4c86ff" strokeWidth="2" />
-                      {[[20, 96], [120, 74], [220, 44], [330, 18]].map(([x, y]) => (
-                        <circle key={`a${x}`} className="so-pt ga" cx={x} cy={y} r="2.5"><title>Competitor A</title></circle>
-                      ))}
-                      {[[20, 98], [120, 84], [220, 60], [330, 40]].map(([x, y]) => (
-                        <circle key={`b${x}`} className="so-pt gb" cx={x} cy={y} r="2.5"><title>Competitor B</title></circle>
-                      ))}
-                      {[[20, 100], [120, 97], [220, 94], [330, 90]].map(([x, y]) => (
-                        <circle key={`y${x}`} className="so-pt gy" cx={x} cy={y} r="2.5"><title>Your account</title></circle>
-                      ))}
-                    </svg>
-                    <div className="so-xaxis three">
-                      {["APR 1", "APR 15", "APR 29"].map((d) => <span key={d}>{d}</span>)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Rise>
-          </div>
-
-          {/* intelligence strip */}
-          <Rise delay={200}>
-            <div className="so-strip">
-              <span className="so-strip-ico"><ScanSearch size={18} /></span>
-              <div className="so-strip-copy">
-                <b>SOCIA connects the dots others miss.</b>
-                <span>From scattered signals to smart, confident decisions.</span>
-              </div>
-              <svg className="so-strip-sig" viewBox="0 0 520 80" preserveAspectRatio="xMidYMid meet" aria-hidden>
-                <path className="so-sig" d="M0,12 C120,12 200,38 320,40" fill="none" stroke="rgba(76,134,255,0.35)" strokeWidth="1" />
-                <path className="so-sig s2" d="M0,28 C110,26 210,39 320,40" fill="none" stroke="rgba(76,134,255,0.3)" strokeWidth="1" />
-                <path className="so-sig s3" d="M0,44 C120,46 200,41 320,40" fill="none" stroke="rgba(76,134,255,0.3)" strokeWidth="1" />
-                <path className="so-sig s4" d="M0,60 C130,62 210,42 320,40" fill="none" stroke="rgba(76,134,255,0.35)" strokeWidth="1" />
-                <path className="so-sig s5" d="M0,74 C140,74 220,44 320,40" fill="none" stroke="rgba(76,134,255,0.25)" strokeWidth="1" />
-                <path className="so-sig main" d="M320,40 L508,40" fill="none" stroke="#4c86ff" strokeWidth="2" />
-                <circle className="so-sig-node" cx="320" cy="40" r="3.5" fill="#4c86ff" />
-                <circle cx="508" cy="40" r="2.5" fill="#8bb0ff" />
-              </svg>
-            </div>
-          </Rise>
-        </div>
-      </section>
+      {/* ================= 02 PROBLEM: the interactive selector ================= */}
+      {problem}
 
       {/* ================= 03 ENGINE ================= */}
       <section id="engine" className="so-ch so-engine">
@@ -968,6 +571,7 @@ export default function CinematicLanding() {
                 <div className="so-ecard-head">
                   <span className="so-ecard-ico"><ScanSearch size={13} /></span> CONTENT AUDIT
                   <span className="so-echip up">+12 vs last week</span>
+                  <em className="so-example">Example</em>
                 </div>
                 <div className="so-audit-flex">
                   <div className="so-audit-left">
@@ -1004,21 +608,21 @@ export default function CinematicLanding() {
             {/* COMPETITOR INTELLIGENCE */}
             <Rise delay={120} className="so-eng-area e-comp">
               <div className="so-ecard" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><Radar size={13} /></span> COMPETITOR INTELLIGENCE</div>
+                <div className="so-ecard-head"><span className="so-ecard-ico"><Radar size={13} /></span> COMPETITOR INTELLIGENCE<em className="so-example">Example</em></div>
                 <div className="so-crows">
                   <div className="so-crow">
-                    <i>A</i>
-                    <div><b>Competitor A</b><span className="up">+31% momentum</span></div>
+                    <i>B</i>
+                    <div><b>Bakery across town</b><span className="up">+31% momentum</span></div>
                     <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,18 L14,15 L28,16 L42,11 L56,8 L70,6 L84,2" fill="none" stroke="#16a34a" strokeWidth="1.6" /></svg>
                   </div>
                   <div className="so-crow">
-                    <i>B</i>
-                    <div><b>Competitor B</b><span>2 outlier posts detected</span></div>
+                    <i>C</i>
+                    <div><b>Café near campus</b><span>2 outlier posts detected</span></div>
                     <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,14 L14,16 L28,7 L42,15 L56,4 L70,13 L84,10" fill="none" stroke="#a78bfa" strokeWidth="1.6" /></svg>
                   </div>
                   <div className="so-crow">
-                    <i>C</i>
-                    <div><b>Competitor C</b><span>Educational Reels gaining traction</span></div>
+                    <i>R</i>
+                    <div><b>Roastery downtown</b><span>Educational Reels gaining traction</span></div>
                     <svg viewBox="0 0 84 22" preserveAspectRatio="none"><path className="so-spark" d="M0,17 L14,16 L28,14 L42,14 L56,10 L70,9 L84,6" fill="none" stroke="#2563ff" strokeWidth="1.6" /></svg>
                   </div>
                 </div>
@@ -1029,15 +633,15 @@ export default function CinematicLanding() {
             {/* RECOMMENDATION ENGINE */}
             <Rise delay={550} className="so-eng-area e-rec">
               <div className="so-ecard rec" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE</div>
+                <div className="so-ecard-head"><span className="so-ecard-ico"><TrendingUp size={13} /></span> RECOMMENDATION ENGINE<em className="so-example">Example</em></div>
                 <span className="so-rec-tag">HIGH IMPACT</span>
                 <h3>Publish another educational Reel this week.</h3>
                 <p className="so-rec-why"><b>Why?</b> Your educational videos are generating 2.4× your average engagement.</p>
                 <div className="so-predictbox" title="Projected from your last 30 posts">
                   <div>
                     <small>PREDICTED PERFORMANCE</small>
-                    <b>+<Num value={31} suffix="%" duration={900} /></b>
-                    <span>above baseline</span>
+                    <b>+31%</b>
+                    <span>above your last 30 posts</span>
                   </div>
                   <svg viewBox="0 0 120 54" preserveAspectRatio="none" aria-hidden>
                     <path className="so-draw l" d="M4,48 L22,44 L40,45 L58,38 L76,30 L94,20 L116,8" fill="none" stroke="#2563ff" strokeWidth="2" />
@@ -1069,6 +673,7 @@ export default function CinematicLanding() {
                 <div className="so-ecard-head">
                   <span className="so-ecard-ico"><Video size={13} /></span> VIDEO SCORER
                   <span className="so-vplay" aria-hidden><Play size={10} fill="currentColor" /></span>
+                  <em className="so-example">Example</em>
                 </div>
                 <div className="so-vsgrid">
                   {[["HOOK", 91, "How well the first seconds stop the scroll"], ["RETENTION", 78, "How much of the video people watch"], ["CLARITY", 86, "How easy the message is to follow"], ["PACING", 74, "How well the edit holds attention"]].map(([l, v, t]) => (
@@ -1093,7 +698,7 @@ export default function CinematicLanding() {
             {/* SMART SCHEDULING */}
             <Rise delay={280} className="so-eng-area e-sched">
               <div className="so-ecard" data-cursor="VIEW">
-                <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING</div>
+                <div className="so-ecard-head"><span className="so-ecard-ico"><CalendarDays size={13} /></span> SMART SCHEDULING<em className="so-example">Example</em></div>
                 <div className="so-sweek">
                   {[["M", "", ""], ["T", "6:20", "PM"], ["W", "", ""], ["T", "6:40", "PM"], ["F", "", ""], ["S", "11:15", "AM"], ["S", "", ""]].map(([d, t, m], i) => (
                     <div key={i} className="so-sdaycol">

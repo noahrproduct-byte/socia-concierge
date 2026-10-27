@@ -1,0 +1,109 @@
+/* ============================================================================
+   /pricing in the homepage's monochrome. The page's structure and the plan
+   data are unchanged (lib/plans.ts, PricingCards, ComparisonTable); this
+   restyles the old .so-/.pr- classes it still uses, so the public site reads
+   as one thing. Off-white paper, black type, gold only on the current plan
+   and the focus ring.
+   ========================================================================= */
+
+.so.pr-page {
+  --so-ink: var(--ed-paper);
+  --so-deep: var(--ed-paper);
+  --so-navy: var(--ed-paper);
+  --so-panel: #ffffff;
+  --so-text: var(--ed-paper-ink);
+  --so-dim: var(--ed-paper-ink-2);
+  --so-dimmer: var(--ed-paper-ink-2);
+  --so-line: var(--ed-rule-paper);
+  --so-blue: var(--ed-paper-ink);
+  --so-blue-bright: var(--ed-paper-ink);
+  --so-sky: var(--ed-gold-ink);
+  --so-cyan: var(--ed-gold-ink);
+  --font-display: var(--font-inter-tight), var(--font);
+  background: var(--ed-paper);
+  color: var(--ed-paper-ink);
+}
+
+.so.pr-page::before,
+.so.pr-page::after,
+.so.pr-page .so-field,
+.so.pr-page .so-vignette { display: none; }
+
+.so.pr-page :focus-visible { outline: 2px solid var(--ed-gold); outline-offset: 3px; }
+
+/* chrome */
+.so.pr-page .so-nav { background: var(--ed-paper); border-bottom: 1px solid var(--ed-rule-paper); color: var(--ed-paper-ink); }
+.so.pr-page .so-brand { color: var(--ed-paper-ink); font-family: var(--font-display); font-weight: var(--fw-medium); }
+.so.pr-page .pr-nav-link { font-size: var(--fs-body); font-weight: var(--fw-regular); }
+.so.pr-page .so-login { color: var(--ed-paper-ink-2); }
+.so.pr-page .so-btn,
+.so.pr-page .so-btn.so-btn-blue,
+.so.pr-page .so-btn.so-btn-ghost {
+  border: 1px solid var(--ed-paper-ink);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ed-paper-ink);
+  box-shadow: none;
+  font-weight: var(--fw-medium);
+}
+.so.pr-page .so-btn.so-btn-blue { background: var(--ed-paper-ink); color: var(--ed-paper); }
+.so.pr-page .so-btn svg { display: none; }
+
+/* header */
+.so.pr-page .pr-head { text-align: start; max-width: 1240px; margin-inline: auto; }
+.so.pr-page .so-label { color: var(--ed-gold-ink); font-size: var(--fs-meta); font-weight: var(--fw-medium); letter-spacing: 0.04em; }
+.so.pr-page .so-h2 {
+  max-width: 14ch;
+  font-family: var(--font-display);
+  font-size: var(--fs-m-statement);
+  font-weight: var(--fw-medium);
+  line-height: 0.98;
+  letter-spacing: -0.025em;
+  color: var(--ed-paper-ink);
+}
+.so.pr-page .so-lead { margin-inline: 0; max-width: 56ch; color: var(--ed-paper-ink-2); font-size: var(--fs-m-body); }
+.so.pr-page .pr-note,
+.so.pr-page .pr-fine { margin-inline: 0; text-align: start; }
+
+/* cards: a ruled row, not four tinted boxes */
+.so.pr-page .pr-grid { gap: 0; border-top: 1px solid var(--ed-rule-paper); border-bottom: 1px solid var(--ed-rule-paper); }
+.so.pr-page .pr-card {
+  padding: var(--sp-8) var(--sp-6) var(--sp-8) 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.so.pr-page .pr-card + .pr-card { padding-inline-start: var(--sp-6); border-inline-start: 1px solid var(--ed-rule-paper); }
+.so.pr-page .pr-card.popular,
+.so.pr-page .pr-card.highlight { background: transparent; border-color: var(--ed-rule-paper); }
+.so.pr-page .pr-card-name { font-family: var(--font-display); font-size: var(--fs-lead); font-weight: var(--fw-medium); color: var(--ed-paper-ink); }
+.so.pr-page .pr-popular { border-color: var(--ed-gold); color: var(--ed-gold-ink); font-weight: var(--fw-medium); letter-spacing: 0.04em; }
+.so.pr-page .pr-price-amount { font-family: var(--font-display); font-weight: var(--fw-medium); color: var(--ed-paper-ink); }
+.so.pr-page .pr-tagline { font-weight: var(--fw-medium); color: var(--ed-paper-ink); }
+.so.pr-page .pr-list li svg { color: var(--ed-paper-ink); }
+.so.pr-page .pr-cta-current { border-color: var(--ed-gold); color: var(--ed-gold-ink); }
+
+/* table and sections */
+.so.pr-page .pr-section-title { font-family: var(--font-display); font-weight: var(--fw-medium); color: var(--ed-paper-ink); letter-spacing: -0.02em; }
+.so.pr-page .pr-table-wrap,
+.so.pr-page .pr-custom { border-color: var(--ed-rule-paper); border-radius: var(--r-panel); }
+.so.pr-page .pr-table th { background: var(--ed-paper); }
+.so.pr-page .pr-yes { color: var(--ed-paper-ink); }
+.so.pr-page .pr-soon { border-color: var(--ed-rule-paper); }
+.so.pr-page .pr-custom a,
+.so.pr-page .pr-note a { color: var(--ed-paper-ink); }
+
+/* footer */
+.so.pr-page .so-footer { background: var(--ed-black); color: var(--ed-ink-2); border-top: 0; }
+.so.pr-page .so-footer a { color: inherit; }
+.so.pr-page .so-footer a:hover { color: var(--ed-ink); }
+
+@media (max-width: 1100px) {
+  .so.pr-page .pr-card:nth-child(3) { padding-inline-start: 0; border-inline-start: 0; }
+  .so.pr-page .pr-card:nth-child(n + 3) { border-top: 1px solid var(--ed-rule-paper); }
+}
+@media (max-width: 760px) {
+  .so.pr-page .pr-card,
+  .so.pr-page .pr-card + .pr-card { padding-inline-start: 0; border-inline-start: 0; }
+  .so.pr-page .pr-card + .pr-card { border-top: 1px solid var(--ed-rule-paper); }
+}

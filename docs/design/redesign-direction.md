@@ -190,3 +190,18 @@ Phases 3 to 8 can be split if a PR grows past review size; phases 1 and 2 must l
 4. **Honesty fixes that change behaviour:** the onboarding fabricated plan is removed, the Settings preview competitors are removed, X and LinkedIn lose their connect controls, the Content Plan health score shows its basis or is dropped from the card. Confirm each.
 5. **Navigation groups** (Understand / Make) and **social accounts leaving the sidebar**. Confirm.
 6. **Dead-CSS deletion** of the redirected routes' styles (`/niche`, `/chat`, `/plan`, `/scorer`) and the orphan components. Confirm.
+
+## Addendum, 2026-10-21: the ElevenLabs retune
+
+After phases 1 to 3 the app read as plain. Noah asked for ElevenLabs' look; the agreed scope is their measured system and patterns with SOCIA's own identity (logo, Inter, copy, screens, data rules). The language in section 3 is amended as follows; everything else stands.
+
+- **Chrome is hue-less.** The page is white, the sidebar a shade off (`#fafafa`), fills are alpha-black (2% resting, 4.3% hover and active, 7.5% strong), text tiers are alpha-black (74% and 60%, both AA on white). The dark theme mirrors this with alpha-white.
+- **Actions are near-black.** `--action` replaces cobalt on every primary button. Cobalt stays for data only: chart series, links and the focus ring. Nothing in the chrome is tinted.
+- **Elevation is a recipe, not a border.** Raised surfaces (cards, KPI tiles, notices) carry a 1px ring plus two soft drops and no border. Floating surfaces (menus, popovers, dialogs, toasts) carry one six-layer shadow.
+- **Radii grow with the element and nest concentrically:** chip 6, control 8, card 12, panel 16, dialog 24, pill for badges and round buttons. A 16px menu with 4px padding holds 12px items; an 8px segmented track with 2px padding holds 6px segments.
+- **Two weights with jobs.** 500 for every control, label, name and title; 400 for prose. Titles lost their 600.
+- **Colour changes are near-instant** (75ms, standard ease); only movement takes longer.
+- **Patterns adopted:** KPI tiles as the chart's tabs (selected tile white with a 1.5px bottom rule, the others on a 2% fill); underline tabs for sections, segmented controls for units; a labelled compact query bar (`.s-query`); quiet empty states; dense aligned rows instead of post cards; a one-line caveat under any platform-limited chart; cost shown beside every metered action (to come with the composer and Studio phases).
+- **Not copied:** their typeface, logo, imagery, copy lines, icon set, orb, gradient rings, translucent prompt island, fake example rows.
+
+The budget test now allows six radii. Memory: the retune is recorded in the session memory under "socia-redesign-direction".

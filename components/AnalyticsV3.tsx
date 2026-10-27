@@ -4,11 +4,11 @@
 // missing, act. Every figure arrives from the server already computed and
 // labelled; the browser only groups, filters and lays out.
 
+import "@/app/(app)/analytics/analytics.css";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
-import { Download, Lightbulb, ArrowRight, Target, Sparkles } from "lucide-react";
+import { Sparkles, Info, Lock, TrendingUp, Minus } from "lucide-react";
 import { askSocia } from "@/lib/ask";
-import KpiCard from "./ov/KpiCard";
 import OverviewChart from "./ov/OverviewChart";
 import PointDrawer from "./ov/PointDrawer";
 import FollowerChart from "./ov/FollowerChart";
@@ -22,11 +22,31 @@ import ContentLibrary, { type LibraryPost } from "./ContentLibrary";
 import { InsightList } from "./ov/Insights";
 import BestTimes from "./ov/BestTimes";
 import AudienceBars from "./ov/AudienceBars";
-import DateRangeSelector from "./DateRangeSelector";
-import AccountSwitcher from "./AccountSwitcher";
 import Mounted from "./ov/Mounted";
 import MultiLineChart, { type OverlayLine } from "./ov/MultiLineChart";
 import WhatChanged, { type ChangeItem } from "./ov/WhatChanged";
+import {
+  Button,
+  ButtonLink,
+  Card,
+  CardHeader,
+  CardSource,
+  Empty,
+  KpiCell,
+  KpiStrip,
+  PlatformMark,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  SegmentedControl,
+  Skeleton,
+  Tab as SectionTab,
+  TabList,
+  TabPanel,
+  TableWrap,
+  Tabs,
+  Unavailable,
+} from "@/components/system";
 import {
   rankPosts, fmtNum, audienceInsight, seriesBaseline, granularityOptions, bucketize, detectOutliers, bucketTitle,
   GRAPH_METRIC_LABEL,
@@ -39,9 +59,8 @@ import { timingGap, type Gap } from "@/lib/gaps";
 import type { EngagementRate, Breakdown, QualityNote } from "@/lib/engagement";
 import type { Demographics } from "@/lib/igDemographics";
 import { pricingHref, PLANS, minPlanWithFeature, type PlanId } from "@/lib/plans";
-import { Lock } from "lucide-react";
-import "./planRange.css";
-import "./platformAnalytics.css";
+
+const DASH = String.fromCharCode(0x2014);
 
 /** Which analytics sections the viewer's plan unlocks. A PlanId means the
  *  section is LOCKED and names the plan that opens it; null/absent means open.
@@ -54,19 +73,17 @@ export type AnalyticsGate = {
   crossPlatform: PlanId | null;
 };
 
-/** A tasteful locked panel: what the section is, and the plan that unlocks it.
+/** A quiet locked panel: what the section is, and the plan that unlocks it.
  *  Never an empty box; the person always sees the feature exists and its value. */
 export function Locked({ plan, title, blurb, from }: { plan: PlanId; title: string; blurb: string; from: string }) {
   return (
-    <div className="av-locked" role="group" aria-label={`${title} (locked)`}>
-      <span className="av-locked-ico"><Lock size={16} /></span>
-      <div className="av-locked-body">
-        <b>{title}</b>
-        <p>{blurb}</p>
-      </div>
-      <Link
+    <div className="s-empty" role="group" aria-label={`${title} (locked)`}>
+      <Lock aria-hidden />
+      <b>{title}</b>
+      <p>{blurb}</p>
+      <ButtonLink
         href={pricingHref(plan)}
-        className="av-locked-cta"
+        size="sm"
         onClick={() => {
           fetch("/api/events", {
             method: "POST", headers: { "content-type": "application/json" },
@@ -75,7 +92,7 @@ export function Locked({ plan, title, blurb, from }: { plan: PlanId; title: stri
         }}
       >
         Unlock with {PLANS[plan].name}
-      </Link>
+      </ButtonLink>
     </div>
   );
 }
@@ -129,12 +146,14 @@ export type AnalyticsData = {
 const OPEN_GATE: AnalyticsGate = { postingTimes: null, growth: null, comparison: null, deeperInsights: null, crossPlatform: null };
 
 const OVERLAY_METRIC_ORDER: GraphMetric[] = ["views", "engagement", "reach", "followers", "watch_time", "net_followers"];
-const PLATFORM_TINT: Record<GraphAccount["platform"], string> = { instagram: "#d6357a", youtube: "#e0332a", facebook: "#1877f2", tiktok: "#22d3ee" };
 
 type Tab = "overview" | "content" | "audience" | "times" | "growth";
-const TABS: [Tab, string][] = [["overview", "Overview"], ["content", "Content Performance"], ["audience", "Audience"], ["times", "Posting Times"], ["growth", "Growth"]];
-const METRICS: MetricId[] = ["views", "engagement", "followers", "reach"];
-const FG: { id: FollowerGranularity; label: string }[] = [{ id: "day", label: "Daily" }, { id: "week", label: "Weekly" }, { id: "month", label: "Monthly" }];
+const TABS: [Tab, string][] = [["overview", "Overview"], ["content", "Content performance"], ["audience", "Audience"], ["times", "Posting times"], ["growth", "Growth"]];
+const FG: { value: FollowerGranularity; label: string }[] = [{ value: "day", label: "Daily" }, { value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }];
+/** Which chart series a KPI tile selects. Total Posts has no series. */
+const KPI_METRIC: Partial<Record<Kpi["id"], MetricId>> = { views: "views", engagement_rate: "engagement", followers: "followers", reach: "reach" };
+const GROWTH_METRICS: MetricId[] = ["followers", "reach", "views", "engagement"];
+type ContentView = "top" | "under" | "format" | "breakout";
 
 const hashTab = (h: string): Tab | null => {
   const id = h.replace(/^#(an-)?/, "");
@@ -142,15 +161,18 @@ const hashTab = (h: string): Tab | null => {
   return (TABS.find(([t]) => t === id)?.[0] as Tab | undefined) ?? null;
 };
 
+const signed = (n: number, digits = 0) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+
 export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   const gate = d.gate ?? OPEN_GATE;
   const [tab, setTabState] = useState<Tab>("overview");
   const [metric, setMetric] = useState<MetricId>(d.series.views.provenance === "unavailable" ? "engagement" : "views");
+  const [growthMetric, setGrowthMetric] = useState<MetricId>("followers");
   const [compare, setCompare] = useState(true);
   const [gran, setGran] = useState<Granularity>(d.rangeDays > 31 ? "week" : "day");
   const [fit, setFit] = useState<boolean | null>(null);
   const [fgran, setFgran] = useState<FollowerGranularity>("day");
-  const [contentTab, setContentTab] = useState<"top" | "under" | "format" | "breakout">("top");
+  const [contentTab, setContentTab] = useState<ContentView>("top");
   const [open, setOpen] = useState<PostCard | null>(null);
   const [point, setPoint] = useState<{ b: Bucket; outlier: boolean } | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -216,7 +238,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
     const out: { tone: string; text: string }[] = [];
     if (totals.length >= 2) out.push({ tone: "up", text: `${totals[0].label} led ${unit} this period.` });
     for (const t of totals) out.push({ tone: "info", text: `${t.label}: ${fmtNum(t.total)} ${unit} in the ${d.rangeLabel.toLowerCase()}.` });
-    for (const a of missingAccts) out.push({ tone: "muted", text: `${a.label} has no daily ${unit} series${a.platform === "facebook" ? " — Facebook doesn't provide one" : a.platform === "tiktok" ? " — TikTok isn't connected to time-series data yet" : ""}.` });
+    for (const a of missingAccts) out.push({ tone: "muted", text: `${a.label} has no daily ${unit} series${a.platform === "facebook" ? ": Facebook doesn't provide one" : a.platform === "tiktok" ? ": TikTok isn't connected to time-series data yet" : ""}.` });
     return out;
   }, [isSingleIg, overlayLines, missingAccts, gmActive, d.rangeLabel]);
   const postById = useMemo(() => Object.fromEntries(d.posts.map((p) => [p.id, p])), [d.posts]);
@@ -238,12 +260,17 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
     return [...seen.values()].flat();
   }, [contentTab, d.posts]);
 
-  // Tab labels carry their counts, so an empty Underperforming / Breakouts tab
-  // is visible before it is opened.
+  // Segment labels carry their counts, so an empty Underperforming / Breakouts
+  // view is visible before it is opened.
   const contentTabs = useMemo(() => {
     const under = d.posts.filter((p) => p.multiplier != null && p.multiplier < 0.7).length;
     const brk = d.posts.filter((p) => p.multiplier != null && p.multiplier >= 3).length;
-    return [["top", "Top Content"], ["under", `Underperforming (${under})`], ["format", "By Format"], ["breakout", `Breakouts (${brk})`]] as ["top" | "under" | "format" | "breakout", string][];
+    return [
+      { value: "top", label: "Top content" },
+      { value: "under", label: `Underperforming (${under})` },
+      { value: "format", label: "By format" },
+      { value: "breakout", label: `Breakouts (${brk})` },
+    ] as { value: ContentView; label: string }[];
   }, [d.posts]);
 
   const followersNow = d.series.followers.current;
@@ -285,419 +312,571 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
   const gainsSeries: Series = useMemo(() => ({ metric: "reach", label: "New followers", provenance: d.gains.some((g) => g.value != null) ? "instagram_daily" : "unavailable", note: "New followers per day as reported by Instagram. Counts follows only, not unfollows, so it differs from the net change in your snapshots.", current: d.gains, previous: [], total: null, prevTotal: null }), [d.gains]);
 
   const fmtDay = (day: string) => new Date(day + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const ask = (question?: string) => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric }, ...(question ? { question } : {}) });
+
+  // ---- the KPI row: each tile with a series is the chart's tab ----
+  const kpiCells = d.kpis.map((k) => {
+    const m = KPI_METRIC[k.id];
+    const selectable = Boolean(isSingleIg && m && d.series[m].provenance !== "unavailable");
+    const na = k.raw == null && k.status !== "ok";
+    return (
+      <KpiCell
+        key={k.id}
+        label={k.label}
+        value={na ? null : k.value}
+        reason={k.note}
+        delta={!gate.comparison && k.deltaText ? { text: k.deltaText, tone: k.positive === false ? "bad" : k.positive ? "good" : undefined } : undefined}
+        note={na ? undefined : gate.comparison ? `vs. previous period on ${PLANS[minPlanWithFeature("period_comparison")].name}` : k.note}
+        selected={selectable && metric === m}
+        onSelect={selectable ? () => setMetric(m as MetricId) : undefined}
+      />
+    );
+  });
+
+  // Where each headline number comes from, and why a grouping is switched off.
+  const sources = (
+    <Popover>
+      <PopoverTrigger render={<Button size="sm" variant="ghost" />}>
+        <Info aria-hidden /> Sources
+      </PopoverTrigger>
+      <PopoverContent align="end">
+        <ul className="an-list">
+          {d.kpis.map((k) => (
+            <li key={k.id}>
+              <span className="an-row-body">
+                <b>{k.label}</b>
+                <small>{k.source}</small>
+              </span>
+            </li>
+          ))}
+          {granOptions.filter((g) => !g.enabled).map((g) => (
+            <li key={g.id}>
+              <span className="an-row-body">
+                <b>{g.label} grouping</b>
+                <small>{g.why}</small>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+
+  const growthSeries = d.series[growthMetric];
+
+  const whatsMissing = (
+    <Card>
+      <CardHeader title="What's missing" />
+      <GapList gaps={gaps} onTab={jumpTab} pending={d.posts.length < 5} />
+      {lockedGaps > 0 && (
+        <div className="s-empty" role="status">
+          <Lock aria-hidden />
+          <b>
+            SOCIA found {lockedGaps} more {lockedGaps === 1 ? "opportunity" : "opportunities"} for this account.
+          </b>
+          <p>Unlock your full strategy with {PLANS[minPlanWithFeature("deeper_insights")].name}.</p>
+          <ButtonLink
+            href={pricingHref("starter")}
+            size="sm"
+            onClick={() => {
+              fetch("/api/events", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ name: "upgrade_clicked", props: { from: "analytics_gaps", locked: lockedGaps } }),
+                keepalive: true,
+              }).catch(() => {});
+            }}
+          >
+            See Starter
+          </ButtonLink>
+        </div>
+      )}
+      <CardSource>The biggest gaps SOCIA found in your current strategy, ranked by evidence.</CardSource>
+    </Card>
+  );
+
 
   return (
-    <div className="av">
-      <header className="dv-head">
-        <div>
-          <h1>Analytics</h1>
-          <p>See what happened, understand why, and find what your strategy is missing.</p>
-        </div>
-        <div className="dv-head-actions">
-          <Mounted fallback={<span className="ov-ctl-ph" aria-hidden />}>
-            <AccountSwitcher />
-            <DateRangeSelector maxDays={d.maxDays} />
-          </Mounted>
-          <a href="/api/export" download className="ov-btn ghost"><Download size={14} /> Export</a>
-          <button type="button" className="ov-btn primary" onClick={() => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric } })}><Sparkles size={14} /> Ask SOCIA</button>
-        </div>
-      </header>
+    <div className="an-stack">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="an-stack">
+        <TabList aria-label="Analytics sections">
+          {TABS.map(([id, label]) => (
+            <SectionTab key={id} value={id}>
+              {label}
+            </SectionTab>
+          ))}
+        </TabList>
 
-      <nav className="av-tabs" aria-label="Analytics sections">
-        {TABS.map(([id, label]) => (
-          <button key={id} type="button" className={tab === id ? "on" : ""} aria-current={tab === id ? "true" : undefined} onClick={() => setTab(id)}>{label}</button>
-        ))}
-      </nav>
+        {/* ================================================== OVERVIEW */}
+        <TabPanel value="overview" className="an-stack">
+          <KpiStrip cols={d.kpis.length}>{kpiCells}</KpiStrip>
 
-      {/* ================================================== OVERVIEW */}
-      {tab === "overview" && (
-        <>
-          <div className="ov-kpis four">
-            {d.kpis.map((k) => <KpiCard key={k.id} kpi={k} iconLeft showDelta={!gate.comparison} />)}
-          </div>
-          <div className="av-grid">
-            <div className="av-main">
-              <section className="ov-card" aria-labelledby="av-perf-h">
-                <div className="ov-card-head wrap">
-                  <h2 id="av-perf-h">Performance Over Time</h2>
-                  <div className="ov-seg" role="tablist" aria-label="Metric">
-                    {isSingleIg
-                      ? METRICS.map((m) => (
-                          <button key={m} type="button" role="tab" aria-selected={metric === m} className={metric === m ? "on" : ""} disabled={d.series[m].provenance === "unavailable"} title={d.series[m].note} onClick={() => setMetric(m)}>{d.series[m].label}</button>
-                        ))
-                      : overlayMetrics.map((m) => (
-                          <button key={m} type="button" role="tab" aria-selected={gmActive === m} className={gmActive === m ? "on" : ""} onClick={() => setGm(m)}>{GRAPH_METRIC_LABEL[m]}</button>
-                        ))}
-                  </div>
-                  <div className="av-controls">
-                    <div className="ov-seg" role="group" aria-label="Group by">
-                      {granOptions.map((g) => (
-                        <button key={g.id} type="button" className={gran === g.id ? "on" : ""} disabled={!g.enabled} title={g.enabled ? `Group by ${g.label.toLowerCase()}` : g.why} aria-pressed={gran === g.id} onClick={() => setGran(g.id)}>{g.label}</button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {d.graphAccounts.length > 1 && !gate.crossPlatform && (
-                  <div className="av-accts" role="group" aria-label="Accounts on the graph">
-                    <button type="button" className={`av-acct${acctSel.length === d.graphAccounts.length ? " on" : ""}`} onClick={() => setAcctSel(d.graphAccounts.map((a) => a.id))}>All accounts</button>
-                    {d.graphAccounts.map((a) => {
-                      const on = acctSel.includes(a.id);
-                      return (
-                        <button key={a.id} type="button" className={`av-acct${on ? " on" : ""}`} aria-pressed={on}
-                          onClick={() => setAcctSel((sel) => (sel.includes(a.id) ? (sel.length > 1 ? sel.filter((x) => x !== a.id) : sel) : [...sel, a.id]))}>
-                          <span className="av-acct-dot" style={{ background: PLATFORM_TINT[a.platform] }} />{a.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {d.graphAccounts.length > 1 && gate.crossPlatform && (
-                  <p className="av-xplat-hint"><Lock size={12} /> Overlay and compare your accounts on one graph with {PLANS[gate.crossPlatform].name}. <Link href={pricingHref(gate.crossPlatform)}>See {PLANS[gate.crossPlatform].name}</Link></p>
-                )}
-
-                {isSingleIg ? (
+          <div className="an-grid">
+            <Card>
+              <CardHeader
+                title="Performance over time"
+                period={d.rangeLabel}
+                actions={
                   <>
-                    <div className="av-perf-summary">
-                      <b>{series.total != null ? fmtNum(series.total) : "—"}</b>
-                      <span>{series.label.toLowerCase()} {metric === "followers" ? "now" : `in the ${d.rangeLabel.toLowerCase()}`}</span>
-                      {!gate.comparison && totalDelta != null && <em className={totalDelta >= 0 ? "up" : "down"}>{totalDelta >= 0 ? "↑" : "↓"} {Math.abs(totalDelta).toFixed(1)}% vs. previous period</em>}
-                      {!gate.comparison && series.prevTotal == null && series.total != null && <em className="muted">no comparable previous period yet</em>}
-                      {baseline && <em className="muted">· {baseline.label.toLowerCase()} {fmtNum(Math.round(baseline.value))}</em>}
-                      <span className="av-perf-ctl">
-                        {!gate.comparison && <button type="button" className={`ov-toggle${compare ? " on" : ""}`} aria-pressed={compare} onClick={() => setCompare((v) => !v)}>vs. previous</button>}
-                        {outliers.size > 0 && <button type="button" className={`ov-toggle${fitOn ? " on" : ""}`} aria-pressed={fitOn} title="Scale the axis to your typical range; breakout bars stay visible with their value" onClick={() => setFit(!fitOn)}>Fit typical range</button>}
-                      </span>
-                    </div>
-                    <OverviewChart series={series} granularity={gran} showPrevious={compare && !gate.comparison} height={260} fitScale={fitOn} baseline={baseline} postById={postById} today={d.today} onPick={(b, o) => setPoint({ b, outlier: o })} />
-                    <p className="ov-source">{series.note}{outliers.size > 0 ? ` ${outliers.size} breakout ${gran}${outliers.size === 1 ? "" : "s"} marked; click a bar to see what drove it.` : " Click a bar to inspect it."}</p>
+                    {sources}
+                    <Button size="sm" onClick={() => ask()}>
+                      <Sparkles aria-hidden /> Ask SOCIA
+                    </Button>
                   </>
-                ) : (
-                  <>
-                    <MultiLineChart lines={overlayLines} granularity={gran} height={260} unit={GRAPH_METRIC_LABEL[gmActive].toLowerCase()} today={d.today} />
-                    <p className="ov-source">
-                      {overlayLines.length ? `${GRAPH_METRIC_LABEL[gmActive]} across ${overlayLines.length} account${overlayLines.length === 1 ? "" : "s"}, ${d.rangeLabel.toLowerCase()}.` : "None of the selected accounts report this metric as a daily series."}
-                      {overlayImpure ? " Publish-date lines show each post's totals on the day it was posted, not a daily account series; YouTube shows true daily values." : ""}
-                      {missingAccts.length ? ` ${missingAccts.map((a) => a.label).join(", ")}: no daily ${GRAPH_METRIC_LABEL[gmActive].toLowerCase()} series.` : ""}
-                    </p>
-                  </>
-                )}
-              </section>
-            </div>
-            <aside className="av-side">
-              <section className="ov-card" aria-labelledby="av-ins-h">
-                <div className="ov-card-head">
-                  <h2 id="av-ins-h"><span className="ov-h-ico primary"><Lightbulb size={14} /></span> Key Insights</h2>
-                  <button type="button" className="ov-link" onClick={() => askSocia({ context: { page: "analytics", range: String(d.rangeDays), metric }, question: "What am I missing?" })}>Ask</button>
-                </div>
-                {gate.deeperInsights ? (
-                  <>
-                    {insights.length > 0 && <InsightList insights={insights.slice(0, 1)} posts={d.posts} compact onTab={jumpTab} />}
-                    <Locked
-                      plan={gate.deeperInsights}
-                      title="What's working, and what to do next"
-                      blurb={insights.length > 1
-                        ? `SOCIA found ${insights.length - 1} more ${insights.length - 1 === 1 ? "insight" : "insights"} in your data. See every one, plus What Changed and What To Do Next.`
-                        : "See What's Working, What Changed and What To Do Next, drawn from your own performance."}
-                      from="analytics_insights"
-                    />
-                  </>
-                ) : isSingleIg ? (
-                  <InsightList insights={insights.slice(0, 5)} posts={d.posts} compact onTab={jumpTab} />
-                ) : graphInsights.length ? (
-                  <ul className="av-ginsights">
-                    {graphInsights.map((g, i) => <li key={i} className={`av-gins ${g.tone}`}>{g.text}</li>)}
-                  </ul>
-                ) : (
-                  <p className="ov-source">Select accounts to see cross-account insights.</p>
-                )}
-              </section>
-            </aside>
-          </div>
+                }
+              />
 
-          {d.changes && d.changes.length > 0 && (
-            <section className="ov-card av-changed" aria-labelledby="av-wc-h">
-              <div className="ov-card-head">
-                <h2 id="av-wc-h">What changed</h2>
-                <span className="ov-card-sub">{d.rangeLabel} against the {d.rangeDays} days before.</span>
+              <div className="an-controls">
+                <SegmentedControl
+                  label="Group by"
+                  className="s-seg--sm"
+                  value={gran}
+                  onChange={setGran}
+                  options={granOptions.map((g) => ({ value: g.id, label: g.label, disabled: !g.enabled }))}
+                />
+                {!isSingleIg && overlayMetrics.length > 0 && (
+                  <SegmentedControl label="Metric" className="s-seg--sm" value={gmActive} onChange={setGm} options={overlayMetrics.map((m) => ({ value: m, label: GRAPH_METRIC_LABEL[m] }))} />
+                )}
               </div>
-              {gate.comparison ? (
-                <Locked plan={gate.comparison} title="Previous-period comparisons" blurb="See how views, reach, interactions, followers and posting moved against the period before." from="analytics_what_changed" />
-              ) : (
-                <WhatChanged items={d.changes} />
+
+              {d.graphAccounts.length > 1 && !gate.crossPlatform && (
+                <div className="an-accts" role="group" aria-label="Accounts on the graph">
+                  <button type="button" className="an-acct" aria-pressed={acctSel.length === d.graphAccounts.length} onClick={() => setAcctSel(d.graphAccounts.map((a) => a.id))}>
+                    All accounts
+                  </button>
+                  {d.graphAccounts.map((a) => {
+                    const on = acctSel.includes(a.id);
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className="an-acct"
+                        aria-pressed={on}
+                        onClick={() => setAcctSel((sel) => (sel.includes(a.id) ? (sel.length > 1 ? sel.filter((x) => x !== a.id) : sel) : [...sel, a.id]))}
+                      >
+                        <PlatformMark platform={a.platform} brand size="sm" />
+                        {a.label}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-              {d.nextStep && !gate.deeperInsights && <p className="av-next"><b>Do this next:</b> {d.nextStep}</p>}
-            </section>
+
+              {d.graphAccounts.length > 1 && gate.crossPlatform && (
+                <p className="an-controls s-hint">
+                  Overlay and compare your accounts on one graph with {PLANS[gate.crossPlatform].name}.{" "}
+                  <Link href={pricingHref(gate.crossPlatform)} className="s-link">
+                    See {PLANS[gate.crossPlatform].name}
+                  </Link>
+                </p>
+              )}
+
+              {isSingleIg ? (
+                <>
+                  <div className={series.total == null ? "an-stat is-na" : "an-stat"}>
+                    <b>{series.total != null ? fmtNum(series.total) : DASH}</b>
+                    <span>
+                      {series.label.toLowerCase()} {metric === "followers" ? "now" : `in the ${d.rangeLabel.toLowerCase()}`}
+                    </span>
+                    {!gate.comparison && totalDelta != null && (
+                      <em className={totalDelta >= 0 ? "is-good" : "is-bad"}>
+                        {totalDelta >= 0 ? "↑" : "↓"} {Math.abs(totalDelta).toFixed(1)}% vs. previous period
+                      </em>
+                    )}
+                    {!gate.comparison && series.prevTotal == null && series.total != null && <em>no comparable previous period yet</em>}
+                    {baseline && (
+                      <em>
+                        {baseline.label.toLowerCase()} {fmtNum(Math.round(baseline.value))}
+                      </em>
+                    )}
+                    <span className="an-stat-end">
+                      {!gate.comparison && (
+                        <button type="button" className="an-acct" aria-pressed={compare} onClick={() => setCompare((v) => !v)}>
+                          vs. previous
+                        </button>
+                      )}
+                      {outliers.size > 0 && (
+                        <button type="button" className="an-acct" aria-pressed={fitOn} aria-describedby="av-fit-why" onClick={() => setFit(!fitOn)}>
+                          Fit typical range
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  <OverviewChart series={series} granularity={gran} showPrevious={compare && !gate.comparison} height={260} fitScale={fitOn} baseline={baseline} postById={postById} today={d.today} onPick={(b, o) => setPoint({ b, outlier: o })} />
+                  <CardSource>
+                    {series.note}
+                    {outliers.size > 0 ? ` ${outliers.size} breakout ${gran}${outliers.size === 1 ? "" : "s"} marked; click a bar to see what drove it.` : " Click a bar to inspect it."}
+                    {outliers.size > 0 && <span id="av-fit-why"> Fit typical range scales the axis to your typical range; breakout bars stay visible with their value.</span>}
+                  </CardSource>
+                </>
+              ) : (
+                <>
+                  <MultiLineChart lines={overlayLines} granularity={gran} height={260} unit={GRAPH_METRIC_LABEL[gmActive].toLowerCase()} today={d.today} />
+                  <CardSource>
+                    {overlayLines.length ? `${GRAPH_METRIC_LABEL[gmActive]} across ${overlayLines.length} account${overlayLines.length === 1 ? "" : "s"}, ${d.rangeLabel.toLowerCase()}.` : "None of the selected accounts report this metric as a daily series."}
+                    {overlayImpure ? " Publish-date lines show each post's totals on the day it was posted, not a daily account series; YouTube shows true daily values." : ""}
+                    {missingAccts.length ? ` ${missingAccts.map((a) => a.label).join(", ")}: no daily ${GRAPH_METRIC_LABEL[gmActive].toLowerCase()} series.` : ""}
+                  </CardSource>
+                </>
+              )}
+            </Card>
+
+            <Card>
+              <CardHeader
+                title="Key insights"
+                actions={
+                  <button type="button" className="s-link" onClick={() => ask("What am I missing?")}>
+                    Ask
+                  </button>
+                }
+              />
+              {gate.deeperInsights ? (
+                <div className="an-col">
+                  {insights.length > 0 && <InsightList insights={insights.slice(0, 1)} posts={d.posts} compact onTab={jumpTab} />}
+                  <Locked
+                    plan={gate.deeperInsights}
+                    title="What's working, and what to do next"
+                    blurb={insights.length > 1
+                      ? `SOCIA found ${insights.length - 1} more ${insights.length - 1 === 1 ? "insight" : "insights"} in your data. See every one, plus What Changed and What To Do Next.`
+                      : "See What's Working, What Changed and What To Do Next, drawn from your own performance."}
+                    from="analytics_insights"
+                  />
+                </div>
+              ) : isSingleIg ? (
+                <InsightList insights={insights.slice(0, 5)} posts={d.posts} compact onTab={jumpTab} />
+              ) : graphInsights.length ? (
+                <ul className="an-list">
+                  {graphInsights.map((g, i) => (
+                    <li key={i} className={g.tone === "up" ? "is-good" : undefined}>
+                      {g.tone === "up" ? <TrendingUp aria-hidden /> : g.tone === "muted" ? <Minus aria-hidden /> : <Info aria-hidden />}
+                      <span className="an-row-body">{g.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>Select accounts to see cross-account insights.</Empty>
+              )}
+            </Card>
+          </div>
+
+          {d.changes && d.changes.length > 0 ? (
+            <div className="an-grid">
+              {whatsMissing}
+              <Card>
+                <CardHeader title="What changed" period={`${d.rangeLabel} vs. the ${d.rangeDays} days before`} />
+                {gate.comparison ? (
+                  <Locked plan={gate.comparison} title="Previous-period comparisons" blurb="See how views, reach, interactions, followers and posting moved against the period before." from="analytics_what_changed" />
+                ) : (
+                  <WhatChanged items={d.changes} />
+                )}
+                {d.nextStep && !gate.deeperInsights && (
+                  <p className="an-next">
+                    <b>Do this next:</b> {d.nextStep}
+                  </p>
+                )}
+              </Card>
+            </div>
+          ) : (
+            whatsMissing
           )}
 
-          <section className="ov-card av-missing" aria-labelledby="av-gap-h">
-            <div className="ov-card-head">
-              <h2 id="av-gap-h"><span className="ov-h-ico warning"><Target size={14} /></span> What&apos;s Missing</h2>
-              <span className="ov-card-sub">The biggest gaps SOCIA found in your current strategy, ranked by evidence.</span>
-            </div>
-            <GapList gaps={gaps} onTab={jumpTab} pending={d.posts.length < 5} />
-            {lockedGaps > 0 && (
-              <div className="pn compact gap-upsell" role="status">
-                <div className="pn-body">
-                  <p>SOCIA found {lockedGaps} more {lockedGaps === 1 ? "opportunity" : "opportunities"} for this account.</p>
-                  <small>Unlock your full strategy with {PLANS[minPlanWithFeature("deeper_insights")].name}.</small>
-                </div>
-                <Link
-                  href={pricingHref("starter")}
-                  className="pn-cta"
-                  onClick={() => {
-                    fetch("/api/events", {
-                      method: "POST",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ name: "upgrade_clicked", props: { from: "analytics_gaps", locked: lockedGaps } }),
-                      keepalive: true,
-                    }).catch(() => {});
-                  }}
-                >
-                  See Starter
-                </Link>
+          <div className="an-grid">
+            <Card>
+              <CardHeader
+                title="Content performance"
+                period={d.rangeLabel}
+                actions={
+                  <button type="button" className="s-link" onClick={() => setTab("content")}>
+                    All posts
+                  </button>
+                }
+              />
+              <div className="an-controls">
+                <SegmentedControl label="Content view" className="s-seg--sm" value={contentTab} onChange={setContentTab} options={contentTabs} />
               </div>
-            )}
-          </section>
+              {contentTab === "under" && !contentPosts.length && <Empty>No post in this period fell below 70% of your median. Nothing is underperforming by your own baseline.</Empty>}
+              {contentTab === "breakout" && !contentPosts.length && <Empty>No post reached 3× your median interactions in this period.</Empty>}
+              {contentPosts.length > 0 && <ContentRow posts={contentPosts} onOpen={setOpen} size="lg" />}
+            </Card>
 
-          <div className="av-grid">
-            <div className="av-main">
-              <section className="ov-card" aria-labelledby="av-content-h">
-                <div className="ov-card-head wrap">
-                  <h2 id="av-content-h">Content Performance</h2>
-                  <div className="ov-seg" role="tablist" aria-label="Content view">
-                    {contentTabs.map(([id, label]) => (
-                      <button key={id} type="button" role="tab" aria-selected={contentTab === id} className={contentTab === id ? "on" : ""} onClick={() => setContentTab(id)}>{label}</button>
-                    ))}
-                  </div>
-                  <button type="button" className="ov-link" onClick={() => setTab("content")}>All posts <ArrowRight size={13} /></button>
-                </div>
-                {contentTab === "under" && !contentPosts.length && <div className="ov-empty small">No post in this period fell below 70% of your median. Nothing is underperforming by your own baseline.</div>}
-                {contentTab === "breakout" && !contentPosts.length && <div className="ov-empty small">No post reached 3× your median interactions in this period.</div>}
-                {contentPosts.length > 0 && <ContentRow posts={contentPosts} onOpen={setOpen} size="lg" />}
-              </section>
-            </div>
-            <aside className="av-side">
-              <section className="ov-card" aria-labelledby="av-growth-h">
-                <div className="ov-card-head">
-                  <h2 id="av-growth-h">Audience Growth</h2>
-                  <button type="button" className="ov-link" onClick={() => setTab("audience")}>View details</button>
-                </div>
-                <div className="av-growth-num">
-                  <b>{d.followers != null ? d.followers.toLocaleString("en-US") : "—"}</b>
+            <div className="an-col">
+              <Card>
+                <CardHeader
+                  title="Audience growth"
+                  actions={
+                    <button type="button" className="s-link" onClick={() => setTab("audience")}>
+                      View details
+                    </button>
+                  }
+                />
+                <div className={d.followers == null ? "an-stat is-na" : "an-stat"}>
+                  <b>{d.followers != null ? d.followers.toLocaleString("en-US") : DASH}</b>
                   <span>Followers</span>
-                  {fSummary.net != null && <em className={fSummary.net >= 0 ? "up" : "down"}>{fSummary.net >= 0 ? "+" : "−"}{Math.abs(fSummary.net).toLocaleString("en-US")} <small>{d.rangeLabel.toLowerCase()}</small></em>}
+                  {fSummary.net != null && (
+                    <em className={fSummary.net >= 0 ? "is-good" : "is-bad"}>
+                      {signed(fSummary.net)} {d.rangeLabel.toLowerCase()}
+                    </em>
+                  )}
                 </div>
                 <FollowerChart points={fPoints} granularity="day" height={110} today={d.today} compact />
-                <p className="ov-source">{fSummary.statusLine}</p>
-              </section>
-              <section className="ov-card" aria-labelledby="av-times-h">
-                <div className="ov-card-head">
-                  <h2 id="av-times-h">Best Times to Post</h2>
-                  {!gate.postingTimes && <button type="button" className="ov-link" onClick={() => setTab("times")}>Full heatmap</button>}
-                </div>
+                <CardSource>{fSummary.statusLine}</CardSource>
+              </Card>
+              <Card>
+                <CardHeader
+                  title="Best times to post"
+                  actions={
+                    !gate.postingTimes && (
+                      <button type="button" className="s-link" onClick={() => setTab("times")}>
+                        Full heatmap
+                      </button>
+                    )
+                  }
+                />
                 {gate.postingTimes ? (
                   <Locked plan={gate.postingTimes} title="Know when to post" blurb="See the weekday-and-hour windows where your own posts have performed best, with the sample size behind every claim." from="analytics_besttimes" />
                 ) : (
-                  <Mounted fallback={<div className="ov-empty small">Computing in your time zone…</div>}>
+                  <Mounted fallback={<p className="an-note">Computing in your time zone…</p>}>
                     <BestTimes posts={d.timed} />
                   </Mounted>
                 )}
-              </section>
-            </aside>
-          </div>
-        </>
-      )}
-
-      {/* ================================================== CONTENT */}
-      {tab === "content" && (
-        <>
-          <section className="ov-card" aria-labelledby="ct-h">
-            <div className="ov-card-head wrap">
-              <h2 id="ct-h">Content Performance</h2>
-              <div className="ov-seg" role="tablist" aria-label="Content view">
-                {contentTabs.map(([id, label]) => (
-                  <button key={id} type="button" role="tab" aria-selected={contentTab === id} className={contentTab === id ? "on" : ""} onClick={() => setContentTab(id)}>{label}</button>
-                ))}
-              </div>
-              <span className="ov-range-label">{d.baseline != null ? `Median post ${Math.round(d.baseline).toLocaleString("en-US")} interactions · last ${d.posts.length} synced posts` : "No baseline yet"}</span>
+              </Card>
             </div>
-            {contentTab === "under" && !contentPosts.length && <div className="ov-empty small">No post fell below 70% of your median interactions.</div>}
-            {contentTab === "breakout" && !contentPosts.length && <div className="ov-empty small">No post reached 3× your median interactions.</div>}
+          </div>
+        </TabPanel>
+
+        {/* ================================================== CONTENT */}
+        <TabPanel value="content" className="an-stack">
+          <Card>
+            <CardHeader
+              title="Content performance"
+              period={d.baseline != null ? `Median post ${Math.round(d.baseline).toLocaleString("en-US")} interactions · last ${d.posts.length} synced posts` : "No baseline yet"}
+            />
+            <div className="an-controls">
+              <SegmentedControl label="Content view" className="s-seg--sm" value={contentTab} onChange={setContentTab} options={contentTabs} />
+            </div>
+            {contentTab === "under" && !contentPosts.length && <Empty>No post fell below 70% of your median interactions.</Empty>}
+            {contentTab === "breakout" && !contentPosts.length && <Empty>No post reached 3× your median interactions.</Empty>}
             {contentPosts.length > 0 && <ContentRow posts={contentPosts} onOpen={setOpen} size="lg" />}
-            <p className="ov-source">Top Content and By Format rank by views. Underperforming and Breakouts compare each post&apos;s interactions (likes + comments + saves + shares) with your median post: below 70% and at least 3×.</p>
-          </section>
-          <div className="av-two">
-            <section className="ov-card" aria-labelledby="ct-break-h">
-              <div className="ov-card-head">
-                <h2 id="ct-break-h">Content Breakdown</h2>
-                <span className="ov-range-label">{d.breakdown.metric === "views" ? "Views" : "Interactions"} by format · {d.rangeLabel}</span>
-              </div>
-              {d.breakdown.slices.length ? <Donut slices={d.breakdown.slices} total={d.breakdown.total} centerLabel={d.breakdown.metric === "views" ? "Total Views" : "Interactions"} size={150} /> : <div className="ov-empty small">No posts in this period.</div>}
-            </section>
-            <section className="ov-card" aria-labelledby="ct-fmt-h">
-              <div className="ov-card-head">
-                <h2 id="ct-fmt-h">Formats compared</h2>
-                <span className="ov-range-label">medians · all synced posts</span>
-              </div>
-              <div className="dsh-tablescroll">
-                <table className="dsh-table av-fmt">
-                  <thead><tr><th>Format</th><th className="num">Posts</th><th className="num">Median views</th><th className="num">Median interactions</th><th className="num">Median rate</th><th className="num">Median saves</th></tr></thead>
+            <CardSource>Top content and By format rank by views. Underperforming and Breakouts compare each post&apos;s interactions (likes + comments + saves + shares) with your median post: below 70% and at least 3×.</CardSource>
+          </Card>
+          <div className="an-two">
+            <Card>
+              <CardHeader title="Content breakdown" period={`${d.breakdown.metric === "views" ? "Views" : "Interactions"} by format · ${d.rangeLabel}`} />
+              {d.breakdown.slices.length ? (
+                <Donut slices={d.breakdown.slices} total={d.breakdown.total} centerLabel={d.breakdown.metric === "views" ? "Total Views" : "Interactions"} size={150} />
+              ) : (
+                <Empty>No posts in this period.</Empty>
+              )}
+            </Card>
+            <Card>
+              <CardHeader title="Formats compared" period="Medians · all synced posts" />
+              <TableWrap>
+                <table className="s-table s-table--stack">
+                  <thead>
+                    <tr>
+                      <th>Format</th>
+                      <th className="num">Posts</th>
+                      <th className="num">Median views</th>
+                      <th className="num">Median interactions</th>
+                      <th className="num">Median rate</th>
+                      <th className="num">Median saves</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {byFormat.map((r) => (
                       <tr key={r.format}>
-                        <td>{r.format}s{r.n < 3 ? <small className="av-fmt-note"> · too few to compare</small> : null}</td>
-                        <td className="num">{r.n}</td>
-                        <td className="num">{r.views != null ? fmtNum(Math.round(r.views)) : "—"}</td>
-                        <td className="num">{r.inter != null ? fmtNum(Math.round(r.inter)) : "—"}</td>
-                        <td className="num">{r.rate != null ? `${r.rate.toFixed(1)}%` : "—"}</td>
-                        <td className="num">{r.saves != null ? fmtNum(Math.round(r.saves)) : "—"}</td>
+                        <td className="id">
+                          {r.format}s{r.n < 3 ? <span className="sub">Too few to compare</span> : null}
+                        </td>
+                        <td className="num key" data-label="Posts">{r.n}</td>
+                        <td className="num" data-label="Median views">{r.views != null ? fmtNum(Math.round(r.views)) : <Unavailable reason="Instagram did not return views for these posts" compact />}</td>
+                        <td className="num" data-label="Median interactions">{r.inter != null ? fmtNum(Math.round(r.inter)) : <Unavailable reason="No interactions recorded for these posts" compact />}</td>
+                        <td className="num" data-label="Median rate">{r.rate != null ? `${r.rate.toFixed(1)}%` : <Unavailable reason="Instagram did not return reach for these posts" compact />}</td>
+                        <td className="num" data-label="Median saves">{r.saves != null ? fmtNum(Math.round(r.saves)) : <Unavailable reason="Instagram did not return saves for these posts" compact />}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <p className="ov-source">Rate = interactions ÷ accounts reached per post. A format needs 3 posts before SOCIA compares it.</p>
-            </section>
+              </TableWrap>
+              <CardSource>Rate = interactions ÷ accounts reached per post. A format needs 3 posts before SOCIA compares it. A dash means Instagram did not return that number, not zero.</CardSource>
+            </Card>
           </div>
-          <section className="ov-card" id="posts" aria-labelledby="ct-all-h">
-            <div className="ov-card-head">
-              <h2 id="ct-all-h">All posts</h2>
-              <span className="ov-range-label">{d.library.length} synced · values exactly as Instagram returned them</span>
-            </div>
+          <Card id="posts">
+            <CardHeader title="All posts" period={`${d.library.length} synced · values exactly as Instagram returned them`} />
             <ContentLibrary posts={d.library} embedded />
-          </section>
-        </>
-      )}
+          </Card>
+        </TabPanel>
 
-      {/* ================================================== AUDIENCE */}
-      {tab === "audience" && (
-        <>
-          <section className="ov-card" aria-labelledby="au-h">
-            <div className="ov-card-head wrap">
-              <h2 id="au-h">Follower history</h2>
-              <div className="ov-seg" role="group" aria-label="Group by">
-                {FG.map((g) => <button key={g.id} type="button" className={fgran === g.id ? "on" : ""} aria-pressed={fgran === g.id} onClick={() => setFgran(g.id)}>{g.label}</button>)}
+        {/* ================================================== AUDIENCE */}
+        <TabPanel value="audience" className="an-stack">
+          <Card>
+            <CardHeader
+              title="Follower history"
+              period={d.rangeLabel}
+              actions={<SegmentedControl label="Group by" className="s-seg--sm" value={fgran} onChange={setFgran} options={FG} />}
+            />
+            <dl className="an-stats is-lead">
+              <div>
+                <dt>Followers now</dt>
+                <dd className={d.followers == null ? "is-na" : undefined}>{d.followers != null ? d.followers.toLocaleString("en-US") : DASH}</dd>
               </div>
-              <span className="ov-range-label">{d.rangeLabel}</span>
-            </div>
-            <div className="au-stats">
-              <div><small>Followers now</small><b>{d.followers != null ? d.followers.toLocaleString("en-US") : "—"}</b></div>
-              <div><small>Net change</small><b className={fSummary.net == null ? "" : fSummary.net >= 0 ? "up" : "down"}>{fSummary.net == null ? "—" : `${fSummary.net >= 0 ? "+" : "−"}${Math.abs(fSummary.net).toLocaleString("en-US")}`}</b></div>
-              <div><small>Growth rate</small><b className={fSummary.growthPct == null ? "" : fSummary.growthPct >= 0 ? "up" : "down"}>{fSummary.growthPct == null ? "—" : `${fSummary.growthPct >= 0 ? "+" : "−"}${Math.abs(fSummary.growthPct).toFixed(2)}%`}</b></div>
-              <div><small>Average daily change</small><b>{fSummary.avgDailyNet == null ? "—" : `${fSummary.avgDailyNet >= 0 ? "+" : "−"}${Math.abs(fSummary.avgDailyNet).toFixed(1)}/day`}</b></div>
-              <div><small>History</small><b>{fSummary.daysCollected} day{fSummary.daysCollected === 1 ? "" : "s"}</b></div>
-            </div>
+              <div>
+                <dt>Net change</dt>
+                <dd className={fSummary.net == null ? "is-na" : fSummary.net >= 0 ? "is-good" : "is-bad"}>{fSummary.net == null ? DASH : signed(fSummary.net)}</dd>
+              </div>
+              <div>
+                <dt>Growth rate</dt>
+                <dd className={fSummary.growthPct == null ? "is-na" : fSummary.growthPct >= 0 ? "is-good" : "is-bad"}>{fSummary.growthPct == null ? DASH : `${signed(fSummary.growthPct, 2)}%`}</dd>
+              </div>
+              <div>
+                <dt>Average daily change</dt>
+                <dd className={fSummary.avgDailyNet == null ? "is-na" : undefined}>{fSummary.avgDailyNet == null ? DASH : `${signed(fSummary.avgDailyNet, 1)}/day`}</dd>
+              </div>
+              <div>
+                <dt>History</dt>
+                <dd>
+                  {fSummary.daysCollected} day{fSummary.daysCollected === 1 ? "" : "s"}
+                </dd>
+              </div>
+            </dl>
             <FollowerChart points={fPoints} granularity={fgran} height={220} today={d.today} />
-            <div className="au-note">
-              <b>{fSummary.statusLine}</b>
-              <p>{fSummary.detailLine}{d.followerPoints[0] ? ` Tracking started ${fmtDay(d.followerPoints[0].day)}.` : ""}</p>
-            </div>
-          </section>
-          <div className="av-two">
-            <section className="ov-card" aria-labelledby="au-gain-h">
-              <div className="ov-card-head">
-                <h2 id="au-gain-h">New followers per day</h2>
-                <span className="ov-range-label">Instagram · {d.rangeLabel}</span>
-              </div>
+            <CardSource>
+              {fSummary.statusLine} {fSummary.detailLine}
+              {d.followerPoints[0] ? ` Tracking started ${fmtDay(d.followerPoints[0].day)}.` : ""}
+            </CardSource>
+          </Card>
+          <div className="an-two">
+            <Card>
+              <CardHeader title="New followers per day" period={`Instagram · ${d.rangeLabel}`} />
               <OverviewChart series={gainsSeries} granularity={d.rangeDays > 31 ? "week" : "day"} showPrevious={false} height={180} compact today={d.today} />
-              <p className="ov-source">{gainsSeries.note}</p>
-            </section>
-            <section className="ov-card" aria-labelledby="au-demo-h">
-              <div className="ov-card-head">
-                <h2 id="au-demo-h">Audience Demographics</h2>
-                <span className="ov-range-label">Instagram · current followers</span>
-              </div>
+              <CardSource>{gainsSeries.note}</CardSource>
+            </Card>
+            <Card>
+              <CardHeader title="Audience demographics" period="Instagram · current followers" />
               <AudienceBars demo={d.demo} />
-            </section>
+            </Card>
           </div>
-        </>
-      )}
+        </TabPanel>
 
-      {/* ================================================== POSTING TIMES */}
-      {tab === "times" && (
-        <section className="ov-card" aria-labelledby="pt-h">
-          <div className="ov-card-head">
-            <h2 id="pt-h">Posting Times</h2>
-            <span className="ov-card-sub">When your own posts have performed best, with the sample behind every claim.</span>
-          </div>
-          {gate.postingTimes ? (
-            <Locked plan={gate.postingTimes} title="Posting-time analysis" blurb="A full weekday-by-hour heatmap of your own performance, and the best window per format, each backed by its real sample size." from="analytics_times_tab" />
+        {/* ================================================== POSTING TIMES */}
+        <TabPanel value="times" className="an-stack">
+          <Card>
+            <CardHeader title="Posting times" />
+            {gate.postingTimes ? (
+              <Locked plan={gate.postingTimes} title="Posting-time analysis" blurb="A full weekday-by-hour heatmap of your own performance, and the best window per format, each backed by its real sample size." from="analytics_times_tab" />
+            ) : (
+              <Mounted fallback={<Skeleton variant="block" />}>
+                <PostingHeatmap posts={d.timed} formats={d.formats} />
+              </Mounted>
+            )}
+            <CardSource>When your own posts have performed best, with the sample behind every claim. Times are in your time zone.</CardSource>
+          </Card>
+        </TabPanel>
+
+        {/* ================================================== GROWTH */}
+        <TabPanel value="growth" className="an-stack">
+          {gate.growth ? (
+            <Card>
+              <CardHeader title="Growth" />
+              <Locked plan={gate.growth} title="Growth analysis" blurb="Trend cards for followers, reach, views and engagement, your strong and weak weeks against your typical week, and milestones as they happen." from="analytics_growth_tab" />
+              <CardSource>How your reach, views, followers and engagement are trending.</CardSource>
+            </Card>
           ) : (
-            <Mounted fallback={<div className="ov-empty small">Computing in your time zone…</div>}>
-              <PostingHeatmap posts={d.timed} formats={d.formats} />
-            </Mounted>
-          )}
-        </section>
-      )}
-
-      {/* ================================================== GROWTH */}
-      {tab === "growth" && gate.growth && (
-        <section className="ov-card" aria-labelledby="gr-lock-h">
-          <div className="ov-card-head"><h2 id="gr-lock-h">Growth</h2><span className="ov-card-sub">How your reach, views, followers and engagement are trending.</span></div>
-          <Locked plan={gate.growth} title="Growth analysis" blurb="Trend cards for followers, reach, views and engagement, your strong and weak weeks against your typical week, and milestones as they happen." from="analytics_growth_tab" />
-        </section>
-      )}
-      {tab === "growth" && !gate.growth && (
-        <>
-          <div className="gr-grid">
-            {(["followers", "reach", "views", "engagement"] as MetricId[]).map((m) => {
-              const s = d.series[m];
-              const delta = s.total != null && s.prevTotal != null && s.prevTotal > 0 ? ((s.total - s.prevTotal) / s.prevTotal) * 100 : null;
-              return (
-                <section key={m} className="ov-card gr-card" aria-label={`${s.label} trend`}>
-                  <div className="ov-card-head">
-                    <h2>{s.label} trend</h2>
-                    {delta != null && <em className={`gr-delta ${delta >= 0 ? "up" : "down"}`}>{delta >= 0 ? "↑" : "↓"} {Math.abs(delta).toFixed(1)}%</em>}
-                  </div>
-                  <div className="av-growth-num"><b>{s.total != null ? fmtNum(s.total) : "—"}</b><span>{m === "followers" ? "now" : d.rangeLabel.toLowerCase()}</span></div>
-                  {m === "followers" ? (
-                    <FollowerChart points={fPoints} granularity={d.rangeDays > 60 ? "week" : "day"} height={150} today={d.today} compact />
-                  ) : (
-                    <OverviewChart series={s} granularity={d.rangeDays > 31 ? "week" : "day"} showPrevious={false} height={150} compact baseline={seriesBaseline(s, d.posts.map((p) => (m === "views" ? p.views : m === "engagement" ? p.engagements : null)).filter((v): v is number => v != null))} postById={postById} today={d.today} onPick={(b, o) => { setMetric(m); setPoint({ b, outlier: o }); }} />
-                  )}
-                  <p className="ov-source">{s.note}</p>
-                </section>
-              );
-            })}
-          </div>
-          <div className="av-two">
-            <section className="ov-card" aria-labelledby="gr-eng-h">
-              <div className="ov-card-head">
-                <h2 id="gr-eng-h">Engagement</h2>
-                <span className="ov-range-label">{d.rangeLabel}</span>
-              </div>
-              <EngagementCard rate={d.engagement.rate} breakdown={d.engagement.breakdown} quality={d.engagement.quality} rangeLabel={d.rangeLabel} />
-            </section>
-            <div className="av-side">
-              <section className="ov-card" aria-labelledby="gr-per-h">
-                <div className="ov-card-head">
-                  <h2 id="gr-per-h">Growth and decline periods</h2>
-                  <span className="ov-range-label">{periods.label} · weekly</span>
-                </div>
-                {periods.median == null ? (
-                  <div className="ov-empty small">Needs at least four complete weeks in the range to compare weeks with your typical week.</div>
+            <>
+              <KpiStrip cols={GROWTH_METRICS.length}>
+                {GROWTH_METRICS.map((m) => {
+                  const s = d.series[m];
+                  const delta = s.total != null && s.prevTotal != null && s.prevTotal > 0 ? ((s.total - s.prevTotal) / s.prevTotal) * 100 : null;
+                  return (
+                    <KpiCell
+                      key={m}
+                      label={`${s.label} trend`}
+                      value={s.total != null ? fmtNum(s.total) : null}
+                      reason={s.provenance === "unavailable" ? s.note : "No data in this range yet"}
+                      delta={delta != null ? { text: `${delta >= 0 ? "↑" : "↓"} ${Math.abs(delta).toFixed(1)}%`, tone: delta >= 0 ? "good" : "bad", window: "vs. previous period" } : undefined}
+                      note={s.total != null ? (m === "followers" ? "now" : d.rangeLabel.toLowerCase()) : undefined}
+                      selected={growthMetric === m}
+                      onSelect={() => setGrowthMetric(m)}
+                    />
+                  );
+                })}
+              </KpiStrip>
+              <Card>
+                <CardHeader title={`${growthSeries.label} trend`} period={growthMetric === "followers" ? "Now" : d.rangeLabel} />
+                {growthMetric === "followers" ? (
+                  <FollowerChart points={fPoints} granularity={d.rangeDays > 60 ? "week" : "day"} height={220} today={d.today} compact />
                 ) : (
-                  <ul className="gr-periods">
-                    {periods.growth.map((b) => <li key={`g${b.key}`} className="up"><i /><span>{bucketTitle(b, "week")}</span><b>{fmtNum(b.value)}</b><small>{(b.value! / periods.median!).toFixed(1)}× typical week</small></li>)}
-                    {periods.decline.map((b) => <li key={`d${b.key}`} className="down"><i /><span>{bucketTitle(b, "week")}</span><b>{fmtNum(b.value)}</b><small>{Math.round((b.value! / periods.median!) * 100)}% of typical week</small></li>)}
-                    {!periods.growth.length && !periods.decline.length && <li className="flat"><span>No week ran far above or below your typical week ({fmtNum(Math.round(periods.median))} {periods.label.toLowerCase()}).</span></li>}
-                  </ul>
+                  <OverviewChart
+                    series={growthSeries}
+                    granularity={d.rangeDays > 31 ? "week" : "day"}
+                    showPrevious={false}
+                    height={220}
+                    compact
+                    baseline={seriesBaseline(growthSeries, d.posts.map((p) => (growthMetric === "views" ? p.views : growthMetric === "engagement" ? p.engagements : null)).filter((v): v is number => v != null))}
+                    postById={postById}
+                    today={d.today}
+                    onPick={(b, o) => { setMetric(growthMetric); setPoint({ b, outlier: o }); }}
+                  />
                 )}
-              </section>
-              <section className="ov-card" aria-labelledby="gr-mil-h">
-                <div className="ov-card-head"><h2 id="gr-mil-h">Milestones</h2></div>
-                {milestones.length ? (
-                  <ul className="gr-milestones">
-                    {milestones.map((m, i) => <li key={i}><time>{fmtDay(m.day)}</time><span>{m.text}</span></li>)}
-                  </ul>
-                ) : <div className="ov-empty small">Milestones appear as SOCIA records follower history and breakout posts.</div>}
-              </section>
-            </div>
-          </div>
-        </>
-      )}
+                <CardSource>{growthSeries.note}</CardSource>
+              </Card>
+              <div className="an-two">
+                <Card>
+                  <CardHeader title="Engagement" period={d.rangeLabel} />
+                  <EngagementCard rate={d.engagement.rate} breakdown={d.engagement.breakdown} quality={d.engagement.quality} rangeLabel={d.rangeLabel} />
+                </Card>
+                <div className="an-col">
+                  <Card>
+                    <CardHeader title="Growth and decline periods" period={`${periods.label} · weekly`} />
+                    {periods.median == null ? (
+                      <Empty>Needs at least four complete weeks in the range to compare weeks with your typical week.</Empty>
+                    ) : (
+                      <ul className="an-list an-periods">
+                        {periods.growth.map((b) => (
+                          <li key={`g${b.key}`} className="is-good">
+                            <span>{bucketTitle(b, "week")}</span>
+                            <b>{fmtNum(b.value)}</b>
+                            <small>{(b.value! / periods.median!).toFixed(1)}× typical week</small>
+                          </li>
+                        ))}
+                        {periods.decline.map((b) => (
+                          <li key={`d${b.key}`} className="is-bad">
+                            <span>{bucketTitle(b, "week")}</span>
+                            <b>{fmtNum(b.value)}</b>
+                            <small>{Math.round((b.value! / periods.median!) * 100)}% of typical week</small>
+                          </li>
+                        ))}
+                        {!periods.growth.length && !periods.decline.length && (
+                          <li>
+                            <span>
+                              No week ran far above or below your typical week ({fmtNum(Math.round(periods.median))} {periods.label.toLowerCase()}).
+                            </span>
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </Card>
+                  <Card>
+                    <CardHeader title="Milestones" />
+                    {milestones.length ? (
+                      <ul className="an-list an-milestones">
+                        {milestones.map((m, i) => (
+                          <li key={i}>
+                            <time dateTime={m.day}>{fmtDay(m.day)}</time>
+                            <span>{m.text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <Empty>Milestones appear as SOCIA records follower history and breakout posts.</Empty>
+                    )}
+                  </Card>
+                </div>
+              </div>
+            </>
+          )}
+        </TabPanel>
+      </Tabs>
 
       <ContentDrawer post={open} baseline={d.baseline} medianViews={d.medianViews} onClose={() => setOpen(null)} />
       <PointDrawer bucket={point?.b ?? null} isOutlier={point?.outlier ?? false} granularity={tab === "growth" ? (d.rangeDays > 31 ? "week" : "day") : gran} series={series} baseline={baseline} posts={d.posts} onClose={() => setPoint(null)} onAnalyze={(p) => { setPoint(null); setOpen(p); }} />
