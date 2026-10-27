@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Clapperboard,
   ClipboardList,
+  Film,
   FileBarChart,
   LayoutDashboard,
   LifeBuoy,
@@ -34,6 +35,7 @@ const ICONS: Record<string, LucideIcon> = {
   create: PenLine,
   calendar: CalendarDays,
   studio: Clapperboard,
+  footage: Film,
   comments: MessageSquare,
 };
 

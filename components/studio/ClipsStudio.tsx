@@ -3,47 +3,34 @@
 // Build from Clips. Flow: upload raw clips → SOCIA understands them →
 // Content Yield (which posts the footage really supports, with evidence) →
 // open a post → the edit guide. Everything heavy about a clip is measured on
-// this device; the server runs the analysis and keeps the project so it
-// survives a refresh. Plan limits are enforced by the API; this only shows them.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+// this device (components/studio/useClipUploads.ts, shared with Footage); the
+// server runs the analysis and keeps the project so it survives a refresh.
+// Plan limits are enforced by the API; this only shows them.
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Upload, Sparkles, AlertTriangle, Loader2, RefreshCw, Layers, FolderOpen } from "lucide-react";
 import PageHeader from "../PageHeader";
 import PlanNotice, { UsageLine } from "../PlanNotice";
-import { isPlanError, type PlanError } from "@/lib/planErrors";
+import { isPlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
-import { createClient } from "@/lib/supabase/client";
-import { uploadMedia } from "@/lib/supabase/uploadMedia";
-import { fingerprintFile, probeClip, ingestClip } from "@/lib/studioClips/ingest";
-import { STUDIO_BUCKET, type Opportunity, type StudioBuild, type StudioClip, type StudioProject } from "@/lib/studioClips/types";
+import type { Opportunity, StudioBuild, StudioProject } from "@/lib/studioClips/types";
 import type { ProjectSummary } from "@/lib/studioClips/server";
-import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
+import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes } from "./ClipsViews";
 import PlanPanel from "./PlanPanel";
 import LearnCard, { useStudioLearn } from "./LearnCard";
+import { useClipUploads } from "./useClipUploads";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
 // The video builder pulls in Remotion; load it only when a post is opened for building.
 const ClipBuilder = dynamic(() => import("./ClipBuilder"), { ssr: false, loading: () => <div className="ov-card st-progress"><ul><li className="on"><i />Opening the video builder</li></ul></div> });
-type Paths = { folder: string; source: string; frames: string; audio: string };
 
-const VIDEO_RE = /\.(mp4|mov|m4v|webm|mkv|avi)$/i;
-const UPLOAD_CONCURRENCY = 2;
 const POLL_MS = 2500;
-
-const errCopy = (e: unknown): string => {
-  const m = e instanceof Error ? e.message : String(e);
-  if (m === "unsupported") return "Couldn't read this file in the browser. Export it as an H.264 MP4 and add it again.";
-  if (m === "too_long") return "Longer than 10 minutes — trim it first.";
-  if (m === "too_short") return "Shorter than a second.";
-  return m.replace(/^Upload failed: /, "");
-};
 
 export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?: ReactNode }) {
   const router = useRouter();
   const params = useSearchParams();
-  const supabase = useMemo(() => createClient(), []);
   const input = useRef<HTMLInputElement>(null);
 
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -52,20 +39,22 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
   const [project, setProject] = useState<StudioProject | null>(null);
   // Learn: results of posts made from this project's ideas, for the chips on each idea.
   const learn = useStudioLearn(project?.yield ? project.id : null);
-  const [locals, setLocals] = useState<LocalClip[]>([]);
   const [adding, setAdding] = useState(false);
   const [drag, setDrag] = useState(false);
-  const [planError, setPlanError] = useState<PlanError | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [openOpp, setOpenOpp] = useState<Opportunity | null>(null);
   const [build, setBuild] = useState<StudioBuild | null>(null);
   const [buildLoading, setBuildLoading] = useState(false);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
-  const [busyIds, setBusyIds] = useState(0);
   const projectRef = useRef<StudioProject | null>(null);
   projectRef.current = project;
+
+  // Clip uploads (shared with Footage). After a batch lands or a clip is
+  // removed, the project is re-read; the callback is wired once both exist.
+  const onChangedRef = useRef<(id: string) => Promise<void>>(async () => {});
+  const uploads = useClipUploads({ onChanged: (id) => onChangedRef.current(id) });
+  const { syncLocals, setLocals, setPlanError, setNotice } = uploads;
 
   // ---------------------------------------------------------- loading ----
   const loadMeta = useCallback(async () => {
@@ -76,22 +65,7 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     if (!res.ok) { setNotice(j?.error ?? "Couldn't load your projects."); return; }
     setMeta({ limits: j.limits, usage: j.usage ?? null, transcription: Boolean(j.transcription), autoBuild: Boolean(j.features?.autoBuild) });
     setProjects(j.projects ?? []);
-  }, []);
-
-  const syncLocals = useCallback((p: StudioProject) => {
-    setLocals((cur) => {
-      const inflight = cur.filter((l) => l.phase !== "done" && l.phase !== "duplicate" && !l.clip);
-      const fromServer: LocalClip[] = p.clips.map((c) => {
-        const prev = cur.find((l) => l.clip?.id === c.id);
-        return {
-          key: c.id, name: c.name, phase: c.status === "failed" ? "error" : "done", progress: 1, stageNote: null,
-          error: c.status === "failed" ? c.error : null, thumb: c.frames[0]?.url ?? prev?.thumb ?? null, clip: c,
-          durationSec: c.durationSec, reused: c.reused,
-        };
-      });
-      return [...fromServer, ...inflight];
-    });
-  }, []);
+  }, [setNotice]);
 
   const openProject = useCallback(async (id: string, quiet = false): Promise<StudioProject | null> => {
     const res = await fetch(`/api/studio/projects/${id}`).catch(() => null);
@@ -105,7 +79,9 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     sp.set("mode", "clips"); sp.set("project", id);
     router.replace(`/studio?${sp.toString()}`, { scroll: false });
     return p;
-  }, [params, router, syncLocals]);
+  }, [params, router, syncLocals, setNotice]);
+
+  onChangedRef.current = async (id) => { await openProject(id, true); void loadMeta(); };
 
   useEffect(() => { void loadMeta(); }, [loadMeta]);
   useEffect(() => {
@@ -134,102 +110,14 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
       return null;
     }
     return openProject(j.id);
-  }, [openProject]);
-
-  const patchLocal = (key: string, patch: Partial<LocalClip>) => setLocals((cur) => cur.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-
-  type Registered = { key: string; file: File; probe: Awaited<ReturnType<typeof probeClip>>; clip: StudioClip; paths: Paths };
-
-  /** Step 1, one file at a time: identify, measure the basics, reserve the slot (plan limits are checked here). */
-  const registerFile = useCallback(async (file: File, p: StudioProject, key: string): Promise<Registered | null> => {
-    try {
-      patchLocal(key, { phase: "reading", progress: 0.1 });
-      const [fingerprint, probe] = await Promise.all([fingerprintFile(file), probeClip(file)]);
-      patchLocal(key, { phase: "registering", progress: 0.3, durationSec: probe.durationSec });
-      const reg = await fetch("/api/studio/clips", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId: p.id, fingerprint, name: file.name, mime: file.type || null, bytes: file.size, durationSec: probe.durationSec, width: probe.width, height: probe.height, recordedAt: file.lastModified ? new Date(file.lastModified).toISOString() : null, ext: file.name.split(".").pop() }),
-      });
-      const rj = await reg.json().catch(() => null);
-      if (reg.status === 409 && rj?.duplicate) { patchLocal(key, { phase: "duplicate", progress: 1 }); return null; }
-      if (!reg.ok) {
-        if (isPlanError(rj)) { setPlanError(rj); setLocals((cur) => cur.filter((l) => l.key !== key)); return null; }
-        throw new Error(rj?.error ?? "Couldn't add this clip.");
-      }
-      const clip = rj.clip as StudioClip;
-      patchLocal(key, { clip, reused: Boolean(rj.reused), phase: "analyzing", progress: 0, stageNote: "Waiting to measure" });
-      return { key, file, probe, clip, paths: rj.paths as Paths };
-    } catch (e) {
-      patchLocal(key, { phase: "error", error: errCopy(e), stageNote: null });
-      return null;
-    }
-  }, []);
-
-  /** Step 2, a couple at a time: frames, sound and facts on this device, then the uploads. */
-  const uploadFile = useCallback(async ({ key, file, probe, clip, paths }: Registered) => {
-    try {
-      patchLocal(key, { phase: "analyzing", progress: 0, stageNote: "Measuring picture and sound" });
-      const ingest = await ingestClip(file, probe, (stage, done, total) => patchLocal(key, { progress: total ? done / total : 0, stageNote: stage === "frames" ? "Finding scene changes" : "Reading the sound" }));
-      const first = ingest.frames[0];
-      if (first) patchLocal(key, { thumb: URL.createObjectURL(first.blob) });
-
-      patchLocal(key, { phase: "uploading", progress: 0, stageNote: "Uploading" });
-      await uploadMedia(supabase, STUDIO_BUCKET, paths.source, file, (sent, total) => patchLocal(key, { progress: total ? sent / total : 0 }));
-      const framePaths: { t: number; path: string }[] = [];
-      for (let i = 0; i < ingest.frames.length; i++) {
-        const path = `${paths.frames}${i}.jpg`;
-        await uploadMedia(supabase, STUDIO_BUCKET, path, new File([ingest.frames[i].blob], `${i}.jpg`, { type: "image/jpeg" }));
-        framePaths.push({ t: ingest.frames[i].t, path });
-      }
-      let audioPath: string | null = null;
-      if (ingest.wav) {
-        await uploadMedia(supabase, STUDIO_BUCKET, paths.audio, new File([ingest.wav], "audio.wav", { type: "audio/wav" }));
-        audioPath = paths.audio;
-      }
-      const done = await fetch(`/api/studio/clips/${clip.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sourcePath: paths.source, frames: framePaths, audioPath, facts: ingest.facts }) });
-      const dj = await done.json().catch(() => null);
-      if (!done.ok) throw new Error(dj?.error ?? "Couldn't finish adding this clip.");
-      patchLocal(key, { phase: "done", progress: 1, stageNote: null, clip: dj as StudioClip });
-    } catch (e) {
-      patchLocal(key, { phase: "error", error: errCopy(e), stageNote: null });
-    }
-  }, [supabase]);
+  }, [openProject, setPlanError, setNotice]);
 
   const onFiles = useCallback(async (list: FileList | File[]) => {
-    const files = Array.from(list).filter((f) => f.type.startsWith("video/") || VIDEO_RE.test(f.name));
-    if (!files.length) { setNotice("Drop video clips (MP4 or MOV). Photos come in a later step."); return; }
-    setPlanError(null);
     const p = await ensureProject();
     if (!p) return;
     setAdding(true); setOpenOpp(null);
-    const entries = files.map((f) => ({ key: `${Date.now()}-${Math.random().toString(36).slice(2)}`, file: f }));
-    setLocals((cur) => [...cur, ...entries.map<LocalClip>((e) => ({ key: e.key, name: e.file.name, phase: "reading", progress: 0, stageNote: null, error: null, thumb: null, clip: null, durationSec: null, reused: false }))]);
-    setBusyIds((n) => n + 1);
-    // Register in order (positions and plan limits are decided server-side,
-    // one clip at a time), then measure and upload a couple at a time.
-    const registered: Registered[] = [];
-    for (const e of entries) {
-      const r = await registerFile(e.file, p, e.key);
-      if (r) registered.push(r);
-    }
-    let i = 0;
-    const workers = Array.from({ length: Math.min(UPLOAD_CONCURRENCY, registered.length) }, async () => {
-      while (i < registered.length) await uploadFile(registered[i++]);
-    });
-    await Promise.all(workers);
-    setBusyIds((n) => n - 1);
-    await openProject(p.id, true);
-    void loadMeta();
-  }, [ensureProject, registerFile, uploadFile, openProject, loadMeta]);
-
-  const removeClip = useCallback(async (l: LocalClip) => {
-    if (l.clip) {
-      const res = await fetch(`/api/studio/clips/${l.clip.id}`, { method: "DELETE" });
-      if (!res.ok) { setNotice("Couldn't remove that clip."); return; }
-    }
-    setLocals((cur) => cur.filter((x) => x.key !== l.key));
-    if (project) void openProject(project.id, true);
-  }, [project, openProject]);
+    await uploads.addFiles(list, p);
+  }, [ensureProject, uploads]);
 
   // -------------------------------------------------------- understand ----
   const understand = useCallback(async () => {
@@ -247,7 +135,7 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     setAdding(false);
     setProject({ ...project, status: "understanding", error: null, progress: null });
     if (j?.usage) setMeta((m) => (m ? { ...m, usage: j.usage } : m));
-  }, [project]);
+  }, [project, setPlanError, setNotice]);
 
   const openOpportunity = useCallback(async (o: Opportunity) => {
     if (!project) return;
@@ -268,13 +156,10 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     if (!res.ok) { setNotice("Couldn't delete that project."); return; }
     if (project?.id === id) { setProject(null); setLocals([]); router.replace("/studio?mode=clips", { scroll: false }); }
     void loadMeta();
-  }, [project, router, loadMeta]);
+  }, [project, router, loadMeta, setLocals, setNotice]);
 
   // ------------------------------------------------------------ derive ----
-  const uploading = busyIds > 0;
-  const readyClips = locals.filter((l) => l.phase === "done" && l.clip && (l.clip.status === "uploaded" || l.clip.status === "ready"));
-  const footageSec = readyClips.reduce((a, l) => a + (l.durationSec ?? 0), 0);
-  const bytes = readyClips.reduce((a, l) => a + (l.clip?.bytes ?? 0), 0);
+  const { locals, uploading, readyClips, footageSec, bytes, planError, notice } = uploads;
   const stale = Boolean(project?.yield && project.status === "collecting");
   const view: "start" | "collect" | "understanding" | "yield" | "opportunity" | "builder" =
     !project ? "start" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
@@ -351,7 +236,7 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
               )}
             </div>
           </div>
-          {locals.length > 0 && <ClipGrid clips={locals} onRemove={(c) => void removeClip(c)} busy={uploading || view === "understanding"} />}
+          {locals.length > 0 && <ClipGrid clips={locals} onRemove={(c) => void uploads.removeClip(c)} busy={uploading || view === "understanding"} />}
           {view === "understanding" ? <UnderstandCard progress={project.progress} clipCount={readyClips.length} /> : dropZone(locals.length > 0)}
           {view === "collect" && project.status === "failed" && (
             <div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Understanding didn&apos;t finish</b><p>{project.error ?? "Something went wrong."} Nothing was counted against your plan.</p><button type="button" className="ov-btn ghost small" onClick={() => void understand()}><RefreshCw size={12} /> Try again</button></div></div>

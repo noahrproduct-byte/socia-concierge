@@ -39,3 +39,9 @@ phone-agent/
 
 # Self-hosted ffmpeg.wasm core (copied from @ffmpeg/core on install)
 /public/ffmpeg/
+
+# Rater and editor training media (local only)
+docs/rater/samples/*
+!docs/rater/samples/.gitkeep
+docs/editor/samples/*
+!docs/editor/samples/.gitkeep

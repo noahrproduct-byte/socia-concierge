@@ -20,8 +20,12 @@ import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
 
+export type ProjectKind = "batch" | "library";
+
 export type ProjectRow = {
   id: string; user_id: string; workspace_id: string | null; created_by: string | null; title: string | null;
+  /** batch = a Build-from-Clips project; library = the workspace's standing Footage library (supabase/footage.sql). */
+  kind: ProjectKind;
   status: ProjectStatus; progress: UnderstandProgress | null; batch: unknown; yield: YieldResult | null; error: string | null;
   created_at: string; updated_at: string;
 };
@@ -43,7 +47,9 @@ const BUILD_COLS = "id, project_id, opportunity_idx, edl, edl_history, guide, ca
 const BUILD_COLS_B = `${BUILD_COLS}, regenerations, rendered_at`;
 const HISTORY_MAX = 20;
 
-const PROJECT_COLS = "id, user_id, workspace_id, created_by, title, status, progress, batch, yield, error, created_at, updated_at";
+const PROJECT_COLS = "id, user_id, workspace_id, created_by, title, kind, status, progress, batch, yield, error, created_at, updated_at";
+/** Postgres "column does not exist": supabase/footage.sql has not been run yet. */
+export const isMissingColumn = (e: unknown): boolean => /column .* does not exist|42703/i.test((e as Error)?.message ?? String(e));
 const now = () => new Date().toISOString();
 
 // ------------------------------------------------------------ projects ----
@@ -51,10 +57,14 @@ const now = () => new Date().toISOString();
 export type ProjectSummary = { id: string; title: string | null; status: ProjectStatus; clips: number; posts: number | null; updatedAt: string };
 
 export async function listProjects(client: Supa, ownerId: string, wsId: string | null, limit = 12): Promise<ProjectSummary[]> {
-  const { data, error } = await scopeToWorkspace(
-    client.from("studio_projects").select("id, title, status, updated_at, yield, studio_clips(count)").eq("user_id", ownerId),
+  // Libraries (Footage) are not projects. Before supabase/footage.sql runs the
+  // column does not exist: then every row is a project.
+  const query = (withKind: boolean) => scopeToWorkspace(
+    (withKind ? client.from("studio_projects").select("id, title, status, updated_at, yield, studio_clips(count)").neq("kind", "library") : client.from("studio_projects").select("id, title, status, updated_at, yield, studio_clips(count)")).eq("user_id", ownerId),
     wsId,
   ).order("updated_at", { ascending: false }).limit(limit);
+  let { data, error } = await query(true);
+  if (error && isMissingColumn(error)) ({ data, error } = await query(false));
   if (error) throw error;
   return ((data ?? []) as unknown as (ProjectRow & { studio_clips: { count: number }[] })[]).map((r) => ({
     id: r.id, title: r.title, status: r.status, updatedAt: r.updated_at,
@@ -69,12 +79,33 @@ export async function getProjectRow(client: Supa, ownerId: string, wsId: string 
   return ((data ?? []) as ProjectRow[])[0] ?? null;
 }
 
-export async function createProject(client: Supa, ownerId: string, wsId: string | null, createdBy: string, title: string | null): Promise<ProjectRow> {
+export async function createProject(client: Supa, ownerId: string, wsId: string | null, createdBy: string, title: string | null, kind: ProjectKind = "batch"): Promise<ProjectRow> {
   const row: Record<string, unknown> = { user_id: ownerId, created_by: createdBy, title, status: "collecting" };
   if (wsId) row.workspace_id = wsId;
+  if (kind !== "batch") row.kind = kind;
   const { data, error } = await client.from("studio_projects").insert(row).select(PROJECT_COLS).single();
   if (error) throw error;
   return data as ProjectRow;
+}
+
+/** The workspace's Footage library row, if it exists. Throws a missing-column error before supabase/footage.sql. */
+export async function getLibraryRow(client: Supa, ownerId: string, wsId: string | null): Promise<ProjectRow | null> {
+  const { data, error } = await scopeToWorkspace(client.from("studio_projects").select(PROJECT_COLS).eq("user_id", ownerId).eq("kind", "library"), wsId).order("created_at", { ascending: true }).limit(1);
+  if (error) throw error;
+  return ((data ?? []) as ProjectRow[])[0] ?? null;
+}
+
+/** The library, created on first use. The unique index makes a race harmless: the loser re-reads. */
+export async function getOrCreateLibrary(client: Supa, ownerId: string, wsId: string | null, createdBy: string): Promise<ProjectRow> {
+  const existing = await getLibraryRow(client, ownerId, wsId);
+  if (existing) return existing;
+  try {
+    return await createProject(client, ownerId, wsId, createdBy, "Footage", "library");
+  } catch (e) {
+    const again = await getLibraryRow(client, ownerId, wsId).catch(() => null);
+    if (again) return again;
+    throw e;
+  }
 }
 
 export async function updateProject(client: Supa, id: string, patch: Partial<Pick<ProjectRow, "title" | "status" | "progress" | "batch" | "yield" | "error">>): Promise<void> {
@@ -101,6 +132,7 @@ export function rowToClip(r: ClipRow, urls: Record<string, string>): StudioClip 
     status: r.status, error: r.error, facts: r.facts, transcript: r.transcript, card: r.card,
     frames: r.purged_at ? [] : (r.frames ?? []).map((f) => ({ t: f.t, url: urls[f.path] })).filter((f) => f.url),
     expiresAt: r.expires_at,
+    addedAt: r.created_at,
     // A card older than the row itself was copied from an identical clip analysed earlier.
     reused: Boolean(r.card && new Date(r.card.createdAt).getTime() < new Date(r.created_at).getTime() - 1000),
   };
@@ -115,7 +147,7 @@ export async function loadProject(client: Supa, ownerId: string, wsId: string | 
   ]);
   const urls = await frameUrls(client, rows);
   return {
-    id: row.id, title: row.title, status: row.status, progress: row.progress, yield: row.yield, error: row.error,
+    id: row.id, title: row.title, kind: row.kind ?? "batch", status: row.status, progress: row.progress, yield: row.yield, error: row.error,
     createdAt: row.created_at, updatedAt: row.updated_at,
     clips: rows.map((r) => rowToClip(r, urls)),
     builds: ((builds.data ?? []) as { opportunity_idx: number }[]).map((b) => b.opportunity_idx),

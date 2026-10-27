@@ -51,6 +51,7 @@ export async function updateSession(request: NextRequest) {
     "/tool",
     "/scorer",
     "/studio",
+    "/footage",
     "/calendar",
     "/reports",
     "/settings",

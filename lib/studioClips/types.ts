@@ -116,6 +116,8 @@ export type StudioClip = {
   expiresAt: string | null;
   /** analysis was copied from an identical clip uploaded earlier */
   reused: boolean;
+  /** when the clip was added (the row's created_at); Footage uses it to tell new clips from understood ones */
+  addedAt: string;
 };
 
 export type MomentRef = { clipId: string; start: number; end: number };
@@ -170,6 +172,8 @@ export type UnderstandProgress = {
 export type StudioProject = {
   id: string;
   title: string | null;
+  /** batch = one shoot's project; library = the workspace's standing Footage library */
+  kind: "batch" | "library";
   status: ProjectStatus;
   progress: UnderstandProgress | null;
   yield: YieldResult | null;

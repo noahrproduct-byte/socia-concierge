@@ -23,6 +23,8 @@ export const NAV: NavEntry[] = [
   { href: "/create", label: "Create post", key: "create", group: "make" },
   { href: "/calendar", label: "Calendar", key: "calendar", group: "make" },
   { href: "/studio", label: "Content Studio", key: "studio", group: "make" },
+  // The standing clip library: drop footage whenever you shoot; SOCIA finds the posts in it.
+  { href: "/footage", label: "Footage", key: "footage", group: "make" },
   // AI comment replies (Growth+): drafts a reply to every new comment for approval.
   { href: "/comments", label: "Comments", key: "comments", group: "make" },
 ];
