@@ -1,16 +1,16 @@
-import { DM_Sans } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import Home from "@/components/home/Home";
 
-// DM Sans is the documented substitute for the reference's Thicccboi
-// (components/home/home.css). Loaded here only, so the app keeps Inter.
-const dmSans = DM_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-dm" });
+// Inter comes from the root layout (--font-sans). Geist Mono is the
+// reference's face for technical micro-labels and metadata (components/home/home.css).
+const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono" });
 
 const TAGLINE =
   "SOCIA reads your Instagram, Facebook and YouTube accounts, compares them with the competitors you follow, and tells you what to post next, why it should work and when to publish.";
 
 export const metadata = {
-  title: "SOCIA: social media with an AI strategist",
+  title: "SOCIA: know what to post next",
   description: TAGLINE,
 };
 
@@ -28,7 +28,7 @@ async function signedIn(): Promise<boolean> {
 export default async function Landing() {
   const authed = await signedIn();
   return (
-    <div className={dmSans.variable}>
+    <div className={geistMono.variable}>
       <Home signedIn={authed} />
     </div>
   );
