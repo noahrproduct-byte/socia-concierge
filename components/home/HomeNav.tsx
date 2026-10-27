@@ -22,7 +22,7 @@ export default function HomeNav({ signedIn }: { signedIn: boolean }) {
       <div className="hm-wrap">
         <div className="hm-nav-in">
           <Link href="/" className="hm-brand" aria-label="SOCIA home">
-            <BrandMark size={22} /> SOCIA
+            <BrandMark size={32} /> SOCIA
           </Link>
           <nav className="hm-nav-links" aria-label="Sections">
             {LINKS.map((l) => (
@@ -42,7 +42,7 @@ export default function HomeNav({ signedIn }: { signedIn: boolean }) {
                   Log in
                 </Link>
                 <Link href="/signup" className="hm-btn hm-btn--primary hm-btn--sm">
-                  Sign up free
+                  Get started free
                 </Link>
               </>
             )}

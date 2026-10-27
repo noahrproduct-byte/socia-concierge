@@ -29,7 +29,7 @@ export default function HomeMotion() {
       // 1. the load sequence: nav, then the headline, then the rest, then the art
       const hero = root.querySelector(".hm-hero");
       if (hero) {
-        const parts = [".hm-nav-in", ".hm-hero .hm-h1", ".hm-hero .hm-lead", ".hm-hero .hm-hero-cta", ".hm-hero .hm-meta"]
+        const parts = [".hm-nav-in", ".hm-hero .hm-cine-eyebrow", ".hm-hero .hm-h1", ".hm-hero .hm-lead", ".hm-hero .hm-hero-cta", ".hm-hero .hm-meta"]
           .map((s) => root.querySelector(s))
           .filter(Boolean) as Element[];
         gsap.set(parts, { opacity: 0, y: 16 });

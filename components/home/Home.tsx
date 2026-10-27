@@ -8,7 +8,9 @@ import HomeNav from "./HomeNav";
 import HomeFaq from "./HomeFaq";
 import HomeMotion from "./HomeMotion";
 import HomeWindow from "./HomeWindow";
+import HeroStage from "./HeroStage";
 import ReelDemo from "./ReelDemo";
+import { WEEK } from "./exampleWeek";
 import "./home.css";
 
 // The public homepage. Every screen shown is an HTML example of a real SOCIA
@@ -59,57 +61,9 @@ const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
   }),
 ) as Record<PlanId, string[]>;
 
-// One example week for Northside Roasters, shared by the Today card, the
-// Content Plan, Content Studio and the approvals list so every screen agrees.
-// Today is Tuesday.
-const WEEK: { day: string; title: string; why: string; when: string; where: string; status: string; done?: boolean }[] = [
-  {
-    day: "Mon",
-    title: "Behind the counter: the 6 AM open",
-    why: "Reel, educational. Your Reels got 1.8× your median views over the last 90 days.",
-    when: "6:30 PM",
-    where: "Instagram",
-    status: "Published",
-    done: true,
-  },
-  {
-    day: "Tue",
-    title: "Three ways to order that aren't on the menu",
-    why: "Reel, educational. 6:30 PM sits in your best window, 5 to 7 PM: 1.6× your median over 90 days.",
-    when: "6:30 PM",
-    where: "Instagram",
-    status: "Scheduled",
-    done: true,
-  },
-  {
-    day: "Wed",
-    title: "The roast we almost didn't sell",
-    why: "Carousel, story. Two of your three competitors post one every week; you have posted none in 90 days.",
-    when: "12:00 PM",
-    where: "Instagram and Facebook",
-    status: "Needs approval",
-  },
-  {
-    day: "Fri",
-    title: "Pour from higher first: a latte at home, part 2",
-    why: "Reel, follow-up. Sunday's latte Reel has 2.4× your median views at the same age.",
-    when: "6:30 PM",
-    where: "Instagram",
-    status: "Draft",
-  },
-  {
-    day: "Sun",
-    title: "Ask the regulars",
-    why: "Post, community. Posts that asked a question got 2.1× your median replies over 90 days.",
-    when: "10:00 AM",
-    where: "Instagram",
-    status: "Needs approval",
-  },
-];
-
 export default function Home({ signedIn }: { signedIn: boolean }) {
   const startHref = signedIn ? "/dashboard" : "/signup";
-  const startLabel = signedIn ? "Open your dashboard" : "Sign up free";
+  const startLabel = signedIn ? "Open your dashboard" : "Get started free";
 
   return (
     <div className="hm" data-theme="dark">
@@ -117,32 +71,49 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
       <HomeNav signedIn={signedIn} />
 
       <main>
-        {/* ---- hero: the promise, then the product rising into the first screen ---- */}
-        <section className="hm-hero" aria-labelledby="hm-h1">
+        {/* ---- hero: the promise over a slow film of the product (HeroStage) ---- */}
+        <section className="hm-hero hm-cine" aria-labelledby="hm-h1">
+          <HeroStage />
+          <svg className="hm-cine-scrim" aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none">
+            {/* a readability wash behind the words, drawn in SVG; see the note on .hm-cine-scrim */}
+            <defs>
+              <radialGradient id="hm-scrim" cx="50" cy="40" r="52" gradientUnits="userSpaceOnUse" gradientTransform="translate(50 40) scale(1 0.82) translate(-50 -40)">
+                <stop offset="0" stopColor="#040506" stopOpacity="0.96" />
+                <stop offset="0.7" stopColor="#040506" stopOpacity="0.88" />
+                <stop offset="1" stopColor="#040506" stopOpacity="0" />
+              </radialGradient>
+              <linearGradient id="hm-scrim-edge" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#040506" stopOpacity="0.9" />
+                <stop offset="0.16" stopColor="#040506" stopOpacity="0" />
+                <stop offset="0.82" stopColor="#040506" stopOpacity="0" />
+                <stop offset="1" stopColor="#040506" stopOpacity="1" />
+              </linearGradient>
+            </defs>
+            <rect width="100" height="100" fill="url(#hm-scrim)" />
+            <rect width="100" height="100" fill="url(#hm-scrim-edge)" />
+          </svg>
           <div className="hm-wrap hm-hero-copy">
-            <h1 id="hm-h1" className="hm-h1">
-              Your next post, decided by your numbers.
+            <span className="hm-cine-eyebrow">Your social media. Finally understood.</span>
+            <h1 id="hm-h1" className="hm-h1 hm-cine-h1">
+              <span>Know what</span>
+              <span className="is-gold">to post next.</span>
             </h1>
             <p className="hm-lead">
-              SOCIA compares every post you publish with your own median, then tells you what to post next, why it should
-              work, and when.
+              SOCIA connects your social accounts, analyzes your content and audience, identifies opportunities, and helps
+              you decide what to create next.
             </p>
             <div className="hm-hero-cta">
               <Link href={startHref} className="hm-btn hm-btn--primary hm-btn--lg">
-                {startLabel}
+                {startLabel} <ArrowRight aria-hidden />
+              </Link>
+              <Link href="#today" className="hm-btn hm-btn--outline hm-btn--lg">
+                See SOCIA in action
               </Link>
             </div>
             <p className="hm-meta">
               <span>Free plan</span>
               <span>No card needed</span>
               <span>Instagram, Facebook, YouTube</span>
-            </p>
-          </div>
-          <div className="hm-wrap hm-hero-product" id="today">
-            <HomeWindow signedIn={signedIn} />
-            <p className="hm-caption hm-hero-note">
-              The Dashboard&apos;s Today card, on an example account. Open any row to see the numbers behind it. Daily
-              recommendations are on Growth and up.
             </p>
           </div>
         </section>
@@ -188,6 +159,24 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
               </ol>
             </div>
             <p className="hm-cycle-return">After 04, the next week starts again at 01.</p>
+          </div>
+        </section>
+
+        {/* ---- the Dashboard's Today card: the product in action, interactive ---- */}
+        <section className="hm-section" id="today" aria-labelledby="hm-today">
+          <div className="hm-wrap">
+            <div className="hm-section-head is-center" data-reveal="children">
+              <span className="hm-eyebrow">See SOCIA in action</span>
+              <h2 id="hm-today" className="hm-h2 is-center">
+                Open any row to see the reason.
+              </h2>
+              <p className="hm-lead">
+                The Dashboard&apos;s Today card on the example account: the few things worth doing today, each with the
+                numbers behind it.
+              </p>
+            </div>
+            <HomeWindow signedIn={signedIn} />
+            <p className="hm-caption hm-hero-note">Daily recommendations are on Growth and up.</p>
           </div>
         </section>
 
