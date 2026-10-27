@@ -1,29 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  BarChart3,
-  Bell,
-  Calendar,
-  Check,
-  CheckCircle2,
-  Clapperboard,
-  ClipboardList,
-  FileDown,
-  Layers,
-  MessageSquare,
-  Newspaper,
-  Plug,
-  Repeat,
-  TrendingUp,
-  Users,
-} from "lucide-react";
+import { ArrowRight, BarChart3, Check, Clapperboard, ClipboardList, Send } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { CONTACT_EMAIL, PLANS, PLAN_ORDER, formatHistory, type PlanId } from "@/lib/plans";
 import HomeNav from "./HomeNav";
 import HomeFaq from "./HomeFaq";
-import HeroArt from "./HeroArt";
 import HomeMotion from "./HomeMotion";
 import HomeWindow from "./HomeWindow";
 import ReelDemo from "./ReelDemo";
@@ -35,23 +17,52 @@ import "./home.css";
 // what it is compared with. Nothing here is a testimonial, a logo wall or a
 // count SOCIA has not measured. The visual system is documented in home.css.
 
-const TILES: { icon: React.ComponentType<{ "aria-hidden"?: boolean }>; name: string; what: string }[] = [
-  { icon: BarChart3, name: "Analytics", what: "Every post against your own median" },
-  { icon: ClipboardList, name: "Content Plan", what: "A week of posts, each with its why" },
-  { icon: Users, name: "Competitors", what: "What the accounts you follow are doing" },
-  { icon: Clapperboard, name: "Content Studio", what: "Reels cut from your own clips" },
-  { icon: Calendar, name: "Calendar", what: "Schedule once, publish everywhere" },
-  { icon: CheckCircle2, name: "Approvals", what: "Members submit, admins approve" },
-  { icon: MessageSquare, name: "Comments inbox", what: "Replies drafted for you to send" },
-  { icon: Bell, name: "Alerts", what: "Breakouts, drops and gaps, as they happen" },
-  { icon: Newspaper, name: "Weekly roundup", what: "What changed, every Monday" },
-  { icon: Layers, name: "Cross-brand analytics", what: "All your brands on one page" },
-  { icon: Plug, name: "AI assistants", what: "Claude and ChatGPT read your data" },
-  { icon: Repeat, name: "Worth posting again", what: "Posts that earned a second run" },
-  { icon: TrendingUp, name: "Posting-time analysis", what: "When your audience shows up" },
-  { icon: Users, name: "Collaborators", what: "Co-author Reels with other accounts" },
-  { icon: Clapperboard, name: "Trial Reels", what: "Test a Reel on non-followers first" },
-  { icon: FileDown, name: "Report exports", what: "Client-ready reports, on your dates" },
+const JOBS: { icon: React.ComponentType<{ "aria-hidden"?: boolean }>; job: string; line: string; parts: { name: string; what: string }[] }[] = [
+  {
+    icon: BarChart3,
+    job: "Understand",
+    line: "What happened, against your own baseline.",
+    parts: [
+      { name: "Analytics", what: "every post against your median" },
+      { name: "Posting times", what: "when your audience shows up" },
+      { name: "Competitors", what: "what the accounts you follow post" },
+      { name: "Alerts", what: "breakouts, drops and gaps" },
+      { name: "Weekly roundup", what: "what changed, every Monday" },
+    ],
+  },
+  {
+    icon: ClipboardList,
+    job: "Decide",
+    line: "What to post next, with the reason.",
+    parts: [
+      { name: "Content Plan", what: "a week of posts, each with its why" },
+      { name: "Today", what: "the few things worth doing today" },
+      { name: "Worth posting again", what: "posts that earned a second run" },
+      { name: "AI assistants", what: "ask Claude or ChatGPT about your numbers" },
+    ],
+  },
+  {
+    icon: Clapperboard,
+    job: "Make",
+    line: "Reels from the footage you have.",
+    parts: [
+      { name: "Content Studio", what: "first cuts from your own clips" },
+      { name: "Captions", what: "drafted from what the post shows" },
+      { name: "Trial Reels", what: "test a Reel on non-followers first" },
+      { name: "Collaborators", what: "co-author with other accounts" },
+    ],
+  },
+  {
+    icon: Send,
+    job: "Publish",
+    line: "Scheduled, approved, posted.",
+    parts: [
+      { name: "Calendar", what: "Instagram, Facebook and YouTube" },
+      { name: "Approvals", what: "members submit, admins approve" },
+      { name: "Comments inbox", what: "replies drafted for you to send" },
+      { name: "Reports", what: "client-ready, on your dates" },
+    ],
+  },
 ];
 
 const FAQ = [
@@ -109,26 +120,15 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
       <main>
         {/* ---- hero ---------------------------------------------------- */}
         <section className="hm-hero" aria-labelledby="hm-h1">
-          {assets.heroAtmosphere ? (
-            <Image className="hm-hero-art" src={assets.heroAtmosphere} alt="" aria-hidden fill sizes="100vw" priority />
-          ) : (
-            <HeroArt />
-          )}
           <div className="hm-wrap hm-hero-copy">
             <h1 id="hm-h1" className="hm-h1">
               Know what to post next.
             </h1>
-            <p className="hm-lead">
-              SOCIA reads your Instagram, Facebook and YouTube accounts, compares them with the competitors you follow,
-              and tells you what to post, why it should work and when to publish.
-            </p>
+            <p className="hm-lead">SOCIA reads your accounts and tells you what to post, why, and when.</p>
             <div className="hm-hero-cta">
               <Link href={startHref} className="hm-btn hm-btn--primary hm-btn--lg">
                 {startLabel}
               </Link>
-              <a href="#how" className="hm-btn hm-btn--outline hm-btn--lg">
-                See how it works
-              </a>
             </div>
             <p className="hm-meta">
               <span>Free plan</span>
@@ -136,28 +136,22 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
               <span>Instagram, Facebook, YouTube</span>
             </p>
           </div>
+          {assets.heroMark && (
+            <div className="hm-hero-art">
+              <Image src={assets.heroMark} alt="" aria-hidden width={1600} height={912} sizes="(max-width: 760px) 92vw, 640px" priority unoptimized />
+            </div>
+          )}
         </section>
 
         {/* ---- the question --------------------------------------------- */}
         <section className="hm-section hm-ask" id="question" aria-labelledby="hm-ask">
-          <div className="hm-wrap hm-ask-grid">
-            <div className="hm-ask-copy" data-reveal="children">
-              <span className="hm-eyebrow">Sunday night</span>
-              <h2 id="hm-ask" className="hm-h2">
-                The same question, every week.
-              </h2>
-              <p className="hm-lead">What do I post, and why would it work?</p>
-              <p className="hm-body">
-                Most people answer it by feel: what a competitor did, what got likes last month, what there was time to
-                film. SOCIA answers it from your own numbers and tells you the reason with the post.
-              </p>
-            </div>
-            {assets.studioDesk && (
-              <figure className="hm-ask-fig" data-reveal>
-                <Image src={assets.studioDesk} alt="A phone propped on a dark desk beside a camera and a notebook, its screen playing a Reel of a latte being poured" width={1280} height={832} sizes="(max-width: 860px) 100vw, 55vw" />
-                <figcaption className="hm-caption">The footage is usually already there. The decision is what is missing.</figcaption>
-              </figure>
-            )}
+          <div className="hm-wrap" data-reveal="children">
+            <h2 id="hm-ask" className="hm-ask-line">
+              Every week starts with the same question. <span>What do I post, and why would it work?</span>
+            </h2>
+            <p className="hm-lead">
+              Most people answer it by feel. SOCIA answers it from your own numbers, and gives you the reason with the post.
+            </p>
           </div>
         </section>
 
@@ -165,18 +159,18 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
         <section className="hm-section hm-window-sec" aria-labelledby="hm-window">
           <div className="hm-wrap">
             <div className="hm-section-head is-center" data-reveal="children">
-              <span className="hm-eyebrow">Your dashboard</span>
+              <span className="hm-eyebrow">The answer, every morning</span>
               <h2 id="hm-window" className="hm-h2 is-center">
                 One place for what needs you today.
               </h2>
+              <p className="hm-lead">Open any row to see the numbers behind it.</p>
             </div>
-            <HomeWindow startHref={startHref} />
+            <HomeWindow signedIn={signedIn} />
           </div>
         </section>
 
         {/* ---- four statements ------------------------------------------- */}
-        <section className="hm-section hm-loop-sec" id="loop" aria-labelledby="hm-loop">
-          {assets.loopTrails && <Image className="hm-loop-bg" src={assets.loopTrails} alt="" aria-hidden width={1344} height={768} sizes="1100px" />}
+        <section className="hm-section" id="loop" aria-labelledby="hm-loop">
           <div className="hm-wrap hm-loop-wrap">
             <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">The loop</span>
@@ -184,9 +178,6 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
                 Every post teaches the next plan.
               </h2>
             </div>
-            <svg className="hm-loop-line" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-              <path d="M 150 20 H 1050" fill="none" stroke="#63a1ff" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
             <ol className="hm-four" data-reveal="children">
               <li className="hm-four-item">
                 <span className="hm-step-n">01</span>
@@ -209,35 +200,42 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
                 <p>What worked gets more of the week. What did not gets a different concept, not a repeat. Then back to 01.</p>
               </li>
             </ol>
-            <p className="hm-caption hm-four-note">Daily recommendations and the Today card are on Growth and up.</p>
+            <svg className="hm-loop-return" viewBox="0 0 1200 72" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              <path d="M 1050 2 V 36 Q 1050 60 1026 60 H 174 Q 150 60 150 36 V 10" fill="none" stroke="#6a6b6c" strokeWidth="1.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              <path d="M 143 16 L 150 6 L 157 16" fill="none" stroke="#6a6b6c" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            </svg>
+            <p className="hm-mono hm-four-note">04 leads back to 01. The next week starts from what the last one taught.</p>
           </div>
         </section>
 
-        {/* ---- tiles --------------------------------------------------------- */}
-        <section className="hm-section" id="product" aria-labelledby="hm-tiles">
+        {/* ---- what's inside: four jobs ------------------------------------- */}
+        <section className="hm-section" id="product" aria-labelledby="hm-jobs">
           <div className="hm-wrap">
-            <div className="hm-tiles-head">
-              <div className="hm-section-head" data-reveal="children">
-                <span className="hm-eyebrow">What&apos;s inside</span>
-                <h2 id="hm-tiles" className="hm-h2">
-                  There is a screen for that.
-                </h2>
-                <p className="hm-lead">The parts of SOCIA you will open every week, each doing one job.</p>
-              </div>
-              {assets.tilesKeys && <Image className="hm-tiles-fig" src={assets.tilesKeys} alt="" aria-hidden width={1344} height={768} sizes="(max-width: 860px) 100vw, 50vw" data-reveal />}
+            <div className="hm-section-head is-center" data-reveal="children">
+              <span className="hm-eyebrow">What&apos;s inside</span>
+              <h2 id="hm-jobs" className="hm-h2 is-center">
+                Four jobs, one place.
+              </h2>
             </div>
-            <ul className="hm-tiles" data-reveal="children">
-              {TILES.map((t) => {
-                const Icon = t.icon;
+            <ul className="hm-jobs" data-reveal="children">
+              {JOBS.map((j) => {
+                const Icon = j.icon;
                 return (
-                  <li key={t.name} className="hm-tile">
-                    <i>
-                      <Icon aria-hidden />
-                    </i>
-                    <span>
-                      <b>{t.name}</b>
-                      <span>{t.what}</span>
-                    </span>
+                  <li key={j.job} className="hm-job">
+                    <div className="hm-job-head">
+                      <i>
+                        <Icon aria-hidden />
+                      </i>
+                      <b>{j.job}</b>
+                    </div>
+                    <p>{j.line}</p>
+                    <ul>
+                      {j.parts.map((part) => (
+                        <li key={part.name}>
+                          <b>{part.name}</b> {part.what}
+                        </li>
+                      ))}
+                    </ul>
                   </li>
                 );
               })}
@@ -651,10 +649,10 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
         <section className="hm-end" aria-labelledby="hm-end">
           <div className="hm-wrap" data-reveal="children">
             <span className="hm-end-mark" aria-hidden>
-              <BrandMark size={56} />
+              <BrandMark size={48} />
             </span>
             <h2 id="hm-end" className="hm-h2 is-center">
-              It is not about posting more. It is about never guessing.
+              Your next post, decided by your own numbers.
             </h2>
             <div className="hm-end-cta">
               <Link href={startHref} className="hm-btn hm-btn--primary hm-btn--lg">
@@ -678,8 +676,8 @@ export default function Home({ signedIn, assets }: { signedIn: boolean; assets: 
                 <BrandMark size={22} /> SOCIA
               </Link>
               <p className="hm-small">
-                Your AI social strategist. SOCIA studies your content, audience and competitors, then tells you what to
-                post, why it should work and when to publish.
+                SOCIA studies your content, audience and competitors, then tells you what to post, why it should work and
+                when to publish.
               </p>
             </div>
             <div>
