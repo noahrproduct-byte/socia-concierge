@@ -41,7 +41,7 @@ const ROWS: Row[] = [
     title: "Today's post goes out at 6:30 PM",
     sub: "Instagram Reel, Tuesday's slot on this week's plan",
     thumb: "/landing/quiet.jpg",
-    why: "This is Tuesday's slot on this week's Content Plan. It is an educational Reel because your Reels got 1.8× the median views of your other posts over the last 90 days, across 64 posts. 6:30 PM falls inside your best posting window.",
+    why: "“Three ways to order that aren't on the menu” is Tuesday's slot on this week's Content Plan. It is an educational Reel because your Reels got 1.8× the median views of your other posts over the last 90 days, across 64 posts. 6:30 PM falls inside your best posting window, 5 to 7 PM.",
     action: "Open the Calendar",
     href: "/calendar",
   },
@@ -64,9 +64,9 @@ const ROWS: Row[] = [
   {
     icon: TrendingUp,
     title: "Your Instagram Reel is taking off",
-    sub: "2.4× your median post, 48 hours after it went out",
+    sub: "2.4× your median views at the same age, two days in",
     thumb: "/landing/reel.jpg",
-    why: "48 hours after publishing, this Reel has 2.4× the median views your last 20 posts had at the same age. A breakout alert fires above 2×. Next week's plan will suggest a follow-up on the same concept.",
+    why: "Two days after Sunday's publish, this Reel has 2.4× the median views your last 20 posts had at the same age. A breakout alert fires above 2×. Friday's slot on the plan is a follow-up on the same concept.",
     action: "Draft the follow-up",
     href: "/create",
   },
@@ -144,7 +144,7 @@ export default function HomeWindow({ signedIn }: { signedIn: boolean }) {
                   </button>
                   <div id={panel} className="hm-row-why" hidden={!on}>
                     <p>{r.why}</p>
-                    <Link href={signedIn ? r.href : "/signup"} className="hm-btn hm-btn--outline hm-btn--sm">
+                    <Link href={signedIn ? r.href : "/signup"} className="hm-btn hm-btn--primary hm-btn--sm">
                       {signedIn ? r.action : "Sign up free to see yours"}
                     </Link>
                   </div>
@@ -154,7 +154,7 @@ export default function HomeWindow({ signedIn }: { signedIn: boolean }) {
           </div>
           <div className="hm-window-foot">
             <span>
-              <b>Next:</b> &ldquo;Behind the counter: the 6 AM open&rdquo; goes out tomorrow at 6:30 PM
+              <b>Next on the Calendar:</b> &ldquo;The roast we almost didn&apos;t sell&rdquo;, Wednesday 12:00 PM, waiting for approval
             </span>
           </div>
         </div>

@@ -9,7 +9,7 @@ import BrandMark from "@/components/BrandMark";
 // action. On phones the section links fold into a menu under the bar.
 
 const LINKS = [
-  { href: "#product", label: "Product" },
+  { href: "#screens", label: "Product" },
   { href: "#how", label: "How it works" },
   { href: "#platforms", label: "Platforms" },
   { href: "/pricing", label: "Pricing" },

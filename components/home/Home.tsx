@@ -59,6 +59,54 @@ const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
   }),
 ) as Record<PlanId, string[]>;
 
+// One example week for Northside Roasters, shared by the Today card, the
+// Content Plan, Content Studio and the approvals list so every screen agrees.
+// Today is Tuesday.
+const WEEK: { day: string; title: string; why: string; when: string; where: string; status: string; done?: boolean }[] = [
+  {
+    day: "Mon",
+    title: "Behind the counter: the 6 AM open",
+    why: "Reel, educational. Your Reels got 1.8× your median views over the last 90 days.",
+    when: "6:30 PM",
+    where: "Instagram",
+    status: "Published",
+    done: true,
+  },
+  {
+    day: "Tue",
+    title: "Three ways to order that aren't on the menu",
+    why: "Reel, educational. 6:30 PM sits in your best window, 5 to 7 PM: 1.6× your median over 90 days.",
+    when: "6:30 PM",
+    where: "Instagram",
+    status: "Scheduled",
+    done: true,
+  },
+  {
+    day: "Wed",
+    title: "The roast we almost didn't sell",
+    why: "Carousel, story. Two of your three competitors post one every week; you have posted none in 90 days.",
+    when: "12:00 PM",
+    where: "Instagram and Facebook",
+    status: "Needs approval",
+  },
+  {
+    day: "Fri",
+    title: "Pour from higher first: a latte at home, part 2",
+    why: "Reel, follow-up. Sunday's latte Reel has 2.4× your median views at the same age.",
+    when: "6:30 PM",
+    where: "Instagram",
+    status: "Draft",
+  },
+  {
+    day: "Sun",
+    title: "Ask the regulars",
+    why: "Post, community. Posts that asked a question got 2.1× your median replies over 90 days.",
+    when: "10:00 AM",
+    where: "Instagram",
+    status: "Needs approval",
+  },
+];
+
 export default function Home({ signedIn }: { signedIn: boolean }) {
   const startHref = signedIn ? "/dashboard" : "/signup";
   const startLabel = signedIn ? "Open your dashboard" : "Sign up free";
@@ -182,90 +230,18 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
           </div>
         </section>
 
-        {/* ---- see for yourself: Content Studio ----------------------------- */}
-        <section className="hm-section" id="studio" aria-labelledby="hm-studio">
-          <div className="hm-wrap">
-            <div className="hm-section-head is-center" data-reveal="children">
-              <span className="hm-eyebrow">Make: Content Studio</span>
-              <h2 id="hm-studio" className="hm-h2 is-center">
-                Footage in, a first cut out.
-              </h2>
-              <p className="hm-lead">
-                Upload the clips you already have. SOCIA finds the usable moments and cuts a draft you can edit, then puts it on
-                your Calendar.
-              </p>
-            </div>
-            <div className="hm-app hm-studio" data-reveal>
-              <div className="hm-app-bar">
-                <span className="hm-app-dots" aria-hidden>
-                  <i />
-                  <i />
-                  <i />
-                </span>
-                <span className="hm-app-url">Content Studio: one example clip, a latte being poured</span>
-                <span className="hm-example">Example data</span>
-              </div>
-              <div className="hm-studio-body">
-                <div className="hm-studio-preview">
-                  <ReelDemo src="/landing/reel.mp4" poster="/landing/reel.jpg" />
-                </div>
-                <div className="hm-studio-panel">
-                  <div className="hm-studio-block">
-                    <span className="hm-job-tag">Moments found in this clip</span>
-                    <ul className="hm-studio-strip" aria-label="Moments found in the example clip">
-                      {["04", "16", "28", "40", "52", "64"].map((f, i) => (
-                        <li key={f}>
-                          <Image src={`/landing/frames/f${f}.jpg`} alt="" width={72} height={128} sizes="72px" />
-                          <span>0:0{Math.floor(Number(f) / 10)}</span>
-                          {i === 0 || i === 3 || i === 5 ? <b>Used</b> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="hm-studio-block">
-                    <span className="hm-job-tag">First cut, 8 seconds</span>
-                    <ol className="hm-studio-cut">
-                      <li>
-                        <span>0:00</span>
-                        <b>Hook</b>
-                        <em>The pour, close up. Caption: &ldquo;A better latte at home&rdquo;</em>
-                      </li>
-                      <li>
-                        <span>0:03</span>
-                        <b>Middle</b>
-                        <em>Milk meets espresso. Caption: &ldquo;Pour from higher first&rdquo;</em>
-                      </li>
-                      <li>
-                        <span>0:06</span>
-                        <b>End</b>
-                        <em>The finished cup. Caption: &ldquo;Then drop low to draw&rdquo;</em>
-                      </li>
-                    </ol>
-                  </div>
-                  <p className="hm-studio-next">
-                    Next: the draft goes to your Calendar for Friday, 6:30 PM. Every cut and caption stays editable.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ---- product rows ------------------------------------------------- */}
+        {/* ---- what's inside: the four jobs, in order, on the same example week ---- */}
         <section className="hm-section" id="screens" aria-labelledby="hm-screens">
           <div className="hm-wrap">
-            <div className="hm-section-head" data-reveal="children">
+            <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">What&apos;s inside</span>
-              <h2 id="hm-screens" className="hm-h2">
+              <h2 id="hm-screens" className="hm-h2 is-center">
                 Understand, decide, make, publish.
               </h2>
-              <p className="hm-lead">
-                The screens behind each step, on the same example account. Content Studio, where you make the posts, is
-                above.
-              </p>
+              <p className="hm-lead">The screens behind each step, on the same example account and the same week.</p>
             </div>
             <div className="hm-rows">
-              {/* analytics */}
+              {/* understand: analytics */}
               <div className="hm-row" data-reveal="children">
                 <div className="hm-row-copy">
                   <span className="hm-job-tag">Understand</span>
@@ -317,7 +293,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 </div>
               </div>
 
-              {/* content plan */}
+              {/* decide: the Content Plan, the screen the promise rests on, so it gets the most room */}
               <div className="hm-row is-wide" data-reveal="children">
                 <div className="hm-row-copy">
                   <span className="hm-job-tag">Decide</span>
@@ -327,51 +303,97 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                     competitors are filling, the time your audience shows up. Accept it, edit it, or schedule it as it is.
                   </p>
                 </div>
-                <div className="hm-shot" role="img" aria-label="Example of a weekly Content Plan with four planned posts and their status">
-                  <div className="hm-shot-head">
-                    <b>This week&apos;s plan</b>
-                    <span>
-                      4 posts <span className="hm-example">Example</span>
+                <div className="hm-app hm-plan-app" role="img" aria-label="Example of a weekly Content Plan with five planned posts, the reason for each, and their status">
+                  <div className="hm-app-bar">
+                    <span className="hm-app-dots" aria-hidden>
+                      <i />
+                      <i />
+                      <i />
                     </span>
+                    <span className="hm-app-url">Content Plan: this week, Northside Roasters</span>
+                    <span className="hm-example">Example data</span>
                   </div>
-                  <ul className="hm-week">
-                    <li>
-                      <span>Mon</span>
-                      <span>
-                        <b>Behind the counter: the 6 AM open</b>
-                        <em>Reel, educational. Your Reels got 1.8× your median views over the last 90 days.</em>
-                      </span>
-                      <span className="hm-status is-on">Published</span>
-                    </li>
-                    <li>
-                      <span>Wed</span>
-                      <span>
-                        <b>The roast we almost didn&apos;t sell</b>
-                        <em>Carousel, story. Fills the gap two competitors post weekly.</em>
-                      </span>
-                      <span className="hm-status is-on">Scheduled</span>
-                    </li>
-                    <li>
-                      <span>Fri</span>
-                      <span>
-                        <b>Three ways to order that aren&apos;t on the menu</b>
-                        <em>Reel, educational. 6:30 PM, your best Friday window.</em>
-                      </span>
-                      <span className="hm-status">Draft</span>
-                    </li>
-                    <li>
-                      <span>Sun</span>
-                      <span>
-                        <b>Ask the regulars</b>
-                        <em>Post, community. Replies have been your strongest signal.</em>
-                      </span>
-                      <span className="hm-status">Draft</span>
-                    </li>
+                  <ul className="hm-plan-week">
+                    {WEEK.map((w) => (
+                      <li key={w.day}>
+                        <span className="hm-plan-day">{w.day}</span>
+                        <span className="hm-plan-what">
+                          <b>{w.title}</b>
+                          <em>{w.why}</em>
+                        </span>
+                        <span className="hm-plan-when">{w.when}</span>
+                        <span className={`hm-status${w.done ? " is-on" : ""}`}>{w.status}</span>
+                      </li>
+                    ))}
                   </ul>
+                  <div className="hm-window-foot">
+                    <span>Every reason uses your own posts from the last 90 days. Nothing publishes until it is scheduled.</span>
+                  </div>
                 </div>
               </div>
 
-              {/* approvals */}
+              {/* make: Content Studio */}
+              <div className="hm-row is-flip" id="studio" data-reveal="children">
+                <div className="hm-row-copy">
+                  <span className="hm-job-tag">Make</span>
+                  <h3 className="hm-h3">Footage in, a first cut out.</h3>
+                  <p>
+                    Upload the clips you already have. Content Studio finds the usable moments, cuts a draft with captions
+                    you can edit, and puts it in the plan&apos;s open slot. Here, Friday&apos;s follow-up to Sunday&apos;s
+                    latte Reel.
+                  </p>
+                </div>
+                <div className="hm-app hm-studio">
+                  <div className="hm-app-bar">
+                    <span className="hm-app-dots" aria-hidden>
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                    <span className="hm-app-url">Content Studio: one clip, a latte being poured</span>
+                    <span className="hm-example">Example data</span>
+                  </div>
+                  <div className="hm-studio-body">
+                    <div className="hm-studio-preview">
+                      <ReelDemo src="/landing/reel.mp4" poster="/landing/reel.jpg" />
+                    </div>
+                    <div className="hm-studio-panel">
+                      <div className="hm-studio-block">
+                        <span className="hm-job-tag">Moments found</span>
+                        <ul className="hm-studio-strip" aria-label="Moments found in the example clip">
+                          {["04", "16", "28", "40", "52", "64"].map((f, i) => (
+                            <li key={f}>
+                              <Image src={`/landing/frames/f${f}.jpg`} alt="" width={72} height={128} sizes="72px" />
+                              <span>0:0{Math.floor(Number(f) / 10)}</span>
+                              {i === 0 || i === 3 || i === 5 ? <b>Used</b> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="hm-studio-block">
+                        <span className="hm-job-tag">First cut, 8 seconds</span>
+                        <ol className="hm-studio-cut">
+                          <li>
+                            <span>0:00</span>
+                            <em>The pour, close up. &ldquo;A better latte at home&rdquo;</em>
+                          </li>
+                          <li>
+                            <span>0:03</span>
+                            <em>Milk meets espresso. &ldquo;Pour from higher first&rdquo;</em>
+                          </li>
+                          <li>
+                            <span>0:06</span>
+                            <em>The finished cup. &ldquo;Then drop low to draw&rdquo;</em>
+                          </li>
+                        </ol>
+                      </div>
+                      <p className="hm-studio-next">Goes to Friday, 6:30 PM, as a draft. Every cut and caption stays editable.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* publish: approvals */}
               <div className="hm-row" data-reveal="children">
                 <div className="hm-row-copy">
                   <span className="hm-job-tag">Publish</span>
@@ -381,7 +403,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                     Calendar and gets their own notifications. Nothing publishes by accident.
                   </p>
                 </div>
-                <div className="hm-shot" role="img" aria-label="Example of the approvals list with two posts waiting for approval">
+                <div className="hm-shot" role="img" aria-label="Example of the approvals list with two posts waiting for an owner or admin to approve them">
                   <div className="hm-shot-head">
                     <b>Waiting for approval</b>
                     <span>
@@ -389,27 +411,19 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                     </span>
                   </div>
                   <div className="hm-approve">
-                    <div className="hm-approve-item">
-                      <span>
-                        <b>The roast we almost didn&apos;t sell</b>
-                        <em>Submitted by Maya, for Wed 12:00 PM, Instagram and Facebook</em>
-                      </span>
-                      <span className="hm-approve-actions">
-                        <span className="hm-btn hm-btn--outline hm-btn--sm">Edit</span>
-                        <span className="hm-btn hm-btn--primary hm-btn--sm">Approve</span>
-                      </span>
-                    </div>
-                    <div className="hm-approve-item">
-                      <span>
-                        <b>Ask the regulars</b>
-                        <em>Submitted by Maya, for Sun 10:00 AM, Instagram</em>
-                      </span>
-                      <span className="hm-approve-actions">
-                        <span className="hm-btn hm-btn--outline hm-btn--sm">Edit</span>
-                        <span className="hm-btn hm-btn--primary hm-btn--sm">Approve</span>
-                      </span>
-                    </div>
+                    {WEEK.filter((w) => w.status === "Needs approval").map((w) => (
+                      <div key={w.day} className="hm-approve-item">
+                        <span>
+                          <b>{w.title}</b>
+                          <em>
+                            Submitted by Maya, for {w.day} {w.when}, {w.where}
+                          </em>
+                        </span>
+                        <span className="hm-status">Needs approval</span>
+                      </div>
+                    ))}
                   </div>
+                  <span className="hm-caption">An owner or admin approves each one, and approving schedules it.</span>
                 </div>
               </div>
             </div>
@@ -573,19 +587,15 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
               Connect your accounts. Get your next post.
             </h2>
             <p className="hm-lead hm-end-lead">
-              Link Instagram, Facebook or YouTube, and SOCIA reads your own posts the same day: what worked, what to post next,
-              and when.
+              Link Instagram, Facebook or YouTube. SOCIA reads your own posts and tells you what to post next, why it should
+              work, and when.
             </p>
             <div className="hm-end-cta">
               <Link href={startHref} className="hm-btn hm-btn--primary hm-btn--lg">
                 {startLabel}
               </Link>
             </div>
-            <p className="hm-meta hm-end-facts">
-              <span>Free plan</span>
-              <span>No card needed</span>
-              <span>Cancel any month</span>
-            </p>
+            <p className="hm-end-facts">The free plan needs no card. Paid plans cancel any month.</p>
           </div>
         </section>
       </main>
