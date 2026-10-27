@@ -17,7 +17,7 @@ export default function HomeFaq({ items }: { items: { q: string; a: string }[] }
         const panel = `${base}-a-${i}`;
         return (
           <div key={f.q} className="hm-faq-item">
-            <h3 style={{ margin: 0 }}>
+            <h3 className="hm-faq-h">
               <button type="button" className="hm-faq-q" aria-expanded={on} aria-controls={panel} onClick={() => setOpen(on ? null : i)}>
                 {f.q}
                 <Plus aria-hidden />

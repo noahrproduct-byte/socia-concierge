@@ -75,6 +75,7 @@
 
 .hm-wrap { max-width: var(--hm-max); margin-inline: auto; padding-inline: var(--hm-pad); }
 .hm [id] { scroll-margin-top: 84px; }
+html:has(.hm) { background: #f3f5ff; }
 
 /* ---- type ---------------------------------------------------------------- */
 .hm-eyebrow {
@@ -233,7 +234,7 @@
 .hm-today svg { width: 18px; height: 18px; color: var(--hm-violet); margin-top: 2px; }
 .hm-today b { display: block; font-size: var(--hm-fs-sm); font-weight: 600; line-height: 1.4; }
 .hm-today span { display: block; font-size: var(--hm-fs-caption); color: var(--hm-muted); line-height: 1.5; }
-.hm-today a { align-self: center; font-size: var(--hm-fs-caption); font-weight: 600; color: var(--hm-violet); white-space: nowrap; }
+.hm-today-act { align-self: center; font-size: var(--hm-fs-caption); font-weight: 600; color: var(--hm-violet); white-space: nowrap; }
 
 @media (max-width: 960px) {
   .hm-hero-grid { grid-template-columns: 1fr; }
@@ -294,33 +295,55 @@
 @media (max-width: 860px) { .hm-demo { grid-template-columns: 1fr; } }
 
 /* the loop */
-.hm-loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.hm-loop-item { background: var(--hm-card); border-radius: var(--hm-r-card); padding: 24px; display: grid; gap: 8px; align-content: start; }
+.hm-loop { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--hm-card); border-radius: var(--hm-r-card); overflow: hidden; }
+.hm-loop-item { padding: 28px 24px; display: grid; gap: 8px; align-content: start; }
+.hm-loop-item + .hm-loop-item { border-left: 1px solid var(--hm-border); }
 .hm-loop-item b { font-size: var(--hm-fs-lg); }
 .hm-loop-item p { margin: 0; color: var(--hm-muted); font-size: 15px; }
-.hm-loop-item .hm-caption { margin-top: 4px; }
-@media (max-width: 960px) { .hm-loop { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .hm-loop { grid-template-columns: 1fr; } }
+.hm-loop-note { margin: 14px 0 0; text-align: center; }
+@media (max-width: 960px) {
+  .hm-loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hm-loop-item:nth-child(3) { border-left: 0; }
+  .hm-loop-item:nth-child(n + 3) { border-top: 1px solid var(--hm-border); }
+}
+@media (max-width: 520px) {
+  .hm-loop { grid-template-columns: 1fr; }
+  .hm-loop-item + .hm-loop-item { border-left: 0; border-top: 1px solid var(--hm-border); }
+}
 
 /* platforms */
-.hm-platforms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-.hm-platform { background: var(--hm-card); border-radius: var(--hm-r-card); padding: 24px; display: grid; gap: 10px; align-content: start; }
+.hm-platforms { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--hm-border); border-bottom: 1px solid var(--hm-border); }
+.hm-platform { padding: 28px 24px 32px 0; display: grid; gap: 10px; align-content: start; justify-items: start; }
+.hm-platform + .hm-platform { padding-left: 24px; border-left: 1px solid var(--hm-border); }
 .hm-platform-head { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: var(--hm-fs-lg); }
 .hm-platform-head svg { width: 26px; height: 26px; }
 .hm-platform p { margin: 0; color: var(--hm-muted); font-size: 15px; }
-.hm-platform.is-pending { border: 1px dashed var(--hm-border); background: transparent; }
-@media (max-width: 960px) { .hm-platforms { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .hm-platforms { grid-template-columns: 1fr; } }
+.hm-platform.is-pending .hm-platform-head { color: var(--hm-muted); }
+@media (max-width: 960px) {
+  .hm-platforms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hm-platform:nth-child(3) { padding-left: 0; border-left: 0; }
+  .hm-platform:nth-child(n + 3) { border-top: 1px solid var(--hm-border); }
+}
+@media (max-width: 520px) {
+  .hm-platforms { grid-template-columns: 1fr; }
+  .hm-platform { padding: 20px 0; }
+  .hm-platform + .hm-platform { padding-left: 0; border-left: 0; border-top: 1px solid var(--hm-border); }
+}
 
 /* AI assistants */
-.hm-agents { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.hm-agent { background: var(--hm-card); border-radius: var(--hm-r-card); padding: 24px; display: grid; gap: 10px; align-content: start; }
+.hm-agents { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--hm-border); border-bottom: 1px solid var(--hm-border); }
+.hm-agent { padding: 28px 24px 32px 0; display: grid; gap: 8px; align-content: start; }
+.hm-agent + .hm-agent { padding-left: 24px; border-left: 1px solid var(--hm-border); }
 .hm-agent small { font-size: var(--hm-fs-caption); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--hm-muted); }
 .hm-agent b { font-size: var(--hm-fs-sub); }
 .hm-agent p { margin: 0; color: var(--hm-muted); font-size: 15px; }
 .hm-agent-tools { margin-top: 24px; display: grid; gap: 6px; }
 .hm-agent-tools ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-@media (max-width: 860px) { .hm-agents { grid-template-columns: 1fr; } }
+@media (max-width: 860px) {
+  .hm-agents { grid-template-columns: 1fr; }
+  .hm-agent { padding: 20px 0; }
+  .hm-agent + .hm-agent { padding-left: 0; border-left: 0; border-top: 1px solid var(--hm-border); }
+}
 
 /* workflow rows: copy beside an example screen, alternating */
 .hm-rows { display: grid; gap: clamp(48px, 6vw, 80px); }
@@ -397,6 +420,9 @@
 /* final CTA + footer: white, like the reference */
 .hm-end { padding-block: var(--hm-gap); text-align: center; display: grid; justify-items: center; gap: 18px; }
 .hm-end .hm-h2 { max-width: 18ch; }
+.hm-end-lead { margin-inline: auto; margin-top: 14px; }
+.hm-end-cta { justify-content: center; margin-top: 22px; }
+.hm-faq-h { margin: 0; }
 .hm-footer { background: var(--hm-card); border-top: 1px solid var(--hm-border); padding-block: 48px 32px; }
 .hm-footer-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr)); gap: 32px; }
 .hm-footer-brand { display: grid; gap: 12px; align-content: start; }

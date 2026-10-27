@@ -159,7 +159,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                       <b>Today&apos;s post goes out at 6:30 PM</b>
                       <span>Instagram Reel, scheduled from this week&apos;s plan</span>
                     </span>
-                    <a href="#how">Open</a>
+                    <span className="hm-today-act">Open</span>
                   </li>
                   <li>
                     <Clock aria-hidden />
@@ -167,7 +167,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                       <b>Your best window today: 5 to 7 PM</b>
                       <span>Your Tuesday posts in this window did 1.6× your typical post, over 38 posts</span>
                     </span>
-                    <a href="#how">Why</a>
+                    <span className="hm-today-act">Why</span>
                   </li>
                   <li>
                     <MessageSquare aria-hidden />
@@ -175,7 +175,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                       <b>3 comments waiting for a reply</b>
                       <span>Drafts ready to review in the Comments inbox</span>
                     </span>
-                    <a href="#how">Reply</a>
+                    <span className="hm-today-act">Reply</span>
                   </li>
                   <li>
                     <TrendingUp aria-hidden />
@@ -183,7 +183,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                       <b>Your Instagram Reel is taking off</b>
                       <span>2.4× your median post after 48 hours. Worth a follow-up this week.</span>
                     </span>
-                    <a href="#how">Plan it</a>
+                    <span className="hm-today-act">Plan it</span>
                   </li>
                 </ul>
                 <p className="hm-mock-next">
@@ -309,25 +309,29 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 starts from evidence.
               </p>
             </div>
-            <div className="hm-loop">
-              <div className="hm-loop-item">
+            <ol className="hm-loop">
+              <li className="hm-loop-item">
+                <span className="hm-step-n">1</span>
                 <b>Plan</b>
                 <p>A weekly Content Plan with a diagnosis, the top fixes and each post&apos;s day, concept, hook and format.</p>
-              </div>
-              <div className="hm-loop-item">
+              </li>
+              <li className="hm-loop-item">
+                <span className="hm-step-n">2</span>
                 <b>Publish</b>
                 <p>Schedule from the plan, or from Content Studio. Approvals for teams. Nothing goes out without a person.</p>
-              </div>
-              <div className="hm-loop-item">
+              </li>
+              <li className="hm-loop-item">
+                <span className="hm-step-n">3</span>
                 <b>Result</b>
                 <p>Each published post is measured against your own median, in the window that matters for its format.</p>
-              </div>
-              <div className="hm-loop-item">
+              </li>
+              <li className="hm-loop-item">
+                <span className="hm-step-n">4</span>
                 <b>Next plan</b>
-                <p>What worked gets more of the week. What did not gets a different concept, not a repeat.</p>
-                <span className="hm-caption">Daily recommendations and the Today card are on Growth and up.</span>
-              </div>
-            </div>
+                <p>What worked gets more of the week. What did not gets a different concept, not a repeat. Then back to 1.</p>
+              </li>
+            </ol>
+            <p className="hm-caption hm-loop-note">Daily recommendations and the Today card are on Growth and up.</p>
           </div>
         </section>
 
@@ -340,36 +344,37 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 Publish where your audience already is.
               </h2>
             </div>
-            <div className="hm-platforms">
-              <div className="hm-platform">
+            <ul className="hm-platforms">
+              <li className="hm-platform">
                 <div className="hm-platform-head">
                   <PlatformMark platform="instagram" brand />
                   Instagram
                 </div>
                 <p>Posts and Reels, Trial Reels, collaborators, comment replies, posting-time analysis and analytics.</p>
-              </div>
-              <div className="hm-platform">
+              </li>
+              <li className="hm-platform">
                 <div className="hm-platform-head">
                   <PlatformMark platform="facebook" brand />
                   Facebook
                 </div>
                 <p>Page posts and Reels, scheduling and analytics for the Pages you manage.</p>
-              </div>
-              <div className="hm-platform">
+              </li>
+              <li className="hm-platform">
                 <div className="hm-platform-head">
                   <PlatformMark platform="youtube" brand />
                   YouTube
                 </div>
                 <p>Channel analytics, video and Shorts uploads, scheduling from the Calendar.</p>
-              </div>
-              <div className="hm-platform is-pending">
+              </li>
+              <li className="hm-platform is-pending">
                 <div className="hm-platform-head">
                   <PlatformMark platform="tiktok" brand />
                   TikTok
                 </div>
                 <p>Accounts register now. Analytics and posting switch on when TikTok approves SOCIA&apos;s API access.</p>
-              </div>
-            </div>
+                <span className="hm-status">Waiting on TikTok</span>
+              </li>
+            </ul>
           </div>
         </section>
 
@@ -386,23 +391,23 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 data on every plan, and draft and schedule posts on paid plans. It never sees your logins or tokens.
               </p>
             </div>
-            <div className="hm-agents">
-              <div className="hm-agent">
+            <ul className="hm-agents">
+              <li className="hm-agent">
                 <small>Assistant</small>
                 <b>Claude</b>
                 <p>Add SOCIA as a connector in Claude and ask about your week, your top posts or your plan.</p>
-              </div>
-              <div className="hm-agent">
+              </li>
+              <li className="hm-agent">
                 <small>Assistant</small>
                 <b>ChatGPT</b>
                 <p>Connect SOCIA where ChatGPT lists custom connectors, with the same tools and the same limits.</p>
-              </div>
-              <div className="hm-agent">
+              </li>
+              <li className="hm-agent">
                 <small>Any MCP client</small>
                 <b>Claude Code, Cursor and more</b>
                 <p>Any client that speaks MCP connects through SOCIA&apos;s own sign-in. Access is per workspace and revocable.</p>
-              </div>
-            </div>
+              </li>
+            </ul>
             <div className="hm-agent-tools">
               <span className="hm-small">What an assistant can read, on every plan:</span>
               <ul aria-label="Read-only tools">
@@ -650,10 +655,10 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
             <h2 id="hm-end" className="hm-h2 is-center">
               Know what to post next.
             </h2>
-            <p className="hm-lead" style={{ marginInline: "auto", marginTop: 14 }}>
+            <p className="hm-lead hm-end-lead">
               Connect an account and SOCIA starts reading it the same day.
             </p>
-            <div className="hm-cta-row" style={{ justifyContent: "center", marginTop: 22 }}>
+            <div className="hm-cta-row hm-end-cta">
               <Link href={startHref} className="hm-btn hm-btn--primary">
                 {startLabel}
               </Link>
