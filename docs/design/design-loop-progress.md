@@ -6,10 +6,10 @@ Bar: docs/design/bar.md (7 mechanisms). System doc: docs/design/anti-slop-standa
 
 | Piece | Round | Builder | Brief critic | System critic | Craft critic | Biggest gap named |
 |---|---|---|---|---|---|---|
-| 1. Hero: the promise, with the product rising into the first screen | 5 | built | PASS | FAIL | PASS (A better) | A 130px dead band before the window pushed the product below the phone fold; sidebar and menu edges off the ring token |
-| 2. The product window with click-to-expand "why" pop-ups | 5 | built | PASS | FAIL | FAIL (B better) | The window's top highlight hidden under its children; opened row and its evidence on two grids; an outlined sign-up button where the page uses a filled one; 30px keycaps |
-| 3. Story spine: the loop and what's inside | 5 | built | FAIL | FAIL | PASS (A better) | Content Studio given the most room and placed out of job order; two plan lines without a basis; badges without the ring; Approve and Edit drawn as dead controls |
-| 4. Brand close: the mark, the closing statement, the footer | 5 | built | FAIL | FAIL | FAIL | The close drops "why it should work"; facts in the dimmest text; an 18px lead off the bar's scale; 29px statement on phones |
+| 1. Hero: the promise, with the product rising into the first screen | 6 | built | PASS | FAIL | PASS (A better) | The phone menu button matched neither control style and sat at 36px beside a 32px button |
+| 2. The product window with click-to-expand "why" pop-ups | 6 | built | PASS | FAIL | PASS (A better) | Keycaps measured 34px including their ring; the top highlight is faint |
+| 3. Story spine: the loop and what's inside | 6 | built | FAIL | FAIL | PASS (A better) | On phones Content Studio took more room than the Content Plan; 2.4× carried two baselines; phone approval badges stretched full width; phone headings at 26px |
+| 4. Brand close: the mark, the closing statement, the footer | 6 | built | PASS | PASS | PASS | none: closed |
 
 ## Gap history
 
@@ -26,6 +26,10 @@ Bar: docs/design/bar.md (7 mechanisms). System doc: docs/design/anti-slop-standa
 **Round 4 (12 critics, 3 passes).** The hero passed brief and system for the first time; the close passed craft again. Two critics now pull in opposite directions on the hero: the standard's homepage rule (show the real product) against the bar's mechanism 1 (the statement alone). The standard is Noah's release gate, so it wins; round 5 keeps the product in the first screen and answers mechanism 1's measurable parts (two-line headline, 120px+ gap). The window's craft critic reversed round 3's verdict on the controls; round 5 uses keycap-styled controls at 28px, which answers both.
 
 **Round 5 (12 critics, 5 passes).** The hero passed brief and craft, the window passed brief, the story passed craft for the second time. Two data clashes were found while fixing: the Today card named a Tuesday slot the plan did not have, and the plan called a post scheduled while the approvals list said it was waiting. The nav's "Product" link pointed at an anchor that did not exist. "AI assistants" stays in the footer: it is the product's own name for the Settings page that connects Claude and ChatGPT.
+
+**Round 6 (12 critics, 9 passes).** The close passed all three and is closed. Every craft critic passed: the page now beats raycast.com on the bar's mechanisms that stills can show. What is left is measured detail: control heights including their rings, phone-only layouts, and one number described two ways.
+
+**Round 7 plan (done).** The phone menu becomes a keycap; keycaps 30px inside a 1px ring, so 32px outside. On phones Content Studio keeps the clip and the cut side by side and drops the moments strip, so the Content Plan stays the largest screen. Top posts says views two days after posting against the last 20 posts at the same age, the same basis as the Today card and the plan. Phone badges stay compact; section headings 32px at every width. A stronger window highlight; the evidence text runs wider. The "What's inside" head gets its own gap above the first screen.
 
 **Round 6 plan (done).** One example week shared by every screen. The Content Plan becomes a full product window and the largest screen; Content Studio moves into the screens in job order (understand, decide, make, publish) at a smaller size. Every plan line names its baseline and window. The approvals list shows status badges, not buttons. One ring on every badge. The window's highlight is drawn above its children, the opened row and its evidence share one tint, the sign-up inside it is the filled button, keycaps are 32px. Hero gap 64 to 104px (56px on phones). Leads at 20px. The close says what, why and when, with the facts as a plain sentence.
 

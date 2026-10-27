@@ -289,7 +289,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                       <output>0.5×</output>
                     </li>
                   </ul>
-                  <span className="hm-caption">Median of your last 20 posts. Views as Instagram reports them.</span>
+                  <span className="hm-caption">Views two days after posting, against your last 20 posts at the same age. Views as Instagram reports them.</span>
                 </div>
               </div>
 
