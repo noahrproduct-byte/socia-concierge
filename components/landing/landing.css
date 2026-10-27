@@ -1369,3 +1369,148 @@
   .lp-plans { grid-template-columns: minmax(0, 1fr); }
   .lp-plan + .lp-plan { padding-inline-start: 0; border-inline-start: 0; }
 }
+
+/* ---- 02, the problem: a selector and one example of each (Problem.tsx) ------ */
+.lp-pb {
+  position: relative;
+  padding: calc(var(--lp-pad) + 48px) var(--lp-pad);
+  background: var(--ed-black);
+  color: var(--ed-ink);
+  overflow: hidden;
+}
+.lp-pb-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--sp-10) var(--sp-16);
+  width: min(100%, 1120px);
+  margin-inline: auto;
+  align-items: start;
+}
+.lp-pb-left { display: grid; gap: var(--sp-4); }
+.lp-pb-label { display: flex; align-items: center; gap: var(--sp-3); margin: 0; color: var(--ed-gold); font-size: var(--fs-meta); letter-spacing: 0.1em; text-transform: uppercase; }
+.lp-pb-label::before { content: ""; width: 28px; height: 1px; background: var(--ed-gold); }
+.lp-pb-label span { color: var(--ed-ink-2); font-variant-numeric: tabular-nums; }
+.lp-pb-label.is-gold { color: var(--ed-gold); }
+.lp-pb-label.is-gold::before { content: none; }
+.lp-pb-h2 { font-size: var(--fs-m-h2); max-width: 14ch; line-height: 1.02; }
+.lp-pb-left .lp-prose { max-width: 44ch; }
+.lp-pb-strong { margin: 0; font-size: var(--fs-m-body); font-weight: var(--fw-medium); color: var(--ed-ink); }
+
+/* the selector: four rows on rules; the current one carries a gold edge */
+.lp-pb-list { display: grid; margin-top: var(--sp-4); border-top: 1px solid var(--ed-rule); }
+.lp-pb-item {
+  display: grid;
+  grid-template-columns: 2.5ch minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: var(--sp-4);
+  width: 100%;
+  padding: var(--sp-4) var(--sp-3) var(--sp-4) var(--sp-4);
+  border: 0;
+  border-bottom: 1px solid var(--ed-rule);
+  background: transparent;
+  color: var(--ed-ink-2);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  box-shadow: inset 2px 0 0 transparent;
+  transition: color var(--t-menu) var(--ease-out), box-shadow var(--t-menu) var(--ease-out), background-color var(--t-menu) var(--ease-out);
+}
+.lp-pb-n { font-size: var(--fs-section); font-variant-numeric: tabular-nums; }
+.lp-pb-text { display: grid; gap: 2px; min-width: 0; }
+.lp-pb-text b { font-family: var(--font-display); font-size: var(--fs-lead); font-weight: var(--fw-medium); letter-spacing: -0.015em; color: var(--ed-ink-2); transition: color var(--t-menu) var(--ease-out); }
+.lp-pb-text span { font-size: var(--fs-body); line-height: var(--lh-body); }
+.lp-pb-item svg { color: var(--ed-ink-2); opacity: 0.5; transition: opacity var(--t-menu) var(--ease-out), color var(--t-menu) var(--ease-out); }
+.lp-pb-item.is-on { box-shadow: inset 2px 0 0 var(--ed-gold); color: var(--ed-ink-2); }
+.lp-pb-item.is-on .lp-pb-text b, .lp-pb-item.is-on .lp-pb-n { color: var(--ed-ink); }
+.lp-pb-item.is-on svg { color: var(--ed-gold); opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .lp-pb-item:hover { background: color-mix(in srgb, var(--ed-ink) 4%, transparent); }
+  .lp-pb-item:hover .lp-pb-text b { color: var(--ed-ink); }
+}
+
+/* the stage: the four panels share one cell; only the current one is in the tree */
+.lp-pb-stage { position: relative; display: grid; min-width: 0; padding-top: var(--sp-1); }
+.lp-pb-panel { grid-area: 1 / 1; display: grid; align-content: start; gap: var(--sp-4); min-width: 0; }
+.lp-pb-panel[hidden] { display: none; }
+.lp-pb-h3 { margin: 0; max-width: 22ch; font-family: var(--font-display); font-size: calc(var(--fs-m-h2) * 0.8); font-weight: var(--fw-medium); line-height: 1.05; letter-spacing: -0.025em; text-wrap: balance; }
+.lp-pb-insight { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); margin: var(--sp-2) 0 0; padding-top: var(--sp-4); border-top: 1px solid var(--ed-rule); color: var(--ed-ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.lp-pb-insight span { max-width: 60ch; }
+.lp-pb-insight .lp-example { flex: none; margin: 0; background: var(--ed-charcoal); color: var(--ed-ink-2); }
+.lp-pb-count { position: absolute; right: 0; top: 0; margin: 0; color: var(--ed-ink-2); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+
+/* 01: two calendars */
+.lp-pb-cals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-6); }
+.lp-pb-cal { display: grid; gap: var(--sp-3); padding: var(--sp-4); border-radius: var(--r-card); box-shadow: inset 0 0 0 1px var(--ed-rule); }
+.lp-pb-cal.is-plan { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ed-gold) 45%, transparent); }
+.lp-pb-cal-title { margin: 0; font-size: var(--fs-body); font-weight: var(--fw-medium); }
+.lp-pb-cal-days, .lp-pb-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-1); }
+.lp-pb-cal-days span { color: var(--ed-ink-2); font-size: var(--fs-meta); text-align: center; }
+.lp-pb-cal-grid i { display: block; aspect-ratio: 1; border-radius: var(--r-chip); background: color-mix(in srgb, var(--ed-ink) 6%, transparent); }
+.lp-pb-cal-grid i.is-on { background: var(--ed-ink); }
+.lp-pb-cal.is-plan .lp-pb-cal-grid i.is-on { background: var(--ed-gold); }
+.lp-pb-cal-foot { margin: 0; color: var(--ed-ink-2); font-size: var(--fs-meta); }
+
+/* 02: two posts */
+.lp-pb-posts { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: var(--sp-6); }
+.lp-pb-post { display: grid; gap: var(--sp-2); margin: 0; }
+.lp-pb-post-frame { position: relative; aspect-ratio: 9 / 16; border-radius: var(--r-card); background: var(--ed-charcoal); box-shadow: inset 0 0 0 1px var(--ed-rule); overflow: hidden; color: var(--ed-ink); }
+.lp-pb-post-frame video, .lp-pb-post-frame img, .lp-pb-post-frame .is-empty { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lp-pb-post-top, .lp-pb-post-rail, .lp-pb-post-bottom { position: absolute; z-index: 1; }
+.lp-pb-post-top { top: var(--sp-2); left: var(--sp-2); right: var(--sp-2); display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-meta); }
+.lp-pb-post-top > span { display: grid; flex: 1; min-width: 0; line-height: 1.2; }
+.lp-pb-post-top b { font-weight: var(--fw-medium); }
+.lp-pb-post-top small { color: var(--ed-ink-2); font-size: var(--fs-meta); }
+.lp-pb-avatar { width: 24px; height: 24px; flex: none; border-radius: var(--r-pill); }
+.lp-pb-post-rail { right: var(--sp-2); bottom: 26%; display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; text-align: center; font-size: var(--fs-meta); }
+.lp-pb-post-rail li { display: grid; justify-items: center; gap: 1px; }
+.lp-pb-post-bottom { left: var(--sp-2); right: var(--sp-2); bottom: var(--sp-2); display: grid; gap: var(--sp-2); }
+.lp-pb-post-bottom p { margin: 0; max-width: 20ch; font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.lp-pb-post-controls { display: flex; align-items: center; gap: var(--sp-2); }
+.lp-pb-ctl { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ed-ink); cursor: pointer; }
+.lp-pb-ctl:disabled { opacity: 0.5; cursor: default; }
+.lp-pb-bar { display: block; flex: 1; height: 2px; border-radius: var(--r-pill); background: var(--ed-rule); overflow: hidden; }
+.lp-pb-bar i { display: block; height: 100%; background: var(--ed-ink); }
+.lp-pb-time { font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+.lp-pb-post figcaption { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-body); color: var(--ed-ink-2); }
+.lp-pb-post figcaption b { color: var(--ed-ink); font-weight: var(--fw-medium); }
+
+/* 03: the trend, with weeks you can hover or tab through */
+.lp-pb-chart { display: grid; gap: var(--sp-3); }
+.lp-pb-chart-title { display: grid; gap: 2px; margin: 0; font-size: var(--fs-body); }
+.lp-pb-chart-title b { font-weight: var(--fw-medium); }
+.lp-pb-chart-title span { color: var(--ed-ink-2); font-size: var(--fs-meta); }
+.lp-pb-svg { display: block; width: 100%; height: auto; overflow: visible; }
+.lp-pb-pt { cursor: pointer; outline: none; transition: r var(--t-menu) var(--ease-out); }
+.lp-pb-pt:focus-visible { stroke: var(--ed-ink); stroke-width: 2; }
+.lp-pb-weeks { display: flex; justify-content: space-between; padding: 0 2px; color: var(--ed-ink-2); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+.lp-pb-tip { margin: 0; min-height: var(--lh-body); font-size: var(--fs-body); line-height: var(--lh-body); }
+
+/* 04: the comparison */
+.lp-pb-bars { display: grid; gap: var(--sp-3); font-size: var(--fs-body); }
+.lp-pb-bars-head, .lp-pb-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: center; }
+.lp-pb-bars-head span { color: var(--ed-ink-2); font-size: var(--fs-meta); letter-spacing: 0.04em; text-transform: uppercase; }
+.lp-pb-row { padding-top: var(--sp-3); border-top: 1px solid var(--ed-rule); }
+.lp-pb-who { color: var(--ed-ink); }
+.lp-pb-track { position: relative; display: block; height: 10px; border-radius: var(--r-chip); background: color-mix(in srgb, var(--ed-ink) 6%, transparent); }
+.lp-pb-track i { display: block; height: 100%; border-radius: var(--r-chip); background: var(--ed-ink-2); }
+.lp-pb-track b { position: absolute; left: 0; top: -22px; font-size: var(--fs-meta); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.lp-pb-row.is-you .lp-pb-who { color: var(--ed-gold); }
+.lp-pb-row.is-you .lp-pb-track i { background: var(--ed-gold); }
+.lp-pb-row { padding-top: var(--sp-6); }
+
+@media (max-width: 1100px) {
+  .lp-pb-grid { grid-template-columns: minmax(0, 1fr); gap: var(--sp-8); }
+  .lp-pb-h2 { max-width: 18ch; }
+}
+@media (max-width: 760px) {
+  .lp-pb { padding: var(--sp-16) var(--lp-pad); }
+  .lp-pb-cals { grid-template-columns: minmax(0, 1fr); }
+  .lp-pb-posts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+  .lp-pb-post-rail { display: none; }
+  .lp-pb-bars-head, .lp-pb-row { grid-template-columns: minmax(0, 1fr); gap: var(--sp-5); }
+  .lp-pb-bars-head { display: none; }
+  .lp-pb-track b { top: -20px; }
+  .lp-pb-count { display: none; }
+  .lp-pb-insight { flex-direction: column; }
+  .lp-pb-post figcaption { flex-direction: column; gap: 0; }
+}

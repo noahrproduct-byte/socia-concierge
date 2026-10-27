@@ -1,6 +1,7 @@
 import { Geist, Inter_Tight } from "next/font/google";
 import CinematicLanding from "@/components/CinematicLanding";
 import Intro from "@/components/landing/Intro";
+import Problem from "@/components/landing/Problem";
 import { landingAssets } from "@/lib/landingAssets";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,7 +34,10 @@ export default async function Landing() {
   const createHref = (await signedIn()) ? "/create" : "/signup?next=%2Fcreate";
   return (
     <div className={`${geist.variable} ${interTight.variable}`}>
-      <CinematicLanding intro={<Intro footage={assets.opening} reel={assets.reel} poster={assets.reelPoster} createHref={createHref} />} />
+      <CinematicLanding
+        intro={<Intro footage={assets.opening} reel={assets.reel} poster={assets.reelPoster} createHref={createHref} />}
+        problem={<Problem reel={assets.reel} poster={assets.reelPoster} quiet={assets.quiet} />}
+      />
     </div>
   );
 }
