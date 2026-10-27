@@ -42,7 +42,7 @@ export default function HomeNav({ signedIn }: { signedIn: boolean }) {
                   Log in
                 </Link>
                 <Link href="/signup" className="hm-btn hm-btn--primary hm-btn--sm">
-                  Get started free
+                  Sign up free
                 </Link>
               </>
             )}

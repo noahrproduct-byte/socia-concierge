@@ -1,7 +1,6 @@
 import { Geist_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import Home from "@/components/home/Home";
-import { homeAssets } from "@/lib/homeAssets";
 
 // Inter comes from the root layout (--font-sans). Geist Mono is the
 // reference's face for technical micro-labels and metadata (components/home/home.css).
@@ -30,7 +29,7 @@ export default async function Landing() {
   const authed = await signedIn();
   return (
     <div className={geistMono.variable}>
-      <Home signedIn={authed} assets={homeAssets()} />
+      <Home signedIn={authed} />
     </div>
   );
 }
