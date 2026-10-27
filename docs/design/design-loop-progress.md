@@ -6,10 +6,10 @@ Bar: docs/design/bar.md (7 mechanisms). System doc: docs/design/anti-slop-standa
 
 | Piece | Round | Builder | Brief critic | System critic | Craft critic | Biggest gap named |
 |---|---|---|---|---|---|---|
-| 1. Hero: the promise, with the product rising into the first screen | 3 | built | FAIL | FAIL | PASS (A better) | Generic words ("could be Buffer's"); no product above the fold |
-| 2. The product window with click-to-expand "why" pop-ups | 3 | built | FAIL | FAIL | PASS (A better) | The same thumbnail on two different posts; row 1 looks opened when it isn't; phone chips drop below their rows |
-| 3. Story spine: the loop and what's inside | 3 | built | FAIL | FAIL | PASS (A better) | The phone loop loses its arrows; the four-jobs index gives equal weight and duplicates the screens section |
-| 4. Brand close: the mark, the closing statement, the footer | 3 | built | FAIL | FAIL | FAIL | The glass render reads as a different logo, its reflection cut off; the facts line off-system; footer tokens swapped |
+| 1. Hero: the promise, with the product rising into the first screen | 4 | built | PASS | PASS | FAIL (B better) | The product window crowds the statement (bar mechanism 1); three-line headline; gap under 100px |
+| 2. The product window with click-to-expand "why" pop-ups | 4 | built | FAIL | FAIL | FAIL (B better) | "Best window" without the comparison; coach-style example titles; rows off the 8px grid; outlined chips lost the keycap depth |
+| 3. Story spine: the loop and what's inside | 4 | built | FAIL | FAIL | FAIL (B better) | Content Studio shown as footage, not as the product; half-width screens with equal weight; four different border greys |
+| 4. Brand close: the mark, the closing statement, the footer | 4 | built | FAIL | FAIL | PASS | A tagline, not the promise in the visitor's terms; the mark's PNG carries a black matte |
 
 ## Gap history
 
@@ -23,7 +23,11 @@ Bar: docs/design/bar.md (7 mechanisms). System doc: docs/design/anti-slop-standa
 
 **Round 3 (12 critics, 3 passes, all craft).** Every craft critic judging against raycast.com passed: the look now holds. The brief and system critics fail on content: generic hero words, contradictory example data, a phone layout bug (a general img rule outranked the thumbnail hide), the phone loop losing its cycle, a duplicate index section, and the 3D render at the close.
 
-**Round 4 plan.** Hero words name SOCIA's method (your own median); the product window moves into the hero; one action label everywhere ("Sign up free"). Distinct example posters; nothing tinted until opened; mono only for labels; chips as small outlined controls. Phone loop gets arrows between steps and a "04 leads back to 01" return. The four-jobs index is removed; the screens below it carry the jobs (Understand, Decide, Publish; Make is Content Studio). The close uses the flat app icon; facts in the mono meta line; footer tokens corrected. The glass render is kept in docs/design/brand for later use.
+**Round 4 (12 critics, 3 passes).** The hero passed brief and system for the first time; the close passed craft again. Two critics now pull in opposite directions on the hero: the standard's homepage rule (show the real product) against the bar's mechanism 1 (the statement alone). The standard is Noah's release gate, so it wins; round 5 keeps the product in the first screen and answers mechanism 1's measurable parts (two-line headline, 120px+ gap). The window's craft critic reversed round 3's verdict on the controls; round 5 uses keycap-styled controls at 28px, which answers both.
+
+**Round 5 plan.** Hero: two lines, weight 560, a wider gap before the window. Window: rows on the 8px grid, keycap controls, the best-window evidence names the next-best window, café-appropriate titles, non-breaking times. Content Studio becomes a product window around the example footage (moments found, the first cut, where it goes next). Screens: the Content Plan full width, no per-row buttons, wider gaps, one border recipe. Phone loop draws its return line. Close: the promise in the visitor's terms, the app icon cut from its matte.
+
+**Round 4 plan (done).** Hero words name SOCIA's method (your own median); the product window moves into the hero; one action label everywhere ("Sign up free"). Distinct example posters; nothing tinted until opened; mono only for labels; chips as small outlined controls. Phone loop gets arrows between steps and a "04 leads back to 01" return. The four-jobs index is removed; the screens below it carry the jobs (Understand, Decide, Publish; Make is Content Studio). The close uses the flat app icon; facts in the mono meta line; footer tokens corrected. The glass render is kept in docs/design/brand for later use.
 
 **Round 3 plan (done).** The first screen becomes the statement alone, headline at 600. The 3D mark moves to the close as the page's signature, replacing the tile. The window: secondary grey lifted to AA, no drop shadow, every chip reads WHY, consistent numbers, an example-account line in the title bar, the example Reel's thumbnail in its rows. The loop becomes a 2x2 cycle with arrows going round. The jobs become ruled columns with one core screen leading each. The close states what, why and when, with the facts in readable text.
 

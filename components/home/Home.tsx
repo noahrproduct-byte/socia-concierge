@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
@@ -72,7 +73,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         <section className="hm-hero" aria-labelledby="hm-h1">
           <div className="hm-wrap hm-hero-copy">
             <h1 id="hm-h1" className="hm-h1">
-              Your next post, decided by your own numbers.
+              Your next post, decided by your numbers.
             </h1>
             <p className="hm-lead">
               SOCIA compares every post you publish with your own median, then tells you what to post next, why it should
@@ -138,9 +139,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 </li>
               </ol>
             </div>
-            <p className="hm-cycle-return">
-              <ArrowUp aria-hidden /> 04 leads back to 01
-            </p>
+            <p className="hm-cycle-return">After 04, the next week starts again at 01.</p>
           </div>
         </section>
 
@@ -185,49 +184,69 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
 
         {/* ---- see for yourself: Content Studio ----------------------------- */}
         <section className="hm-section" id="studio" aria-labelledby="hm-studio">
-          <div className="hm-wrap hm-demo">
-            <div className="hm-media" data-reveal>
-              <ReelDemo src="/landing/reel.mp4" poster="/landing/reel.jpg" />
-              <span className="hm-caption">Example footage. Content Studio works on your own clips.</span>
+          <div className="hm-wrap">
+            <div className="hm-section-head is-center" data-reveal="children">
+              <span className="hm-eyebrow">Make: Content Studio</span>
+              <h2 id="hm-studio" className="hm-h2 is-center">
+                Footage in, a first cut out.
+              </h2>
+              <p className="hm-lead">
+                Upload the clips you already have. SOCIA finds the usable moments and cuts a draft you can edit, then puts it on
+                your Calendar.
+              </p>
             </div>
-            <div>
-              <div className="hm-section-head" data-reveal="children">
-                <span className="hm-eyebrow">Make: Content Studio</span>
-                <h2 id="hm-studio" className="hm-h2">
-                  Making a Reel is this short.
-                </h2>
-                <p className="hm-lead">Content Studio takes the footage you already have and gets it to the Calendar.</p>
+            <div className="hm-app hm-studio" data-reveal>
+              <div className="hm-app-bar">
+                <span className="hm-app-dots" aria-hidden>
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span className="hm-app-url">Content Studio: one example clip, a latte being poured</span>
+                <span className="hm-example">Example data</span>
               </div>
-              <ol className="hm-demo-steps">
-                <li>
-                  <i>1</i>
-                  <div>
-                    <b>Upload clips</b>
-                    <p>Phone footage, as it is. SOCIA finds the usable moments in each clip.</p>
+              <div className="hm-studio-body">
+                <div className="hm-studio-preview">
+                  <ReelDemo src="/landing/reel.mp4" poster="/landing/reel.jpg" />
+                </div>
+                <div className="hm-studio-panel">
+                  <div className="hm-studio-block">
+                    <span className="hm-job-tag">Moments found in this clip</span>
+                    <ul className="hm-studio-strip" aria-label="Moments found in the example clip">
+                      {["04", "16", "28", "40", "52", "64"].map((f, i) => (
+                        <li key={f}>
+                          <Image src={`/landing/frames/f${f}.jpg`} alt="" width={72} height={128} sizes="72px" />
+                          <span>0:0{Math.floor(Number(f) / 10)}</span>
+                          {i === 0 || i === 3 || i === 5 ? <b>Used</b> : null}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </li>
-                <li>
-                  <i>2</i>
-                  <div>
-                    <b>Make this video</b>
-                    <p>SOCIA cuts the first draft: hook, order, pacing, captions and sound. Every cut is editable.</p>
+                  <div className="hm-studio-block">
+                    <span className="hm-job-tag">First cut, 8 seconds</span>
+                    <ol className="hm-studio-cut">
+                      <li>
+                        <span>0:00</span>
+                        <b>Hook</b>
+                        <em>The pour, close up. Caption: &ldquo;A better latte at home&rdquo;</em>
+                      </li>
+                      <li>
+                        <span>0:03</span>
+                        <b>Middle</b>
+                        <em>Milk meets espresso. Caption: &ldquo;Pour from higher first&rdquo;</em>
+                      </li>
+                      <li>
+                        <span>0:06</span>
+                        <b>End</b>
+                        <em>The finished cup. Caption: &ldquo;Then drop low to draw&rdquo;</em>
+                      </li>
+                    </ol>
                   </div>
-                </li>
-                <li>
-                  <i>3</i>
-                  <div>
-                    <b>Plan these posts</b>
-                    <p>The finished Reels land in your Calendar as drafts, at times taken from your own history when there is enough of it.</p>
-                  </div>
-                </li>
-                <li>
-                  <i>4</i>
-                  <div>
-                    <b>Publish</b>
-                    <p>Review, approve, post. Then SOCIA tracks how it does against your median.</p>
-                  </div>
-                </li>
-              </ol>
+                  <p className="hm-studio-next">
+                    Next: the draft goes to your Calendar for Friday, 6:30 PM. Every cut and caption stays editable.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -256,9 +275,6 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                     benchmark. What changed, what is working, what is missing and what to do next, with the numbers
                     behind each line.
                   </p>
-                  <Link href={startHref} className="hm-btn hm-btn--outline">
-                    {startLabel} <ArrowRight aria-hidden />
-                  </Link>
                 </div>
                 <div className="hm-shot" role="img" aria-label="Example of the Analytics page: four Instagram posts compared with the account's median views">
                   <div className="hm-shot-head">
@@ -277,7 +293,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                     </li>
                     <li>
                       <span>
-                        <em>Three mistakes quietly killing your reach</em>
+                        <em>Our new seasonal oat latte</em>
                         <span className="hm-bar"><i style={{ width: "71%" }} /></span>
                       </span>
                       <output>1.7×</output>
@@ -302,7 +318,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
               </div>
 
               {/* content plan */}
-              <div className="hm-row is-flip" data-reveal="children">
+              <div className="hm-row is-wide" data-reveal="children">
                 <div className="hm-row-copy">
                   <span className="hm-job-tag">Decide</span>
                   <h3 className="hm-h3">A week planned from evidence.</h3>
@@ -310,9 +326,6 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                     The Content Plan says what to post each day and why: the format that is working for you, the gap your
                     competitors are filling, the time your audience shows up. Accept it, edit it, or schedule it as it is.
                   </p>
-                  <Link href={startHref} className="hm-btn hm-btn--outline">
-                    {startLabel} <ArrowRight aria-hidden />
-                  </Link>
                 </div>
                 <div className="hm-shot" role="img" aria-label="Example of a weekly Content Plan with four planned posts and their status">
                   <div className="hm-shot-head">
@@ -326,7 +339,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                       <span>Mon</span>
                       <span>
                         <b>Behind the counter: the 6 AM open</b>
-                        <em>Reel, educational. Your Reels did 1.8× your median post over 90 days.</em>
+                        <em>Reel, educational. Your Reels got 1.8× your median views over the last 90 days.</em>
                       </span>
                       <span className="hm-status is-on">Published</span>
                     </li>
@@ -367,9 +380,6 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                     Members submit, owners and admins approve, and approving is scheduling. Everyone sees the same
                     Calendar and gets their own notifications. Nothing publishes by accident.
                   </p>
-                  <Link href="/pricing" className="hm-btn hm-btn--outline">
-                    See plans with teams <ArrowRight aria-hidden />
-                  </Link>
                 </div>
                 <div className="hm-shot" role="img" aria-label="Example of the approvals list with two posts waiting for approval">
                   <div className="hm-shot-head">
@@ -557,11 +567,15 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         <section className="hm-end" id="start" aria-labelledby="hm-end">
           <div className="hm-wrap" data-reveal="children">
             <span className="hm-end-mark" aria-hidden>
-              <BrandMark size={72} />
+              <Image src="/brand/socia-mark-tile.png" alt="" width={72} height={72} />
             </span>
             <h2 id="hm-end" className="hm-h2 is-center">
-              Know what to post, why, and when.
+              Connect your accounts. Get your next post.
             </h2>
+            <p className="hm-lead hm-end-lead">
+              Link Instagram, Facebook or YouTube, and SOCIA reads your own posts the same day: what worked, what to post next,
+              and when.
+            </p>
             <div className="hm-end-cta">
               <Link href={startHref} className="hm-btn hm-btn--primary hm-btn--lg">
                 {startLabel}
