@@ -1,15 +1,14 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
   BarChart3,
   Bell,
   Calendar,
-  CalendarClock,
   Check,
   CheckCircle2,
   Clapperboard,
   ClipboardList,
-  Clock,
   FileDown,
   Layers,
   MessageSquare,
@@ -25,7 +24,10 @@ import { CONTACT_EMAIL, PLANS, PLAN_ORDER, formatHistory, type PlanId } from "@/
 import HomeNav from "./HomeNav";
 import HomeFaq from "./HomeFaq";
 import HeroArt from "./HeroArt";
+import HomeMotion from "./HomeMotion";
+import HomeWindow from "./HomeWindow";
 import ReelDemo from "./ReelDemo";
+import type { HomeAssets } from "@/lib/homeAssets";
 import "./home.css";
 
 // The public homepage. Every screen shown is an HTML example of a real SOCIA
@@ -95,18 +97,23 @@ const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
   }),
 ) as Record<PlanId, string[]>;
 
-export default function Home({ signedIn }: { signedIn: boolean }) {
+export default function Home({ signedIn, assets }: { signedIn: boolean; assets: HomeAssets }) {
   const startHref = signedIn ? "/dashboard" : "/signup";
   const startLabel = signedIn ? "Open your dashboard" : "Get started free";
 
   return (
     <div className="hm" data-theme="dark">
+      <HomeMotion />
       <HomeNav signedIn={signedIn} />
 
       <main>
         {/* ---- hero ---------------------------------------------------- */}
         <section className="hm-hero" aria-labelledby="hm-h1">
-          <HeroArt />
+          {assets.heroAtmosphere ? (
+            <Image className="hm-hero-art" src={assets.heroAtmosphere} alt="" aria-hidden fill sizes="100vw" priority />
+          ) : (
+            <HeroArt />
+          )}
           <div className="hm-wrap hm-hero-copy">
             <h1 id="hm-h1" className="hm-h1">
               Know what to post next.
@@ -131,74 +138,56 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
           </div>
         </section>
 
+        {/* ---- the question --------------------------------------------- */}
+        <section className="hm-section hm-ask" id="question" aria-labelledby="hm-ask">
+          <div className="hm-wrap hm-ask-grid">
+            <div className="hm-ask-copy" data-reveal="children">
+              <span className="hm-eyebrow">Sunday night</span>
+              <h2 id="hm-ask" className="hm-h2">
+                The same question, every week.
+              </h2>
+              <p className="hm-lead">What do I post, and why would it work?</p>
+              <p className="hm-body">
+                Most people answer it by feel: what a competitor did, what got likes last month, what there was time to
+                film. SOCIA answers it from your own numbers and tells you the reason with the post.
+              </p>
+            </div>
+            {assets.studioDesk && (
+              <figure className="hm-ask-fig" data-reveal>
+                <Image src={assets.studioDesk} alt="A phone propped on a dark desk beside a camera and a notebook, its screen playing a Reel of a latte being poured" width={1280} height={832} sizes="(max-width: 860px) 100vw, 55vw" />
+                <figcaption className="hm-caption">The footage is usually already there. The decision is what is missing.</figcaption>
+              </figure>
+            )}
+          </div>
+        </section>
+
         {/* ---- the app window: the Dashboard's Today card ----------------- */}
         <section className="hm-section hm-window-sec" aria-labelledby="hm-window">
           <div className="hm-wrap">
-            <div className="hm-section-head is-center">
+            <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">Your dashboard</span>
               <h2 id="hm-window" className="hm-h2 is-center">
                 One place for what needs you today.
               </h2>
             </div>
-            <div className="hm-window" role="img" aria-label="Example of SOCIA's Dashboard: the Today card listing four things worth doing today, the first one selected">
-              <div className="hm-window-bar">
-                <h3>Today</h3>
-                <span className="hm-caption">Tue, Oct 27</span>
-              </div>
-              <div className="hm-window-body">
-                <div className="hm-row-item is-selected">
-                  <CalendarClock aria-hidden />
-                  <span>
-                    <b>Today&apos;s post goes out at 6:30 PM</b>
-                    <span>Instagram Reel, scheduled from this week&apos;s plan</span>
-                  </span>
-                  <kbd>Open</kbd>
-                </div>
-                <div className="hm-row-item">
-                  <Clock aria-hidden />
-                  <span>
-                    <b>Your best window today: 5 to 7 PM</b>
-                    <span>Your Tuesday posts in this window did 1.6× your typical post, over 38 posts</span>
-                  </span>
-                  <kbd>Why</kbd>
-                </div>
-                <div className="hm-row-item">
-                  <MessageSquare aria-hidden />
-                  <span>
-                    <b>3 comments waiting for a reply</b>
-                    <span>Drafts ready to review in the Comments inbox</span>
-                  </span>
-                  <kbd>Reply</kbd>
-                </div>
-                <div className="hm-row-item">
-                  <TrendingUp aria-hidden />
-                  <span>
-                    <b>Your Instagram Reel is taking off</b>
-                    <span>2.4× your median post after 48 hours. Worth a follow-up this week.</span>
-                  </span>
-                  <kbd>Plan it</kbd>
-                </div>
-              </div>
-              <div className="hm-window-foot">
-                <span>
-                  <b>Next:</b> &ldquo;Three mistakes quietly killing your reach&rdquo; goes out tomorrow at 6:30 PM
-                </span>
-                <span className="hm-example">Example</span>
-              </div>
-            </div>
+            <HomeWindow startHref={startHref} />
           </div>
         </section>
 
         {/* ---- four statements ------------------------------------------- */}
-        <section className="hm-section" id="loop" aria-labelledby="hm-loop">
-          <div className="hm-wrap">
-            <div className="hm-section-head is-center">
+        <section className="hm-section hm-loop-sec" id="loop" aria-labelledby="hm-loop">
+          {assets.loopTrails && <Image className="hm-loop-bg" src={assets.loopTrails} alt="" aria-hidden width={1344} height={768} sizes="1100px" />}
+          <div className="hm-wrap hm-loop-wrap">
+            <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">The loop</span>
               <h2 id="hm-loop" className="hm-h2 is-center">
                 Every post teaches the next plan.
               </h2>
             </div>
-            <ol className="hm-four">
+            <svg className="hm-loop-line" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              <path d="M 150 20 H 1050" fill="none" stroke="#63a1ff" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <ol className="hm-four" data-reveal="children">
               <li className="hm-four-item">
                 <span className="hm-step-n">01</span>
                 <b>Plan.</b>
@@ -227,14 +216,17 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- tiles --------------------------------------------------------- */}
         <section className="hm-section" id="product" aria-labelledby="hm-tiles">
           <div className="hm-wrap">
-            <div className="hm-section-head is-center">
-              <span className="hm-eyebrow">What&apos;s inside</span>
-              <h2 id="hm-tiles" className="hm-h2 is-center">
-                There is a screen for that.
-              </h2>
-              <p className="hm-lead">The parts of SOCIA you will open every week, each doing one job.</p>
+            <div className="hm-tiles-head">
+              <div className="hm-section-head" data-reveal="children">
+                <span className="hm-eyebrow">What&apos;s inside</span>
+                <h2 id="hm-tiles" className="hm-h2">
+                  There is a screen for that.
+                </h2>
+                <p className="hm-lead">The parts of SOCIA you will open every week, each doing one job.</p>
+              </div>
+              {assets.tilesKeys && <Image className="hm-tiles-fig" src={assets.tilesKeys} alt="" aria-hidden width={1344} height={768} sizes="(max-width: 860px) 100vw, 50vw" data-reveal />}
             </div>
-            <ul className="hm-tiles">
+            <ul className="hm-tiles" data-reveal="children">
               {TILES.map((t) => {
                 const Icon = t.icon;
                 return (
@@ -256,13 +248,13 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- how it works ---------------------------------------------- */}
         <section className="hm-section" id="how" aria-labelledby="hm-how">
           <div className="hm-wrap">
-            <div className="hm-section-head is-center">
+            <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">How it works</span>
               <h2 id="hm-how" className="hm-h2 is-center">
                 How SOCIA turns your results into the next post.
               </h2>
             </div>
-            <ol className="hm-steps">
+            <ol className="hm-steps" data-reveal="children">
               <li className="hm-step">
                 <span className="hm-step-n">01</span>
                 <h3>Connect your accounts</h3>
@@ -295,12 +287,12 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- see for yourself: Content Studio ----------------------------- */}
         <section className="hm-section" id="studio" aria-labelledby="hm-studio">
           <div className="hm-wrap hm-demo">
-            <div className="hm-media">
+            <div className="hm-media" data-reveal>
               <ReelDemo src="/landing/reel.mp4" poster="/landing/reel.jpg" />
               <span className="hm-caption">Example footage. Content Studio works on your own clips.</span>
             </div>
             <div>
-              <div className="hm-section-head">
+              <div className="hm-section-head" data-reveal="children">
                 <span className="hm-eyebrow">Content Studio</span>
                 <h2 id="hm-studio" className="hm-h2">
                   Making a Reel is this short.
@@ -344,7 +336,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- product rows ------------------------------------------------- */}
         <section className="hm-section" id="screens" aria-labelledby="hm-screens">
           <div className="hm-wrap">
-            <div className="hm-section-head">
+            <div className="hm-section-head" data-reveal="children">
               <span className="hm-eyebrow">The screens</span>
               <h2 id="hm-screens" className="hm-h2">
                 The screens you will use every week.
@@ -352,7 +344,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
             </div>
             <div className="hm-rows">
               {/* analytics */}
-              <div className="hm-row">
+              <div className="hm-row" data-reveal="children">
                 <div className="hm-row-copy">
                   <h3 className="hm-h3">See what beat your median.</h3>
                   <p>
@@ -406,7 +398,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
               </div>
 
               {/* content plan */}
-              <div className="hm-row is-flip">
+              <div className="hm-row is-flip" data-reveal="children">
                 <div className="hm-row-copy">
                   <h3 className="hm-h3">A week planned from evidence.</h3>
                   <p>
@@ -462,7 +454,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
               </div>
 
               {/* approvals */}
-              <div className="hm-row">
+              <div className="hm-row" data-reveal="children">
                 <div className="hm-row-copy">
                   <h3 className="hm-h3">Approvals, for teams and clients.</h3>
                   <p>
@@ -511,13 +503,13 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- platforms --------------------------------------------------- */}
         <section className="hm-section" id="platforms" aria-labelledby="hm-platforms">
           <div className="hm-wrap">
-            <div className="hm-section-head is-center">
+            <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">Supported platforms</span>
               <h2 id="hm-platforms" className="hm-h2 is-center">
                 Publish where your audience already is.
               </h2>
             </div>
-            <ul className="hm-platforms">
+            <ul className="hm-platforms" data-reveal="children">
               <li className="hm-platform">
                 <div className="hm-platform-head">
                   <PlatformMark platform="instagram" brand />
@@ -554,7 +546,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- AI assistants ------------------------------------------------ */}
         <section className="hm-section" id="assistants" aria-labelledby="hm-assistants">
           <div className="hm-wrap">
-            <div className="hm-section-head">
+            <div className="hm-section-head" data-reveal="children">
               <span className="hm-eyebrow">AI assistants</span>
               <h2 id="hm-assistants" className="hm-h2">
                 Ask Claude or ChatGPT about your own numbers.
@@ -564,7 +556,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 data on every plan, and draft and schedule posts on paid plans. It never sees your logins or tokens.
               </p>
             </div>
-            <ul className="hm-agents">
+            <ul className="hm-agents" data-reveal="children">
               <li className="hm-agent">
                 <small>Assistant</small>
                 <b>Claude</b>
@@ -597,13 +589,13 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- pricing ------------------------------------------------------ */}
         <section className="hm-section" id="pricing" aria-labelledby="hm-pricing">
           <div className="hm-wrap">
-            <div className="hm-section-head is-center">
+            <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">Pricing</span>
               <h2 id="hm-pricing" className="hm-h2 is-center">
                 Monthly plans, no lock-in.
               </h2>
             </div>
-            <div className="hm-plans">
+            <div className="hm-plans" data-reveal="children">
               {PLAN_ORDER.map((id) => {
                 const p = PLANS[id];
                 const free = p.priceMonthly === 0;
@@ -645,7 +637,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         {/* ---- FAQ ---------------------------------------------------------- */}
         <section className="hm-section" id="faq" aria-labelledby="hm-faq">
           <div className="hm-wrap">
-            <div className="hm-section-head is-center">
+            <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">Questions</span>
               <h2 id="hm-faq" className="hm-h2 is-center">
                 Before you connect an account.
@@ -657,7 +649,10 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
 
         {/* ---- end ---------------------------------------------------------- */}
         <section className="hm-end" aria-labelledby="hm-end">
-          <div className="hm-wrap">
+          <div className="hm-wrap" data-reveal="children">
+            <span className="hm-end-mark" aria-hidden>
+              <BrandMark size={56} />
+            </span>
             <h2 id="hm-end" className="hm-h2 is-center">
               It is not about posting more. It is about never guessing.
             </h2>
