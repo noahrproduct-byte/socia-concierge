@@ -10,6 +10,7 @@ import { scopeToWorkspace } from "@/lib/workspaces";
 import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder } from "./storage";
 import { checkClipFits, projectTotals, ownerStorageBytes, expiryFor, type FitResult } from "./limits";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
+import { opportunityFromPrompt, nextPromptIdx } from "./promptBrief";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
 import { studioLearnedLine } from "./learnLoad";
@@ -20,8 +21,12 @@ import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
 
+export type ProjectKind = "batch" | "library";
+
 export type ProjectRow = {
   id: string; user_id: string; workspace_id: string | null; created_by: string | null; title: string | null;
+  /** batch = a Build-from-Clips project; library = the workspace's standing Footage library (supabase/footage.sql). */
+  kind: ProjectKind;
   status: ProjectStatus; progress: UnderstandProgress | null; batch: unknown; yield: YieldResult | null; error: string | null;
   created_at: string; updated_at: string;
 };
@@ -38,12 +43,17 @@ type BuildRow = {
   id: string; project_id: string; opportunity_idx: number; edl: Edl; edl_history?: Edl[] | null; guide: GuideStep[]; caption: string | null; created_at: string;
   // Phase B columns (supabase/studio-phase-b.sql); absent before that migration.
   regenerations?: number | null; render_path?: string | null; rendered_at?: string | null; post_id?: string | null; render_status?: string | null;
+  // Prompt mode (supabase/studio-prompt.sql); absent before that migration.
+  prompt?: string | null;
 };
 const BUILD_COLS = "id, project_id, opportunity_idx, edl, edl_history, guide, caption, created_at, render_path, post_id, render_status";
 const BUILD_COLS_B = `${BUILD_COLS}, regenerations, rendered_at`;
+const BUILD_COLS_P = `${BUILD_COLS_B}, prompt`;
 const HISTORY_MAX = 20;
 
-const PROJECT_COLS = "id, user_id, workspace_id, created_by, title, status, progress, batch, yield, error, created_at, updated_at";
+const PROJECT_COLS = "id, user_id, workspace_id, created_by, title, kind, status, progress, batch, yield, error, created_at, updated_at";
+/** Postgres "column does not exist": supabase/footage.sql has not been run yet. */
+export const isMissingColumn = (e: unknown): boolean => /column .* does not exist|42703/i.test((e as Error)?.message ?? String(e));
 const now = () => new Date().toISOString();
 
 // ------------------------------------------------------------ projects ----
@@ -51,10 +61,14 @@ const now = () => new Date().toISOString();
 export type ProjectSummary = { id: string; title: string | null; status: ProjectStatus; clips: number; posts: number | null; updatedAt: string };
 
 export async function listProjects(client: Supa, ownerId: string, wsId: string | null, limit = 12): Promise<ProjectSummary[]> {
-  const { data, error } = await scopeToWorkspace(
-    client.from("studio_projects").select("id, title, status, updated_at, yield, studio_clips(count)").eq("user_id", ownerId),
+  // Libraries (Footage) are not projects. Before supabase/footage.sql runs the
+  // column does not exist: then every row is a project.
+  const query = (withKind: boolean) => scopeToWorkspace(
+    (withKind ? client.from("studio_projects").select("id, title, status, updated_at, yield, studio_clips(count)").neq("kind", "library") : client.from("studio_projects").select("id, title, status, updated_at, yield, studio_clips(count)")).eq("user_id", ownerId),
     wsId,
   ).order("updated_at", { ascending: false }).limit(limit);
+  let { data, error } = await query(true);
+  if (error && isMissingColumn(error)) ({ data, error } = await query(false));
   if (error) throw error;
   return ((data ?? []) as unknown as (ProjectRow & { studio_clips: { count: number }[] })[]).map((r) => ({
     id: r.id, title: r.title, status: r.status, updatedAt: r.updated_at,
@@ -69,12 +83,33 @@ export async function getProjectRow(client: Supa, ownerId: string, wsId: string 
   return ((data ?? []) as ProjectRow[])[0] ?? null;
 }
 
-export async function createProject(client: Supa, ownerId: string, wsId: string | null, createdBy: string, title: string | null): Promise<ProjectRow> {
+export async function createProject(client: Supa, ownerId: string, wsId: string | null, createdBy: string, title: string | null, kind: ProjectKind = "batch"): Promise<ProjectRow> {
   const row: Record<string, unknown> = { user_id: ownerId, created_by: createdBy, title, status: "collecting" };
   if (wsId) row.workspace_id = wsId;
+  if (kind !== "batch") row.kind = kind;
   const { data, error } = await client.from("studio_projects").insert(row).select(PROJECT_COLS).single();
   if (error) throw error;
   return data as ProjectRow;
+}
+
+/** The workspace's Footage library row, if it exists. Throws a missing-column error before supabase/footage.sql. */
+export async function getLibraryRow(client: Supa, ownerId: string, wsId: string | null): Promise<ProjectRow | null> {
+  const { data, error } = await scopeToWorkspace(client.from("studio_projects").select(PROJECT_COLS).eq("user_id", ownerId).eq("kind", "library"), wsId).order("created_at", { ascending: true }).limit(1);
+  if (error) throw error;
+  return ((data ?? []) as ProjectRow[])[0] ?? null;
+}
+
+/** The library, created on first use. The unique index makes a race harmless: the loser re-reads. */
+export async function getOrCreateLibrary(client: Supa, ownerId: string, wsId: string | null, createdBy: string): Promise<ProjectRow> {
+  const existing = await getLibraryRow(client, ownerId, wsId);
+  if (existing) return existing;
+  try {
+    return await createProject(client, ownerId, wsId, createdBy, "Footage", "library");
+  } catch (e) {
+    const again = await getLibraryRow(client, ownerId, wsId).catch(() => null);
+    if (again) return again;
+    throw e;
+  }
 }
 
 export async function updateProject(client: Supa, id: string, patch: Partial<Pick<ProjectRow, "title" | "status" | "progress" | "batch" | "yield" | "error">>): Promise<void> {
@@ -101,6 +136,7 @@ export function rowToClip(r: ClipRow, urls: Record<string, string>): StudioClip 
     status: r.status, error: r.error, facts: r.facts, transcript: r.transcript, card: r.card,
     frames: r.purged_at ? [] : (r.frames ?? []).map((f) => ({ t: f.t, url: urls[f.path] })).filter((f) => f.url),
     expiresAt: r.expires_at,
+    addedAt: r.created_at,
     // A card older than the row itself was copied from an identical clip analysed earlier.
     reused: Boolean(r.card && new Date(r.card.createdAt).getTime() < new Date(r.created_at).getTime() - 1000),
   };
@@ -115,7 +151,7 @@ export async function loadProject(client: Supa, ownerId: string, wsId: string | 
   ]);
   const urls = await frameUrls(client, rows);
   return {
-    id: row.id, title: row.title, status: row.status, progress: row.progress, yield: row.yield, error: row.error,
+    id: row.id, title: row.title, kind: row.kind ?? "batch", status: row.status, progress: row.progress, yield: row.yield, error: row.error,
     createdAt: row.created_at, updatedAt: row.updated_at,
     clips: rows.map((r) => rowToClip(r, urls)),
     builds: ((builds.data ?? []) as { opportunity_idx: number }[]).map((b) => b.opportunity_idx),
@@ -270,6 +306,7 @@ function rowToBuild(b: BuildRow, rows: ClipRow[]): StudioBuild {
     renderPath: b.render_path ?? null,
     renderedAt: b.rendered_at ?? null,
     postId: b.post_id ?? null,
+    prompt: b.prompt ?? null,
   };
 }
 
@@ -277,7 +314,8 @@ function rowToBuild(b: BuildRow, rows: ClipRow[]): StudioBuild {
 async function selectBuilds(client: Supa, apply: (q: ReturnType<Supa["from"]>["select"] extends (...a: never[]) => infer R ? R : never) => unknown): Promise<BuildRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const run = async (cols: string) => apply(client.from("studio_builds").select(cols) as any) as Promise<{ data: unknown; error: { message?: string } | null }>;
-  let res = await run(BUILD_COLS_B);
+  let res = await run(BUILD_COLS_P);
+  if (res.error && /column|does not exist/i.test(res.error.message ?? "")) res = await run(BUILD_COLS_B);
   if (res.error && /column|does not exist/i.test(res.error.message ?? "")) res = await run(BUILD_COLS);
   if (res.error) throw res.error;
   return ((res.data ?? []) as BuildRow[]);
@@ -339,14 +377,19 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   if (!row) throw new Error("That build does not exist.");
   if ((row.regenerations ?? 0) >= MAX_REGENERATIONS) throw new Error(`This post has been regenerated ${MAX_REGENERATIONS} times, the limit for one build. Edit the cut directly, or open another post.`);
   const project = await getProjectRow(client, ownerId, wsId, row.project_id);
-  const opp = project?.yield?.opportunities.find((o) => o.idx === row.opportunity_idx);
-  if (!project || !opp) throw new Error("That post is not in this project's results.");
+  if (!project) throw new Error("That post is not in this project's results.");
   const rows = await clipRows(client, project.id);
+  // A prompt build has no Content Yield post behind it: its brief is the post.
+  const fromPrompt = row.opportunity_idx < 0;
+  const opp = fromPrompt
+    ? opportunityFromPrompt(row.prompt ?? "", rows.filter((r) => r.card && !r.purged_at).map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, card: r.card })), row.opportunity_idx)
+    : project.yield?.opportunities.find((o) => o.idx === row.opportunity_idx);
+  if (!opp) throw new Error("That post is not in this project's results.");
   // "Use different clips" may draw on the whole project; the others stay on the post's clips.
   const pool = directive === "different_clips" ? rows.filter((r) => r.card && !r.purged_at) : rows.filter((r) => opp.clipIds.includes(r.id));
   const ordered = [...pool.filter((r) => opp.clipIds.includes(r.id)), ...pool.filter((r) => !opp.clipIds.includes(r.id))];
   const urls = await frameUrls(client, ordered);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl });
+  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, fromPrompt ? row.prompt : null);
   const forEdl = rows.map(toClipForEdl);
   const { edl } = validateEdl(raw, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
@@ -399,4 +442,38 @@ export function studioLimits(ent: Entitlements) {
     uploadMb: getLimit(ent, "studio_upload_mb"),
     retentionDays: getLimit(ent, "studio_retention_days"),
   };
+}
+
+// -------------------------------------------------------- Prompt mode ----
+
+/** The project's prompt builds (opportunity_idx < 0), newest first. */
+export async function listPromptBuilds(client: Supa, ownerId: string, wsId: string | null, projectId: string): Promise<StudioBuild[]> {
+  const rows = await clipRows(client, projectId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const builds = await selectBuilds(client, (q: any) => scopeToWorkspace(q.eq("project_id", projectId).eq("user_id", ownerId).lt("opportunity_idx", 0), wsId).order("created_at", { ascending: false }).limit(30));
+  return builds.map((b) => rowToBuild(b, rows));
+}
+
+/** Pass 3 from a written brief over every understood clip in the project; saved as a prompt build. */
+export async function buildFromPrompt(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; acct: AccountContext }): Promise<StudioBuild> {
+  const { ownerId, wsId, project, prompt, acct } = args;
+  const rows = await clipRows(client, project.id);
+  const usable = rows.filter((r) => r.card && !r.purged_at && r.status !== "expired");
+  if (!usable.length) throw new Error("SOCIA hasn't understood these clips yet. Run Understand first.");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existing = await selectBuilds(client, (q: any) => q.eq("project_id", project.id).lt("opportunity_idx", 0));
+  const idx = nextPromptIdx(existing.map((b) => b.opportunity_idx));
+  const opp = opportunityFromPrompt(prompt, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, card: r.card })), idx);
+  if (!opp.clipIds.length) throw new Error("None of the clips has a usable moment to cut from.");
+  const urls = await frameUrls(client, usable);
+  const { raw, model } = await opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, undefined, prompt);
+  const forEdl = rows.map(toClipForEdl);
+  const { edl } = validateEdl(raw, forEdl);
+  if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that brief. Make it more specific or add clips.");
+  const guide = guideFromEdl(edl, forEdl);
+  const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: edl.caption || null, model, prompt };
+  if (wsId) row.workspace_id = wsId;
+  const { data, error } = await client.from("studio_builds").insert(row).select(BUILD_COLS_P).single();
+  if (error) throw error;
+  return rowToBuild(data as BuildRow, rows);
 }

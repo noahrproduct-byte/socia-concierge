@@ -1,0 +1,224 @@
+[
+  {
+    "id": "Dd6uS7zhY_E",
+    "source": "https://www.instagram.com/reel/Dd6uS7zhY_E/",
+    "creator": "wantsandneedsbrand_ (clothing brand, 878K followers)",
+    "durationSec": 6.1,
+    "kind": "video",
+    "goalAssumed": "engagement",
+    "evidenceAvailable": {
+      "frames": 10,
+      "frameTimes": [
+        0,
+        0.7,
+        1.5,
+        2.5,
+        3.1,
+        3.7,
+        4.3,
+        4.9,
+        5.5,
+        6
+      ],
+      "soundMeasured": {
+        "meanDb": -19.1,
+        "peakDb": -1,
+        "silences": 0
+      },
+      "transcript": false,
+      "caption": false
+    },
+    "claude": {
+      "overall": 74,
+      "categories": {
+        "hook": {
+          "score": 82,
+          "evidence": "0.0s: red body outline and the line 'Only 1% can pause at the right time!' are both on screen in the first frame; the challenge is understood instantly. Nothing moves in the foreground until the rider enters at about 1.5s.",
+          "fix": "Trim about a second off the front so the rider is already entering frame when the text lands."
+        },
+        "pacing": {
+          "score": 72,
+          "evidence": "One locked-off shot. Rider approaches 1.5 to 3.1s, reaches the outline at about 3.7s, and a second approach runs 4.3 to 5.5s; the clip loops cleanly. The empty tail at 6.0s and the empty open at 0 to 1.4s are the only slack.",
+          "fix": "Cut the dead frames at both ends so the loop is continuous motion."
+        },
+        "clarity": {
+          "score": 88,
+          "evidence": "One idea, readable with no sound: match the rider to the outline. Two-line title with a yellow '1%' is legible on the sky at 480px.",
+          "fix": "None needed."
+        },
+        "visual": {
+          "score": 70,
+          "evidence": "Golden-hour light, clean path, high-contrast red outline. The rider is small in frame for most of the clip and the eye has to hunt for them against the trees; the brand or product is never visible.",
+          "fix": "Frame tighter on the path so the rider is larger at the pass, or move the outline to where they fill it."
+        },
+        "cta": {
+          "score": 58,
+          "evidence": "The on-screen line is itself the ask (pause), which drives replays. No follow, comment or product ask is visible in the frames, and the caption could not be read.",
+          "fix": "Add an ask in the caption, for example: Screenshot your pause and comment how close you got."
+        },
+        "audio": {
+          "score": 65,
+          "evidence": "Measured only: continuous sound at a mean of -19 dB with a -1 dB peak and no silent stretch, so the clip is not quiet and has no silent opening. Whether it is music or speech, and whether it fits the pass, cannot be told from the measurement.",
+          "fix": "Not assessable beyond level without a transcript."
+        }
+      },
+      "segments": [
+        {
+          "start": 0,
+          "end": 1.5,
+          "label": "Empty path, title and outline",
+          "rating": "needs"
+        },
+        {
+          "start": 1.5,
+          "end": 3.7,
+          "label": "Approach and the pass through the outline",
+          "rating": "strong"
+        },
+        {
+          "start": 3.7,
+          "end": 6.1,
+          "label": "Second approach, loop tail",
+          "rating": "good"
+        }
+      ],
+      "topFixes": [
+        "Start on motion: cut 0 to about 1.2s so the rider is entering as the title lands.",
+        "Put the brand in the clip: a visible product, a branded outline colour, or a closing frame, since nothing identifies the account.",
+        "Add a caption ask that turns the pause into a comment or share."
+      ],
+      "notes": "Rated from frames and sound measurement only. Could not read the caption or hear the audio content. Frames are 0.6s apart, so whether the rider actually fits the outline at the pass is inferred, not seen."
+    },
+    "noah": {
+      "verdict": "agreed",
+      "date": "2026-10-27",
+      "note": "Noah: these ratings were actually good. No category corrected."
+    },
+    "lessons": []
+  },
+  {
+    "id": "DNJ_qVKsVcY",
+    "source": "https://www.instagram.com/reel/DNJ_qVKsVcY/",
+    "creator": "wantsandneedsbrand_ (clothing brand, 878K followers)",
+    "durationSec": 27.9,
+    "kind": "video",
+    "goalAssumed": "local_orders / product drop",
+    "evidenceAvailable": {
+      "frames": 10,
+      "frameTimes": [
+        0,
+        0.7,
+        1.5,
+        2.5,
+        6.1,
+        9.8,
+        13.4,
+        17,
+        20.7,
+        24.3
+      ],
+      "denseFrames": "14.0 to 19.2 every 0.4s and 19.6 to 27.6 every 1.4s",
+      "soundMeasured": {
+        "meanDb": -15.5,
+        "peakDb": -0.4,
+        "silences": 0
+      },
+      "sceneCuts": [
+        14,
+        17.3,
+        19.3,
+        20.5,
+        23.5,
+        26.1
+      ],
+      "transcript": "partial, read from word-by-word captions: so ya see, I made this video so you can see [the] sweatsuit [that will] be dropping on the 13th",
+      "caption": false
+    },
+    "structure": "0 to 13.4s letterboxed dashcam skit titled Some idiot backed into my Bugatti: a white Infiniti reverses into the camera car; Then he does this at 9.8s; at 13.4s the creator leans over and the Bugatti is revealed as a toy. 14 to 19.3s pitch to camera holding the toy, word captions, dropping on the 13th highlighted. 19.3 to 26.1s the grey Wants and Needs sweatsuit shown front and back in a parking lot at dusk. 26.1 to 27.9s black end card: crown, 002, RESTOCKING 8/13.",
+    "claude": {
+      "overall": 76,
+      "categories": {
+        "hook": {
+          "score": 85,
+          "evidence": "0.0s: the title Some idiot backed into my Bugatti is up, the camera-car hood is in frame to sell the claim, and the white car is already moving at 0.0 and 0.7s. Dashcam letterbox reads as found footage. Costs: the letterbox leaves about 40% of the screen black, and the title sits in it.",
+          "fix": "Keep the title, but drop the letterbox or fill the bars with the title and a second line so the first frame uses the whole screen."
+        },
+        "pacing": {
+          "score": 70,
+          "evidence": "The skit is one shot for 13.4s; frames at 2.5 and 6.1s are near identical (car reversing slowly). Then he does this at 9.8s props the wait up. The twist lands at 13.4s, half the runtime. After it the cuts come every 2 to 3s (14.0, 17.3, 19.3, 20.5, 23.5, 26.1).",
+          "fix": "Cut roughly 3 to 9s of the reverse so the twist lands by 8s; the second half already moves."
+        },
+        "clarity": {
+          "score": 80,
+          "evidence": "Skit, reveal, pitch, product, date: each step is readable without sound thanks to the word captions and the end card. The product is never named and no price appears; the pitch says dropping on the 13th while the end card says RESTOCKING 8/13, the same date but two different claims.",
+          "fix": "Name the item and say one thing: drop or restock, with the price, on screen at 17 to 19s and on the end card."
+        },
+        "visual": {
+          "score": 72,
+          "evidence": "Act one is lo-fi on purpose and works. The product shots at 19.3 to 26.1s are at dusk under a sodium lamp with a yellow cast and a blown-out light source; the grey fabric and the piping are hard to read, and the camera is handheld. The pitch at 14 to 19s in the last daylight looks better than the product does.",
+          "fix": "Shoot the sweatsuit in the same light as the pitch, or add one close pass on the logo and the piping."
+        },
+        "cta": {
+          "score": 68,
+          "evidence": "There is a time-based ask, dropping on the 13th at 17 to 19s and RESTOCKING 8/13 on the end card, but no action: no link in bio, no follow so you do not miss it, no product name, no price. Caption unread.",
+          "fix": "Add one action line to the end card and the caption, for example: Link in bio, restock drops 8/13 at noon."
+        },
+        "audio": {
+          "score": 70,
+          "evidence": "Measured: mean -15.5 dB, peak -0.4 dB, no silent stretch, so the sound is present throughout and hot at the peaks. Speech is confirmed at 14 to 19s by the captions; what plays under the skit and the product shots cannot be told from the measurement.",
+          "fix": "Check the peaks near 0 dB for clipping; otherwise not assessable beyond level."
+        }
+      },
+      "segments": [
+        {
+          "start": 0,
+          "end": 9.8,
+          "label": "Dashcam skit, car reversing",
+          "rating": "needs"
+        },
+        {
+          "start": 9.8,
+          "end": 14,
+          "label": "Then he does this, toy car reveal",
+          "rating": "strong"
+        },
+        {
+          "start": 14,
+          "end": 19.3,
+          "label": "Pitch to camera with word captions",
+          "rating": "good"
+        },
+        {
+          "start": 19.3,
+          "end": 26.1,
+          "label": "Sweatsuit front and back at dusk",
+          "rating": "good"
+        },
+        {
+          "start": 26.1,
+          "end": 27.9,
+          "label": "End card: 002 RESTOCKING 8/13",
+          "rating": "needs"
+        }
+      ],
+      "topFixes": [
+        "Get to the twist faster: cut most of the slow reverse so the toy car reveal lands by about 8s instead of 13.4s.",
+        "Give the date an action: name the product, add link in bio or follow for the drop, and use one word (drop or restock) in the pitch and on the end card.",
+        "Light the product: the dusk lamp hides the fabric; shoot the sweatsuit in the daylight of the pitch or add one close pass."
+      ],
+      "notes": "Rated from frames, a partial transcript read off the captions, and sound measurements. Caption unread. Whatever is said during the skit and the product shots is unknown."
+    },
+    "noah": {
+      "verdict": "agreed",
+      "date": "2026-10-27",
+      "note": "Noah: these ratings were actually good. No category corrected."
+    },
+    "lessons": [
+      {
+        "status": "unconfirmed",
+        "source": "Claude's own reflection after learning the Reel had 1.4M likes",
+        "text": "A long setup is not dead time when the title has bought the wait; lo-fi disguise (letterbox, dashcam) can be a strength; skit-then-pitch carries reach so product-shot flaws matter less. Not a rule until Noah confirms."
+      }
+    ]
+  }
+]
