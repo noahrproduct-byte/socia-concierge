@@ -5,6 +5,7 @@ import { getProfile } from "@/lib/profile";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio";
 import ClipsStudio from "@/components/studio/ClipsStudio";
+import PromptStudio from "@/components/studio/PromptStudio";
 import StudioMode from "@/components/studio/StudioMode";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
@@ -20,6 +21,14 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   const { mode } = await searchParams;
+
+  if (mode === "prompt") {
+    return (
+      <Suspense fallback={null}>
+        <PromptStudio modeTabs={<StudioMode mode="prompt" />} />
+      </Suspense>
+    );
+  }
 
   if (mode === "clips") {
     return (

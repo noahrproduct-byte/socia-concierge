@@ -55,6 +55,7 @@ import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status"
 import { PLATFORM_LABEL, type Destination, type Platform, type TrialShare } from "@/lib/publishing/types";
 import { trialLine } from "@/lib/publishing/trial";
 import "./calendar-destinations.css";
+import BulkDrop from "@/components/calendar/BulkDrop";
 
 export type { CalPost };
 
@@ -334,6 +335,9 @@ export default function CalendarBoard({
   const [items, setItems] = useState<CalItem[]>(() => [...scheduled].sort(byTime));
   const [composer, setComposer] = useState<{ post: ScheduledPost | null; at: Date; caption?: string } | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
+  // Add many posts at once: open from the header, or by dropping files anywhere on the page.
+  const [bulk, setBulk] = useState<{ files: File[] } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
     if (!notice) return;
@@ -435,7 +439,11 @@ export default function CalendarBoard({
   const canSchedule = publish.canSchedule;
 
   return (
-    <div className="cal2">
+    <div className={`cal2${dragging ? " is-dragging" : ""}`}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
+      onDrop={(e) => { if (e.dataTransfer.files?.length) { e.preventDefault(); setDragging(false); setBulk({ files: Array.from(e.dataTransfer.files) }); } }}
+    >
       <PageHeader
         title="Calendar"
         sub="Plan your week around when your audience is actually online."
@@ -462,6 +470,9 @@ export default function CalendarBoard({
           <>
             <button type="button" className="ov-btn ghost" onClick={() => setPlanOpen(true)}>
               <CalendarPlus size={14} /> Schedule from Content Plan
+            </button>
+            <button type="button" className="ov-btn ghost" onClick={() => setBulk({ files: [] })}>
+              <Upload size={14} /> Add many
             </button>
             <Link href="/create" className="ov-btn primary">
               <Plus size={14} /> New post
@@ -566,6 +577,20 @@ export default function CalendarBoard({
           onClose={() => setComposer(null)}
           onSaved={upsert}
           onRemoved={remove}
+          notify={setNotice}
+        />
+      )}
+      {bulk && now && (
+        <BulkDrop
+          userId={userId}
+          now={now}
+          existing={items.filter((p) => p.status !== "cancelled" && p.status !== "failed").map((p) => new Date(p.scheduled_at))}
+          hourFor={(wd: number) => suggestedHour(aud, wd)}
+          canSchedule={canSchedule}
+          planError={publish.planError}
+          initialFiles={bulk.files}
+          onSaved={upsert}
+          onClose={() => setBulk(null)}
           notify={setNotice}
         />
       )}

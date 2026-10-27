@@ -340,6 +340,8 @@ export type StudioBuild = {
   renderedAt: string | null;
   /** the draft post the render was saved to */
   postId: string | null;
+  /** Prompt mode: the written brief this build was cut from (opportunityIdx < 0) */
+  prompt?: string | null;
 };
 
 // -------------------------------------------------------- Make This Video ----

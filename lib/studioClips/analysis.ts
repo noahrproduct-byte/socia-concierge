@@ -249,7 +249,7 @@ const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
 
 export type EdlVariant = { directive: RegenerateDirective; previous: Edl };
 
-export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant): Promise<{ raw: RawEdl; model: string }> {
+export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant, brief?: string | null): Promise<{ raw: RawEdl; model: string }> {
   const used = clips.filter((c) => (variant ? true : opp.clipIds.includes(c.id)) && c.card);
   const previous = variant
     ? `\n\nThe previous cut (${variant.previous.segments.reduce((a, s) => a + (s.out - s.in), 0).toFixed(1)}s): ${variant.previous.segments.map((s) => `${clipLabel(used.find((c) => c.id === s.clipId)?.position ?? 0)} ${s.in.toFixed(1)}–${s.out.toFixed(1)}s`).join("; ")}${variant.previous.text[0] ? `; opening line "${variant.previous.text[0].text}"` : ""}.\nChange requested: ${DIRECTIVE_TEXT[variant.directive]}`
@@ -265,7 +265,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   const content: Content = [
     { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}
 
-The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
+${brief ? `The person's brief for this video. Follow it closely: its length, order, tone, on-screen lines and ending win over the general rules below, except the honesty rules. Where it asks for footage that does not exist in the clips, say so in notes and use the nearest real moment.\n"""\n${brief.trim()}\n"""\n\n` : ""}The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.
 ${opp.opener ? `Opener candidate: ${clipLabel(used.find((c) => c.id === opp.opener!.clipId)?.position ?? 0)} ${opp.opener.start.toFixed(1)}–${opp.opener.end.toFixed(1)}s (${opp.opener.why}).` : "No opener was identified; choose the strongest available moment."}${previous}
 
@@ -278,4 +278,37 @@ The images that follow are one frame from each clip, in the same order (${used.m
   ];
   const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, 3000, { ownerId: acct.ownerId, feature: "clip_edl" });
   return { raw: data, model };
+}
+
+// ------------------------------------------------------- prompt mode ----
+
+const IMPROVE_SCHEMA = {
+  type: "object", additionalProperties: false,
+  properties: { prompt: { type: "string" }, assumptions: { type: "array", items: { type: "string" } } },
+  required: ["prompt", "assumptions"],
+} as const;
+
+/**
+ * A rough brief rewritten into a detailed, straightforward one an editor could
+ * cut from, using only footage the clips really contain. Clips without a card
+ * yet are described by name, length and measurements. `assumptions` lists what
+ * the rewrite decided for the person, so they can change it before cutting.
+ */
+export async function improvePrompt(prompt: string, clips: ClipInput[], acct: AccountContext): Promise<{ prompt: string; assumptions: string[]; model: string }> {
+  const system = `You rewrite a person's rough idea for a short-form vertical video (Instagram Reel, TikTok, YouTube Short) into a detailed, straightforward brief that a video editor can follow exactly. ${HONESTY}
+Keep the person's intent, subject and voice. Make concrete what they left open: target length in seconds, the opening moment and why, the order of shots, pacing, on-screen lines (short, plain, in the account's voice), tone, music direction as a style only, and the ending ask when the goal calls for one. Refer to footage only by what the clip cards or measurements show exists; never promise a shot that is not there, and never state what the audience will do. Under 170 words, plain sentences, no bullet markers, no headings, no emoji.
+assumptions: 2 to 5 short lines naming the choices you made for them (length, opener, tone, ask) so they can change any of them.`;
+  const carded = clips.filter((c) => c.card);
+  const bare = clips.filter((c) => !c.card);
+  const content: Content = [{ type: "text", text: `${accountText(acct)}
+
+The person's brief:
+"""
+${prompt.trim()}
+"""
+
+${carded.length ? `Clips SOCIA has understood:\n\n${carded.map(cardText).join("\n\n")}` : "No clip has been understood yet."}
+${bare.length ? `\nClips not yet understood (name, length, measurements only):\n${bare.map((c) => `${clipLabel(c.position)} ("${c.name}"), ${Math.round(c.durationSec)}s; ${factsText(c.facts)}`).join("\n")}` : ""}` }];
+  const { data, model } = await structured<{ prompt: string; assumptions: string[] }>("fast", system, content, IMPROVE_SCHEMA, 900, { ownerId: acct.ownerId, feature: "clip_edl" });
+  return { prompt: (data.prompt ?? "").trim(), assumptions: (data.assumptions ?? []).map((a) => String(a).trim()).filter(Boolean).slice(0, 5), model };
 }
