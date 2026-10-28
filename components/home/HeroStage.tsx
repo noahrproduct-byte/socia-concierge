@@ -5,24 +5,35 @@ import Image from "next/image";
 import { WEEK } from "./exampleWeek";
 
 // The hero's background: SOCIA's own screens on the example café account
-// (Analytics, the Audience tab, Competitors, Content Plan, Content Studio and
-// Ask SOCIA) standing on a ring around the headline, seen from slightly above,
-// like a ring around a planet. The ring turns at a constant speed: screens at
-// the front pass low and large, screens at the back pass high, small and dim
-// behind the words. Every screen keeps facing the viewer as it travels, so it
-// stays a readable product screen, never an edge-on sliver.
+// (Analytics, Content Plan, Audience, Competitors, Content Studio, Ask SOCIA)
+// in one continuous panoramic sequence below and behind the headline. The
+// screens travel slowly right to left along the front of a very large,
+// invisible circle: they never rotate, so they stay upright and face the
+// viewer, and the curve shows only as a gentle recession toward the edges,
+// where they dim into the dark. Each screen wraps from the left edge back to
+// the right while it is off screen and fully faded, so the back of the circle
+// is never seen and the loop has no restart.
 //
 // Why continuous motion, against section 5 of docs/design/anti-slop-standard.md
-// (motion should answer an action): Noah asked for a slowly turning ring of
+// (motion should answer an action): Noah asked for a slow, endless sequence of
 // the product behind the statement (2026-10-27). Each screen runs one Web
 // Animations API animation (transform and opacity, on the compositor, no
 // per-frame script); it never animates numbers, pauses when the hero is off
 // screen or the tab is hidden, and does not run under prefers-reduced-motion,
-// where the ring stands still.
+// where the screens hold their opening arrangement.
 //
 // Everything here is decoration for sighted visitors: aria-hidden, no focusable
 // elements, pointer-events off. The same screens appear, readable and
 // interactive, further down the page.
+
+/** Post previews for the plan's days: the example café's own footage. */
+const THUMB: Record<string, string> = {
+  Mon: "/landing/quiet.jpg",
+  Tue: "/landing/frames/f16.jpg",
+  Wed: "/landing/frames/f52.jpg",
+  Fri: "/landing/reel.jpg",
+  Sun: "/landing/frames/f64.jpg",
+};
 
 /** Views per day on the example account, 28 Sep to 27 Oct. Sunday's latte Reel lands on the 25th. */
 const VIEWS = [
@@ -284,6 +295,7 @@ function Plan({ style }: { style: CSSProperties }) {
       <div className="hs-week">
         {WEEK.map((w) => (
           <div key={w.day} className="hs-day">
+            <Image className="hs-day-thumb" src={THUMB[w.day]} alt="" width={140} height={100} sizes="140px" loading="eager" />
             <span className="hs-day-name">
               {w.day} | {w.when}
             </span>
@@ -399,45 +411,56 @@ function Ask({ style }: { style: CSSProperties }) {
   );
 }
 
-/** One full turn of the ring, in ms. */
-const TURN = 64000;
-const RING = [Analytics, Audience, Competitors, Plan, Studio, Ask];
-/** Ring radius, the camera's look-down angle and the screens' size: desktop, and a tighter ring for phones. */
-type Ring = { r: number; tilt: number; scale: number };
-const WIDE: Ring = { r: 960, tilt: 20, scale: 0.56 };
-const NARROW: Ring = { r: 420, tilt: 8, scale: 0.42 };
+/** The sequence, in the order it passes the centre. */
+const SEQ = [Analytics, Plan, Audience, Competitors, Studio, Ask];
+/** Seconds for the whole sequence to pass once. */
+const CYCLE = 42000;
+/** The invisible circle: radius, the screens' size at the centre, and the gap between them. */
+const R = 2400;
+const SCALE = 0.68;
+const GAP = 16;
+/** Angle between neighbouring screens, and the arc the sequence spans (half on each side of centre). */
+const STEP = ((1000 * SCALE + GAP) / R) * (180 / Math.PI);
+const HALF = (STEP * SEQ.length) / 2;
+const rad = (d: number) => (d * Math.PI) / 180;
 
-/** Where a screen sits at angle a (0 = front centre): on the ring, facing the viewer. */
-const at = (a: number, g: Ring = WIDE) =>
-  `rotateX(${-g.tilt}deg) rotateY(${a}deg) translateZ(${g.r}px) rotateY(${-a}deg) rotateX(${g.tilt}deg) scale(${g.scale})`;
-/** Front screens full strength, the back of the ring dimmer. */
-const fade = (a: number) => 0.32 + 0.68 * ((Math.cos((a * Math.PI) / 180) + 1) / 2);
+/** A screen at angle a on the circle (0 = centre front), facing the viewer: no rotation, only position and depth. */
+const at = (a: number) =>
+  `translate3d(${(R * Math.sin(rad(a))).toFixed(1)}px, 0px, ${(-R * (1 - Math.cos(rad(a)))).toFixed(1)}px) scale(${SCALE})`;
+/** Full strength near the centre, fading to nothing well before the wrap point. */
+const fade = (a: number) => {
+  const d = Math.abs(a);
+  return d <= 22 ? 1 : d >= HALF - 6 ? 0 : 1 - (d - 22) / (HALF - 6 - 22);
+};
+/** Where screen i starts, wrapped into the visible arc [-HALF, HALF). */
+const startAngle = (i: number) => ((((i * STEP + HALF) % (2 * HALF)) + 2 * HALF) % (2 * HALF)) - HALF;
 
 export default function HeroStage() {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = root.current;
-    if (!el) return;
+    if (!el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const cards = Array.from(el.querySelectorAll<HTMLElement>(".hs-orbit"));
-    const g = matchMedia("(max-width: 760px)").matches ? NARROW : WIDE;
-    cards.forEach((card, i) => (card.style.transform = at((360 / cards.length) * i, g)));
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    // one animation per screen, all the same length and started together, so
-    // the ring turns as one; 24 steps per turn keep the fade smooth
-    const turns = cards.map((card, i) => {
-      const start = (360 / cards.length) * i;
-      const frames = Array.from({ length: 25 }, (_, k) => {
-        const a = start + k * 15;
-        return { transform: at(a, g), opacity: fade(a) };
-      });
-      return card.animate(frames, { duration: TURN, iterations: Infinity, easing: "linear" });
+    // every screen runs the same right-to-left path, offset by its place in the
+    // sequence, so together they form one unbroken procession
+    const frames = Array.from({ length: 49 }, (_, k) => {
+      const a = HALF - (k / 48) * 2 * HALF;
+      return { transform: at(a), opacity: fade(a) };
     });
+    const runs = cards.map((card, i) =>
+      card.animate(frames, {
+        duration: CYCLE,
+        iterations: Infinity,
+        easing: "linear",
+        iterationStart: (HALF - startAngle(i)) / (2 * HALF),
+      }),
+    );
 
     // run only while the hero is on screen and the tab is visible
     let onScreen = true;
-    const sync = () => turns.forEach((t) => (onScreen && !document.hidden ? t.play() : t.pause()));
+    const sync = () => runs.forEach((r) => (onScreen && !document.hidden ? r.play() : r.pause()));
     const io = new IntersectionObserver(([e]) => {
       onScreen = e.isIntersecting;
       sync();
@@ -447,15 +470,15 @@ export default function HeroStage() {
     return () => {
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
-      turns.forEach((t) => t.cancel());
+      runs.forEach((r) => r.cancel());
     };
   }, []);
 
   return (
     <div ref={root} className="hs" aria-hidden>
       <div className="hs-rig">
-        {RING.map((Panel, i) => {
-          const a = (360 / RING.length) * i;
+        {SEQ.map((Panel, i) => {
+          const a = startAngle(i);
           return (
             <div key={i} className="hs-orbit" style={{ transform: at(a), opacity: fade(a) }}>
               <Panel style={{ left: 0, top: 0 }} />

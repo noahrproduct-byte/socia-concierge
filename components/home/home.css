@@ -563,12 +563,12 @@ html:has(.hm) { background: #040506; }
    ========================================================================= */
 .hm { --hm-gold: #d6b97f; --hm-warm: #f3efe7; }
 
-.hm-cine { position: relative; isolation: isolate; overflow: hidden; min-height: max(760px, min(100svh, 1000px)); padding: clamp(128px, 15vh, 160px) 0 96px; align-content: start; }
+.hm-cine { position: relative; isolation: isolate; overflow: hidden; min-height: clamp(760px, 92svh, 900px); padding: clamp(112px, 12vh, 128px) 0 96px; align-content: start; }
 .hm-cine-scrim { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
 .hm-cine .hm-hero-copy { z-index: 2; gap: 24px; max-width: 980px; }
 .hm-cine-eyebrow { display: inline-flex; align-items: center; gap: 16px; font-family: var(--hm-mono); font-size: var(--hm-fs-mono); font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: #cfc9bd; }
 .hm-cine-eyebrow::before, .hm-cine-eyebrow::after { content: ""; width: 48px; height: 1px; background: var(--hm-gold); opacity: 0.8; }
-.hm-cine-h1 { display: grid; font-size: clamp(48px, 7.2vw, 104px); font-weight: 600; line-height: 0.98; letter-spacing: -0.03em; color: var(--hm-warm); max-width: none; }
+.hm-cine-h1 { display: grid; font-size: clamp(48px, 6.6vw, 96px); font-weight: 600; line-height: 0.98; letter-spacing: -0.03em; color: var(--hm-warm); max-width: none; }
 .hm-hero-copy .hm-cine-h1 { max-width: none; }
 .hm-cine-h1 .is-gold { color: var(--hm-gold); }
 .hm-cine .hm-lead { max-width: 620px; color: #a9a7a2; }
@@ -577,18 +577,19 @@ html:has(.hm) { background: #040506; }
 .hm-cine .hm-btn--outline { background: var(--hm-canvas); color: var(--hm-warm); }
 .hm-cine .hm-meta { color: #9a978f; }
 @media (max-width: 520px) {
-  .hm-cine { min-height: 880px; padding-top: 112px; }
+  .hm-cine { min-height: 860px; padding-top: 112px; }
   .hm-cine-eyebrow { letter-spacing: 0.12em; font-size: var(--hm-fs-eyebrow); text-align: center; }
   .hm-cine-eyebrow::before, .hm-cine-eyebrow::after { display: none; }
   .hm-cine .hm-hero-cta { flex-direction: column; align-items: stretch; width: 100%; max-width: 320px; }
 }
 
 /* ---- HeroStage: the product's screens, seen through a slow camera ---------- */
-.hs { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; perspective: 1800px; perspective-origin: 50% 50%; user-select: none; }
-.hs-rig { position: absolute; left: 50%; top: 56%; width: 0; height: 0; transform: translateZ(-860px); transform-style: preserve-3d; font-family: var(--hm-font); color: #e9e7e2; }
+.hs { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; perspective: 2600px; perspective-origin: 50% 80%; user-select: none; }
+.hs-rig { position: absolute; left: 50%; top: 772px; width: 0; height: 0; transform-style: preserve-3d; font-family: var(--hm-font); color: #e9e7e2; }
 .hs-orbit { position: absolute; left: -500px; top: -320px; width: 1000px; height: 640px; will-change: transform, opacity; }
-@media (max-width: 1100px) { .hs-rig { transform: translateZ(-860px) scale(0.8); } }
-@media (max-width: 760px) { .hs-rig { top: 89%; transform: translateZ(-860px); } }
+@media (min-width: 1600px) { .hs-rig { top: 796px; } }
+@media (max-width: 1100px) { .hs-rig { top: 736px; transform: scale(0.82); } }
+@media (max-width: 760px) { .hs-rig { top: 776px; transform: scale(0.56); } }
 .hs svg { display: block; }
 .hs-badge, .hs-status { font-family: var(--hm-mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; background: #1b1c1e; color: #9c9c9d; box-shadow: #363739 0 0 0 1px inset; white-space: nowrap; }
 .hs-status.is-on { color: #e9e7e2; }
@@ -699,3 +700,5 @@ html:has(.hm) { background: #040506; }
 .hm-nav-links a { font-size: var(--hm-fs-sm); color: #c9c7c2; }
 .hm-nav-actions { gap: 16px; }
 .hm-nav-actions .hm-btn--sm { min-height: 40px; padding: 8px 16px; font-size: var(--hm-fs-sm); }
+.hs-day-thumb { width: 100%; height: 96px; border-radius: 8px; object-fit: cover; }
+.hs-day { min-height: 0; }

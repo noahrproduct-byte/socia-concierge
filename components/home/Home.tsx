@@ -82,6 +82,17 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 <stop offset="0.7" stopColor="#040506" stopOpacity="0.88" />
                 <stop offset="1" stopColor="#040506" stopOpacity="0" />
               </radialGradient>
+              <radialGradient id="hm-scrim-cta" cx="50" cy="69" r="30" gradientUnits="userSpaceOnUse" gradientTransform="translate(50 69) scale(1 0.3) translate(-50 -69)">
+                <stop offset="0" stopColor="#040506" stopOpacity="0.9" />
+                <stop offset="0.6" stopColor="#040506" stopOpacity="0.75" />
+                <stop offset="1" stopColor="#040506" stopOpacity="0" />
+              </radialGradient>
+              <linearGradient id="hm-scrim-side" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stopColor="#040506" stopOpacity="0.92" />
+                <stop offset="0.2" stopColor="#040506" stopOpacity="0" />
+                <stop offset="0.8" stopColor="#040506" stopOpacity="0" />
+                <stop offset="1" stopColor="#040506" stopOpacity="0.92" />
+              </linearGradient>
               <linearGradient id="hm-scrim-edge" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0" stopColor="#040506" stopOpacity="0.9" />
                 <stop offset="0.16" stopColor="#040506" stopOpacity="0" />
@@ -90,7 +101,9 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
               </linearGradient>
             </defs>
             <rect width="100" height="100" fill="url(#hm-scrim)" />
+            <rect width="100" height="100" fill="url(#hm-scrim-cta)" />
             <rect width="100" height="100" fill="url(#hm-scrim-edge)" />
+            <rect width="100" height="100" fill="url(#hm-scrim-side)" />
           </svg>
           <div className="hm-wrap hm-hero-copy">
             <span className="hm-cine-eyebrow">Your social media. Finally understood.</span>
