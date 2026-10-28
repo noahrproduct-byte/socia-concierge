@@ -628,3 +628,86 @@ html[data-ws-switching]::after {
     transform: none;
   }
 }
+
+/* ---- the premium shell (2026-10-28) -----------------------------------------
+   Noah's dashboard reference: the sidebar on its own lifted surface, a clear
+   brand, understated group labels, the current page marked by a thin blue
+   edge, and a taller top bar whose search is the real command menu. */
+.s-side {
+  background: var(--side);
+  padding: 0 var(--sp-4) var(--sp-4);
+  gap: var(--sp-2);
+}
+.s-brand {
+  gap: var(--sp-3);
+  padding: 0 var(--sp-1);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  letter-spacing: var(--tr-title);
+}
+.s-brand .brandmark {
+  border-radius: var(--r-control);
+}
+.s-nav-group + .s-nav-group {
+  margin-top: var(--sp-5);
+}
+.s-nav-label {
+  padding: 0 var(--sp-3) var(--sp-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: var(--fw-medium);
+}
+.s-nav-item {
+  gap: var(--sp-3);
+  padding: 0 var(--sp-3);
+}
+.s-nav-item svg {
+  width: 18px;
+  height: 18px;
+}
+.s-nav-item[aria-current="page"] {
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.s-nav-item[aria-current="page"] svg {
+  color: var(--accent-ink);
+}
+.s-nav-item:focus-visible,
+.s-search:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-topbar {
+  gap: var(--sp-3);
+}
+.s-search {
+  max-width: 760px;
+  margin: 0;
+  height: var(--control-h-lg);
+  padding: 0 var(--sp-2) 0 var(--sp-4);
+  gap: var(--sp-3);
+  border-color: var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.s-search svg {
+  width: 18px;
+  height: 18px;
+}
+.s-ask {
+  height: var(--control-h-lg);
+  padding: 0 var(--sp-4);
+  border-color: var(--gold-line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-ask:hover {
+    border-color: var(--gold);
+    background: var(--surface-hover);
+  }
+}
+.s-content {
+  padding: var(--sp-6) var(--page-pad) var(--sp-12);
+}
