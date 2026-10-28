@@ -577,18 +577,18 @@ html:has(.hm) { background: #040506; }
 .hm-cine .hm-btn--outline { background: var(--hm-canvas); color: var(--hm-warm); }
 .hm-cine .hm-meta { color: #9a978f; }
 @media (max-width: 520px) {
-  .hm-cine { min-height: 720px; padding-top: 112px; }
+  .hm-cine { min-height: 880px; padding-top: 112px; }
   .hm-cine-eyebrow { letter-spacing: 0.12em; font-size: var(--hm-fs-eyebrow); text-align: center; }
   .hm-cine-eyebrow::before, .hm-cine-eyebrow::after { display: none; }
   .hm-cine .hm-hero-cta { flex-direction: column; align-items: stretch; width: 100%; max-width: 320px; }
 }
 
 /* ---- HeroStage: the product's screens, seen through a slow camera ---------- */
-.hs { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; perspective: 1500px; perspective-origin: 50% 36%; user-select: none; }
-.hs-rig { position: absolute; left: 50%; top: 68%; width: 0; height: 0; transform: rotateX(38deg); transform-style: preserve-3d; }
-.hs-spin { position: absolute; left: 0; top: 0; transform: rotate(-9deg); transform-origin: 50% 50%; will-change: transform; background: #08090b; font-family: var(--hm-font); color: #e9e7e2; }
-@media (max-width: 1100px) { .hs-rig { transform: rotateX(38deg) scale(0.8); } }
-@media (max-width: 760px) { .hs-rig { top: 72%; transform: rotateX(28deg) scale(0.56); } }
+.hs { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; perspective: 1800px; perspective-origin: 50% 50%; user-select: none; }
+.hs-rig { position: absolute; left: 50%; top: 56%; width: 0; height: 0; transform: translateZ(-860px); transform-style: preserve-3d; font-family: var(--hm-font); color: #e9e7e2; }
+.hs-orbit { position: absolute; left: -500px; top: -320px; width: 1000px; height: 640px; will-change: transform, opacity; }
+@media (max-width: 1100px) { .hs-rig { transform: translateZ(-860px) scale(0.8); } }
+@media (max-width: 760px) { .hs-rig { top: 89%; transform: translateZ(-860px); } }
 .hs svg { display: block; }
 .hs-badge, .hs-status { font-family: var(--hm-mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; background: #1b1c1e; color: #9c9c9d; box-shadow: #363739 0 0 0 1px inset; white-space: nowrap; }
 .hs-status.is-on { color: #e9e7e2; }

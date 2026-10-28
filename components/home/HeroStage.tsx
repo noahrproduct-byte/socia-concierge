@@ -6,19 +6,19 @@ import { WEEK } from "./exampleWeek";
 
 // The hero's background: SOCIA's own screens on the example café account
 // (Analytics, the Audience tab, Competitors, Content Plan, Content Studio and
-// Ask SOCIA), laid out on one large dark surface. The surface is tilted once,
-// on a layer that never moves, and a layer inside it turns slowly clockwise
-// around the centre of the screens: one full turn every 84 s, linear, forever.
-// Nothing travels across the hero; only the angle changes, so the loop has no
-// seam. The surface is far larger than the hero so no edge or corner ever
-// shows, and the outer screens fade under the hero's dark wash.
+// Ask SOCIA) standing on a ring around the headline, seen from slightly above,
+// like a ring around a planet. The ring turns at a constant speed: screens at
+// the front pass low and large, screens at the back pass high, small and dim
+// behind the words. Every screen keeps facing the viewer as it travels, so it
+// stays a readable product screen, never an edge-on sliver.
 //
 // Why continuous motion, against section 5 of docs/design/anti-slop-standard.md
-// (motion should answer an action): Noah asked for a slowly rotating product
-// surface behind the statement (2026-10-27). It runs on the compositor (Web
-// Animations API, transform only, no per-frame script), never animates
-// numbers, pauses when the hero is off screen or the tab is hidden, and does
-// not run at all under prefers-reduced-motion.
+// (motion should answer an action): Noah asked for a slowly turning ring of
+// the product behind the statement (2026-10-27). Each screen runs one Web
+// Animations API animation (transform and opacity, on the compositor, no
+// per-frame script); it never animates numbers, pauses when the hero is off
+// screen or the tab is hidden, and does not run under prefers-reduced-motion,
+// where the ring stands still.
 //
 // Everything here is decoration for sighted visitors: aria-hidden, no focusable
 // elements, pointer-events off. The same screens appear, readable and
@@ -399,37 +399,45 @@ function Ask({ style }: { style: CSSProperties }) {
   );
 }
 
-/** One full turn, in ms. */
-const TURN = 84000;
-/** The screens on the surface: 3 columns by 4 rows of 1000 x 640, each screen twice, never next to itself. */
-const ORDER = [
-  [Analytics, Audience, Competitors],
-  [Plan, Studio, Ask],
-  [Competitors, Ask, Analytics],
-  [Studio, Plan, Audience],
-];
-const SURFACE = 5200;
-const GRID_W = 3 * 1000 + 2 * 64;
-const GRID_H = 4 * 640 + 3 * 64;
+/** One full turn of the ring, in ms. */
+const TURN = 64000;
+const RING = [Analytics, Audience, Competitors, Plan, Studio, Ask];
+/** Ring radius, the camera's look-down angle and the screens' size: desktop, and a tighter ring for phones. */
+type Ring = { r: number; tilt: number; scale: number };
+const WIDE: Ring = { r: 960, tilt: 20, scale: 0.56 };
+const NARROW: Ring = { r: 420, tilt: 8, scale: 0.42 };
+
+/** Where a screen sits at angle a (0 = front centre): on the ring, facing the viewer. */
+const at = (a: number, g: Ring = WIDE) =>
+  `rotateX(${-g.tilt}deg) rotateY(${a}deg) translateZ(${g.r}px) rotateY(${-a}deg) rotateX(${g.tilt}deg) scale(${g.scale})`;
+/** Front screens full strength, the back of the ring dimmer. */
+const fade = (a: number) => 0.32 + 0.68 * ((Math.cos((a * Math.PI) / 180) + 1) / 2);
 
 export default function HeroStage() {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = root.current;
-    const spin = el?.querySelector<HTMLElement>(".hs-spin");
-    if (!el || !spin || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!el) return;
+    const cards = Array.from(el.querySelectorAll<HTMLElement>(".hs-orbit"));
+    const g = matchMedia("(max-width: 760px)").matches ? NARROW : WIDE;
+    cards.forEach((card, i) => (card.style.transform = at((360 / cards.length) * i, g)));
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    // clockwise, constant speed, from the angle the static frame shows
-    const turn = spin.animate([{ transform: "rotate(-9deg)" }, { transform: "rotate(351deg)" }], {
-      duration: TURN,
-      iterations: Infinity,
-      easing: "linear",
+    // one animation per screen, all the same length and started together, so
+    // the ring turns as one; 24 steps per turn keep the fade smooth
+    const turns = cards.map((card, i) => {
+      const start = (360 / cards.length) * i;
+      const frames = Array.from({ length: 25 }, (_, k) => {
+        const a = start + k * 15;
+        return { transform: at(a, g), opacity: fade(a) };
+      });
+      return card.animate(frames, { duration: TURN, iterations: Infinity, easing: "linear" });
     });
 
     // run only while the hero is on screen and the tab is visible
     let onScreen = true;
-    const sync = () => (onScreen && !document.hidden ? turn.play() : turn.pause());
+    const sync = () => turns.forEach((t) => (onScreen && !document.hidden ? t.play() : t.pause()));
     const io = new IntersectionObserver(([e]) => {
       onScreen = e.isIntersecting;
       sync();
@@ -439,23 +447,21 @@ export default function HeroStage() {
     return () => {
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
-      turn.cancel();
+      turns.forEach((t) => t.cancel());
     };
   }, []);
 
   return (
     <div ref={root} className="hs" aria-hidden>
       <div className="hs-rig">
-        <div className="hs-spin" style={{ width: SURFACE, height: SURFACE, marginLeft: -SURFACE / 2, marginTop: -SURFACE / 2 }}>
-          {ORDER.flatMap((row, r) =>
-            row.map((Panel, c) => (
-              <Panel
-                key={`${r}-${c}`}
-                style={{ left: (SURFACE - GRID_W) / 2 + c * 1064, top: (SURFACE - GRID_H) / 2 + r * 704 }}
-              />
-            )),
-          )}
-        </div>
+        {RING.map((Panel, i) => {
+          const a = (360 / RING.length) * i;
+          return (
+            <div key={i} className="hs-orbit" style={{ transform: at(a), opacity: fade(a) }}>
+              <Panel style={{ left: 0, top: 0 }} />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
