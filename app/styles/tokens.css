@@ -30,7 +30,9 @@
   --nav-active: #e8eaf0;
   --inverse-surface: #0f172a;
   --inverse-text: #ffffff;
-  --side: var(--ground);
+  /* The floating headbar: a semi-transparent ground with a hairline edge (no blur). */
+  --headbar: rgba(255, 255, 255, 0.9);
+  --headbar-line: rgba(15, 23, 42, 0.08);
 
   /* ---- ink ----------------------------------------------------------------- */
   --ink: #0f172a;
@@ -44,6 +46,7 @@
   --accent-ink: #1d4ed8;
   --accent-subtle: rgba(37, 99, 255, 0.1);
   --accent-rgb: 37, 99, 255;
+  --accent-line: rgba(37, 99, 255, 0.28);
   --on-accent: #ffffff;
 
   /* ---- the editorial accent: champagne, rationed to one priority per page --- */
@@ -121,7 +124,7 @@
   --nav-row: 38px;
   --row-h: 44px;
   --topbar-h: 60px;
-  --sidebar-w: 248px;
+  --headbar-h: 52px;
 
   /* ---- motion: feedback only ---------------------------------------------- */
   --t-press: 100ms;
@@ -234,11 +237,12 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* Noah's premium dark (2026-10-28): near-black ground, a slightly lifted
-     sidebar, layered surfaces, warm white ink. Contrast on --surface:
+  /* Noah's premium dark (2026-10-28): near-black ground, a lifted
+     floating headbar, layered surfaces, warm white ink. Contrast on --surface:
      ink 16.4:1, ink-2 7.0:1, ink-3 5.1:1, accent-ink 6.1:1, gold 9.0:1. */
   --ground: #0b0d10;
-  --side: #0e1116;
+  --headbar: rgba(14, 17, 22, 0.9);
+  --headbar-line: rgba(255, 255, 255, 0.08);
   --surface: #14181e;
   --surface-raised: #191e25;
   --surface-hover: #1f252d;
@@ -259,6 +263,7 @@
   --accent-ink: #7aa2ff;
   --accent-subtle: rgba(37, 99, 255, 0.16);
   --accent-rgb: 37, 99, 255;
+  --accent-line: rgba(37, 99, 255, 0.42);
   --on-accent: #ffffff;
 
   --gold: #d5b678;
