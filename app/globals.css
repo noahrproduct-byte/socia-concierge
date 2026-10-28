@@ -11647,3 +11647,40 @@ p.cbp-muted { display: block; }
 .ca-notice { margin-bottom: 8px; padding: 8px 10px; border-radius: 8px; font-size: 13px; background: var(--success-subtle); color: var(--success-text); }
 .ca-foot { margin-top: 10px; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
 @media (max-width: 560px) { .ca-row { flex-wrap: wrap; } .ca-when input[type="datetime-local"] { min-width: 0; width: 100%; } }
+
+/* Competitors: trending accounts and trending Reels in the niche (TrendingNiche.tsx) */
+.cx3 { padding: 18px 20px; margin-top: 16px; }
+.cx3-empty { margin: 4px 0 0; font-size: 13px; color: var(--text-secondary); }
+.cx3-locked { display: flex; align-items: center; gap: 14px; padding: 16px 20px; margin-top: 16px; }
+.cx3-locked > svg { flex: none; color: var(--text-muted); }
+.cx3-locked div { flex: 1; min-width: 0; }
+.cx3-locked b { display: block; font-size: 14px; }
+.cx3-locked p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-secondary); }
+.cx3-accounts { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.cx3-account { display: grid; gap: 10px; align-content: start; padding: 14px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); }
+.cx3-account header { display: flex; align-items: center; gap: 10px; }
+.cx3-account header img, .cx3-account header > i { flex: none; width: 36px; height: 36px; border-radius: 999px; object-fit: cover; }
+.cx3-account header > i { display: grid; place-items: center; background: var(--primary-subtle); color: var(--primary-text); font-style: normal; font-weight: 700; }
+.cx3-account header > div { flex: 1; min-width: 0; display: grid; }
+.cx3-account header > div span { font-size: 12px; color: var(--text-muted); }
+.cx3-name { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 650; color: var(--text-primary); text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx3-name:hover { color: var(--primary-text); }
+.cx3-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--primary-text); }
+.cx3-reels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cx3-reel { display: grid; gap: 4px; text-decoration: none; color: inherit; }
+.cx3-reel img, .cx3-reel .cx3-noimg { width: 100%; aspect-ratio: 9 / 14; border-radius: 10px; object-fit: cover; background: var(--surface-muted, var(--border)); }
+.cx3-reel-meta { font-size: 11px; line-height: 1.35; color: var(--text-muted); }
+.cx3-noimg { display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.cx3-gate { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--primary-subtle); font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
+.cx3-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.cx3-card { display: grid; grid-template-rows: auto 1fr; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); overflow: hidden; }
+.cx3-thumb { position: relative; display: block; aspect-ratio: 9 / 13; background: var(--border); }
+.cx3-thumb img, .cx3-thumb .cx3-noimg { width: 100%; height: 100%; object-fit: cover; }
+.cx3-mult { position: absolute; left: 8px; top: 8px; padding: 3px 8px; border-radius: 999px; background: var(--surface); color: var(--text-primary); font-size: 12px; font-weight: 700; }
+.cx3-open { position: absolute; right: 8px; top: 8px; padding: 4px; border-radius: 8px; width: 22px; height: 22px; background: var(--surface); color: var(--text-secondary); }
+.cx3-body { display: grid; gap: 6px; align-content: start; padding: 10px 12px 12px; }
+.cx3-acct { font-size: 12px; font-weight: 650; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx3-body p { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cx3-body small { font-size: 11.5px; line-height: 1.4; color: var(--text-muted); }
+.cx3-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+@media (max-width: 640px) { .cx3-locked { flex-wrap: wrap; } .cx3-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
