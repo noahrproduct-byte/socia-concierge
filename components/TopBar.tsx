@@ -65,7 +65,6 @@ export default function TopBar({
       <span className="s-headbar-title">{title}</span>
       <span className="s-headbar-sep" aria-hidden />
       <HeadNav />
-      <span className="s-headbar-sep" aria-hidden />
       <div className="s-headbar-tools">
         <button type="button" className="s-search" onClick={() => setCmd(true)} aria-haspopup="dialog" aria-expanded={cmd} aria-label="Search pages, posts and actions">
           <Search aria-hidden />

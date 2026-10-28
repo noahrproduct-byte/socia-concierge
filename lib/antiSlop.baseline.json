@@ -115,7 +115,8 @@
     "app/globals.css": 4
   },
   "glass": {
-    "app/globals.css": 18
+    "app/globals.css": 18,
+    "app/styles/shell.css": 1
   },
   "gradient": {
     "app/globals.css": 140,
