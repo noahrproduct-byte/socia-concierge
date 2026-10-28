@@ -46,4 +46,32 @@ export type CompetitorsData = {
   location: string | null;
   /** Server clock, ISO; the client never re-derives "now" on first paint. */
   now: string;
+  /** How many trending niche accounts the plan shows (its competitor limit, at most 10). */
+  trendingLimit: number;
+  /** Recent Reels and Shorts in the niche, ranked against each account's own median. */
+  trendingReels: TrendingReel[];
+  /** Niche intelligence is on the owner's plan. */
+  nicheAccess: boolean;
+  /** The plan that unlocks it, when it is not on this one. */
+  nicheUpgrade: string | null;
+};
+
+/** One recent Reel or Short from an account in the niche. Every number is what the platform published. */
+export type TrendingReel = {
+  url: string;
+  platform: string;
+  accountName: string;
+  accountHandle: string | null;
+  accountAvatar: string | null;
+  title: string | null;
+  thumb: string | null;
+  publishedAt: string | null;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  /** Against the account's own median for the same measure; null when no baseline exists. */
+  multiplier: number | null;
+  /** The measure the multiplier compares. */
+  basis: "views" | "likes and comments";
+  format: string;
 };

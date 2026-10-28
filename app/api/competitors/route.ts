@@ -7,6 +7,7 @@ import { listTracked, trackedState } from "@/lib/trackedCompetitors";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
 import { dbErrorResponse } from "@/lib/dbError";
+import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
 
 export const runtime = "nodejs";
 
@@ -96,6 +97,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "That doesn't look like a valid handle." }, { status: 400 });
   }
   const key = handle.toLowerCase();
+
+  // A user's own account is never a competitor, on any platform or workspace.
+  if (isOwnAccount(await ownAccounts(ctx.client, ctx.ownerId), { handle })) {
+    return NextResponse.json({ error: "That's one of your own connected accounts. Add another account to compare against." }, { status: 400 });
+  }
 
   // The workspace this competitor is added to, once the competitors migration
   // has run; null keeps the pooled, pre-migration behaviour. When isolation is
