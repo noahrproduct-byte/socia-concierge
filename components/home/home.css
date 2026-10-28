@@ -604,15 +604,16 @@ html:has(.hm) { background: #040506; }
 .hm-nav-actions .hm-btn--sm { min-height: 40px; padding: 8px 16px; font-size: var(--hm-fs-sm); }
 
 /* ---- HeroStage: the product along the inside of a large ring (Noah's reference, 2026-10-27) ---- */
-.hs { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; user-select: none; text-align: left; perspective: 1000px; perspective-origin: 50% calc(100% - 28px); }
-.hs-rig { position: absolute; left: 50%; top: calc(100% - 28px); width: 0; height: 0; transform-style: preserve-3d; font-family: var(--hm-font); color: #ecebe7; }
-@media (max-width: 1100px) { .hs-rig { transform: scale(0.86); } }
-@media (max-width: 760px) { .hs-rig { transform: scale(0.64); } }
-.hx-slot { position: absolute; left: 0; top: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform, opacity; }
+.hs { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; user-select: none; text-align: left; perspective: 1400px; perspective-origin: 50% 40%; }
+.hs-rig { position: absolute; left: 50%; top: calc(100% - 10px); width: 0; height: 0; transform: scale3d(0.6, 0.6, 0.6); transform-style: preserve-3d; font-family: var(--hm-font); color: #ecebe7; }
+.hs-drum { position: absolute; left: 0; top: 0; transform-style: preserve-3d; will-change: transform; }
+@media (max-width: 1100px) { .hs-rig { transform: scale3d(0.52, 0.52, 0.52); } }
+@media (max-width: 760px) { .hs-rig { transform: scale3d(0.4, 0.4, 0.4); } }
+.hx-slot { position: absolute; left: 0; top: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .hs svg { display: block; }
 
 /* one screen, in world pixels (about 0.6x on screen at the centre) */
-.hx { width: 100%; height: 100%; display: grid; align-content: start; gap: 22px; padding: 30px 32px; border-radius: 26px; background: #0d0e11; box-shadow: rgba(255, 255, 255, 0.08) 0 1.5px 0 0 inset, #26272c 0 0 0 1.5px inset, rgba(0, 0, 0, 0.55) 0 40px 80px -24px; overflow: hidden; }
+.hx { width: 100%; height: 100%; display: grid; align-content: start; gap: 22px; padding: 30px 32px; border-radius: 4px; background: #0d0e11; box-shadow: rgba(255, 255, 255, 0.08) 0 1.5px 0 0 inset, #26272c 0 0 0 1.5px inset, rgba(0, 0, 0, 0.55) 0 40px 80px -24px; overflow: hidden; }
 .hx-head { display: flex; align-items: center; gap: 14px; }
 .hx-head > b { font-size: 32px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; }
 .hx-chip { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; font-size: 20px; color: #c9c7c2; box-shadow: #2c2d32 0 0 0 1.5px inset; white-space: nowrap; }

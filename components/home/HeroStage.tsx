@@ -15,22 +15,19 @@ import {
 import { WEEK } from "./exampleWeek";
 
 // The hero's background, from Noah's reference (2026-10-27): SOCIA's own
-// screens on the example café account, standing along the inside of a very
-// large ring, with the camera inside it looking at the far wall. Screens near
-// the edges are closer, larger and turned in toward the centre; the centre is
-// farther away. The screens travel along that wall in order, always facing
-// the inside of the ring, so they stay upright and readable, and the near
-// half of the ring is behind the viewer and never seen. Each screen fades out
-// before it wraps from one end of the wall to the other, so the loop has no
-// visible restart.
+// screens on the example café account, joined edge to edge with no gap into
+// one closed ring that turns at a constant speed and never stops. Screens come
+// round from the back on the right, pass the front, and circle away to the
+// back on the left, always in the same order (the sequence runs round
+// the ring three times). Each screen faces outward and hides its back face, so only the
+// front half of the ring is ever seen.
 //
 // Why continuous motion, against section 5 of docs/design/anti-slop-standard.md
-// (motion should answer an action): Noah asked for the product to move
-// continuously behind the statement. Each screen runs one Web Animations API
-// animation (transform and opacity, on the compositor, no per-frame script);
-// it never animates numbers, pauses when the hero is off screen or the tab is
-// hidden, and does not run under prefers-reduced-motion, where the screens
-// hold their opening arrangement.
+// (motion should answer an action): Noah asked for the product to turn
+// continuously behind the statement. One Web Animations API animation turns
+// the whole ring (a transform on the compositor, no per-frame script); it never
+// animates numbers, pauses only when the hero is off screen or the tab is
+// hidden, and does not run under prefers-reduced-motion.
 //
 // Everything here is decoration for sighted visitors: aria-hidden, no
 // focusable elements, pointer-events off. Every number is the example café's,
@@ -254,8 +251,8 @@ function Ask() {
   );
 }
 
-/** The screens along the wall, left to right, with their widths in world pixels. */
-const WALL: { El: () => ReactNode; w: number }[] = [
+/** The screens in order round the ring, with their widths in world pixels; the order runs three times so the ring is wide enough to fill the hero. */
+const SEQ: { El: () => ReactNode; w: number }[] = [
   { El: Nav, w: 300 },
   { El: Performance, w: 680 },
   { El: Audience, w: 580 },
@@ -264,71 +261,56 @@ const WALL: { El: () => ReactNode; w: number }[] = [
   { El: Plan, w: 660 },
   { El: Ask, w: 520 },
 ];
+const RING = [...SEQ, ...SEQ, ...SEQ];
 const H = 440;
-const GAP = 20;
-/** The ring: radius, how far its centre sits in front of the camera, and the camera distance (CSS perspective). */
-const R = 1300;
-const D0 = 440;
-const P = 1000;
-/** Milliseconds for the whole wall to pass once. */
-const CYCLE = 46000;
-const SPAN = WALL.reduce((a, s) => a + s.w + GAP, 0);
-const ARC = SPAN / R; // radians the wall covers
-const deg = (r: number) => (r * 180) / Math.PI;
+/** Milliseconds for one full turn; constant speed, never stopping. */
+const TURN = 84000;
 
-/** Centre angle (radians) of each screen when the loop starts, with Audience at the centre. */
-const START = (() => {
+/** The ring's radius: the one at which every screen, edge to edge with no gap, closes the circle exactly. */
+const R = (() => {
+  const sweep = (r: number) => RING.reduce((a, s) => a + 2 * Math.asin(Math.min(1, s.w / (2 * r))), 0);
+  let lo = Math.max(...RING.map((s) => s.w)) / 2;
+  let hi = 20000;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (sweep(mid) > 2 * Math.PI) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+})();
+/** Each screen's angle round the ring and its distance from the centre (the faces of a closed polygon). */
+const FACES = (() => {
   let acc = 0;
-  const centre = WALL[0].w + GAP + WALL[1].w + GAP + WALL[2].w / 2;
-  return WALL.map((s) => {
-    const c = acc + s.w / 2;
-    acc += s.w + GAP;
-    return (c - centre) / R;
+  return RING.map((s) => {
+    const half = Math.asin(s.w / (2 * R));
+    const a = acc + half;
+    acc += 2 * half;
+    return { a: (a * 180) / Math.PI, d: R * Math.cos(half) };
   });
 })();
-const wrap = (t: number) => ((((t + ARC / 2) % ARC) + ARC) % ARC) - ARC / 2;
-
-/** A screen at angle t on the far wall: positioned on the ring and turned to face its centre. */
-const at = (t: number) => {
-  const x = R * Math.sin(t);
-  const depth = D0 + R * Math.cos(t);
-  return `translate3d(${x.toFixed(1)}px, 0px, ${(P - depth).toFixed(1)}px) rotateY(${(-deg(t)).toFixed(2)}deg)`;
-};
-/** Clear in the middle, darker toward the edges, gone well before the wrap. */
-const fade = (t: number) => {
-  const d = Math.abs(deg(t));
-  if (d <= 24) return 1;
-  if (d >= 76) return 0;
-  if (d <= 58) return 1 - ((d - 24) / 34) * 0.45;
-  return 0.55 * (1 - (d - 58) / 18);
-};
+/** Start with Audience at the front, as in the reference. */
+const FRONT = -FACES[2].a;
+const ring = (deg: number) => `translateZ(${(-FACES[2].d).toFixed(1)}px) rotateY(${deg.toFixed(2)}deg)`;
 
 export default function HeroStage() {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = root.current;
-    if (!el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const cards = Array.from(el.querySelectorAll<HTMLElement>(".hx-slot"));
+    const drum = el?.querySelector<HTMLElement>(".hs-drum");
+    if (!el || !drum || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    // every screen runs the same right-to-left path along the wall, offset by
-    // its place in the sequence, so together they form one unbroken chain
-    const frames = Array.from({ length: 61 }, (_, k) => {
-      const t = ARC / 2 - (k / 60) * ARC;
-      return { transform: at(t), opacity: fade(t) };
+    // one constant, endless turn of the whole ring: the front moves right to
+    // left, screens arrive from the back on the right and leave round the left
+    const turn = drum.animate([{ transform: ring(FRONT) }, { transform: ring(FRONT - 360) }], {
+      duration: TURN,
+      iterations: Infinity,
+      easing: "linear",
     });
-    const runs = cards.map((card, i) =>
-      card.animate(frames, {
-        duration: CYCLE,
-        iterations: Infinity,
-        easing: "linear",
-        iterationStart: (ARC / 2 - wrap(START[i])) / ARC,
-      }),
-    );
 
     // run only while the hero is on screen and the tab is visible
     let onScreen = true;
-    const sync = () => runs.forEach((r) => (onScreen && !document.hidden ? r.play() : r.pause()));
+    const sync = () => (onScreen && !document.hidden ? turn.play() : turn.pause());
     const io = new IntersectionObserver(([e]) => {
       onScreen = e.isIntersecting;
       sync();
@@ -338,29 +320,29 @@ export default function HeroStage() {
     return () => {
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
-      runs.forEach((r) => r.cancel());
+      turn.cancel();
     };
   }, []);
 
   return (
     <div ref={root} className="hs" aria-hidden>
       <div className="hs-rig">
-        {WALL.map(({ El, w }, i) => {
-          const t = wrap(START[i]);
-          const style: CSSProperties = {
-            width: w,
-            height: H,
-            marginLeft: -w / 2,
-            marginTop: -H,
-            transform: at(t),
-            opacity: fade(t),
-          };
-          return (
-            <div key={i} className="hx-slot" style={style}>
-              <El />
-            </div>
-          );
-        })}
+        <div className="hs-drum" style={{ transform: ring(FRONT) }}>
+          {RING.map(({ El, w }, i) => {
+            const style: CSSProperties = {
+              width: w,
+              height: H,
+              marginLeft: -w / 2,
+              marginTop: -H,
+              transform: `rotateY(${FACES[i].a.toFixed(3)}deg) translateZ(${FACES[i].d.toFixed(1)}px)`,
+            };
+            return (
+              <div key={i} className="hx-slot" style={style}>
+                <El />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
