@@ -12,10 +12,11 @@
 }
 
 /* ---- headbar -------------------------------------------------------------------
-   It floats 16px from the top and stays there while the page scrolls beneath
-   it: a semi-transparent ground, a hairline border and the float shadow. No
-   backdrop blur: the anti-slop standard (sections 2 and 17.9) and the design
-   budget rule it out, so the fill is opaque enough to read on its own. */
+   It floats 16px from the top and 20px in from each side, and stays there
+   while the page scrolls beneath it: a translucent ground, a subtle blur, a
+   hairline border and the float shadow. The blur is the one recorded
+   exception in the anti-slop standard (section 18.1); nothing else in the app
+   may use it. */
 .s-headbar {
   position: sticky;
   top: var(--sp-4);
@@ -23,15 +24,19 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  width: fit-content;
-  max-width: calc(100% - 2 * var(--sp-4));
   height: var(--headbar-h);
-  margin: var(--sp-4) auto 0;
+  margin: var(--sp-4) var(--sp-5) 0;
   padding: 0 var(--sp-2) 0 var(--sp-3);
   border: 1px solid var(--headbar-line);
   border-radius: var(--r-panel);
   background: var(--headbar);
   box-shadow: var(--shadow-float);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .s-headbar {
+    background: var(--surface);
+  }
 }
 .s-brand {
   display: flex;
@@ -75,6 +80,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  margin-left: auto;
   flex: none;
 }
 .s-headbar-ws,
@@ -877,8 +883,6 @@ html[data-ws-switching]::after {
 @media (max-width: 960px) {
   .s-headbar {
     top: var(--sp-3);
-    width: auto;
-    max-width: none;
     margin: var(--sp-3) var(--sp-4) 0;
     padding: 0 var(--sp-1) 0 var(--sp-3);
   }

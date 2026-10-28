@@ -465,6 +465,12 @@ This standard is part of how SOCIA is built, not a document to remember.
 4. **Review.** Every redesign PR is checked against section 14 (the acceptance checklist) and the fast tests, and its report says which P0/P1 items it removed and which justified exceptions remain.
 5. **Judgment over counting.** The guard catches what a pattern match can. Everything else in sections 1 to 17 is reviewed by eye in the browser. A clear, usable convention stays, with the reason written down.
 
+### 18.1 Recorded exceptions
+
+Each exception is approved by Noah, dated, scoped to one element, and enforced in both tests so it cannot spread.
+
+- **Headbar backdrop blur (2026-10-28).** The floating app headbar (`.s-headbar` in `app/styles/shell.css`) uses a subtle `backdrop-filter: blur(16px)` over a translucent ground. Noah asked for it twice and approved this exception. **Reason:** the bar floats over scrolling content on every app page, and the blur keeps its labels legible over that content without making the bar opaque. **Limits:** this one rule only. People who ask their system to reduce transparency get an opaque bar. Blur remains banned on every panel, card, dialog and marketing header (sections 2 and 17.9). `lib/antiSlop.test.ts` allows exactly one occurrence in `shell.css`, and `lib/designBudget.test.ts` allows it only inside the `.s-headbar` rule.
+
 ## 15. Research references and limitations
 
 Sources below informed the **pattern inventory** and **design principles**. Most “AI tells” are industry commentary and heuristic observations, not controlled evidence that a particular site was AI-authored. Research claims are attributed rather than treated as universal laws.

@@ -30,8 +30,8 @@
   --nav-active: #e8eaf0;
   --inverse-surface: #0f172a;
   --inverse-text: #ffffff;
-  /* The floating headbar: a semi-transparent ground with a hairline edge (no blur). */
-  --headbar: rgba(255, 255, 255, 0.9);
+  /* The floating headbar: a translucent ground (blurred, see shell.css) with a hairline edge. */
+  --headbar: rgba(255, 255, 255, 0.72);
   --headbar-line: rgba(15, 23, 42, 0.08);
 
   /* ---- ink ----------------------------------------------------------------- */
@@ -241,7 +241,7 @@
      floating headbar, layered surfaces, warm white ink. Contrast on --surface:
      ink 16.4:1, ink-2 7.0:1, ink-3 5.1:1, accent-ink 6.1:1, gold 9.0:1. */
   --ground: #0b0d10;
-  --headbar: rgba(14, 17, 22, 0.9);
+  --headbar: rgba(14, 17, 22, 0.74);
   --headbar-line: rgba(255, 255, 255, 0.08);
   --surface: #14181e;
   --surface-raised: #191e25;
