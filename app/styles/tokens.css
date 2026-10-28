@@ -30,6 +30,7 @@
   --nav-active: #e8eaf0;
   --inverse-surface: #0f172a;
   --inverse-text: #ffffff;
+  --side: var(--ground);
 
   /* ---- ink ----------------------------------------------------------------- */
   --ink: #0f172a;
@@ -44,6 +45,12 @@
   --accent-subtle: rgba(37, 99, 255, 0.1);
   --accent-rgb: 37, 99, 255;
   --on-accent: #ffffff;
+
+  /* ---- the editorial accent: champagne, rationed to one priority per page --- */
+  --gold: #8a6a2c;
+  --gold-ink: #7a5c22;
+  --gold-subtle: rgba(138, 106, 44, 0.1);
+  --gold-line: rgba(138, 106, 44, 0.35);
 
   /* ---- status (pale pair = pill background + pill ink) --------------------- */
   --positive: #16a34a;
@@ -89,11 +96,9 @@
   --fw-semibold: 600;
   --tr-title: -0.01em;
   --tr-display: -0.02em;
-  /* marketing pages only */
-  --fs-m-body: 17px;
-  --fs-m-lead: clamp(20px, 1.1rem + 0.7vw, 24px);
-  --fs-m-h2: clamp(32px, 1.6rem + 2.4vw, 56px);
-  --fs-m-display: clamp(44px, 2rem + 4vw, 80px);
+  /* display: big figures, and one greeting per page */
+  --fs-figure: 30px;  --lh-figure: 36px;
+  --fs-display: 36px; --lh-display: 44px;
 
   /* ---- space on a 4px base ------------------------------------------------- */
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
@@ -113,10 +118,10 @@
   --control-h: 32px;
   --control-h-sm: 28px;
   --control-h-lg: 44px;
-  --nav-row: 34px;
+  --nav-row: 38px;
   --row-h: 44px;
-  --topbar-h: 48px;
-  --sidebar-w: 232px;
+  --topbar-h: 60px;
+  --sidebar-w: 248px;
 
   /* ---- motion: feedback only ---------------------------------------------- */
   --t-press: 100ms;
@@ -229,28 +234,37 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --ground: #0f1115;
-  --surface: #161920;
-  --surface-raised: #1d2129;
-  --surface-hover: #232833;
-  --border: #262b35;
-  --border-strong: #343a46;
-  --rule: #1b1f27;
-  --nav-active: #232833;
-  --inverse-surface: #eef1f8;
-  --inverse-text: #0f172a;
+  /* Noah's premium dark (2026-10-28): near-black ground, a slightly lifted
+     sidebar, layered surfaces, warm white ink. Contrast on --surface:
+     ink 16.4:1, ink-2 7.0:1, ink-3 5.1:1, accent-ink 6.1:1, gold 9.0:1. */
+  --ground: #0b0d10;
+  --side: #0e1116;
+  --surface: #14181e;
+  --surface-raised: #191e25;
+  --surface-hover: #1f252d;
+  --border: #282d35;
+  --border-strong: #3a414c;
+  --rule: #1d2229;
+  --nav-active: rgba(37, 99, 255, 0.16);
+  --inverse-surface: #f4f2ed;
+  --inverse-text: #0b0d10;
 
-  --ink: #eef1f8;
-  --ink-2: #a8b0c0;
-  --ink-3: #8a93a6;
-  --ink-disabled: #566070;
+  --ink: #f4f2ed;
+  --ink-2: #9ca3af;
+  --ink-3: #868d99;
+  --ink-disabled: #535a66;
 
   --accent: #2563ff;
   --accent-hover: #3b76ff;
-  --accent-ink: #60a5fa;
-  --accent-subtle: rgba(96, 165, 250, 0.14);
+  --accent-ink: #7aa2ff;
+  --accent-subtle: rgba(37, 99, 255, 0.16);
   --accent-rgb: 37, 99, 255;
   --on-accent: #ffffff;
+
+  --gold: #d5b678;
+  --gold-ink: #dcc28c;
+  --gold-subtle: rgba(213, 182, 120, 0.1);
+  --gold-line: rgba(213, 182, 120, 0.32);
 
   --positive: #22c55e;
   --positive-ink: #4ade80;
@@ -262,25 +276,25 @@
   --negative-ink: #f87171;
   --negative-bg: rgba(239, 68, 68, 0.14);
 
-  --chart-grid: #262b35;
-  --chart-axis: #8a93a6;
-  --chart-series: var(--accent-ink);
-  --chart-series-2: #64748b;
-  --chart-series-3: #94a3b8;
-  --chart-tooltip-bg: #1d2129;
-  --chart-tooltip-text: #eef1f8;
+  --chart-grid: #20252d;
+  --chart-axis: #868d99;
+  --chart-series: #2f6bff;
+  --chart-series-2: #4b5563;
+  --chart-series-3: #9ca3af;
+  --chart-tooltip-bg: #191e25;
+  --chart-tooltip-text: #f4f2ed;
 
   --shadow-rgb: 0, 0, 0;
-  --shadow-float: 0 8px 24px rgba(var(--shadow-rgb), 0.4);
-  --shadow-dialog: 0 16px 48px rgba(var(--shadow-rgb), 0.5);
+  --shadow-float: 0 8px 24px rgba(var(--shadow-rgb), 0.45);
+  --shadow-dialog: 0 16px 48px rgba(var(--shadow-rgb), 0.55);
 
   --primary-bright: #4f7dff;
   --success-rgb: 34, 197, 94;
   --warning-rgb: 245, 158, 11;
   --danger-rgb: 239, 68, 68;
 
-  --sidebar: #0f1115;
-  --sidebar-active: rgba(96, 165, 250, 0.18);
+  --sidebar: #0e1116;
+  --sidebar-active: rgba(37, 99, 255, 0.16);
   --sidebar-active-text: #9dbbff;
-  --sidebar-border: #262b35;
+  --sidebar-border: #282d35;
 }

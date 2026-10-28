@@ -175,7 +175,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
           <ThemeSync appearance={appearance} />
           <aside className="s-side">
             <Link href="/dashboard" className="s-brand">
-              <BrandMark size={22} />
+              <BrandMark size={30} />
               SOCIA
             </Link>
             {sideBody}
