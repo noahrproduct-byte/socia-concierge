@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
-import BrandMark from "@/components/BrandMark";
 import WorkspaceSwitcher, { type ShellAccount } from "@/components/WorkspaceSwitcher";
 import TopBar, { type SearchItem, type AlertItem } from "@/components/TopBar";
 import AccountMenu from "@/components/AccountMenu";
 import { ThemeSync } from "@/components/ThemeProvider";
-import { SideNav, SideLink } from "@/components/SideNav";
+import { SideNav } from "@/components/SideNav";
+import PageTransition from "@/components/PageTransition";
 import { ToastProvider, TooltipProvider } from "@/components/system";
 import { isAppearance, type Appearance } from "@/lib/appearance";
 import { getViewer } from "@/lib/supabase/server";
@@ -42,7 +42,6 @@ function nextPlanLine(p: PlanId): string {
 
 const PAGES: SearchItem[] = [
   ...NAV.map((n) => ({ kind: "page" as const, label: n.label, href: n.href })),
-  { kind: "page", label: "Settings", href: "/settings" },
   { kind: "page", label: "Appearance", hint: "Settings", href: "/settings#appearance" },
   { kind: "page", label: "Connected accounts", hint: "Settings", href: "/settings#accounts" },
   { kind: "page", label: "Brand Workspaces", hint: "Settings", href: "/settings#workspaces" },
@@ -142,12 +141,12 @@ export default async function AppShell({ children }: { children: React.ReactNode
     { platform: "tiktok", label: ttName ?? "TikTok", connected: Boolean(ttName), href: "/settings#accounts" },
   ];
 
-  // The sidebar's body, rendered in the sidebar and again inside the phone sheet.
-  const sideBody = (
+  // The phone sheet: everything the headbar holds that does not fit on a phone.
+  const sheetBody = (
     <>
       <WorkspaceSwitcher initial={activeWs} accounts={accounts} />
       <SideNav />
-      <div className="s-side-foot">
+      <div className="s-sheet-foot">
         {next && (
           <Link href={pricingHref(next)} className="s-upgrade">
             <b>Upgrade to {PLANS[next].name}</b>
@@ -157,8 +156,6 @@ export default async function AppShell({ children }: { children: React.ReactNode
             </span>
           </Link>
         )}
-        <SideLink href="/settings" icon="settings" label="Settings" navKey="settings" />
-        <SideLink href="/#faq" icon="help" label="Help" />
         <AccountMenu email={userEmail} plan={viewerPlan} />
       </div>
     </>
@@ -173,17 +170,16 @@ export default async function AppShell({ children }: { children: React.ReactNode
       <ToastProvider>
         <div className="s-shell" key={activeWs?.id ?? "default"}>
           <ThemeSync appearance={appearance} />
-          <aside className="s-side">
-            <Link href="/dashboard" className="s-brand">
-              <BrandMark size={30} />
-              SOCIA
-            </Link>
-            {sideBody}
-          </aside>
-          <div className="s-main">
-            <TopBar index={searchIndex} activity={activity} alerts={alerts} unread={unreadAlerts} sheet={sideBody} />
-            <main className="s-content">{children}</main>
-          </div>
+          <TopBar
+            index={searchIndex}
+            activity={activity}
+            alerts={alerts}
+            unread={unreadAlerts}
+            workspace={<WorkspaceSwitcher initial={activeWs} accounts={accounts} />}
+            account={<AccountMenu email={userEmail} plan={viewerPlan} compact upgrade={next ? { href: pricingHref(next), name: PLANS[next].name } : null} />}
+            sheet={sheetBody}
+          />
+          <PageTransition>{children}</PageTransition>
         </div>
       </ToastProvider>
     </TooltipProvider>

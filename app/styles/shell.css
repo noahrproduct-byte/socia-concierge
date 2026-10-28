@@ -1,47 +1,396 @@
 /* ============================================================================
-   The app shell: an open-plane sidebar on the page ground, a 48px top bar
-   that holds real things (search, Ask SOCIA, alerts), the content column,
-   the command menu and the phone sheet. Tokens only.
+   The app shell: a floating headbar (brand, grouped navigation, search, the
+   Brand Workspace, Ask SOCIA, alerts and the account) centred over a
+   full-width content column, plus the command menu and the phone sheet.
+   Tokens only.
    ========================================================================= */
 
 .s-shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
   background: var(--ground);
   color: var(--ink);
 }
 
-/* ---- sidebar ---------------------------------------------------------------- */
-.s-side {
+/* ---- headbar -------------------------------------------------------------------
+   It floats 16px from the top and stays there while the page scrolls beneath
+   it: a semi-transparent ground, a hairline border and the float shadow. No
+   backdrop blur: the anti-slop standard (sections 2 and 17.9) and the design
+   budget rule it out, so the fill is opaque enough to read on its own. */
+.s-headbar {
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: var(--sp-4);
+  z-index: var(--z-sticky);
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-3) var(--sp-3);
-  border-right: 1px solid var(--border);
-  background: var(--ground);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  align-items: center;
+  gap: var(--sp-2);
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--sp-4));
+  height: var(--headbar-h);
+  margin: var(--sp-4) auto 0;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--headbar-line);
+  border-radius: var(--r-panel);
+  background: var(--headbar);
+  box-shadow: var(--shadow-float);
 }
 .s-brand {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  height: var(--topbar-h);
-  padding: 0 var(--sp-2);
+  padding-right: var(--sp-1);
+  border-radius: var(--r-control);
   color: var(--ink);
-  font-size: var(--fs-body);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
   font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-title);
   text-decoration: none;
   flex: none;
 }
 .s-brand .brandmark {
-  border-radius: var(--r-chip);
+  border-radius: var(--r-control);
 }
+.s-brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-headbar-title {
+  display: none;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-headbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex: none;
+}
+.s-headbar-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+.s-headbar-ws,
+.s-headbar-account {
+  display: flex;
+}
+.s-headbar-menu {
+  display: none;
+}
+
+/* ---- grouped navigation ---------------------------------------------------------
+   One trigger per group. The indicator is a single element that moves to the
+   group holding the current page and takes its width, so it glides between
+   groups instead of jumping. */
+.s-hnav {
+  position: relative;
+  flex: none;
+}
+.s-hnav-list {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.s-hnav-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: var(--control-h);
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+}
+.s-hnav-trigger[data-current],
+.s-hnav-trigger[data-popup-open] {
+  color: var(--ink);
+}
+.s-hnav-trigger[data-popup-open]:not([data-current]) {
+  background: var(--surface-hover);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-hnav-trigger:hover:not([data-current]) {
+    background: var(--surface-hover);
+    color: var(--ink);
+  }
+}
+.s-hnav-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-hnav-chev {
+  display: inline-flex;
+  color: var(--ink-3);
+  transition: transform var(--t-menu) var(--ease-out);
+}
+.s-hnav-chev svg {
+  width: 14px;
+  height: 14px;
+}
+.s-hnav-chev[data-popup-open] {
+  transform: rotate(180deg);
+}
+.s-hnav-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: var(--control-h);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-control);
+  background: var(--accent-subtle);
+  pointer-events: none;
+}
+.s-hnav-indicator[data-hidden] {
+  opacity: 0;
+}
+.s-hnav[data-ready] .s-hnav-indicator {
+  transition:
+    transform var(--t-dialog) var(--ease-out),
+    width var(--t-dialog) var(--ease-out),
+    opacity var(--t-menu) var(--ease-out);
+}
+/* Before the script measures (the server render), mark the current group in place. */
+.s-hnav:not([data-ready]) .s-hnav-trigger[data-current] {
+  background: var(--accent-subtle);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+
+/* The group's links, in one popup that glides and resizes between triggers. */
+.s-hnav-pos {
+  width: var(--positioner-width);
+  height: var(--positioner-height);
+  max-width: var(--available-width);
+  transition-property: top, left, right, bottom;
+  transition-duration: var(--t-dialog);
+  transition-timing-function: var(--ease-out);
+}
+/* A bridge over the gap under the trigger, so moving the pointer down keeps the popup open. */
+.s-hnav-pos::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -10px;
+  height: 10px;
+}
+.s-hnav-pos[data-instant] {
+  transition: none;
+}
+.s-hnav-pop {
+  position: relative;
+  width: var(--popup-width);
+  height: var(--popup-height);
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-float);
+  transform-origin: var(--transform-origin);
+  transition-property: opacity, transform, width, height;
+  transition-duration: var(--t-dialog);
+  transition-timing-function: var(--ease-out);
+  outline: none;
+}
+.s-hnav-pop[data-starting-style],
+.s-hnav-pop[data-ending-style] {
+  opacity: 0;
+  transform: scale(0.97);
+}
+.s-hnav-pop[data-ending-style] {
+  transition-duration: var(--t-menu);
+}
+.s-hnav-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.s-hnav-content {
+  width: max-content;
+  min-width: 200px;
+  padding: var(--sp-1);
+  transition: opacity var(--t-menu) var(--ease-out), transform var(--t-dialog) var(--ease-out);
+}
+.s-hnav-content[data-starting-style],
+.s-hnav-content[data-ending-style] {
+  opacity: 0;
+}
+.s-hnav-content[data-starting-style][data-activation-direction="left"],
+.s-hnav-content[data-ending-style][data-activation-direction="right"] {
+  transform: translateX(-24px);
+}
+.s-hnav-content[data-starting-style][data-activation-direction="right"],
+.s-hnav-content[data-ending-style][data-activation-direction="left"] {
+  transform: translateX(24px);
+}
+.s-hnav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.s-hnav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: var(--nav-row);
+  padding: 0 var(--sp-4) 0 var(--sp-3);
+  border-radius: var(--r-control);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-decoration: none;
+  white-space: nowrap;
+  outline: none;
+  transition: background-color var(--t-press) var(--ease-out);
+}
+.s-hnav-link svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-3);
+  flex: none;
+}
+.s-hnav-link[data-active] {
+  background: var(--accent-subtle);
+}
+.s-hnav-link[data-active] svg {
+  color: var(--accent-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-hnav-link:hover:not([data-active]) {
+    background: var(--surface-hover);
+  }
+}
+.s-hnav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* ---- headbar tools ------------------------------------------------------------- */
+.s-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 200px;
+  height: var(--control-h);
+  padding: 0 var(--sp-1) 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-align: left;
+  cursor: text;
+  flex: none;
+  transition: border-color var(--t-press) var(--ease-out);
+}
+.s-search svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.s-search span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-search .s-kbd {
+  margin-left: auto;
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-search:hover {
+    border-color: var(--border-strong);
+  }
+}
+.s-search:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-headbar .s-ws {
+  width: auto;
+  max-width: 220px;
+  margin: 0;
+  border-color: var(--border);
+}
+.s-ask {
+  padding: 0 var(--sp-3);
+  border-color: var(--gold-line);
+  background: var(--surface);
+  color: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-ask:hover {
+    border-color: var(--gold);
+    background: var(--surface-hover);
+  }
+}
+.s-account--compact {
+  width: auto;
+  min-height: 0;
+  padding: 2px;
+  border-radius: var(--r-pill);
+}
+.s-account--compact .s-avatar {
+  width: 28px;
+  height: 28px;
+}
+.s-account--compact:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-menu-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+}
+.s-menu-head b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.s-menu-head span {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* ---- content -------------------------------------------------------------------- */
+.s-content {
+  width: 100%;
+  max-width: 1560px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: var(--sp-6) var(--page-pad) var(--sp-12);
+}
+
+/* ---- the phone sheet's contents (workspace, sections, account) ------------------ */
 .s-ws {
   width: 100%;
   justify-content: flex-start;
@@ -79,8 +428,8 @@
 .s-nav-item {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  height: var(--nav-row);
+  gap: var(--sp-3);
+  min-height: var(--row-h);
   padding: 0 var(--sp-2);
   border: 0;
   border-radius: var(--r-control);
@@ -96,8 +445,8 @@
   transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
 }
 .s-nav-item svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: var(--ink-3);
   flex: none;
 }
@@ -108,11 +457,15 @@
   text-overflow: ellipsis;
 }
 .s-nav-item[aria-current="page"] {
-  background: var(--nav-active);
-  color: var(--accent-ink);
+  background: var(--accent-subtle);
+  color: var(--ink);
 }
 .s-nav-item[aria-current="page"] svg {
   color: var(--accent-ink);
+}
+.s-nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .s-nav-count {
   color: var(--ink-3);
@@ -126,9 +479,9 @@
     color: var(--ink);
   }
 }
-.s-side-foot {
+.s-sheet-foot {
   margin-top: auto;
-  padding-top: var(--sp-3);
+  padding-top: var(--sp-4);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -225,89 +578,6 @@
   height: 16px;
   color: var(--ink-3);
   flex: none;
-}
-
-/* ---- main column and top bar ------------------------------------------------ */
-.s-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.s-topbar {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  height: var(--topbar-h);
-  padding: 0 var(--page-pad);
-  border-bottom: 1px solid var(--border);
-  background: var(--ground);
-}
-.s-topbar-menu,
-.s-topbar-title {
-  display: none;
-}
-.s-topbar-title {
-  color: var(--ink);
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.s-search {
-  flex: 1;
-  max-width: 480px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  height: var(--control-h);
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-control);
-  background: var(--surface);
-  color: var(--ink-3);
-  font-family: var(--font);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  text-align: left;
-  cursor: text;
-  transition: border-color var(--t-press) var(--ease-out);
-}
-.s-search svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-.s-search span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-@media (hover: hover) and (pointer: fine) {
-  .s-search:hover {
-    border-color: var(--ink-3);
-  }
-}
-.s-topbar-end {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-left: auto;
-  flex: none;
-}
-.s-content {
-  padding: var(--sp-5) var(--page-pad) var(--sp-10);
-  width: 100%;
-  max-width: 1560px;
-  min-width: 0;
 }
 
 /* Workspace switching: dim the content and say what is happening. */
@@ -560,7 +830,7 @@ html[data-ws-switching]::after {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-3) var(--sp-4);
+  padding: var(--sp-2) var(--sp-4) var(--sp-4);
   background: var(--ground);
   color: var(--ink);
   overflow-y: auto;
@@ -571,7 +841,7 @@ html[data-ws-switching]::after {
 .s-sheet[data-starting-style],
 .s-sheet[data-ending-style] {
   opacity: 0;
-  transform: translateX(-16px);
+  transform: translateY(-8px);
 }
 .s-sheet-head {
   display: flex;
@@ -580,134 +850,88 @@ html[data-ws-switching]::after {
   height: var(--topbar-h);
   flex: none;
 }
-.s-sheet .s-nav-item,
-.s-sheet .s-account {
-  min-height: var(--row-h);
-  height: auto;
-}
 
-/* ---- phones and small tablets ------------------------------------------------------ */
-@media (max-width: 860px) {
-  .s-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .s-side {
-    display: none;
-  }
-  .s-topbar {
-    padding: 0 var(--sp-4);
-    gap: var(--sp-1);
-  }
-  .s-topbar-menu {
-    display: inline-flex;
-  }
-  .s-topbar-title {
-    display: block;
-    margin-right: auto;
-  }
+/* ---- narrower desktops: the tools give up their labels first ------------------ */
+@media (max-width: 1380px) {
   .s-search {
+    width: auto;
+  }
+  .s-search span {
     display: none;
   }
-  .s-topbar .s-ask span {
+}
+@media (max-width: 1240px) {
+  .s-headbar-ws .s-ws-name {
     display: none;
   }
-  .s-topbar .s-ask {
+  .s-headbar .s-ask span {
+    display: none;
+  }
+  .s-headbar .s-ask {
     width: var(--control-h);
     padding: 0;
   }
+}
+
+/* ---- tablets and phones: the sections move into the menu sheet ------------------- */
+@media (max-width: 960px) {
+  .s-headbar {
+    top: var(--sp-3);
+    width: auto;
+    max-width: none;
+    margin: var(--sp-3) var(--sp-4) 0;
+    padding: 0 var(--sp-1) 0 var(--sp-3);
+  }
+  .s-hnav,
+  .s-headbar-sep,
+  .s-headbar-ws,
+  .s-headbar-account {
+    display: none;
+  }
+  .s-brand span {
+    display: none;
+  }
+  .s-headbar-title {
+    display: block;
+    margin-right: auto;
+  }
+  .s-headbar-tools {
+    gap: var(--sp-1);
+  }
+  .s-search {
+    width: var(--control-h);
+    padding: 0;
+    justify-content: center;
+    border-color: transparent;
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .s-search .s-kbd {
+    display: none;
+  }
+  .s-headbar-menu {
+    display: inline-flex;
+  }
+}
+@media (max-width: 860px) {
   .s-content {
-    padding: var(--sp-4);
+    padding: var(--sp-4) var(--sp-4) var(--sp-10);
   }
   .s-bell-pop {
     width: calc(100vw - 32px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .s-hnav[data-ready] .s-hnav-indicator,
+  .s-hnav-pos,
+  .s-hnav-pop,
+  .s-hnav-content,
+  .s-hnav-chev {
+    transition: none;
+  }
   .s-sheet[data-starting-style],
   .s-sheet[data-ending-style] {
     transform: none;
   }
-}
-
-/* ---- the premium shell (2026-10-28) -----------------------------------------
-   Noah's dashboard reference: the sidebar on its own lifted surface, a clear
-   brand, understated group labels, the current page marked by a thin blue
-   edge, and a taller top bar whose search is the real command menu. */
-.s-side {
-  background: var(--side);
-  padding: 0 var(--sp-4) var(--sp-4);
-  gap: var(--sp-2);
-}
-.s-brand {
-  gap: var(--sp-3);
-  padding: 0 var(--sp-1);
-  font-size: var(--fs-lead);
-  line-height: var(--lh-lead);
-  letter-spacing: var(--tr-title);
-}
-.s-brand .brandmark {
-  border-radius: var(--r-control);
-}
-.s-nav-group + .s-nav-group {
-  margin-top: var(--sp-5);
-}
-.s-nav-label {
-  padding: 0 var(--sp-3) var(--sp-2);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: var(--fw-medium);
-}
-.s-nav-item {
-  gap: var(--sp-3);
-  padding: 0 var(--sp-3);
-}
-.s-nav-item svg {
-  width: 18px;
-  height: 18px;
-}
-.s-nav-item[aria-current="page"] {
-  color: var(--ink);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-.s-nav-item[aria-current="page"] svg {
-  color: var(--accent-ink);
-}
-.s-nav-item:focus-visible,
-.s-search:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.s-topbar {
-  gap: var(--sp-3);
-}
-.s-search {
-  max-width: 760px;
-  margin: 0;
-  height: var(--control-h-lg);
-  padding: 0 var(--sp-2) 0 var(--sp-4);
-  gap: var(--sp-3);
-  border-color: var(--border);
-  border-radius: var(--r-card);
-  background: var(--surface);
-}
-.s-search svg {
-  width: 18px;
-  height: 18px;
-}
-.s-ask {
-  height: var(--control-h-lg);
-  padding: 0 var(--sp-4);
-  border-color: var(--gold-line);
-  border-radius: var(--r-card);
-  background: var(--surface);
-  color: var(--ink);
-}
-@media (hover: hover) and (pointer: fine) {
-  .s-ask:hover {
-    border-color: var(--gold);
-    background: var(--surface-hover);
-  }
-}
-.s-content {
-  padding: var(--sp-6) var(--page-pad) var(--sp-12);
 }
