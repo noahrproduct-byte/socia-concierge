@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { CONTACT_EMAIL, PLANS, PLAN_ORDER, formatHistory, type PlanId } from "@/lib/plans";
@@ -9,6 +9,7 @@ import HomeFaq from "./HomeFaq";
 import HomeMotion from "./HomeMotion";
 import HomeWindow from "./HomeWindow";
 import HeroStage from "./HeroStage";
+import { AskDemo, BeforeAfter, Orbit, Problem } from "./HomeStory";
 import ReelDemo from "./ReelDemo";
 import { WEEK } from "./exampleWeek";
 import "./home.css";
@@ -131,6 +132,9 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
           </div>
         </section>
 
+        {/* ---- the problem: four signals, from the live site ---- */}
+        <Problem />
+
         {/* ---- four statements ------------------------------------------- */}
         <section className="hm-section" id="loop" aria-labelledby="hm-loop">
           <div className="hm-wrap hm-loop-wrap">
@@ -140,38 +144,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 Every post teaches the next plan.
               </h2>
             </div>
-            <div className="hm-cycle">
-              <svg className="hm-cycle-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-                <rect x="25" y="25" width="50" height="50" rx="3" fill="none" stroke="#454647" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-              </svg>
-              <span className="hm-cycle-arrow is-right" aria-hidden><ArrowRight /></span>
-              <span className="hm-cycle-arrow is-down" aria-hidden><ArrowDown /></span>
-              <span className="hm-cycle-arrow is-left" aria-hidden><ArrowLeft /></span>
-              <span className="hm-cycle-arrow is-up" aria-hidden><ArrowUp /></span>
-              <ol className="hm-four" data-reveal="children">
-                <li className="hm-four-item">
-                  <span className="hm-step-n">01</span>
-                  <b>Plan</b>
-                  <p>A weekly Content Plan: the diagnosis, the top fixes, and each post&apos;s day, concept, hook and format.</p>
-                </li>
-                <li className="hm-four-item">
-                  <span className="hm-step-n">02</span>
-                  <b>Publish</b>
-                  <p>Schedule from the plan or from Content Studio. Teams approve first. Nothing goes out without a person.</p>
-                </li>
-                <li className="hm-four-item">
-                  <span className="hm-step-n">03</span>
-                  <b>Result</b>
-                  <p>Each post is measured against your own median, in the window that matters for its format.</p>
-                </li>
-                <li className="hm-four-item">
-                  <span className="hm-step-n">04</span>
-                  <b>Next plan</b>
-                  <p>What worked gets more of the week. What did not gets a new concept. Then the cycle starts again at 01.</p>
-                </li>
-              </ol>
-            </div>
-            <p className="hm-cycle-return">After 04, the next week starts again at 01.</p>
+            <Orbit />
           </div>
         </section>
 
@@ -432,6 +405,9 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
           </div>
         </section>
 
+        {/* ---- Ask SOCIA, from the live site ---- */}
+        <AskDemo startHref={startHref} startLabel={startLabel} />
+
         {/* ---- platforms --------------------------------------------------- */}
         <section className="hm-section" id="platforms" aria-labelledby="hm-platforms">
           <div className="hm-wrap">
@@ -517,6 +493,9 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
             </div>
           </div>
         </section>
+
+        {/* ---- before and after, from the live site ---- */}
+        <BeforeAfter />
 
         {/* ---- pricing ------------------------------------------------------ */}
         <section className="hm-section" id="pricing" aria-labelledby="hm-pricing">
