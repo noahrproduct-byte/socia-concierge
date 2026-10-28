@@ -9,7 +9,7 @@ import HomeFaq from "./HomeFaq";
 import HomeMotion from "./HomeMotion";
 import HomeWindow from "./HomeWindow";
 import HeroStage from "./HeroStage";
-import { AskDemo, BeforeAfter, Orbit, Problem } from "./HomeStory";
+import { AskDemo, BeforeAfter, Engine, Orbit, Problem, Results, Steps } from "./HomeStory";
 import ReelDemo from "./ReelDemo";
 import { WEEK } from "./exampleWeek";
 import "./home.css";
@@ -167,43 +167,10 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         </section>
 
         {/* ---- how it works ---------------------------------------------- */}
-        <section className="hm-section" id="how" aria-labelledby="hm-how">
-          <div className="hm-wrap">
-            <div className="hm-section-head is-center" data-reveal="children">
-              <span className="hm-eyebrow">How it works</span>
-              <h2 id="hm-how" className="hm-h2 is-center">
-                How SOCIA turns your results into the next post.
-              </h2>
-            </div>
-            <ol className="hm-steps" data-reveal="children">
-              <li className="hm-step">
-                <span className="hm-step-n">01</span>
-                <h3>Connect your accounts</h3>
-                <p>
-                  Instagram, Facebook and YouTube connect in a minute. SOCIA reads your posts, your audience and how each
-                  post did, and keeps a daily record from then on.
-                </p>
-              </li>
-              <li className="hm-step">
-                <span className="hm-step-n">02</span>
-                <h3>Get your plan</h3>
-                <p>
-                  Every week, a Content Plan: the diagnosis, the top fixes, and each post&apos;s day, concept, hook and
-                  format, built from your own results and the competitors you follow.
-                </p>
-                <small>Weekly Content Plan is on Starter and up.</small>
-              </li>
-              <li className="hm-step">
-                <span className="hm-step-n">03</span>
-                <h3>Create, publish, learn</h3>
-                <p>
-                  Build Reels from your clips, draft captions, schedule, collect approvals and publish. Each post&apos;s result
-                  feeds the next plan.
-                </p>
-              </li>
-            </ol>
-          </div>
-        </section>
+        <Steps />
+
+        {/* ---- the SOCIA engine, from the live site ---- */}
+        <Engine />
 
         {/* ---- what's inside: the four jobs, in order, on the same example week ---- */}
         <section className="hm-section" id="screens" aria-labelledby="hm-screens">
@@ -496,6 +463,9 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
 
         {/* ---- before and after, from the live site ---- */}
         <BeforeAfter />
+
+        {/* ---- results: what each plan actually did ---- */}
+        <Results />
 
         {/* ---- pricing ------------------------------------------------------ */}
         <section className="hm-section" id="pricing" aria-labelledby="hm-pricing">

@@ -192,29 +192,22 @@ function Competitors() {
 }
 
 function Studio() {
-  const clips = ["/landing/reel.jpg", "/landing/frames/f28.jpg", "/landing/frames/f52.jpg", "/landing/frames/f64.jpg"];
+  const clips = ["/landing/reel.jpg", "/landing/cafe/espresso.jpg", "/landing/cafe/pour-over.jpg", "/landing/cafe/beans.jpg"];
   return (
     <Screen title="Content Studio" chip="Build from clips">
       <div className="hx-strip">
         {clips.map((src, i) => (
           <span key={src}>
-            <Image src={src} alt="" width={180} height={320} sizes="180px" loading="eager" />
-            {i !== 1 ? <b>Used</b> : null}
+            <Image src={src} alt="" width={240} height={300} sizes="240px" loading="eager" />
+            {i !== 3 ? <b>Used</b> : null}
           </span>
         ))}
       </div>
-      <span className="hx-label">First cut, 8 seconds, from one clip</span>
+      <span className="hx-label">4 clips in, a first cut of 9 moments</span>
     </Screen>
   );
 }
 
-const THUMB: Record<string, string> = {
-  Mon: "/landing/quiet.jpg",
-  Tue: "/landing/frames/f16.jpg",
-  Wed: "/landing/frames/f52.jpg",
-  Fri: "/landing/reel.jpg",
-  Sun: "/landing/frames/f64.jpg",
-};
 
 function Plan() {
   return (
@@ -222,7 +215,7 @@ function Plan() {
       <div className="hx-week">
         {WEEK.map((w) => (
           <div key={w.day} className={w.day === "Fri" ? "is-pick" : undefined}>
-            <Image src={THUMB[w.day]} alt="" width={120} height={120} sizes="120px" loading="eager" />
+            <Image src={w.img} alt="" width={160} height={160} sizes="160px" loading="eager" />
             <span>
               {w.day} | {w.when}
             </span>

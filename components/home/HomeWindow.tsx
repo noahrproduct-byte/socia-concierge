@@ -40,7 +40,7 @@ const ROWS: Row[] = [
     icon: CalendarClock,
     title: "Today's post goes out at 6:30 PM",
     sub: "Instagram Reel, Tuesday's slot on this week's plan",
-    thumb: "/landing/quiet.jpg",
+    thumb: "/landing/cafe/pour-over.jpg",
     why: "“Three ways to order that aren't on the menu” is Tuesday's slot on this week's Content Plan. It is an educational Reel because your Reels got 1.8× the median views of your other posts over the last 90 days, across 64 posts. 6:30 PM falls inside your best posting window, 5 to 7 PM.",
     action: "Open the Calendar",
     href: "/calendar",

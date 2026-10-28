@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -20,6 +20,8 @@ import {
   X,
 } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
+import { PlatformMark } from "@/components/system/PlatformMark";
+import { WEEK } from "./exampleWeek";
 
 // Sections carried over from the live sociaos.com homepage (CinematicLanding on
 // main), rebuilt in this page's system: the four "problem" mini-charts, the
@@ -30,8 +32,8 @@ import BrandMark from "@/components/BrandMark";
 //   predicted scores, which are P0);
 // - the conversation appears message by message, never typed out (17.2);
 // - motion plays once as each section enters and is skipped entirely under
-//   prefers-reduced-motion; the orbit advances on its own only while on
-//   screen, and stops for good as soon as someone picks a stage.
+//   prefers-reduced-motion; the orbit's marker circles continuously only
+//   while on screen, and stops for good as soon as someone picks a stage.
 
 /* ---------------- shared ---------------- */
 
@@ -76,10 +78,10 @@ const POSTED_DAYS = WEEKS.flat().filter((n) => n > 0).length;
 
 /** Four recent posts: views two days after posting, against the median at the same age. */
 const POSTS = [
-  { src: "/landing/quiet.jpg", t: "A quiet morning", x: 0.5 },
-  { src: "/landing/frames/f40.jpg", t: "New pastry case", x: 0.8 },
+  { src: "/landing/cafe/storefront.jpg", t: "A quiet morning", x: 0.5 },
+  { src: "/landing/cafe/pastry.jpg", t: "New pastry case", x: 0.8 },
   { src: "/landing/reel.jpg", t: "Latte at home", x: 2.4 },
-  { src: "/landing/frames/f16.jpg", t: "Opening hours", x: 0.6 },
+  { src: "/landing/cafe/espresso.jpg", t: "Espresso, close up", x: 0.6 },
 ];
 
 /** Story carousels from the three competitors you follow: median interactions per post, last 8 weeks. */
@@ -333,76 +335,80 @@ const STAGES: Stage[] = [
 const N = STAGES.length;
 const OR = 246;
 const OC = 2 * Math.PI * OR;
+/** One full circle of the marker, in ms: about four seconds a stage. */
+const LAP = N * 4200;
+const STEP = 360 / N;
 
 export function Orbit() {
   const [ref, inView] = useInView<HTMLDivElement>(0.3);
   const [stage, setStage] = useState(0);
-  const [shown, setShown] = useState(0);
-  const [lit, setLit] = useState(0);
-  const [rot, setRot] = useState(0);
-  const [travel, setTravel] = useState(false);
-  const cur = useRef(0);
-  const busy = useRef(false);
-  const touched = useRef(false);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const [manual, setManual] = useState(false);
+  const [angle, setAngle] = useState(0);
+  const [glide, setGlide] = useState(false);
+  const dot = useRef<SVGGElement>(null);
+  const run = useRef<Animation | null>(null);
 
-  const select = useCallback((j: number) => {
-    if (j === cur.current || busy.current) return;
-    const from = cur.current;
-    cur.current = j;
-    setStage(j);
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setLit(j);
-      setShown(j);
-      setRot((j / N) * 360);
-      return;
-    }
-    busy.current = true;
-    setLit(-1);
-    setTravel(true);
-    setRot((r) => r + (((j - from + N) % N) * 360) / N);
-    timers.current.push(setTimeout(() => setShown(j), 200));
-    timers.current.push(
-      setTimeout(() => {
-        setLit(j);
-        setTravel(false);
-        busy.current = false;
-      }, 650),
-    );
-  }, []);
-
-  // advance on its own while on screen, until someone picks a stage
+  // the marker travels the full circle, endlessly, while the loop is on
+  // screen; each stage lights as it passes. Picking a stage stops it.
   useEffect(() => {
-    if (!inView || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const g = dot.current;
+    if (!inView || !g || manual || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const lap = g.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], {
+      duration: LAP,
+      iterations: Infinity,
+      easing: "linear",
+    });
+    run.current = lap;
     const id = setInterval(() => {
-      if (touched.current || document.hidden) return;
-      select((cur.current + 1) % N);
-    }, 4200);
-    return () => clearInterval(id);
-  }, [inView, select]);
+      if (document.hidden) return lap.pause();
+      if (lap.playState === "paused") lap.play();
+      const deg = ((Number(lap.currentTime) % LAP) / LAP) * 360;
+      setStage(Math.floor(((deg + STEP / 2) % 360) / STEP));
+    }, 120);
+    return () => {
+      clearInterval(id);
+      lap.cancel();
+      run.current = null;
+    };
+  }, [inView, manual]);
 
   const pick = (j: number) => {
-    touched.current = true;
-    select(j);
+    const lap = run.current;
+    const now = lap ? ((Number(lap.currentTime) % LAP) / LAP) * 360 : angle;
+    setManual(true);
+    setStage(j);
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setGlide(false);
+      setAngle(j * STEP);
+      return;
+    }
+    // continue forward from where the marker is to the chosen stage
+    setGlide(false);
+    setAngle(now);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        setGlide(true);
+        setAngle(now + (((j * STEP - now) % 360) + 360) % 360);
+      }),
+    );
   };
-  const S = STAGES[shown];
+  const S = STAGES[stage];
 
   return (
     <div ref={ref} className={`hmx-orbit${inView ? " in" : ""}`}>
       <div className="hmx-ring">
         <svg viewBox="0 0 560 560" aria-hidden>
           <circle className="hmx-ring-base" cx="280" cy="280" r={OR} />
-          <circle
-            className="hmx-ring-prog"
-            cx="280"
-            cy="280"
-            r={OR}
-            strokeDasharray={`${(((stage + 1) / N) * OC).toFixed(1)} ${OC.toFixed(1)}`}
-            transform="rotate(-90 280 280)"
-          />
-          <g className={`hmx-ring-dot${travel ? " go" : ""}`} style={{ transform: `rotate(${rot}deg)` }}>
-            <circle cx="280" cy={280 - OR} r="5" />
+          <g ref={dot} className={`hmx-ring-dot${glide ? " go" : ""}`} style={{ transform: `rotate(${angle}deg)` }}>
+            <circle
+              className="hmx-ring-trail"
+              cx="280"
+              cy="280"
+              r={OR}
+              strokeDasharray={`${(OC / 5).toFixed(1)} ${OC.toFixed(1)}`}
+              transform={`rotate(${-90 - 72} 280 280)`}
+            />
+            <circle cx="280" cy={280 - OR} r="6" className="hmx-ring-head" />
           </g>
         </svg>
         <div className="hmx-core">
@@ -412,7 +418,7 @@ export function Orbit() {
           const a = (i / N) * Math.PI * 2 - Math.PI / 2;
           const style = { left: `${(50 + 44 * Math.cos(a)).toFixed(3)}%`, top: `${(50 + 44 * Math.sin(a)).toFixed(3)}%` } as CSSProperties;
           return (
-            <button key={s.t} type="button" className={`hmx-node${lit === i ? " is-on" : ""}`} style={style} onClick={() => pick(i)} aria-pressed={stage === i}>
+            <button key={s.t} type="button" className={`hmx-node${stage === i ? " is-on" : ""}`} style={style} onClick={() => pick(i)} aria-pressed={stage === i}>
               <span>
                 <s.Icon aria-hidden />
               </span>
@@ -424,8 +430,8 @@ export function Orbit() {
       </div>
 
       <div className="hmx-panel" aria-live="polite">
-        <span className="hmx-panel-n">0{stage + 1}</span>
-        <div className={`hmx-panel-body${shown !== stage ? " out" : ""}`} key={shown}>
+        <span className="hmx-panel-n">0{stage + 1} of 0{N}</span>
+        <div className="hmx-panel-body" key={stage}>
           <h3>{S.t}</h3>
           <p>{S.head}</p>
           <small>What SOCIA does</small>
@@ -595,6 +601,353 @@ export function BeforeAfter() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- 5. how it works, in order ---------------- */
+
+const READ = [0.7, 1.1, 0.8, 1.4, 0.6, 1.0, 2.4, 1.3];
+
+export function Steps() {
+  const [ref, inView] = useInView<HTMLOListElement>(0.2);
+  return (
+    <section className="hm-section" id="how" aria-labelledby="hm-how">
+      <div className="hm-wrap">
+        <div className="hm-section-head is-center" data-reveal="children">
+          <span className="hm-eyebrow">How it works</span>
+          <h2 id="hm-how" className="hm-h2 is-center">
+            Four steps, every week.
+          </h2>
+          <p className="hm-lead">From connecting your accounts to next week&apos;s plan, in the order SOCIA does it.</p>
+        </div>
+        <ol ref={ref} className={`hmx-steps${inView ? " in" : ""}`}>
+          <li style={{ "--i": 0 } as CSSProperties}>
+            <span className="hmx-step-n">01</span>
+            <h3>Connect your accounts</h3>
+            <p>Instagram, Facebook and YouTube connect in a minute. SOCIA keeps a daily record from then on.</p>
+            <div className="hmx-step-vis hmx-connect">
+              {(["instagram", "facebook", "youtube"] as const).map((p, i) => (
+                <div key={p} style={{ "--j": i } as CSSProperties}>
+                  <PlatformMark platform={p} brand />
+                  <span>{p === "instagram" ? "Instagram" : p === "facebook" ? "Facebook" : "YouTube"}</span>
+                  <em>
+                    <Check aria-hidden /> Connected
+                  </em>
+                </div>
+              ))}
+            </div>
+          </li>
+          <li style={{ "--i": 1 } as CSSProperties}>
+            <span className="hmx-step-n">02</span>
+            <h3>SOCIA reads your posts</h3>
+            <p>Every post is measured against your own median, so you can see what actually worked.</p>
+            <div className="hmx-step-vis hmx-read">
+              <div className="hmx-read-bars">
+                <i className="hmx-read-median" style={{ bottom: `${(1 / 2.6) * 100}%` }} />
+                {READ.map((v, i) => (
+                  <span key={i} className={v > 1 ? "is-up" : undefined} style={{ height: `${(v / 2.6) * 100}%`, "--k": i } as CSSProperties} />
+                ))}
+              </div>
+              <small>Your last 8 posts against your median (dashed)</small>
+            </div>
+          </li>
+          <li style={{ "--i": 2 } as CSSProperties}>
+            <span className="hmx-step-n">03</span>
+            <h3>Get your weekly plan</h3>
+            <p>What to post each day, when, and the evidence behind every slot.</p>
+            <div className="hmx-step-vis hmx-miniweek">
+              {WEEK.map((w, i) => (
+                <div key={w.day} style={{ "--j": i } as CSSProperties} className={w.day === "Fri" ? "is-pick" : undefined}>
+                  <Image src={w.img} alt="" width={96} height={96} sizes="64px" />
+                  <b>{w.day}</b>
+                  <span>{w.when.replace(":00", "").replace(" PM", "p").replace(" AM", "a")}</span>
+                </div>
+              ))}
+            </div>
+          </li>
+          <li style={{ "--i": 3 } as CSSProperties}>
+            <span className="hmx-step-n">04</span>
+            <h3>Make, publish, learn</h3>
+            <p>Cut the Reel in Content Studio, schedule it, and its result shapes next week&apos;s plan.</p>
+            <div className="hmx-step-vis hmx-flow">
+              <div style={{ "--j": 0 } as CSSProperties}>
+                <Image src="/landing/reel.jpg" alt="" width={96} height={160} sizes="48px" />
+                <span>First cut</span>
+              </div>
+              <ArrowRight aria-hidden />
+              <div style={{ "--j": 1 } as CSSProperties}>
+                <CalendarDays aria-hidden />
+                <span>Fri, 6:30 PM</span>
+              </div>
+              <ArrowRight aria-hidden />
+              <div style={{ "--j": 2 } as CSSProperties} className="is-result">
+                <b>1.8×</b>
+                <span>your median</span>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- 6. the engine: audit to next move ---------------- */
+
+/** SOCIA's Content Score (lib/contentScore.ts): five measured parts, weighted. */
+const DIMS: [string, number, number][] = [
+  ["Engagement", 82, 35],
+  ["Consistency", 67, 25],
+  ["Reach", 71, 20],
+  ["Timing", 70, 10],
+  ["Captions", 100, 10],
+];
+const SCORE = Math.round(DIMS.reduce((a, [, v, w]) => a + (v * w) / 100, 0));
+const RING_C = 2 * Math.PI * 52;
+
+function Spark({ values }: { values: number[] }) {
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const pts = values.map((v, i) => `${((i / (values.length - 1)) * 96 + 2).toFixed(1)},${(30 - ((v - min) / (max - min || 1)) * 26).toFixed(1)}`);
+  return (
+    <svg className="hmx-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden>
+      <polyline points={pts.join(" ")} pathLength={1} />
+    </svg>
+  );
+}
+
+export function Engine() {
+  const [ref, inView] = useInView<HTMLDivElement>(0.15);
+  return (
+    <section className="hm-section" id="engine" aria-labelledby="hm-engine">
+      <div className="hm-wrap">
+        <div className="hm-section-head is-center" data-reveal="children">
+          <span className="hm-eyebrow">The SOCIA engine</span>
+          <h2 id="hm-engine" className="hm-h2 is-center">
+            Everything from audit to your next move.
+          </h2>
+          <p className="hm-lead">
+            SOCIA watches your content, your competitors and your audience, then turns those signals into the next thing to
+            do.
+          </p>
+        </div>
+
+        <div ref={ref} className={`hmx-engine${inView ? " in" : ""}`}>
+          {/* content audit */}
+          <article className="hmx-ecard is-audit" style={{ "--i": 0 } as CSSProperties}>
+            <header>
+              <ScanSearch aria-hidden /> Content audit <span className="hm-example">Example</span>
+            </header>
+            <div className="hmx-audit">
+              <div className="hmx-score">
+                <svg viewBox="0 0 120 120" aria-hidden>
+                  <circle cx="60" cy="60" r="52" className="hmx-score-bg" />
+                  <circle cx="60" cy="60" r="52" className="hmx-score-arc" strokeDasharray={`${((SCORE / 100) * RING_C).toFixed(1)} ${RING_C.toFixed(1)}`} />
+                </svg>
+                <div>
+                  <b>{SCORE}</b>
+                  <span>Content Score</span>
+                </div>
+              </div>
+              <ul>
+                {DIMS.map(([label, v, w]) => (
+                  <li key={label}>
+                    <span>
+                      {label} <em>{w}%</em>
+                    </span>
+                    <span className="hmx-track">
+                      <i style={{ width: `${v}%` }} />
+                    </span>
+                    <b>{v}</b>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <p className="hmx-foot">Calculated from 64 Instagram posts, last 30 days. Each part is measured, then weighted.</p>
+          </article>
+
+          {/* competitor intelligence */}
+          <article className="hmx-ecard" style={{ "--i": 1 } as CSSProperties}>
+            <header>
+              <Users aria-hidden /> Competitor intelligence <span className="hm-example">Example</span>
+            </header>
+            <ul className="hmx-comps">
+              {(
+                [
+                  ["H", "Harbor Street Coffee", "2 posts above twice their median this week", [150, 158, 163, 171, 178, 186, 194, 201]],
+                  ["K", "Kiln Café", "Switched to Reels: 3 this week", [120, 118, 121, 117, 119, 116, 118, 117]],
+                  ["E", "Eastside Bean Co.", "Story carousels at 1.4× their median", [176, 181, 190, 196, 205, 212, 221, 228]],
+                ] as [string, string, string, number[]][]
+              ).map(([i, n, note, vals]) => (
+                <li key={n}>
+                  <i>{i}</i>
+                  <div>
+                    <b>{n}</b>
+                    <span>{note}</span>
+                  </div>
+                  <Spark values={vals} />
+                </li>
+              ))}
+            </ul>
+            <p className="hmx-foot">Median interactions per post, last 8 weeks, from public posts.</p>
+          </article>
+
+          {/* the next move */}
+          <article className="hmx-ecard is-next" style={{ "--i": 2 } as CSSProperties}>
+            <header>
+              <Target aria-hidden /> Your next move <span className="hm-example">Example</span>
+            </header>
+            <span className="hmx-next-tag">This week</span>
+            <h3>Post a follow-up Reel on Friday at 6:30 PM.</h3>
+            <Image className="hmx-next-img" src="/landing/reel.jpg" alt="" width={560} height={300} sizes="(max-width: 960px) 100vw, 360px" />
+            <small>Why it should work</small>
+            <ul className="hmx-why">
+              <li>
+                <TrendingUp aria-hidden /> Sunday&apos;s latte Reel has 2.4× your median views at the same age.
+              </li>
+              <li>
+                <Clock aria-hidden /> 5 to 7 PM is your best window: 1.6× your median, across 31 posts.
+              </li>
+              <li>
+                <BarChart3 aria-hidden /> Your Reels got 1.8× your median views over the last 90 days.
+              </li>
+            </ul>
+            <span className="hmx-next-status">
+              <Check aria-hidden /> On Friday&apos;s slot in this week&apos;s plan
+            </span>
+          </article>
+
+          {/* content check */}
+          <article className="hmx-ecard" style={{ "--i": 3 } as CSSProperties}>
+            <header>
+              <Clapperboard aria-hidden /> Content check <span className="hm-example">Example</span>
+            </header>
+            <p className="hmx-ecopy">Before you post, Content Studio lists the top fixes.</p>
+            <ul className="hmx-checks">
+              <li className="is-fix">
+                <b>Hook</b> The pour starts at 0:02. Open on it at 0:00.
+              </li>
+              <li>
+                <b>Caption</b> Five hashtags, within Instagram&apos;s limit.
+              </li>
+              <li>
+                <b>Format</b> 9:16, 8 seconds: fits a Reel.
+              </li>
+            </ul>
+          </article>
+
+          {/* scheduling */}
+          <article className="hmx-ecard" style={{ "--i": 4 } as CSSProperties}>
+            <header>
+              <CalendarDays aria-hidden /> Smart scheduling <span className="hm-example">Example</span>
+            </header>
+            <div className="hmx-sched">
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => {
+                const w = WEEK.find((x) => x.day === d);
+                return (
+                  <div key={d} className={w ? "is-on" : undefined}>
+                    <span>{d.slice(0, 1)}</span>
+                    <b>{w ? w.when.replace(" PM", "p").replace(" AM", "a").replace(":00", "") : "·"}</b>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="hmx-foot">Best window 5 to 7 PM: 1.6× your median, across 31 posts, in your time zone.</p>
+          </article>
+        </div>
+
+        <Reveal delay={150}>
+          <div className="hmx-system">
+            <div>
+              <b>One system, every week.</b>
+              <span>Each step feeds the next, and each week starts from what the last one proved.</span>
+            </div>
+            <ol>
+              {["Audit", "Plan", "Make", "Check", "Publish", "Learn"].map((t, i) => (
+                <li key={t} style={{ "--i": i } as CSSProperties}>
+                  {t}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- 7. results ---------------- */
+
+/** Last week's planned posts (19 to 25 October): views seven days after posting against the median at the same age. */
+const LAST_WEEK = [
+  { day: "Mon", t: "Cold brew is back", img: "/landing/cafe/cold-brew.jpg", f: "Reel", x: 1.3 },
+  { day: "Tue", t: "How we roast on Tuesdays", img: "/landing/cafe/roast.jpg", f: "Carousel", x: 1.1 },
+  { day: "Thu", t: "New pastry case", img: "/landing/cafe/pastry.jpg", f: "Photo", x: 0.8 },
+  { day: "Sat", t: "Our corner at 7 AM", img: "/landing/cafe/storefront.jpg", f: "Photo", x: 0.6 },
+  { day: "Sun", t: "How to make a better latte at home", img: "/landing/reel.jpg", f: "Reel", x: 2.4 },
+];
+
+export function Results() {
+  const [ref, inView] = useInView<HTMLDivElement>(0.2);
+  const beat = LAST_WEEK.filter((p) => p.x > 1).length;
+  return (
+    <section className="hm-section" id="results" aria-labelledby="hm-results">
+      <div className="hm-wrap">
+        <div className="hm-section-head is-center" data-reveal="children">
+          <span className="hm-eyebrow">Results</span>
+          <h2 id="hm-results" className="hm-h2 is-center">
+            See what each plan actually did.
+          </h2>
+          <p className="hm-lead">Every planned post is measured against your median, and next week&apos;s plan changes because of it.</p>
+        </div>
+        <div ref={ref} className={`hmx-results${inView ? " in" : ""}`}>
+          <div className="hmx-res-table">
+            <div className="hmx-res-head">
+              <b>Last week&apos;s plan</b>
+              <span>19 to 25 October</span>
+              <span className="hm-example">Example</span>
+            </div>
+            {LAST_WEEK.map((p, i) => (
+              <div key={p.t} className={`hmx-res-row${p.x > 1 ? " is-up" : ""}`} style={{ "--i": i } as CSSProperties}>
+                <Image src={p.img} alt="" width={88} height={88} sizes="44px" />
+                <div>
+                  <b>{p.t}</b>
+                  <span>
+                    {p.day} | {p.f}
+                  </span>
+                </div>
+                <span className="hmx-res-bar">
+                  <i style={{ width: `${(p.x / 2.6) * 100}%` }} />
+                  <em style={{ left: `${(1 / 2.6) * 100}%` }} />
+                </span>
+                <b className="hmx-res-x">{p.x.toFixed(1)}×</b>
+              </div>
+            ))}
+            <p className="hmx-foot">Views seven days after posting, against your median post at the same age (the line).</p>
+          </div>
+          <div className="hmx-res-side">
+            <div className="hmx-res-stat">
+              <b>
+                {beat} of {LAST_WEEK.length}
+              </b>
+              <span>planned posts beat your median</span>
+            </div>
+            <div className="hmx-res-stat">
+              <b>2.4×</b>
+              <span>best post: the latte Reel</span>
+            </div>
+            <div className="hmx-res-next">
+              <small>What changes this week</small>
+              <ul>
+                <li>Reels beat your median again, so this week has three.</li>
+                <li>Photos of the space stayed below it, so they are out.</li>
+                <li>Sunday&apos;s Reel gets a follow-up on Friday.</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
