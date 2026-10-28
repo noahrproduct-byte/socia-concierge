@@ -5,22 +5,20 @@ import Image from "next/image";
 import { WEEK } from "./exampleWeek";
 
 // The hero's background: SOCIA's own screens on the example café account
-// (Analytics, Content Plan, Audience, Competitors, Content Studio, Ask SOCIA)
-// in one continuous panoramic sequence below and behind the headline. The
-// screens travel slowly right to left along the front of a very large,
-// invisible circle: they never rotate, so they stay upright and face the
-// viewer, and the curve shows only as a gentle recession toward the edges,
-// where they dim into the dark. Each screen wraps from the left edge back to
-// the right while it is off screen and fully faded, so the back of the circle
-// is never seen and the loop has no restart.
+// (Analytics, Content Plan, Audience, Competitors, Content Studio, Ask SOCIA),
+// joined edge to edge into one closed chain, like the faces of a drum, that
+// turns slowly behind and below the headline. Screens come round from the
+// back on one side, swing through the front, and go round to the back on the
+// other side, always in the same order. Each screen faces outward and hides
+// its back face, so only the front half of the drum is ever visible; the
+// sequence runs twice round the drum, so the chain stays unbroken.
 //
 // Why continuous motion, against section 5 of docs/design/anti-slop-standard.md
-// (motion should answer an action): Noah asked for a slow, endless sequence of
-// the product behind the statement (2026-10-27). Each screen runs one Web
-// Animations API animation (transform and opacity, on the compositor, no
-// per-frame script); it never animates numbers, pauses when the hero is off
-// screen or the tab is hidden, and does not run under prefers-reduced-motion,
-// where the screens hold their opening arrangement.
+// (motion should answer an action): Noah asked for a slowly turning chain of
+// the product behind the statement (2026-10-27). One Web Animations API
+// animation turns the whole drum (a transform on the compositor, no per-frame
+// script); it never animates numbers, pauses when the hero is off screen or
+// the tab is hidden, and does not run under prefers-reduced-motion.
 //
 // Everything here is decoration for sighted visitors: aria-hidden, no focusable
 // elements, pointer-events off. The same screens appear, readable and
@@ -411,56 +409,37 @@ function Ask({ style }: { style: CSSProperties }) {
   );
 }
 
-/** The sequence, in the order it passes the centre. */
+/** The sequence, in order round the drum; it runs twice so the chain closes. */
 const SEQ = [Analytics, Plan, Audience, Competitors, Studio, Ask];
-/** Seconds for the whole sequence to pass once. */
-const CYCLE = 42000;
-/** The invisible circle: radius, the screens' size at the centre, and the gap between them. */
-const R = 2400;
-const SCALE = 0.68;
-const GAP = 16;
-/** Angle between neighbouring screens, and the arc the sequence spans (half on each side of centre). */
-const STEP = ((1000 * SCALE + GAP) / R) * (180 / Math.PI);
-const HALF = (STEP * SEQ.length) / 2;
-const rad = (d: number) => (d * Math.PI) / 180;
-
-/** A screen at angle a on the circle (0 = centre front), facing the viewer: no rotation, only position and depth. */
-const at = (a: number) =>
-  `translate3d(${(R * Math.sin(rad(a))).toFixed(1)}px, 0px, ${(-R * (1 - Math.cos(rad(a)))).toFixed(1)}px) scale(${SCALE})`;
-/** Full strength near the centre, fading to nothing well before the wrap point. */
-const fade = (a: number) => {
-  const d = Math.abs(a);
-  return d <= 22 ? 1 : d >= HALF - 6 ? 0 : 1 - (d - 22) / (HALF - 6 - 22);
-};
-/** Where screen i starts, wrapped into the visible arc [-HALF, HALF). */
-const startAngle = (i: number) => ((((i * STEP + HALF) % (2 * HALF)) + 2 * HALF) % (2 * HALF)) - HALF;
+const CHAIN = [...SEQ, ...SEQ];
+/** Seconds for one full turn of the drum. */
+const TURN = 60000;
+/** Each face: the screens' size, the seam between them, and the drum radius that makes the faces meet. */
+const SCALE = 0.6;
+const SEAM = 8;
+const FACE = 1000 * SCALE + SEAM;
+const STEP = 360 / CHAIN.length;
+const R = Math.round(FACE / (2 * Math.tan(Math.PI / CHAIN.length)));
+const drum = (a: number) => `translateZ(${-R}px) rotateY(${a}deg)`;
 
 export default function HeroStage() {
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = root.current;
-    if (!el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const cards = Array.from(el.querySelectorAll<HTMLElement>(".hs-orbit"));
+    const ring = el?.querySelector<HTMLElement>(".hs-drum");
+    if (!el || !ring || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    // every screen runs the same right-to-left path, offset by its place in the
-    // sequence, so together they form one unbroken procession
-    const frames = Array.from({ length: 49 }, (_, k) => {
-      const a = HALF - (k / 48) * 2 * HALF;
-      return { transform: at(a), opacity: fade(a) };
+    // the front moves right to left: screens arrive from the back on the right
+    const turn = ring.animate([{ transform: drum(0) }, { transform: drum(-360) }], {
+      duration: TURN,
+      iterations: Infinity,
+      easing: "linear",
     });
-    const runs = cards.map((card, i) =>
-      card.animate(frames, {
-        duration: CYCLE,
-        iterations: Infinity,
-        easing: "linear",
-        iterationStart: (HALF - startAngle(i)) / (2 * HALF),
-      }),
-    );
 
     // run only while the hero is on screen and the tab is visible
     let onScreen = true;
-    const sync = () => runs.forEach((r) => (onScreen && !document.hidden ? r.play() : r.pause()));
+    const sync = () => (onScreen && !document.hidden ? turn.play() : turn.pause());
     const io = new IntersectionObserver(([e]) => {
       onScreen = e.isIntersecting;
       sync();
@@ -470,21 +449,24 @@ export default function HeroStage() {
     return () => {
       io.disconnect();
       document.removeEventListener("visibilitychange", sync);
-      runs.forEach((r) => r.cancel());
+      turn.cancel();
     };
   }, []);
 
   return (
     <div ref={root} className="hs" aria-hidden>
       <div className="hs-rig">
-        {SEQ.map((Panel, i) => {
-          const a = startAngle(i);
-          return (
-            <div key={i} className="hs-orbit" style={{ transform: at(a), opacity: fade(a) }}>
+        <div className="hs-drum" style={{ transform: drum(0) }}>
+          {CHAIN.map((Panel, i) => (
+            <div
+              key={i}
+              className="hs-orbit"
+              style={{ transform: `rotateY(${i * STEP}deg) translateZ(${R}px) scale(${SCALE})` }}
+            >
               <Panel style={{ left: 0, top: 0 }} />
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </div>
   );
