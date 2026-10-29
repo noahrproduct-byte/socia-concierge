@@ -15,7 +15,7 @@ const LEVELS = [
 ] as const;
 
 const FORMATS = ["Reels", "Carousels", "Stories", "Static posts", "Lives"];
-const FREQUENCIES = ["1–2 posts / week", "3 posts / week", "4–5 posts / week", "Daily"];
+export const FREQUENCIES = ["1–2 posts / week", "3 posts / week", "4–5 posts / week", "Daily"];
 
 export default function StrategistSettings() {
   const [aggr, setAggr] = useState<string>("");

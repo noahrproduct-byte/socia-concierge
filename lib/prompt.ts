@@ -1,3 +1,4 @@
+import { growthLines } from "./growth";
 import type { GenerateInput } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
@@ -19,6 +20,9 @@ export function brandContext(brand?: BrandDetail | null): string {
     s.formats?.length ? `Preferred formats: ${s.formats.join(", ")}` : null,
     s.frequency ? `Posting cadence target: ${s.frequency}` : null,
     s.prioritize ? `Topics to prioritize: ${s.prioritize}` : null,
+    // The Growth Profile: what the person told SOCIA about the account, its
+    // audience and what they can realistically produce.
+    ...growthLines(brand.growth),
   ].filter(Boolean);
   if (!lines.length) return "";
   return `\n# Brand & strategist settings (saved by the user in SOCIA — follow them)\n${lines.join("\n")}`;

@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   SunMoon,
   Bot,
+  Target,
 } from "lucide-react";
 import AppearanceSettings from "@/components/AppearanceSettings";
 import { getViewer } from "@/lib/supabase/server";
@@ -53,6 +54,10 @@ import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
 import type { BrandDetail } from "@/lib/profile";
 import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
 import { listTracked } from "@/lib/trackedCompetitors";
+import { listGoals } from "@/lib/growthStore";
+import { recordStartingPoints } from "@/lib/briefingLoad";
+import type { GoalPlatform } from "@/lib/growth";
+import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
 import { Briefcase } from "lucide-react";
 
 export const metadata = { title: "Settings — SOCIA" };
@@ -203,6 +208,20 @@ export default async function SettingsPage({
   // Live account snapshot (avatar, followers, sync state) of the ACTIVE
   // workspace's account — best-effort.
   const snap = await getIgSnapshot(connCtx.client, connCtx.ownerId, connCtx.workspace?.id ?? null).catch(() => null);
+  const connectedPlatforms: GoalPlatform[] = [
+    ...(snap ? (["instagram"] as const) : []),
+    ...(fbConn?.connection_status === "connected" ? (["facebook"] as const) : []),
+    ...(ytConn ? (["youtube"] as const) : []),
+    ...(ttConn ? (["tiktok"] as const) : []),
+  ];
+  // Growth Profile goals for this brand (tableReady is false before growth-profile.sql has run).
+  const growthGoals = await listGoals(connCtx);
+  // A measured goal saved before its account was connected gets its starting
+  // point the first time Settings opens with that account connected.
+  if (growthGoals.goals.some((g) => g.baseline == null && g.platforms.length && g.platforms.every((p) => connectedPlatforms.includes(p)))) {
+    growthGoals.goals = await recordStartingPoints(connCtx, growthGoals.goals).catch(() => growthGoals.goals);
+  }
+
 
   // Plan, meters and what occupies the plan's slots. Counts that cannot be
   // read stay unknown (never 0); the over-limit state is computed from the
@@ -363,7 +382,17 @@ export default async function SettingsPage({
                 <h3>Profile &amp; Brand</h3>
                 <span className="st2-card-note">Powers every recommendation the AI makes</span>
               </div>
-              <BrandSettings email={user.email ?? ""} />
+              <BrandSettings email={user.email ?? ""} goalsManaged={growthGoals.tableReady} />
+            </section>
+
+            {/* 1a: Growth Profile */}
+            <section className="st2-card" id="growth">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Target size={15} /></span>
+                <h3>Growth Profile</h3>
+                <span className="st2-card-note">Your goals, audience and what you can make</span>
+              </div>
+              <GrowthProfileCard initial={brandDetail?.growth ?? {}} goals={growthGoals.goals} goalsReady={growthGoals.tableReady} connected={connectedPlatforms} />
             </section>
 
             {/* 1b — Brand Workspaces */}

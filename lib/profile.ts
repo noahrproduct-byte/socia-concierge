@@ -1,3 +1,4 @@
+import type { GrowthProfile } from "./growth";
 import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -5,6 +6,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // Every field here is injected into the AI prompts when present — these are
 // working controls, not decoration.
 export type BrandDetail = {
+  /** The Growth Profile (lib/growth.ts): account type, business or creator detail, audience, personality, resources. */
+  growth?: GrowthProfile;
   website?: string;
   location?: string;
   description?: string;

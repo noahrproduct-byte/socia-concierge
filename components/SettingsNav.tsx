@@ -16,6 +16,7 @@ import {
   Lock,
   SunMoon,
   Bot,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ const GROUPS: Group[] = [
     label: "Workspace",
     items: [
       { id: "brand", label: "Profile & Brand", Icon: UserRound },
+      { id: "growth", label: "Growth Profile", Icon: Target },
       { id: "workspaces", label: "Brand Workspaces", Icon: Briefcase },
       { id: "team", label: "Team", Icon: Users },
       { id: "accounts", label: "Connected Accounts", Icon: Share2 },
