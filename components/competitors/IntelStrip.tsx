@@ -34,10 +34,8 @@ export default function IntelStrip({ c }: { c: IntelCells }) {
   const none = <b className="none">—</b>;
   return (
     <section className="cx2-intel" aria-label="SOCIA intelligence summary">
-      <i className="cx2-scan" aria-hidden />
       <div className="cx2-intel-brand">
-        <span className="cx2-pulse" aria-hidden><i /><i /><i /></span>
-        <span className="cx2-micro strong">SOCIA INTELLIGENCE</span>
+        <span className="cx2-micro strong">SOCIA intelligence</span>
       </div>
 
       <Cell label="Competitive position" hint={c.rank ? "Your engagement rate ranked against every account on this page that publishes one." : "Needs your engagement rate plus at least one competitor with a published rate."}>

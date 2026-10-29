@@ -257,11 +257,11 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
             <option>LinkedIn</option>
           </select>
 
-          <small className="cpl-sec gap">Sharpen the plan — all optional</small>
+          <small className="cpl-sec cpl-sec-gap">Sharpen the plan, all optional</small>
 
           <label className="cpl-lab">
             <span>
-              <Target size={12} /> Your goal <em>— optional</em>
+              <Target size={12} /> Your goal <em>optional</em>
             </span>
             <Counter value={form.goal} max={MAX.goal!} />
           </label>
@@ -273,7 +273,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
           {note("goal")}
 
           <label className="cpl-lab">
-            <span>Brand voice / notes <em>— optional</em></span>
+            <span>Brand voice / notes <em>optional</em></span>
             <Counter value={form.brandVoice} max={MAX.brandVoice!} />
           </label>
           <textarea
@@ -286,9 +286,9 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
           <label className="cpl-lab">
             <span>
               {onFile.posts > 0 ? (
-                <>Notes on recent posts <em>— optional</em></>
+                <>Notes on recent posts <em>optional</em></>
               ) : (
-                <>Recent posts &amp; how they did <em>— one per line</em></>
+                <>Recent posts &amp; how they did <em>one per line</em></>
               )}
             </span>
             <Counter value={form.recentPosts} max={MAX.recentPosts!} />
@@ -311,9 +311,9 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
           <label className="cpl-lab">
             <span>
               {onFile.competitors > 0 || onFile.winning > 0 ? (
-                <>Other competitors <em>— optional</em></>
+                <>Other competitors <em>optional</em></>
               ) : (
-                <>Competitors you watch <em>— one per line</em></>
+                <>Competitors you watch <em>one per line</em></>
               )}
             </span>
             <Counter value={form.competitors} max={MAX.competitors!} />
@@ -321,7 +321,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
           <textarea
             rows={3}
             placeholder={
-              "@rivalpizza — behind-the-scenes dough Reels doing 50k+\n@trendyslice — POV first-person eating clips, big saves"
+              "@rivalpizza: behind-the-scenes dough Reels doing 50k+\n@trendyslice: POV first-person eating clips, big saves"
             }
             value={form.competitors}
             onChange={(e) => set("competitors", e.target.value)}

@@ -213,7 +213,7 @@ export default function NicheSection({ d, active, saved, savedItems, onOpen, onS
     <section className="cx-niche" id="trends">
       <div className="cx-niche-head">
         <div>
-          <h2>Niche Trends</h2>
+          <h2>Niche trends</h2>
           <p>Real content from across your niche. See what&apos;s working right now and get inspired for your next post.</p>
         </div>
         <div className="cx-niche-controls">
@@ -228,7 +228,7 @@ export default function NicheSection({ d, active, saved, savedItems, onOpen, onS
       ) : (
         <>
           <div className="cx-niche-sub" ref={topRef as React.RefObject<HTMLDivElement>}>
-            <h3>Top Performing Content in Your Niche <span className="cx-info" title="Ranked by relevance to your niche, market, format and goal, then by performance against each creator's own median. Raw view counts never decide the order."><Info size={13} /></span></h3>
+            <h3>Top performing content in your niche <span className="cx-info" title="Ranked by relevance to your niche, market, format and goal, then by performance against each creator's own median. Raw view counts never decide the order."><Info size={13} /></span></h3>
             <div className="cx-niche-chips">
               <button type="button" className={`ov-chip${!showSaved && !tag ? " primary" : " muted"}`} onClick={() => { setShowSaved(false); setTag(null); }}>All · {ranged.length}</button>
               <button type="button" className={`ov-chip${showSaved ? " primary" : " muted"}`} onClick={() => { setShowSaved(true); setTag(null); }}>Saved · {savedItems.length}</button>

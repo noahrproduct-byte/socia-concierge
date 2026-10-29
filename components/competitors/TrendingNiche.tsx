@@ -104,7 +104,7 @@ export function TrendingAccounts({
         <p className="cx3-empty">
           {d.niche
             ? "No accounts found yet. Refresh discovery and SOCIA searches your niche."
-            : "Set your niche in Niche Trends below and SOCIA finds the accounts to watch."}
+            : "Set your niche in Niche trends below and SOCIA finds the accounts to watch."}
         </p>
       ) : (
         <div className="cx3-accounts">
