@@ -16,7 +16,7 @@
 
 import type { PublishAdapter, PublishContext, PublishOutcome } from "../adapter";
 import type { YouTubePrivacy, YouTubeSettings } from "../types";
-import { effectiveCaption } from "../validate";
+import { effectiveCaption, publishedMedia } from "../validate";
 import { YT_WRITE_SCOPES } from "../capabilities";
 import { youtubeAccessToken, type YouTubeAccess } from "../../youtubeData";
 import { sealSession } from "../youtubeRelay";
@@ -219,12 +219,14 @@ async function publish(ctx: PublishContext): Promise<PublishOutcome> {
   const r = await resolve(ctx);
   if ("failure" in r) return r.failure;
   const { token } = r.auth;
-  const media = ctx.item.media[0];
+  const settings = ctx.destination.settings as YouTubeSettings;
+  // The chosen thumbnail image is set after the upload, not uploaded as a file.
+  const files = publishedMedia("youtube", settings, ctx.item.media);
+  const media = files[0];
   if (!media) return fail("Add a video before publishing to YouTube.", "media_missing");
   if (media.kind !== "video") return fail("YouTube needs a video file.", "media_kind");
-  if (ctx.item.media.length > 1) return fail("YouTube takes one video per post.", "media_count");
+  if (files.length > 1) return fail("YouTube takes one video per post.", "media_count");
 
-  const settings = ctx.destination.settings as YouTubeSettings;
   const description = effectiveCaption("youtube", ctx.item.caption, settings);
   const metadata = buildYouTubeMetadata(settings, description, ctx.destination.scheduledAt, ctx.now);
 

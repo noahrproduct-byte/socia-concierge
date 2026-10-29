@@ -47,6 +47,17 @@ export const countMentions = (s: string) => (s.match(/(^|\s)@[\p{L}\p{N}_.]+/gu)
 // Media
 // ---------------------------------------------------------------------------
 
+/**
+ * The files a destination actually publishes. On YouTube the image chosen as
+ * the custom thumbnail is set with thumbnails.set after the upload; it is not
+ * a second file of the post, so it is left out of the media rules (one video).
+ */
+export function publishedMedia(platform: Platform, settings: DestinationSettings, media: MediaItem[]): MediaItem[] {
+  if (platform !== "youtube") return media;
+  const thumb = (settings as YouTubeSettings).thumbnailMediaId;
+  return thumb ? media.filter((m) => !(m.id === thumb && m.kind === "image")) : media;
+}
+
 export function validateMedia(media: MediaItem[], rule: MediaRule, platformLabel: string): Issue[] {
   const out: Issue[] = [];
   if (media.length < rule.minItems) {
@@ -205,7 +216,7 @@ export function validateDestination(input: DestinationInput): Readiness {
     return { level: "blocked", issues };
   }
 
-  issues.push(...validateMedia(input.media, fmt.media, caps.label));
+  issues.push(...validateMedia(publishedMedia(input.platform, input.settings, input.media), fmt.media, caps.label));
 
   const text = effectiveCaption(input.platform, input.masterCaption, input.settings);
   const textLabel = fmt.caption.field === "description" ? "Description" : "Caption";
