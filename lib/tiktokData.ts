@@ -99,8 +99,9 @@ export function profileColumns(p: TtProfile): Record<string, unknown> {
 export async function syncTikTok(
   supabase: SupabaseClient,
   userId: string,
+  workspaceId?: string | null,
 ): Promise<{ profile: TtProfile | null; videos: TtVideo[] | null }> {
-  const auth = await tiktokAccessToken(supabase, userId);
+  const auth = await tiktokAccessToken(supabase, userId, workspaceId);
   if (!auth) return { profile: null, videos: null };
   const [profile, videos] = await Promise.all([fetchMyProfile(auth.token), fetchMyVideos(auth.token, 20)]);
   const patch: Record<string, unknown> = { last_synced_at: new Date().toISOString() };

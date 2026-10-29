@@ -8,7 +8,7 @@ import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
-import { FB_STATE_COOKIE, clearStateCookie, verifyOAuthState } from "@/lib/oauthState";
+import { FB_STATE_COOKIE, clearStateCookie, verifyOAuthState, type ConnectDest } from "@/lib/oauthState";
 import { createServiceClient } from "@/lib/supabase/service";
 import { stashPageTokens } from "@/lib/facebookPending";
 
@@ -69,18 +69,20 @@ export async function GET(req: Request) {
   const st = verifyOAuthState(req, FB_STATE_COOKIE);
   const denied = url.searchParams.get("error_reason") === "user_denied" || url.searchParams.get("error") === "access_denied";
   const res = denied
-    ? NextResponse.redirect(`${url.origin}/settings?fb=denied`)
+    ? NextResponse.redirect(`${url.origin}/${st.dest}?fb=denied`)
     : st.ok
-      ? await connect(req)
+      ? await connect(req, st.dest)
       : NextResponse.redirect(`${url.origin}/settings?fb=error`);
   clearStateCookie(res, FB_STATE_COOKIE);
   return res;
 }
 
-async function connect(req: Request): Promise<NextResponse> {
+async function connect(req: Request, dest: ConnectDest): Promise<NextResponse> {
   const url = new URL(req.url);
   const origin = url.origin;
-  const done = (q: string) => NextResponse.redirect(`${origin}/settings?fb=${q}`);
+  // Choosing among several Pages happens on Settings, where the picker lives;
+  // every other outcome returns to where the person started.
+  const done = (q: string) => NextResponse.redirect(`${origin}/${q === "choose" ? "settings" : dest}?fb=${q}`);
 
   if (url.searchParams.get("error_reason") === "user_denied" || url.searchParams.get("error") === "access_denied") {
     return done("denied");
@@ -92,7 +94,7 @@ async function connect(req: Request): Promise<NextResponse> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(`${origin}/login?next=/settings`);
+  if (!user) return NextResponse.redirect(`${origin}/login?next=/${dest}`);
 
   // The person acts inside their ACTIVE Brand Workspace, which may belong to
   // someone who invited them as an Admin. Connecting is owner/admin only, and

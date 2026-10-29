@@ -27,7 +27,7 @@ export default function TikTokAnalytics({ data }: { data: TikTokAnalyticsData })
         )}
         <div className="pa-head-meta">
           <h2>{data.profile.name ?? "TikTok"}</h2>
-          <small>TikTok{data.profile.username ? ` · @${data.profile.username}` : ""}{data.profile.verified ? " · Verified" : ""}</small>
+          <small>TikTok{data.profile.username ? ` · @${data.profile.username}` : ""}{data.profile.verified ? " · Verified" : ""} · Counts {data.syncedLabel}</small>
         </div>
         <span className="pa-badge tiktok">TikTok</span>
       </header>

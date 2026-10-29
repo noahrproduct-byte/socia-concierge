@@ -1,9 +1,9 @@
 "use client";
 
 // Two sections at the top of Competitors:
-//  - Trending accounts in your niche: as many accounts as the plan tracks
+//  - Accounts in your niche (no trend is computed, so it isn't called trending): as many accounts as the plan tracks
 //    (Starter: 5), never the user's own, each with its top Reels or Shorts.
-//  - Trending Reels in your niche: recent short-form posts ranked against each
+//  - Recent Reels in your niche: recent short-form posts ranked against each
 //    account's OWN median, with "Copy idea" and "Add to my plan".
 // "Copy" means the idea, never the video: the brief names the format, the
 // angle and why it is working, then asks for the user's own footage and words.
@@ -60,7 +60,7 @@ function Locked({ what, upgrade }: { what: string; upgrade: string | null }) {
       <Lock size={15} aria-hidden />
       <div>
         <b>{what}</b>
-        <p>Trending accounts and Reels in your niche are on {upgrade ? upgrade[0].toUpperCase() + upgrade.slice(1) : "a paid plan"} and up.</p>
+        <p>Accounts and recent Reels in your niche are on {upgrade ? upgrade[0].toUpperCase() + upgrade.slice(1) : "a paid plan"} and up.</p>
       </div>
       <Link href="/settings#plan" className="ov-btn primary small">
         See plans
@@ -82,7 +82,7 @@ export function TrendingAccounts({
   onTrack: (r: CompetitorRow) => void;
   tracking: string | null;
 }) {
-  if (!d.nicheAccess) return <Locked what="Trending accounts in your niche" upgrade={d.nicheUpgrade} />;
+  if (!d.nicheAccess) return <Locked what="Accounts in your niche" upgrade={d.nicheUpgrade} />;
   // The accounts SOCIA found or you track, most relevant first, accounts with
   // posts to show ahead of those without. Never the user's own (page.tsx).
   const list = [...rows]
@@ -94,7 +94,7 @@ export function TrendingAccounts({
     <section className="ov-card cx2-card cx3">
       <div className="cx2-card-head">
         <h2>
-          <Users size={14} /> Trending accounts in your niche
+          <Users size={14} /> Accounts in your niche
         </h2>
         <span className="cx2-micro">
           {list.length} of {d.trendingLimit} on your plan
@@ -175,7 +175,7 @@ function brief(r: TrendingReel): string {
   const lines = [
     `Reel idea from ${r.accountHandle ? `@${r.accountHandle}` : r.accountName} on ${PLATFORM[r.platform] ?? r.platform}`,
     r.title ? `What it is: ${r.title}` : null,
-    r.multiplier != null ? `Why it's working: ${r.multiplier.toFixed(1)}x the account's own median ${r.basis}` : null,
+    r.multiplier != null ? `How it did: ${r.multiplier.toFixed(1)}x the account's own median ${r.basis}` : null,
     metricLine(r) ? `Published counts: ${metricLine(r)}` : null,
     `Format: ${r.format}`,
     "Your version: same format and angle, your own footage, your own words.",
@@ -186,7 +186,7 @@ function brief(r: TrendingReel): string {
 
 export function TrendingReels({ d }: { d: CompetitorsData }) {
   const [copied, setCopied] = useState<string | null>(null);
-  if (!d.nicheAccess) return <Locked what="Trending Reels in your niche" upgrade={d.nicheUpgrade} />;
+  if (!d.nicheAccess) return <Locked what="Recent Reels in your niche" upgrade={d.nicheUpgrade} />;
   const now = new Date(d.now);
 
   const copy = async (r: TrendingReel) => {
@@ -205,9 +205,9 @@ export function TrendingReels({ d }: { d: CompetitorsData }) {
     <section className="ov-card cx2-card cx3">
       <div className="cx2-card-head">
         <h2>
-          <TrendingUp size={14} /> Trending Reels in your niche
+          <TrendingUp size={14} /> Recent Reels in your niche
         </h2>
-        <span className="cx2-micro">Last 60 days</span>
+        <span className="cx2-micro">Last 60 days, ranked against each account&apos;s usual</span>
       </div>
       {d.trendingReels.length === 0 ? (
         <p className="cx3-empty">

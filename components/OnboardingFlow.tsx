@@ -1,31 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowRight,
   ArrowLeft,
   Check,
-  Sparkles,
   Users,
   Heart,
   ShoppingBag,
   Star,
   Briefcase,
   DollarSign,
-  Rocket,
-  Wand2,
   ScanSearch,
+  Loader2,
 } from "lucide-react";
 import { NICHES } from "@/lib/niches";
 import { PLANS, PLAN_ORDER, LIMIT_UNIT, formatPrice, pricingHref, type PlanConfig, type PlanId } from "@/lib/plans";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
-import ConnectAccounts from "./ConnectAccounts";
+import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 
-type Phase = "connect" | "analyzing" | "confirm" | "building" | "pricing";
+type Phase = "connect" | "analyzing" | "confirm" | "pricing";
 
 type Extracted = {
   niche: string;
@@ -53,36 +51,7 @@ const GOALS = [
   { id: "Monetize my audience", label: "Monetize", icon: <DollarSign size={20} /> },
 ];
 
-const STEPS = ["Connect", "Your account", "Your plan", "Choose plan"];
-
-const ANALYZE_STEPS = [
-  "Connecting to your account",
-  "Reading your recent posts",
-  "Measuring what performs",
-  "Detecting your niche",
-  "Drafting your strategy",
-];
-
-function buildingSteps(niche: string) {
-  const n = niche || "your niche";
-  return [
-    `Analyzing the ${n} space`,
-    "Studying what top creators are posting",
-    "Finding your best times to post",
-    "Scoring hook ideas for your audience",
-    "Writing your first week of content",
-  ];
-}
-
-function planFor(niche: string) {
-  const n = (niche || "your niche").toLowerCase();
-  return [
-    { day: "Mon", format: "Reel", hook: `3 ${n} mistakes quietly killing your reach`, tag: "High hook score", score: 92 },
-    { day: "Wed", format: "Carousel", hook: `The ${n} starter kit nobody talks about`, tag: "Save-worthy", score: 88 },
-    { day: "Fri", format: "Reel", hook: `I tried this for 30 days. Here's what changed`, tag: "Story-driven", score: 90 },
-    { day: "Sun", format: "Story", hook: `Behind the scenes of my ${n} process`, tag: "Builds trust", score: 85 },
-  ];
-}
+const STEPS = ["Connect", "Your account", "Choose plan"];
 
 /* Compact, real inclusions per plan, read from lib/plans.ts so this screen
    can never promise something enforcement does not grant. */
@@ -103,19 +72,37 @@ function fmtCount(n: number | null): string {
   return String(n);
 }
 
+/** A platform's ?<key>= return code from its OAuth callback, in words. */
+const RETURN_ERRORS: Record<string, string> = {
+  denied: "connection was cancelled. Try again when you're ready.",
+  error: "didn't connect. Try again, or connect it later from Settings.",
+  limit: "is over your plan's account limit. Compare plans from Settings.",
+  forbidden: "can only be connected by the workspace owner or an Admin.",
+  notconfigured: "isn't set up on this site yet.",
+  noperm: "didn't grant Page access. Try again and allow Pages.",
+  nopages: "returned no Pages for this login.",
+  nochannel: "found no channel on that Google account.",
+  noprofile: "didn't return a profile. Try again.",
+  elsewhere: "account is already connected to another of your brands. Disconnect it there first.",
+};
+
 export default function OnboardingFlow({
-  igConfigured = false,
+  connections,
   igUsername = null,
   igStatus = "",
+  returned = [],
 }: {
-  igConfigured?: boolean;
+  /** Real connection state per platform, read on the server. */
+  connections: ConnectState[];
   igUsername?: string | null;
   igStatus?: string;
+  /** Return codes from the platform callbacks, e.g. { name: "YouTube", code: "denied" }. */
+  returned?: { name: string; code: string }[];
 }) {
   const router = useRouter();
   // Coming back from a successful Instagram OAuth, skip straight to analysis.
   const [phase, setPhase] = useState<Phase>(igStatus === "connected" ? "analyzing" : "connect");
-  const [connected, setConnected] = useState<string[]>(igUsername ? ["Instagram"] : []);
+  const connected = connections.filter((c) => c.connectedAs).map((c) => c.id);
   const [account, setAccount] = useState<Account>(null);
   const [extracted, setExtracted] = useState<Extracted>(null);
   const [analyzed, setAnalyzed] = useState(false);
@@ -131,21 +118,10 @@ export default function OnboardingFlow({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // analyzing / building tickers
-  const [tickIndex, setTickIndex] = useState(0);
-  const [buildIndex, setBuildIndex] = useState(0);
-  const [buildDone, setBuildDone] = useState(false);
   const analysisStarted = useRef(false);
 
-  const stepIndex =
-    phase === "connect" ? 0 : phase === "analyzing" || phase === "confirm" ? 1 : phase === "building" ? 2 : 3;
-  const bSteps = useMemo(() => buildingSteps(niche), [niche]);
-  const plan = useMemo(() => planFor(niche), [niche]);
+  const stepIndex = phase === "connect" ? 0 : phase === "pricing" ? 2 : 1;
   const liveIg = Boolean(igUsername) || igStatus === "connected";
-
-  function toggle(id: string) {
-    setConnected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-  }
 
   async function saveProfile() {
     try {
@@ -156,8 +132,9 @@ export default function OnboardingFlow({
           niche,
           brand_name: brand,
           goals: goal,
+          // Only platforms with a real connection row; never a self-reported one.
           platforms: connected,
-          account_connected: connected.length > 0 || liveIg,
+          ...(liveIg ? { account_connected: true } : {}),
         }),
       });
     } catch {
@@ -165,30 +142,19 @@ export default function OnboardingFlow({
     }
   }
 
-  // ---- analyzing phase: tick the checklist AND run the real extraction ----
-  useEffect(() => {
-    if (phase !== "analyzing") return;
-    setTickIndex(0);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 1; i <= ANALYZE_STEPS.length; i++) {
-      timers.push(setTimeout(() => setTickIndex(i), i * 1100));
-    }
-    return () => timers.forEach(clearTimeout);
-  }, [phase]);
-
+  // ---- analyzing phase: the real account read, for as long as it takes ----
   useEffect(() => {
     if (phase !== "analyzing" || analysisStarted.current) return;
     analysisStarted.current = true;
-    const minWait = new Promise((r) => setTimeout(r, ANALYZE_STEPS.length * 1100 + 500));
-    const run = fetch("/api/analyze-account")
+    fetch("/api/analyze-account")
       .then(async (r) => {
         const j = await r.json().catch(() => null);
         if (r.ok) return j ?? { connected: false };
         if (isPlanError(j)) setPlanError(j);
         return { connected: false };
       })
-      .catch(() => ({ connected: false }));
-    Promise.all([run, minWait]).then(([res]) => {
+      .catch(() => ({ connected: false }))
+      .then((res) => {
       if (res?.account) setAccount(res.account);
       if (res?.extracted) {
         setExtracted(res.extracted);
@@ -201,19 +167,6 @@ export default function OnboardingFlow({
       setPhase("confirm");
     });
   }, [phase]);
-
-  // ---- building phase ticker ----
-  useEffect(() => {
-    if (phase !== "building") return;
-    setBuildIndex(0);
-    setBuildDone(false);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 1; i <= bSteps.length; i++) {
-      timers.push(setTimeout(() => setBuildIndex(i), i * 1100));
-    }
-    timers.push(setTimeout(() => setBuildDone(true), bSteps.length * 1100 + 800));
-    return () => timers.forEach(clearTimeout);
-  }, [phase, bSteps.length]);
 
   function fromConnect() {
     if (liveIg) {
@@ -228,7 +181,7 @@ export default function OnboardingFlow({
     setLoading(true);
     await saveProfile();
     setLoading(false);
-    setPhase("building");
+    setPhase("pricing");
   }
 
   // Everyone starts on Free; there is no checkout here. Paid cards are links
@@ -249,7 +202,6 @@ export default function OnboardingFlow({
 
   return (
     <div className="ob-root">
-      <div className="ob-aurora" aria-hidden />
       <div className="ob-shell">
         <div className="ob-progress">
           <div className="ob-brand">
@@ -271,36 +223,29 @@ export default function OnboardingFlow({
         {/* ---------- 1 · CONNECT ---------- */}
         {phase === "connect" && (
           <div className="ob-stage" key="connect">
-            <div className="ob-head ob-rise">
-              <span className="ob-eyebrow"><Sparkles size={13} /> Step 1</span>
+            <div className="ob-head">
+              <span className="ob-eyebrow">Step 1</span>
               <h1>Connect your accounts</h1>
               <p>
-                Link where you post and SOCIA reads your account itself: your niche, your
-                content, and how it&apos;s doing. No forms to fill.
+                Connect the accounts you post from. SOCIA reads your posts and numbers from
+                each platform; with Instagram connected it also suggests your niche.
               </p>
             </div>
-            {igStatus === "denied" && (
-              <div className="ob-err ob-rise">Instagram connection was cancelled. Try again when you&apos;re ready.</div>
+            {igStatus && igStatus !== "connected" && RETURN_ERRORS[igStatus] && (
+              <div className="ob-err">Instagram {RETURN_ERRORS[igStatus]}</div>
             )}
-            {igStatus === "error" && (
-              <div className="ob-err ob-rise">Something went wrong connecting Instagram. Try again.</div>
-            )}
-            <div className="ob-rise" style={{ animationDelay: "80ms" }}>
-              <ConnectAccounts
-                connected={connected}
-                onToggle={toggle}
-                instagramHref={igConfigured ? "/api/auth/instagram/start?next=onboarding" : undefined}
-                igUsername={igUsername}
-              />
-            </div>
-            <p className="ob-note ob-rise" style={{ animationDelay: "150ms" }}>
-              Instagram connects live today. Other platforms register now and sync as each
-              platform approves API access.
+            {returned.filter((r) => RETURN_ERRORS[r.code]).map((r) => (
+              <div className="ob-err" key={r.name}>{r.name} {RETURN_ERRORS[r.code]}</div>
+            ))}
+            <ConnectAccounts states={connections} />
+            <p className="ob-note">
+              Each Connect button opens that platform&apos;s own sign-in and brings you back here.
+              You can connect more later from Settings.
             </p>
-            <div className="ob-actions ob-rise" style={{ animationDelay: "200ms" }}>
+            <div className="ob-actions">
               <span />
               <button className="ob-btn ob-btn-primary" onClick={fromConnect}>
-                {liveIg ? (<>Analyze my account <ScanSearch size={17} /></>) : connected.length ? (<>Continue <ArrowRight size={17} /></>) : (<>Set up without connecting <ArrowRight size={17} /></>)}
+                {liveIg ? (<>Read my Instagram <ScanSearch size={17} /></>) : connected.length ? (<>Continue <ArrowRight size={17} /></>) : (<>Set up without connecting <ArrowRight size={17} /></>)}
               </button>
             </div>
           </div>
@@ -308,35 +253,19 @@ export default function OnboardingFlow({
 
         {/* ---------- 2 · ANALYZING ---------- */}
         {phase === "analyzing" && (
-          <div className="ob-stage ob-build" key="analyzing">
-            <div className="ob-orb">
-              <span className="ob-orb-core" />
-              <span className="ob-orb-ring" />
-              <span className="ob-orb-ring ob-orb-ring2" />
-              <ScanSearch size={30} className="ob-orb-spark" />
-            </div>
-            <h1 className="ob-rise">Reading your account…</h1>
-            <p className="ob-rise" style={{ animationDelay: "60ms" }}>
-              The AI is studying {igUsername ? <b>@{igUsername}</b> : <b>your account</b>} so you
-              don&apos;t have to explain yourself.
+          <div className="ob-stage ob-reading" key="analyzing" role="status" aria-live="polite">
+            <Loader2 size={22} className="spin" aria-hidden />
+            <h1>Reading {igUsername ? <>@{igUsername}</> : "your Instagram"}</h1>
+            <p>
+              SOCIA is reading your profile and recent posts to suggest your niche and goal.
             </p>
-            <div className="ob-buildlist">
-              {ANALYZE_STEPS.map((s, i) => (
-                <div key={s} className={`ob-buildrow ${i < tickIndex ? "done" : ""} ${i === tickIndex ? "active" : ""}`}>
-                  <span className="ob-buildcheck">
-                    {i < tickIndex ? <Check size={14} /> : <span className="ob-buildspin" />}
-                  </span>
-                  <span>{s}</span>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
         {/* ---------- 2b · CONFIRM ---------- */}
         {phase === "confirm" && (
           <div className="ob-stage" key="confirm">
-            <div className="ob-head ob-rise">
+            <div className="ob-head">
               {analyzed ? (
                 <>
                   <span className="ob-eyebrow ob-eyebrow-ok"><Check size={13} /> Account read</span>
@@ -345,15 +274,17 @@ export default function OnboardingFlow({
                 </>
               ) : (
                 <>
-                  <span className="ob-eyebrow"><Sparkles size={13} /> Quick setup</span>
+                  <span className="ob-eyebrow">Quick setup</span>
                   <h1>Tell us about your account</h1>
                   {planError ? (
                     <PlanNotice error={planError} compact />
                   ) : (
                     <p>
                       {liveIg
-                        ? "We couldn't read your account data yet, so set this up by hand. Takes 20 seconds."
-                        : "No live account connected yet, so set this up by hand. Takes 20 seconds."}
+                        ? "SOCIA couldn't read your Instagram just now, so choose these yourself."
+                        : connected.length
+                          ? "SOCIA suggests a niche from Instagram only, so choose these yourself."
+                          : "No account is connected yet, so choose these yourself."}
                     </p>
                   )}
                 </>
@@ -361,7 +292,7 @@ export default function OnboardingFlow({
             </div>
 
             {analyzed && account && (
-              <div className="ob-acct ob-pop">
+              <div className="ob-acct">
                 <span className="ob-acct-avatar">{(account.username || "?").charAt(0).toUpperCase()}</span>
                 <div className="ob-acct-meta">
                   <b>@{account.username}</b>
@@ -376,17 +307,15 @@ export default function OnboardingFlow({
             )}
 
             {analyzed && extracted?.highlights?.length ? (
-              <div className="ob-insights">
+              <ul className="ob-insights" aria-label="Read from your posts">
                 {extracted.highlights.map((h, i) => (
-                  <div key={i} className="ob-insight ob-pop" style={{ animationDelay: `${120 + i * 80}ms` }}>
-                    <Sparkles size={14} /> <span>{h}</span>
-                  </div>
+                  <li key={i} className="ob-insight">{h}</li>
                 ))}
-              </div>
+              </ul>
             ) : null}
 
-            <div className="ob-field ob-rise" style={{ animationDelay: "160ms" }}>
-              <label>{analyzed ? "Your niche (detected)" : "Your niche"}</label>
+            <div className="ob-field">
+              <label>{analyzed ? "Your niche (suggested from your posts)" : "Your niche"}</label>
               <div className="ob-select-wrap">
                 <select value={niche} onChange={(e) => setNiche(e.target.value)}>
                   <option value="" disabled>Choose your category…</option>
@@ -397,15 +326,14 @@ export default function OnboardingFlow({
               </div>
             </div>
 
-            <div className="ob-field ob-rise" style={{ animationDelay: "220ms" }}>
+            <div className="ob-field">
               <label>{analyzed ? "Your goal (our best guess)" : "Your main goal"}</label>
               <div className="ob-goalgrid">
-                {GOALS.map((g, i) => (
+                {GOALS.map((g) => (
                   <button
                     key={g.id}
                     type="button"
                     className={`ob-goal ${goal === g.id ? "on" : ""}`}
-                    style={{ animationDelay: `${240 + i * 45}ms` }}
                     onClick={() => setGoal(g.id)}
                   >
                     <span className="ob-goal-ico">{g.icon}</span>
@@ -416,96 +344,38 @@ export default function OnboardingFlow({
               </div>
             </div>
 
-            <div className="ob-field ob-rise" style={{ animationDelay: "300ms" }}>
+            <div className="ob-field">
               <label>Account or brand name <span className="ob-opt">(optional)</span></label>
               <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="@yourhandle or your business name" />
             </div>
 
             {err && <div className="ob-err">{err}</div>}
-            <div className="ob-actions ob-rise" style={{ animationDelay: "340ms" }}>
+            <div className="ob-actions">
               <button className="ob-btn ob-btn-ghost" onClick={() => setPhase("connect")}>
                 <ArrowLeft size={17} /> Back
               </button>
               <button className="ob-btn ob-btn-primary" disabled={!niche || !goal || loading} onClick={fromConfirm}>
-                {loading ? "Saving…" : "Build my plan"} {!loading && <Wand2 size={17} />}
+                {loading ? "Saving…" : "Save and continue"} {!loading && <ArrowRight size={17} />}
               </button>
             </div>
           </div>
         )}
 
-        {/* ---------- 3 · BUILDING → PLAN ---------- */}
-        {phase === "building" && !buildDone && (
-          <div className="ob-stage ob-build" key="building">
-            <div className="ob-orb">
-              <span className="ob-orb-core" />
-              <span className="ob-orb-ring" />
-              <span className="ob-orb-ring ob-orb-ring2" />
-              <Sparkles size={30} className="ob-orb-spark" />
-            </div>
-            <h1 className="ob-rise">Building your strategy…</h1>
-            <p className="ob-rise" style={{ animationDelay: "60ms" }}>
-              Your AI strategist is designing a plan for <b>{niche || "your account"}</b>.
-            </p>
-            <div className="ob-buildlist">
-              {bSteps.map((s, i) => (
-                <div key={s} className={`ob-buildrow ${i < buildIndex ? "done" : ""} ${i === buildIndex ? "active" : ""}`}>
-                  <span className="ob-buildcheck">
-                    {i < buildIndex ? <Check size={14} /> : <span className="ob-buildspin" />}
-                  </span>
-                  <span>{s}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {phase === "building" && buildDone && (
-          <div className="ob-stage" key="plan">
-            <div className="ob-head ob-rise">
-              <span className="ob-eyebrow ob-eyebrow-ok"><Check size={13} /> Ready</span>
-              <h1>Your first week is ready 🎉</h1>
-              <p>
-                A starter plan tuned for <b>{niche}</b>. This is a taste. Your full plan
-                updates daily inside SOCIA.
-              </p>
-            </div>
-            <div className="ob-plan">
-              {plan.map((p, i) => (
-                <div key={i} className="ob-plancard ob-pop" style={{ animationDelay: `${i * 90}ms` }}>
-                  <div className="ob-plan-top">
-                    <span className="ob-plan-day">{p.day}</span>
-                    <span className="ob-plan-format">{p.format}</span>
-                    <span className="ob-plan-score">{p.score}</span>
-                  </div>
-                  <p className="ob-plan-hook">&quot;{p.hook}&quot;</p>
-                  <span className="ob-plan-tag">{p.tag}</span>
-                </div>
-              ))}
-            </div>
-            <div className="ob-actions ob-rise" style={{ animationDelay: "200ms" }}>
-              <span />
-              <button className="ob-btn ob-btn-primary" onClick={() => setPhase("pricing")}>
-                See my full plan <ArrowRight size={17} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ---------- 4 · PRICING ---------- */}
+        {/* ---------- 3 · PRICING ---------- */}
         {phase === "pricing" && (
           <div className="ob-stage" key="pricing">
-            <div className="ob-head ob-rise">
-              <span className="ob-eyebrow"><Rocket size={13} /> Last step</span>
+            <div className="ob-head">
+              <span className="ob-eyebrow">Last step</span>
               <h1>Start on Free</h1>
               <p>Compare plans anytime from Settings.</p>
             </div>
             <div className="ob-plans">
-              {PLAN_ORDER.map((id, i) => {
+              {PLAN_ORDER.map((id) => {
                 const pl = PLANS[id];
                 const isFree = pl.priceMonthly === 0;
                 return (
-                  <div key={pl.id} className={`ob-pricecard ob-pop ${pl.popular ? "popular" : ""}`} style={{ animationDelay: `${i * 80}ms` }}>
-                    {pl.popular && <span className="ob-badge">Most popular</span>}
+                  <div key={pl.id} className={`ob-pricecard ${pl.popular ? "popular" : ""}`}>
+                    {pl.popular && <span className="ob-badge">Recommended</span>}
                     <div className="ob-price-name">{pl.name}</div>
                     <div className="ob-price-amt">
                       {isFree ? <b>Free</b> : (<><b>{formatPrice(pl)}</b><span>/mo</span></>)}
@@ -533,7 +403,7 @@ export default function OnboardingFlow({
               })}
             </div>
             {err && <div className="ob-err">{err}</div>}
-            <div className="ob-skiprow ob-rise" style={{ animationDelay: "260ms" }}>
+            <div className="ob-skiprow">
               <button className="ob-textlink" onClick={() => finish("free")} disabled={loading}>
                 Maybe later, take me to my dashboard
               </button>

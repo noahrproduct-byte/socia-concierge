@@ -46,11 +46,11 @@ export default function PointDrawer({ bucket, isOutlier, granularity, series, ba
   }
   const interpretation = !b || value == null ? ""
     : isOutlier && driver && postTotals
-      ? `One post carried this ${period}. Its opening and subject reached well beyond your followers; a single post can't show which element did it, so treat it as a pattern to test rather than a rule.`
+      ? `One post carried this ${period}. Its opening or subject may explain it; a single post can't show which, so treat it as something to test rather than a rule.`
       : isOutlier
-        ? `Activity this ${period} ran far above your typical level. ${inBucket.length ? "The posts published in it are the likeliest reason, but Instagram's account-level number also includes older content being rediscovered." : "No post was published in it, so older content being rediscovered or shared is the likelier explanation."}`
+        ? `Activity this ${period} ran far above your typical level. ${inBucket.length ? "The posts published in it may explain it, but Instagram's account-level number also includes older content being rediscovered." : "No post was published in it, so older content being found or shared again is a possible explanation."}`
         : mult != null && mult < 0.7
-          ? `Below your typical ${period}. ${inBucket.length ? "The posts here landed softer than your median; compare their hooks and subjects with your stronger posts before changing more." : "Nothing was published, so this is the normal decay of older posts."}`
+          ? `Below your typical ${period}. ${inBucket.length ? "The posts here landed softer than your median; compare their hooks and subjects with your stronger posts before changing more." : "Nothing was published, which may explain the dip."}`
           : `Around your typical level. Useful as a control when you test a bolder post.`;
   const recommendation = !b ? "" : isOutlier && driver
     ? `Make a second ${driver.format.toLowerCase()} with the same format and opening structure as “${driver.title.slice(0, 30)}” and compare it against your ${baseline ? baseline.label.toLowerCase() : "median"}.`
@@ -112,7 +112,7 @@ export default function PointDrawer({ bucket, isOutlier, granularity, series, ba
           <section className="ov-why">
             <h3>{isOutlier ? `Why this ${period} spiked` : `What happened this ${period}`}</h3>
             {observed.length > 0 && <div className="ov-why-block"><small>Observed</small><ul>{observed.map((o) => <li key={o}>{o}</li>)}</ul></div>}
-            {interpretation && <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{interpretation}</p></div>}
+            {interpretation && <div className="ov-why-block ai"><small>Possible explanation</small><p>{interpretation}</p></div>}
             {recommendation && <div className="ov-why-block rec"><small>Recommendation</small><p>{recommendation}</p></div>}
           </section>
           <div className="ov-detail-actions">

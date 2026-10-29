@@ -9,16 +9,19 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const origin = url.origin;
+  // Where to land after the callback: settings (default) or the onboarding
+  // wizard, carried through Facebook in the OAuth state param.
+  const dest = url.searchParams.get("next") === "onboarding" ? "onboarding" : "settings";
 
   if (!fbConfigured()) {
-    return NextResponse.redirect(`${origin}/settings?fb=notconfigured`);
+    return NextResponse.redirect(`${origin}/${dest}?fb=notconfigured`);
   }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(`${origin}/login?next=/settings`);
+  if (!user) return NextResponse.redirect(`${origin}/login?next=/${dest}`);
 
   const authorize = new URL(`https://www.facebook.com/${FB_GRAPH_V}/dialog/oauth`);
   authorize.searchParams.set("client_id", fbAppId()!);
@@ -42,7 +45,7 @@ export async function GET(req: Request) {
     authorize.searchParams.set("auth_type", "rerequest");
   }
   // CSRF: a one-time nonce in an HttpOnly cookie, echoed back in state.
-  const { state, nonce } = newOAuthState("settings");
+  const { state, nonce } = newOAuthState(dest);
   authorize.searchParams.set("state", state);
 
   const res = NextResponse.redirect(authorize.toString());

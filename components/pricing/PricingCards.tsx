@@ -96,7 +96,7 @@ export default function PricingCards({
           <article key={id} id={`plan-${id}`} className={cls} aria-labelledby={`plan-${id}-name`}>
             <div className="pr-card-head">
               <h3 id={`plan-${id}-name`} className="pr-card-name">{p.name}</h3>
-              {p.popular && <span className="pr-popular">Most popular</span>}
+              {p.popular && <span className="pr-popular">Recommended</span>}
             </div>
             <div className="pr-price">
               <span className="pr-price-amount">{formatPrice(p)}</span>
