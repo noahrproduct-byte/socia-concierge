@@ -22,7 +22,7 @@ const TOKEN_TABLES = ["instagram_connections", "facebook_connections", "youtube_
 beforeAll(async () => {
   // Data exists before the hardening migration, as in production; then the
   // migration is applied a second time to prove it is idempotent.
-  ({ db } = await freshDatabase({ before: { "security-hardening.sql": seed }, rerun: ["security-hardening.sql"] }));
+  ({ db } = await freshDatabase({ before: { "security-hardening.sql": seed }, rerun: ["security-hardening.sql", "rls-audit.sql"] }));
   const r = await db.query<{ name: string; has_user: boolean; has_owner: boolean }>(`
     select c.relname as name,
       exists (select 1 from information_schema.columns k where k.table_schema = 'public' and k.table_name = c.relname and k.column_name = 'user_id') as has_user,

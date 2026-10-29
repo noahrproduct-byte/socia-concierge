@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     };
     let scoped = Boolean(wsId);
     let { data, error } = await read(true);
-    if (error && scoped) {
+    if (error && scoped && isMissingColumnError(error)) {
       scoped = false;
       ({ data, error } = await read(false));
     }

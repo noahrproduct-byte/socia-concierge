@@ -106,7 +106,7 @@ create or replace function public.socia_add_competitor(p_user uuid, p_workspace 
 returns table (added boolean, already boolean, active_count integer)
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_active boolean;

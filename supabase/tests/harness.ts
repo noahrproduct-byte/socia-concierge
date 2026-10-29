@@ -45,6 +45,7 @@ export const MIGRATIONS = [
   "ai-assistants.sql",
   "approvals.sql",
   "security-hardening.sql",
+  "rls-audit.sql",
 ];
 
 const SUPABASE_STANDIN = `

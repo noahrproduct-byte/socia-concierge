@@ -27,7 +27,7 @@ create or replace function public.socia_release_usage(p_user uuid, p_meter text,
 returns integer
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $fn$
 declare
   v_used integer;
@@ -52,6 +52,7 @@ create or replace function public.socia_niche_key_is_mine(p_key text)
 returns boolean
 language sql
 stable
+set search_path = public, pg_temp
 as $fn$
   select auth.uid() is not null
      and p_key ~ ('^(saved:|analysis:|opp:)?' || auth.uid()::text || '(:|$)');
@@ -104,7 +105,7 @@ create or replace function public.socia_apply_plan_keep(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $fn$
 declare
   v_now timestamptz := now();

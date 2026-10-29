@@ -39,7 +39,21 @@ const toApiWorkspace = (w: Workspace, userId: string): ApiWorkspace => ({
 /** The workspaces this connection may read right now. */
 export async function grantedWorkspaces(svc: Supa, p: Principal): Promise<Workspace[]> {
   const all = await listAccessibleWorkspaces(svc, p.userId);
-  return all.filter((w) => p.workspaceIds.includes(w.id) && !w.suspended);
+  const granted = all.filter((w) => p.workspaceIds.includes(w.id) && !w.suspended);
+  // Someone else's workspace stays open only while its owner's plan includes a
+  // team, exactly as in the app (resolveContext): after a downgrade or a lapsed
+  // trial, an invited person's assistant loses it too. Unknown means closed.
+  const teamOk = new Map<string, Promise<boolean>>();
+  const ownerHasTeam = (ownerId: string) => {
+    let v = teamOk.get(ownerId);
+    if (!v) {
+      v = getEntitlements(svc, ownerId).then((e) => canUseFeature(e, "team"), () => false);
+      teamOk.set(ownerId, v);
+    }
+    return v;
+  };
+  const keep = await Promise.all(granted.map((w) => (w.ownerId === p.userId ? true : ownerHasTeam(w.ownerId))));
+  return granted.filter((_, i) => keep[i]);
 }
 
 export async function listGranted(svc: Supa, p: Principal): Promise<ApiWorkspace[]> {

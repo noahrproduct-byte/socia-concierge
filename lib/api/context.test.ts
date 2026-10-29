@@ -35,7 +35,7 @@ const svc = {} as never;
 
 beforeEach(() => {
   state.workspaces = [ws("w1", "me", { isDefault: true }), ws("w2", "me"), ws("w3", "boss", { role: "admin" }), ws("w4", "me", { suspended: true })];
-  state.features = { ai_assistants: true };
+  state.features = { ai_assistants: true, team: true };
   state.rateOk = true;
   state.meter = { allowed: true, unavailable: false, used: 1, limit: 5000 };
   state.rateKeys = [];
@@ -43,6 +43,12 @@ beforeEach(() => {
 });
 
 describe("which workspace a connection may read", () => {
+  it("drops an invited workspace once its owner's plan no longer includes a team", async () => {
+    state.features = { ai_assistants: true, team: false };
+    expect((await listGranted(svc, principal(["w1", "w3"]))).map((w) => w.id)).toEqual(["w1"]);
+    await expect(apiContext(svc, principal(["w3"]), "w3")).rejects.toBeInstanceOf(ApiFailure);
+  });
+
   it("lists only workspaces that were shared AND are still open to the person AND not paused", async () => {
     const out = await listGranted(svc, principal(["w1", "w3", "w4", "w-gone"]));
     expect(out).toEqual([

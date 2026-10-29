@@ -91,6 +91,6 @@ export async function POST(req: Request) {
   const { error } = await connDb.from("facebook_connections").upsert(selectRow, { onConflict: ws ? "workspace_id" : "user_id" });
   if (error) return NextResponse.json({ error: "Couldn't save the connection." }, { status: 500 });
 
-  await syncFacebook(ctx.client, ctx.ownerId).catch(() => null);
+  await syncFacebook(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
   return NextResponse.json({ ok: true });
 }

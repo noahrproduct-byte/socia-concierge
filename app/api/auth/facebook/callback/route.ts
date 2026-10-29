@@ -186,7 +186,7 @@ async function connect(req: Request): Promise<NextResponse> {
       // actually granted so a missing pages_show_list in the login
       // configuration is distinguishable from an account with no Page. Names
       // only, no tokens. Remove once the connect path is confirmed.
-      console.error("[fb connect] no pages returned. granted=", granted, " viaBusiness=", viaBusiness, " accountsRaw=", JSON.stringify(pagesJson).slice(0, 400));
+      console.error("[fb connect] no pages returned. granted=", granted, " viaBusiness=", viaBusiness, " accountsRaw=", JSON.stringify(pagesJson, (k, v) => (k === "access_token" ? "[redacted]" : v)).slice(0, 400));
       const reason = granted.length && !granted.includes("pages_show_list") ? "noperm" : "nopages";
       return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(granted.join(",") || "none")}&fbbiz=${viaBusiness}`);
     }
@@ -242,7 +242,7 @@ async function connect(req: Request): Promise<NextResponse> {
       }
       if (error) return done("error");
       if (fbUserId) await scopeFb(connDb.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
-      await syncFacebook(ctx.client, ctx.ownerId).catch(() => null);
+      await syncFacebook(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
       return done("connected");
     }
 
