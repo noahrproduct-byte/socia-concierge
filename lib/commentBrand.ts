@@ -14,6 +14,10 @@ export function brandVoiceFrom(profile: ProfileLike, workspaceName: string | nul
   const name = str(bd.name) ?? str(profile?.brand_name) ?? str(profile?.business_name) ?? workspaceName ?? null;
   const niche = str(profile?.niche) ?? str(bd.niche) ?? null;
   const location = str(bd.location) ?? null;
-  const notesParts = [str(bd.tone), str(bd.voice), str(bd.description), str(profile?.goals)].filter((s): s is string => Boolean(s));
+  // The fields Settings actually records (lib/profile.ts BrandDetail): voice,
+  // description and the words or topics to avoid. There is no "tone" field.
+  const voice = str(bd.voice);
+  const avoid = str(bd.avoid);
+  const notesParts = [voice ? `Voice: ${voice}` : null, str(bd.description), str(profile?.goals), avoid ? `Never mention: ${avoid}` : null].filter((s): s is string => Boolean(s));
   return { name, niche, location, notes: notesParts.length ? notesParts.join(" · ").slice(0, 600) : null };
 }

@@ -4,7 +4,7 @@
 // per-video performance and states plainly that a daily trend isn't available —
 // it never fabricates a time series. Pure: the page reads the row, this shapes.
 
-import { DAY_MS, fmtNum } from "../overview";
+import { DAY_MS, fmtNum, relTime } from "../overview";
 import type { TtVideo } from "../tiktokAuth";
 
 export type TtConnRow = {
@@ -47,6 +47,9 @@ export type TikTokAnalyticsData = {
   videosInRange: number;
   /** Honest note about the missing daily trend (no fake chart is drawn). */
   historyNote: string;
+  /** When SOCIA last read these counts from TikTok, and that age in words. */
+  syncedAt: string | null;
+  syncedLabel: string;
   unavailable: { label: string; why: string }[];
 };
 
@@ -61,12 +64,16 @@ export function buildTikTokAnalytics(input: { row: TtConnRow; days: number; rang
   const engTotal = engVideos.reduce((a, v) => a + (ttVideoEngagement(v) ?? 0), 0);
   const avgEng = engVideos.length ? Math.round(engTotal / engVideos.length) : null;
 
+  // Every count below is as of the last read, not live: say how old it is.
+  const syncedAt = row.last_synced_at ?? null;
+  const syncedLabel = syncedAt ? `updated ${relTime(syncedAt, now.getTime())}` : "last update time unknown";
+
   const stats: TtStat[] = [
     {
       key: "followers",
       label: "Followers",
       value: row.follower_count != null ? row.follower_count.toLocaleString("en-US") : "—",
-      note: row.follower_count != null ? "current, from TikTok" : "not provided by TikTok",
+      note: row.follower_count != null ? `from TikTok, ${syncedLabel}` : "not provided by TikTok",
       status: row.follower_count != null ? "ok" : "unavailable",
     },
     {
@@ -122,6 +129,8 @@ export function buildTikTokAnalytics(input: { row: TtConnRow; days: number; rang
     stats,
     topVideos,
     videosInRange: inRange.length,
+    syncedAt,
+    syncedLabel,
     historyNote:
       "TikTok's developer API doesn't provide a day-by-day performance series for connected accounts, so SOCIA shows per-video totals instead of a daily trend. If TikTok grants analytics access to this connection, the trend will appear here.",
     unavailable: [

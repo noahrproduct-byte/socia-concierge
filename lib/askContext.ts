@@ -66,8 +66,9 @@ ${PAGE_RULES[page]}
 ${acct}${brandContext(profile?.brand_detail)}`;
 }
 
-async function accountBlock(supabase: Supa, userId: string): Promise<{ text: string; posts: PostCard[]; media: IgMediaItem[]; handle: string | null; followers: number | null; daily: DailySnapshot[] }> {
-  const snap = await getIgSnapshot(supabase, userId).catch(() => null);
+async function accountBlock(supabase: Supa, userId: string, workspaceId: string | null): Promise<{ text: string; posts: PostCard[]; media: IgMediaItem[]; handle: string | null; followers: number | null; daily: DailySnapshot[] }> {
+  // The brand being viewed, not whichever workspace the owner last made active.
+  const snap = await getIgSnapshot(supabase, userId, workspaceId).catch(() => null);
   const media: IgMediaItem[] = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
   const baseline = median(media.map(interactionsTotal));
@@ -91,7 +92,7 @@ async function accountBlock(supabase: Supa, userId: string): Promise<{ text: str
 
 export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskContext, workspaceId?: string | null, brandWs?: BrandSource | null): Promise<AskEvidence> {
   const profile = await getProfile(supabase, userId, brandWs).catch(() => null);
-  const acct = await accountBlock(supabase, userId);
+  const acct = await accountBlock(supabase, userId, workspaceId ?? null);
   const parts: string[] = [`# Account evidence (assembled by SOCIA from the connected account)`, acct.text];
   let plan: SavedPlan | null = null;
   const now = new Date();

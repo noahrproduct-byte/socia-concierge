@@ -543,7 +543,7 @@ export function buildInsights(input: {
           `${label(top)}: ${eng(top).toLocaleString("en-US")} interactions${top.insights?.views != null ? `, ${fmtNum(top.insights.views)} views` : ""}`,
           `Your median post: ${Math.round(baseline).toLocaleString("en-US")} interactions (last ${dated.length} posts)`,
         ],
-        interpretation: "A post this far above the median was distributed well beyond your followers. The hook and subject are the likeliest reasons; one post can't prove which, so treat it as a pattern to test, not a conclusion.",
+        interpretation: "A post this far above your median often reached people beyond your followers, though SOCIA can't see that split for this post. The hook or the subject may explain it; one post can't show which, so treat it as something to test, not a conclusion.",
         recommendation: `Make a second post with the same format and opening structure as ${label(top)}, and compare it against the ${Math.round(baseline)} median.`,
         postIds: [top.id ?? ""],
         planNote: `Repeat the format and hook of ${label(top)} (${fmtMult(mult)} my median).`,
@@ -570,7 +570,7 @@ export function buildInsights(input: {
         title: `${best.fmt}s are your strongest format`,
         body: `Median ${Math.round(best.med).toLocaleString("en-US")} interactions across ${plural(best.n, best.fmt.toLowerCase())}, ${fmtMult(best.med / baseline)} your overall median.`,
         observed: [`${best.fmt}s: median ${Math.round(best.med)} interactions (${best.n} posts)`, `All posts: median ${Math.round(baseline)}`, ...(vs ? [vs.trim()] : [])],
-        interpretation: "In this sample the format travels further; Instagram tends to show it to more non-followers than your other formats. Sample sizes are small, so keep measuring.",
+        interpretation: "In this sample the format earned more. That may be the format itself, or the subjects you happened to post in it; the data can't tell those apart, and the samples are small, so keep measuring.",
         recommendation: `Plan the next week so at least two thirds of posts are ${best.fmt.toLowerCase()}s.`,
         postIds: (byFmt.get(best.fmt) ?? []).slice(0, 3).map((m) => m.id ?? ""),
         planNote: `${best.fmt}s earn ${fmtMult(best.med / baseline)} my median; weight the week toward them.`,
@@ -589,9 +589,9 @@ export function buildInsights(input: {
         out.push({
           id: "location", kind: "location", tone: "warn", tag: "Local content", action: { label: "Investigate" },
           title: `None of your last ${dated.length} posts mention ${place}`,
-          body: "For a local business, reach that isn't local doesn't turn into visits.",
+          body: "For a local business, it's local reach that can turn into visits.",
           observed: [`0 of ${dated.length} captions mention ${tokens.map((t) => `"${t}"`).join(" or ")}`],
-          interpretation: "Instagram uses caption text and location tags when it decides who nearby sees a post. Without them your reach is spread wherever the format travels, not where your customers are.",
+          interpretation: "Nothing in these posts ties them to the place your customers are. Whether naming it or tagging the location changes who sees a post is a hypothesis to test, not a known effect.",
           recommendation: `Add ${place} to captions and tag the location on every post this week; compare local follower growth after two weeks.`,
           postIds: [],
           planNote: `No recent post mentions ${place}; every post this week should name it.`,
@@ -629,7 +629,7 @@ export function buildInsights(input: {
         title: `Posting dropped to ${cur.toFixed(1)}/week`,
         body: `From ${prev30.toFixed(1)}/week in the 30 days before.`,
         observed: [`Last 30 days: ${cur.toFixed(1)} posts/week`, `Previous 30 days: ${prev30.toFixed(1)} posts/week`],
-        interpretation: "Fewer posts means fewer chances for the algorithm to test your content with new people; reach tends to follow cadence with a lag.",
+        interpretation: "Fewer posts means fewer chances to reach new people. Whether your reach follows your cadence is worth checking over the next few weeks.",
         recommendation: `Get back to ${Math.max(3, Math.round(prev30))} posts a week; the Calendar can place them at your best hour.`,
         postIds: [],
         planNote: `Cadence fell to ${cur.toFixed(1)}/week; plan ${Math.max(3, Math.round(prev30))} posts.`,
@@ -648,7 +648,7 @@ export function buildInsights(input: {
         title: up ? `Your last 5 posts earned ${fmtMult(a / b)} the median interactions of the 5 before` : `Your last 5 posts earned ${Math.round((1 - a / b) * 100)}% fewer median interactions than the 5 before`,
         body: `Median ${Math.round(a)} vs ${Math.round(b)} interactions per post.`,
         observed: [`Last 5 posts: median ${Math.round(a)}`, `Previous 5: median ${Math.round(b)}`],
-        interpretation: up ? "Whatever changed in the last five is working; hold it constant while you test one variable at a time." : "The recent five share something the earlier ones didn't; compare hooks and formats between the two groups before changing more.",
+        interpretation: up ? "The last five did better, but the data doesn't show why. Keep the mix steady and change one thing at a time to find out." : "The last five did worse, but the data doesn't show why. Compare their hooks and formats with the five before changing more.",
         recommendation: up ? "Keep the current format mix for another week and measure again." : "Re-run the best-performing format from the earlier group this week.",
         postIds: sorted.slice(0, 5).map((m) => m.id ?? ""),
         planNote: up ? "Recent posts trending up; keep the mix." : "Recent posts trending down; revisit the earlier winning format.",
@@ -688,7 +688,7 @@ export type Focus = { planId: string; headline: string; tiles: FocusTile[]; crea
 export function buildFocus(plan: { id: string; data: Deliverable; created_at: string } | null): Focus | null {
   if (!plan?.data?.topFixes?.length) return null;
   const iconFor = (s: string): FocusTile["icon"] =>
-    /reel|video|short/i.test(s) ? "video" : /local|location|geotag|nearby|hermitage|nashville|neighbou?rhood|city/i.test(s) ? "map" : /people|staff|face|customer|team|owner|human/i.test(s) ? "users" : "target";
+    /reel|video|short/i.test(s) ? "video" : /local|location|geotag|nearby|neighbou?rhood|city/i.test(s) ? "map" : /people|staff|face|customer|team|owner|human/i.test(s) ? "users" : "target";
   const labelFor = (s: string): string =>
     /reel|video/i.test(s) ? "REELS" : /local|location|geotag/i.test(s) ? "LOCAL" : /people|staff|face|customer|team/i.test(s) ? "PEOPLE" : /hook|caption|first line/i.test(s) ? "HOOKS" : /cta|order|book|link/i.test(s) ? "ORDERS" : "FOCUS";
   return {
