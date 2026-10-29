@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { CAPABILITIES, availabilityFor, formatSpec } from "./capabilities";
-import { validateDestination, validateMedia, countHashtags, countMentions, byteLength } from "./validate";
+import { validateDestination, validateMedia, publishedMedia, countHashtags, countMentions, byteLength } from "./validate";
 import { aggregateStatus, summarize, firstError } from "./status";
 import { newDraft, seedDestinations, review, toPayload, timeFor, captionFor, suggestInstagramFormat, type PickerAccount } from "./composer";
 import { defaultSettings, type MediaItem, type YouTubeSettings, type InstagramSettings } from "./types";
@@ -83,6 +83,17 @@ describe("text rules", () => {
     expect(validateDestination({ platform: "youtube", media: [video()], masterCaption: "d", settings: bad, scheduledAt: null, requireFutureTime: false }).issues.map((i) => i.code)).toContain("title_chars");
     const ok = { ...s, title: "Good title", madeForKids: false };
     expect(validateDestination({ platform: "youtube", media: [video()], masterCaption: "d", settings: ok, scheduledAt: null, requireFutureTime: false }).level).toBe("ready");
+  });
+  it("a YouTube thumbnail image is not counted as a second file", () => {
+    const thumb = image({ id: "t1", width: 1280, height: 720 });
+    const s: YouTubeSettings = { ...defaultSettings("youtube"), title: "Test", madeForKids: false, thumbnailMediaId: "t1" };
+    expect(publishedMedia("youtube", s, [video(), thumb]).map((m) => m.id)).toEqual(["v1"]);
+    expect(validateDestination({ platform: "youtube", media: [video(), thumb], masterCaption: "d", settings: s, scheduledAt: null, requireFutureTime: false }).level).toBe("ready");
+    // Without choosing it as the thumbnail, the image is a second file and is refused.
+    const noThumb = { ...s, thumbnailMediaId: null };
+    expect(validateDestination({ platform: "youtube", media: [video(), thumb], masterCaption: "d", settings: noThumb, scheduledAt: null, requireFutureTime: false }).issues.map((i) => i.code)).toContain("media_count");
+    // Other platforms keep every file.
+    expect(publishedMedia("instagram", defaultSettings("instagram"), [video(), thumb])).toHaveLength(2);
   });
   it("Instagram blocks more than 5 hashtags and a past time", () => {
     const s: InstagramSettings = { ...defaultSettings("instagram"), format: "reel" };
