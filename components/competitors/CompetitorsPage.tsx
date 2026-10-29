@@ -220,7 +220,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
     <div className="cx cx2">
       <PageHeader
         title="Competitors"
-        sub="See who's winning — and why."
+        sub="See who's winning, and why."
         status={
           <span className="ov-status cx-status">
             <i className={d.lastRun ? "live" : ""} />
@@ -233,7 +233,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
           <>
             <PlatformSelect value={d.platform} />
             <RangeSelect days={d.days} maxDays={d.maxDays} />
-            <button type="button" className="ov-btn primary" onClick={() => setAddOpen(true)}><Plus size={14} /> Add Competitor</button>
+            <button type="button" className="ov-btn primary" onClick={() => setAddOpen(true)}><Plus size={14} /> Add competitor</button>
           </>
         }
       />
@@ -255,7 +255,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
           <p>{d.niche ? "Run a discovery refresh so SOCIA searches your niche, or add one by hand." : "SOCIA searches for competitors inside your niche. Choose it in the Niche Trends section below."}</p>
           <div className="cx-empty-actions">
             {d.niche && <RefreshButton className="ov-btn ghost small" label="Refresh discovery" />}
-            <button type="button" className="ov-btn primary small" onClick={() => setAddOpen(true)}><Plus size={13} /> Add Competitor</button>
+            <button type="button" className="ov-btn primary small" onClick={() => setAddOpen(true)}><Plus size={13} /> Add competitor</button>
           </div>
         </div>
       )}
@@ -312,7 +312,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
               <small className="cx2-foot">
                 {score.overall != null
                   ? `Computed from ${score.basis} of 4 metrics of your real data against published 2026 benchmarks. Hover each for the formula.`
-                  : d.connected ? "Fills in as your data syncs — nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <a href={d.igConnectHref} className="ov-link">Connect</a></>}
+                  : d.connected ? "Fills in as your data syncs; nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <a href={d.igConnectHref} className="ov-link">Connect</a></>}
               </small>
               {radarAxes.length >= 3 && (
                 <>
@@ -346,7 +346,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
                 </div>
               </div>
               <Scatter posts={scatterPosts} yLabel={scatterYLabel} unit={fmtN} />
-              <small className="cx2-foot">Each bubble is one of {themName}&apos;s real posts — size is comments. Click one to open it.</small>
+              <small className="cx2-foot">Each bubble is one of {themName}&apos;s real posts; size is comments. Click one to open it.</small>
             </section>
           )}
 

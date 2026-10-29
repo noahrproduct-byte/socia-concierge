@@ -8,6 +8,7 @@
 @import "./styles/base.css";
 @import "./styles/primitives.css";
 @import "./styles/shell.css";
+@import "./styles/pages.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -7820,7 +7821,7 @@ a.hub-card:hover {
   padding: 20px 20px 18px;
 }
 .cpl-sec { display: block; font-size: 9.5px; font-weight: 750; letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-muted); }
-.cpl-sec.gap { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+.cpl-sec-gap { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
 .cpl-lab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 14px 0 6px; font-size: 11.5px; font-weight: 650; color: var(--text-secondary); }
 .cpl-lab span { display: inline-flex; align-items: center; gap: 6px; }
 .cpl-lab svg { color: var(--primary-text); flex-shrink: 0; }
@@ -10806,8 +10807,8 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2 { --cx2-you: var(--primary-bright); --cx2-them: var(--info); }
 
 /* ---- shared card & type system ---- */
-.cx2-card { position: relative; border-radius: 18px; border: 1px solid color-mix(in srgb, var(--border) 72%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, var(--primary) 4%) 0%, var(--surface) 42%); overflow: hidden; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
-.cx2-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 26%, var(--border)); box-shadow: 0 10px 32px -18px rgba(var(--primary-rgb), .5); }
+.cx2-card { position: relative; border-radius: var(--r-panel); border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-card); overflow: hidden; transition: border-color var(--t-press) var(--ease-out); }
+
 .cx2-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .cx2-card-head h2 { display: inline-flex; align-items: center; gap: 7px; font-size: 15.5px; font-weight: 700; letter-spacing: -.2px; margin: 0; }
 .cx2-card-head h2 svg { color: var(--primary-text); }
@@ -10828,16 +10829,8 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2-rise { animation: cx2rise .5s cubic-bezier(.22,.9,.3,1) both; }
 
 /* ---- intelligence strip ---- */
-.cx2-intel { position: relative; display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); align-items: center; gap: 18px; padding: 16px 20px; border-radius: 18px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border)); background: linear-gradient(120deg, color-mix(in srgb, var(--surface) 88%, var(--primary) 12%) 0%, var(--surface) 55%, color-mix(in srgb, var(--surface) 94%, var(--info) 6%) 100%); background-image: linear-gradient(color-mix(in srgb, var(--border) 34%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--border) 34%, transparent) 1px, transparent 1px); background-size: 100% 100%, 28px 28px, 28px 28px; }
-.cx2-scan { position: absolute; inset: 0 auto 0 0; width: 34%; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(var(--primary-rgb), .09), transparent); animation: cx2scan 2.6s ease-out .2s 1 both; }
-@keyframes cx2scan { from { transform: translateX(-110%); opacity: 1; } 80% { opacity: 1; } to { transform: translateX(340%); opacity: 0; } }
+.cx2-intel { position: relative; display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); align-items: center; gap: 18px; padding: 16px 20px; border-radius: var(--r-panel); overflow: hidden; border: 1px solid var(--border); background: var(--surface); box-shadow: var(--shadow-card); }
 .cx2-intel-brand { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding-right: 16px; border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
-.cx2-pulse { display: inline-flex; align-items: flex-end; gap: 2.5px; height: 14px; }
-.cx2-pulse i { width: 3px; border-radius: 2px; background: var(--primary-bright); animation: cx2wave 1.15s ease-in-out infinite; }
-.cx2-pulse i:nth-child(1) { height: 55%; animation-delay: 0s; }
-.cx2-pulse i:nth-child(2) { height: 100%; animation-delay: .18s; }
-.cx2-pulse i:nth-child(3) { height: 70%; animation-delay: .36s; }
-@keyframes cx2wave { 0%, 100% { transform: scaleY(.55); } 50% { transform: scaleY(1); } }
 .cx2-intel-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cx2-intel-val { display: flex; align-items: baseline; gap: 5px; min-width: 0; }
 .cx2-intel-val b { font-size: 23px; font-weight: 780; letter-spacing: -.5px; line-height: 1.05; color: var(--text-primary); font-variant-numeric: tabular-nums; }
@@ -10853,14 +10846,13 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2-rscroll { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 4px 2px 8px; scroll-snap-type: x proximity; }
 .cx2-rscroll::-webkit-scrollbar { display: none; }
 .cx2-chip-card { position: relative; flex: 0 0 auto; width: 196px; scroll-snap-align: start; border-radius: 15px; padding: 11px 12px 10px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--border) 75%, transparent); background: var(--surface); transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
-.cx2-chip-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
-.cx2-chip-card.selected { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); box-shadow: 0 0 0 1px rgba(var(--primary-rgb), .35), 0 8px 26px -14px rgba(var(--primary-rgb), .55); background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, var(--primary) 8%), var(--surface)); }
+.cx2-chip-card:hover { border-color: var(--border-strong); }
+.cx2-chip-card.selected { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--surface); }
 .cx2-chip-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .cx2-chip-card.you { cursor: default; border-style: dashed; }
 .cx2-rank { position: absolute; top: -7px; left: 10px; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; padding: 2px 7px; border-radius: 99px; background: var(--surface-muted); border: 1px solid var(--border); color: var(--text-secondary); display: inline-flex; align-items: center; gap: 3px; }
 .cx2-rank.you { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
-.cx2-live-dot { position: absolute; top: 10px; right: 10px; width: 6px; height: 6px; border-radius: 99px; background: var(--success); box-shadow: 0 0 0 0 rgba(var(--success-rgb), .5); animation: cx2ping 2.4s ease-out infinite; }
-@keyframes cx2ping { 0% { box-shadow: 0 0 0 0 rgba(var(--success-rgb), .45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(var(--success-rgb), 0); } }
+.cx2-live-dot { position: absolute; top: 10px; right: 10px; width: 6px; height: 6px; border-radius: 99px; background: var(--success); }
 .cx2-chip-head { display: flex; gap: 9px; align-items: center; margin-top: 3px; }
 .cx2-chip-id { min-width: 0; display: flex; flex-direction: column; }
 .cx2-chip-id b { font-size: 12.8px; font-weight: 700; letter-spacing: -.1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -10907,9 +10899,8 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 @keyframes cx2draw { to { stroke-dashoffset: 0; } }
 .cx2-dot { opacity: .55; } .cx2-dot.you { fill: var(--cx2-you); } .cx2-dot.them { fill: var(--cx2-them); }
 .cx2-dot-end { stroke-width: 2; }
-.cx2-dot-end.you { fill: var(--cx2-you); stroke: rgba(var(--primary-rgb), .3); animation: cx2endpulse 2.2s ease-out infinite; }
+.cx2-dot-end.you { fill: var(--cx2-you); stroke: rgba(var(--primary-rgb), .3); }
 .cx2-dot-end.them { fill: var(--cx2-them); stroke: rgba(var(--info-rgb), .3); }
-@keyframes cx2endpulse { 0% { stroke-width: 2; } 50% { stroke-width: 7; } 100% { stroke-width: 2; } }
 .cx2-cursor { stroke: color-mix(in srgb, var(--text-muted) 55%, transparent); stroke-width: 1; stroke-dasharray: 2 3; }
 .cx2-tip { position: absolute; top: 8px; z-index: 5; pointer-events: none; display: flex; flex-direction: column; gap: 3px; background: var(--chart-tooltip-bg); color: var(--chart-tooltip-text); border-radius: 10px; padding: 8px 11px; font-size: 11.5px; box-shadow: 0 8px 24px -8px rgba(0,0,0,.45); white-space: nowrap; }
 .cx2-tip b { font-size: 11px; opacity: .75; font-weight: 700; }
@@ -10945,7 +10936,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2-sub { display: grid; grid-template-columns: 82px 1fr 30px; align-items: center; gap: 9px; font-size: 11.8px; color: var(--text-secondary); cursor: help; }
 .cx2-sub b { text-align: right; font-variant-numeric: tabular-nums; font-weight: 750; font-size: 12.5px; color: var(--text-primary); }
 .cx2-sub-track { height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--border) 70%, transparent); overflow: hidden; }
-.cx2-sub-track i { display: block; height: 100%; width: var(--w, 0%); border-radius: 99px; background: linear-gradient(90deg, var(--primary), var(--primary-bright)); animation: cx2grow .9s cubic-bezier(.4,0,.2,1) both; }
+.cx2-sub-track i { display: block; height: 100%; width: var(--w, 0%); border-radius: 99px; background: var(--chart-series); animation: cx2grow .9s cubic-bezier(.4,0,.2,1) both; }
 .cx2-sub-track i.absent { width: 100%; background: repeating-linear-gradient(45deg, transparent, transparent 4px, color-mix(in srgb, var(--border) 80%, transparent) 4px, color-mix(in srgb, var(--border) 80%, transparent) 6px); animation: none; }
 @keyframes cx2grow { from { transform: scaleX(0); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }
 
@@ -10970,7 +10961,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2-gap-who { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: var(--text-muted); }
 .cx2-gap-track { height: 9px; border-radius: 99px; background: color-mix(in srgb, var(--border) 55%, transparent); overflow: hidden; }
 .cx2-gap-track i { display: block; height: 100%; width: var(--w, 0%); border-radius: 99px; animation: cx2grow .8s cubic-bezier(.4,0,.2,1) both; }
-.cx2-gap-track i.you { background: linear-gradient(90deg, var(--primary), var(--primary-bright)); box-shadow: 0 0 8px -2px rgba(var(--primary-rgb), .6); }
+.cx2-gap-track i.you { background: var(--chart-series); }
 .cx2-gap-track i.them { background: color-mix(in srgb, var(--cx2-them) 78%, transparent); }
 .cx2-gap-track i.absent { width: 100%; background: repeating-linear-gradient(45deg, transparent, transparent 5px, color-mix(in srgb, var(--border) 75%, transparent) 5px, color-mix(in srgb, var(--border) 75%, transparent) 7px); animation: none; }
 .cx2-gap-bar b { font-size: 12px; font-weight: 720; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -10979,7 +10970,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 /* ---- why they're winning ---- */
 .cx2-why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .cx2-why-card { all: unset; box-sizing: border-box; position: relative; display: flex; flex-direction: column; gap: 6px; padding: 14px 15px 12px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); background: color-mix(in srgb, var(--surface-muted) 55%, transparent); cursor: pointer; transition: transform .16s ease, border-color .16s ease; }
-.cx2-why-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 32%, var(--border)); }
+.cx2-why-card:hover { border-color: var(--border-strong); }
 .cx2-why-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .cx2-why-n { font-size: 26px; font-weight: 850; letter-spacing: -1px; color: color-mix(in srgb, var(--primary-text) 40%, transparent); line-height: 1; }
 .cx2-why-card b { font-size: 13.5px; font-weight: 750; letter-spacing: -.15px; }
@@ -10993,7 +10984,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 
 /* ---- your next move ---- */
 .cx2-move { border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
-.cx2-move-lead { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-radius: 14px; background: linear-gradient(115deg, color-mix(in srgb, var(--surface) 82%, var(--primary) 18%), color-mix(in srgb, var(--surface) 94%, var(--info) 6%)); border: 1px solid color-mix(in srgb, var(--primary) 26%, transparent); }
+.cx2-move-lead { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-radius: var(--r-panel); background: var(--surface-raised); border: 1px solid var(--border); }
 .cx2-move-body { flex: 1; min-width: 0; }
 .cx2-move-body b { display: block; font-size: 14.5px; font-weight: 750; letter-spacing: -.2px; margin-bottom: 3px; }
 .cx2-move-body p { margin: 0; font-size: 12.2px; line-height: 1.5; color: var(--text-secondary); }
@@ -11023,7 +11014,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cx2-heat-row.head span { font-size: 9.8px; font-weight: 750; letter-spacing: .06em; color: var(--text-muted); text-align: center; text-transform: uppercase; }
 .cx2-heat-slot { font-size: 11px; color: var(--text-secondary); font-weight: 600; }
 .cx2-heat-cell { height: 26px; border-radius: 7px; background: color-mix(in srgb, var(--surface-muted) 80%, transparent); position: relative; overflow: hidden; transition: box-shadow .5s ease; }
-.cx2-heat-cell::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: linear-gradient(135deg, var(--primary), var(--primary-bright)); opacity: calc(var(--heat, 0) * .95); transition: opacity .7s ease; transition-delay: inherit; }
+.cx2-heat-cell::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--chart-series); opacity: calc(var(--heat, 0) * .95); transition: opacity .7s ease; transition-delay: inherit; }
 .cx2-heat-cell[data-on] { box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb), .2); }
 .cx2-heat-insight { margin: 10px 0 0; font-size: 12.5px; font-weight: 650; color: var(--text-primary); }
 
@@ -11035,11 +11026,11 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 /* ---- top content ---- */
 .cx2-top-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .cx2-top-card { display: flex; flex-direction: column; gap: 7px; text-decoration: none; color: inherit; border-radius: 14px; padding: 9px; border: 1px solid color-mix(in srgb, var(--border) 65%, transparent); background: color-mix(in srgb, var(--surface-muted) 45%, transparent); transition: transform .16s ease, border-color .16s ease; }
-.cx2-top-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 30%, var(--border)); }
+.cx2-top-card:hover { border-color: var(--border-strong); }
 .cx2-top-thumb { position: relative; border-radius: 10px; overflow: hidden; aspect-ratio: 16/10; background: var(--surface-muted); }
 .cx2-top-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s ease; }
 .cx2-top-card:hover .cx2-top-thumb img { transform: scale(1.04); }
-.cx2-top-thumb i.ph { position: absolute; inset: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 80%, var(--primary) 20%), var(--surface-muted)); }
+.cx2-top-thumb i.ph { position: absolute; inset: 0; background: var(--surface-muted); }
 .cx2-top-thumb em { position: absolute; left: 7px; top: 7px; font-style: normal; font-size: 8.5px; font-weight: 800; letter-spacing: .1em; padding: 3px 7px; border-radius: 6px; background: rgba(10, 14, 26, .72); color: #fff; }
 .cx2-mult { position: absolute; right: 7px; top: 7px; font-size: 10px; font-weight: 800; padding: 3px 7px; border-radius: 6px; background: var(--primary); color: var(--on-primary); }
 .cx2-top-title { font-size: 12.3px; font-weight: 700; line-height: 1.35; letter-spacing: -.1px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -11076,7 +11067,6 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 @media (prefers-reduced-motion: reduce) {
   .cx2-rise, .cx2-line.draw, .cx2-sub-track i, .cx2-gap-track i, .cx2-mini-pair i { animation: none !important; }
   .cx2-line.draw { stroke-dashoffset: 0 !important; }
-  .cx2-scan, .cx2-pulse i, .cx2-live-dot, .cx2-dot-end.you { animation: none !important; }
   .cx2-ring-arc, .cx2-donut-arc, .cx2-radar-fill, .cx2-heat-cell::after, .cx2-card, .cx2-chip-card, .cx2-why-card, .cx2-top-card { transition: none !important; }
 }
 

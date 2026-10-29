@@ -356,8 +356,9 @@
   min-width: 0;
   padding: var(--card-pad);
   border: 1px solid var(--border);
-  border-radius: var(--r-card);
+  border-radius: var(--r-panel);
   background: var(--surface);
+  box-shadow: var(--shadow-card);
 }
 .s-card--flush {
   padding: 0;
@@ -375,8 +376,8 @@
 }
 .s-card-title {
   color: var(--ink);
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   font-weight: var(--fw-semibold);
   min-width: 0;
 }
@@ -391,6 +392,18 @@
   align-items: center;
   gap: var(--sp-2);
   flex: none;
+}
+/* A card's own links (View all, Open the plan) stay quiet beside its title. */
+.s-card-head .s-link {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-card-head .s-link:hover {
+    color: var(--ink);
+  }
 }
 .s-source {
   margin-top: var(--sp-3);
@@ -995,18 +1008,20 @@
 /* ---- page title: noun, Next line, stamp, one action ------------------------ */
 .s-title {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-5);
+  gap: var(--sp-4) var(--sp-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-6);
   min-width: 0;
 }
 .s-title h1 {
   color: var(--ink);
-  font-size: var(--fs-title);
-  line-height: var(--lh-title);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
   font-weight: var(--fw-semibold);
-  letter-spacing: var(--tr-title);
+  letter-spacing: var(--tr-display);
+  text-wrap: balance;
 }
 .s-title-next {
   margin-top: var(--sp-1);

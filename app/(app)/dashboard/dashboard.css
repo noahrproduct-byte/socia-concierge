@@ -240,17 +240,8 @@
 .dash-stack {
   gap: var(--sp-4);
 }
-.dash-stack .s-card {
-  border-radius: var(--r-panel);
-  box-shadow: var(--shadow-card);
-}
 .dash-stack .s-card-head {
   margin-bottom: var(--sp-3);
-}
-.dash-stack .s-card-title {
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  font-weight: var(--fw-semibold);
 }
 .dash-sr {
   position: absolute;
@@ -870,18 +861,5 @@ button.dash-kpi {
   }
   .dash-week li:nth-child(n + 4) {
     display: none;
-  }
-}
-
-/* ---- quiet chrome: the cards' links --------------------------- */
-.dash-stack .s-card-head .s-link {
-  color: var(--ink-2);
-  font-size: var(--fs-meta);
-  line-height: var(--lh-meta);
-  font-weight: var(--fw-medium);
-}
-@media (hover: hover) and (pointer: fine) {
-  .dash-stack .s-card-head .s-link:hover {
-    color: var(--ink);
   }
 }

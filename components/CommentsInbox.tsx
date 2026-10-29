@@ -77,7 +77,7 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
     <div className="cm">
       <div className="cm-bar">
         <div className="cm-bar-meta">
-          {open.length ? <><b>{open.length}</b> waiting for your approval</> : syncInfo?.problems.length ? "Nothing waiting, but some comments couldn't be read." : "Nothing waiting — you're all caught up."}
+          {open.length ? <><b>{open.length}</b> waiting for your approval</> : syncInfo?.problems.length ? "Nothing waiting, but some comments couldn't be read." : "Nothing waiting; you're all caught up."}
           {syncInfo && <> · checked {syncInfo.scanned} comment{syncInfo.scanned === 1 ? "" : "s"}, {syncInfo.newComments} new{syncInfo.capped ? " (drafting the rest on the next check)" : ""}</>}
         </div>
         <button type="button" className="cm-sync" onClick={sync} disabled={syncing || noPlatforms} title={noPlatforms ? "Connect Facebook or Instagram first" : ""}>

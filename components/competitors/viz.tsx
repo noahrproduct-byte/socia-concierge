@@ -56,25 +56,14 @@ export function ScoreRing({ value, size = 148, label = "PERFORMANCE" }: { value:
   );
 }
 
-/** Integer count-up used inside rings and the intelligence strip. */
-export function CountNum({ to, run = true, duration = 850 }: { to: number; run?: boolean; duration?: number }) {
-  const [n, setN] = useState(0);
-  const done = useRef(false);
-  useEffect(() => {
-    if (!run || done.current) return;
-    done.current = true;
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setN(to); return; }
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      setN(Math.round(to * (1 - Math.pow(1 - t, 3))));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [run, to, duration]);
-  return <>{n}</>;
+/**
+ * A count inside rings and the intelligence strip. It used to count up from
+ * zero, which reads as a live measurement; these are stored reads, so the
+ * number is simply shown (anti-slop standard 5 and 17.2). The props stay so
+ * callers are unchanged.
+ */
+export function CountNum({ to }: { to: number; run?: boolean; duration?: number }) {
+  return <>{to}</>;
 }
 
 /* ---------- trajectory (per-post series, you vs them) ---------- */
