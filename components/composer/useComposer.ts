@@ -27,6 +27,15 @@ const POLL_LIMIT_MS = 10 * 60 * 1000;
 const COMPLETE_ATTEMPTS = 3;
 const COMPLETE_BACKOFF_MS = [800, 2000];
 const IN_FLIGHT = new Set(["uploading", "processing"]);
+/** Destinations that have left the editor: the post opens on its status (with Delete from the platform), not as a form. */
+const SENT = new Set(["uploading", "processing", "published", "failed", "cancelled"]);
+
+/** How an existing post opens: tracking while a platform is still working, done once every destination was sent, else editable. */
+function openingPhase(item: ContentItem): "tracking" | "done" | null {
+  if (item.destinations.some((d) => IN_FLIGHT.has(d.status))) return "tracking";
+  if (item.destinations.length && item.destinations.every((d) => SENT.has(d.status))) return "done";
+  return null;
+}
 
 export type SaveState = { status: "idle" | "saving" | "saved" | "error"; at: string | null; message: string | null };
 export type FocusRequest = { key: string | null; field: string; n: number } | null;
@@ -159,7 +168,10 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
   const router = useRouter();
 
   const [draft, rawDispatch] = useReducer(reduce, undefined, () => seedFrom(initial, accounts));
-  const [submission, setSubmission] = useState<SubmissionState>(idleSubmission);
+  const [submission, setSubmission] = useState<SubmissionState>(() => {
+    const phase = initial.item ? openingPhase(initial.item) : null;
+    return phase ? { ...idleSubmission(), phase, item: initial.item } : idleSubmission();
+  });
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle", at: null, message: null });
   const [focusRequest, setFocusRequest] = useState<FocusRequest>(null);
   const [restore, setRestore] = useState<RestorePrompt>(null);
@@ -215,9 +227,8 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
         if (cancelled) return;
         serverItemUpdated.current = item.updatedAt ?? null;
         rawDispatch({ type: "load", draft: fromItem(item, accounts) });
-        if (item.destinations.some((d) => IN_FLIGHT.has(d.status))) {
-          setSubmission({ ...idleSubmission(), phase: "tracking", item });
-        }
+        const phase = openingPhase(item);
+        if (phase) setSubmission({ ...idleSubmission(), phase, item });
       } catch (e) {
         if (!cancelled) setSaveState({ status: "error", at: null, message: describeError(e, "This post could not be loaded.") });
       } finally {
