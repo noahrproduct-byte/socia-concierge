@@ -51,6 +51,8 @@ import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 export type PlanContext = {
   prefill: GenerateInput;
   autoNotes: Partial<Record<keyof GenerateInput, string>>;
+  /** Saved in the brand's profile: shown, not asked again (change them in Settings). */
+  profile: { niche: string | null; goal: string | null; voice: string | null };
   connected: boolean;
   username: string | null;
   syncedAgo: string | null;
@@ -227,21 +229,28 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
           />
           {note("clientHandle")}
 
-          <label className="cpl-lab">
-            <span>
-              <Compass size={12} /> Your niche
-            </span>
-          </label>
-          <input
-            placeholder="e.g. Fitness & health"
-            value={form.niche}
-            onChange={(e) => set("niche", e.target.value)}
-          />
-          {note("niche")}
-          {!context.prefill.niche && (
-            <small className="cpl-tip">
-              Tip: <Link href="/onboarding">set your niche</Link> for sharper plans.
-            </small>
+          {context.profile.niche ? (
+            <p className="cpl-fixed">
+              <Compass size={12} /> <span>Niche: <b>{context.profile.niche}</b></span>
+              <Link href="/settings#brand">Change</Link>
+            </p>
+          ) : (
+            <>
+              <label className="cpl-lab">
+                <span>
+                  <Compass size={12} /> Your niche
+                </span>
+              </label>
+              <input
+                placeholder="e.g. Fitness & health"
+                value={form.niche}
+                onChange={(e) => set("niche", e.target.value)}
+              />
+              {note("niche")}
+              <small className="cpl-tip">
+                Tip: <Link href="/settings#brand">set your niche</Link> for sharper plans.
+              </small>
+            </>
           )}
 
           <label className="cpl-lab">
@@ -254,31 +263,39 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
             <option>Facebook</option>
             <option>TikTok</option>
             <option>YouTube Shorts</option>
-            <option>LinkedIn</option>
           </select>
 
           <small className="cpl-sec cpl-sec-gap">Sharpen the plan, all optional</small>
 
-          <label className="cpl-lab">
-            <span>
-              <Target size={12} /> Your goal <em>optional</em>
-            </span>
-            <Counter value={form.goal} max={MAX.goal!} />
-          </label>
-          <input
-            placeholder="e.g. grow to 50k, drive bookings, sell a course"
-            value={form.goal}
-            onChange={(e) => set("goal", e.target.value)}
-          />
-          {note("goal")}
+          {context.profile.goal ? (
+            <p className="cpl-fixed">
+              <Target size={12} /> <span>Goal: <b>{context.profile.goal}</b></span>
+              <Link href="/settings#growth">Change</Link>
+            </p>
+          ) : (
+            <>
+              <label className="cpl-lab">
+                <span>
+                  <Target size={12} /> Your goal <em>optional</em>
+                </span>
+                <Counter value={form.goal} max={MAX.goal!} />
+              </label>
+              <input
+                placeholder="e.g. grow to 50k, drive bookings, sell a course"
+                value={form.goal}
+                onChange={(e) => set("goal", e.target.value)}
+              />
+              {note("goal")}
+            </>
+          )}
 
           <label className="cpl-lab">
-            <span>Brand voice / notes <em>optional</em></span>
+            <span>{context.profile.voice ? <>Notes for this plan <em>optional</em></> : <>Brand voice / notes <em>optional</em></>}</span>
             <Counter value={form.brandVoice} max={MAX.brandVoice!} />
           </label>
           <textarea
             rows={3}
-            placeholder={"Playful, family-run, a bit cheeky.\nAvoid corporate tone."}
+            placeholder={context.profile.voice ? `Your voice (${context.profile.voice}) comes from your profile. Add anything just for this week.` : "Playful, family-run, a bit cheeky.\nAvoid corporate tone."}
             value={form.brandVoice}
             onChange={(e) => set("brandVoice", e.target.value)}
           />

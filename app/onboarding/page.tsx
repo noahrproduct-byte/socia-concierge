@@ -5,8 +5,11 @@ import { igConfigured } from "@/lib/instagram";
 import { fbConfigured } from "@/lib/facebook";
 import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { ttAuthConfigured } from "@/lib/tiktokAuth";
-import { resolveContext } from "@/lib/context";
-import { scopeToWorkspace } from "@/lib/workspaces";
+import { resolveContext, brandWorkspace } from "@/lib/context";
+import { getProfile } from "@/lib/profile";
+import { readOnboarding, listGoals } from "@/lib/growthStore";
+import { resumeStep } from "@/lib/onboarding";
+import { scopeToWorkspace, listAccessibleWorkspaces } from "@/lib/workspaces";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import type { ConnectState } from "@/components/ConnectAccounts";
 
@@ -66,8 +69,32 @@ export default async function OnboardingPage({
     { name: "TikTok", code: tt ?? "" },
   ].filter((r) => r.code && r.code !== "connected");
 
+  // Saved progress and answers, so leaving and coming back resumes here.
+  const [{ tableReady, row: progress }, profile, { goals }, workspaces] = await Promise.all([
+    readOnboarding(ctx),
+    getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
+    listGoals(ctx),
+    listAccessibleWorkspaces(supabase, user.id).catch(() => []),
+  ]);
+  // Setup is required per brand: with several, the person can switch to
+  // another brand from here instead of being held on this one.
+  const brands = workspaces.map((w) => ({ id: w.id, name: w.name, active: w.id === ctx.workspace?.id }));
+  // Back from a platform's sign-in: stay on Connect so the result shows.
+  const fromOAuth = Boolean(ig || fb || yt || tt);
+  const initial = {
+    step: fromOAuth ? ("connect" as const) : resumeStep(progress),
+    tableReady,
+    igRead: progress?.answers?.ig_read === true,
+    niche: profile?.niche ?? null,
+    brandName: profile?.brand_name ?? null,
+    detail: profile?.brand_detail ?? null,
+    goals,
+  };
+
   return (
     <OnboardingFlow
+      initial={initial}
+      brands={brands}
       connections={connections}
       igUsername={igConn?.username ?? null}
       igStatus={ig ?? ""}

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile, type BrandDetail } from "@/lib/profile";
 import { resolveContext, brandWorkspace, can, forbiddenCopy } from "@/lib/context";
 import { updateWorkspace, type WorkspacePatch } from "@/lib/workspaces";
+import { mergeGrowth, normalizeGrowth } from "@/lib/growth";
 
 export const runtime = "nodejs";
 
@@ -98,6 +99,9 @@ export async function POST(req: Request) {
       ...existing,
       ...body.brand_detail,
       strategist: { ...(existing.strategist ?? {}), ...(body.brand_detail.strategist ?? {}) },
+      // The Growth Profile is saved a step or a section at a time: validate
+      // what was sent and merge it one section deep, never replace the whole.
+      ...("growth" in body.brand_detail ? { growth: mergeGrowth(existing.growth, normalizeGrowth(body.brand_detail.growth)) } : existing.growth ? { growth: existing.growth } : {}),
     };
     // Brand details go into almost every AI prompt, so their size is the cost of every call.
     if (JSON.stringify(brand.brand_detail).length > LIMITS.brandDetailChars) return tooLongResponse("Your brand details", LIMITS.brandDetailChars);
