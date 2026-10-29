@@ -1,7 +1,7 @@
 "use client";
 
 // Content detail: the post, every metric Instagram returned for it, and why it
-// worked, split into observed data, SOCIA's interpretation and a recommendation.
+// worked, split into observed data, a possible explanation and a recommendation.
 
 import Link from "next/link";
 import { ExternalLink, Sparkles, CalendarPlus, Play } from "lucide-react";
@@ -36,9 +36,9 @@ function why(p: PostCard, baseline: number | null, medianViews: number | null) {
   const weak = p.multiplier != null && p.multiplier < 0.7;
   const viewsButLowEng = p.views != null && p.reach != null && p.reach > 0 && p.engagements / p.reach < 0.01;
   const interpretation = strong
-    ? `${p.format === "Reel" ? "The Reel format plus this opening" : "This post's opening"} pulled well beyond your followers; when a post runs this far above your median it's usually the first seconds and the subject, not luck.`
+    ? `Well above your median. The ${p.format === "Reel" ? "format, the opening" : "opening"} or the subject may explain it; one post can't show which, so test it again.`
     : weak
-      ? "Below your own median. Posts like this typically open without a clear hook or repeat a subject the audience has already seen from you."
+      ? "Below your own median. A weaker opening or a subject your audience has seen before are possible reasons; the numbers alone can't say which."
       : "Around your median: solid, not a breakout. Useful as a control when you test a bolder version.";
   const recommendation = strong
     ? `Make a second post with the same format and hook structure as "${p.title.slice(0, 40)}" and compare it against the ${baseline ? Math.round(baseline) : "median"} baseline.`
@@ -91,7 +91,7 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
           <section className="ov-why">
             <h3>Why this worked</h3>
             <div className="ov-why-block"><small>Observed data</small><ul>{w.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
-            <div className="ov-why-block ai"><small>AI interpretation</small><p>{w.interpretation}</p></div>
+            <div className="ov-why-block ai"><small>Possible explanation</small><p>{w.interpretation}</p></div>
             <div className="ov-why-block rec"><small>Recommendation</small><p>{w.recommendation}</p></div>
           </section>
           <div className="ov-detail-actions">

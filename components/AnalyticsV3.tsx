@@ -216,7 +216,7 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
     const out: { tone: string; text: string }[] = [];
     if (totals.length >= 2) out.push({ tone: "up", text: `${totals[0].label} led ${unit} this period.` });
     for (const t of totals) out.push({ tone: "info", text: `${t.label}: ${fmtNum(t.total)} ${unit} in the ${d.rangeLabel.toLowerCase()}.` });
-    for (const a of missingAccts) out.push({ tone: "muted", text: `${a.label} has no daily ${unit} series${a.platform === "facebook" ? " — Facebook doesn't provide one" : a.platform === "tiktok" ? " — TikTok isn't connected to time-series data yet" : ""}.` });
+    for (const a of missingAccts) out.push({ tone: "muted", text: `${a.label} has no daily ${unit} series${a.platform === "facebook" ? ": Facebook doesn't provide one" : a.platform === "tiktok" ? ": TikTok isn't connected to time-series data yet" : ""}.` });
     return out;
   }, [isSingleIg, overlayLines, missingAccts, gmActive, d.rangeLabel]);
   const postById = useMemo(() => Object.fromEntries(d.posts.map((p) => [p.id, p])), [d.posts]);

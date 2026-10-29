@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { refuseCrossSite } from "@/lib/crossSite";
+import { perUserLimit } from "@/lib/rateLimit";
+import { isSocialContentUrl } from "@/lib/fetchGuard";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
+import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { aiFailureKind, MODEL, effortFor, type AiUnavailable } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
@@ -16,6 +20,10 @@ import {
   type AccountCandidate, type ContentCandidate, type DiscoveryProfile,
   type ScoredAccount, type ScoredContent, type TrendRollup,
 } from "@/lib/discovery";
+
+/** Fresh research runs one account may start per hour. */
+const INTEL_RUNS_PER_HOUR = 6;
+
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -68,6 +76,8 @@ function parseJsonArray(text: string): unknown[] {
 }
 
 export async function GET(req: Request) {
+  const crossSite = refuseCrossSite(req);
+  if (crossSite) return crossSite;
   const supabase = await createClient();
   const {
     data: { user },
@@ -107,6 +117,9 @@ export async function GET(req: Request) {
     /* gaps reported below */
   }
 
+  // Every account the owner has connected, on any platform: none of them may
+  // come back as a competitor (lib/ownAccounts.ts).
+  const own = await ownAccounts(ctx.client, ctx.ownerId);
   let ownHandle: string | null = null;
   let ownFollowers: number | null = null;
   let ownFormats: string[] = [];
@@ -140,7 +153,7 @@ export async function GET(req: Request) {
   const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
 
   // ---- cached results, unless a permitted refresh was asked for ----------
-  const cached = await readStored(ctx.client, ctx.ownerId, wsId);
+  const cached = await readStored(ctx.client, ctx.ownerId, wsId, own);
   const ageMs = cached?.ranAt ? Date.now() - new Date(cached.ranAt).getTime() : Infinity;
   let refresh = false;
   let nextRefreshAt: string | null = null;
@@ -163,6 +176,13 @@ export async function GET(req: Request) {
       profileGaps,
     });
   }
+
+  // A fresh run spends about 500 units of SOCIA's shared daily YouTube quota
+  // and up to three web-search model calls: a hard hourly ceiling per account,
+  // checked atomically, so neither a loop nor parallel requests can drain the
+  // quota every customer depends on.
+  const limited = await perUserLimit(ctx.ownerId, "competitor_intel", INTEL_RUNS_PER_HOUR, "competitor research runs");
+  if (limited) return limited;
 
   const queries = buildQueries(profile);
   const sources: IntelSources = { youtube: "not_configured", web: "failed" };
@@ -261,7 +281,7 @@ Search the web and return BOTH:
 1. Up to 6 real Instagram or Facebook ACCOUNTS relevant to them (direct competitors, local businesses competing for the same customers, or creators in this niche).
 2. Up to 5 real recent Instagram Reels or Facebook videos in this niche.
 
-${ownHandle ? `Exclude the account "@${ownHandle}".` : ""}
+${own.handles.length || ownHandle ? `These are the business's own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
 
 STRICT HONESTY RULES:
 - Only include accounts and URLs you actually found in search results. Never invent a handle or URL.
@@ -300,7 +320,7 @@ Output ONLY this JSON, no other text:
         if (r.kind === "account") {
           const handle = typeof r.handle === "string" ? r.handle.trim().replace(/^@/, "") : "";
           if (!/^[a-zA-Z0-9._-]{1,40}$/.test(handle)) continue;
-          if (ownHandle && handle.toLowerCase() === ownHandle.toLowerCase()) continue;
+          if ((ownHandle && handle.toLowerCase() === ownHandle.toLowerCase()) || isOwnAccount(own, { handle, name: typeof r.name === "string" ? r.name : null })) continue;
           accountCandidates.push({
             platform,
             platformAccountId: handle.toLowerCase(),
@@ -318,13 +338,9 @@ Output ONLY this JSON, no other text:
             note: typeof r.why === "string" ? r.why : null,
           });
         } else if (r.kind === "content" && typeof r.url === "string") {
-          let host = "";
-          try {
-            host = new URL(r.url).hostname;
-          } catch {
-            continue;
-          }
-          if (!/instagram\.com|facebook\.com|fb\.watch/.test(host)) continue;
+          // Only real Instagram and Facebook links, over https: the URL comes
+          // from web research a page could steer, and it is shown as a link.
+          if (!isSocialContentUrl(r.url)) continue;
           contentCandidates.push({
             platform,
             contentUrl: canonicalUrl(r.url),
@@ -348,8 +364,11 @@ Output ONLY this JSON, no other text:
   }
 
   // ---- score, classify, dedupe ------------------------------------------
-  const accounts = dedupeAccounts(accountCandidates.map((c) => scoreAccount(c, profile))).slice(0, 24);
-  const content = dedupeContent(contentCandidates.map((c) => scoreContent(c, profile))).slice(0, 40);
+  // The user's own accounts never count, whichever source returned them (YouTube included).
+  const theirAccounts = accountCandidates.filter((c) => !isOwnAccount(own, { id: c.platformAccountId, handle: c.handle, name: c.displayName }));
+  const theirContent = contentCandidates.filter((c) => !isOwnAccount(own, { handle: c.accountHandle, name: c.accountName }));
+  const accounts = dedupeAccounts(theirAccounts.map((c) => scoreAccount(c, profile))).slice(0, 24);
+  const content = dedupeContent(theirContent.map((c) => scoreContent(c, profile))).slice(0, 40);
   const trends = rollUpTrends(content);
   const ranAt = new Date().toISOString();
 
@@ -420,7 +439,7 @@ Output ONLY this JSON, no other text:
 
   // Return everything SOCIA knows, not just what this run happened to find —
   // otherwise a refresh visibly loses accounts it had already discovered.
-  const merged = await readStored(ctx.client, ctx.ownerId, wsId);
+  const merged = await readStored(ctx.client, ctx.ownerId, wsId, own);
   const doc: IntelDoc = merged
     ? { ...merged, ranAt, sources, profileGaps }
     : { accounts, content, trends, ranAt, sources, profileGaps };
@@ -428,7 +447,7 @@ Output ONLY this JSON, no other text:
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function readStored(supabase: any, userId: string, workspaceId?: string | null): Promise<IntelDoc | null> {
+async function readStored(supabase: any, userId: string, workspaceId: string | null, own: OwnAccounts): Promise<IntelDoc | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scope = (q: any) => (workspaceId ? q.eq("workspace_id", workspaceId) : q);
   try {
@@ -456,8 +475,11 @@ async function readStored(supabase: any, userId: string, workspaceId?: string | 
       relevanceScore: r.relevance_score ?? 0, relevanceReasons: r.relevance_reasons ?? [],
       trendTags: r.trend_tags ?? [], why: r.why_recommended, dataSource: r.data_source,
     }));
+    // Rows stored before an account was connected may be the user's own.
+    const theirs = accounts.filter((a) => !isOwnAccount(own, { id: a.platformAccountId, handle: a.handle, name: a.displayName }));
+    const theirContent = content.filter((c) => !isOwnAccount(own, { handle: c.accountHandle, name: c.accountName }));
     return {
-      accounts, content, trends: rollUpTrends(content), ranAt: runRes.data.ran_at,
+      accounts: theirs, content: theirContent, trends: rollUpTrends(theirContent), ranAt: runRes.data.ran_at,
       sources: runRes.data.sources ?? { youtube: "ok", web: "ok" }, profileGaps: [],
     };
   } catch {

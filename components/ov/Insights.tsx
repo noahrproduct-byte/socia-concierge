@@ -2,7 +2,7 @@
 
 // Evidence-based insights. Every item was computed from the account's own
 // numbers (lib/overview.buildInsights); clicking one opens the evidence with
-// observed data, SOCIA's interpretation and a recommendation kept apart.
+// observed data, a possible explanation and a recommendation kept apart.
 
 import { useState } from "react";
 import Link from "next/link";
@@ -49,7 +49,7 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
             <small className="ov-insight-tag big">{open.tag}</small>
             <h3 className="ov-drawer-title">{open.title}</h3>
             <div className="ov-why-block"><small>Observed data</small><ul>{open.observed.map((o) => <li key={o}>{o}</li>)}</ul></div>
-            <div className="ov-why-block ai"><small>SOCIA&apos;s interpretation</small><p>{open.interpretation}</p></div>
+            <div className="ov-why-block ai"><small>Possible explanation</small><p>{open.interpretation}</p></div>
             <div className="ov-why-block rec"><small>Recommendation</small><p>{open.recommendation}</p></div>
             {evidence.length > 0 && (
               <div className="ov-evidence">

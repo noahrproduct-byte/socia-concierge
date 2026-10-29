@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { completeClip, deleteClip, type CompleteInput } from "@/lib/studioClips/server";
 import type { ClipFacts } from "@/lib/studioClips/types";
+import { isOwnPath } from "@/lib/storagePaths";
 
 export const runtime = "nodejs";
 
@@ -19,12 +20,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = (await req.json().catch(() => null)) as Partial<CompleteInput> | null;
   if (!body || typeof body.sourcePath !== "string" || !Array.isArray(body.frames)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   // The browser may only point at objects under its own uid prefix.
-  const mine = (p: unknown) => typeof p === "string" && p.startsWith(`${viewerId}/`);
+  const mine = (p: unknown) => typeof p === "string" && isOwnPath(p, [viewerId]) && p.split("/")[2] === id;
   if (!mine(body.sourcePath) || body.frames.some((f) => !mine(f?.path)) || (body.audioPath != null && !mine(body.audioPath))) {
     return NextResponse.json({ error: "Storage paths must be your own." }, { status: 400 });
   }
   try {
-    const clip = await completeClip(ctx.client, ctx.ownerId, id, {
+    const clip = await completeClip(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, {
       sourcePath: body.sourcePath,
       frames: body.frames.filter((f) => typeof f?.t === "number").map((f) => ({ t: Number(f.t), path: String(f.path) })).slice(0, 12),
       audioPath: typeof body.audioPath === "string" ? body.audioPath : null,
@@ -45,7 +46,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const forbidden = requireMutate(r.ctx);
   if (forbidden) return forbidden;
   try {
-    const ok = await deleteClip(r.ctx.client, r.ctx.ownerId, id);
+    const ok = await deleteClip(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!ok) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LIMITS, tooLongResponse } from "@/lib/inputLimits";
+import { LIMITS, clipDeep, tooLongResponse } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
@@ -56,7 +56,10 @@ export async function POST(req: Request) {
 
   let body: { context?: AskContext; messages?: Msg[] };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  const askCtx: AskContext = { page: "global", ...(body.context ?? {}) };
+  // The page context goes into the prompt: bounded in size and shape so one
+  // question can't carry a huge prompt for the price of one unit.
+  if (body.context != null && JSON.stringify(body.context).length > LIMITS.askContextChars) return tooLongResponse("The page context", LIMITS.askContextChars);
+  const askCtx: AskContext = { page: "global", ...((clipDeep(body.context ?? {}) as AskContext | null) ?? {}) };
   const messages = (body.messages ?? []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim()).slice(-12);
   while (messages.length && messages[0].role === "assistant") messages.shift();
   if (!messages.length) return NextResponse.json({ error: "No message to send." }, { status: 400 });
@@ -129,11 +132,14 @@ export async function POST(req: Request) {
     // strategist said is lost.
     try {
       const title = `${askCtx.page}: ${first.content.slice(0, 44)}`;
-      const convRow = { user_id: ctx.ownerId, title, messages: [...messages, { role: "assistant", content: answer.text }] };
-      const saved = ctx.workspace
-        ? await ctx.client.from("conversations").insert({ ...convRow, workspace_id: ctx.workspace.id })
-        : await ctx.client.from("conversations").insert(convRow);
-      if (saved.error && ctx.workspace && isMissingColumnError(saved.error)) await ctx.client.from("conversations").insert(convRow); // column not migrated yet
+      // A chat is the person's own: saved under the viewer with their own
+      // session, never in the workspace owner's history (a guest's questions
+      // used to land there, readable by the owner and across brands).
+      const convRow = { user_id: ctx.viewerId, title, messages: [...messages, { role: "assistant", content: answer.text }] };
+      const saved = ctx.workspace && ctx.isOwner
+        ? await supabase.from("conversations").insert({ ...convRow, workspace_id: ctx.workspace.id })
+        : await supabase.from("conversations").insert(convRow);
+      if (saved.error && ctx.workspace && ctx.isOwner && isMissingColumnError(saved.error)) await supabase.from("conversations").insert(convRow); // column not migrated yet
     } catch { /* history is optional */ }
 
     return NextResponse.json({ answer, usage: u.usage });

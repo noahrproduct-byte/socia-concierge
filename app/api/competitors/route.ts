@@ -6,6 +6,8 @@ import { deny, recordEvent } from "@/lib/planGuard";
 import { listTracked, trackedState } from "@/lib/trackedCompetitors";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { competitorScopeId, competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
+import { dbErrorResponse } from "@/lib/dbError";
+import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
 
 export const runtime = "nodejs";
 
@@ -96,6 +98,11 @@ export async function POST(req: Request) {
   }
   const key = handle.toLowerCase();
 
+  // A user's own account is never a competitor, on any platform or workspace.
+  if (isOwnAccount(await ownAccounts(ctx.client, ctx.ownerId), { handle })) {
+    return NextResponse.json({ error: "That's one of your own connected accounts. Add another account to compare against." }, { status: 400 });
+  }
+
   // The workspace this competitor is added to, once the competitors migration
   // has run; null keeps the pooled, pre-migration behaviour. When isolation is
   // on but the person has no workspace yet, create their default one.
@@ -133,7 +140,7 @@ export async function POST(req: Request) {
       ? { p_user: ctx.ownerId, p_workspace: wsId, p_platform: platform, p_handle: key, p_limit: limit }
       : { p_user: ctx.ownerId, p_platform: platform, p_handle: key, p_limit: limit });
     if (error && !isMissingFunction(error) && !isConstraintMismatch(error)) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return dbErrorResponse("competitors", error);
     }
     if (!error) {
       const row = (Array.isArray(data) ? data[0] : data) as { added?: boolean; already?: boolean; active_count?: number } | null;
@@ -171,7 +178,7 @@ export async function POST(req: Request) {
   };
   let { error } = await upsert(wsRow, wsId ? "user_id,workspace_id,platform,handle" : "user_id,platform,handle");
   if (error && wsId && isConstraintMismatch(error)) ({ error } = await upsert(pooledRow, "user_id,platform,handle"));
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("competitors", error);
   return NextResponse.json({ ok: true });
 }
 
@@ -204,6 +211,6 @@ export async function DELETE(req: Request) {
     .eq("handle", handle);
   if (cwid) del = del.eq("workspace_id", cwid);
   const { error } = await del;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("competitors", error);
   return NextResponse.json({ ok: true });
 }

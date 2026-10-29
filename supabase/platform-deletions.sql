@@ -1,6 +1,6 @@
 -- Delete on platform: SOCIA keeps a post it deleted from Instagram, YouTube or
 -- Facebook as a record, marked deleted, with the last numbers it saw. Run in
--- the Supabase SQL editor after post-destinations.sql. Idempotent.
+-- the Supabase SQL editor after rls-audit.sql (it uses its workspace guard). Idempotent.
 
 -- ---------------------------------------------------------------------------
 -- 1. Destinations SOCIA published: the deletion flag and the frozen result.
@@ -81,3 +81,13 @@ begin
       for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4. Same guarantees as every per-brand table (security-hardening.sql,
+--    rls-audit.sql): signed-out visitors get nothing, and a row may only name
+--    a workspace its owner owns.
+-- ---------------------------------------------------------------------------
+revoke all on public.platform_deletions from anon;
+drop trigger if exists socia_guard_workspace_fk on public.platform_deletions;
+create trigger socia_guard_workspace_fk before insert or update on public.platform_deletions
+  for each row execute function public.socia_guard_workspace_fk();

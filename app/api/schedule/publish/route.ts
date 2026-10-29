@@ -16,6 +16,9 @@ import { requireFeature } from "@/lib/planGuard";
 import { parentsWithDestinations } from "@/lib/publishing/db";
 import { runDueDestinations, type RunReport } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { isCronRequest } from "@/lib/cronAuth";
+import { dbErrorResponse } from "@/lib/dbError";
+import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,10 +48,15 @@ type Supa = any;
 type Conn = { access_token: string; scopes: string[] | null; ig_user_id: string | null };
 
 async function connectionFor(supabase: Supa, post: ScheduledPost): Promise<Conn | null> {
-  let q = supabase.from("instagram_connections").select("access_token, scopes, ig_user_id").eq("user_id", post.user_id);
+  let q = supabase.from("instagram_connections").select("access_token, scopes, ig_user_id, plan_suspended_at").eq("user_id", post.user_id);
   if (post.ig_user_id) q = q.eq("ig_user_id", post.ig_user_id);
+  // A post made in a Brand Workspace goes out only from that workspace's account.
+  const ws = (post as ScheduledPost & { workspace_id?: string | null }).workspace_id;
+  if (ws) q = q.eq("workspace_id", ws);
   const { data } = await q.limit(1);
   const row = data?.[0];
+  // An account paused by a plan downgrade never publishes, as in Create post.
+  if (row?.plan_suspended_at != null) return null;
   return row?.access_token ? { access_token: row.access_token, scopes: row.scopes ?? null, ig_user_id: row.ig_user_id ?? null } : null;
 }
 
@@ -170,13 +178,7 @@ export async function POST(req: Request) { return run(req); }
 
 async function run(req: Request) {
   const url = new URL(req.url);
-  // Tolerate the ways a pasted secret gets mangled (surrounding quotes, stray
-  // whitespace, "bearer" casing); the comparison itself stays exact.
-  const clean = (s: string | null | undefined) => (s ?? "").trim().replace(/^["']|["']$/g, "");
-  const auth = clean(req.headers.get("authorization"));
-  const cronSecret = clean(process.env.CRON_SECRET);
-  const bearer = auth.match(/^bearer\s+(.+)$/i)?.[1];
-  const isCron = cronSecret.length > 0 && bearer !== undefined && clean(bearer) === cronSecret;
+  const isCron = isCronRequest(req);
 
   // ---- user mode: publish one of my posts now -----------------------------
   if (!isCron) {
@@ -187,7 +189,7 @@ async function run(req: Request) {
     if (!can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
     const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "id required." }, { status: 400 });
-    const { data: post } = await ctx.client.from("scheduled_posts").select("*").eq("id", id).eq("user_id", ctx.ownerId).maybeSingle();
+    const { data: post } = await scopeToWorkspace(ctx.client.from("scheduled_posts").select("*").eq("id", id).eq("user_id", ctx.ownerId), ctx.workspace?.id).maybeSingle();
     if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
     if (post.status === "published") return NextResponse.json({ error: "Already published." }, { status: 409 });
     // A composer post publishes through its destinations, never through this
@@ -240,7 +242,7 @@ async function run(req: Request) {
     .lte("scheduled_at", now.toISOString())
     .order("scheduled_at", { ascending: true })
     .limit(20);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("schedule/publish", error);
   const candidateRows = (candidates ?? []) as ScheduledPost[];
 
   // Parents with destination rows belong to the destination runner below;

@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
+import { SESSION_COOKIE_OPTIONS, getSupabaseAnonKey, getSupabaseUrl } from "./env";
 
 // Runs on every request to keep the login session fresh (refreshes expiring
 // tokens) and to bounce logged-out visitors away from protected pages.
@@ -11,6 +11,7 @@ export async function updateSession(request: NextRequest) {
     getSupabaseUrl(),
     getSupabaseAnonKey(),
     {
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll();

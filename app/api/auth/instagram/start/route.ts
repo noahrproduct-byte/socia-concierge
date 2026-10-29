@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { IG_SCOPES, igClientId, igConfigured, igRedirectUri } from "@/lib/instagram";
+import { IG_STATE_COOKIE, newOAuthState, setStateCookie } from "@/lib/oauthState";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,11 @@ export async function GET(req: Request) {
   authorize.searchParams.set("redirect_uri", igRedirectUri(origin));
   authorize.searchParams.set("response_type", "code");
   authorize.searchParams.set("scope", IG_SCOPES);
-  authorize.searchParams.set("state", next);
+  // CSRF: a one-time nonce in an HttpOnly cookie, echoed back in state.
+  const { state, nonce } = newOAuthState(next);
+  authorize.searchParams.set("state", state);
 
-  return NextResponse.redirect(authorize.toString());
+  const res = NextResponse.redirect(authorize.toString());
+  setStateCookie(res, IG_STATE_COOKIE, nonce);
+  return res;
 }

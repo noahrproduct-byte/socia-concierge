@@ -47,4 +47,13 @@ describe("buildTikTokAnalytics", () => {
     expect(d.stats.find((s) => s.key === "followers")?.status).toBe("unavailable");
     expect(d.topVideos).toHaveLength(0);
   });
+
+  it("says how old the counts are instead of calling them current", () => {
+    const d = buildTikTokAnalytics({ row: { ...row, last_synced_at: "2026-09-27T12:00:00Z" }, days: 30, rangeLabel: "Last 30 days", now: NOW });
+    expect(d.syncedLabel).toBe("updated 3d ago");
+    expect(d.stats.find((s) => s.key === "followers")?.note).toBe("from TikTok, updated 3d ago");
+    const unknown = buildTikTokAnalytics({ row, days: 30, rangeLabel: "Last 30 days", now: NOW });
+    expect(unknown.syncedAt).toBeNull();
+    expect(unknown.stats.find((s) => s.key === "followers")?.note).not.toMatch(/current/);
+  });
 });

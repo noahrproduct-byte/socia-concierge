@@ -78,6 +78,14 @@ export function findSecret(value: unknown, path = "$"): string | null {
   return null;
 }
 
+/**
+ * A flat ceiling per connection, checked before anything is looked up, so a
+ * client sending bad workspace ids cannot run unlimited queries and audit
+ * writes. The plan's own per-minute limit (guardRequest) still applies after.
+ */
+const CONNECTION_CALLS_PER_MINUTE = 120;
+const overConnectionLimit = async (connectionId: string) => (await rateHit(`mcp-any:${connectionId}`, 60, CONNECTION_CALLS_PER_MINUTE)) === "limited";
+
 const fail = (message: string): Result => ({ content: [{ type: "text", text: message }], isError: true });
 
 /** The one gate every tool call goes through. */
@@ -91,6 +99,7 @@ async function run(
   const p = principalOf(c);
   const svc = serviceOrNull();
   if (!p || !svc) return fail("SOCIA couldn't confirm this connection. Reconnect SOCIA in the app.");
+if (await overConnectionLimit(p.connectionId)) return fail(`Too many requests from ${p.clientName ?? "this app"}. Wait a minute and try again.`);
   if (!p.scopes.includes(SCOPE_READ)) return fail("This connection doesn't have permission to read SOCIA data.");
   let wsId: string | null = null;
   try {
@@ -130,6 +139,7 @@ async function runPosting(
   const p = principalOf(c);
   const svc = serviceOrNull();
   if (!p || !svc) return fail("SOCIA couldn't confirm this connection. Reconnect SOCIA in the app.");
+if (await overConnectionLimit(p.connectionId)) return fail(`Too many requests from ${p.clientName ?? "this app"}. Wait a minute and try again.`);
   if (!p.scopes.includes(SCOPE_READ)) return fail("This connection doesn't have permission to use SOCIA data.");
   if (!p.scopes.includes(SCOPE_PUBLISH)) {
     return fail(`Posting isn't turned on for ${p.clientName ?? "this app"}. The person can turn on "Can publish posts" for it in SOCIA → Settings → AI Assistants (${appOrigin()}/settings#ai-assistants), then ask again.`);
@@ -200,6 +210,7 @@ export function registerTools(server: McpServer): void {
     const p = principalOf(c as ToolCtx);
     const svc = serviceOrNull();
     if (!p || !svc) return fail("SOCIA couldn't confirm this connection. Reconnect SOCIA in the app.");
+if (await overConnectionLimit(p.connectionId)) return fail(`Too many requests from ${p.clientName ?? "this app"}. Wait a minute and try again.`);
     if (!p.scopes.includes(SCOPE_READ)) return fail("This connection doesn't have permission to read SOCIA data.");
     try {
       await guardRequest(svc, p, p.userId);

@@ -909,7 +909,7 @@ function WeekGrid({
                         height: `${Math.max(9, Math.round(v * 100))}%`,
                         animationDelay: `${i * 40 + h * 9}ms`,
                       }}
-                      title={`${hourLabel(h)} — ${LVL_NAME[lvl(v)]} (est. from your posts)`}
+                      title={`${hourLabel(h)}: ${LVL_NAME[lvl(v)]} (est. from your posts)`}
                     />
                   ))}
                 </div>

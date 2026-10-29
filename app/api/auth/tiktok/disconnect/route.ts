@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revokeToken, ttAuthConfigured } from "@/lib/tiktokAuth";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { dropPlatformHistory } from "@/lib/platformSnapshots";
+import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -37,7 +38,7 @@ export async function POST() {
       return q.maybeSingle();
     };
     let { data, error } = await read(true);
-    if (error && wsId) ({ data, error } = await read(false));
+    if (error && wsId && isMissingColumnError(error)) ({ data, error } = await read(false));
     const token = (data as { access_token?: string } | null)?.access_token;
     openId = (data as { open_id?: string | null } | null)?.open_id ?? null;
     if (token && ttAuthConfigured()) await revokeToken(token);
@@ -50,6 +51,8 @@ export async function POST() {
   let deleted = false;
   if (wsId) {
     const { error } = await db.from("tiktok_connections").delete().eq("user_id", ownerId).eq("workspace_id", wsId);
+    // Only a missing workspace column widens the delete to every brand.
+    if (error && !isMissingColumnError(error)) return NextResponse.json({ error: "Couldn't disconnect right now. Try again." }, { status: 500 });
     deleted = !error;
   }
   if (!deleted) {

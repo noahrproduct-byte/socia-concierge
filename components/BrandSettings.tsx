@@ -8,9 +8,13 @@ import { Mail, Tag, AtSign, Target, Check, Globe, MapPin, Ban } from "lucide-rea
 import { NICHES } from "@/lib/niches";
 import type { BrandDetail } from "@/lib/profile";
 
-const VOICES = ["Professional", "Casual", "Bold", "Funny", "Educational"];
+export const VOICES = ["Professional", "Casual", "Bold", "Funny", "Educational"];
 
-export default function BrandSettings({ email }: { email?: string }) {
+export default function BrandSettings({ email, goalsManaged = false }: {
+  email?: string;
+  /** The brand's goals are set in the Growth Profile, which writes this text; don't edit it twice. */
+  goalsManaged?: boolean;
+}) {
   const [niche, setNiche] = useState("");
   const [brand, setBrand] = useState("");
   const [goals, setGoals] = useState("");
@@ -78,7 +82,7 @@ export default function BrandSettings({ email }: { email?: string }) {
         body: JSON.stringify({
           niche,
           brand_name: brand,
-          goals,
+          ...(goalsManaged ? {} : { goals }),
           brand_detail: { website, location, description, voice, avoid },
         }),
       });
@@ -118,14 +122,21 @@ export default function BrandSettings({ email }: { email?: string }) {
             placeholder="@yourhandle or your business name"
           />
         </div>
-        <div className="st2-field">
-          <label><Target size={12} /> Primary goal <em>— steers every recommendation</em></label>
-          <input
-            value={goals}
-            onChange={(e) => setGoals(e.target.value)}
-            placeholder="e.g. grow followers, drive bookings, sell a course"
-          />
-        </div>
+        {goalsManaged ? (
+          <div className="st2-field">
+            <label><Target size={12} /> Goals</label>
+            <p className="st2-field-note">{goals || "No goals yet."} <a href="#growth">Change them in Growth Profile</a></p>
+          </div>
+        ) : (
+          <div className="st2-field">
+            <label><Target size={12} /> Primary goal <em>— steers every recommendation</em></label>
+            <input
+              value={goals}
+              onChange={(e) => setGoals(e.target.value)}
+              placeholder="e.g. grow followers, drive bookings, sell a course"
+            />
+          </div>
+        )}
         <div className="st2-field">
           <label><Globe size={12} /> Website <em>— optional</em></label>
           <input

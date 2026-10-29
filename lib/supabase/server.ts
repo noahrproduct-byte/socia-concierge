@@ -2,7 +2,8 @@ import { cache } from "react";
 import { timed } from "@/lib/timing";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
+import { SESSION_COOKIE_OPTIONS, getSupabaseAnonKey, getSupabaseUrl } from "./env";
+import { withPrivateTables } from "./privateTables";
 
 // The Supabase client for use on the server (server components, route
 // handlers, server actions). It reads/writes the login session via cookies.
@@ -12,10 +13,13 @@ import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
 export const createClient = cache(async () => {
   const cookieStore = await cookies();
 
-  return createServerClient(
+  // Token tables are reached through the server role only (privateTables.ts).
+  return withPrivateTables(createServerClient(
     getSupabaseUrl(),
     getSupabaseAnonKey(),
     {
+      // Session cookies are sent over https only in production.
+      cookieOptions: SESSION_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -32,7 +36,7 @@ export const createClient = cache(async () => {
         },
       },
     },
-  );
+  ));
 });
 
 /** The signed-in person and the request's client, checked with Supabase once

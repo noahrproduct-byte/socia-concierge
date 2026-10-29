@@ -16,6 +16,7 @@ import { cachedLive } from "./liveCache";
 import { EMPTY_SOURCES, destinationLine, type MeasureSources, type ResultLine } from "./postResults";
 import { buildPlanOutcome, type DestinationLite, type PlanOutcome } from "./planOutcomes";
 import { timed } from "./timing";
+import { scopeToWorkspace } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -110,12 +111,13 @@ export async function loadPlanOutcomes(supabase: Supa, ownerId: string, workspac
   if (!plans.length) return out;
   let posts: ScheduledPost[] = [];
   try {
-    const { data } = await supabase
+    // Only this brand's posts count toward its plans, whatever plan id a post carries.
+    const { data } = await scopeToWorkspace(supabase
       .from("scheduled_posts")
       .select("*")
       .eq("user_id", ownerId)
       .in("plan_id", plans.map((p) => p.id))
-      .neq("status", "cancelled")
+      .neq("status", "cancelled"), workspaceId)
       .limit(500);
     posts = (data ?? []) as ScheduledPost[];
   } catch {

@@ -1,0 +1,75 @@
+/* Growth Profile fields (onboarding and Settings). Tokens only. */
+
+.gp-choices { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.gp-choice-grid { display: grid; gap: var(--sp-2); }
+.gp-choice-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gp-choice-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gp-choice-grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.gp-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-menu), background var(--t-menu);
+}
+.gp-choice b { font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); }
+.gp-choice small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.gp-choice:hover { border-color: var(--ink-3); }
+.gp-choice.on { border-color: var(--ink); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--ink); }
+.gp-choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.gp-note { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.gp-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--sp-3); }
+
+.gp-goals { display: flex; flex-direction: column; gap: var(--sp-4); }
+.gp-goal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.gp-goal-list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.gp-goal-list li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gp-goal-list b { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); font-weight: var(--fw-medium); }
+.gp-goal-list span { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.gp-goal-list small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.gp-goal-form { display: flex; flex-direction: column; gap: var(--sp-3); align-items: stretch; }
+.gp-goal-form > .s-btn { align-self: flex-start; }
+.gp-platforms { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.gp-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  cursor: pointer;
+}
+.gp-platform.on { border-color: var(--ink); }
+.gp-platform small { font-size: var(--fs-meta); color: var(--ink-3); white-space: nowrap; }
+.gp-platform { white-space: nowrap; margin: 0; font-weight: var(--fw-regular); }
+
+.gp-group { display: flex; flex-direction: column; gap: var(--sp-3); padding-top: var(--sp-4); border-top: 1px solid var(--border); }
+.gp-group:first-child { border-top: 0; padding-top: 0; }
+.gp-group h4 { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); color: var(--ink); }
+
+@media (max-width: 640px) {
+  .gp-choice-grid.cols-3, .gp-choice-grid.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.gp-card { display: flex; flex-direction: column; gap: var(--sp-5); }
+.gp-save { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }

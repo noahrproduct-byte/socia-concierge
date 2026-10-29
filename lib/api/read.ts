@@ -109,6 +109,17 @@ const fbView = (src: Sources) => (src.fb ? buildFacebookAnalytics({ snap: src.fb
 const ytView = (src: Sources) => (src.yt ? buildYouTubeAnalytics({ yt: src.yt, days: src.days, rangeLabel: src.rangeLabel, now: src.now }) : null);
 const ttView = (src: Sources) => (src.tt ? buildTikTokAnalytics({ row: src.tt as never, days: src.days, rangeLabel: src.rangeLabel, now: src.now }) : null);
 
+/** Each platform's summary row (connected or not), as Analytics and the onboarding briefing show it. */
+export async function platformSummaries(ctx: Ctx, src: Sources) {
+  const ig = await instagramView(ctx, src);
+  return [
+    instagramSummary(ig ? { username: ig.handle, followers: ig.followers, views: ig.series.views, engagement: ig.series.engagement, postsInRange: ig.inRange.length } : null),
+    facebookSummary(src.fb?.snap ?? null, fbView(src)),
+    youtubeSummary(src.yt),
+    tiktokSummary(src.tt, ttView(src)),
+  ];
+}
+
 const rangeOut = (src: Sources) => ({ days: src.days, label: src.rangeLabel, ...(src.clampedFrom ? { note: `Shortened from ${src.clampedFrom} days to the plan's analytics history.` } : {}) });
 
 // ------------------------------------------------------------- the reads
@@ -188,14 +199,7 @@ export async function getAccountAnalytics(ctx: Ctx, ent: Entitlements, input: { 
 export async function comparePlatforms(ctx: Ctx, ent: Entitlements, input: { days?: number }) {
   if (!canUseFeature(ent, "cross_platform_analytics")) return { comparison: locked(ent, "cross_platform_analytics") };
   const src = await loadSources(ctx, ent, { days: input.days });
-  const ig = await instagramView(ctx, src);
-  const summaries = [
-    instagramSummary(ig ? { username: ig.handle, followers: ig.followers, views: ig.series.views, engagement: ig.series.engagement, postsInRange: ig.inRange.length } : null),
-    facebookSummary(src.fb?.snap ?? null, fbView(src)),
-    youtubeSummary(src.yt),
-    tiktokSummary(src.tt, ttView(src)),
-  ];
-  const all = buildAllPlatforms(summaries);
+  const all = buildAllPlatforms(await platformSummaries(ctx, src));
   return {
     range: rangeOut(src),
     platforms: all.platforms.map((s) => ({

@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   SunMoon,
   Bot,
+  Target,
 } from "lucide-react";
 import AppearanceSettings from "@/components/AppearanceSettings";
 import { getViewer } from "@/lib/supabase/server";
@@ -26,7 +27,6 @@ import SecurityCard from "@/components/SecurityCard";
 import SettingsNav from "@/components/SettingsNav";
 import AiAssistants from "@/components/settings/AiAssistants";
 import { mcpResource } from "@/lib/oauth/config";
-import ConnectionsManager from "@/components/ConnectionsManager";
 import InstagramConnect from "@/components/InstagramConnect";
 import FacebookConnect, { type FbPageOption } from "@/components/FacebookConnect";
 import YouTubeConnect from "@/components/YouTubeConnect";
@@ -52,7 +52,12 @@ import { teamEnabled, listMembers, listInvites, seatsUsed } from "@/lib/team";
 import { Users } from "lucide-react";
 import type { KeepCompetitor } from "@/components/settings/PlanKeepChooser";
 import type { BrandDetail } from "@/lib/profile";
-import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace } from "@/lib/workspaces";
+import { workspacesEnabled, listWorkspaces, getActiveWorkspace, activeWorkspaces, scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
+import { listTracked } from "@/lib/trackedCompetitors";
+import { listGoals } from "@/lib/growthStore";
+import { recordStartingPoints } from "@/lib/briefingLoad";
+import type { GoalPlatform } from "@/lib/growth";
+import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
 import { Briefcase } from "lucide-react";
 
 export const metadata = { title: "Settings — SOCIA" };
@@ -99,12 +104,6 @@ async function listTrackedCompetitors(supabase: Supa, userId: string): Promise<K
   return [];
 }
 
-// Preview competitor list — same labeled demo set as the Competitors page.
-const PREVIEW_COMPETITORS = [
-  { handle: "@cheese.pull.daily", avatar: "/brand/comp/a1.jpg" },
-  { handle: "@trendy.slice", avatar: "/brand/comp/a2.jpg" },
-  { handle: "@rival.pizza", avatar: "/brand/comp/a3.jpg" },
-];
 
 export default async function SettingsPage({
   searchParams,
@@ -133,6 +132,11 @@ export default async function SettingsPage({
     ).limit(1);
     return { row: ((data as unknown as T[] | null) ?? [])[0] ?? null, failed: Boolean(error) };
   };
+
+  // The brand's real tracked competitors (active ones only), for the market card.
+  const trackedComps = await competitorScopeId(connCtx.client, connCtx.workspace?.id)
+    .then((cwid) => listTracked<{ platform: string; handle: string }>(connCtx.client, connCtx.ownerId, "platform, handle", { byAdded: true, workspaceId: cwid }))
+    .catch(() => null);
 
   // YouTube channel connection (tokens never leave the server).
   type YtConn = {
@@ -204,6 +208,20 @@ export default async function SettingsPage({
   // Live account snapshot (avatar, followers, sync state) of the ACTIVE
   // workspace's account — best-effort.
   const snap = await getIgSnapshot(connCtx.client, connCtx.ownerId, connCtx.workspace?.id ?? null).catch(() => null);
+  const connectedPlatforms: GoalPlatform[] = [
+    ...(snap ? (["instagram"] as const) : []),
+    ...(fbConn?.connection_status === "connected" ? (["facebook"] as const) : []),
+    ...(ytConn ? (["youtube"] as const) : []),
+    ...(ttConn ? (["tiktok"] as const) : []),
+  ];
+  // Growth Profile goals for this brand (tableReady is false before growth-profile.sql has run).
+  const growthGoals = await listGoals(connCtx);
+  // A measured goal saved before its account was connected gets its starting
+  // point the first time Settings opens with that account connected.
+  if (growthGoals.goals.some((g) => g.baseline == null && g.platforms.length && g.platforms.every((p) => connectedPlatforms.includes(p)))) {
+    growthGoals.goals = await recordStartingPoints(connCtx, growthGoals.goals).catch(() => growthGoals.goals);
+  }
+
 
   // Plan, meters and what occupies the plan's slots. Counts that cannot be
   // read stay unknown (never 0); the over-limit state is computed from the
@@ -364,7 +382,17 @@ export default async function SettingsPage({
                 <h3>Profile &amp; Brand</h3>
                 <span className="st2-card-note">Powers every recommendation the AI makes</span>
               </div>
-              <BrandSettings email={user.email ?? ""} />
+              <BrandSettings email={user.email ?? ""} goalsManaged={growthGoals.tableReady} />
+            </section>
+
+            {/* 1a: Growth Profile */}
+            <section className="st2-card" id="growth">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Target size={15} /></span>
+                <h3>Growth Profile</h3>
+                <span className="st2-card-note">Your goals, audience and what you can make</span>
+              </div>
+              <GrowthProfileCard initial={brandDetail?.growth ?? {}} goals={growthGoals.goals} goalsReady={growthGoals.tableReady} connected={connectedPlatforms} />
             </section>
 
             {/* 1b — Brand Workspaces */}
@@ -457,8 +485,6 @@ export default async function SettingsPage({
                 paused={pausedOn("tiktok")}
                 canPublishDirect={ttDirect}
               />
-              <div className="st2-divider"><span>Other platforms</span></div>
-              <ConnectionsManager />
             </section>
 
             {/* 3 — SOCIA Intelligence */}
@@ -476,7 +502,6 @@ export default async function SettingsPage({
               <div className="st2-card-head">
                 <span className="st2-card-ico"><Radar size={15} /></span>
                 <h3>Competitors &amp; Market</h3>
-                <span className="st2-card-note">Preview</span>
               </div>
               <div className="st3-market">
                 <div>
@@ -490,15 +515,19 @@ export default async function SettingsPage({
                   )}
                 </div>
                 <div>
-                  <small className="st3-sub">Tracked competitors <em className="st3-chip">Preview</em></small>
-                  <div className="st3-comp-row">
-                    {PREVIEW_COMPETITORS.map((c) => (
-                      <span className="st3-comp" key={c.handle}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={c.avatar} alt="" width={22} height={22} /> {c.handle}
-                      </span>
-                    ))}
-                  </div>
+                  <small className="st3-sub">Tracked competitors</small>
+                  {trackedComps == null ? (
+                    <p className="st3-market-loc muted">Couldn&apos;t load your competitors. Open Competitors to see them.</p>
+                  ) : trackedComps.length ? (
+                    <div className="st3-comp-row">
+                      {trackedComps.slice(0, 6).map((c) => (
+                        <span className="st3-comp" key={`${c.platform}:${c.handle}`}>@{c.handle.replace(/^@/, "")}</span>
+                      ))}
+                      {trackedComps.length > 6 && <span className="st3-comp">+{trackedComps.length - 6} more</span>}
+                    </div>
+                  ) : (
+                    <p className="st3-market-loc muted">You aren&apos;t tracking any competitors yet.</p>
+                  )}
                   <Link href="/competitors" className="cp3-viewmore">
                     Manage competitors <ArrowRight size={13} />
                   </Link>

@@ -8,6 +8,9 @@ import { CAPABILITIES } from "@/lib/publishing/capabilities";
 import { PLATFORMS, defaultSettings, type DestinationSettings, type MediaItem, type Platform } from "@/lib/publishing/types";
 import type { CreatePostPayload } from "@/lib/publishing/composer";
 import { youtubeTitle } from "@/lib/repurpose";
+import { fetchAllowed, isPlatformMediaUrl } from "@/lib/fetchGuard";
+import { storageFetchUrl, storageOrigin } from "@/lib/publishing/adapters/youtube";
+import { isOwnPath } from "@/lib/storagePaths";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,10 +73,13 @@ export async function POST(req: Request) {
     }
     orig = { caption: m.caption ?? "", kind: m.media_type === "VIDEO" ? "video" : "image", url: j.media_url, mime: null, name: `instagram-${id}` };
   } else {
-    const item = await loadItem(ctx.client, id, ctx.ownerId).catch(() => null);
+    const item = await loadItem(ctx.client, id, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
     const f = item?.media[0];
-    if (!item || !f?.url) return fail(404, "SOCIA can't find that post's file.");
-    orig = { caption: item.caption ?? "", kind: f.kind, url: f.url, mime: f.mime || null, name: f.name || `post-${id}` };
+    // SOCIA's own file, read from its own storage: the stored URL is never
+    // fetched as is (the row can be edited), only the bucket path is.
+    const ownFile = f?.path && isOwnPath(f.path, [ctx.viewerId, ctx.ownerId]) ? storageFetchUrl({ path: f.path, url: null }, storageOrigin()) : null;
+    if (!item || !f || !ownFile) return fail(404, "SOCIA can't find that post's file.");
+    orig = { caption: item.caption ?? "", kind: f.kind, url: ownFile, mime: f.mime || null, name: f.name || `post-${id}` };
   }
 
   // Destinations: one connected account per platform that takes this media.
@@ -85,7 +91,8 @@ export async function POST(req: Request) {
   if (!chosen.length) return fail(400, `None of those platforms is connected for a ${orig.kind === "video" ? "video" : "photo"}.`);
 
   // Copy the file into the viewer's own folder.
-  const res = await fetch(orig.url, { cache: "no-store" }).catch(() => null);
+  const allowedSource = (u: string) => isPlatformMediaUrl(u) || u.startsWith(`${storageOrigin() ?? "\u0000"}/storage/v1/object/public/`);
+  const res = await fetchAllowed(orig.url, allowedSource, { cache: "no-store" });
   if (!res?.ok) return fail(502, "SOCIA couldn't download the post's file just now. Try again in a moment.");
   const declared = Number(res.headers.get("content-length"));
   const tooBig = () => fail(413, `This file is over ${MAX_BYTES / 1024 / 1024} MB, too large to copy here. Save it and add it in Create post.`);

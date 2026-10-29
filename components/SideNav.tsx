@@ -1,10 +1,14 @@
 "use client";
 
-// The sidebar's section links, in two groups: what the person is
-// understanding and what they are making. The shell lives in a layout that
-// stays mounted across navigations, so the highlighted link is derived from
-// the URL here instead of being passed down by each page.
+// The section links. HeadNav is the floating dock's navigation: six
+// destinations linked directly (no menus), a selection surface that glides
+// to the current one and takes its width, and an All sections button that
+// opens the panel with everything else. When the current page is not on the
+// dock, the surface rests on that button instead. SideNav is the full list,
+// grouped, for that panel. The shell lives in a layout that stays mounted
+// across navigations, so what is current is derived from the URL here.
 
+import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,6 +18,7 @@ import {
   ClipboardList,
   FileBarChart,
   LayoutDashboard,
+  LayoutGrid,
   LifeBuoy,
   MessageSquare,
   Newspaper,
@@ -22,7 +27,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import { NAV, NAV_GROUPS, activeNavKey } from "@/lib/nav";
+import { DOCK, HELP, NAV, NAV_GROUPS, activeNavKey } from "@/lib/nav";
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -35,9 +40,92 @@ const ICONS: Record<string, LucideIcon> = {
   calendar: CalendarDays,
   studio: Clapperboard,
   comments: MessageSquare,
+  settings: Settings,
 };
 
-/** `counts` appear only on queues that need action (comments waiting, posts to approve). */
+const ALL = "all";
+
+/** The dock's navigation: direct links, one gliding selection surface, and the All sections button. */
+export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolean }) {
+  const pathname = usePathname();
+  const activeKey = activeNavKey(pathname);
+  const onDock = DOCK.some((d) => d.key === activeKey);
+  // Off the dock (Calendar, Settings...), the surface marks All sections.
+  const target = onDock ? activeKey : activeKey ? ALL : null;
+  const root = useRef<HTMLElement>(null);
+  const items = useRef<Record<string, HTMLElement | null>>({});
+  const [box, setBox] = useState<{ x: number; w: number } | null>(null);
+  // Transitions switch on after the first placement, so the surface lands in
+  // place on load and only glides when the person moves between sections.
+  const [ready, setReady] = useState(false);
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const el = target ? items.current[target] : null;
+      setBox(el ? { x: el.offsetLeft, w: el.offsetWidth } : null);
+    };
+    place();
+    const frame = requestAnimationFrame(() => setReady(true));
+    // Web fonts and zoom change the links' widths after the first measure.
+    const ro = new ResizeObserver(place);
+    if (root.current) ro.observe(root.current);
+    return () => {
+      cancelAnimationFrame(frame);
+      ro.disconnect();
+    };
+  }, [target]);
+
+  return (
+    <nav ref={root} className="s-hnav" aria-label="Main" data-ready={ready || undefined}>
+      <span
+        className="s-hnav-indicator"
+        aria-hidden
+        data-hidden={box ? undefined : ""}
+        style={box ? { transform: `translateX(${box.x}px)`, width: box.w } : undefined}
+      />
+      <ul className="s-hnav-list">
+        {DOCK.map((d) => {
+          const n = NAV.find((x) => x.key === d.key)!;
+          const current = activeKey === d.key;
+          return (
+            <li key={d.key}>
+              <Link
+                href={n.href}
+                className="s-hnav-link"
+                ref={(el) => {
+                  items.current[d.key] = el;
+                }}
+                aria-current={current ? "page" : undefined}
+                data-current={current || undefined}
+              >
+                {d.label}
+              </Link>
+            </li>
+          );
+        })}
+        <li>
+          <button
+            type="button"
+            className="s-hnav-link s-hnav-all"
+            ref={(el) => {
+              items.current[ALL] = el;
+            }}
+            onClick={onAll}
+            aria-haspopup="dialog"
+            aria-expanded={allOpen}
+            aria-label={onDock ? "All sections" : `All sections, current: ${NAV.find((n) => n.key === activeKey)?.label ?? "none"}`}
+            title="All sections"
+            data-current={(!onDock && activeKey != null) || undefined}
+          >
+            <LayoutGrid aria-hidden />
+          </button>
+        </li>
+      </ul>
+    </nav>
+  );
+}
+
+/** The same sections for the phone sheet, one group after another. */
 export function SideNav({ counts }: { counts?: Partial<Record<string, number>> }) {
   const active = activeNavKey(usePathname());
   return (
@@ -60,23 +148,14 @@ export function SideNav({ counts }: { counts?: Partial<Record<string, number>> }
               </Link>
             );
           })}
+          {g.key === "manage" && (
+            <Link href={HELP.href} className="s-nav-item">
+              <LifeBuoy aria-hidden />
+              <span>{HELP.label}</span>
+            </Link>
+          )}
         </div>
       ))}
     </nav>
-  );
-}
-
-const FOOT_ICONS = { settings: Settings, help: LifeBuoy } as const;
-
-/** A single link in the sidebar's foot (Settings, Help). The icon is named, not passed, so a server component can render it. */
-export function SideLink({ href, icon, label, navKey }: { href: string; icon: keyof typeof FOOT_ICONS; label: string; navKey?: string }) {
-  const Icon = FOOT_ICONS[icon];
-  const current = activeNavKey(usePathname());
-  const active = navKey ? current === navKey : false;
-  return (
-    <Link href={href} className="s-nav-item" aria-current={active ? "page" : undefined}>
-      <Icon aria-hidden />
-      <span>{label}</span>
-    </Link>
   );
 }

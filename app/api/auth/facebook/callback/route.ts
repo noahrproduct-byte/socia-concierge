@@ -8,6 +8,9 @@ import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { FB_STATE_COOKIE, clearStateCookie, verifyOAuthState, type ConnectDest } from "@/lib/oauthState";
+import { createServiceClient } from "@/lib/supabase/service";
+import { stashPageTokens } from "@/lib/facebookPending";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,8 +81,25 @@ async function grantedPermissions(base: string, token: string): Promise<string[]
 // and either connect the single Page or ask the user to choose.
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  // CSRF: the state must carry the nonce this browser was given at start,
+  // checked before anything else; every exit clears the one-time cookie.
+  const st = verifyOAuthState(req, FB_STATE_COOKIE);
+  const denied = url.searchParams.get("error_reason") === "user_denied" || url.searchParams.get("error") === "access_denied";
+  const res = denied
+    ? NextResponse.redirect(`${url.origin}/${st.dest}?fb=denied`)
+    : st.ok
+      ? await connect(req, st.dest)
+      : NextResponse.redirect(`${url.origin}/settings?fb=error`);
+  clearStateCookie(res, FB_STATE_COOKIE);
+  return res;
+}
+
+async function connect(req: Request, dest: ConnectDest): Promise<NextResponse> {
+  const url = new URL(req.url);
   const origin = url.origin;
-  const done = (q: string) => NextResponse.redirect(`${origin}/settings?fb=${q}`);
+  // Choosing among several Pages happens on Settings, where the picker lives;
+  // every other outcome returns to where the person started.
+  const done = (q: string) => NextResponse.redirect(`${origin}/${q === "choose" ? "settings" : dest}?fb=${q}`);
 
   if (url.searchParams.get("error_reason") === "user_denied" || url.searchParams.get("error") === "access_denied") {
     return done("denied");
@@ -91,7 +111,7 @@ export async function GET(req: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(`${origin}/login?next=/settings`);
+  if (!user) return NextResponse.redirect(`${origin}/login?next=/${dest}`);
 
   // The person acts inside their ACTIVE Brand Workspace, which may belong to
   // someone who invited them as an Admin. Connecting is owner/admin only, and
@@ -99,6 +119,9 @@ export async function GET(req: Request) {
   // ctx.client. Auth and event attribution stay on the viewer. Refused before
   // the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connection rows (tokens) are written only by SOCIA's server role: the
+  // database refuses direct writes from a browser session (security-hardening.sql).
+  const connDb = createServiceClient() ?? ctx.client;
   // Connections or their data are about to change: drop the reused live
   // platform reads so the next page view asks the platforms again.
   clearLiveCache(ctx.ownerId);
@@ -173,7 +196,7 @@ export async function GET(req: Request) {
       // actually granted so a missing pages_show_list in the login
       // configuration is distinguishable from an account with no Page. Names
       // only, no tokens. Remove once the connect path is confirmed.
-      console.error("[fb connect] no pages returned. granted=", grantedNames, " viaBusiness=", viaBusiness, " accountsRaw=", JSON.stringify(pagesJson).slice(0, 400));
+      console.error("[fb connect] no pages returned. granted=", grantedNames, " viaBusiness=", viaBusiness, " accountsRaw=", JSON.stringify(pagesJson, (k, v) => (k === "access_token" ? "[redacted]" : v)).slice(0, 400));
       const reason = grantedNames.length && !grantedNames.includes("pages_show_list") ? "noperm" : "nopages";
       return NextResponse.redirect(`${origin}/settings?fb=${reason}&fbperms=${encodeURIComponent(grantedNames.join(",") || "none")}&fbbiz=${viaBusiness}`);
     }
@@ -196,7 +219,7 @@ export async function GET(req: Request) {
     // effort, so a database without supabase/platform-deletions.sql still
     // connects; the delete resolver then says "Reconnect Facebook".
     const storeUserToken = () =>
-      scopeFb(ctx.client.from("facebook_connections").update({ user_access_token: userToken, user_token_expires_at: userTokenExpiresAt, scopes: granted }).eq("user_id", ctx.ownerId))
+      scopeFb(connDb.from("facebook_connections").update({ user_access_token: userToken, user_token_expires_at: userTokenExpiresAt, scopes: granted }).eq("user_id", ctx.ownerId))
         .then((r: { error?: { message?: string } | null }) => { if (r?.error) console.warn("[fb connect] user token not stored:", r.error.message); }, () => null);
     const limitHit = async () => {
       await trackEvent(supabase, user.id, "account_limit_reached", { platform: "facebook", plan: ent.plan });
@@ -223,21 +246,21 @@ export async function GET(req: Request) {
         ig_business_username: ig?.username ?? null,
       };
       if (ws) row.workspace_id = ws.id;
-      let { error } = await ctx.client
+      let { error } = await connDb
         .from("facebook_connections")
         .upsert(row, { onConflict });
       if (error) {
         // ig_business_* columns may not exist yet — connect without them.
         delete row.ig_business_id;
         delete row.ig_business_username;
-        ({ error } = await ctx.client
+        ({ error } = await connDb
           .from("facebook_connections")
           .upsert(row, { onConflict }));
       }
       if (error) return done("error");
-      if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
+      if (fbUserId) await scopeFb(connDb.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
       await storeUserToken();
-      await syncFacebook(ctx.client, ctx.ownerId).catch(() => null);
+      await syncFacebook(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null);
       return done("connected");
     }
 
@@ -254,12 +277,13 @@ export async function GET(req: Request) {
       username: null,
       access_token: null,
       connection_status: "choose_page",
-      pending_pages: pages,
+      // Names only: the Page tokens are kept server-side (lib/facebookPending.ts).
+      pending_pages: await stashPageTokens(createServiceClient(), ctx.ownerId, ws?.id ?? null, pages),
     };
     if (ws) pendingRow.workspace_id = ws.id;
-    const { error } = await ctx.client.from("facebook_connections").upsert(pendingRow, { onConflict });
+    const { error } = await connDb.from("facebook_connections").upsert(pendingRow, { onConflict });
     if (error) return done("error");
-    if (fbUserId) await scopeFb(ctx.client.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
+    if (fbUserId) await scopeFb(connDb.from("facebook_connections").update({ fb_user_id: fbUserId }).eq("user_id", ctx.ownerId)).then(() => null, () => null);
     // Kept on the pending row; /api/auth/facebook/select upserts the same row, so it carries over.
     await storeUserToken();
     return done("choose");

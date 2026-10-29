@@ -4,7 +4,7 @@ import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import CompetitorsPage from "@/components/competitors/CompetitorsPage";
-import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, YouSeriesPoint } from "@/components/competitors/types";
+import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, TrendingReel, YouSeriesPoint } from "@/components/competitors/types";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtube";
 import { nameKey } from "@/lib/discovery";
@@ -19,9 +19,10 @@ import { goalKeywords } from "@/lib/gaps";
 import { engagementRateOf, interactionsTotal } from "@/lib/engagement";
 import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
-import { getEntitlements, clampDays, maxHistoryDays } from "@/lib/entitlements";
+import { getEntitlements, clampDays, maxHistoryDays, getLimit, canUseFeature, upgradeFor } from "@/lib/entitlements";
+import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
 import { listTracked } from "@/lib/trackedCompetitors";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { resolveContext, brandWorkspace, nicheScopeId } from "@/lib/context";
 
 export const metadata = { title: "Competitors — SOCIA" };
 
@@ -73,12 +74,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // Independent reads run together (this page used to wait for them in turn).
   // Competitors, discovery and discovery-runs are scoped to this workspace once
   // the competitors migration has run; null keeps the pooled behaviour.
-  const [ent, snap, cwid, profile] = await Promise.all([
+  const [ent, snap, cwid, profile, ownFound] = await Promise.all([
     getEntitlements(ctx.client, ctx.ownerId),
     getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null),
     competitorScopeId(ctx.client, ctx.workspace?.id),
     getProfile(ctx.client, ctx.ownerId, brandWs).catch(() => null),
+    ownAccounts(ctx.client, ctx.ownerId).catch(() => null),
   ]);
+  // Every account the owner has connected: never shown, picked or counted as a competitor.
+  const mine: OwnAccounts = ownFound ?? { keys: new Set(), ids: new Set(), handles: [] };
+  if (snap?.username) mine.keys.add(snap.username.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  if (snap?.ig_user_id) mine.ids.add(String(snap.ig_user_id));
   const days = clampDays(ent, sp.range === "7" ? 7 : sp.range === "90" ? 90 : 30);
   const platform: PlatformFilter = sp.platform === "instagram" || sp.platform === "youtube" || sp.platform === "facebook" ? sp.platform : "all";
   const nicheRange: NicheRange = sp.niche_range === "30" ? 30 : sp.niche_range === "all" ? 0 : 90;
@@ -129,8 +135,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   })();
   const savedP: Promise<NichePost[]> = (async () => {
     try {
-      // Keyed by the owner; the service client is what lets a guest read it.
-      const { data } = await ctx.client.from("niche_trends").select("data").eq("niche", `saved:${ctx.ownerId}`).maybeSingle();
+      // The same per-brand key the save route writes; the service client is what lets a guest read it.
+      const { data } = await ctx.client.from("niche_trends").select("data").eq("niche", `saved:${nicheScopeId(ctx)}`).maybeSingle();
       const doc = data?.data as { v: number; items: NichePost[] } | undefined;
       return doc?.v === 1 && Array.isArray(doc.items) ? doc.items : [];
     } catch { return []; } // none
@@ -188,7 +194,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   } : null;
 
   // ---- tracked + discovered accounts --------------------------------------
-  const [tracked, suggestedRows] = await Promise.all([trackedP, suggestedRowsP]);
+  const [trackedAll, suggestedRows] = await Promise.all([trackedP, suggestedRowsP]);
+  // A tracked row that is one of the user's own accounts (added before this
+  // check existed) is left out of the comparison entirely.
+  const tracked = trackedAll.filter((t) => !isOwnAccount(mine, { handle: t.handle }));
   const trackedKeys = new Set(tracked.map((t) => `${t.platform}:${t.handle.toLowerCase()}`));
 
   let suggested: Suggested[] = [];
@@ -202,6 +211,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
         relevanceScore: (r.relevance_score as number) ?? null, relevanceReasons: (r.relevance_reasons as string[]) ?? [],
       }))
       .filter((sg) => sg.handle && !trackedKeys.has(`${sg.platform}:${sg.handle.toLowerCase()}`))
+      .filter((sg) => !isOwnAccount(mine, { handle: sg.handle, name: sg.displayName }))
       .sort((a, b) => (CLASS_ORDER[a.classification] ?? 9) - (CLASS_ORDER[b.classification] ?? 9) || (b.relevanceScore ?? -1) - (a.relevanceScore ?? -1))
       // One card per business: the same restaurant surfaces on two platforms.
       .filter((sg) => { const k = nameKey(sg.displayName ?? sg.handle); if (!k) return true; if (seenName.has(k)) return false; seenName.add(k); return true; })
@@ -326,7 +336,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
   const loc = locationTokens(location);
   const FORMAT: Record<string, string> = { short: "Short", video: "Video", reel: "Reel" };
-  const content: NichePost[] = contentRows.map((r) => ({
+  const content: NichePost[] = contentRows
+    .filter((r) => !isOwnAccount(mine, { handle: (r.account_handle as string) ?? null, name: (r.account_name as string) ?? null }))
+    .map((r) => ({
       url: String(r.content_url), platform: String(r.platform), accountName: (r.account_name as string) ?? null, accountHandle: (r.account_handle as string) ?? null,
       title: (r.title as string) ?? null, thumb: (r.thumbnail_url as string) ?? null,
       views: (r.views as number) ?? null, likes: (r.likes as number) ?? null, comments: (r.comments as number) ?? null,
@@ -345,12 +357,57 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     multiplier: ownBase && ownBase > 0 ? interactionsTotal(m) / ownBase : null,
   }));
 
+  // ---- trending Reels in the niche ----------------------------------------
+  // Short-form posts from the accounts on this page (Business Discovery for
+  // Instagram, the Data API for YouTube) plus Reels and Shorts discovery found.
+  // "Trending" is relative to the account's OWN median, the only fair
+  // comparison: likes and comments for Instagram (Meta publishes no views),
+  // views for YouTube. Nothing is estimated; a post without a baseline says so.
+  const SHORT = new Set(["Reel", "Short"]);
+  const reelCutoff = now.getTime() - 60 * 86400000;
+  const recent = (iso: string | null) => !iso || new Date(iso).getTime() >= reelCutoff;
+  const reels = new Map<string, TrendingReel>();
+  for (const r of rows) {
+    const shorts = r.posts.filter((p) => p.format && SHORT.has(p.format) && p.url);
+    const inter = (p: { likes: number | null; comments: number | null }) => (p.likes != null || p.comments != null ? (p.likes ?? 0) + (p.comments ?? 0) : null);
+    const base = r.platform === "instagram" ? median(r.posts.map(inter).filter((v): v is number => v != null)) : null;
+    for (const p of shorts) {
+      if (!recent(p.publishedAt)) continue;
+      const i = inter(p);
+      const multiplier = r.platform === "instagram"
+        ? (base && base > 0 && i != null && r.posts.length >= 3 ? i / base : null)
+        : p.multiplier;
+      reels.set(p.url, {
+        url: p.url, platform: r.platform, accountName: r.name, accountHandle: r.handle, accountAvatar: r.avatar,
+        title: p.title, thumb: p.thumb, publishedAt: p.publishedAt, views: p.views, likes: p.likes, comments: p.comments,
+        multiplier, basis: r.platform === "instagram" ? "likes and comments" : "views", format: p.format!,
+      });
+    }
+  }
+  for (const c of content) {
+    if (!c.format || !SHORT.has(c.format) || reels.has(c.url) || !recent(c.publishedAt)) continue;
+    reels.set(c.url, {
+      url: c.url, platform: c.platform, accountName: c.accountName ?? c.accountHandle ?? "An account in your niche",
+      accountHandle: c.accountHandle, accountAvatar: null, title: c.title, thumb: c.thumb, publishedAt: c.publishedAt,
+      views: c.views, likes: c.likes, comments: c.comments, multiplier: c.multiplier,
+      basis: c.views != null ? "views" : "likes and comments", format: c.format,
+    });
+  }
+  const trendingReels = [...reels.values()]
+    .sort((a, b) => (b.multiplier ?? -1) - (a.multiplier ?? -1) || ((b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0)))
+    .slice(0, 12);
+
   const data: CompetitorsData = {
     connected: Boolean(snap), igConnectHref: igConfigured() ? "/api/auth/instagram/start" : "/settings#accounts",
     you, rows, tracked, days, maxDays: maxHistoryDays(ent), platform, lastRun, sources,
     ig: { enabled: igRes.enabled, reason: igRes.enabled ? null : (igRes.reason ?? null) }, ytConfigured: ytConfigured(),
     niche: profile?.niche ?? null, subNiche, nicheRange, content, saved, own, youSeries, followerSeries,
     goalKeywords: goalKeywords(profile?.goals ?? null), goalText: profile?.goals ?? null, location, now: now.toISOString(),
+    // As many trending accounts as the plan tracks (Starter 5), at most 10.
+    trendingLimit: Math.max(1, Math.min(10, getLimit(ent, "competitors"))),
+    trendingReels,
+    nicheAccess: canUseFeature(ent, "niche_intelligence"),
+    nicheUpgrade: upgradeFor(ent, "niche_intelligence"),
   };
 
   return (

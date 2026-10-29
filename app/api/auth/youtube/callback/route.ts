@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   YT_OAUTH_STATE_COOKIE,
   exchangeCode,
+  YT_PKCE_COOKIE,
   fetchMyChannel,
   readStateCookie,
   ytAuthConfigured,
@@ -13,6 +14,7 @@ import { ensureDefaultWorkspace } from "@/lib/workspaces";
 import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 
@@ -32,6 +34,7 @@ export async function GET(req: Request) {
   const done = (q: string) => {
     const res = NextResponse.redirect(`${origin}/${dest}?yt=${q}`);
     res.cookies.set(YT_OAUTH_STATE_COOKIE, "", { path: "/", maxAge: 0 });
+    res.cookies.set(YT_PKCE_COOKIE, "", { path: "/", maxAge: 0 });
     return res;
   };
 
@@ -40,6 +43,8 @@ export async function GET(req: Request) {
   // CSRF: the nonce echoed in state must match the cookie set at start.
   const cookieNonce = readStateCookie(req);
   if (!nonce || !cookieNonce || nonce !== cookieNonce) return done("error");
+  // PKCE: the verifier set at start must still be here.
+  if (!readStateCookie(req, YT_PKCE_COOKIE)) return done("error");
 
   const code = url.searchParams.get("code");
   if (!code) return done("error");
@@ -57,13 +62,16 @@ export async function GET(req: Request) {
   // through ctx.client. Auth, the state nonce and event attribution stay on
   // the viewer. Refused before the code is exchanged.
   const ctx = await resolveContext(supabase, user.id);
+  // Connection rows (tokens) are written only by SOCIA's server role: the
+  // database refuses direct writes from a browser session (security-hardening.sql).
+  const connDb = createServiceClient() ?? ctx.client;
   // Connections or their data are about to change: drop the reused live
   // platform reads so the next page view asks the platforms again.
   clearLiveCache(ctx.ownerId);
   if (!can(ctx, "connect")) return done("forbidden");
 
   try {
-    const tok = await exchangeCode(code, ytRedirectUri(origin));
+    const tok = await exchangeCode(code, ytRedirectUri(origin), readStateCookie(req, YT_PKCE_COOKIE));
     if (!tok) return done("error");
 
     const channel = await fetchMyChannel(tok.access_token);
@@ -91,7 +99,7 @@ export async function GET(req: Request) {
     // each workspace.
     let refreshToken = tok.refresh_token;
     if (!refreshToken) {
-      let prevQ = ctx.client.from("youtube_connections").select("refresh_token").eq("user_id", ctx.ownerId);
+      let prevQ = connDb.from("youtube_connections").select("refresh_token").eq("user_id", ctx.ownerId);
       if (ws) prevQ = prevQ.eq("workspace_id", ws.id);
       const { data: prev } = await prevQ.maybeSingle();
       refreshToken = (prev as { refresh_token?: string | null } | null)?.refresh_token ?? null;
@@ -111,7 +119,7 @@ export async function GET(req: Request) {
       connected_at: new Date().toISOString(),
     };
     if (ws) row.workspace_id = ws.id;
-    const { error: upErr } = await ctx.client
+    const { error: upErr } = await connDb
       .from("youtube_connections")
       .upsert(row, { onConflict: ws ? "workspace_id" : "user_id" });
     if (upErr) {

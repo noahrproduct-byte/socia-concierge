@@ -8,10 +8,12 @@ import { SCOPE_LABEL } from "@/lib/oauth/config";
 export type ConsentWorkspace = { id: string; name: string; note: string | null; checked: boolean };
 
 export default function ConsentScreen({
-  name, host, scopes, askedToPublish, workspaces, requestId, email,
+  name, host, identity, scopes, askedToPublish, workspaces, requestId, email,
 }: {
   name: string;
   host: string;
+  /** "unverified" for an app that registered itself (it chose its own name), else the host that published its metadata. */
+  identity?: string;
   scopes: string[];
   askedToPublish: boolean;
   workspaces: ConsentWorkspace[];
@@ -24,6 +26,11 @@ export default function ConsentScreen({
       <p className="oa-sub">
         <b>{name}</b> is asking to use your SOCIA account. When you answer, you go back to <b>{host}</b>.
       </p>
+      {identity === "unverified" ? (
+        <p className="oa-sub"><b>Unverified app.</b> It registered itself and chose this name, so SOCIA can&apos;t confirm who made it. Only continue if you started this from the app and <b>{host}</b> is its real address.</p>
+      ) : identity ? (
+        <p className="oa-sub">Published by <b>{identity}</b>.</p>
+      ) : null}
 
       <form method="post" action="/oauth/decision" className="oa-form">
         <input type="hidden" name="request_id" value={requestId} />

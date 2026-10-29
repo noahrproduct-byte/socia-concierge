@@ -9,6 +9,7 @@ import { SYSTEM, buildUserPrompt } from "./prompt";
 import { deliverableSchema, type Deliverable, type GenerateInput, type SavedPlan } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
+import { isMissingColumnError } from "./workspaces";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -88,6 +89,9 @@ export async function savePlan(client: Supa, ownerId: string, workspaceId: strin
     if (workspaceId) {
       const withWs = await client.from("plans").insert({ ...base, workspace_id: workspaceId }).select(SAVED_COLS).single();
       if (!withWs.error) return withWs.data as SavedPlan;
+      // Saved without the workspace only before its column exists; any other
+      // error must not drop a brand's plan into the default workspace.
+      if (!isMissingColumnError(withWs.error)) return null;
     }
     const plain = await client.from("plans").insert(base).select(SAVED_COLS).single();
     return plain.error ? null : (plain.data as SavedPlan);

@@ -9,6 +9,7 @@ import { loadItem, loadPickerAccountsDetailed, saveItem, stampPostWorkspace, Mis
 import { publishNow, type ClientUploadRequest } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
 import { approveOnSchedule, memberEditBlock } from "@/lib/approvals";
+import { isOwnPath } from "@/lib/storagePaths";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -133,9 +134,8 @@ export async function POST(req: Request) {
   // owner's for a file the owner attached earlier. The URL the platforms fetch
   // is derived from that path here, never taken from the request. A draft may
   // hold a file that has not finished uploading.
-  const prefixes = [`${ctx.viewerId}/`, `${ctx.ownerId}/`];
   for (const m of payload.media) {
-    if (m.path != null && !prefixes.some((p) => m.path!.startsWith(p))) return NextResponse.json({ error: "That media file is not yours." }, { status: 403 });
+    if (m.path != null && !isOwnPath(m.path, [ctx.viewerId, ctx.ownerId])) return NextResponse.json({ error: "That media file is not yours." }, { status: 403 });
     if (!isDraft && !m.path) return NextResponse.json({ error: `${m.name || "A file"} has not finished uploading.` }, { status: 400 });
     m.url = m.path ? supabase.storage.from(BUCKET).getPublicUrl(m.path).data.publicUrl : null;
   }
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
 
   // Editing: the item must be this workspace's and not already published.
   if (payload.id) {
-    const cur = await loadItem(ctx.client, payload.id, ctx.ownerId);
+    const cur = await loadItem(ctx.client, payload.id, ctx.ownerId, ctx.workspace?.id ?? null);
     if (!cur) return NextResponse.json({ error: "Post not found." }, { status: 404 });
     if (cur.status === "published") return NextResponse.json({ error: "Published posts stay in the record. To take one down, open it and use Delete from the platform." }, { status: 409 });
   }
@@ -206,7 +206,7 @@ export async function POST(req: Request) {
       );
       let uploads: ClientUploadRequest[] = [];
       if (targets.length) uploads = (await publishNow(ctx.client, ctx.ownerId, saved, targets, 40_000)).uploads;
-      const item = targets.length ? (await loadItem(ctx.client, saved.id, ctx.ownerId)) ?? saved : saved;
+      const item = targets.length ? (await loadItem(ctx.client, saved.id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? saved : saved;
       // Scheduling a post that was waiting for approval is the approval.
       await approveOnSchedule(ctx, saved.id, payload.scheduledAt ?? payload.destinations.map((d) => d.scheduledAt).filter(Boolean).sort()[0] ?? null);
       return NextResponse.json({ item, uploads });
@@ -219,7 +219,7 @@ export async function POST(req: Request) {
     await stampWorkspace(ctx, saved.id);
     const targets = saved.destinations.filter((d) => d.status === "scheduled");
     const { uploads } = await publishNow(ctx.client, ctx.ownerId, saved, targets, 40_000);
-    const item = (await loadItem(ctx.client, saved.id, ctx.ownerId)) ?? saved;
+    const item = (await loadItem(ctx.client, saved.id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? saved;
     await approveOnSchedule(ctx, saved.id, null);
     return NextResponse.json({ item, uploads });
   } catch (e) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
+import { resolveContext, type Ctx, nicheScopeId } from "@/lib/context";
 import type { NichePost } from "@/lib/nicheTrends";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ type SavedDoc = { v: 1; items: NichePost[] };
 
 // The default workspace keeps the owner-keyed row (existing data); a non-default
 // workspace gets its own key.
-const scopeKey = (ctx: Ctx): string => brandWorkspace(ctx)?.id ?? ctx.ownerId;
+const scopeKey = (ctx: Ctx): string => nicheScopeId(ctx);
 
 async function read(client: Ctx["client"], scopeId: string): Promise<SavedDoc> {
   try {

@@ -1,0 +1,192 @@
+/* ============================================================================
+   Page harmony (Noah, 2026-10-28: "restyle the other pages to match the
+   dashboard"). The pages written before the design system keep their own
+   class families (ov-, av-, cpl-, cal2-, st2-, cx2-, cm-, cp-, ru-, rep-,
+   pa-); this layer gives them the dashboard's language in one place instead
+   of editing a hundred rules one by one:
+
+   - the page header: a 28px title, a 14px line beneath it, controls beside;
+   - instruments: white surfaces, a hairline border, the 12px panel radius
+     and the hairline lift (--shadow-card), never a heavier shadow;
+   - card titles at 14px semibold, card links quiet;
+   - buttons at control height with the control radius;
+   - headline figures no larger than --fs-figure.
+
+   Every rule is scoped to the app's content column (.s-shell .s-content),
+   which also lifts it above the single-class page stylesheets that load
+   later. Tokens only. When a page moves onto the s- primitives, delete its
+   selectors here.
+   ========================================================================= */
+
+/* ---- page header ----------------------------------------------------------------- */
+.s-shell .s-content .dv-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4) var(--sp-6);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-6);
+}
+.s-shell .s-content .dv-head h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-display);
+  text-wrap: balance;
+}
+.s-shell .s-content .dv-head p {
+  margin: var(--sp-1) 0 0;
+  max-width: 72ch;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.s-shell .s-content .dv-head .upd-ago {
+  margin-top: var(--sp-1);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-shell .s-content .dv-head-actions {
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ---- instruments: every page's main cards ------------------------------------------ */
+.s-shell .s-content :is(
+    .ov-card:not(.ov-row .ov-card),
+    .ov-kpi,
+    .st-block,
+    .st2-card,
+    .cpl-form,
+    .cpl-stage,
+    .cp3-panel,
+    .cp3-outcard,
+    .cal2-card,
+    .cx2-intel,
+    .cm-item,
+    .cm-gate,
+    .ru-kpi,
+    .ru-card,
+    .ru-gate,
+    .rep-summary-card,
+    .rep-section,
+    .pa-pcard,
+    .cp-command
+  ) {
+  border: 1px solid var(--border);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+/* The older cards carried 18 to 26px of padding; instruments use the card pad. */
+.s-shell .s-content :is(.ov-card:not(.ov-row .ov-card), .st2-card, .st-block, .ru-card) {
+  padding: var(--card-pad);
+}
+.s-shell .s-content .st2-card {
+  margin-top: var(--sp-4);
+}
+
+/* ---- card titles and their links -------------------------------------------------- */
+.s-shell .s-content :is(
+    .ov-card-head h2,
+    .cx2-card-head h2,
+    .st2-card-head h3,
+    .st-block h3,
+    .ru-card-head h2,
+    .rep-card-head h2,
+    .dsh-panel-head h2
+  ) {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+}
+.s-shell .s-content :is(.ov-card-head, .cx2-card-head) {
+  margin-bottom: var(--sp-3);
+}
+.s-shell .s-content .ov-card-sub {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-shell .s-content :is(.ov-card-head, .cx2-card-head) .ov-link {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+}
+
+/* ---- buttons ------------------------------------------------------------------------ */
+.s-shell .s-content .ov-btn {
+  min-height: var(--control-h);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-control);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
+  font-weight: var(--fw-medium);
+}
+.s-shell .s-content .ov-btn.small {
+  min-height: var(--control-h-sm);
+  padding: 2px var(--sp-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-shell .s-content .ov-btn:active {
+  transform: none;
+}
+
+/* ---- headline figures --------------------------------------------------------------- */
+.s-shell .s-content :is(.cpl-score-num, .ov-point-num b, .st-ring-num, .eg-rate b, .eg-total b, .cx2-why-n) {
+  font-size: var(--fs-figure);
+  line-height: var(--lh-figure);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-display);
+}
+.s-shell .s-content .cx2-ring-center b {
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  font-weight: var(--fw-semibold);
+}
+.s-shell .s-content :is(.ru-kpi b, .av-growth-num b, .cx2-intel-val b, .rep-metric b, .av-perf-summary b) {
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-title);
+}
+
+/* ---- labels: sentence case at the 12px floor ------------------------------------------
+   The older pages labelled sections, table heads and stats in 8.5 to 10.5px
+   tracked capitals. The dashboard's labels are 12px sentence case; so are
+   these. Calendar day names and the chips inside calendar cells keep their
+   size, where space is the constraint. */
+.s-shell .s-content :is(
+    .cm-draft-label, .pa-subh, .cp-dest-group-head, .cp-compat-head,
+    .cpl-eyebrow, .cpl-sec, .cpl-score-den, .cpl-rsec h3, .cpl-hook b,
+    .cal2-eyebrow, .cal2-live > b,
+    .st2-eyebrow, .st2-divider span, .st3-nav-group, .st3-sub,
+    .ov-detail-stats dt, .ov-why-block small, .ov-evidence > small, .ov-driver > small, .ov-driver-perf, .ov-driver-stats dt, .ov-insight-tag,
+    .st-score-meta small, .st-marker small, .st-cmp th, .st-hook-cur small, .st-suggestion small, .st-audio-dir small, .st-inuse > small, .st-measured > small,
+    .cx-rlabel, .cx-ev-table th, .cx-ev-def dt, .cx-add-sec h4, .cx-opp-h, .cx-nd-sec h4, .cx-nd-stats dt,
+    .cx2-micro, .cx2-heat-row.head span,
+    .cb-table thead th, .rep-sub
+  ) {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+}
+.s-shell .s-content :is(.cpl-tag, .cp-tag, .st2-badge, .st3-chip, .st-opt-style, .st3-analyzes li em, .cx2-chip-stats small, .st-ost-text small, .cp-suggest-text small) {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+}
+
+/* ---- empty-state feature icons: neutral, not pastel tiles (standard 4) -------------- */
+.s-shell .s-content :is(.cpl-cap-ico, .cpl-empty-ico, .st-drop-ico) {
+  background: var(--surface-raised);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--ink-2);
+}

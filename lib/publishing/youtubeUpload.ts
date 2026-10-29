@@ -1,25 +1,32 @@
-// Browser-side resumable upload of a video to a YouTube upload session.
+// Browser-side resumable upload of a video to YouTube, through SOCIA.
 //
-// The server opens the session (adapters/youtube.ts) and hands the browser its
-// URI; the file itself goes straight from the browser to YouTube in 8 MiB
-// chunks (a multiple of the 256 KiB YouTube requires for every chunk but the
-// last). A 308 carries the bytes YouTube has so far; a network drop or 5xx is
+// The server opens the YouTube session and hands the browser only a sealed
+// handle (youtubeRelay.ts). Each chunk goes to SOCIA's
+// /api/posts/:id/destinations/:did/youtube-upload, which forwards it with the
+// channel's token, so no OAuth token ever reaches this code. Chunks are 4 MiB
+// (under Vercel's request limit, a multiple of the 256 KiB YouTube requires
+// for every chunk but the last). A network drop or a server-side hiccup is
 // followed by a progress query and a resume from where YouTube says it is.
 //
 // Client-safe. Pure helpers are exported for the unit tests.
 
 export const CHUNK_ALIGN = 256 * 1024;
-export const CHUNK_BYTES = 8 * 1024 * 1024;
+export const CHUNK_BYTES = 4 * 1024 * 1024;
 const MAX_RETRIES = 5;
 
 export type YouTubeUploadArgs = {
-  sessionUri: string;
-  accessToken: string;
+  /** SOCIA's relay route for this destination. */
+  endpoint: string;
+  /** The sealed session handle from the server. */
+  handle: string;
   blob: Blob;
-  mime: string;
   onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
 };
+
+/** The relay route for one destination. */
+export const relayEndpoint = (postId: string, destinationId: string) =>
+  `/api/posts/${encodeURIComponent(postId)}/destinations/${encodeURIComponent(destinationId)}/youtube-upload`;
 
 /** The inclusive byte range of the chunk that starts at `offset`. */
 export function chunkRange(offset: number, total: number, chunk = CHUNK_BYTES): { start: number; end: number; length: number } {
@@ -51,26 +58,25 @@ const abortError = () => {
   return e;
 };
 
-async function readError(res: Response): Promise<string> {
-  const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-  return j?.error?.message || `YouTube returned ${res.status}.`;
-}
+type RelayReply = { next?: number; videoId?: string; error?: string };
 
-/** Ask the session how much it has: 308 -> offset, 200/201 -> finished, 404/410 -> gone. */
-async function queryProgress(args: YouTubeUploadArgs, total: number): Promise<{ offset: number } | { done: { videoId: string } }> {
-  const res = await fetch(args.sessionUri, {
-    method: "PUT",
-    headers: { authorization: `Bearer ${args.accessToken}`, "content-range": `bytes */${total}` },
-    signal: args.signal,
-  });
-  if (res.status === 308) return { offset: parseRangeHeader(res.headers.get("range")) };
-  if (res.status === 200 || res.status === 201) {
-    const j = (await res.json().catch(() => null)) as { id?: string } | null;
-    if (j?.id) return { done: { videoId: j.id } };
-    throw new Error("YouTube finished the upload but returned no video id.");
+/** Worth waiting and asking again: SOCIA or YouTube had a moment, not a verdict. */
+const transient = (status: number) => status === 408 || status === 429 || status >= 500;
+
+async function send(args: YouTubeUploadArgs, range: string, body: Blob | null): Promise<{ status: number; reply: RelayReply } | null> {
+  try {
+    const res = await fetch(args.endpoint, {
+      method: "PUT",
+      headers: { "x-upload-handle": args.handle, "content-range": range, "content-type": "application/octet-stream" },
+      body,
+      signal: args.signal,
+      credentials: "same-origin",
+    });
+    return { status: res.status, reply: ((await res.json().catch(() => null)) as RelayReply | null) ?? {} };
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") throw abortError();
+    return null;
   }
-  if (res.status === 404 || res.status === 410) throw new Error("The YouTube upload session expired. Start the upload again.");
-  throw new Error(await readError(res));
 }
 
 /** Resolves with the YouTube video id once the final chunk is accepted. */
@@ -79,58 +85,31 @@ export async function uploadToYouTube(args: YouTubeUploadArgs): Promise<{ videoI
   if (!total) throw new Error("The video file is empty.");
   let offset = 0;
   let retries = 0;
-  // Progress is reported only from a Range header YouTube sent or from
+  // Progress is reported only from a byte count YouTube sent or from
   // completion: nothing is claimed before a byte has been acknowledged.
 
   while (true) {
     if (args.signal?.aborted) throw abortError();
     const { start, end } = chunkRange(offset, total);
-    let res: Response | null = null;
-    try {
-      // The browser sets Content-Length from the body; setting it by hand is not allowed.
-      res = await fetch(args.sessionUri, {
-        method: "PUT",
-        headers: {
-          authorization: `Bearer ${args.accessToken}`,
-          "content-type": args.mime || "video/*",
-          "content-range": `bytes ${start}-${end}/${total}`,
-        },
-        body: args.blob.slice(start, end + 1),
-        signal: args.signal,
-      });
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") throw abortError();
-      res = null;
-    }
+    const r = await send(args, `bytes ${start}-${end}/${total}`, args.blob.slice(start, end + 1));
 
-    if (res && res.status === 308) {
-      offset = parseRangeHeader(res.headers.get("range"));
+    if (r && r.status === 200 && r.reply.videoId) { args.onProgress?.(1); return { videoId: r.reply.videoId }; }
+    if (r && r.status === 200 && typeof r.reply.next === "number") {
+      offset = r.reply.next;
       retries = 0;
       args.onProgress?.(offset / total);
       continue;
     }
-    if (res && (res.status === 200 || res.status === 201)) {
-      const j = (await res.json().catch(() => null)) as { id?: string } | null;
-      if (!j?.id) throw new Error("YouTube finished the upload but returned no video id.");
-      args.onProgress?.(1);
-      return { videoId: j.id };
-    }
-    if (res && res.status === 404) throw new Error("The YouTube upload session expired. Start the upload again.");
-    if (res && res.status >= 400 && res.status < 500) throw new Error(await readError(res));
+    if (r && !transient(r.status)) throw new Error(r.reply.error || "The upload to YouTube was refused.");
 
-    // Network error or 5xx: back off, ask where YouTube got to, resume there.
+    // Network error or a transient answer: back off, ask where YouTube got to, resume there.
     if (++retries > MAX_RETRIES) throw new Error("The upload to YouTube kept failing. Check your connection and retry.");
     await sleep(Math.min(30000, 1000 * 2 ** (retries - 1)), args.signal);
-    try {
-      const p = await queryProgress(args, total);
-      if ("done" in p) { args.onProgress?.(1); return p.done; }
-      offset = p.offset;
-      args.onProgress?.(offset / total);
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") throw e;
-      if (e instanceof Error && /expired|returned no video id/.test(e.message)) throw e;
-      // The progress query itself failed; the loop retries the same chunk.
-    }
+    const p = await send(args, `bytes */${total}`, null);
+    if (p && p.status === 200 && p.reply.videoId) { args.onProgress?.(1); return { videoId: p.reply.videoId }; }
+    if (p && p.status === 200 && typeof p.reply.next === "number") { offset = p.reply.next; args.onProgress?.(offset / total); continue; }
+    if (p && !transient(p.status)) throw new Error(p.reply.error || "The upload to YouTube was refused.");
+    // The progress query itself failed; the loop retries the same chunk.
   }
 }
 

@@ -6,7 +6,8 @@
 // `system` tracks prefers-color-scheme live; an explicit choice never does.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { APPEARANCE_KEY, THEME_COLOR, isAppearance, type Appearance, type Resolved } from "@/lib/appearance";
+import { usePathname } from "next/navigation";
+import { APPEARANCE_KEY, THEME_COLOR, defaultAppearance, isAppearance, type Appearance, type Resolved } from "@/lib/appearance";
 
 export { APPEARANCE_KEY, THEME_COLOR, isAppearance };
 export type { Appearance, Resolved };
@@ -40,13 +41,19 @@ function withTransition(fn: () => void) {
   window.setTimeout(() => el.classList.remove("theme-switching"), 260);
 }
 
-function readStored(): Appearance {
+/** The stored choice, or null when this person has never chosen one. */
+function storedChoice(): Appearance | null {
   try {
     const v = localStorage.getItem(APPEARANCE_KEY);
-    return isAppearance(v) ? v : "system";
+    return isAppearance(v) ? v : null;
   } catch {
-    return "system";
+    return null;
   }
+}
+
+/** The choice, or the default for this page: light in the app, the system setting on the public site. */
+function readStored(): Appearance {
+  return storedChoice() ?? defaultAppearance(window.location.pathname);
 }
 
 type Ctx = {
@@ -76,6 +83,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyResolved(r);
     setReady(true);
   }, []);
+
+  // With no stored choice the default depends on the page (light in the app),
+  // so a client-side move from sign-in into the app re-resolves it.
+  const pathname = usePathname();
+  useEffect(() => {
+    if (!ready || storedChoice()) return;
+    const a = defaultAppearance(pathname ?? "/");
+    const r = resolveAppearance(a);
+    setAppearanceState(a);
+    setResolved(r);
+    applyResolved(r);
+  }, [pathname, ready]);
 
   // The account's saved preference (ThemeSync) arrives as an event.
   useEffect(() => {

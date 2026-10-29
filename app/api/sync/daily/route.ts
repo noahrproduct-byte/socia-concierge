@@ -5,6 +5,8 @@ import { runFacebookDailySnapshots } from "@/lib/platformSnapshots";
 import { runYouTubeDailySnapshots } from "@/lib/youtubeSnapshots";
 import { runAlertDetection } from "@/lib/alertRun";
 import { recordCompetitorSnapshots } from "@/lib/competitorHistory";
+import { runTikTokDailySync } from "@/lib/tiktokSync";
+import { isCronRequest } from "@/lib/cronAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,19 +16,18 @@ export const maxDuration = 60;
 // a fixed hour (see supabase/daily-snapshot-cron.sql). Same secret as the
 // publisher.
 async function run(req: Request) {
-  const clean = (s: string | null | undefined) => (s ?? "").trim().replace(/^["']|["']$/g, "");
-  const bearer = clean(req.headers.get("authorization")).match(/^bearer\s+(.+)$/i)?.[1];
-  const secret = clean(process.env.CRON_SECRET);
-  if (!secret || bearer === undefined || clean(bearer) !== secret) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
+  if (!isCronRequest(req)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const now = new Date();
   const result = await runDailySnapshots(svc, now, 40000);
   const facebook = await runFacebookDailySnapshots(svc, now, 12000).catch(() => null);
   const youtube = await runYouTubeDailySnapshots(svc, now, 20000).catch(() => null);
+  // TikTok counts were read once at connect and never again; refresh them here.
+  const tiktok = await runTikTokDailySync(svc, now, 8000).catch(() => null);
   const alerts = await runAlertDetection(svc, now, 15000, { phase2: true }).catch(() => null);
   const competitors = await recordCompetitorSnapshots(svc, now, 25000).catch(() => null);
-  return NextResponse.json({ ...result, facebook, youtube, alerts, competitors });
+  return NextResponse.json({ ...result, facebook, youtube, alerts, competitors, tiktok });
 }
 export async function GET(req: Request) { return run(req); }
 export async function POST(req: Request) { return run(req); }

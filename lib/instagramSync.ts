@@ -475,14 +475,18 @@ async function syncInstagramImpl(supabase: Supa, userId: string, workspaceId?: s
   try {
     // Meta keeps about two years of daily history. Pull a year the first time
     // (or while the stored series is still short), then top up recent days.
+    // Counted per account: a second Instagram account (another brand) has
+    // its own history, so the first account's days must not skip its backfill.
     let storedDays = 0;
     try {
-      const { count } = await supabase
+      let cq = supabase
         .from("account_snapshots")
         .select("day", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("source", "instagram_api");
-      storedDays = count ?? 0;
+      if (igId) cq = cq.eq("ig_user_id", igId);
+      const { count, error } = await cq;
+      storedDays = error ? 0 : count ?? 0;
     } catch {
       // count is only an optimisation
     }

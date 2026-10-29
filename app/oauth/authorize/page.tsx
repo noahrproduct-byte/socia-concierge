@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import { activeWorkspaceId, listAccessibleWorkspaces } from "@/lib/workspaces";
 import { createConsentRequest, validateAuthorize } from "@/lib/oauth/server";
-import { oauthStore, serviceOrNull } from "@/lib/oauth/runtime";
+import { oauthStore, rateHit, serviceOrNull } from "@/lib/oauth/runtime";
 import BrandMark from "@/components/BrandMark";
 import ConsentScreen from "@/components/oauth/ConsentScreen";
 import "../oauth.css";
@@ -12,6 +12,8 @@ export const metadata = { title: "Connect an app — SOCIA", robots: { index: fa
 
 type Params = Record<string, string | string[] | undefined>;
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+/** Consent screens one person may open per minute (each may fetch an app's metadata document). */
+const AUTHORIZE_PER_MINUTE = 20;
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -40,6 +42,18 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
     return <Shell><h1>Not available yet</h1><p className="oa-sub">Connecting AI apps isn&apos;t set up on this server yet.</p></Shell>;
   }
 
+  // Sign-in first: validating may fetch the app's metadata document from the
+  // internet and store it, which an anonymous visitor must not be able to
+  // trigger. The login page comes back here with the same query.
+  const { supabase, user } = await getViewer();
+  if (!user) {
+    const qs = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => e[1] != null)).toString();
+    redirect(`/login?next=${encodeURIComponent(`/oauth/authorize?${qs}`)}`);
+  }
+  if ((await rateHit(`authorize:${user.id}`, 60, AUTHORIZE_PER_MINUTE)) === "limited") {
+    return <Shell><h1>Too many attempts</h1><p className="oa-sub">Wait a minute, then try connecting the app again.</p></Shell>;
+  }
+
   const now = new Date();
   const a = await validateAuthorize(store, params, now).catch((e) => {
     console.error("[oauth] authorize", (e as Error)?.message ?? e);
@@ -49,12 +63,6 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
     return <Shell><h1>This app can&apos;t connect</h1><p className="oa-sub">{a.message}</p></Shell>;
   }
   if (a.kind === "redirect") redirect(a.url);
-
-  const { supabase, user } = await getViewer();
-  if (!user) {
-    const qs = new URLSearchParams(Object.entries(params).filter((e): e is [string, string] => e[1] != null)).toString();
-    redirect(`/login?next=${encodeURIComponent(`/oauth/authorize?${qs}`)}`);
-  }
 
   const [workspaces, active] = await Promise.all([
     listAccessibleWorkspaces(svc, user.id).then((ws) => ws.filter((w) => !w.suspended)),
@@ -74,6 +82,8 @@ export default async function AuthorizePage({ searchParams }: { searchParams: Pr
       <ConsentScreen
         name={name}
         host={host}
+        // A self-registered app names itself; a metadata-document app is identified by its own address.
+        identity={a.client.kind === "dcr" ? "unverified" : new URL(a.client.clientId).host}
         scopes={a.scopes}
         askedToPublish={a.askedToPublish}
         requestId={requestId}

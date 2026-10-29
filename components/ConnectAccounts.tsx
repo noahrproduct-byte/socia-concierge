@@ -2,10 +2,10 @@
 
 import { Check } from "lucide-react";
 
-// Real OAuth to Instagram/TikTok/YouTube is gated on platform API approval.
-// Until that lands, connecting registers the account in-app (drives the
-// dashboard's connected state and tailors the AI) — live data sync arrives
-// once the platform APIs are approved.
+// The platforms SOCIA really connects, each through its own OAuth flow. There
+// is no "register" toggle: a platform is either connected (read from the
+// connection row on the server), connectable (a link to its start route), or
+// not set up on this deployment, said plainly with no button.
 
 type Mark = (color: string, size?: number) => React.ReactNode;
 type Account = { id: string; name: string; cta: string; color: string; mark: Mark };
@@ -36,28 +36,6 @@ export const ACCOUNTS: Account[] = [
     ),
   },
   {
-    id: "X",
-    name: "X / Twitter",
-    cta: "Connect an X / Twitter account",
-    color: "#111",
-    mark: (c, s = 18) => (
-      <svg viewBox="0 0 24 24" width={s} height={s} fill={c}>
-        <path d="M17.5 3h3l-6.6 7.5L21.7 21h-6l-4.7-6-5.4 6H2.6l7-8L2.2 3h6.1l4.2 5.6L17.5 3Zm-1 16h1.6L7.6 4.7H5.9L16.5 19Z" />
-      </svg>
-    ),
-  },
-  {
-    id: "LinkedIn",
-    name: "LinkedIn",
-    cta: "Connect a LinkedIn profile or page",
-    color: "#0A66C2",
-    mark: (c, s = 20) => (
-      <svg viewBox="0 0 24 24" width={s} height={s} fill={c}>
-        <path d="M6.5 8.5v9H4v-9h2.5ZM5.2 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM20 17.5h-2.5v-4.7c0-1.2-.4-2-1.5-2-.8 0-1.3.6-1.5 1.1-.1.2-.1.5-.1.8v4.8H11.9s.1-8.1 0-9h2.5v1.3c.3-.5 1-1.3 2.4-1.3 1.7 0 3.2 1.1 3.2 3.6v5.4Z" />
-      </svg>
-    ),
-  },
-  {
     id: "Facebook",
     name: "Facebook",
     cta: "Connect a Facebook page",
@@ -81,73 +59,41 @@ export const ACCOUNTS: Account[] = [
   },
 ];
 
-export default function ConnectAccounts({
-  connected,
-  onToggle,
-  exclude = [],
-  instagramHref,
-  igUsername,
-}: {
-  connected: string[];
-  onToggle: (id: string) => void;
-  exclude?: string[];
-  /** When set, the Instagram button starts the real OAuth flow at this URL. */
-  instagramHref?: string;
-  /** When set, Instagram renders as live-connected to this account. */
-  igUsername?: string | null;
-}) {
+export type ConnectState = {
+  id: string;
+  /** Start route for this platform's OAuth, or null when it isn't configured here. */
+  href: string | null;
+  /** The connected account's name or handle, or null when not connected. */
+  connectedAs: string | null;
+};
+
+export default function ConnectAccounts({ states }: { states: ConnectState[] }) {
   return (
-    <div className="conn-grid">
-      {ACCOUNTS.filter((a) => !exclude.includes(a.id)).map((a) => {
-        const isIgLive = a.id === "Instagram" && (instagramHref || igUsername);
-        const on = connected.includes(a.id);
-
-        if (isIgLive) {
-          return (
-            <div className="conn-item" key={a.id}>
-              <div className="conn-head">
-                {a.mark(a.color, 20)}
-                <span>{a.name}</span>
-                <span className="conn-live-badge">Live</span>
-              </div>
-              {igUsername ? (
-                <span className="conn-cta on" style={{ cursor: "default" }}>
-                  <Check size={16} /> Connected as @{igUsername}
-                </span>
-              ) : (
-                <a className="conn-cta" style={{ background: a.color }} href={instagramHref}>
-                  <span>{a.cta}</span>
-                  <span className="conn-cta-mark">{a.mark("#fff", 18)}</span>
-                </a>
-              )}
-            </div>
-          );
-        }
-
+    <ul className="conn-list ob-conn">
+      {states.map((st) => {
+        const a = ACCOUNTS.find((x) => x.id === st.id);
+        if (!a) return null;
         return (
-          <div className="conn-item" key={a.id}>
-            <div className="conn-head">
-              {a.mark(a.color, 20)}
-              <span>{a.name}</span>
-            </div>
-            <button
-              type="button"
-              className={`conn-cta${on ? " on" : ""}`}
-              style={on ? undefined : { background: a.color }}
-              onClick={() => onToggle(a.id)}
-            >
-              {on ? (
-                <><Check size={16} /> Connected. Click to remove</>
-              ) : (
-                <>
-                  <span>{a.cta}</span>
-                  <span className="conn-cta-mark">{a.mark("#fff", 18)}</span>
-                </>
-              )}
-            </button>
-          </div>
+          <li className="conn-row" key={a.id}>
+            <span className="conn-icon" aria-hidden>{a.mark(a.color, 18)}</span>
+            <span className="conn-name">
+              <b>{a.name}</b>
+              <small className={`conn-status${st.connectedAs ? " on" : ""}`}>
+                {st.connectedAs
+                  ? `Connected as ${st.connectedAs}`
+                  : st.href
+                    ? "Not connected"
+                    : "Not available on this site yet"}
+              </small>
+            </span>
+            {st.connectedAs ? (
+              <Check size={16} className="conn-done" aria-label="Connected" />
+            ) : st.href ? (
+              <a className="conn-btn" href={st.href}>Connect</a>
+            ) : null}
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

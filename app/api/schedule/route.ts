@@ -6,7 +6,10 @@ import { getEntitlements, canUseFeature, checkFeature, type Entitlements } from 
 import type { PlanError } from "@/lib/planErrors";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
-import { scopeToWorkspace } from "@/lib/workspaces";
+import { scopeToWorkspace, isMissingColumnError } from "@/lib/workspaces";
+import { memberEditBlock } from "@/lib/approvals";
+import { isOwnPath } from "@/lib/storagePaths";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -45,7 +48,7 @@ function planInfo(ent: Entitlements, ctx: Ctx): PlanInfo {
 /** Media lives under its uploader's folder of the bucket: the viewer's, or the
  *  workspace owner's for a file the owner attached. Anything else is not ours. */
 const ownsPath = (ctx: Ctx, path: string | null | undefined): boolean =>
-  !path || path.startsWith(`${ctx.viewerId}/`) || path.startsWith(`${ctx.ownerId}/`);
+  !path || isOwnPath(path, [ctx.viewerId, ctx.ownerId]);
 const NOT_YOURS = "That media file is not yours.";
 
 type Body = {
@@ -185,9 +188,26 @@ export async function POST(req: Request) {
   let { data, error } = ctx.workspace
     ? await ctx.client.from("scheduled_posts").insert(rows.map((r) => ({ ...r, workspace_id: ctx.workspace!.id }))).select("*")
     : await ctx.client.from("scheduled_posts").insert(rows).select("*");
-  if (error && ctx.workspace) ({ data, error } = await ctx.client.from("scheduled_posts").insert(rows).select("*"));
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Without the column only when the column is missing, never on another error.
+  if (error && ctx.workspace && isMissingColumnError(error)) ({ data, error } = await ctx.client.from("scheduled_posts").insert(rows).select("*"));
+  if (error) return dbErrorResponse("schedule", error);
   return NextResponse.json({ posts: data ?? [], skipped, plan });
+}
+
+/**
+ * Members can't change or remove what is scheduled, waiting for approval or
+ * going out: the same rule Create post applies (memberEditBlock), plus the
+ * legacy calendar rows that have no destinations.
+ */
+async function editGuard(ctx: Awaited<ReturnType<typeof resolveContext>>, postId: string, status: string | null | undefined): Promise<string | null> {
+  if (ctx.role !== "member") return null;
+  if (status === "scheduled" || status === "publishing") return "Scheduled posts can only be changed by the owner or an admin.";
+  return memberEditBlock(ctx, postId);
+}
+
+async function hasDestinations(ctx: Awaited<ReturnType<typeof resolveContext>>, postId: string): Promise<boolean> {
+  const { data, error } = await ctx.client.from("post_destinations").select("id").eq("post_id", postId).eq("user_id", ctx.ownerId).limit(1);
+  return !error && Boolean(data?.length);
 }
 
 export async function PATCH(req: Request) {
@@ -210,6 +230,15 @@ export async function PATCH(req: Request) {
   ).maybeSingle();
   if (readErr || !cur) return NextResponse.json({ error: "Post not found." }, { status: 404 });
   if (cur.status === "published") return NextResponse.json({ error: "Published posts can't be edited." }, { status: 409 });
+  const guard = await editGuard(ctx, body.id, cur.status);
+  if (guard) return NextResponse.json({ error: guard }, { status: 409 });
+  // A Create post item (with destinations) publishes from its destinations,
+  // not from this row: changing what it says or when here would not change
+  // what goes out. Only cancelling is allowed, and it cancels the destinations.
+  const multi = await hasDestinations(ctx, body.id);
+  if (multi && (typeof body.caption === "string" || body.scheduled_at || body.media_type || body.media_path !== undefined)) {
+    return NextResponse.json({ error: "Edit this post in Create post." }, { status: 409 });
+  }
 
   const plan = planInfo(await getEntitlements(ctx.client, ctx.ownerId), ctx);
 
@@ -257,7 +286,14 @@ export async function PATCH(req: Request) {
   )
     .select("*")
     .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[schedule] update", error.message);
+    return NextResponse.json({ error: "SOCIA couldn't save that change. Try again." }, { status: 500 });
+  }
+  if (multi && next.status === "cancelled") {
+    await ctx.client.from("post_destinations").update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("post_id", body.id).eq("user_id", ctx.ownerId).not("status", "in", "(published,uploading,processing)");
+  }
   return NextResponse.json({ post: data, plan });
 }
 
@@ -281,6 +317,10 @@ export async function DELETE(req: Request) {
     ctx.workspace?.id,
   ).maybeSingle();
   if (cur?.status === "published") return NextResponse.json({ error: "Published posts stay in the record. To take one down, open it and use Delete from the platform." }, { status: 409 });
+  if (cur) {
+    const guard = await editGuard(ctx, body.id, cur.status);
+    if (guard) return NextResponse.json({ error: guard }, { status: 409 });
+  }
   if (cur?.media_path && ownsPath(ctx, cur.media_path)) {
     await ctx.client.storage.from("scheduled-media").remove([cur.media_path]).catch(() => null);
   }
@@ -289,6 +329,9 @@ export async function DELETE(req: Request) {
     ctx.client.from("scheduled_posts").delete().eq("id", body.id).eq("user_id", ctx.ownerId),
     ctx.workspace?.id,
   );
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[schedule] delete", error.message);
+    return NextResponse.json({ error: "SOCIA couldn't remove that post. Try again." }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

@@ -59,7 +59,7 @@ export async function audit(e: AuditEntry): Promise<void> {
   if (!svc) return;
   try {
     await svc.from("ai_audit_log").insert({
-      user_id: e.userId ?? null, connection_id: e.connectionId ?? null, client_id: e.clientId ?? null, workspace_id: e.workspaceId ?? null,
+      user_id: e.userId ?? null, connection_id: e.connectionId ?? null, client_id: e.clientId ? String(e.clientId).slice(0, 200) : null, workspace_id: e.workspaceId ?? null,
       action: e.action, outcome: e.outcome, ms: e.ms ?? null, detail: e.detail ?? null,
     });
   } catch {

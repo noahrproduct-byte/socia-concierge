@@ -11,6 +11,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Briefcase, FileText, Link2, MessageCircle, PenLine, Search, Settings, SunMoon } from "lucide-react";
 import { NAV } from "@/lib/nav";
 import { fetchWorkspaces, markSwitching, requestSwitch, type WorkspaceRow } from "@/lib/workspaceSwitching";
+import { captureOutgoingPage } from "@/components/PageTransition";
 
 export type SearchItem = { kind: "page" | "post"; label: string; hint?: string; href: string };
 
@@ -53,7 +54,10 @@ export function CommandMenu({ open, onOpenChange, index }: { open: boolean; onOp
   const go = (href: string) => {
     close();
     if (href.startsWith("http")) window.open(href, "_blank", "noreferrer");
-    else router.push(href);
+    else {
+      captureOutgoingPage(href);
+      router.push(href);
+    }
   };
 
   const commands = useMemo<Command[]>(() => {

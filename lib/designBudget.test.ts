@@ -69,7 +69,10 @@ describe("design budget: system stylesheets", () => {
 
   it("carry no gradients, blur, glow or decorative keyframes", () => {
     expect(all.match(/gradient\(/g) ?? [], "gradients").toEqual([]);
-    expect(all.match(/backdrop-filter/g) ?? [], "backdrop blur").toEqual([]);
+    // One recorded exception (anti-slop standard, section 18.1): the floating headbar's blur.
+    const headbar = system.match(/\.s-headbar\s*\{[^}]*\}/)?.[0] ?? "";
+    expect((all.match(/backdrop-filter/g) ?? []).length, "backdrop blur outside the headbar").toBe((headbar.match(/backdrop-filter/g) ?? []).length);
+    expect((headbar.match(/backdrop-filter/g) ?? []).length, "the headbar's one allowed blur").toBeLessThanOrEqual(1);
     expect(all.match(/drop-shadow\(/g) ?? [], "glow filters").toEqual([]);
     const shadows = (system.match(/box-shadow:\s*[^;]+;/g) ?? []).filter((d) => /rgba\(var\(--accent-rgb\)/.test(d));
     expect(shadows, "coloured glow shadows").toEqual([]);

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -74,7 +75,7 @@ export async function PATCH(req: Request) {
     ctx.client.from("plans").update({ data }).eq("id", body.id).eq("user_id", ctx.ownerId),
     ctx.workspace?.id,
   ).select("id, client_handle, niche, platform, data, created_at");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse("plans", error);
   if (!rows?.length) return NextResponse.json({ error: "The change was applied on screen but could not be saved to the plan. Run the latest supabase/schema.sql (plans update policy) to enable saving." }, { status: 403 });
   return NextResponse.json({ plan: rows[0] });
 }

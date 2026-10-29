@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { FB_GRAPH_V, FB_SCOPES, fbAppId, fbConfigId, fbConfigured, fbRedirectUri } from "@/lib/facebook";
+import { FB_STATE_COOKIE, newOAuthState, setStateCookie } from "@/lib/oauthState";
 
 export const runtime = "nodejs";
 
@@ -8,16 +9,19 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const origin = url.origin;
+  // Where to land after the callback: settings (default) or the onboarding
+  // wizard, carried through Facebook in the OAuth state param.
+  const dest = url.searchParams.get("next") === "onboarding" ? "onboarding" : "settings";
 
   if (!fbConfigured()) {
-    return NextResponse.redirect(`${origin}/settings?fb=notconfigured`);
+    return NextResponse.redirect(`${origin}/${dest}?fb=notconfigured`);
   }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(`${origin}/login?next=/settings`);
+  if (!user) return NextResponse.redirect(`${origin}/login?next=/${dest}`);
 
   const authorize = new URL(`https://www.facebook.com/${FB_GRAPH_V}/dialog/oauth`);
   authorize.searchParams.set("client_id", fbAppId()!);
@@ -40,7 +44,11 @@ export async function GET(req: Request) {
     // rerequest re-prompts for the missing/declined permissions.
     authorize.searchParams.set("auth_type", "rerequest");
   }
-  authorize.searchParams.set("state", "settings");
+  // CSRF: a one-time nonce in an HttpOnly cookie, echoed back in state.
+  const { state, nonce } = newOAuthState(dest);
+  authorize.searchParams.set("state", state);
 
-  return NextResponse.redirect(authorize.toString());
+  const res = NextResponse.redirect(authorize.toString());
+  setStateCookie(res, FB_STATE_COOKIE, nonce);
+  return res;
 }

@@ -1,8 +1,9 @@
 "use client";
 
-// The phone menu: a full-screen sheet with the brand, the workspace switcher,
-// the grouped navigation, Settings and Help, and the account row. It closes
-// itself when the route changes.
+// The All sections panel: the workspace switcher, every section grouped, Help
+// and the account row. A panel at the right edge on desktops (opened from the
+// dock's All sections button), the full screen on phones (the menu button).
+// It closes itself when the route changes.
 
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
@@ -22,13 +23,14 @@ export default function MobileSheet({ open, onOpenChange, children }: { open: bo
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Popup className="s-sheet s-scroll" aria-label="Menu">
+        <DialogPrimitive.Backdrop className="s-sheet-backdrop" />
+        <DialogPrimitive.Popup className="s-sheet s-scroll" aria-label="All sections">
           <div className="s-sheet-head">
             <Link href="/dashboard" className="s-brand" onClick={() => onOpenChange(false)}>
               <BrandMark size={22} />
               SOCIA
             </Link>
-            <DialogPrimitive.Close render={<IconButton label="Close menu" />}>
+            <DialogPrimitive.Close render={<IconButton label="Close all sections" />}>
               <X />
             </DialogPrimitive.Close>
           </div>

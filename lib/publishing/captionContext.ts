@@ -137,7 +137,7 @@ export async function buildCaptionContext(ctx: Ctx, input: CaptionInput): Promis
     settle(loadPickerAccountsDetailed(client, ownerId, wsId).then((r) => r.accounts), []),
     collaborators.length || tagged.length ? readKnown(client, ownerId, scopeKey(wsId)) : Promise.resolve([]),
     input.planId ? settle(loadPlanDay(client, ownerId, wsId, input.planId, input.planDay), null) : Promise.resolve(null),
-    input.postId ? settle(loadStudioBuild(client, ownerId, input.postId), null) : Promise.resolve(null),
+    input.postId ? settle(loadStudioBuild(client, ownerId, wsId, input.postId), null) : Promise.resolve(null),
     wants("instagram") ? settle(getIgSnapshot(client, ownerId, wsId), null) : Promise.resolve(null),
     wants("tiktok")
       ? settle(
@@ -351,12 +351,13 @@ async function loadPlanDay(client: Supa, ownerId: string, wsId: string | null, p
 
 type StudioBuildFacts = { title: string | null; angle: string | null; onscreen: string[]; cta: string | null; caption: string | null };
 
-async function loadStudioBuild(client: Supa, ownerId: string, postId: string): Promise<StudioBuildFacts | null> {
-  const { data, error } = await client.from("studio_builds").select("project_id, opportunity_idx, edl, caption").eq("user_id", ownerId).eq("post_id", postId).order("created_at", { ascending: false }).limit(1);
+/** The Studio build behind a post, in the active Brand Workspace only. */
+async function loadStudioBuild(client: Supa, ownerId: string, wsId: string | null, postId: string): Promise<StudioBuildFacts | null> {
+  const { data, error } = await scopeToWorkspace(client.from("studio_builds").select("project_id, opportunity_idx, edl, caption").eq("user_id", ownerId).eq("post_id", postId), wsId).order("created_at", { ascending: false }).limit(1);
   if (error || !data?.[0]) return null;
   const b = data[0] as { project_id: string; opportunity_idx: number; edl: Edl | null; caption: string | null };
   const proj = await settle(
-    client.from("studio_projects").select("yield").eq("user_id", ownerId).eq("id", b.project_id).limit(1)
+    scopeToWorkspace(client.from("studio_projects").select("yield").eq("user_id", ownerId).eq("id", b.project_id), wsId).limit(1)
       .then((r: { data: unknown }) => ((r.data as { yield: YieldResult | null }[] | null)?.[0]?.yield ?? null)),
     null as YieldResult | null,
   );

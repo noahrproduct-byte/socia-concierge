@@ -73,12 +73,13 @@ export default async function ContentPlanPage() {
   let niche: string | null = null;
   let nicheDetected = false;
   let goal: string | null = null;
+  let voice: string | null = null;
   let platform: string | null = null;
   const brandWs = brandWorkspace(ctx);
   try {
     const { data: prof } = await ctx.client
       .from("profiles")
-      .select("brand_name, niche, niche_detail, goals, platforms")
+      .select("brand_name, niche, niche_detail, goals, platforms, brand_detail")
       .eq("user_id", ctx.ownerId)
       .maybeSingle();
     // Brand fields come from a non-default workspace; platforms is per-user.
@@ -86,6 +87,7 @@ export default async function ContentPlanPage() {
     niche = brandWs ? brandWs.niche : (prof?.niche ?? null);
     nicheDetected = Boolean(brandWs ? brandWs.niche_detail : prof?.niche_detail);
     goal = brandWs ? brandWs.goals : (prof?.goals ?? null);
+    voice = ((brandWs ? brandWs.brand_detail : prof?.brand_detail) as { voice?: string } | null)?.voice ?? null;
     platform = (Array.isArray(prof?.platforms) && prof.platforms[0]) || null;
   } catch {
     // profile columns may be mid-migration; the form still works blank
@@ -128,6 +130,8 @@ export default async function ContentPlanPage() {
   const context: PlanContext = {
     prefill,
     autoNotes,
+    // What the Growth Profile already answers; the form shows these instead of asking again.
+    profile: { niche: niche || null, goal: goal || null, voice: voice || null },
     connected: Boolean(snap),
     username: snap?.username ?? null,
     syncedAgo: snap?.last_synced_at ? ago(snap.last_synced_at) : null,

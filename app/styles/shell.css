@@ -1,47 +1,291 @@
 /* ============================================================================
-   The app shell: an open-plane sidebar on the page ground, a 48px top bar
-   that holds real things (search, Ask SOCIA, alerts), the content column,
-   the command menu and the phone sheet. Tokens only.
+   The app shell: a floating headbar (brand, grouped navigation, search, the
+   Brand Workspace, Ask SOCIA, alerts and the account) centred over a
+   full-width content column, plus the command menu and the phone sheet.
+   Tokens only.
    ========================================================================= */
 
 .s-shell {
-  display: grid;
-  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   min-height: 100vh;
   background: var(--ground);
   color: var(--ink);
 }
 
-/* ---- sidebar ---------------------------------------------------------------- */
-.s-side {
+/* ---- the dock -------------------------------------------------------------------
+   One object floating 20px below the top of the window, centred, as wide as
+   its contents: smoked glass (a translucent charcoal, a subtle blur, a lit top
+   edge, a hairline border and a soft lift) in both themes. The header carries
+   the dark token scope, so everything inside it reads on the glass. The blur
+   is the one recorded exception in the anti-slop standard (section 18.1);
+   nothing else in the app may use it. */
+.s-headbar {
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: var(--sp-5);
+  z-index: var(--z-sticky);
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-3) var(--sp-3);
-  border-right: 1px solid var(--border);
-  background: var(--ground);
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--sp-5));
+  height: var(--headbar-h);
+  margin: var(--sp-5) auto 0;
+  padding: 0 var(--sp-2) 0 var(--sp-4);
+  border: 1px solid var(--headbar-line);
+  border-radius: var(--r-panel);
+  background: var(--headbar);
+  color: var(--ink);
+  box-shadow: var(--dock-edge), var(--dock-shadow);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .s-headbar {
+    background: var(--surface);
+  }
 }
 .s-brand {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  height: var(--topbar-h);
-  padding: 0 var(--sp-2);
+  margin-right: var(--sp-6);
+  border-radius: var(--r-control);
   color: var(--ink);
   font-size: var(--fs-body);
+  line-height: var(--lh-body);
   font-weight: var(--fw-semibold);
+  letter-spacing: var(--tr-title);
   text-decoration: none;
   flex: none;
 }
 .s-brand .brandmark {
-  border-radius: var(--r-chip);
+  border-radius: var(--r-control);
 }
+.s-brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-headbar-title {
+  display: none;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-headbar-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: var(--sp-6);
+  flex: none;
+}
+.s-headbar-account {
+  display: flex;
+  margin-left: var(--sp-1);
+}
+.s-headbar-menu {
+  display: none;
+}
+
+/* ---- the dock's links --------------------------------------------------------------
+   Six destinations linked directly, no menus. One selection surface moves to
+   the current link and takes its width (250ms, no overshoot), so it glides
+   between sections; a short blue rule under it is the only colour. Off the
+   dock, it rests on All sections. */
+.s-hnav {
+  position: relative;
+  flex: none;
+}
+.s-hnav-list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.s-hnav-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-h);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-2);
+  font-family: var(--font);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--t-panel) var(--ease-out);
+}
+.s-hnav-link[data-current] {
+  color: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-hnav-link:hover {
+    color: var(--ink);
+  }
+}
+.s-hnav-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+.s-hnav-all {
+  width: var(--control-h);
+  padding: 0;
+  margin-left: var(--sp-1);
+}
+.s-hnav-all svg {
+  width: 16px;
+  height: 16px;
+}
+.s-hnav-indicator {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: var(--control-h);
+  margin-top: calc(var(--control-h) / -2);
+  border-radius: var(--r-control);
+  background: var(--dock-active);
+  pointer-events: none;
+}
+.s-hnav-indicator::after {
+  content: "";
+  position: absolute;
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: calc(var(--sp-2) * -1 - 2px);
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--chart-series);
+}
+.s-hnav-indicator[data-hidden] {
+  opacity: 0;
+}
+.s-hnav[data-ready] .s-hnav-indicator {
+  transition:
+    transform var(--t-dialog) var(--ease-out),
+    width var(--t-dialog) var(--ease-out),
+    opacity var(--t-menu) var(--ease-out);
+}
+/* Before the script measures (the server render), mark the current link in place. */
+.s-hnav:not([data-ready]) .s-hnav-link[data-current] {
+  background: var(--dock-active);
+}
+
+/* ---- the dock's tools ---------------------------------------------------------- */
+.s-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  flex: none;
+  transition: color var(--t-press) var(--ease-out), background-color var(--t-press) var(--ease-out);
+}
+.s-search svg {
+  width: 17px;
+  height: 17px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-search:hover {
+    background: var(--dock-active);
+    color: var(--ink);
+  }
+}
+.s-search:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-headbar .s-bell-btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-headbar .s-bell-btn:hover {
+    background: var(--dock-active);
+    color: var(--ink);
+  }
+}
+.s-ask {
+  padding: 0 var(--sp-3);
+  border-color: var(--gold-line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.s-headbar .s-ask {
+  margin: 0 var(--sp-1);
+  border-color: var(--border-strong);
+  background: transparent;
+  font-size: var(--fs-nav);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-ask:hover {
+    border-color: var(--gold);
+    background: var(--surface-hover);
+  }
+  .s-headbar .s-ask:hover {
+    border-color: var(--ink-3);
+    background: var(--dock-active);
+  }
+}
+.s-account--compact {
+  width: auto;
+  min-height: 0;
+  padding: 2px;
+  border-radius: var(--r-pill);
+}
+.s-account--compact .s-avatar {
+  width: 28px;
+  height: 28px;
+}
+.s-account--compact:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-menu-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+}
+.s-menu-head b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.s-menu-head span {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* ---- content -------------------------------------------------------------------- */
+.s-content {
+  width: 100%;
+  max-width: 1376px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: var(--sp-10) var(--sp-8) var(--sp-12);
+}
+
+/* ---- the phone sheet's contents (workspace, sections, account) ------------------ */
 .s-ws {
   width: 100%;
   justify-content: flex-start;
@@ -79,8 +323,8 @@
 .s-nav-item {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  height: var(--nav-row);
+  gap: var(--sp-3);
+  min-height: var(--row-h);
   padding: 0 var(--sp-2);
   border: 0;
   border-radius: var(--r-control);
@@ -96,8 +340,8 @@
   transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
 }
 .s-nav-item svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: var(--ink-3);
   flex: none;
 }
@@ -108,11 +352,15 @@
   text-overflow: ellipsis;
 }
 .s-nav-item[aria-current="page"] {
-  background: var(--nav-active);
-  color: var(--accent-ink);
+  background: var(--accent-subtle);
+  color: var(--ink);
 }
 .s-nav-item[aria-current="page"] svg {
   color: var(--accent-ink);
+}
+.s-nav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .s-nav-count {
   color: var(--ink-3);
@@ -126,9 +374,9 @@
     color: var(--ink);
   }
 }
-.s-side-foot {
+.s-sheet-foot {
   margin-top: auto;
-  padding-top: var(--sp-3);
+  padding-top: var(--sp-4);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -225,89 +473,6 @@
   height: 16px;
   color: var(--ink-3);
   flex: none;
-}
-
-/* ---- main column and top bar ------------------------------------------------ */
-.s-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.s-topbar {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  height: var(--topbar-h);
-  padding: 0 var(--page-pad);
-  border-bottom: 1px solid var(--border);
-  background: var(--ground);
-}
-.s-topbar-menu,
-.s-topbar-title {
-  display: none;
-}
-.s-topbar-title {
-  color: var(--ink);
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.s-search {
-  flex: 1;
-  max-width: 480px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  height: var(--control-h);
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-control);
-  background: var(--surface);
-  color: var(--ink-3);
-  font-family: var(--font);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  text-align: left;
-  cursor: text;
-  transition: border-color var(--t-press) var(--ease-out);
-}
-.s-search svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-.s-search span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-@media (hover: hover) and (pointer: fine) {
-  .s-search:hover {
-    border-color: var(--ink-3);
-  }
-}
-.s-topbar-end {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-left: auto;
-  flex: none;
-}
-.s-content {
-  padding: var(--sp-5) var(--page-pad) var(--sp-10);
-  width: 100%;
-  max-width: 1560px;
-  min-width: 0;
 }
 
 /* Workspace switching: dim the content and say what is happening. */
@@ -560,7 +725,7 @@ html[data-ws-switching]::after {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-3) var(--sp-4);
+  padding: var(--sp-2) var(--sp-4) var(--sp-4);
   background: var(--ground);
   color: var(--ink);
   overflow-y: auto;
@@ -571,7 +736,7 @@ html[data-ws-switching]::after {
 .s-sheet[data-starting-style],
 .s-sheet[data-ending-style] {
   opacity: 0;
-  transform: translateX(-16px);
+  transform: translateY(-8px);
 }
 .s-sheet-head {
   display: flex;
@@ -580,49 +745,94 @@ html[data-ws-switching]::after {
   height: var(--topbar-h);
   flex: none;
 }
-.s-sheet .s-nav-item,
-.s-sheet .s-account {
-  min-height: var(--row-h);
-  height: auto;
+
+/* ---- the All sections panel: a panel at the right edge on desktops ------------- */
+.s-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  background: rgba(var(--shadow-rgb), 0.18);
+  transition: opacity var(--t-panel) var(--ease-out);
+}
+.s-sheet-backdrop[data-starting-style],
+.s-sheet-backdrop[data-ending-style] {
+  opacity: 0;
+}
+@media (min-width: 901px) {
+  .s-sheet {
+    inset: var(--sp-3) var(--sp-3) var(--sp-3) auto;
+    width: 340px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-panel);
+    background: var(--surface);
+    box-shadow: var(--shadow-dialog);
+  }
+  .s-sheet[data-starting-style],
+  .s-sheet[data-ending-style] {
+    transform: translateX(16px);
+  }
+  .s-sheet-head {
+    height: var(--headbar-h);
+  }
 }
 
-/* ---- phones and small tablets ------------------------------------------------------ */
-@media (max-width: 860px) {
-  .s-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .s-side {
+/* ---- narrower desktops: Ask SOCIA gives up its label first ---------------------- */
+@media (max-width: 1040px) {
+  .s-headbar .s-ask span {
     display: none;
   }
-  .s-topbar {
-    padding: 0 var(--sp-4);
-    gap: var(--sp-1);
-  }
-  .s-topbar-menu {
-    display: inline-flex;
-  }
-  .s-topbar-title {
-    display: block;
-    margin-right: auto;
-  }
-  .s-search {
-    display: none;
-  }
-  .s-topbar .s-ask span {
-    display: none;
-  }
-  .s-topbar .s-ask {
+  .s-headbar .s-ask {
     width: var(--control-h);
     padding: 0;
   }
+  .s-brand {
+    margin-right: var(--sp-3);
+  }
+  .s-headbar-tools {
+    margin-left: var(--sp-3);
+  }
+}
+
+/* ---- tablets and phones: the links move into the All sections panel -------------- */
+@media (max-width: 900px) {
+  .s-headbar {
+    top: var(--sp-3);
+    width: auto;
+    max-width: none;
+    margin: var(--sp-3) var(--sp-4) 0;
+    padding: 0 var(--sp-1) 0 var(--sp-3);
+  }
+  .s-hnav,
+  .s-headbar-account {
+    display: none;
+  }
+  .s-brand span {
+    display: none;
+  }
+  .s-headbar-title {
+    display: block;
+    margin-right: auto;
+  }
+  .s-headbar-tools {
+    margin-left: var(--sp-2);
+  }
+  .s-headbar-menu {
+    display: inline-flex;
+  }
+}
+@media (max-width: 860px) {
   .s-content {
-    padding: var(--sp-4);
+    padding: var(--sp-4) var(--sp-4) var(--sp-10);
   }
   .s-bell-pop {
     width: calc(100vw - 32px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .s-hnav[data-ready] .s-hnav-indicator,
+  .s-sheet-backdrop {
+    transition: none;
+  }
   .s-sheet[data-starting-style],
   .s-sheet[data-ending-style] {
     transform: none;

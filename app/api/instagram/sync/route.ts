@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
 import { syncInstagram } from "@/lib/instagramSync";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,8 +21,14 @@ export async function POST() {
   // Connections or their data are about to change: drop the reused live
   // platform reads so the next page view asks the platforms again.
   clearLiveCache(ctx.ownerId);
+  // Each sync is dozens of platform calls on the owner's token (which
+  // publishing also needs): an hourly ceiling per account.
+  const limited = await perUserLimit(ctx.ownerId, "manual_sync", 30, "syncs");
+  if (limited) return limited;
 
-  const snap = await syncInstagram(ctx.client, ctx.ownerId);
+  // The workspace being viewed, never the owner's currently active one: a
+  // guest in one brand must not sync (and be shown) another brand.
+  const snap = await syncInstagram(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null);
   if (!snap) {
     return NextResponse.json(
       { error: "No Instagram connection to sync, or Instagram didn't respond." },

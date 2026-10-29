@@ -29,6 +29,7 @@ create unique index if not exists profiles_stripe_customer_id_key
 create or replace function public.socia_protect_plan_columns()
 returns trigger
 language plpgsql
+set search_path = public, pg_temp
 as $$
 begin
   if public.socia_is_privileged() then

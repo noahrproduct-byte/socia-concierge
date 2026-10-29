@@ -1,3 +1,12 @@
+-- ===========================================================================
+-- DO NOT RUN THIS FILE AGAIN. It was applied once and has been superseded.
+-- Re-running it would undo security fixes made later: it re-creates
+-- socia_release_usage(text, date) callable from the browser, an older
+-- profile-column lock that leaves billing columns writable, and the browser
+-- insert policy on product_events. The current versions live in
+-- plans-security-fix.sql, billing.sql and security-hardening.sql.
+-- ===========================================================================
+
 -- Plans, entitlements, usage metering and the downgrade model.
 -- Run this in the Supabase SQL editor BEFORE deploying the code that uses it.
 -- Safe to run more than once: every statement is guarded, so a re-run never
@@ -117,7 +126,7 @@ create or replace function public.socia_consume_usage(p_meter text, p_period_sta
 returns table (used_count integer, allowed boolean)
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_user uuid := auth.uid();
@@ -157,7 +166,7 @@ create or replace function public.socia_release_usage(p_meter text, p_period_sta
 returns integer
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_user uuid := auth.uid();
@@ -260,7 +269,7 @@ create or replace function public.socia_add_competitor(p_user uuid, p_platform t
 returns table (added boolean, already boolean, active_count integer)
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_active boolean;
@@ -310,7 +319,7 @@ create or replace function public.socia_apply_plan_keep(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
 declare
   v_now timestamptz := now();

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { refuseCrossSite } from "@/lib/crossSite";
 import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
@@ -116,14 +117,17 @@ async function saveNiche(
   detail: Record<string, unknown> | null,
   extras: Record<string, unknown> = {},
   brandWs?: { id: string } | null,
+  /** false for a category picked by hand: no new read happened, so the last analysis time stands. */
+  analyzed = true,
 ) {
   const now = new Date().toISOString();
+  const stamp: Record<string, string> = analyzed ? { niche_analyzed_at: now } : {};
 
   if (brandWs) {
     // A non-default workspace owns its brand. Brand fields go to the workspace;
     // any per-user leftovers in `extras` (e.g. account_connected) to the profile.
     const { brand_name, goals, ...rest } = extras;
-    const patch: WorkspacePatch = { niche, niche_detail: detail, niche_analyzed_at: now };
+    const patch: WorkspacePatch = { niche, niche_detail: detail, ...stamp };
     if (brand_name !== undefined) patch.brand_name = (brand_name as string | null) ?? null;
     if (goals !== undefined) patch.goals = (goals as string | null) ?? null;
     await updateWorkspace(supabase, userId, brandWs.id, patch);
@@ -136,7 +140,7 @@ async function saveNiche(
   // Default / pre-migration: brand lives on the profile (historical path). The
   // detail columns are additive schema — fall back to the base row if missing.
   const base = { user_id: userId, niche, updated_at: now, ...extras };
-  const withDetail = { ...base, niche_detail: detail, niche_analyzed_at: now };
+  const withDetail = { ...base, niche_detail: detail, ...stamp };
   const { error } = await supabase.from("profiles").upsert(withDetail, { onConflict: "user_id" });
   if (error) {
     await supabase.from("profiles").upsert(base, { onConflict: "user_id" });
@@ -162,7 +166,9 @@ type IgMedia = {
   timestamp?: string;
 };
 
-export async function GET() {
+export async function GET(req: Request) {
+  const crossSite = refuseCrossSite(req);
+  if (crossSite) return crossSite;
   const supabase = await createClient();
   const {
     data: { user },
@@ -338,7 +344,17 @@ export async function POST(req: Request) {
   if (body.choose?.niche) {
     const niche = NICHES.includes(body.choose.niche) ? body.choose.niche : "Other";
     if (can(ctx, "manage_workspace")) {
-      await saveNiche(ctx.client, ctx.ownerId, niche, { source: "manual" }, {}, brandWorkspace(ctx));
+      // Keep what was read from the posts (audience, content style, signals).
+      // Only the sub-niche belongs to the old category, so it goes when the
+      // category changes.
+      const brandWs = brandWorkspace(ctx);
+      const prev = brandWs
+        ? { niche: brandWs.niche, niche_detail: brandWs.niche_detail }
+        : ((await ctx.client.from("profiles").select("niche, niche_detail").eq("user_id", ctx.ownerId).maybeSingle().then((r: { data: unknown }) => r.data, () => null)) as { niche?: string | null; niche_detail?: unknown } | null);
+      const prevDetail = prev?.niche_detail && typeof prev.niche_detail === "object" ? (prev.niche_detail as Record<string, unknown>) : {};
+      const detail: Record<string, unknown> = { ...prevDetail, source: "manual" };
+      if (prev?.niche !== niche) detail.sub_niche = null;
+      await saveNiche(ctx.client, ctx.ownerId, niche, detail, {}, brandWs, false);
     }
     return NextResponse.json({ ok: true, niche });
   }

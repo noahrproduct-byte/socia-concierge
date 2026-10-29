@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   // site's own origin, or the production domain when running locally.
   const origin = new URL(req.url).origin;
   const publicOrigin = /localhost|127\.0\.0\.1/.test(origin) ? "https://sociaos.com" : origin;
-  const result = await checkCollaborators(ctx.client, { ownerId: ctx.ownerId, igUserId: accountId, usernames, imageUrl: `${publicOrigin}/collab-check.jpg` });
+  const result = await checkCollaborators(ctx.client, { ownerId: ctx.ownerId, workspaceId: ctx.workspace?.id ?? null, igUserId: accountId, usernames, imageUrl: `${publicOrigin}/collab-check.jpg` });
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result);
 }

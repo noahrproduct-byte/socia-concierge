@@ -11,11 +11,12 @@ const calls: { tool: string; workspace: string | null | undefined }[] = [];
 const audits: { action: string; outcome: string }[] = [];
 const writes: { tool: string; input: unknown }[] = [];
 let rate: "ok" | "limited" | "unavailable" = "ok";
+let anyRate: "ok" | "limited" = "ok";
 
 vi.mock("../oauth/runtime", () => ({
   serviceOrNull: () => ({}),
   audit: async (e: { action: string; outcome: string }) => { audits.push({ action: e.action, outcome: e.outcome }); },
-  rateHit: async () => rate,
+  rateHit: async (key: string) => (key.startsWith("mcp-any:") ? anyRate : rate),
 }));
 vi.mock("../entitlements", () => ({
   checkFeature: (ent: { features?: Record<string, boolean> }, key: string) => (ent.features?.[key] === false ? { ok: false, error: { error: `${key} locked` } } : { ok: true }),
@@ -212,5 +213,21 @@ describe("the MCP endpoint", () => {
     expect(r.isError).toBeFalsy();
     expect(r.structuredContent).toMatchObject({ media: [{ media_id: "m1" }] });
     await client.close();
+  });
+});
+
+describe("the per-connection ceiling", () => {
+  it("refuses before any workspace lookup or plan check when a connection floods SOCIA", async () => {
+    anyRate = "limited";
+    try {
+      const before = audits.length;
+      const client = await connect("good", "auto");
+      const r = await client.callTool({ name: "get_top_posts", arguments: { workspace_id: "00000000-0000-4000-8000-000000000999" } });
+      expect(r.isError).toBe(true);
+      expect(JSON.stringify(r.content)).toContain("Too many requests");
+      expect(audits.length).toBe(before);
+    } finally {
+      anyRate = "ok";
+    }
   });
 });
