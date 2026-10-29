@@ -9,6 +9,14 @@ import Drawer from "./Drawer";
 import { fmtNum, type PostCard } from "@/lib/overview";
 import { askSocia } from "@/lib/ask";
 import { trialLine } from "@/lib/publishing/trial";
+import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
+import { deletedLine } from "@/lib/platformDelete/types";
+
+type MediaDeleteAnswer = { canDelete: boolean; target: DeleteInfo };
+const pickMediaDelete = (j: unknown): MediaDeleteAnswer | null => {
+  const o = j as Partial<MediaDeleteAnswer> | null;
+  return o && o.target ? { canDelete: Boolean(o.canDelete), target: o.target } : null;
+};
 
 const IG = (
   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -43,6 +51,13 @@ function why(p: PostCard, baseline: number | null, medianViews: number | null) {
 export default function ContentDrawer({ post, baseline, medianViews, onClose }: { post: PostCard | null; baseline: number | null; medianViews: number | null; onClose: () => void }) {
   const p = post;
   const w = p ? why(p, baseline, medianViews) : null;
+  // A post this account posted can be deleted from its platform here: an
+  // Instagram post or Reel, a Facebook Page post, a YouTube video or Short (a
+  // collab post another account posted cannot). Asked only while open.
+  const deletable = p && !p.collabWith ? p.id : null;
+  const delUrl = p && deletable ? `/api/platform-posts/${p.platform}/${encodeURIComponent(deletable)}` : null;
+  const del = useDeleteInfo(delUrl, pickMediaDelete);
+  const deletedAt = deletable ? del.data?.target.deletedAt ?? null : null;
   return (
     <Drawer open={Boolean(p)} title="Content detail" onClose={onClose}>
       {p && w && (
@@ -62,6 +77,7 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
           </div>
           {p.trial && <p className="ov-detail-trial">{trialLine(p.trial, true)} Until it is, its numbers come only from people who don&apos;t follow you.</p>}
           {p.collabWith && <p className="ov-detail-trial">Collab post by @{p.collabWith}. You&apos;re a collaborator, so Instagram shares the post&apos;s totals with you; reach stays with the account that posted it.</p>}
+          {deletedAt && <p className="ov-detail-trial">{deletedLine(p.platform, deletedAt)}. These are the last numbers SOCIA saw; they will not update.</p>}
           <p className="ov-detail-caption">{p.caption || "(no caption)"}</p>
           <dl className="ov-detail-stats">
             {[
@@ -80,10 +96,21 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
           </section>
           <div className="ov-detail-actions">
             <button type="button" className="ov-btn primary" onClick={() => askSocia({ context: { page: "post", postId: p.id }, contextLabel: `Post: ${p.title.slice(0, 40)}` })}><Sparkles size={13} /> Ask SOCIA about this post</button>
-            {p.permalink && <a href={p.permalink} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View original</a>}
+            {p.permalink && !deletedAt && <a href={p.permalink} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View original</a>}
             <Link href={`/calendar?compose=1&caption=${encodeURIComponent(p.title)}`} className="ov-btn ghost"><CalendarPlus size={13} /> Create variation</Link>
             <Link href={`/tool?note=${encodeURIComponent(`Build on "${p.title.slice(0, 60)}" (${p.multiplier != null ? `${p.multiplier.toFixed(1)}× my median` : `${p.engagements} engagements`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add idea to Content Plan</Link>
           </div>
+          {delUrl && del.data && (
+            <div className="ov-detail-actions">
+              <DeleteOnPlatform
+                key={deletable}
+                info={del.data.target}
+                canDelete={del.data.canDelete}
+                request={{ url: delUrl, method: "DELETE" }}
+                onDeleted={del.reload}
+              />
+            </div>
+          )}
         </>
       )}
     </Drawer>

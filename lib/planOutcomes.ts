@@ -7,7 +7,8 @@ import type { Deliverable } from "./schema";
 import type { ScheduledPost } from "./scheduling";
 import { weekdayIndex } from "./scheduling";
 import type { Platform } from "./publishing/types";
-import { measureDestination, resultLine, type MeasureSources, type ResultLine } from "./postResults";
+import { destinationLine, type Measurement, type MeasureSources, type ResultLine } from "./postResults";
+import { deletedResultFromJson } from "./platformDelete/frozen";
 
 export type ItemState = "unscheduled" | "draft" | "scheduled" | "publishing" | "published" | "failed";
 
@@ -18,6 +19,9 @@ export type DestinationLite = {
   externalPostId: string | null;
   publishedAt: string | null;
   permalink: string | null;
+  /** Deleted from the platform through SOCIA (lib/platformDelete): the result is frozen. */
+  deletedAt?: string | null;
+  deletedResult?: (Measurement & { measuredAt?: string }) | null;
 };
 
 export type ItemOutcome = {
@@ -92,7 +96,7 @@ function stateOf(post: ScheduledPost, dests: DestinationLite[]): ItemState {
 function publishedDestinations(post: ScheduledPost, dests: DestinationLite[]): DestinationLite[] {
   const out = dests.filter((d) => d.status === "published" && d.externalPostId);
   if (!out.length && post.status === "published" && post.published_media_id) {
-    out.push({ postId: post.id, platform: "instagram", status: "published", externalPostId: post.published_media_id, publishedAt: post.updated_at, permalink: post.permalink });
+    out.push({ postId: post.id, platform: "instagram", status: "published", externalPostId: post.published_media_id, publishedAt: post.updated_at, permalink: post.permalink, deletedAt: post.deleted_at ?? null, deletedResult: deletedResultFromJson(post.deleted_result) });
   }
   return out;
 }
@@ -115,7 +119,7 @@ export function buildPlanOutcome(
     const dests = byPost.get(post.id) ?? [];
     const state = stateOf(post, dests);
     const published = publishedDestinations(post, dests);
-    const results = published.map((d) => ({ platform: d.platform, ...resultLine(measureDestination(d.platform, d.externalPostId!, sources), d.publishedAt, now) }));
+    const results = published.map((d) => ({ platform: d.platform, ...destinationLine({ ...d, externalPostId: d.externalPostId! }, sources, now) }));
     const measured = results.filter((r) => r.measured);
     const best = measured.filter((r) => r.multiplier != null).sort((a, b) => (b.multiplier ?? 0) - (a.multiplier ?? 0))[0] ?? measured[0] ?? results[0] ?? null;
     const publishedAt = published.map((d) => d.publishedAt).filter((x): x is string => Boolean(x)).sort()[0] ?? (post.status === "published" ? post.updated_at : null);

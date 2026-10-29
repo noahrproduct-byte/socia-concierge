@@ -47,6 +47,7 @@ export const MIGRATIONS = [
   "security-hardening.sql",
   "rls-audit.sql",
   "growth-profile.sql",
+  "platform-deletions.sql",
 ];
 
 const SUPABASE_STANDIN = `

@@ -243,7 +243,7 @@ async function crossPlatformFor(svc: Supa, userId: string, workspaceId: string |
       const sources = { instagram: igMedia.length ? igMedia : null, facebook: fbPosts.length ? fbPosts : null, youtube: null, youtubeRecent: null };
       const items: CrossPlatformItem[] = [];
       for (const p of posts) {
-        const published = dests.filter((d) => d.postId === p.id && d.status === "published" && d.externalPostId && (d.platform === "instagram" || d.platform === "facebook"));
+        const published = dests.filter((d) => d.postId === p.id && d.status === "published" && d.externalPostId && !d.deletedAt && (d.platform === "instagram" || d.platform === "facebook"));
         if (new Set(published.map((d) => d.platform)).size < 2) continue;
         items.push({
           postId: p.id,

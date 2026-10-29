@@ -7,6 +7,7 @@
 //
 // Client-safe: no server imports.
 
+import type { Measurement } from "../postResults";
 export type Platform = "instagram" | "youtube" | "facebook" | "tiktok";
 export const PLATFORMS: Platform[] = ["instagram", "youtube", "facebook", "tiktok"];
 export const PLATFORM_LABEL: Record<Platform, string> = {
@@ -220,6 +221,15 @@ export type Destination = {
   settings: DestinationSettings;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Set when the post was deleted from the platform through SOCIA
+   * (lib/platformDelete). status stays "published": the post went out, and
+   * the record keeps it. Absent or null before supabase/platform-deletions.sql.
+   */
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  /** The last measurement taken just before the deletion; null when the platform never reported the post. */
+  deletedResult?: (Measurement & { measuredAt: string }) | null;
 };
 
 /** The parent. `status` is the aggregate of its destinations (lib/publishing/status.ts). */

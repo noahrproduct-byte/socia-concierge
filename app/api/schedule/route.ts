@@ -316,7 +316,7 @@ export async function DELETE(req: Request) {
       .eq("user_id", ctx.ownerId),
     ctx.workspace?.id,
   ).maybeSingle();
-  if (cur?.status === "published") return NextResponse.json({ error: "Published posts stay in the record." }, { status: 409 });
+  if (cur?.status === "published") return NextResponse.json({ error: "Published posts stay in the record. To take one down, open it and use Delete from the platform." }, { status: 409 });
   if (cur) {
     const guard = await editGuard(ctx, body.id, cur.status);
     if (guard) return NextResponse.json({ error: guard }, { status: 409 });

@@ -86,11 +86,12 @@ export type Action =
   | "change_role"      // owner only
   | "billing"          // plan & billing
   | "delete_workspace" // owner only
-  | "manage_workspace";// rename, brand profile
+  | "manage_workspace" // rename, brand profile
+  | "delete_on_platform"; // remove a published post from its platform (lib/platformDelete)
 
 const ROLE_ACTIONS: Record<WorkspaceRole, Set<Action>> = {
-  owner: new Set(["publish", "connect", "invite", "remove_member", "change_role", "billing", "delete_workspace", "manage_workspace"]),
-  admin: new Set(["publish", "connect", "invite", "remove_member", "manage_workspace"]),
+  owner: new Set(["publish", "connect", "invite", "remove_member", "change_role", "billing", "delete_workspace", "manage_workspace", "delete_on_platform"]),
+  admin: new Set(["publish", "connect", "invite", "remove_member", "manage_workspace", "delete_on_platform"]),
   member: new Set([]),
 };
 
@@ -109,6 +110,7 @@ export function forbiddenCopy(action: Action): string {
     case "billing": return "Only the workspace owner can change the plan.";
     case "delete_workspace": return "Only the workspace owner can delete a workspace.";
     case "manage_workspace": return "Only the workspace owner or an admin can change workspace settings.";
+    case "delete_on_platform": return "Only the workspace owner or an admin can delete a post from a platform.";
   }
 }
 

@@ -13,6 +13,7 @@ import { availabilityFor } from "./publishing/capabilities";
 import { measureDestination, type MeasureSources } from "./postResults";
 import { youtubeRecentUploads, youtubeVideoStats } from "./youtubeData";
 import { cachedLive } from "./liveCache";
+import { deletionsByExternalId } from "./platformDelete/ledger";
 import type { IgMediaItem } from "./instagramSync";
 import type { FbPost } from "./facebookSync";
 import type { TtVideo } from "./tiktokAuth";
@@ -96,10 +97,13 @@ export async function loadRepurpose(
     youtube: yt?.value.videos ?? null, youtubeRecent: ytRecent,
   };
 
+  // A post deleted from its platform through SOCIA is not a repost candidate.
+  const deletedIg = await deletionsByExternalId(client, ownerId, "instagram", (igMedia ?? []).map((m) => m.id).filter((x): x is string => Boolean(x)));
+
   const posts: RepurposePost[] = [];
   // Instagram: every post of the window, from SOCIA's stored file when SOCIA sent it.
   for (const m of igMedia ?? []) {
-    if (!m.id || !m.timestamp || (m.media_type !== "VIDEO" && m.media_type !== "IMAGE")) continue;
+    if (!m.id || !m.timestamp || (m.media_type !== "VIDEO" && m.media_type !== "IMAGE") || deletedIg.has(m.id)) continue;
     const meas = measureDestination("instagram", m.id, sources);
     if (!meas.found || meas.value == null || meas.multiplier == null) continue;
     const row = byExternal.get(m.id);
@@ -113,7 +117,7 @@ export async function loadRepurpose(
   }
   // What SOCIA sent to YouTube and Facebook, measured on those platforms.
   for (const d of dests) {
-    if (d.status !== "published" || !d.externalPostId || (d.platform !== "youtube" && d.platform !== "facebook")) continue;
+    if (d.status !== "published" || !d.externalPostId || d.deletedAt || (d.platform !== "youtube" && d.platform !== "facebook")) continue;
     const row = rows.find((r) => r.id === d.postId);
     const file = row ? storedFile(row) : null;
     if (!row || !file) continue;
