@@ -6,10 +6,12 @@
 // component for every state: nothing connected, other platforms only, and
 // Instagram live.
 //
-// Layout (Noah's dark reference, 2026-10-28): greeting and the page's actions,
-// today's priority, four metrics with their own trend, the main chart beside
-// top content, then audience, plan and competitors, then the deeper cards.
-// Nothing on it is a sample: a module without data says why instead.
+// Layout (Noah's light reference, 2026-10-28): the date, the title and the
+// page's controls beside a compact priority line, four metric instruments
+// with their own trend, the daily chart beside top content, then audience,
+// upcoming content and competitors, then the deeper cards. Compact on purpose:
+// small figures, tight padding, hairline edges. Nothing on it is a sample: a
+// module without data says why instead.
 
 import "@/app/(app)/dashboard/dashboard.css";
 import { useEffect, useMemo, useState } from "react";
@@ -200,7 +202,8 @@ export default function Dashboard({ d }: { d: DashboardData }) {
     if (!d.series) return null;
     if (id === "views") return { values: bucket(d.series.views.current.map((p) => p.value), 7, "sum"), kind: "bars" };
     if (id === "engagement_rate") return { values: bucket(d.series.engagement.current.map((p) => p.value), 10, "mean"), kind: "line" };
-    if (id === "followers") return { values: bucket(d.series.followers.current.map((p) => p.value), 7, "last"), kind: "bars" };
+    // A level, not a count: a line scaled to its own range shows the change.
+    if (id === "followers") return { values: bucket(d.series.followers.current.map((p) => p.value), 10, "last"), kind: "line" };
     if (id === "posts" && clock) {
       const start = clock.getTime() - rangeDays * 86400000;
       const counts = new Array(Math.min(6, Math.max(2, Math.ceil(rangeDays / 7)))).fill(0);
@@ -225,7 +228,10 @@ export default function Dashboard({ d }: { d: DashboardData }) {
             <span className="dash-kpi-label">
               <Icon aria-hidden /> {k.label}
             </span>
-            <b className="dash-kpi-value">{k.status === "unavailable" ? "\u2014" : k.value}</b>
+            <span className="dash-kpi-row">
+              <b className="dash-kpi-value">{k.status === "unavailable" ? "\u2014" : k.value}</b>
+              {spark && <Spark values={spark.values} kind={spark.kind} />}
+            </span>
             <span className="dash-kpi-foot">
               {k.deltaText && k.status === "ok" ? (
                 <span className={`dash-kpi-delta${k.positive === false ? " is-bad" : k.positive ? " is-good" : ""}`}>
@@ -235,7 +241,6 @@ export default function Dashboard({ d }: { d: DashboardData }) {
               ) : null}
               <small>{k.note}</small>
             </span>
-            {spark && <Spark values={spark.values} kind={spark.kind} />}
           </>
         );
         return selectable ? (
@@ -276,29 +281,63 @@ export default function Dashboard({ d }: { d: DashboardData }) {
     <div className="dash-stack">
       <header className="dash-head">
         <div className="dash-hello">
+          <span className="dash-date">{clock ? clock.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }) : "\u00a0"}</span>
           <h1>{greeting}</h1>
           <p>
-            Here&apos;s what&apos;s happening with your content and audience.
+            Here&apos;s what&apos;s happening with your content and audience today.
             {d.handle ? <span> @{d.handle}</span> : null}
           </p>
+          <div className="dash-head-actions">
+            {!nothingConnected && (
+              <Mounted fallback={<Skeleton variant="value" width={150} />}>
+                <AccountSwitcher />
+                <DateRangeSelector maxDays={d.maxDays} />
+              </Mounted>
+            )}
+            {nothingConnected ? (
+              <ButtonLink href="/settings#accounts" variant="primary">
+                Connect a platform
+              </ButtonLink>
+            ) : (
+              <ButtonLink href="/create" variant="primary">
+                <Plus /> Create post
+              </ButtonLink>
+            )}
+            <span className="dash-updated">
+              <UpdatedAgo at={d.updatedAt ?? null} />
+            </span>
+          </div>
         </div>
-        <div className="dash-head-actions">
-          {!nothingConnected && (
-            <Mounted fallback={<Skeleton variant="value" width={150} />}>
-              <AccountSwitcher />
-              <DateRangeSelector maxDays={d.maxDays} />
-            </Mounted>
-          )}
-          {nothingConnected ? (
-            <ButtonLink href="/settings#accounts" variant="primary">
-              Connect a platform
-            </ButtonLink>
+
+        <section className="dash-priority" aria-labelledby="dash-priority-title">
+          <h2 id="dash-priority-title" className="dash-sr">
+            Today&apos;s priority
+          </h2>
+          {priority ? (
+            <Link href={priority.href} className="dash-priority-link">
+              <span className="dash-priority-icon" aria-hidden>
+                <CalendarDays />
+              </span>
+              <span className="dash-priority-body">
+                <b>{priority.title}</b>
+                <small>{priority.sub}</small>
+              </span>
+              <span className="dash-priority-go">
+                <span className="dash-sr">{priority.cta}</span>
+                <ArrowRight aria-hidden />
+              </span>
+            </Link>
           ) : (
-            <ButtonLink href="/create" variant="primary">
-              <Plus /> Create post
-            </ButtonLink>
+            <div className="dash-priority-link">
+              <span className="dash-priority-icon" aria-hidden>
+                <CalendarDays />
+              </span>
+              <span className="dash-priority-body">
+                <Skeleton variant="text" width="80%" />
+              </span>
+            </div>
           )}
-        </div>
+        </section>
       </header>
 
       {d.justConnected && (
@@ -308,43 +347,13 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </p>
       )}
 
-      <section className="dash-priority" aria-labelledby="dash-priority-title">
-        <span className="dash-priority-icon" aria-hidden>
-          <CalendarDays />
-        </span>
-        <div className="dash-priority-body">
-          <span className="dash-priority-label">Today&apos;s priority</span>
-          {priority ? (
-            <>
-              <h2 id="dash-priority-title">{priority.title}</h2>
-              <p>{priority.sub}</p>
-            </>
-          ) : (
-            <>
-              <h2 id="dash-priority-title" className="dash-sr">
-                Today&apos;s priority
-              </h2>
-              <Skeleton variant="text" width="60%" />
-            </>
-          )}
-        </div>
-        <div className="dash-priority-end">
-          <UpdatedAgo at={d.updatedAt ?? null} />
-          {priority && (
-            <Link href={priority.href} className="dash-priority-cta">
-              {priority.cta} <ArrowRight aria-hidden />
-            </Link>
-          )}
-        </div>
-      </section>
-
       <div className="dash-kpis">{kpiTiles}</div>
 
       <div className={`dash-main${d.live ? "" : " is-single"}`}>
         {series && d.series ? (
           <Card className="dash-chart">
             <CardHeader title={`${series.label} by day`} period={d.rangeLabel} />
-            <OverviewChart series={series} showPrevious={false} height={240} compact still />
+            <OverviewChart series={series} showPrevious={false} height={216} compact still />
             <CardSource>{series.note}</CardSource>
           </Card>
         ) : (
@@ -375,7 +384,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
                       <span className="dash-top-media">
                         {p.thumb ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.thumb} alt="" width={56} height={56} loading="lazy" />
+                          <img src={p.thumb} alt="" width={44} height={44} loading="lazy" />
                         ) : (
                           <Film aria-hidden />
                         )}
@@ -463,7 +472,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
         <Card>
           <CardHeader
-            title="Content plan"
+            title="Upcoming content"
             actions={
               <Link href="/calendar" className="s-link">
                 View all
@@ -477,7 +486,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
                 return (
                   <li key={u.id}>
                     <span className="dash-week-day">
-                      {clock ? when.toLocaleDateString("en-US", { weekday: "short", day: "numeric" }) : <Skeleton variant="text" width={40} />}
+                      {clock ? `${when.toLocaleDateString("en-US", { weekday: "short" })} ${when.getDate()}` : <Skeleton variant="text" width={40} />}
                     </span>
                     {u.thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element

@@ -31,6 +31,20 @@ export const NAV: NavEntry[] = [
   { href: "/settings", label: "Settings", key: "settings", group: "manage" },
 ];
 
+/**
+ * The dock: the six destinations the floating headbar links to directly, by
+ * their short names. No menus open from it (Noah, 2026-10-28); every other
+ * section is one click away in the All sections panel and the command menu.
+ */
+export const DOCK: { key: string; label: string }[] = [
+  { key: "dashboard", label: "Overview" },
+  { key: "analytics", label: "Analytics" },
+  { key: "competitors", label: "Competitors" },
+  { key: "tool", label: "Content Plan" },
+  { key: "studio", label: "Studio" },
+  { key: "comments", label: "Comments" },
+];
+
 /** Help is a link in the Manage group, not a section: it opens the FAQ on the public site. */
 export const HELP = { href: "/#faq", label: "Help" } as const;
 
@@ -53,8 +67,8 @@ export function navIndex(pathname: string | null): number {
   return NAV.findIndex((n) => n.key === key);
 }
 
-/** The section's label for the phone headbar. */
+/** The section's label for the phone headbar: the dock's short name when it has one. */
 export function activeNavLabel(pathname: string | null): string {
   const key = activeNavKey(pathname);
-  return NAV.find((n) => n.key === key)?.label ?? "SOCIA";
+  return DOCK.find((d) => d.key === key)?.label ?? NAV.find((n) => n.key === key)?.label ?? "SOCIA";
 }

@@ -11,26 +11,30 @@
   color: var(--ink);
 }
 
-/* ---- headbar -------------------------------------------------------------------
-   It floats 16px from the top and 20px in from each side, and stays there
-   while the page scrolls beneath it: a translucent ground, a subtle blur, a
-   hairline border and the float shadow. The blur is the one recorded
-   exception in the anti-slop standard (section 18.1); nothing else in the app
-   may use it. */
+/* ---- the dock -------------------------------------------------------------------
+   One object floating 20px below the top of the window, centred, as wide as
+   its contents: smoked glass (a translucent charcoal, a subtle blur, a lit top
+   edge, a hairline border and a soft lift) in both themes. The header carries
+   the dark token scope, so everything inside it reads on the glass. The blur
+   is the one recorded exception in the anti-slop standard (section 18.1);
+   nothing else in the app may use it. */
 .s-headbar {
   position: sticky;
-  top: var(--sp-4);
+  top: var(--sp-5);
   z-index: var(--z-sticky);
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
+  width: fit-content;
+  max-width: calc(100% - 2 * var(--sp-5));
   height: var(--headbar-h);
-  margin: var(--sp-4) var(--sp-5) 0;
-  padding: 0 var(--sp-2) 0 var(--sp-3);
+  margin: var(--sp-5) auto 0;
+  padding: 0 var(--sp-2) 0 var(--sp-4);
   border: 1px solid var(--headbar-line);
   border-radius: var(--r-panel);
   background: var(--headbar);
-  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  box-shadow: var(--dock-edge), var(--dock-shadow);
   backdrop-filter: blur(16px) saturate(140%);
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -42,11 +46,11 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding-right: var(--sp-1);
+  margin-right: var(--sp-6);
   border-radius: var(--r-control);
   color: var(--ink);
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   font-weight: var(--fw-semibold);
   letter-spacing: var(--tr-title);
   text-decoration: none;
@@ -70,100 +74,98 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.s-headbar-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-  flex: none;
-}
 .s-headbar-tools {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  margin-left: auto;
+  gap: var(--sp-1);
+  margin-left: var(--sp-6);
   flex: none;
 }
-.s-headbar-ws,
 .s-headbar-account {
   display: flex;
+  margin-left: var(--sp-1);
 }
 .s-headbar-menu {
   display: none;
 }
 
-/* ---- grouped navigation ---------------------------------------------------------
-   One trigger per group. The indicator is a single element that moves to the
-   group holding the current page and takes its width, so it glides between
-   groups instead of jumping. */
+/* ---- the dock's links --------------------------------------------------------------
+   Six destinations linked directly, no menus. One selection surface moves to
+   the current link and takes its width (250ms, no overshoot), so it glides
+   between sections; a short blue rule under it is the only colour. Off the
+   dock, it rests on All sections. */
 .s-hnav {
   position: relative;
   flex: none;
 }
 .s-hnav-list {
   display: flex;
+  align-items: center;
   gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.s-hnav-trigger {
+.s-hnav-link {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--sp-1);
+  justify-content: center;
   height: var(--control-h);
-  padding: 0 var(--sp-2) 0 var(--sp-3);
+  padding: 0 var(--sp-3);
   border: 0;
   border-radius: var(--r-control);
   background: transparent;
   color: var(--ink-2);
   font-family: var(--font);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
   font-weight: var(--fw-medium);
+  text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
-  user-select: none;
-  transition: background-color var(--t-press) var(--ease-out), color var(--t-press) var(--ease-out);
+  transition: color var(--t-panel) var(--ease-out);
 }
-.s-hnav-trigger[data-current],
-.s-hnav-trigger[data-popup-open] {
+.s-hnav-link[data-current] {
   color: var(--ink);
 }
-.s-hnav-trigger[data-popup-open]:not([data-current]) {
-  background: var(--surface-hover);
-}
 @media (hover: hover) and (pointer: fine) {
-  .s-hnav-trigger:hover:not([data-current]) {
-    background: var(--surface-hover);
+  .s-hnav-link:hover {
     color: var(--ink);
   }
 }
-.s-hnav-trigger:focus-visible {
+.s-hnav-link:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 0;
 }
-.s-hnav-chev {
-  display: inline-flex;
-  color: var(--ink-3);
-  transition: transform var(--t-menu) var(--ease-out);
+.s-hnav-all {
+  width: var(--control-h);
+  padding: 0;
+  margin-left: var(--sp-1);
 }
-.s-hnav-chev svg {
-  width: 14px;
-  height: 14px;
-}
-.s-hnav-chev[data-popup-open] {
-  transform: rotate(180deg);
+.s-hnav-all svg {
+  width: 16px;
+  height: 16px;
 }
 .s-hnav-indicator {
   position: absolute;
-  top: 0;
+  top: 50%;
   left: 0;
   height: var(--control-h);
-  border: 1px solid var(--accent-line);
+  margin-top: calc(var(--control-h) / -2);
   border-radius: var(--r-control);
-  background: var(--accent-subtle);
+  background: var(--dock-active);
   pointer-events: none;
+}
+.s-hnav-indicator::after {
+  content: "";
+  position: absolute;
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: calc(var(--sp-2) * -1 - 2px);
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--chart-series);
 }
 .s-hnav-indicator[data-hidden] {
   opacity: 0;
@@ -174,174 +176,51 @@
     width var(--t-dialog) var(--ease-out),
     opacity var(--t-menu) var(--ease-out);
 }
-/* Before the script measures (the server render), mark the current group in place. */
-.s-hnav:not([data-ready]) .s-hnav-trigger[data-current] {
-  background: var(--accent-subtle);
-  box-shadow: inset 0 0 0 1px var(--accent-line);
+/* Before the script measures (the server render), mark the current link in place. */
+.s-hnav:not([data-ready]) .s-hnav-link[data-current] {
+  background: var(--dock-active);
 }
 
-/* The group's links, in one popup that glides and resizes between triggers. */
-.s-hnav-pos {
-  width: var(--positioner-width);
-  height: var(--positioner-height);
-  max-width: var(--available-width);
-  transition-property: top, left, right, bottom;
-  transition-duration: var(--t-dialog);
-  transition-timing-function: var(--ease-out);
-}
-/* A bridge over the gap under the trigger, so moving the pointer down keeps the popup open. */
-.s-hnav-pos::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -10px;
-  height: 10px;
-}
-.s-hnav-pos[data-instant] {
-  transition: none;
-}
-.s-hnav-pop {
-  position: relative;
-  width: var(--popup-width);
-  height: var(--popup-height);
-  border: 1px solid var(--border);
-  border-radius: var(--r-panel);
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-float);
-  transform-origin: var(--transform-origin);
-  transition-property: opacity, transform, width, height;
-  transition-duration: var(--t-dialog);
-  transition-timing-function: var(--ease-out);
-  outline: none;
-}
-.s-hnav-pop[data-starting-style],
-.s-hnav-pop[data-ending-style] {
-  opacity: 0;
-  transform: scale(0.97);
-}
-.s-hnav-pop[data-ending-style] {
-  transition-duration: var(--t-menu);
-}
-.s-hnav-view {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-.s-hnav-content {
-  width: max-content;
-  min-width: 200px;
-  padding: var(--sp-1);
-  transition: opacity var(--t-menu) var(--ease-out), transform var(--t-dialog) var(--ease-out);
-}
-.s-hnav-content[data-starting-style],
-.s-hnav-content[data-ending-style] {
-  opacity: 0;
-}
-.s-hnav-content[data-starting-style][data-activation-direction="left"],
-.s-hnav-content[data-ending-style][data-activation-direction="right"] {
-  transform: translateX(-24px);
-}
-.s-hnav-content[data-starting-style][data-activation-direction="right"],
-.s-hnav-content[data-ending-style][data-activation-direction="left"] {
-  transform: translateX(24px);
-}
-.s-hnav-links {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.s-hnav-link {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  height: var(--nav-row);
-  padding: 0 var(--sp-4) 0 var(--sp-3);
-  border-radius: var(--r-control);
-  color: var(--ink);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  text-decoration: none;
-  white-space: nowrap;
-  outline: none;
-  transition: background-color var(--t-press) var(--ease-out);
-}
-.s-hnav-link svg {
-  width: 16px;
-  height: 16px;
-  color: var(--ink-3);
-  flex: none;
-}
-.s-hnav-link[data-active] {
-  background: var(--accent-subtle);
-}
-.s-hnav-link[data-active] svg {
-  color: var(--accent-ink);
-}
-@media (hover: hover) and (pointer: fine) {
-  .s-hnav-link:hover:not([data-active]) {
-    background: var(--surface-hover);
-  }
-}
-.s-hnav-link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-/* ---- headbar tools ------------------------------------------------------------- */
+/* ---- the dock's tools ---------------------------------------------------------- */
 .s-search {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
-  width: 200px;
+  justify-content: center;
+  width: var(--control-h);
   height: var(--control-h);
-  padding: 0 var(--sp-1) 0 var(--sp-3);
-  border: 1px solid var(--border);
+  padding: 0;
+  border: 0;
   border-radius: var(--r-control);
-  background: var(--surface);
-  color: var(--ink-3);
-  font-family: var(--font);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  text-align: left;
-  cursor: text;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
   flex: none;
-  transition: border-color var(--t-press) var(--ease-out);
+  transition: color var(--t-press) var(--ease-out), background-color var(--t-press) var(--ease-out);
 }
 .s-search svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-.s-search span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.s-search .s-kbd {
-  margin-left: auto;
+  width: 17px;
+  height: 17px;
 }
 @media (hover: hover) and (pointer: fine) {
   .s-search:hover {
-    border-color: var(--border-strong);
+    background: var(--dock-active);
+    color: var(--ink);
   }
 }
 .s-search:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.s-headbar .s-ws {
-  width: auto;
-  max-width: 220px;
-  margin: 0;
-  border-color: var(--border);
+.s-headbar .s-bell-btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-headbar .s-bell-btn:hover {
+    background: var(--dock-active);
+    color: var(--ink);
+  }
 }
 .s-ask {
   padding: 0 var(--sp-3);
@@ -349,10 +228,20 @@
   background: var(--surface);
   color: var(--ink);
 }
+.s-headbar .s-ask {
+  margin: 0 var(--sp-1);
+  border-color: var(--border-strong);
+  background: transparent;
+  font-size: var(--fs-nav);
+}
 @media (hover: hover) and (pointer: fine) {
   .s-ask:hover {
     border-color: var(--gold);
     background: var(--surface-hover);
+  }
+  .s-headbar .s-ask:hover {
+    border-color: var(--ink-3);
+    background: var(--dock-active);
   }
 }
 .s-account--compact {
@@ -390,10 +279,10 @@
 /* ---- content -------------------------------------------------------------------- */
 .s-content {
   width: 100%;
-  max-width: 1560px;
+  max-width: 1376px;
   min-width: 0;
   margin: 0 auto;
-  padding: var(--sp-6) var(--page-pad) var(--sp-12);
+  padding: var(--sp-10) var(--sp-8) var(--sp-12);
 }
 
 /* ---- the phone sheet's contents (workspace, sections, account) ------------------ */
@@ -857,19 +746,38 @@ html[data-ws-switching]::after {
   flex: none;
 }
 
-/* ---- narrower desktops: the tools give up their labels first ------------------ */
-@media (max-width: 1380px) {
-  .s-search {
-    width: auto;
+/* ---- the All sections panel: a panel at the right edge on desktops ------------- */
+.s-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  background: rgba(var(--shadow-rgb), 0.18);
+  transition: opacity var(--t-panel) var(--ease-out);
+}
+.s-sheet-backdrop[data-starting-style],
+.s-sheet-backdrop[data-ending-style] {
+  opacity: 0;
+}
+@media (min-width: 901px) {
+  .s-sheet {
+    inset: var(--sp-3) var(--sp-3) var(--sp-3) auto;
+    width: 340px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-panel);
+    background: var(--surface);
+    box-shadow: var(--shadow-dialog);
   }
-  .s-search span {
-    display: none;
+  .s-sheet[data-starting-style],
+  .s-sheet[data-ending-style] {
+    transform: translateX(16px);
+  }
+  .s-sheet-head {
+    height: var(--headbar-h);
   }
 }
-@media (max-width: 1240px) {
-  .s-headbar-ws .s-ws-name {
-    display: none;
-  }
+
+/* ---- narrower desktops: Ask SOCIA gives up its label first ---------------------- */
+@media (max-width: 1040px) {
   .s-headbar .s-ask span {
     display: none;
   }
@@ -877,18 +785,24 @@ html[data-ws-switching]::after {
     width: var(--control-h);
     padding: 0;
   }
+  .s-brand {
+    margin-right: var(--sp-3);
+  }
+  .s-headbar-tools {
+    margin-left: var(--sp-3);
+  }
 }
 
-/* ---- tablets and phones: the sections move into the menu sheet ------------------- */
-@media (max-width: 960px) {
+/* ---- tablets and phones: the links move into the All sections panel -------------- */
+@media (max-width: 900px) {
   .s-headbar {
     top: var(--sp-3);
+    width: auto;
+    max-width: none;
     margin: var(--sp-3) var(--sp-4) 0;
     padding: 0 var(--sp-1) 0 var(--sp-3);
   }
   .s-hnav,
-  .s-headbar-sep,
-  .s-headbar-ws,
   .s-headbar-account {
     display: none;
   }
@@ -900,19 +814,7 @@ html[data-ws-switching]::after {
     margin-right: auto;
   }
   .s-headbar-tools {
-    gap: var(--sp-1);
-  }
-  .s-search {
-    width: var(--control-h);
-    padding: 0;
-    justify-content: center;
-    border-color: transparent;
-    background: transparent;
-    color: var(--ink-2);
-    cursor: pointer;
-  }
-  .s-search .s-kbd {
-    display: none;
+    margin-left: var(--sp-2);
   }
   .s-headbar-menu {
     display: inline-flex;
@@ -928,10 +830,7 @@ html[data-ws-switching]::after {
 }
 @media (prefers-reduced-motion: reduce) {
   .s-hnav[data-ready] .s-hnav-indicator,
-  .s-hnav-pos,
-  .s-hnav-pop,
-  .s-hnav-content,
-  .s-hnav-chev {
+  .s-sheet-backdrop {
     transition: none;
   }
   .s-sheet[data-starting-style],

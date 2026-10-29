@@ -10039,6 +10039,23 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .ov-bar.brk { fill: var(--warning); opacity: 0.95; }
 .ov-chart[data-metric="engagement"] .ov-bar.brk, .ov-chart[data-metric="reach"] .ov-bar.brk { fill: var(--warning); }
 .ov-bar.partial { opacity: 0.55; }
+/* The Dashboard's daily chart (Noah, 2026-10-28): bars rest as a pale tint of
+   the series; the one under the pointer or focus is solid; a breakout keeps
+   its own colour. */
+.dash-chart .ov-bar {
+  fill: var(--chart-series);
+  opacity: 0.3;
+}
+.dash-chart .ov-bar.brk {
+  fill: var(--warning);
+  opacity: 0.85;
+}
+.dark .dash-chart .ov-bar {
+  opacity: 0.45;
+}
+.dash-chart .ov-bar.on {
+  opacity: 1;
+}
 .ov-cap line { stroke: var(--surface); stroke-width: 3; }
 .ov-brk-label { fill: var(--warning-text); font-size: 10.5px; font-weight: 750; font-family: var(--font); letter-spacing: 0.02em; }
 .ov-tip.left { transform: translateX(-100%); }

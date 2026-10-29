@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NAV, NAV_GROUPS, activeNavGroup, activeNavKey, navIndex } from "./nav";
+import { DOCK, NAV, NAV_GROUPS, activeNavGroup, activeNavKey, navIndex } from "./nav";
 
 describe("activeNavKey", () => {
   it("names the section a path belongs to, including nested paths", () => {
@@ -38,5 +38,13 @@ describe("activeNavGroup and navIndex", () => {
     expect(navIndex("/dashboard")).toBe(0);
     expect(navIndex("/analytics")).toBeGreaterThan(navIndex("/reports"));
     expect(navIndex("/pricing")).toBe(-1);
+  });
+});
+
+describe("DOCK", () => {
+  it("links six real sections directly, each once", () => {
+    expect(DOCK).toHaveLength(6);
+    expect(new Set(DOCK.map((d) => d.key)).size).toBe(DOCK.length);
+    for (const d of DOCK) expect(NAV.some((n) => n.key === d.key)).toBe(true);
   });
 });
