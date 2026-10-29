@@ -141,7 +141,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
     { platform: "tiktok", label: ttName ?? "TikTok", connected: Boolean(ttName), href: "/settings#accounts" },
   ];
 
-  // The phone sheet: everything the headbar holds that does not fit on a phone.
+  // The All sections panel: the Brand Workspace, every section, the plan and the account.
   const sheetBody = (
     <>
       <WorkspaceSwitcher initial={activeWs} accounts={accounts} />
@@ -175,7 +175,6 @@ export default async function AppShell({ children }: { children: React.ReactNode
             activity={activity}
             alerts={alerts}
             unread={unreadAlerts}
-            workspace={<WorkspaceSwitcher initial={activeWs} accounts={accounts} />}
             account={<AccountMenu email={userEmail} plan={viewerPlan} compact upgrade={next ? { href: pricingHref(next), name: PLANS[next].name } : null} />}
             sheet={sheetBody}
           />

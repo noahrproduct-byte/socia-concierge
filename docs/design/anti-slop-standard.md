@@ -469,7 +469,7 @@ This standard is part of how SOCIA is built, not a document to remember.
 
 Each exception is approved by Noah, dated, scoped to one element, and enforced in both tests so it cannot spread.
 
-- **Headbar backdrop blur (2026-10-28).** The floating app headbar (`.s-headbar` in `app/styles/shell.css`) uses a subtle `backdrop-filter: blur(16px)` over a translucent ground. Noah asked for it twice and approved this exception. **Reason:** the bar floats over scrolling content on every app page, and the blur keeps its labels legible over that content without making the bar opaque. **Limits:** this one rule only. People who ask their system to reduce transparency get an opaque bar. Blur remains banned on every panel, card, dialog and marketing header (sections 2 and 17.9). `lib/antiSlop.test.ts` allows exactly one occurrence in `shell.css`, and `lib/designBudget.test.ts` allows it only inside the `.s-headbar` rule.
+- **Headbar backdrop blur (2026-10-28).** The floating app headbar (`.s-headbar` in `app/styles/shell.css`, since the same day a centred smoked-glass dock) uses a subtle `backdrop-filter: blur(16px)` over a translucent charcoal ground. Noah asked for it twice and approved this exception. **Reason:** the bar floats over scrolling content on every app page, and the blur keeps its labels legible over that content without making the bar opaque. **Limits:** this one rule only. People who ask their system to reduce transparency get an opaque bar. Blur remains banned on every panel, card, dialog and marketing header (sections 2 and 17.9). `lib/antiSlop.test.ts` allows exactly one occurrence in `shell.css`, and `lib/designBudget.test.ts` allows it only inside the `.s-headbar` rule.
 
 ## 15. Research references and limitations
 

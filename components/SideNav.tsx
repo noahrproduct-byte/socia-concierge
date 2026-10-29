@@ -1,24 +1,24 @@
 "use client";
 
-// The section links, grouped the way the headbar groups them. HeadNav is the
-// desktop headbar: one menu per group, opened by hover, click or keyboard,
-// with a blue-tinted indicator that glides to the group holding the current
-// page. SideNav is the same list laid out flat for the phone sheet. The shell
-// lives in a layout that stays mounted across navigations, so what is current
-// is derived from the URL here instead of being passed down by each page.
+// The section links. HeadNav is the floating dock's navigation: six
+// destinations linked directly (no menus), a selection surface that glides
+// to the current one and takes its width, and an All sections button that
+// opens the panel with everything else. When the current page is not on the
+// dock, the surface rests on that button instead. SideNav is the full list,
+// grouped, for that panel. The shell lives in a layout that stays mounted
+// across navigations, so what is current is derived from the URL here.
 
 import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NavigationMenu } from "@base-ui/react/navigation-menu";
 import {
   BarChart3,
   CalendarDays,
-  ChevronDown,
   Clapperboard,
   ClipboardList,
   FileBarChart,
   LayoutDashboard,
+  LayoutGrid,
   LifeBuoy,
   MessageSquare,
   Newspaper,
@@ -27,7 +27,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import { HELP, NAV, NAV_GROUPS, activeNavGroup, activeNavKey, type NavGroup } from "@/lib/nav";
+import { DOCK, HELP, NAV, NAV_GROUPS, activeNavKey } from "@/lib/nav";
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -43,101 +43,85 @@ const ICONS: Record<string, LucideIcon> = {
   settings: Settings,
 };
 
-/** The desktop headbar's grouped navigation. */
-export function HeadNav() {
+const ALL = "all";
+
+/** The dock's navigation: direct links, one gliding selection surface, and the All sections button. */
+export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolean }) {
   const pathname = usePathname();
   const activeKey = activeNavKey(pathname);
-  const activeGroup = activeNavGroup(pathname);
-  const list = useRef<HTMLElement>(null);
-  const triggers = useRef<Partial<Record<NavGroup, HTMLButtonElement | null>>>({});
+  const onDock = DOCK.some((d) => d.key === activeKey);
+  // Off the dock (Calendar, Settings...), the surface marks All sections.
+  const target = onDock ? activeKey : activeKey ? ALL : null;
+  const root = useRef<HTMLElement>(null);
+  const items = useRef<Record<string, HTMLElement | null>>({});
   const [box, setBox] = useState<{ x: number; w: number } | null>(null);
-  // Transitions switch on after the first placement, so the indicator lands
-  // in place on load and only glides when the person moves between groups.
+  // Transitions switch on after the first placement, so the surface lands in
+  // place on load and only glides when the person moves between sections.
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
     const place = () => {
-      const el = activeGroup ? triggers.current[activeGroup] : null;
+      const el = target ? items.current[target] : null;
       setBox(el ? { x: el.offsetLeft, w: el.offsetWidth } : null);
     };
     place();
     const frame = requestAnimationFrame(() => setReady(true));
-    // Web fonts and zoom change the triggers' widths after the first measure.
+    // Web fonts and zoom change the links' widths after the first measure.
     const ro = new ResizeObserver(place);
-    if (list.current) ro.observe(list.current);
+    if (root.current) ro.observe(root.current);
     return () => {
       cancelAnimationFrame(frame);
       ro.disconnect();
     };
-  }, [activeGroup]);
+  }, [target]);
 
   return (
-    <NavigationMenu.Root ref={list} className="s-hnav" aria-label="Main" delay={80} closeDelay={120} data-ready={ready || undefined}>
+    <nav ref={root} className="s-hnav" aria-label="Main" data-ready={ready || undefined}>
       <span
         className="s-hnav-indicator"
         aria-hidden
         data-hidden={box ? undefined : ""}
         style={box ? { transform: `translateX(${box.x}px)`, width: box.w } : undefined}
       />
-      <NavigationMenu.List className="s-hnav-list">
-        {NAV_GROUPS.map((g) => {
-          const items = NAV.filter((n) => n.group === g.key);
-          const current = activeGroup === g.key;
+      <ul className="s-hnav-list">
+        {DOCK.map((d) => {
+          const n = NAV.find((x) => x.key === d.key)!;
+          const current = activeKey === d.key;
           return (
-            <NavigationMenu.Item key={g.key} value={g.key}>
-              <NavigationMenu.Trigger
-                className="s-hnav-trigger"
+            <li key={d.key}>
+              <Link
+                href={n.href}
+                className="s-hnav-link"
                 ref={(el) => {
-                  triggers.current[g.key] = el;
+                  items.current[d.key] = el;
                 }}
+                aria-current={current ? "page" : undefined}
                 data-current={current || undefined}
               >
-                {g.label}
-                <NavigationMenu.Icon className="s-hnav-chev">
-                  <ChevronDown aria-hidden />
-                </NavigationMenu.Icon>
-              </NavigationMenu.Trigger>
-              <NavigationMenu.Content className="s-hnav-content">
-                <ul className="s-hnav-links">
-                  {items.map((n) => {
-                    const Icon = ICONS[n.key];
-                    return (
-                      <li key={n.key}>
-                        <NavigationMenu.Link
-                          className="s-hnav-link"
-                          active={activeKey === n.key}
-                          aria-current={activeKey === n.key ? "page" : undefined}
-                          closeOnClick
-                          render={<Link href={n.href} />}
-                        >
-                          <Icon aria-hidden />
-                          <span>{n.label}</span>
-                        </NavigationMenu.Link>
-                      </li>
-                    );
-                  })}
-                  {g.key === "manage" && (
-                    <li>
-                      <NavigationMenu.Link className="s-hnav-link" closeOnClick render={<Link href={HELP.href} />}>
-                        <LifeBuoy aria-hidden />
-                        <span>{HELP.label}</span>
-                      </NavigationMenu.Link>
-                    </li>
-                  )}
-                </ul>
-              </NavigationMenu.Content>
-            </NavigationMenu.Item>
+                {d.label}
+              </Link>
+            </li>
           );
         })}
-      </NavigationMenu.List>
-      <NavigationMenu.Portal>
-        <NavigationMenu.Positioner className="s-hnav-pos" sideOffset={10} align="start" collisionPadding={16} style={{ zIndex: "var(--z-menu)" }}>
-          <NavigationMenu.Popup className="s-hnav-pop">
-            <NavigationMenu.Viewport className="s-hnav-view" />
-          </NavigationMenu.Popup>
-        </NavigationMenu.Positioner>
-      </NavigationMenu.Portal>
-    </NavigationMenu.Root>
+        <li>
+          <button
+            type="button"
+            className="s-hnav-link s-hnav-all"
+            ref={(el) => {
+              items.current[ALL] = el;
+            }}
+            onClick={onAll}
+            aria-haspopup="dialog"
+            aria-expanded={allOpen}
+            aria-label={onDock ? "All sections" : `All sections, current: ${NAV.find((n) => n.key === activeKey)?.label ?? "none"}`}
+            title="All sections"
+            data-current={(!onDock && activeKey != null) || undefined}
+          >
+            <LayoutGrid aria-hidden />
+          </button>
+        </li>
+      </ul>
+    </nav>
   );
 }
 

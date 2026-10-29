@@ -51,7 +51,7 @@ function storedChoice(): Appearance | null {
   }
 }
 
-/** The choice, or the default for this page: dark in the app, the system setting on the public site. */
+/** The choice, or the default for this page: light in the app, the system setting on the public site. */
 function readStored(): Appearance {
   return storedChoice() ?? defaultAppearance(window.location.pathname);
 }
@@ -84,7 +84,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setReady(true);
   }, []);
 
-  // With no stored choice the default depends on the page (dark in the app),
+  // With no stored choice the default depends on the page (light in the app),
   // so a client-side move from sign-in into the app re-resolves it.
   const pathname = usePathname();
   useEffect(() => {
