@@ -23,6 +23,7 @@ import {
   Trophy,
   PenSquare,
   Plus,
+  Clapperboard,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { AskDrawer } from "@/components/AskSocia";
@@ -918,6 +919,14 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                   <Link href={createHref(post)} className="ov-link" title="Open Create Post with this hook and concept as the caption">
                     <PenSquare size={11} /> Create this post
                   </Link>
+                  {planId && post.decision?.status !== "rejected" && (
+                    <>
+                      {" "}
+                      <Link href={`/studio?mode=guide&plan=${planId}&i=${i}`} className="ov-link" title="Hooks, script and shot list for this post">
+                        <Clapperboard size={11} /> {post.guide ? "Open its production guide" : "Open in Studio"}
+                      </Link>
+                    </>
+                  )}
                 </div>
                 <RejectedNote item={post} />
                 <ItemActions

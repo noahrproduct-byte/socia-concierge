@@ -4,6 +4,7 @@
 // as optional. Pure.
 
 import type { Deliverable, PlanDecision } from "./schema";
+import { sanitizeGuide } from "./studioGuide";
 
 export type PlanItem = Deliverable["weeklyPlan"][number];
 
@@ -70,6 +71,7 @@ export function sanitizePlanItems(items: unknown[]): PlanItem[] {
     if (!core.day || !core.concept) return [];
     const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string });
     const decision = cleanDecision(r.decision);
-    return [{ ...item, ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}) }];
+    const guide = sanitizeGuide(r.guide, new Date());
+    return [{ ...item, ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];
   });
 }

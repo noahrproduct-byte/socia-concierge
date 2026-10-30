@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Copy, ExternalLink, Lock, Plus, Shapes } from "lucide-react";
+import { Check, Clapperboard, Copy, ExternalLink, Lock, Plus, Shapes } from "lucide-react";
 import { formatBasis, formatBrief, type FormatsDoc, type NicheFormat } from "@/lib/nicheFormats";
 import type { CompetitorsData } from "./types";
 
@@ -151,6 +151,7 @@ function FormatCard({ f }: { f: NicheFormat }) {
 
       <div className="cx3-actions">
         <Link href={`/plan?note=${encodeURIComponent(brief)}`} className="ov-btn ghost small"><Plus size={13} /> Add to plan</Link>
+        <Link href={`/studio?mode=guide&format=${encodeURIComponent(f.name)}`} className="ov-btn ghost small"><Clapperboard size={13} /> Adapt in Studio</Link>
         <button type="button" className="ov-btn ghost small" onClick={copy}>
           {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy brief"}
         </button>

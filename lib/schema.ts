@@ -46,10 +46,14 @@ export type Deliverable = {
     source?: "socia" | "own";
     /** The person's call on the idea, and why when they turned it down. Not part of the model's schema. */
     decision?: PlanDecision;
+    /** Studio's production guide for this post, once written (lib/studioGuide.ts). Not part of the model's schema. */
+    guide?: ProductionGuide;
   }[];
   /** Attached by the server after generation; not part of the model's schema. */
   evidenceUsed?: EvidenceUsed;
 };
+
+import type { ProductionGuide } from "./studioGuide";
 
 export type PlanDecision = { status: "approved" | "rejected"; at: string; reasons?: string[]; note?: string | null };
 
