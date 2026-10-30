@@ -54,12 +54,12 @@ export async function recordStartingPoints(ctx: Ctx, goals: Goal[]): Promise<Goa
   return goals;
 }
 
-export async function runInitialization(ctx: Ctx, opts: { nicheRead: boolean }): Promise<{ outcomes: StepOutcome[]; briefing: Briefing }> {
+export async function runInitialization(ctx: Ctx, opts: { understoodAt: string | null }): Promise<{ outcomes: StepOutcome[]; briefing: Briefing }> {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const { src, rows, x } = await readNow(ctx, ent);
 
   const outcomes: StepOutcome[] = [];
-  if (opts.nicheRead) outcomes.push({ label: "Read your recent Instagram posts", status: "done", detail: "Used to suggest your niche." });
+  if (opts.understoodAt) outcomes.push({ label: "Read your profile and recent posts", status: "done", detail: "Used to fill in your account type, niche, audience and themes." });
   for (const r of rows.filter((row) => row.connected)) {
     const has = r.audience != null || r.views != null || r.contentPublished != null;
     outcomes.push({

@@ -22,10 +22,12 @@ describe("needsOnboarding", () => {
 
 describe("steps", () => {
   it("move within bounds and resume at the saved step", () => {
-    expect(nextStep("connect")).toBe("account");
+    expect(nextStep("connect")).toBe("profile");
     expect(nextStep("briefing")).toBe("briefing");
     expect(prevStep("connect")).toBe("connect");
-    expect(resumeStep({ step: "voice", answers: {}, completed_at: null })).toBe("voice");
+    expect(resumeStep({ step: "goal", answers: {}, completed_at: null })).toBe("goal");
+    // A step from the earlier, longer flow starts over at Connect.
+    expect(resumeStep({ step: "voice", answers: {}, completed_at: null })).toBe("connect");
     expect(resumeStep({ step: "nonsense", answers: {}, completed_at: null })).toBe("connect");
     expect(resumeStep(null)).toBe("connect");
   });

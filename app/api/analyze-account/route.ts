@@ -297,9 +297,9 @@ Allowed niches: ${NICHES.join(", ")}`;
     // only when the viewer may change the brand (owner/admin). A Member's audit
     // still returns results; it just doesn't rewrite the brand.
     if (extracted.confidence >= 75 && can(ctx, "manage_workspace")) {
+      // The goal is the person's to choose (onboarding asks); an inferred one is never saved.
       await saveNiche(ctx.client, ctx.ownerId, extracted.niche, detailOf(extracted), {
         brand_name: extracted.brand_name || account.username,
-        goals: extracted.goal,
         account_connected: true,
       }, brandWorkspace(ctx));
     }

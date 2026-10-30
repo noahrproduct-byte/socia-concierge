@@ -3514,6 +3514,21 @@ a.hub-card:hover {
 .ob-reading h1 { font-size: var(--fs-display); line-height: var(--lh-display); color: var(--ink); margin: var(--sp-4) 0 var(--sp-2); }
 .ob-reading p { font-size: var(--fs-body); max-width: 46ch; margin: 0 auto; }
 
+/* what SOCIA read, and how sure it is */
+.ob-facts { list-style: none; margin: 0 0 var(--sp-5); padding: 0; border: 1px solid var(--border); border-radius: var(--r-panel); background: var(--surface); }
+.ob-facts li { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); padding: var(--sp-3); border-top: 1px solid var(--border); font-size: var(--fs-body); line-height: var(--lh-body); }
+.ob-facts li:first-child { border-top: 0; }
+.ob-facts b { color: var(--ink); font-weight: var(--fw-medium); }
+.ob-facts span { color: var(--ink-2); }
+.ob-infield { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.ob-inferred { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.ob-inferred b { color: var(--ink-2); font-weight: var(--fw-medium); }
+.ob-themes { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ob-themes ul { list-style: disc; margin: 0; padding-left: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+.ob-themes b { color: var(--ink); font-weight: var(--fw-medium); }
+.ob-link { align-self: flex-start; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-meta); color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.ob-link:hover { color: var(--ink); }
+
 /* the briefing */
 .ob-brief { display: flex; flex-direction: column; gap: var(--sp-6); }
 .ob-brief section { display: flex; flex-direction: column; gap: var(--sp-2); }

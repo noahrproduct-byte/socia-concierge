@@ -7,7 +7,7 @@ import { ytAuthConfigured } from "@/lib/youtubeAuth";
 import { ttAuthConfigured } from "@/lib/tiktokAuth";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
-import { readOnboarding, listGoals } from "@/lib/growthStore";
+import { readOnboarding } from "@/lib/growthStore";
 import { resumeStep } from "@/lib/onboarding";
 import { scopeToWorkspace, listAccessibleWorkspaces } from "@/lib/workspaces";
 import OnboardingFlow from "@/components/OnboardingFlow";
@@ -70,10 +70,9 @@ export default async function OnboardingPage({
   ].filter((r) => r.code && r.code !== "connected");
 
   // Saved progress and answers, so leaving and coming back resumes here.
-  const [{ tableReady, row: progress }, profile, { goals }, workspaces] = await Promise.all([
+  const [{ tableReady, row: progress }, profile, workspaces] = await Promise.all([
     readOnboarding(ctx),
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
-    listGoals(ctx),
     listAccessibleWorkspaces(supabase, user.id).catch(() => []),
   ]);
   // Setup is required per brand: with several, the person can switch to
@@ -84,11 +83,9 @@ export default async function OnboardingPage({
   const initial = {
     step: fromOAuth ? ("connect" as const) : resumeStep(progress),
     tableReady,
-    igRead: progress?.answers?.ig_read === true,
     niche: profile?.niche ?? null,
     brandName: profile?.brand_name ?? null,
     detail: profile?.brand_detail ?? null,
-    goals,
   };
 
   return (
@@ -96,7 +93,6 @@ export default async function OnboardingPage({
       initial={initial}
       brands={brands}
       connections={connections}
-      igUsername={igConn?.username ?? null}
       igStatus={ig ?? ""}
       returned={returned}
     />
