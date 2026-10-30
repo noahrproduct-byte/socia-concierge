@@ -15,6 +15,7 @@ import { listTracked } from "./trackedCompetitors";
 import { competitorScopeId, scopeToWorkspace } from "./workspaces";
 import { listGoals, setGoalBaseline, syncGoalsText } from "./growthStore";
 import { buildBriefing, currentFor, type Briefing, type Extras, type StepOutcome } from "./briefing";
+import { runInsights } from "./intel/runIntel";
 import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, type Goal, type GrowthProfile } from "./growth";
 
 /** The platform rows and extra numbers a goal's current value is read from. */
@@ -88,6 +89,16 @@ export async function runInitialization(ctx: Ctx, opts: { understoodAt: string |
     }
   }
   await syncGoalsText(ctx).catch(() => undefined);
+
+  // The first findings for the shared store, from the same data (no AI call).
+  const intel = await runInsights(ctx, "onboarding").catch(() => null);
+  if (intel?.tableReady) {
+    outcomes.push({
+      label: "Look for patterns and problems in your posts",
+      status: "done",
+      detail: intel.found ? `${intel.found} ${intel.found === 1 ? "finding" : "findings"} saved, each with its evidence and how sure SOCIA is.` : "Nothing stood out yet. SOCIA looks again as more posts come in.",
+    });
+  }
 
   const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id).catch(() => null);
   const tracked = await listTracked(ctx.client, ctx.ownerId, "handle", { workspaceId: cwid }).catch(() => []);
