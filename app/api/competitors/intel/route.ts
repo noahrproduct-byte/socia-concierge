@@ -15,7 +15,7 @@ import {
   searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat,
 } from "@/lib/youtube";
 import {
-  buildQueries, goalKind, scoreAccount, scoreContent, dedupeAccounts, dedupeContent,
+  buildQueries, discoveryProfileFrom, locationMatters, scoreAccount, scoreContent, dedupeAccounts, dedupeContent,
   rollUpTrends, canonicalUrl,
   type AccountCandidate, type ContentCandidate, type DiscoveryProfile,
   type ScoredAccount, type ScoredContent, type TrendRollup,
@@ -91,28 +91,19 @@ export async function GET(req: Request) {
   }
 
   // ---- profile: who the workspace owner actually is ----------------------
-  let niche: string | null = null;
-  let subNiche: string | null = null;
-  let brandName: string | null = null;
-  let location: string | null = null;
-  let description: string | null = null;
-  let goalText: string | null = null;
+  // The Growth Profile (confirmed, then inferred) decides what is worth
+  // finding; lib/discovery.ts discoveryProfileFrom.
+  type StoredProfile = { niche: string | null; brand_name: string | null; goals: string | null; niche_detail: unknown; brand_detail: unknown };
+  let prof: StoredProfile | null = null;
   const brandWs = brandWorkspace(ctx);
   try {
-    const prof = brandWs
+    prof = brandWs
       ? { niche: brandWs.niche, brand_name: brandWs.brand_name, goals: brandWs.goals, niche_detail: brandWs.niche_detail, brand_detail: brandWs.brand_detail }
-      : (await ctx.client
+      : ((await ctx.client
           .from("profiles")
           .select("niche, brand_name, goals, niche_detail, brand_detail")
           .eq("user_id", ctx.ownerId)
-          .maybeSingle()).data;
-    niche = prof?.niche ?? null;
-    brandName = prof?.brand_name ?? null;
-    goalText = prof?.goals ?? null;
-    subNiche = (prof?.niche_detail as { sub_niche?: string } | null)?.sub_niche ?? null;
-    const bd = prof?.brand_detail as { location?: string; description?: string } | null;
-    location = bd?.location ?? null;
-    description = bd?.description ?? null;
+          .maybeSingle()).data as StoredProfile | null);
   } catch {
     /* gaps reported below */
   }
@@ -134,16 +125,21 @@ export async function GET(req: Request) {
     /* discovery still works without a connected account */
   }
 
+  const profile: DiscoveryProfile = discoveryProfileFrom({
+    niche: prof?.niche ?? null,
+    brandName: prof?.brand_name ?? null,
+    goals: prof?.goals ?? null,
+    nicheDetail: (prof?.niche_detail as { sub_niche?: string } | null) ?? null,
+    brandDetail: (prof?.brand_detail as Parameters<typeof discoveryProfileFrom>[0]["brandDetail"]) ?? null,
+    ownHandle, ownFollowers, ownFormats,
+  });
+  const { niche, brandName, location } = profile;
+
   // Never silently assume missing profile information.
   const profileGaps: string[] = [];
   if (!niche) profileGaps.push("niche");
   if (!location) profileGaps.push("location");
-  if (!goalText) profileGaps.push("goal");
-
-  const profile: DiscoveryProfile = {
-    niche, subNiche, brandName, location, description, goalText,
-    goal: goalKind(goalText), ownHandle, ownFollowers, ownFormats,
-  };
+  if (profile.goal === "unknown") profileGaps.push("goal");
 
   // Discovery is per-workspace once the competitors migration has run; wsId null
   // keeps the pooled, pre-migration behaviour. The cache read below must use the
@@ -273,20 +269,32 @@ export async function GET(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     sources.web = "no_key";
   } else {
-    const where = location ? ` The business is based in ${location}.` : "";
-    const goalLine = goalText ? ` Their stated goal: "${goalText}".` : "";
-    const prompt = `A ${niche} business${brandName ? ` called ${brandName}` : ""} wants to know which Instagram and Facebook accounts to watch, and which recent posts are worth studying.${where}${goalLine}
+    const who = profile.accountType === "creator" ? "creator" : profile.accountType === "personal_brand" ? "personal brand" : profile.accountType === "organization" ? "organisation" : "business";
+    const nicheLine = [profile.niche, profile.subNiche, profile.specific].filter(Boolean).join(" > ");
+    const facts = [
+      `Niche: ${nicheLine}.`,
+      profile.focus ? `What they offer or talk about: ${profile.focus}.` : "",
+      profile.audience ? `Their audience: ${profile.audience}.` : "",
+      location ? `Based in ${location}${locationMatters(profile) ? ", and their customers or audience are mostly nearby" : ""}.` : "",
+      profile.goalText ? `Their stated goal: "${profile.goalText}".` : "",
+    ].filter(Boolean).join("\n");
+    const prompt = `A ${who}${brandName ? ` called ${brandName}` : ""} wants to know which Instagram and Facebook accounts to study, and which recent posts are worth learning from.
+${facts}
+
+Relevant does not mean biggest. Look for, in this order:
+- accounts like theirs: the same specific niche${locationMatters(profile) ? ", ideally competing for the same local customers" : ""}
+${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}- creators in this niche whose content formats they could adapt
 
 Search the web and return BOTH:
-1. Up to 6 real Instagram or Facebook ACCOUNTS relevant to them (direct competitors, local businesses competing for the same customers, or creators in this niche).
+1. Up to 6 real Instagram or Facebook ACCOUNTS from those groups.
 2. Up to 5 real recent Instagram Reels or Facebook videos in this niche.
 
-${own.handles.length || ownHandle ? `These are the business's own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
+${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
 
 STRICT HONESTY RULES:
 - Only include accounts and URLs you actually found in search results. Never invent a handle or URL.
 - Do NOT provide follower counts, view counts, likes, or any metric. You cannot verify them and they will be discarded.
-- "why": ONE short sentence on why it is relevant to this specific business.
+- "why": ONE short sentence on why it is relevant to this specific ${who}, naming which group it belongs to.
 
 Output ONLY this JSON, no other text:
 [{"kind":"account","platform":"instagram"|"facebook","handle":"...","name":"...","why":"..."},

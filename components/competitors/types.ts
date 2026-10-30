@@ -54,6 +54,8 @@ export type CompetitorsData = {
   nicheAccess: boolean;
   /** The plan that unlocks it, when it is not on this one. */
   nicheUpgrade: string | null;
+  /** What a research run searches for, from the Growth Profile, and what would sharpen it. */
+  basis: { searches: string[]; missing: string[] };
 };
 
 /** One recent Reel or Short from an account in the niche. Every number is what the platform published. */
