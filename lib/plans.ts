@@ -313,12 +313,14 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   monthly_summary: "free",
   build_from_clips: "free",
   ai_assistants: "free",
+  // Free gets one plan a month (plus one at onboarding, not counted); the
+  // automatic Sunday plan is for paid plans (lib/weeklyPlanJob.ts).
+  content_plan: "free",
   // Starter
   posting_time_analysis: "starter",
   growth_analysis: "starter",
   period_comparison: "starter",
   deeper_insights: "starter",
-  content_plan: "starter",
   niche_intelligence: "starter",
   weekly_trend_roundup: "starter",
   performance_change_alerts: "starter",
@@ -373,7 +375,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     tagline: "Understand one brand.",
     audience: "People trying SOCIA and managing one brand.",
     limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_DEV_LIMITS, studio_storage_gb: 5, studio_retention_days: 14, assistant_requests_per_minute: 10, assistant_posts_per_hour: 0 },
-    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 0, content_ideas: 3, content_build: 3, video_builds: 0, assistant_requests: 100 },
+    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 1, content_ideas: 3, content_build: 3, video_builds: 0, assistant_requests: 100 },
     features: featuresOf("free"),
     cta: "Get started free",
   },

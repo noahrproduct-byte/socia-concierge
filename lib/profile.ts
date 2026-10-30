@@ -11,6 +11,8 @@ export type BrandDetail = {
   growth?: GrowthProfile;
   /** The Growth Strategy SOCIA wrote and the person may edit (lib/strategy.ts). */
   strategy?: GrowthStrategy;
+  /** The person's IANA time zone from their browser, on their own profile row (the Sunday plan's clock). */
+  timezone?: string;
   website?: string;
   location?: string;
   description?: string;

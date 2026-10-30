@@ -8,9 +8,12 @@ export const runtime = "nodejs";
 // response is sent (next/server `after`), up to this limit.
 export const maxDuration = 300;
 
-// Monday plan job (supabase/weekly-plan-cron.sql). Answers at once and does
-// the work in the background, so the caller's short timeout does not matter.
-// ?force=1 runs it on any day (manual trigger); ?sync=1 waits for the result.
+// Sunday plan job (supabase/weekly-plan-cron.sql, every 15 minutes Sunday to
+// Tuesday UTC): builds the plans due now, at 6 PM Sunday in each owner's time
+// zone (lib/weeklyPlanJob.ts). Answers at once and does the work in the
+// background, so the caller's short timeout does not matter. ?force=1 builds
+// for everyone eligible regardless of the day (manual trigger); ?sync=1 waits
+// for the result.
 async function run(req: Request) {
   if (!isCronRequest(req)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   const svc = createServiceClient();
@@ -28,7 +31,7 @@ async function run(req: Request) {
     const result = await runWeeklyPlans(svc, now, 280_000, force).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
     console.log("[weekly-plan]", JSON.stringify(result));
   });
-  return NextResponse.json({ started: true, force, monday: now.getUTCDay() === 1 }, { status: 202 });
+  return NextResponse.json({ started: true, force }, { status: 202 });
 }
 
 export async function GET(req: Request) { return run(req); }
