@@ -111,6 +111,16 @@ export async function listWorkspaces(supabase: Supa, userId: string): Promise<Wo
   return ((data ?? []) as Row[]).map((r) => ({ ...toWorkspace(r), role: "owner" as const }));
 }
 
+/** Workspaces by id, for jobs that run across accounts (service role). Missing ids are absent. */
+export async function workspacesByIds(supabase: Supa, ids: string[]): Promise<Map<string, Workspace>> {
+  const out = new Map<string, Workspace>();
+  if (!ids.length) return out;
+  const { data, error } = await supabase.from("workspaces").select(COLS).in("id", ids);
+  if (error) return out;
+  for (const r of (data ?? []) as Row[]) out.set(r.id, { ...toWorkspace(r), role: "owner" });
+  return out;
+}
+
 /**
  * Every workspace the person can act in: the ones they own, then the ones
  * they were invited into (with their role). The membership table may not
