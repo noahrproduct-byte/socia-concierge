@@ -50,6 +50,10 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
 
   // Profile, posts and drafts are the active workspace owner's.
   const ctx = await resolveContext(supabase, user.id);
+  // A draft of a planned post (from its production guide): checked here, then passed to the review.
+  const reviewIdx = plan && i != null && /^\d{1,2}$/.test(i) ? Number(i) : null;
+  const reviewFound = plan && reviewIdx != null ? await planConcept(ctx, plan, reviewIdx).catch(() => null) : null;
+  const reviewPlan = reviewFound && plan && reviewIdx != null ? { planId: plan, index: reviewIdx, title: reviewFound.concept.title } : null;
 
   const [profile, snap] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null), getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null)]);
   const goals = (profile?.goals ?? "").toLowerCase();
@@ -86,6 +90,7 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
         connected={Boolean(snap && snap.followers_count != null)}
         postsSynced={snap?.media?.length ?? 0}
         modeTabs={<StudioMode mode="quick" />}
+        plan={reviewPlan}
       />
     </>
   );

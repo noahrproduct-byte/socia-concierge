@@ -44,7 +44,7 @@ const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }
 const TABS = [["analyze", "Analyze"], ["improve", "Improve"], ["caption", "Caption"], ["audio", "Audio"], ["prepare", "Prepare"]] as const;
 type Tab = (typeof TABS)[number][0];
 
-export default function ContentStudio({ userId, niche, location, goalDefault, drafts, connected, postsSynced, modeTabs }: { userId: string; niche: string | null; location: string | null; goalDefault: GoalId | null; drafts: DraftItem[]; connected: boolean; postsSynced: number; /** The Quick analyze | Build from clips switch, rendered under the header. */ modeTabs?: ReactNode }) {
+export default function ContentStudio({ userId, niche, location, goalDefault, drafts, connected, postsSynced, modeTabs, plan }: { userId: string; niche: string | null; location: string | null; goalDefault: GoalId | null; drafts: DraftItem[]; connected: boolean; postsSynced: number; /** The Studio mode switch, rendered under the header. */ modeTabs?: ReactNode; /** The planned post this draft is for: the review compares it with what was planned. */ plan?: { planId: string; index: number; title: string } | null }) {
   const [source, setSource] = useState<Source | null>(null);
   const [frames, setFrames] = useState<Frames | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -93,7 +93,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       const isAuto = Boolean(at && text.trim() === at.text.trim());
       const res = await fetch("/api/studio/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: src.kind, frames: fr.frames, frameTimes: fr.times, durationSec: fr.duration, transcript: text, caption: opts?.caption ?? w.caption, goal: opts?.goal ?? w.goal, platform: opts?.platform ?? w.platform, audio: src.kind === "video" ? sound : null, autoTranscript: isAuto, timedTranscript: isAuto ? at!.timed : null }),
+        body: JSON.stringify({ kind: src.kind, frames: fr.frames, frameTimes: fr.times, durationSec: fr.duration, transcript: text, caption: opts?.caption ?? w.caption, goal: opts?.goal ?? w.goal, platform: opts?.platform ?? w.platform, audio: src.kind === "video" ? sound : null, autoTranscript: isAuto, timedTranscript: isAuto ? at!.timed : null, plan: plan ? { planId: plan.planId, index: plan.index } : null }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -110,7 +110,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     } catch {
       setErr({ kind: "api" }); setPhase("error");
     }
-  }, [transcript, w.caption, w.goal, w.platform, audioFacts, auto]);
+  }, [transcript, w.caption, w.goal, w.platform, audioFacts, auto, plan]);
 
   /**
    * The video's sound: measured from its samples on this device, then — when
@@ -273,7 +273,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const planNote = useMemo(() => {
     if (!analysis) return "Idea from Content Studio.";
     const f = analysis.topFixes[0];
-    return `From Content Studio: ${source?.name ?? "draft"} scored ${analysis.score.overall}/100. ${f ? `Top fix: ${f.title} (${f.suggestion}).` : ""}${w.hook ? ` Hook: "${w.hook}".` : ""}`.slice(0, 380);
+    return `From Content Studio: ${source?.name ?? "draft"} has a creative readiness of ${analysis.score.overall}/100. ${f ? `Top fix: ${f.title} (${f.suggestion}).` : ""}${w.hook ? ` Hook: "${w.hook}".` : ""}`.slice(0, 380);
   }, [analysis, source, w.hook]);
   const summaryForAsk = analysis ? analysisSummary(analysis) : null;
   const busy = phase === "extracting" || phase === "listening" || phase === "transcribing" || phase === "analyzing" || phase === "loading";
@@ -293,6 +293,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         }
       />
       {modeTabs}
+      {plan && <p className="st-plan-ctx">Reviewing a draft of your planned post <b>{plan.title}</b>: the review compares it with what was planned.</p>}
 
       {pickDraft && (
         <div className="st-drafts ov-card">
@@ -341,7 +342,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
             <div className="ov-card st-intro">
               <h2>What you get back</h2>
               <ul>
-                <li><b>A SOCIA score you can read</b><span>Hook, pacing, clarity, visual interest, CTA and audio fit, each with its evidence and a fix. Nothing unmeasurable is scored.</span></li>
+                <li><b>A creative readiness score you can read</b><span>Hook, structure, pacing, clarity, visuals, caption readability, audio, call to action and goal fit, each with its evidence and a fix. Nothing unmeasurable is scored, and it never predicts reach.</span></li>
                 <li><b>Top 3 fixes and a timeline</b><span>Timestamped moments to change; click one and the video jumps there.</span></li>
                 <li><b>Hook Lab, captions, CTAs, cuts</b><span>Ready-to-use lines in your voice; you choose, nothing is overwritten.</span></li>
                 <li><b>Compared with your winners</b><span>{connected ? `Against the cover frames and captions of your top posts (${postsSynced} synced).` : "Connect Instagram to compare against your own top posts."}</span></li>
