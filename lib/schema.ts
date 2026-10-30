@@ -27,6 +27,21 @@ export type Deliverable = {
     rationale: string;
     evidence: string; // which competitor/pattern it's derived from
     predictedPerformance: string; // e.g. "High confidence" / "Experiment"
+    // Plans written since Milestone 4 carry these; older saved plans don't.
+    /** A short working title for the post. */
+    title?: string;
+    /** Which strategy pillar or priority it serves. */
+    purpose?: string;
+    /** Who it is for. */
+    audience?: string;
+    /** Where it goes: Instagram, Facebook, YouTube or TikTok. */
+    platform?: string;
+    /** Shots, look, pacing: how it should feel. */
+    direction?: string;
+    /** What it takes to make: people, gear, time, within the person's stated resources. */
+    production?: string;
+    /** The one number that says whether it worked, against the account's own median. */
+    successMetric?: string;
   }[];
   /** Attached by the server after generation; not part of the model's schema. */
   evidenceUsed?: EvidenceUsed;
@@ -99,6 +114,13 @@ export const deliverableSchema = {
           rationale: { type: "string" },
           evidence: { type: "string" },
           predictedPerformance: { type: "string" },
+          title: { type: "string" },
+          purpose: { type: "string" },
+          audience: { type: "string" },
+          platform: { type: "string" },
+          direction: { type: "string" },
+          production: { type: "string" },
+          successMetric: { type: "string" },
         },
         required: [
           "day",
@@ -108,6 +130,13 @@ export const deliverableSchema = {
           "rationale",
           "evidence",
           "predictedPerformance",
+          "title",
+          "purpose",
+          "audience",
+          "platform",
+          "direction",
+          "production",
+          "successMetric",
         ],
       },
     },

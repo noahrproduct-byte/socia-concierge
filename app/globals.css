@@ -7756,6 +7756,9 @@ a.hub-card:hover {
 .cpl-tag.perf.amber { background: rgba(var(--warning-rgb), 0.14); color: var(--warning-text); }
 .cpl-tag.perf.blue { background: rgba(var(--primary-rgb), 0.16); color: var(--primary-text); }
 .cpl-concept { margin-top: 9px; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+/* Plans since Milestone 4 carry a working title; the concept under it reads as body text. */
+.cpl-title { margin: 9px 0 0; font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--fw-semibold); color: var(--text-primary); text-wrap: balance; }
+.cpl-title + .cpl-concept { margin-top: 4px; font-weight: var(--fw-regular); color: var(--text-secondary); }
 .cpl-hook { margin-top: 8px; border-left: 2px solid rgba(var(--primary-rgb), 0.55); padding: 2px 0 2px 11px; font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
 .cpl-hook b { display: block; font-size: 9px; font-weight: 750; letter-spacing: 0.1em; text-transform: uppercase; color: var(--primary-text); margin-bottom: 3px; }
 .cpl-postmeta { margin-top: 9px; font-size: 11.5px; line-height: 1.6; color: var(--text-secondary); }

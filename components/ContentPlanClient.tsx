@@ -570,7 +570,8 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
   const [saveNote, setSaveNote] = useState<string | null>(null);
   const onProposal = async (p: AskProposal) => {
     if (p.kind !== "plan_day" || !data.weeklyPlan?.[p.index]) return false;
-    const weeklyPlan = data.weeklyPlan.map((d, i) => (i === p.index ? { ...d, concept: p.proposed.concept, hook: p.proposed.hook, format: p.proposed.format || d.format, rationale: p.proposed.rationale } : d));
+    // A new concept: the fields written for the old one (title, direction, production) no longer apply.
+    const weeklyPlan = data.weeklyPlan.map((d, i) => (i === p.index ? { ...d, concept: p.proposed.concept, hook: p.proposed.hook, format: p.proposed.format || d.format, rationale: p.proposed.rationale, title: undefined, direction: undefined, production: undefined } : d));
     // The user approved it: apply on screen now, persist best-effort.
     onUpdate({ ...data, weeklyPlan });
     setApplied(p.day); setTimeout(() => setApplied(null), 2000);
@@ -811,23 +812,26 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                       <Clock size={10} /> {timeFor(post.day)}
                     </span>
                   )}
+                  {post.platform && <span className="cpl-tag fmt">{post.platform}</span>}
                   <span className="cpl-tag fmt">{formatLabel(post.format)}</span>
                   <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`}>
                     {perfLabel(post.predictedPerformance)}
                   </span>
                 </div>
+                {post.title && <h4 className="cpl-title">{post.title}</h4>}
                 <div className="cpl-concept">{post.concept}</div>
                 <div className="cpl-hook">
                   <b>Hook</b>
                   {post.hook}
                 </div>
                 <div className="cpl-postmeta">
-                  {formatLabel(post.format) !== post.format.trim() && (
-                    <>
-                      <b>Production:</b> {post.format}
-                      <br />
-                    </>
-                  )}
+                  {post.purpose && (<><b>Purpose:</b> {post.purpose}<br /></>)}
+                  {post.audience && (<><b>For:</b> {post.audience}<br /></>)}
+                  {post.direction && (<><b>Direction:</b> {post.direction}<br /></>)}
+                  {post.production
+                    ? (<><b>To make it:</b> {post.production}<br /></>)
+                    : formatLabel(post.format) !== post.format.trim() && (<><b>Production:</b> {post.format}<br /></>)}
+                  {post.successMetric && (<><b>Success measure:</b> {post.successMetric}<br /></>)}
                   {perfLabel(post.predictedPerformance) !== post.predictedPerformance.trim() && (
                     <>
                       <b>Expected:</b> {post.predictedPerformance}

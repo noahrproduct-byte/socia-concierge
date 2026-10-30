@@ -44,7 +44,8 @@ Rules:
 - weeklyPlan[].format is one short label: Reel, Carousel, Static or Story. Shot length, camera notes, captions and CTAs belong in concept.
 - weeklyPlan[].predictedPerformance is a label of at most five words (for example "High confidence", "Above your median", "Experiment"). Ranges, caveats and what to measure belong in rationale.
 - Cite only numbers that appear in the evidence you were given. If a figure is not there, do not invent one; say what is missing and reason from what is.
-- Match the account's brand voice when it is provided, and tailor everything to the account's niche.`;
+- Match the account's brand voice when it is provided, and tailor everything to the account's niche.
+- Every weeklyPlan item also carries: title (a working title, at most 8 words); purpose (which strategy pillar or priority it serves, or the goal when there is no strategy); audience (who it is for, in a few words); platform (one connected platform: Instagram, Facebook, YouTube or TikTok; the primary platform when unsure); direction (shots, look and pacing in one or two sentences); production (what it takes to make: people, gear and roughly how long, within the resources given; never more equipment, editing skill or help than they said they have); successMetric (the one number that says whether it worked, against the account's own median, for example "Saves against your median").`;
 
 export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null, evidence?: Evidence | null): string {
   const parts: string[] = [];
