@@ -14,6 +14,9 @@ import { interactionsTotal } from "../engagement";
 import { fromOverviewInsights, zeroViewDiagnostics, type RecentPost } from "./producers";
 import { storeInsights, startJob, finishJob } from "./insightStore";
 import type { InsightDraft, InsightPost } from "./insight";
+import { readStrategy } from "../strategyLoad";
+import { experimentResults } from "../experimentsLoad";
+import { EXPERIMENTS_PRODUCER, experimentInsights } from "../experiments";
 
 export const PRODUCERS = ["overview", "diagnostics"];
 
@@ -63,7 +66,16 @@ export async function runInsights(ctx: Ctx, trigger: "onboarding" | "manual" | "
     }
 
     const stored = await storeInsights(ctx, PRODUCERS, drafts, src.now);
-    const run: IntelRun = { ...stored, found: drafts.length, platforms };
+    // What the strategy's experiments have shown, under their own producer so
+    // a verdict that changes reads as new learning (lib/experiments.ts).
+    const strategy = await readStrategy(ctx).catch(() => null);
+    const exp = experimentInsights(await experimentResults(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, strategy, src.now).catch(() => []), src.now);
+    const expStored = await storeInsights(ctx, [EXPERIMENTS_PRODUCER], exp, src.now).catch(() => ({ added: 0, updated: 0, superseded: 0 }));
+    const run: IntelRun = {
+      ...stored,
+      added: stored.added + expStored.added, updated: stored.updated + expStored.updated, superseded: stored.superseded + expStored.superseded,
+      found: drafts.length + exp.length, platforms,
+    };
     await finishJob(ctx, job, { ok: true, result: run }).catch(() => undefined);
     return run;
   } catch (e) {
