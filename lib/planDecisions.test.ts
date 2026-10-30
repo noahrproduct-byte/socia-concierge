@@ -38,7 +38,7 @@ describe("the next plan learns from them", () => {
   });
 
   it("tells the plan writer never to repeat a turned-down idea and to act on each reason", () => {
-    const prompt = buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "a", goal: "", niche: "b", platform: "instagram" } as never, null, { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: "", decisionsBlock: decisionsBlock(plans), used: {} as never });
+    const prompt = buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "a", goal: "", niche: "b", platform: "instagram" } as never, null, { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: "", decisionsBlock: decisionsBlock(plans), experimentsBlock: "", used: {} as never });
     expect(prompt).toMatch(/# What the person approved, turned down and added/);
     expect(prompt).toMatch(/Never propose a turned-down idea again/);
     expect(prompt).toMatch(/"Too difficult to film" means simpler production/);

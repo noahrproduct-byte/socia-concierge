@@ -75,7 +75,7 @@ export async function POST(req: Request) {
     // The last two plans and what became of them, so the strategist learns
     // from what was posted, skipped, and how each post did.
     const outcomes = await recentPlanOutcomes(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => []);
-    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id), { outcomes });
+    evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id), { outcomes, strategy: brand?.strategy ?? null });
     evidence.used.windows = Boolean(input.audienceWindows?.trim());
   } catch {
     // generation still works without settings or evidence

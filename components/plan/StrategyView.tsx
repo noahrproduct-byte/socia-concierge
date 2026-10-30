@@ -10,13 +10,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, RefreshCw, Plus, X } from "lucide-react";
 import { Button, ConfirmDialog, Field, Input, Textarea } from "@/components/system";
-import type { GrowthStrategy, StrategyExperiment, StrategyMilestone, StrategyPillar } from "@/lib/strategy";
+import type { ExperimentStatus, GrowthStrategy, StrategyExperiment, StrategyMilestone, StrategyPillar } from "@/lib/strategy";
+import { MIN_TESTS, VERDICT_LABEL, type ExperimentRow } from "@/lib/experiments";
 import "./strategy.css";
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const dateLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
-export default function StrategyView({ initial, canManage }: { initial: GrowthStrategy | null; canManage: boolean }) {
+export default function StrategyView({ initial, experiments = [], canManage }: { initial: GrowthStrategy | null; experiments?: ExperimentRow[]; canManage: boolean }) {
   const router = useRouter();
   const [s, setS] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -40,6 +41,19 @@ export default function StrategyView({ initial, canManage }: { initial: GrowthSt
       setBusy(false);
       setConfirm(false);
     }
+  };
+
+  const setStatus = async (id: string, status: ExperimentStatus) => {
+    if (!s) return;
+    setBusy(true);
+    setErr(null);
+    const next = s.experiments.map((e) => (e.id === id ? { ...e, status } : e));
+    const r = await fetch("/api/strategy", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ experiments: next }) }).catch(() => null);
+    const j = await r?.json().catch(() => ({}));
+    setBusy(false);
+    if (!r?.ok) return setErr(j?.error ?? "Couldn't update the experiment. Try again.");
+    setS(j.strategy);
+    router.refresh();
   };
 
   useEffect(() => {
@@ -111,24 +125,63 @@ export default function StrategyView({ initial, canManage }: { initial: GrowthSt
           ) : <p>None yet.</p>}
         </article>
 
-        <article className="gs-card">
+        <article className="gs-card gs-wide">
           <h3>Priorities</h3>
           {s.priorities.length ? <ol>{s.priorities.map((p) => <li key={p}>{p}</li>)}</ol> : <p>None yet.</p>}
         </article>
 
-        <article className="gs-card">
+        <article className="gs-card gs-wide">
           <h3>Experiments</h3>
           {s.experiments.length ? (
             <ul className="gs-exp">
-              {s.experiments.map((e) => (
-                <li key={e.hypothesis}>
-                  <b>{e.hypothesis}</b>
-                  <span>Test: {e.test}</span>
-                  <span>Measure: {e.measure}</span>
-                </li>
-              ))}
+              {s.experiments.map((e) => {
+                const r = experiments.find((x) => x.id === e.id)?.result;
+                const status = e.status ?? "running";
+                return (
+                  <li key={e.id ?? e.hypothesis}>
+                    <div className="gs-exp-head">
+                      <b>{e.hypothesis}</b>
+                      <span className="gs-chip">{status === "running" ? "Running" : status === "done" ? "Done" : "Stopped"}</span>
+                      {r && <span className={`gs-chip gs-v-${r.verdict}`}>{VERDICT_LABEL[r.verdict]}</span>}
+                    </div>
+                    <span>Test: {e.test}</span>
+                    <span>Measure: {e.measure}</span>
+                    {r && (
+                      <>
+                        <p className="gs-exp-counts">{r.planned} planned, {r.published} published, {r.measured} measured{r.medianMultiplier != null ? `; median ${r.medianMultiplier}x your median` : ""}</p>
+                        <p>{r.interpretation}</p>
+                        <p className="gs-sub">Next: {r.nextAction}</p>
+                        {r.tests.length > 0 && (
+                          <ul className="gs-tests">
+                            {r.tests.slice(0, 6).map((t, i) => (
+                              <li key={i}>
+                                {t.permalink ? <a href={t.permalink} target="_blank" rel="noreferrer">{t.title}</a> : <span>{t.title}</span>}
+                                <small>{t.day}, {t.state === "published" ? (t.multiplier != null ? `${t.multiplier}x your median${t.early ? ", still settling" : ""}` : "measuring") : t.state === "unscheduled" ? "not on the Calendar yet" : t.state}</small>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
+                    )}
+                    {!e.id && <p className="gs-sub">Rewrite or edit the strategy to start tracking this experiment.</p>}
+                    {canManage && e.id && (
+                      <div className="gs-actions">
+                        {status === "running" ? (
+                          <>
+                            <Button size="sm" variant="ghost" busy={busy} onClick={() => setStatus(e.id!, "done")}>Mark done</Button>
+                            <Button size="sm" variant="ghost" busy={busy} onClick={() => setStatus(e.id!, "stopped")}>Stop</Button>
+                          </>
+                        ) : (
+                          <Button size="sm" variant="ghost" busy={busy} onClick={() => setStatus(e.id!, "running")}>Run again</Button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           ) : <p>None running.</p>}
+          <p className="gs-note">SOCIA measures each test post by the number it can read on that platform (interactions on Instagram and Facebook, views on YouTube) against your own median, once it settles; {MIN_TESTS} are needed before it reads a result. That can differ from the measure named above.</p>
         </article>
 
         <article className="gs-card gs-wide">
