@@ -11,6 +11,8 @@ import { scopeToWorkspace } from "./workspaces";
 import type { PlanOutcome, ItemOutcome } from "./planOutcomes";
 import { activeFindings } from "./intel/insightStore";
 import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
+import { reasonLabel } from "./planItems";
+import type { Deliverable } from "./schema";
 
 export type Evidence = {
   postsBlock: string;
@@ -19,6 +21,8 @@ export type Evidence = {
   outcomesBlock: string;
   /** Formats that lead across other accounts' posts in the niche (lib/nicheFormats.ts, from the insights store). */
   formatsBlock: string;
+  /** What the person approved, turned down (and why) and added themselves in their recent plans. */
+  decisionsBlock: string;
   used: EvidenceUsed;
 };
 
@@ -201,6 +205,29 @@ export function competitorsBlock(accounts: CompetitorRow[], tracked: TrackedRow[
     .join("\n");
 }
 
+type PlanRow = { created_at: string; data: { weeklyPlan?: Deliverable["weeklyPlan"] } | null };
+
+/** The person's calls on recent plans: turned down (with their reasons), kept, and their own ideas. Newest plan first. */
+export function decisionsBlock(plans: PlanRow[]): string {
+  const rejected: string[] = [], kept: string[] = [], own: string[] = [];
+  for (const p of plans) {
+    for (const it of p.data?.weeklyPlan ?? []) {
+      const what = `"${(it.title || it.concept).slice(0, 90)}" (${it.format}${it.platform ? `, ${it.platform}` : ""})`;
+      if (it.source === "own") own.push(`- ${what}`);
+      else if (it.decision?.status === "rejected") {
+        const why = [...(it.decision.reasons ?? []).map(reasonLabel), it.decision.note ? `"${it.decision.note}"` : null].filter(Boolean).join("; ");
+        rejected.push(`- ${what}${why ? `: ${why}` : ": no reason given"}`);
+      } else if (it.decision?.status === "approved") kept.push(`- ${what}`);
+    }
+  }
+  if (!rejected.length && !kept.length && !own.length) return "";
+  return [
+    rejected.length ? `Ideas they turned down:\n${rejected.slice(0, 12).join("\n")}` : "",
+    kept.length ? `Ideas they approved:\n${kept.slice(0, 12).join("\n")}` : "",
+    own.length ? `Ideas they added themselves:\n${own.slice(0, 8).join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
@@ -236,6 +263,12 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   } catch { /* none */ }
 
   const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
+  let recentPlans: PlanRow[] = [];
+  try {
+    const { data } = await scopeToWorkspace(supabase.from("plans").select("created_at, data").eq("user_id", userId), workspaceId)
+      .order("created_at", { ascending: false }).limit(3);
+    recentPlans = (data ?? []) as PlanRow[];
+  } catch { /* none */ }
 
   const postsBlock = ownPostsBlock(media, followers);
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning);
@@ -251,6 +284,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     competitorsBlock: competitorsBlock_,
     outcomesBlock: outcomesBlock_,
     formatsBlock: formatsEvidence(formats),
+    decisionsBlock: decisionsBlock(recentPlans),
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,

@@ -100,6 +100,12 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     );
   }
 
+  if (evidence?.decisionsBlock) {
+    parts.push(`\n# What the person approved, turned down and added`);
+    parts.push(evidence.decisionsBlock);
+    parts.push(`Respect these calls. Never propose a turned-down idea again, in any wording. Act on each reason: "Too difficult to film" means simpler production; "Too repetitive" means a different topic and format; "I don't like this format" means leave that format out; "I want something more creative" means a bolder concept; "Not relevant to my brand" means stay closer to their pillars. Build on what they approved and on their own ideas, and when a post follows from one, say so in its evidence field.`);
+  }
+
   if (evidence?.formatsBlock) {
     parts.push(`\n# Formats that lead in this niche`);
     parts.push(`(Found by SOCIA across other accounts' public posts: each format has at least 3 examples from 2 accounts, and its numbers are those posts' results against their own creators' medians. Other accounts' results, not this account's.)`);
