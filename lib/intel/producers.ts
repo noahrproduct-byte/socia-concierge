@@ -105,7 +105,7 @@ export function zeroViewDiagnostics(posts: RecentPost[], syncedAt: string | null
           learning: "Whether this is a delay, a setting, or a distribution problem.",
           href: p.permalink,
         },
-        source: { rule: "diagnostic.zero_views: views == 0, published 2-72h before the read", data: [`views 0 at ${ageH}h`], retrievedAt: syncedAt },
+        source: { rule: "diagnostic.zero_views: views == 0, published 2-72h before the read", data: [`${name} reported 0 views ${ageH} hours after publishing`], retrievedAt: syncedAt },
       };
     });
 }
