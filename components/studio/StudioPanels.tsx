@@ -49,7 +49,7 @@ function CopyBtn({ text }: { text: string }) {
 export function ScoreRing({ score }: { score: number }) {
   const r = 46, c = 2 * Math.PI * r;
   return (
-    <svg viewBox="0 0 110 110" className="st-ring" role="img" aria-label={`SOCIA score ${score} out of 100`}>
+    <svg viewBox="0 0 110 110" className="st-ring" role="img" aria-label={`Creative readiness ${score} out of 100`}>
       <circle cx="55" cy="55" r={r} className="st-ring-track" />
       <circle cx="55" cy="55" r={r} className="st-ring-fill" strokeDasharray={c} strokeDashoffset={c * (1 - score / 100)} transform="rotate(-90 55 55)" />
       <text x="55" y="52" textAnchor="middle" className="st-ring-num">{score}</text>
@@ -67,9 +67,10 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
         <div className="st-score">
           <ScoreRing score={a.score.overall} />
           <div className="st-score-meta">
-            <small>SOCIA score</small>
+            <small>Creative readiness</small>
             <b>{a.score.label}</b>
             <p>{a.observed.summary}</p>
+            <p className="st-score-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
             <button type="button" className="ov-link" onClick={() => setHow((v) => !v)}>How is this scored? <ChevronDown size={12} style={{ transform: how ? "rotate(180deg)" : undefined }} /></button>
           </div>
         </div>
@@ -104,8 +105,22 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
         </ul>
       </section>
 
+      {a.planFit && (
+        <section className="st-block">
+          <h3>Against your planned post</h3>
+          <p className="st-planfit"><b>{a.planFit.title}</b> {a.planFit.summary}</p>
+        </section>
+      )}
+
+      {a.strengths && a.strengths.length > 0 && (
+        <section className="st-block">
+          <h3>What works</h3>
+          <ul className="st-works">{a.strengths.map((x) => <li key={x}>{x}</li>)}</ul>
+        </section>
+      )}
+
       <section className="st-block">
-        <h3>Top 3 fixes</h3>
+        <h3>Highest-priority edits</h3>
         <ol className="st-fixes">
           {a.topFixes.map((f, i) => (
             <li key={i} className="st-fix">

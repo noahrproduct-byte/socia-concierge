@@ -88,7 +88,7 @@ export default function GuideStudio({ modeTabs, concept: initialConcept, guide: 
           ) : editing ? (
             <GuideEditor g={guide} onCancel={() => setEditing(false)} onSave={save} />
           ) : (
-            <GuideView c={concept} g={guide} note={note} err={err} busy={busy} canSave={source?.kind === "plan"} onEdit={() => setEditing(true)} onRewrite={() => setConfirm(true)} />
+            <GuideView c={concept} g={guide} note={note} err={err} busy={busy} canSave={source?.kind === "plan"} planIndex={source?.kind === "plan" ? source.index : null} onEdit={() => setEditing(true)} onRewrite={() => setConfirm(true)} />
           )}
         </>
       )}
@@ -132,7 +132,7 @@ function ConceptCard({ c }: { c: StudioConcept }) {
   );
 }
 
-function GuideView({ c, g, note, err, busy, canSave, onEdit, onRewrite }: { c: StudioConcept; g: ProductionGuide; note: string | null; err: string | null; busy: boolean; canSave: boolean; onEdit: () => void; onRewrite: () => void }) {
+function GuideView({ c, g, note, err, busy, canSave, planIndex, onEdit, onRewrite }: { c: StudioConcept; g: ProductionGuide; note: string | null; err: string | null; busy: boolean; canSave: boolean; planIndex: number | null; onEdit: () => void; onRewrite: () => void }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     const text = guideText(c, g);
@@ -184,7 +184,7 @@ function GuideView({ c, g, note, err, busy, canSave, onEdit, onRewrite }: { c: S
 
       <div className="gd-next">
         <Link href={`/create?${create.toString()}`} className="ov-link"><PenSquare size={13} aria-hidden /> Create this post</Link>
-        <Link href="/studio" className="ov-link"><Video size={13} aria-hidden /> Review your draft once it&apos;s filmed</Link>
+        <Link href={c.planId != null ? `/studio?plan=${c.planId}&i=${planIndex ?? ""}` : "/studio"} className="ov-link"><Video size={13} aria-hidden /> Review your draft once it&apos;s filmed</Link>
         {!canSave && <span className="gd-note">Only a planned post keeps its guide; copy it to keep this one.</span>}
       </div>
     </section>

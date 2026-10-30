@@ -10,7 +10,9 @@ import { median } from "@/lib/metrics";
 import { interactionsTotal } from "@/lib/engagement";
 import { postCards, displayTitle, type PostCard } from "@/lib/overview";
 import { describeQuickAudio, type QuickAudio } from "@/lib/audio/quick";
-import { GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
+import { CATEGORY_INFO, GOALS, SCORE_LABEL, type StudioAnalysis, type StudioKind, type GoalId, type CategoryId } from "@/lib/studio";
+import { planConcept } from "@/lib/studioGuideLoad";
+import { conceptPrompt } from "@/lib/studioGuide";
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
@@ -33,6 +35,8 @@ type Body = {
   /** the transcript as timestamped lines, when it was transcribed automatically */
   timedTranscript?: string | null;
   autoTranscript?: boolean;
+  /** The planned post this draft is for; its concept and guide are read on the server. */
+  plan?: { planId?: unknown; index?: unknown } | null;
 };
 
 /** Client numbers are the person's own measurements; keep them in range and finite. */
@@ -55,7 +59,7 @@ const SYSTEM = `You are SOCIA's content editor: a short-form video and social po
 
 Hard rules:
 - Judge only what is in the sampled frames, the measurements and the text you were given. Say "not assessable" (assessable=false, score 0) for audio only when there is neither a transcript nor a measurement of the sound; never guess sound beyond what the measurements and transcript show.
-- Never predict views, reach, virality or retention. Never state platform algorithm rules as facts; say "tends to" and "in your own top posts" instead.
+- The overall score is a creative readiness assessment of this draft, the editor's judgement of how ready it is to post. Never predict views, reach, virality or retention. Never state platform algorithm rules as facts; say "tends to" and "in your own top posts" instead.
 - Every observation must reference a timestamp or something visible/readable. Every fix must be an instruction someone could execute today.
 - Hooks, CTAs and on-screen text you propose are written lines in the account's voice, ready to use, no quotes around them, under 90 characters.
 - Scores: be harsh. Most drafts land 55-75 overall. 85+ is rare. Score categories independently; the overall is your weighted judgement, dominated by the hook and clarity.
@@ -84,6 +88,17 @@ export async function POST(req: Request) {
   const kind: StudioKind = body.kind === "image" || body.kind === "carousel" ? body.kind : "video";
   const duration = kind === "video" ? Math.max(1, Math.round(body.durationSec || 0)) : 0;
   const goal = GOALS.find((g) => g.id === body.goal) ?? null;
+  // A draft of a planned post is reviewed against what was planned (Studio > Plan a post).
+  const planned = body.plan && typeof body.plan.planId === "string" && Number.isInteger(body.plan.index)
+    ? await planConcept(ctx, body.plan.planId, body.plan.index as number).catch(() => null)
+    : null;
+  const plannedText = planned
+    ? `# What was planned for this post
+${conceptPrompt(planned.concept)}${planned.guide ? `
+Planned structure: ${planned.guide.structure.join(" > ")}
+Planned openings: ${planned.guide.hooks.map((h) => h.text).join(" | ")}
+Planned shots: ${planned.guide.shots.map((x) => x.shot).join("; ")}` : ""}`
+    : "";
   const audio = kind === "video" ? cleanAudio(body.audio) : null;
 
   // Account context: profile + top posts + their cover frames (real content).
@@ -125,12 +140,16 @@ ${body.caption?.trim() ? `Draft caption:\n"""\n${body.caption.trim().slice(0, 15
 ${brandContext(profile?.brand_detail) || ""}
 ${profile?.goals ? `The account's overall goal: ${profile.goals}` : ""}
 
+${plannedText}
+
 ${winnersText}
 
 ${nicheText}
 
 Return the JSON. Requirements:
-- categories: all six ids once; for ${kind === "video" ? "video" : "a still image"}${kind !== "video" ? " mark pacing and audio assessable=false" : ""}.
+- categories: all nine ids once; for ${kind === "video" ? "video" : "a still image"}${kind !== "video" ? " mark structure, pacing and audio assessable=false" : ""}. captions is assessable=false when no on-screen text is visible in the frames. goal judges fit with the goal${planned ? " and with what was planned" : ""}.
+- strengths: up to 3 things that already work, each naming a timestamp or something visible.
+- planFit: ${planned ? "two or three sentences on how the draft compares with what was planned: the concept, opening and structure, and what to change to deliver it." : "an empty string (nothing was planned)."}
 - markers: 3-6 timestamped moments (issue / strong / pacing / cta / text)${kind !== "video" ? " (t=-1 for images)" : ""}.
 - segments: the video's structure as 3-6 contiguous ranges covering 0 to ${duration}s with a rating and reason${kind !== "video" ? " (empty for images)" : ""}.
 - topFixes: exactly 3, ranked by impact; when a fix is a line to paste (hook text, CTA, caption), fill applyField and applyValue.
@@ -145,7 +164,7 @@ Return the JSON. Requirements:
 - captionSuggestion: one caption in the account's voice with an ask that fits the goal.
 
 Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly this shape:
-{"overall":0,"categories":[{"id":"hook|pacing|clarity|visual|cta|audio","assessable":true,"score":0,"explanation":"","evidence":"","fix":""}],"observed":{"subjectAppearsAt":0,"faceSeen":"yes|no|unknown","onScreenText":"yes|no|unknown","ctaDetected":"yes|no|unknown","summary":""},"markers":[{"t":0,"kind":"issue|strong|pacing|cta|text","label":""}],"segments":[{"start":0,"end":0,"label":"","rating":"weak|good|strong|needs","reason":""}],"topFixes":[{"title":"","observed":"","suggestion":"","kind":"opening|hook_text|ending|pacing|text|audio|visual|caption","t":0,"applyField":"hook|cta|caption|onscreen|none","applyValue":""}],"currentHook":"","hooks":[{"style":"curiosity|direct|local|educational|challenge|story","text":""}],"currentCta":"","ctaOptions":[""],"onScreenText":[{"t":0,"text":"","role":"opening|mid|cta"}],"cuts":{"suggestedSec":0,"edits":[{"type":"remove|trim","start":0,"end":0,"reason":""}],"note":""},"audio":{"observed":"","direction":{"style":"","bpm":"","texture":"","why":""},"alternative":{"style":"","bpm":"","texture":"","why":""}},"platformFit":[{"platform":"Instagram Reels|TikTok|YouTube Shorts","fit":"strong|medium|weak","note":""}],"compare":{"rows":[{"label":"","current":"","winners":"","verdict":"better|similar|worse|unknown"}],"summary":""},"niche":{"patterns":[""],"summary":""},"captionSuggestion":""}`;
+{"overall":0,"strengths":[""],"planFit":"","categories":[{"id":"hook|structure|pacing|clarity|visual|captions|audio|cta|goal","assessable":true,"score":0,"explanation":"","evidence":"","fix":""}],"observed":{"subjectAppearsAt":0,"faceSeen":"yes|no|unknown","onScreenText":"yes|no|unknown","ctaDetected":"yes|no|unknown","summary":""},"markers":[{"t":0,"kind":"issue|strong|pacing|cta|text","label":""}],"segments":[{"start":0,"end":0,"label":"","rating":"weak|good|strong|needs","reason":""}],"topFixes":[{"title":"","observed":"","suggestion":"","kind":"opening|hook_text|ending|pacing|text|audio|visual|caption","t":0,"applyField":"hook|cta|caption|onscreen|none","applyValue":""}],"currentHook":"","hooks":[{"style":"curiosity|direct|local|educational|challenge|story","text":""}],"currentCta":"","ctaOptions":[""],"onScreenText":[{"t":0,"text":"","role":"opening|mid|cta"}],"cuts":{"suggestedSec":0,"edits":[{"type":"remove|trim","start":0,"end":0,"reason":""}],"note":""},"audio":{"observed":"","direction":{"style":"","bpm":"","texture":"","why":""},"alternative":{"style":"","bpm":"","texture":"","why":""}},"platformFit":[{"platform":"Instagram Reels|TikTok|YouTube Shorts","fit":"strong|medium|weak","note":""}],"compare":{"rows":[{"label":"","current":"","winners":"","verdict":"better|similar|worse|unknown"}],"summary":""},"niche":{"patterns":[""],"summary":""},"captionSuggestion":""}`;
 
   // One analysis per unit of the Content Studio allowance; counted right
   // before the model is called, and given back when no analysis comes back.
@@ -187,10 +206,10 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
     const r = raw as any;
     const yn = (v: string): boolean | null => (v === "yes" ? true : v === "no" ? false : null);
     const tOrNull = (t: number): number | null => (typeof t === "number" && t >= 0 ? Math.min(t, Math.max(0, duration)) : null);
-    const ORDER: CategoryId[] = ["hook", "pacing", "clarity", "visual", "cta", "audio"];
+    const ORDER: CategoryId[] = ["hook", "structure", "pacing", "clarity", "visual", "captions", "audio", "cta", "goal"];
     const categories = ORDER.map((id) => {
       const c = (r.categories ?? []).find((x: { id: string }) => x.id === id);
-      const videoOnly = id === "pacing" || id === "audio";
+      const videoOnly = CATEGORY_INFO[id].video_only;
       const assessable = c ? Boolean(c.assessable) && !(videoOnly && kind !== "video") : false;
       return { id, score: assessable ? Math.max(0, Math.min(100, Math.round(c.score))) : null, explanation: c?.explanation ?? (assessable ? "" : "Not assessable from what was provided."), evidence: c?.evidence ?? "", fix: c?.fix ?? "" };
     });
@@ -212,6 +231,8 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       compare: top.length && r.compare?.rows?.length ? { basis: `your top ${top.length} posts by views and their cover frames`, rows: r.compare.rows.slice(0, 7), summary: r.compare.summary ?? "", sample: top.length } : null,
       niche: niche.length && r.niche?.patterns?.length ? { basis: `${niche.length} high-performing posts SOCIA found in your niche`, patterns: r.niche.patterns.slice(0, 6), summary: r.niche.summary ?? "" } : null,
       caption: { current: body.caption?.trim() || null, suggestion: r.captionSuggestion || null },
+      strengths: (Array.isArray(r.strengths) ? r.strengths : []).filter((x: unknown): x is string => typeof x === "string" && x.trim().length > 0).slice(0, 3),
+      planFit: planned && typeof r.planFit === "string" && r.planFit.trim() ? { title: planned.concept.title, summary: r.planFit.trim().slice(0, 600) } : null,
       meta: { frames: body.frames.length, hadTranscript: Boolean(body.transcript?.trim()), analyzedAt: new Date().toISOString(), version: 1, audioMeasured: Boolean(audio), autoTranscript: Boolean(body.autoTranscript && body.transcript?.trim()) },
       measuredAudio: audio,
     };

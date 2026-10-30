@@ -17,14 +17,17 @@ export const GOALS: { id: GoalId; label: string; focus: string }[] = [
   { id: "authority", label: "Build creator authority", focus: "expertise on camera, a clear point of view and educational structure" },
 ];
 
-export type CategoryId = "hook" | "pacing" | "clarity" | "visual" | "cta" | "audio";
+export type CategoryId = "hook" | "structure" | "pacing" | "clarity" | "visual" | "captions" | "audio" | "cta" | "goal";
 export const CATEGORY_INFO: Record<CategoryId, { label: string; analyzes: string[]; video_only: boolean }> = {
   hook: { label: "Hook", video_only: false, analyzes: ["how quickly the main subject appears", "motion or change in the opening frames", "how much setup comes before value", "on-screen text and its legibility", "first-frame visual strength"] },
   pacing: { label: "Pacing", video_only: true, analyzes: ["how often the frame changes across the sampled moments", "static stretches without new information", "where the payoff lands relative to the length"] },
-  clarity: { label: "Clarity", video_only: false, analyzes: ["whether the subject is obvious without sound", "text readability", "one idea per piece vs several competing ones", "transcript structure when one is provided"] },
+  structure: { label: "Narrative structure", video_only: true, analyzes: ["whether there is an opening, a build and a payoff across the sampled moments", "whether the payoff lands before the end", "for a planned post, whether it follows the planned structure"] },
+  clarity: { label: "Clarity", video_only: false, analyzes: ["whether the subject is obvious without sound", "one idea per piece vs several competing ones", "transcript structure when one is provided"] },
+  captions: { label: "Caption readability", video_only: false, analyzes: ["size and contrast of on-screen text in the sampled frames", "whether text sits clear of where the platform's buttons go", "whether text stays up long enough between samples to read", "not assessable when no on-screen text is visible"] },
   visual: { label: "Visual interest", video_only: false, analyzes: ["framing and lighting in the sampled frames", "variety of shots", "focus on the subject", "clutter"] },
-  cta: { label: "CTA", video_only: false, analyzes: ["whether the ending or caption asks for a next action", "how specific that ask is", "fit with the chosen goal"] },
-  audio: { label: "Audio fit", video_only: true, analyzes: ["only when a transcript or on-screen text is provided: whether the spoken line matches the visuals", "clarity of the message", "otherwise this category is marked not assessable, never guessed"] },
+  cta: { label: "Call to action", video_only: false, analyzes: ["whether the ending or caption asks for a next action", "how specific that ask is"] },
+  goal: { label: "Goal fit", video_only: false, analyzes: ["fit with the chosen goal", "for a planned post, whether the draft delivers its concept and can be read by its success measure"] },
+  audio: { label: "Audio quality", video_only: true, analyzes: ["only when a transcript or on-screen text is provided: whether the spoken line matches the visuals", "clarity of the message", "otherwise this category is marked not assessable, never guessed"] },
 };
 
 export type Category = { id: CategoryId; score: number | null; explanation: string; evidence: string; fix: string };
@@ -58,12 +61,17 @@ export type StudioAnalysis = {
   compare: { basis: string; rows: CompareRow[]; summary: string; sample: number } | null;
   niche: { basis: string; patterns: string[]; summary: string } | null;
   caption: { current: string | null; suggestion: string | null };
+  /** Up to three things that already work, each tied to a moment or something visible. */
+  strengths?: string[];
+  /** For a draft of a planned post: how it compares with what was planned. */
+  planFit?: { title: string; summary: string } | null;
   meta: { frames: number; hadTranscript: boolean; analyzedAt: string; version: number; audioMeasured?: boolean; autoTranscript?: boolean };
   /** The video's sound measured from its samples on the device (lib/audio/quick.ts); null when it couldn't be decoded. */
   measuredAudio?: QuickAudio | null;
 };
 
-export const SCORE_LABEL = (s: number) => (s >= 85 ? "Strong potential" : s >= 70 ? "Solid, with clear wins" : s >= 55 ? "Needs work before posting" : "Rework the opening first");
+/** The overall is a creative readiness assessment of the draft, never a prediction of reach. */
+export const SCORE_LABEL = (s: number) => (s >= 85 ? "Ready to post" : s >= 70 ? "Solid, with clear wins" : s >= 55 ? "Needs work before posting" : "Rework the opening first");
 
 /** Structured-output schema for what the model produces. No nulls: sentinel
  *  values (-1, "", "none") are mapped on the server. */
@@ -73,7 +81,7 @@ export const studioSchema = {
   additionalProperties: false,
   properties: {
     overall: { type: "integer" },
-    categories: { type: "array", items: { type: "object", additionalProperties: false, properties: { id: { type: "string", enum: ["hook", "pacing", "clarity", "visual", "cta", "audio"] }, assessable: { type: "boolean" }, score: { type: "integer" }, explanation: { type: "string" }, evidence: { type: "string" }, fix: { type: "string" } }, required: ["id", "assessable", "score", "explanation", "evidence", "fix"] } },
+    categories: { type: "array", items: { type: "object", additionalProperties: false, properties: { id: { type: "string", enum: ["hook", "structure", "pacing", "clarity", "visual", "captions", "audio", "cta", "goal"] }, assessable: { type: "boolean" }, score: { type: "integer" }, explanation: { type: "string" }, evidence: { type: "string" }, fix: { type: "string" } }, required: ["id", "assessable", "score", "explanation", "evidence", "fix"] } },
     observed: { type: "object", additionalProperties: false, properties: { subjectAppearsAt: { type: "number" }, faceSeen: { type: "string", enum: ["yes", "no", "unknown"] }, onScreenText: { type: "string", enum: ["yes", "no", "unknown"] }, ctaDetected: { type: "string", enum: ["yes", "no", "unknown"] }, summary: { type: "string" } }, required: ["subjectAppearsAt", "faceSeen", "onScreenText", "ctaDetected", "summary"] },
     markers: { type: "array", items: { type: "object", additionalProperties: false, properties: { t: { type: "number" }, kind: { type: "string", enum: ["issue", "strong", "pacing", "cta", "text"] }, label: { type: "string" } }, required: ["t", "kind", "label"] } },
     segments: { type: "array", items: { type: "object", additionalProperties: false, properties: { start: { type: "number" }, end: { type: "number" }, label: { type: "string" }, rating: { type: "string", enum: ["weak", "good", "strong", "needs"] }, reason: { type: "string" } }, required: ["start", "end", "label", "rating", "reason"] } },
