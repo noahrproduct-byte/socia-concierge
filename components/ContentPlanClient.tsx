@@ -22,6 +22,7 @@ import {
   Database,
   Trophy,
   PenSquare,
+  Plus,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { AskDrawer } from "@/components/AskSocia";
@@ -44,6 +45,9 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
+import { Button } from "@/components/system";
+import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
+import { reasonLabel } from "@/lib/planItems";
 
 // Server-assembled context: real prefill from the connected account/profile,
 // plus the live metrics shown in the preview strip. Nothing here is invented —
@@ -584,6 +588,69 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
     } else setSaveNote(`${p.day} updated on screen. Generate or open a saved plan to keep changes.`);
     return true;
   };
+  // Per-post decisions, edits and added ideas: applied on screen, saved to the plan.
+  const [itemBusy, setItemBusy] = useState<number | null>(null);
+  const [rejecting, setRejecting] = useState<number | null>(null);
+  const [editing, setEditing] = useState<number | "new" | null>(null);
+  const persist = async (weeklyPlan: Deliverable["weeklyPlan"], ok: string): Promise<boolean> => {
+    onUpdate({ ...data, weeklyPlan });
+    if (!planId) { setSaveNote("Changed on screen. Generate or open a saved plan to keep changes."); return false; }
+    try {
+      const res = await fetch("/api/plans", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: planId, weeklyPlan }) });
+      const j = await res.json().catch(() => ({}));
+      setSaveNote(res.ok ? ok : j.error ?? "Changed on screen, but the plan could not be saved.");
+      return res.ok;
+    } catch { setSaveNote("Changed on screen, but the plan could not be saved."); return false; }
+  };
+  const withItem = (i: number, patch: Partial<Deliverable["weeklyPlan"][number]>) => data.weeklyPlan.map((d, j) => (j === i ? { ...d, ...patch } : d));
+  // The week a plan is put on: this one until Wednesday, the next one from Thursday (the same rule as "Schedule this week").
+  const planWeekStart = (now: Date) => new Date(mondayOf(now).getTime() + (now.getDay() === 0 || now.getDay() >= 4 ? 7 : 0) * DAY_MS);
+  const approve = async (i: number) => {
+    const item = data.weeklyPlan[i];
+    setItemBusy(i);
+    try {
+      const now = new Date();
+      const { drafts } = draftsFromPlan([item], planWeekStart(now), (wd) => suggestedHour(aud, (wd + 6) % 7));
+      const draft = drafts[0];
+      if (!draft || new Date(draft.scheduled_at).getTime() <= now.getTime()) {
+        setSaveNote(`${item.day} has already passed this week. Edit it to another day, then approve.`);
+        return;
+      }
+      const res = await fetch("/api/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: [{ ...draft, plan_id: planId }] }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setSaveNote(j.error ?? "Couldn't put it on the Calendar."); return; }
+      setOutcomeTick((t) => t + 1);
+      await persist(withItem(i, { decision: { status: "approved", at: now.toISOString() } }), `${item.day} approved: it's on the Calendar as a draft. Nothing publishes until you schedule it with media.`);
+    } finally { setItemBusy(null); }
+  };
+  const reject = async (i: number, reasons: string[], note: string | null, replace: boolean) => {
+    const item = data.weeklyPlan[i];
+    setRejecting(null);
+    await persist(withItem(i, { decision: { status: "rejected", at: new Date().toISOString(), reasons, note } }), `${item.day}'s idea turned down. The next plan takes it into account.`);
+    if (replace) {
+      const why = [...reasons.map(reasonLabel), note].filter(Boolean).join("; ");
+      setAsk({ q: `Give me a different idea for ${item.day}.${why ? ` I turned this one down: ${why}.` : ""}`, day: item.day });
+    }
+  };
+  const undo = async (i: number) => {
+    setItemBusy(i);
+    try { await persist(withItem(i, { decision: undefined }), `${data.weeklyPlan[i].day} is back in the plan.`); } finally { setItemBusy(null); }
+  };
+  const saveItem = async (d: { day: string; title?: string; concept: string; hook: string; format: string; platform?: string }) => {
+    const target = editing;
+    setEditing(null);
+    if (target === "new") {
+      const added = { ...d, rationale: "", evidence: "", predictedPerformance: "", source: "own" as const };
+      await persist([...data.weeklyPlan, added], `Your idea for ${d.day} is in the plan.`);
+    } else if (typeof target === "number") {
+      const cur = data.weeklyPlan[target];
+      // A rewritten idea: the production notes written for the old one no longer apply.
+      const changed = d.concept.trim() !== cur.concept.trim();
+      await persist(withItem(target, { ...d, ...(changed ? { direction: undefined, production: undefined } : {}) }), `${d.day} saved.`);
+    }
+  };
+  const onCalendar = (i: number) => (itemOutcome(i)?.state ?? "unscheduled") !== "unscheduled";
+
   const timeFor = (day: string): string | null => {
     const wd = weekdayIndex(day);
     return wd == null ? null : hourLabel(suggestedHour(aud, (wd + 6) % 7));
@@ -628,7 +695,8 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
       // Thursday or later (or Sunday): most of this week is gone, use next.
       const nextWeek = now.getDay() === 0 || now.getDay() >= 4;
       const weekStart = new Date(mondayOf(now).getTime() + (nextWeek ? 7 : 0) * DAY_MS);
-      const { drafts, skipped } = draftsFromPlan(data.weeklyPlan ?? [], weekStart, (wd) =>
+      // Ideas the person turned down never go on the Calendar.
+      const { drafts, skipped } = draftsFromPlan((data.weeklyPlan ?? []).filter((d) => d.decision?.status !== "rejected"), weekStart, (wd) =>
         suggestedHour(aud, (wd + 6) % 7)
       );
       const usable = drafts.filter((d) => new Date(d.scheduled_at).getTime() > now.getTime());
@@ -802,9 +870,10 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
           )}
           <div className="cpl-posts">
             {data.weeklyPlan.map((post, i) => (
-              <article className={`cpl-post${applied === post.day ? " applied" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>
+              <article className={`cpl-post${applied === post.day ? " applied" : ""}${post.decision?.status === "rejected" ? " pi-rejected" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="cpl-post-tags">
                   <span className="cpl-tag day">{post.day}</span>
+                  <DecisionTag item={post} />
                   <OutcomeTags o={itemOutcome(i)} />
                   <button type="button" className="cpl-improve" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to film.`, day: post.day })}><Sparkles size={11} /> Improve</button>
                   {timeFor(post.day) && (
@@ -814,16 +883,20 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                   )}
                   {post.platform && <span className="cpl-tag fmt">{post.platform}</span>}
                   <span className="cpl-tag fmt">{formatLabel(post.format)}</span>
-                  <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`}>
-                    {perfLabel(post.predictedPerformance)}
-                  </span>
+                  {post.predictedPerformance.trim() && (
+                    <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`}>
+                      {perfLabel(post.predictedPerformance)}
+                    </span>
+                  )}
                 </div>
                 {post.title && <h4 className="cpl-title">{post.title}</h4>}
                 <div className="cpl-concept">{post.concept}</div>
-                <div className="cpl-hook">
-                  <b>Hook</b>
-                  {post.hook}
-                </div>
+                {post.hook.trim() && (
+                  <div className="cpl-hook">
+                    <b>Hook</b>
+                    {post.hook}
+                  </div>
+                )}
                 <div className="cpl-postmeta">
                   {post.purpose && (<><b>Purpose:</b> {post.purpose}<br /></>)}
                   {post.audience && (<><b>For:</b> {post.audience}<br /></>)}
@@ -832,24 +905,46 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                     ? (<><b>To make it:</b> {post.production}<br /></>)
                     : formatLabel(post.format) !== post.format.trim() && (<><b>Production:</b> {post.format}<br /></>)}
                   {post.successMetric && (<><b>Success measure:</b> {post.successMetric}<br /></>)}
-                  {perfLabel(post.predictedPerformance) !== post.predictedPerformance.trim() && (
+                  {post.predictedPerformance.trim() && perfLabel(post.predictedPerformance) !== post.predictedPerformance.trim() && (
                     <>
                       <b>Expected:</b> {post.predictedPerformance}
                       <br />
                     </>
                   )}
-                  <b>Why this:</b> {post.rationale}
-                  <br />
-                  <b>Based on:</b> {post.evidence}
+                  {post.rationale.trim() && (<><b>Why this:</b> {post.rationale}<br /></>)}
+                  {post.evidence.trim() && (<><b>Based on:</b> {post.evidence}</>)}
                 </div>
                 <div className="cpl-postmeta">
                   <Link href={createHref(post)} className="ov-link" title="Open Create Post with this hook and concept as the caption">
                     <PenSquare size={11} /> Create this post
                   </Link>
                 </div>
+                <RejectedNote item={post} />
+                <ItemActions
+                  item={post}
+                  canApprove={Boolean(planId) && !onCalendar(i)}
+                  approveHint={!planId ? "Open a saved plan to approve." : onCalendar(i) ? "Already on the Calendar." : null}
+                  busy={itemBusy === i}
+                  onApprove={() => approve(i)}
+                  onReject={() => setRejecting(i)}
+                  onEdit={() => setEditing(i)}
+                  onUndo={() => undo(i)}
+                />
               </article>
             ))}
           </div>
+          <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
+          <RejectDialog open={rejecting != null} day={rejecting != null ? data.weeklyPlan[rejecting]?.day ?? "" : ""} onClose={() => setRejecting(null)} onConfirm={(r, n, replace) => rejecting != null && reject(rejecting, r, n, replace)} />
+          {editing != null && (
+            <ItemDialog
+              key={String(editing)}
+              open
+              item={editing === "new" ? null : data.weeklyPlan[editing]}
+              dayLocked={typeof editing === "number" && onCalendar(editing)}
+              onClose={() => setEditing(null)}
+              onSave={saveItem}
+            />
+          )}
         </section>
       )}
 

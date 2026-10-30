@@ -42,10 +42,16 @@ export type Deliverable = {
     production?: string;
     /** The one number that says whether it worked, against the account's own median. */
     successMetric?: string;
+    /** "own" when the person added the idea themselves; SOCIA's otherwise. Not part of the model's schema. */
+    source?: "socia" | "own";
+    /** The person's call on the idea, and why when they turned it down. Not part of the model's schema. */
+    decision?: PlanDecision;
   }[];
   /** Attached by the server after generation; not part of the model's schema. */
   evidenceUsed?: EvidenceUsed;
 };
+
+export type PlanDecision = { status: "approved" | "rejected"; at: string; reasons?: string[]; note?: string | null };
 
 // JSON Schema for the Messages API `output_config.format`. Structured outputs
 // require `additionalProperties: false` and `required` on every object.

@@ -1,0 +1,20 @@
+/* Weekly plan: per-post controls (components/plan/PlanItemControls.tsx). Tokens only. */
+
+.pi-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); }
+.pi-hint { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.pi-tag { display: inline-flex; align-items: center; padding: 0 var(--sp-2); border-radius: var(--r-pill); border: 1px solid var(--border); color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.pi-ok { border-color: transparent; background: var(--positive-bg); color: var(--positive-ink); }
+.pi-no { border-color: transparent; background: var(--surface-hover); color: var(--ink-2); }
+.pi-why { margin: var(--sp-2) 0 0; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.pi-rejected .cpl-concept, .pi-rejected .cpl-title, .pi-rejected .cpl-hook { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--border-strong); }
+
+.pi-reasons { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.pi-reason { padding: var(--sp-1) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); color: var(--ink-2); font: inherit; font-size: var(--fs-meta); line-height: var(--lh-meta); cursor: pointer; }
+.pi-reason[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--surface); }
+.pi-reason:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.pi-form { display: grid; gap: var(--sp-3); }
+.pi-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); }
+.pi-add { margin-top: var(--sp-3); }
+
+@media (max-width: 560px) { .pi-row { grid-template-columns: minmax(0, 1fr); } }
