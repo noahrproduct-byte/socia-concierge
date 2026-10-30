@@ -8,7 +8,7 @@ import { trackEvent } from "./events";
 
 export type AiFeature =
   | "ask" | "rate" | "caption" | "studio_analyze" | "studio_improve"
-  | "niche_analyze" | "niche_opportunity" | "account_audit" | "niche_describe"
+  | "niche_analyze" | "niche_opportunity" | "niche_formats" | "account_audit" | "niche_describe"
   | "competitor_research" | "content_plan" | "comment_reply"
   | "clip_card" | "clip_batch" | "clip_edl" | "transcribe";
 

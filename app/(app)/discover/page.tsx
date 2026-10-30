@@ -8,6 +8,7 @@ import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilte
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtube";
 import { buildQueries, discoveryProfileFrom, nameKey } from "@/lib/discovery";
+import { readFormatsDoc } from "@/lib/nicheFormatsLoad";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import { competitorHistoryEnabled, competitorMomentum, type CompetitorPoint } from "@/lib/competitorHistory";
 import { competitorScopeId } from "@/lib/workspaces";
@@ -93,6 +94,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
   // Everything below that only needs the scope starts now and is awaited where
   // it is used. Each resolves to "nothing" on a missing table or a failed read.
+  const formatsP = readFormatsDoc(ctx).then((r) => r.doc).catch(() => null);
   const trackedP: Promise<Tracked[]> = listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid }).catch(() => []);
   const suggestedRowsP: Promise<Record<string, unknown>[]> = (async () => {
     try {
@@ -332,6 +334,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // ---- discovery run + niche content --------------------------------------
   const [run, contentRows, saved] = await Promise.all([runP, contentRowsP, savedP]);
   const lastRun: string | null = run?.ran_at ?? null;
+  const formatsDoc = await formatsP;
   const sources = (run?.sources as { youtube: string; web: string } | null) ?? null;
 
   const loc = locationTokens(location);
@@ -408,6 +411,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     trendingReels,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
     nicheUpgrade: upgradeFor(ent, "niche_intelligence"),
+    formats: { doc: formatsDoc, stale: Boolean(lastRun) && (!formatsDoc || formatsDoc.runAt !== lastRun) },
     basis: (() => {
       // The same profile and queries a research run uses (api/competitors/intel).
       const dp = discoveryProfileFrom({

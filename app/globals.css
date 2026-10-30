@@ -11338,3 +11338,25 @@ p.cbp-muted { display: block; }
 .cx-basis { color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
 .cx-basis summary { cursor: pointer; color: var(--ink); font-weight: var(--fw-medium); width: fit-content; }
 .cx-basis p { margin: var(--sp-2) 0 0; max-width: 72ch; }
+
+/* Discover: winning formats (components/competitors/WinningFormats.tsx) */
+.wf { padding: var(--sp-4) var(--sp-5); }
+.wf-list { display: grid; gap: var(--sp-4); }
+.wf-card { display: grid; gap: var(--sp-3); font-size: var(--fs-body); line-height: var(--lh-body); padding: var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); min-width: 0; }
+.wf-card p { margin: 0; max-width: 72ch; }
+.wf-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.wf-head h3 { margin: 0; font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--fw-semibold); }
+.wf-leads { padding: 0 var(--sp-2); border-radius: var(--r-pill); background: var(--positive-bg); color: var(--positive-ink); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.wf-basis { color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); font-variant-numeric: tabular-nums; }
+.wf-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4); }
+.wf-cols > div { min-width: 0; }
+.wf-cols h4 { margin: 0 0 var(--sp-1); color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.wf-cols ol, .wf-cols ul { margin: 0; padding-left: var(--sp-5); display: grid; gap: var(--sp-1); }
+.wf-cols ol { list-style: decimal; }
+.wf-cols ul { list-style: disc; }
+.wf-len { margin-top: var(--sp-2) !important; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.wf-examples { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
+.wf-ex { display: grid; gap: var(--sp-1); color: inherit; text-decoration: none; min-width: 0; }
+.wf-ex .cx3-thumb { aspect-ratio: 16 / 10; border-radius: var(--r-control); overflow: hidden; }
+.wf-ex small { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); overflow-wrap: anywhere; }
+@media (max-width: 640px) { .wf-examples { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

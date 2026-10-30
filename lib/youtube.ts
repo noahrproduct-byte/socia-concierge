@@ -340,6 +340,20 @@ export async function videoDurationSec(videoId: string): Promise<number | null> 
   return isoDurationSec(j?.items?.[0]?.contentDetails?.duration);
 }
 
+/** Lengths of many videos, 50 per call (one quota unit each call). Missing ids are absent. */
+export async function videoDurations(videoIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const ids = [...new Set(videoIds)];
+  for (let i = 0; i < ids.length; i += 50) {
+    const j = await ytFetch<{ items?: { id?: string; contentDetails?: { duration?: string } }[] }>("videos", { part: "contentDetails", id: ids.slice(i, i + 50).join(",") });
+    for (const it of j?.items ?? []) {
+      const sec = isoDurationSec(it.contentDetails?.duration);
+      if (it.id && sec != null) out.set(it.id, sec);
+    }
+  }
+  return out;
+}
+
 export function youtubeVideoId(url: string): string | null {
   const m = /(?:youtube\.com\/(?:shorts\/|watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,15})/.exec(url);
   return m?.[1] ?? null;
