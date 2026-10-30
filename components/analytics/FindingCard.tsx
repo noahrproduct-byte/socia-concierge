@@ -100,7 +100,7 @@ export default function FindingCard({ f, onChange }: { f: StoredInsight; onChang
         <small>{read ? `Data read ${read}. ` : ""}Confidence {f.confidence} of 100.</small>
         <div className="fc-actions">
           {f.recommendation?.href && (f.recommendation.href.startsWith("/") ? <Link href={f.recommendation.href} className="s-link">Act on it</Link> : <a href={f.recommendation.href} target="_blank" rel="noreferrer" className="s-link">Open the post</a>)}
-          {f.recommendation && <Link href={`/tool?note=${encodeURIComponent(f.recommendation.action)}`} className="s-link">Add to plan</Link>}
+          {f.recommendation && <Link href={`/plan?note=${encodeURIComponent(f.recommendation.action)}`} className="s-link">Add to plan</Link>}
           {onChange && (
             <>
               <Button size="sm" variant="ghost" busy={busy} onClick={() => set("resolved")}>Mark resolved</Button>

@@ -126,7 +126,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
       const note = new URLSearchParams(window.location.search).get("note");
       if (note) {
         setForm((f) => ({ ...f, recentPosts: f.recentPosts ? `${f.recentPosts}\n${note}` : note }));
-        window.history.replaceState(null, "", "/tool");
+        window.history.replaceState(null, "", "/plan");
       }
     } catch {
       /* no-op */
@@ -204,11 +204,6 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
               No account connected · <Link href="/settings">Connect for live data</Link>
             </span>
           )
-        }
-        actions={
-          <Link href="/calendar" className="ov-btn ghost">
-            <CalendarDays size={14} /> Open Calendar
-          </Link>
         }
       />
 
@@ -887,7 +882,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
           {sched.ok && (
             <>
               {" "}
-              <Link href="/calendar">
+              <Link href="/plan/calendar">
                 Open Calendar <ArrowRight size={12} />
               </Link>
             </>

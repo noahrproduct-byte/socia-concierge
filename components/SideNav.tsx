@@ -27,15 +27,15 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import { DOCK, HELP, NAV, NAV_GROUPS, activeNavKey } from "@/lib/nav";
+import { DOCK, HELP, NAV, NAV_GROUPS, activeNavKey, dockKeyFor } from "@/lib/nav";
 
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard,
   analytics: BarChart3,
-  competitors: Radar,
+  discover: Radar,
   roundup: Newspaper,
   reports: FileBarChart,
-  tool: ClipboardList,
+  plan: ClipboardList,
   create: PenLine,
   calendar: CalendarDays,
   studio: Clapperboard,
@@ -49,9 +49,10 @@ const ALL = "all";
 export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolean }) {
   const pathname = usePathname();
   const activeKey = activeNavKey(pathname);
-  const onDock = DOCK.some((d) => d.key === activeKey);
-  // Off the dock (Calendar, Settings...), the surface marks All sections.
-  const target = onDock ? activeKey : activeKey ? ALL : null;
+  const dockKey = dockKeyFor(activeKey);
+  const onDock = dockKey != null;
+  // Off the dock (Comments, Settings...), the surface marks All sections.
+  const target = onDock ? dockKey : activeKey ? ALL : null;
   const root = useRef<HTMLElement>(null);
   const items = useRef<Record<string, HTMLElement | null>>({});
   const [box, setBox] = useState<{ x: number; w: number } | null>(null);
@@ -86,7 +87,7 @@ export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolea
       <ul className="s-hnav-list">
         {DOCK.map((d) => {
           const n = NAV.find((x) => x.key === d.key)!;
-          const current = activeKey === d.key;
+          const current = dockKey === d.key;
           return (
             <li key={d.key}>
               <Link
@@ -95,7 +96,8 @@ export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolea
                 ref={(el) => {
                   items.current[d.key] = el;
                 }}
-                aria-current={current ? "page" : undefined}
+                // On the Calendar the Plan link is the current section, not the current page.
+                aria-current={activeKey === d.key ? "page" : current ? "true" : undefined}
                 data-current={current || undefined}
               >
                 {d.label}

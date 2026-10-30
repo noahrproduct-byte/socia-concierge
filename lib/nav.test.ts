@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DOCK, NAV, NAV_GROUPS, activeNavGroup, activeNavKey, navIndex } from "./nav";
+import { DOCK, NAV, NAV_GROUPS, activeNavGroup, activeNavKey, activeNavLabel, dockKeyFor, navIndex } from "./nav";
 
 describe("activeNavKey", () => {
   it("names the section a path belongs to, including nested paths", () => {
@@ -27,8 +27,8 @@ describe("activeNavGroup and navIndex", () => {
   it("puts every section in a headbar group, and every group has a section", () => {
     for (const g of NAV_GROUPS) expect(NAV.some((n) => n.group === g.key)).toBe(true);
     expect(activeNavGroup("/roundup")).toBe("overview");
-    expect(activeNavGroup("/competitors")).toBe("intelligence");
-    expect(activeNavGroup("/calendar")).toBe("plan");
+    expect(activeNavGroup("/discover")).toBe("intelligence");
+    expect(activeNavGroup("/plan/calendar")).toBe("plan");
     expect(activeNavGroup("/studio/abc")).toBe("create");
     expect(activeNavGroup("/settings")).toBe("manage");
     expect(activeNavGroup("/pricing")).toBeNull();
@@ -42,9 +42,19 @@ describe("activeNavGroup and navIndex", () => {
 });
 
 describe("DOCK", () => {
-  it("links six real sections directly, each once", () => {
-    expect(DOCK).toHaveLength(6);
+  it("links Overview, Analytics, Discover, Plan and Studio directly, each a real section, once", () => {
+    expect(DOCK.map((d) => d.label)).toEqual(["Overview", "Analytics", "Discover", "Plan", "Studio"]);
     expect(new Set(DOCK.map((d) => d.key)).size).toBe(DOCK.length);
     for (const d of DOCK) expect(NAV.some((n) => n.key === d.key)).toBe(true);
+    for (const k of DOCK.flatMap((d) => d.also ?? [])) expect(NAV.some((n) => n.key === k)).toBe(true);
+  });
+
+  it("lights Plan on both the Content Plan and the Calendar", () => {
+    expect(activeNavKey("/plan")).toBe("plan");
+    expect(activeNavKey("/plan/calendar")).toBe("calendar");
+    expect(dockKeyFor(activeNavKey("/plan"))).toBe("plan");
+    expect(dockKeyFor(activeNavKey("/plan/calendar"))).toBe("plan");
+    expect(activeNavLabel("/plan/calendar")).toBe("Calendar");
+    expect(dockKeyFor(activeNavKey("/comments"))).toBeNull();
   });
 });

@@ -94,7 +94,7 @@ export default async function RoundupPage() {
               <ul className="ru-list">
                 {roundup.scorecard.lines.map((l) => <li key={l}><small>{l}</small></li>)}
               </ul>
-              <Link href="/tool" className="ru-week-link">Open your Content Plan <ArrowRight size={13} /></Link>
+              <Link href="/plan" className="ru-week-link">Open your Content Plan <ArrowRight size={13} /></Link>
             </section>
           )}
           <div className="ru-grid">

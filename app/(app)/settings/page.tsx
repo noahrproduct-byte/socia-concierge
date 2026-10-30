@@ -528,7 +528,7 @@ export default async function SettingsPage({
                   ) : (
                     <p className="st3-market-loc muted">You aren&apos;t tracking any competitors yet.</p>
                   )}
-                  <Link href="/competitors" className="cp3-viewmore">
+                  <Link href="/discover" className="cp3-viewmore">
                     Manage competitors <ArrowRight size={13} />
                   </Link>
                 </div>

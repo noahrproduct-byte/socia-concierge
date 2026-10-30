@@ -45,7 +45,7 @@ export function fromOverviewInsights(list: OverviewInsight[], ctx: { handle: str
         "Per-post numbers are lifetime totals, so older posts have had longer to collect them.",
         ...(i.kind === "outlier" ? ["One post can't show which element made the difference."] : []),
       ],
-      recommendation: { action: i.recommendation, why: i.observed[0] ?? i.body, learning: LEARNING[i.kind], href: "/tool" },
+      recommendation: { action: i.recommendation, why: i.observed[0] ?? i.body, learning: LEARNING[i.kind], href: "/plan" },
       source: { rule: `overview.${i.kind}`, data: i.observed, retrievedAt: ctx.syncedAt },
     };
   });

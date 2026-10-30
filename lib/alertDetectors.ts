@@ -352,7 +352,7 @@ export function detectPlanResults(items: PlanResultItem[]): AlertCandidate[] {
       title: `${it.day}'s planned ${it.format} ${verdict}`,
       body: `${it.text} Planned as: "${it.concept.slice(0, 90)}".`,
       evidence: { planId: it.planId, index: it.index, multiplier: m, platform: it.platform, concept: it.concept, format: it.format },
-      entityRef: it.permalink ?? "/tool",
+      entityRef: it.permalink ?? "/plan",
     });
   }
   return out;
@@ -368,7 +368,7 @@ export function planReadyAlert(plan: { id: string; headline: string; posts: numb
     title: `Your plan for the week of ${plan.weekLabel} is ready`,
     body: `${plan.posts} posts, built from your results, goals and competitors. ${plan.headline}`.trim(),
     evidence: { planId: plan.id, posts: plan.posts },
-    entityRef: "/tool",
+    entityRef: "/plan",
   };
 }
 

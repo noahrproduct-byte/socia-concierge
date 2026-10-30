@@ -350,7 +350,7 @@ export async function getContentPlan(ctx: Ctx) {
   const wsId = ctx.workspace?.id ?? null;
   const { data } = await scopeToWorkspace(ctx.client.from("plans").select("id, data, created_at").eq("user_id", ctx.ownerId), wsId).order("created_at", { ascending: false }).limit(1);
   const row = (data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined) ?? null;
-  if (!row) return { plan: null, note: "This workspace has no Content Plan yet. It can be generated in SOCIA (Content Plan)." , open_in_socia: link("/tool") };
+  if (!row) return { plan: null, note: "This workspace has no Content Plan yet. It can be generated in SOCIA (Content Plan)." , open_in_socia: link("/plan") };
   const outcome = await loadPlanOutcome(ctx.client, ctx.ownerId, wsId, row).catch(() => null);
   const d = row.data;
   return {
@@ -367,7 +367,7 @@ export async function getContentPlan(ctx: Ctx) {
       }),
       progress: outcome?.summary.line ?? null,
     },
-    open_in_socia: link("/tool"),
+    open_in_socia: link("/plan"),
   };
 }
 

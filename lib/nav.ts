@@ -20,9 +20,11 @@ export const NAV: NavEntry[] = [
   { href: "/roundup", label: "Weekly roundup", key: "roundup", group: "overview" },
   { href: "/reports", label: "Reports", key: "reports", group: "overview" },
   { href: "/analytics", label: "Analytics", key: "analytics", group: "intelligence" },
-  { href: "/competitors", label: "Competitors", key: "competitors", group: "intelligence" },
-  { href: "/tool", label: "Content Plan", key: "tool", group: "plan" },
-  { href: "/calendar", label: "Calendar", key: "calendar", group: "plan" },
+  // Discover: competitors, trending accounts and Reels in the niche.
+  { href: "/discover", label: "Discover", key: "discover", group: "intelligence" },
+  // Plan: the weekly Content Plan, with the Calendar under it.
+  { href: "/plan", label: "Content Plan", key: "plan", group: "plan" },
+  { href: "/plan/calendar", label: "Calendar", key: "calendar", group: "plan" },
   // The multi-platform composer.
   { href: "/create", label: "Create post", key: "create", group: "create" },
   { href: "/studio", label: "Content Studio", key: "studio", group: "create" },
@@ -32,27 +34,34 @@ export const NAV: NavEntry[] = [
 ];
 
 /**
- * The dock: the six destinations the floating headbar links to directly, by
- * their short names. No menus open from it (Noah, 2026-10-28); every other
- * section is one click away in the All sections panel and the command menu.
+ * The dock: the destinations the floating headbar links to directly, by their
+ * short names (Overview | Analytics | Discover | Plan | Studio, with Ask SOCIA
+ * beside them in the headbar). No menus open from it (Noah, 2026-10-28);
+ * every other section is one click away in the All sections panel and the
+ * command menu. `also` lists sections that light up the same dock item.
  */
-export const DOCK: { key: string; label: string }[] = [
+export const DOCK: { key: string; label: string; also?: string[] }[] = [
   { key: "dashboard", label: "Overview" },
   { key: "analytics", label: "Analytics" },
-  { key: "competitors", label: "Competitors" },
-  { key: "tool", label: "Content Plan" },
+  { key: "discover", label: "Discover" },
+  { key: "plan", label: "Plan", also: ["calendar"] },
   { key: "studio", label: "Studio" },
-  { key: "comments", label: "Comments" },
 ];
+
+/** The dock item a section lights up ("calendar" → "plan"), or null when it isn't on the dock. */
+export function dockKeyFor(key: string | null): string | null {
+  if (!key) return null;
+  return DOCK.find((d) => d.key === key || d.also?.includes(key))?.key ?? null;
+}
 
 /** Help is a link in the Manage group, not a section: it opens the FAQ on the public site. */
 export const HELP = { href: "/#faq", label: "Help" } as const;
 
-/** Which section a path belongs to ("/analytics", "/analytics/x" → "analytics"). */
+/** Which section a path belongs to ("/analytics", "/analytics/x" → "analytics"). The longest match wins, so "/plan/calendar" is the Calendar, not the plan. */
 export function activeNavKey(pathname: string | null): string | null {
   if (!pathname) return null;
-  const hit = NAV.find((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
-  return hit?.key ?? null;
+  const hits = NAV.filter((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
+  return hits.sort((a, b) => b.href.length - a.href.length)[0]?.key ?? null;
 }
 
 /** Which group a path belongs to, for the headbar's indicator. */
@@ -70,5 +79,5 @@ export function navIndex(pathname: string | null): number {
 /** The section's label for the phone headbar: the dock's short name when it has one. */
 export function activeNavLabel(pathname: string | null): string {
   const key = activeNavKey(pathname);
-  return DOCK.find((d) => d.key === key)?.label ?? NAV.find((n) => n.key === key)?.label ?? "SOCIA";
+  return (key === "calendar" ? "Calendar" : DOCK.find((d) => d.key === key)?.label) ?? NAV.find((n) => n.key === key)?.label ?? "SOCIA";
 }

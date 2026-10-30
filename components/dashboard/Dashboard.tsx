@@ -187,7 +187,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
       return {
         title: `Your next post goes out ${/^(Today|Tomorrow)$/.test(dayLabel(when, clock)) ? dayLabel(when, clock).toLowerCase() : `on ${dayLabel(when, clock)}`} at ${when.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}.`,
         sub: `"${soon.title}"${d.upcoming.length > 1 ? `, then ${d.upcoming.length - 1} more scheduled.` : "."}`,
-        href: "/calendar",
+        href: "/plan/calendar",
         cta: "Open the Calendar",
       };
     }
@@ -484,7 +484,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
           <CardHeader
             title="Upcoming content"
             actions={
-              <Link href="/calendar" className="s-link">
+              <Link href="/plan/calendar" className="s-link">
                 View all
               </Link>
             }
@@ -530,7 +530,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
           )}
           {d.focus && (
             <p className="dash-plan-line">
-              <Link href="/tool" className="s-link">
+              <Link href="/plan" className="s-link">
                 This week&apos;s plan
               </Link>
               : {d.focus.headline}
@@ -542,14 +542,14 @@ export default function Dashboard({ d }: { d: DashboardData }) {
           <CardHeader
             title="Competitors"
             actions={
-              <Link href="/competitors" className="s-link">
+              <Link href="/discover" className="s-link">
                 View all
               </Link>
             }
           />
           {comp == null ? (
             <Empty>
-              <b>Competitors couldn&apos;t be read right now.</b> Open Competitors to see them.
+              <b>Competitors couldn&apos;t be read right now.</b> Open Discover to see them.
             </Empty>
           ) : compRows.length > (comp.you != null ? 1 : 0) ? (
             <>
@@ -577,7 +577,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
           ) : (
             <Empty
               action={
-                <ButtonLink href="/competitors" size="sm">
+                <ButtonLink href="/discover" size="sm">
                   Open Competitors
                 </ButtonLink>
               }
@@ -652,7 +652,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
             title="This week's plan"
             actions={
               d.focus && (
-                <Link href="/tool" className="s-link">
+                <Link href="/plan" className="s-link">
                   Open the plan
                 </Link>
               )
@@ -677,7 +677,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
           ) : (
             <Empty
               action={
-                <ButtonLink href="/tool" size="sm">
+                <ButtonLink href="/plan" size="sm">
                   Generate a plan
                 </ButtonLink>
               }

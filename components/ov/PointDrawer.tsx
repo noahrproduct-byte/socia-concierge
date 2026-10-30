@@ -119,7 +119,7 @@ export default function PointDrawer({ bucket, isOutlier, granularity, series, ba
             {driver && <button type="button" className="ov-btn primary" onClick={() => onAnalyze(driver)}><Search size={13} /> Analyze post</button>}
             {granularity === "day" && <button type="button" className="ov-btn ghost" onClick={() => askSocia({ context: { page: "analytics", day: b.start, postId: driver?.id }, contextLabel: bucketTitle(b, "day"), question: isOutlier ? `Why did my ${unit} spike on ${bucketTitle(b, "day")}?` : `What happened with my ${unit} on ${bucketTitle(b, "day")}?`, autoSend: true })}><Sparkles size={13} /> Ask SOCIA why</button>}
             {driver?.permalink && <a href={driver.permalink} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View post</a>}
-            {driver && <Link href={`/tool?note=${encodeURIComponent(`Build on “${driver.title.slice(0, 60)}” (${mult != null ? `${mult.toFixed(1)}× my ${baseline?.label.toLowerCase() ?? "median"}` : `${fmtNum(driverValue)} ${unit}`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add to Content Plan</Link>}
+            {driver && <Link href={`/plan?note=${encodeURIComponent(`Build on “${driver.title.slice(0, 60)}” (${mult != null ? `${mult.toFixed(1)}× my ${baseline?.label.toLowerCase() ?? "median"}` : `${fmtNum(driverValue)} ${unit}`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add to Content Plan</Link>}
           </div>
         </>
       )}

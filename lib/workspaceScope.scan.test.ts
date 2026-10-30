@@ -17,7 +17,7 @@ const WORKSPACE_TABLES = [
 
 /** "file table" -> how many such queries are known safe, and why. */
 const SAFE: Record<string, [number, string]> = {
-  "app/(app)/competitors/page.tsx competitor_snapshots": [1, "owner-wide by design (competitors-workspaces.sql): public counts, read only for handles this workspace shows"],
+  "app/(app)/discover/page.tsx competitor_snapshots": [1, "owner-wide by design (competitors-workspaces.sql): public counts, read only for handles this workspace shows"],
   "app/api/accounts/route.ts instagram_connections": [3, "owner-wide only on a missing column; the is_active flips run after the target was found in this workspace (is_active is a pointer, reads filter by workspace)"],
   "app/api/auth/facebook/disconnect/route.ts facebook_connections": [1, "owner-wide only without a workspace (never a guest) or on a missing column"],
   "app/api/competitors/route.ts tracked_competitors": [2, "upsert rows carry workspace_id (wsRow); the pooled row only on a constraint mismatch"],

@@ -32,11 +32,11 @@ function parseJson(text: string): ModelAnswer | null {
 function hrefFor(type: string, note: string, post: { permalink: string | null } | null): string | null {
   const q = (s: string) => encodeURIComponent(s.slice(0, 400));
   switch (type) {
-    case "content_plan": return `/tool?note=${q(note)}`;
-    case "calendar": return `/calendar?compose=1${note ? `&caption=${q(note)}` : ""}`;
+    case "content_plan": return `/plan?note=${q(note)}`;
+    case "calendar": return `/plan/calendar?compose=1${note ? `&caption=${q(note)}` : ""}`;
     case "analytics": return `/analytics#${["overview", "content", "audience", "times", "growth"].includes(note) ? note : "overview"}`;
     case "content": return "/analytics#content";
-    case "competitors": return "/competitors";
+    case "competitors": return "/discover";
     case "studio": return "/studio";
     case "reports": return "/reports";
     case "post": return post?.permalink ?? null;

@@ -182,7 +182,7 @@ export default function ContentLibrary({ posts, embedded = false }: { posts: Lib
                       <Sparkles size={11} /> Why
                     </Link>
                     <Link
-                      href={`/calendar?compose=1&caption=${encodeURIComponent(displayTitle(p.caption))}`}
+                      href={`/plan/calendar?compose=1&caption=${encodeURIComponent(displayTitle(p.caption))}`}
                       className="lib-act ghost"
                       title="Open a calendar draft that follows up on this post"
                     >

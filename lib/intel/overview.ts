@@ -148,9 +148,9 @@ export function nextActions(input: {
 
   const setup: NextAction[] = [];
   if (input.goalPlatformMissing) setup.push({ title: `Connect ${GOAL_PLATFORM_NAME[input.goalPlatformMissing]}`, reason: "Your goal is measured there and SOCIA can't read it yet.", evidence: null, learning: null, href: "/settings#accounts", from: "setup" });
-  if (input.connectedCount && !input.planThisWeek) setup.push({ title: "Make this week's plan", reason: "There's no plan from the last 7 days to work from.", evidence: null, learning: "Which planned posts beat your median once they go out.", href: "/tool", from: "setup" });
+  if (input.connectedCount && !input.planThisWeek) setup.push({ title: "Make this week's plan", reason: "There's no plan from the last 7 days to work from.", evidence: null, learning: "Which planned posts beat your median once they go out.", href: "/plan", from: "setup" });
   if (input.connectedCount && input.scheduledSoon === 0) setup.push({ title: "Schedule your next post", reason: "Nothing is set to go out in the next 3 days.", evidence: null, learning: null, href: "/create", from: "setup" });
-  if (input.connectedCount && input.trackedCompetitors === 0) setup.push({ title: "Add two accounts to watch", reason: "SOCIA compares your posts with similar accounts once it has some.", evidence: null, learning: null, href: "/competitors", from: "setup" });
+  if (input.connectedCount && input.trackedCompetitors === 0) setup.push({ title: "Add two accounts to watch", reason: "SOCIA compares your posts with similar accounts once it has some.", evidence: null, learning: null, href: "/discover", from: "setup" });
   for (const s of setup) if (out.length < 3) out.push(s);
   return out.slice(0, 3);
 }

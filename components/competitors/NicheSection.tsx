@@ -175,7 +175,7 @@ function OpportunityCard({ o, onExamples }: { o: Opportunity | null; onExamples:
       </div>
       <div className="cx-opp-actions">
         <button type="button" className="ov-btn primary" onClick={build}><Sparkles size={13} /> Build this post <ArrowRight size={13} /></button>
-        <Link href={`/tool?note=${encodeURIComponent(note)}`} className="ov-btn ghost"><FileText size={13} /> Add to Content Plan</Link>
+        <Link href={`/plan?note=${encodeURIComponent(note)}`} className="ov-btn ghost"><FileText size={13} /> Add to Content Plan</Link>
         <button type="button" className="ov-btn ghost" onClick={() => onExamples(o.tag)}>See examples</button>
       </div>
     </section>

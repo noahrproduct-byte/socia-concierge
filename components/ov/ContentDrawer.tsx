@@ -97,8 +97,8 @@ export default function ContentDrawer({ post, baseline, medianViews, onClose }: 
           <div className="ov-detail-actions">
             <button type="button" className="ov-btn primary" onClick={() => askSocia({ context: { page: "post", postId: p.id }, contextLabel: `Post: ${p.title.slice(0, 40)}` })}><Sparkles size={13} /> Ask SOCIA about this post</button>
             {p.permalink && !deletedAt && <a href={p.permalink} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View original</a>}
-            <Link href={`/calendar?compose=1&caption=${encodeURIComponent(p.title)}`} className="ov-btn ghost"><CalendarPlus size={13} /> Create variation</Link>
-            <Link href={`/tool?note=${encodeURIComponent(`Build on "${p.title.slice(0, 60)}" (${p.multiplier != null ? `${p.multiplier.toFixed(1)}× my median` : `${p.engagements} engagements`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add idea to Content Plan</Link>
+            <Link href={`/plan/calendar?compose=1&caption=${encodeURIComponent(p.title)}`} className="ov-btn ghost"><CalendarPlus size={13} /> Create variation</Link>
+            <Link href={`/plan?note=${encodeURIComponent(`Build on "${p.title.slice(0, 60)}" (${p.multiplier != null ? `${p.multiplier.toFixed(1)}× my median` : `${p.engagements} engagements`}).`)}`} className="ov-btn ghost"><Sparkles size={13} /> Add idea to Content Plan</Link>
           </div>
           {delUrl && del.data && (
             <div className="ov-detail-actions">

@@ -64,7 +64,7 @@ export function CommandMenu({ open, onOpenChange, index }: { open: boolean; onOp
     const actions: Command[] = [
       { id: "create", group: "Actions", label: "Create post", icon: <PenLine aria-hidden />, run: () => go("/create") },
       { id: "ask", group: "Actions", label: "Ask SOCIA", hint: "a question about your numbers", icon: <MessageCircle aria-hidden />, run: () => { close(); window.dispatchEvent(new CustomEvent("socia:ask")); } },
-      { id: "plan", group: "Actions", label: "Open the Content Plan", icon: <FileText aria-hidden />, run: () => go("/tool") },
+      { id: "plan", group: "Actions", label: "Open the Content Plan", icon: <FileText aria-hidden />, run: () => go("/plan") },
       { id: "connect", group: "Actions", label: "Connect a platform", hint: "Settings", icon: <Link2 aria-hidden />, run: () => go("/settings#accounts") },
       { id: "appearance", group: "Actions", label: "Change appearance", hint: "Settings", icon: <SunMoon aria-hidden />, run: () => go("/settings#appearance") },
       { id: "settings", group: "Actions", label: "Settings", icon: <Settings aria-hidden />, run: () => go("/settings") },

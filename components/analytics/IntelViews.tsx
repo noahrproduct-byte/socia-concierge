@@ -100,7 +100,7 @@ export function ContentIntelView({ works, themes, postsRead }: { works: WorkRow[
                     <td className="num"><b>{r.multiple}x</b></td>
                     <td className="act">
                       {r.multiple >= 1.3 && r.posts >= 3 && (
-                        <Link className="s-link" href={`/tool?note=${encodeURIComponent(`${r.format}s are earning ${r.multiple}x my median ${r.metric} on ${GOAL_PLATFORM_NAME[r.platform]} (${r.posts} posts). Weight next week toward them and keep one other format as a comparison.`)}`}>Add to plan</Link>
+                        <Link className="s-link" href={`/plan?note=${encodeURIComponent(`${r.format}s are earning ${r.multiple}x my median ${r.metric} on ${GOAL_PLATFORM_NAME[r.platform]} (${r.posts} posts). Weight next week toward them and keep one other format as a comparison.`)}`}>Add to plan</Link>
                       )}
                     </td>
                   </tr>
