@@ -2,6 +2,7 @@
 // the client only lays it out. Every number here has provenance (see
 // lib/competitorRollup Cell states) or an explicit reason for its absence.
 
+import type { FormatsDoc } from "@/lib/nicheFormats";
 import type { LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
@@ -56,6 +57,8 @@ export type CompetitorsData = {
   nicheUpgrade: string | null;
   /** What a research run searches for, from the Growth Profile, and what would sharpen it. */
   basis: { searches: string[]; missing: string[] };
+  /** Winning formats from the last research run (lib/nicheFormats.ts); stale when a newer run exists. */
+  formats: { doc: FormatsDoc | null; stale: boolean };
 };
 
 /** One recent Reel or Short from an account in the niche. Every number is what the platform published. */

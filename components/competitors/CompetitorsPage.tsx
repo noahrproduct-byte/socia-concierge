@@ -28,6 +28,7 @@ import { GapBars, NextMove, ProfileBar, WhyWinning } from "./SelectedCompetitor"
 import { ContentMix, ContentUnlock, TopContent, WhenTheyPost } from "./PatternsRow";
 import { Radar, Scatter, ScoreRing, Trajectory, type Pt, type ScatterPost } from "./viz";
 import NicheSection from "./NicheSection";
+import WinningFormats from "./WinningFormats";
 import NicheDrawer from "./NicheDrawer";
 import EvidenceDrawer, { type Evidence } from "./EvidenceDrawer";
 import AddCompetitor from "./AddCompetitor";
@@ -249,6 +250,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
 
       <TrendingAccounts d={d} rows={d.platform === "all" ? d.rows : d.rows.filter((r) => r.platform === d.platform)} onSelect={setSelectedId} onTrack={track} tracking={tracking} />
       <TrendingReels d={d} />
+      <WinningFormats d={d} />
 
       {roster.length ? (
         <Roster you={d.you} rows={roster} ranks={ranks} youRank={youRank} selectedId={active?.id ?? null} onSelect={setSelectedId} connectHref={d.igConnectHref} />
