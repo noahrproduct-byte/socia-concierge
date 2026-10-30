@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Link2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { getViewer } from "@/lib/supabase/server";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { resolveContext, brandWorkspace, can } from "@/lib/context";
 import { trialReelsByMedia } from "@/lib/publishing/db";
 import { instagramSummary, facebookSummary, youtubeSummary, tiktokSummary } from "@/lib/platformSummaries";
 import { listWorkspaces, scopeToWorkspace } from "@/lib/workspaces";
@@ -25,6 +25,11 @@ import YouTubeAnalytics from "@/components/YouTubeAnalytics";
 import FacebookAnalytics from "@/components/FacebookAnalytics";
 import TikTokAnalytics from "@/components/TikTokAnalytics";
 import AnalyticsShell from "@/components/AnalyticsShell";
+import { DiagnosticsView, ContentIntelView } from "@/components/analytics/IntelViews";
+import { buildAccountSample } from "@/lib/intel/accountSample";
+import { whatWorks } from "@/lib/intel/overview";
+import { listInsights } from "@/lib/intel/insightStore";
+import type { TtVideo } from "@/lib/tiktokAuth";
 import UpdatedAgo from "@/components/UpdatedAgo";
 import { cachedLive, oldestFetch } from "@/lib/liveCache";
 import type { PlatformTab } from "@/components/PlatformTabs";
@@ -50,12 +55,12 @@ export const metadata = { title: "Analytics — SOCIA" };
 // view; Facebook/YouTube/TikTok are honest to their own APIs). "All Platforms"
 // combines only what is mathematically valid. The pipeline stays fixed: real
 // rows → deterministic aggregation → rendered → AI only ever explains.
-export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; platform?: string }> }) {
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ range?: string; platform?: string; view?: string }> }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
   const ctx = await resolveContext(supabase, user.id);
 
-  const { range: rangeParam, platform: platformParam } = await searchParams;
+  const { range: rangeParam, platform: platformParam, view: viewParam } = await searchParams;
 
   // Loads are started as early as their inputs allow and awaited together, so
   // the page waits for the slowest platform rather than for each in turn.
@@ -81,6 +86,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   // Cross-brand (All brands tab): only an owner's own brands, and only when there are two or more.
   const ownedP = ctx.isOwner ? listWorkspaces(supabase, user.id).then((ws) => ws.filter((w) => !w.suspended).length).catch(() => 0) : Promise.resolve(0);
+  // SOCIA's stored findings for this brand, for the Diagnostics view.
+  const insightsP = listInsights(ctx, { limit: 50 }).catch(() => ({ tableReady: false, insights: [] }));
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   const maxDays = maxHistoryDays(ent);
   const requestedId = RANGES.some((r) => r.id === rangeParam) ? (rangeParam as string) : "30";
@@ -373,10 +380,24 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
     note: "Daily views from the platforms that report a real daily series — Instagram and YouTube. Facebook and TikTok don't provide a daily views trend, so they aren't drawn here.",
   };
 
+  // ---- Content intelligence + Diagnostics (brand-wide, the same sample the Overview reads) ----
+  const sample = buildAccountSample({
+    now,
+    ig: live ? { username: snap!.username, name: snap!.name, biography: snap!.biography, followers: snap!.followers_count, media: snap!.media ?? [] } : null,
+    fb: fbConnected && fb ? { name: fb.page_name, followers: fb.followers_count, posts: fb.posts ?? [] } : null,
+    yt: yt ? { title: yt.channel.title, handle: yt.channel.handle, subscribers: yt.channel.subscribers, videos: yt.topVideos ?? [] } : null,
+    tt: ttConnected && ttRow ? { username: (ttRow.username as string | null) ?? null, followers: (ttRow.follower_count as number | null) ?? null, videos: Array.isArray(ttRow.videos) ? (ttRow.videos as TtVideo[]) : [] } : null,
+  });
+  const intel = await insightsP;
+  const views = {
+    content: <ContentIntelView works={whatWorks(sample)} themes={profile?.brand_detail?.growth?.understanding?.themes ?? []} postsRead={sample.posts.length} />,
+    diagnostics: <DiagnosticsView initial={intel.insights} storeReady={intel.tableReady} canManage={can(ctx, "manage_workspace")} />,
+  };
+
   return (
     <>
       <PageHeader title="Analytics" sub="See what happened, understand why, and find what your strategy is missing." status={<UpdatedAgo at={updatedAt} />} />
-      <AnalyticsShell tabs={tabs} initial={initial} panels={panels} allData={allData} overlay={overlay} today={today} />
+      <AnalyticsShell tabs={tabs} initial={initial} panels={panels} allData={allData} overlay={overlay} today={today} views={views} initialView={viewParam} />
     </>
   );
 }
