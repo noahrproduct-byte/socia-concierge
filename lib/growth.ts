@@ -10,6 +10,8 @@
 //     where they already are on brand_detail (one field, one place);
 //   - goals: the growth_goals table, because they need progress math.
 
+import type { Understanding } from "./intel/understanding";
+
 export type AccountType = "business" | "creator" | "personal_brand" | "organization";
 
 export const ACCOUNT_TYPES: { id: AccountType; label: string; hint: string }[] = [
@@ -78,10 +80,25 @@ export const MAKERS = [
   { id: "team", label: "A team or helper" },
 ] as const;
 
+/** The one main goal asked at onboarding (the brief's five), each tied to a measurable goal metric. */
+export const MAIN_GOALS = [
+  { id: "views", label: "Increase views", metric: "views_30d" },
+  { id: "followers", label: "Gain followers", metric: "followers" },
+  { id: "local_customers", label: "Attract local customers", metric: "customers" },
+  { id: "bookings_orders", label: "Increase bookings or orders", metric: "bookings" },
+  { id: "engagement", label: "Improve engagement", metric: "engagement_rate" },
+] as const;
+export type MainGoalId = (typeof MAIN_GOALS)[number]["id"];
+
 export type GrowthProfile = {
   account_type?: AccountType;
+  main_goal?: MainGoalId;
+  /** What SOCIA inferred from the connected accounts (lib/intel/understanding.ts); confirmed fields above win. */
+  understanding?: Understanding;
   /** What the account is about, in the person's words (narrower than the niche category). */
   focus?: string;
+  /** The confirmed niche below the category: Food & Restaurant > subcategory > specific. */
+  niche_path?: { subcategory?: string; specific?: string };
   business?: { offer?: string; customer_action?: CustomerAction; service_area?: ReachScope };
   creator?: { topics?: string; monetization?: Monetization[] };
   audience?: { who?: string; where?: ReachScope; wants?: string };
@@ -129,7 +146,9 @@ export function normalizeGrowth(input: unknown): GrowthProfile {
   return (
     compact({
       account_type: oneOf(i.account_type, ACCOUNT_TYPES),
+      main_goal: oneOf(i.main_goal, MAIN_GOALS),
       focus: str(i.focus, 120),
+      niche_path: compact({ subcategory: str(obj(i.niche_path).subcategory, 60), specific: str(obj(i.niche_path).specific, 80) }),
       business: compact({ offer: str(b.offer), customer_action: oneOf(b.customer_action, CUSTOMER_ACTIONS), service_area: oneOf(b.service_area, REACH_SCOPES) }),
       creator: compact({ topics: str(c.topics), monetization: manyOf(c.monetization, MONETIZATION) }),
       audience: compact({ who: str(a.who), where: oneOf(a.where, REACH_SCOPES), wants: str(a.wants) }),
@@ -164,6 +183,8 @@ export function growthLines(g: GrowthProfile | null | undefined): string[] {
   if (!g) return [];
   const lines: (string | null)[] = [
     g.account_type ? `Account type: ${labelOf(ACCOUNT_TYPES, g.account_type)}` : null,
+    g.main_goal ? `Main goal: ${labelOf(MAIN_GOALS, g.main_goal)}` : null,
+    g.niche_path?.subcategory || g.niche_path?.specific ? `Niche in detail: ${[g.niche_path.subcategory, g.niche_path.specific].filter(Boolean).join(" > ")}` : null,
     g.focus ? `What the account is about: ${g.focus}` : null,
     g.business?.offer ? `What they sell or offer: ${g.business.offer}` : null,
     g.business?.customer_action ? `What a customer should do: ${labelOf(CUSTOMER_ACTIONS, g.business.customer_action)}` : null,
@@ -193,6 +214,7 @@ export type GoalMetricId =
   | "views_30d"
   | "engagement_rate"
   | "posts_per_week"
+  | "customers"
   | "leads"
   | "bookings"
   | "sales"
@@ -214,6 +236,7 @@ export const GOAL_METRICS: GoalMetric[] = [
   { id: "views_30d", label: "Views in the last 30 days", unit: "count", measuredOn: ["instagram", "youtube"], note: "Instagram and YouTube report daily views. Facebook and TikTok don't, for these connections." },
   { id: "engagement_rate", label: "Engagement rate", unit: "percent", measuredOn: ["instagram"], note: "Interactions per post against followers, from Instagram." },
   { id: "posts_per_week", label: "Posts a week", unit: "per_week", measuredOn: ["instagram", "tiktok"], note: "Counted from your published posts over the last 30 days." },
+  { id: "customers", label: "New customers from social", unit: "count", measuredOn: [], note: "SOCIA can't see who walked in. You update the number." },
   { id: "leads", label: "Leads or enquiries", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },
   { id: "bookings", label: "Bookings", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },
   { id: "sales", label: "Sales", unit: "count", measuredOn: [], note: "SOCIA can't see these. You update the number." },

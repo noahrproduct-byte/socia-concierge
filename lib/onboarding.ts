@@ -1,17 +1,16 @@
 // Onboarding steps and the rule that decides whether a brand still needs
 // them. Pure, so the gate in the app layout and the wizard agree.
 
-export const STEPS = ["connect", "account", "identity", "audience", "goals", "voice", "resources", "briefing"] as const;
+// Kept short on purpose: SOCIA reads what it can from the connected
+// accounts, the person confirms it and picks one main goal. The detailed
+// questions (audience, voice, resources) are optional, in Settings.
+export const STEPS = ["connect", "profile", "goal", "briefing"] as const;
 export type Step = (typeof STEPS)[number];
 
 export const STEP_LABEL: Record<Step, string> = {
   connect: "Connect",
-  account: "Account type",
-  identity: "Niche",
-  audience: "Audience",
-  goals: "Goals",
-  voice: "Voice",
-  resources: "Resources",
+  profile: "Your account",
+  goal: "Main goal",
   briefing: "Briefing",
 };
 

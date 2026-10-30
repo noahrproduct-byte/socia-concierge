@@ -1,10 +1,12 @@
 "use client";
 
-// Setting up a brand: connect, then the Growth Profile one question group at
-// a time, then the work that really runs and the first briefing. Every step
-// saves where its answers belong (brand_detail through /api/profile, goals
-// through /api/goals) and records the step (/api/onboarding), so leaving and
-// coming back resumes here. Required for a brand's owner (lib/onboarding.ts).
+// Setting up a brand, kept short: connect the accounts, let SOCIA read them,
+// confirm what it found (every inferred field is editable and says how sure
+// SOCIA is), pick one main goal, then see the work that really ran and the
+// first briefing. Each step saves where its answers belong (brand_detail
+// through /api/profile, goals through /api/goals) and records the step
+// (/api/onboarding), so leaving and coming back resumes here. Required for a
+// brand's owner (lib/onboarding.ts). Deeper questions live in Settings.
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -13,15 +15,13 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Minus } from "lucide-react";
 import { NICHES } from "@/lib/niches";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { STEPS, STEP_LABEL, nextStep, prevStep, type Step } from "@/lib/onboarding";
-import type { Goal, GoalPlatform, GrowthProfile } from "@/lib/growth";
+import { ACCOUNT_TYPES, GOAL_PLATFORM_NAME, MAIN_GOALS, goalMetric, type AccountType, type GoalPlatform, type MainGoalId } from "@/lib/growth";
+import { confidenceLabel, type Understanding } from "@/lib/intel/understanding";
 import type { Briefing, StepOutcome } from "@/lib/briefing";
 import type { BrandDetail } from "@/lib/profile";
 import { Field, Input } from "@/components/system";
 import PlanNotice from "@/components/PlanNotice";
-import { VOICES } from "@/components/BrandSettings";
-import { FREQUENCIES } from "@/components/StrategistSettings";
-import { AccountTypeFields, AudienceFields, Choices, PersonalityFields, ResourcesFields, TypeDetailFields } from "./growth/GrowthFields";
-import GoalsEditor from "./growth/GoalsEditor";
+import { Choices } from "./growth/GrowthFields";
 import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 
@@ -44,143 +44,126 @@ const PLATFORM_ID: Record<string, GoalPlatform> = { Instagram: "instagram", Face
 type Initial = {
   step: Step;
   tableReady: boolean;
-  igRead: boolean;
   niche: string | null;
   brandName: string | null;
   detail: BrandDetail | null;
-  goals: Goal[];
 };
+
+/** How sure SOCIA is about an inferred value, and what it rests on. */
+function Inferred({ confidence, evidence }: { confidence: number; evidence: string[] }) {
+  return (
+    <span className="ob-inferred">
+      <b>{confidenceLabel(confidence)}</b>
+      {evidence[0] && <>: {evidence[0]}</>}
+    </span>
+  );
+}
 
 export default function OnboardingFlow({
   connections,
-  igUsername = null,
   igStatus = "",
   returned = [],
   initial,
   brands = [],
 }: {
-  /** The brands this person can open; a switcher shows when there are several. */
-  brands?: { id: string; name: string; active: boolean }[];
   /** Real connection state per platform, read on the server. */
   connections: ConnectState[];
-  igUsername?: string | null;
   igStatus?: string;
   /** Return codes from the platform callbacks, e.g. { name: "YouTube", code: "denied" }. */
   returned?: { name: string; code: string }[];
   initial: Initial;
+  /** The brands this person can open; a switcher shows when there are several. */
+  brands?: { id: string; name: string; active: boolean }[];
 }) {
   const router = useRouter();
   const connected = connections.filter((c) => c.connectedAs).map((c) => c.id);
   const connectedPlatforms = connected.map((id) => PLATFORM_ID[id]).filter(Boolean);
-  const liveIg = Boolean(igUsername) || igStatus === "connected";
-
-  const [step, setStep] = useState<Step>(initial.step);
-  const [reading, setReading] = useState(false);
-  const [readNote, setReadNote] = useState<string | null>(null);
-  const [planError, setPlanError] = useState<PlanError | null>(null);
-  const [igRead, setIgRead] = useState(initial.igRead);
 
   const d = initial.detail ?? {};
-  const [growth, setGrowth] = useState<GrowthProfile>(d.growth ?? {});
-  const [niche, setNiche] = useState(initial.niche ?? "");
+  const g0 = d.growth ?? {};
+  const [step, setStep] = useState<Step>(initial.step);
+  const [understanding, setUnderstanding] = useState<Understanding | null>(g0.understanding ?? null);
+  const [reading, setReading] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [planError, setPlanError] = useState<PlanError | null>(null);
+
+  // Confirmed values: what the person already confirmed, else filled from what SOCIA inferred.
+  const u = understanding;
   const [brandName, setBrandName] = useState(initial.brandName ?? "");
+  const [accountType, setAccountType] = useState<AccountType | "">(g0.account_type ?? "");
+  const [niche, setNiche] = useState(initial.niche ?? "");
+  const [subcategory, setSubcategory] = useState(g0.niche_path?.subcategory ?? "");
+  const [specific, setSpecific] = useState(g0.niche_path?.specific ?? "");
+  const [audience, setAudience] = useState(g0.audience?.who ?? "");
   const [location, setLocation] = useState(d.location ?? "");
-  const [website, setWebsite] = useState(d.website ?? "");
-  const [voice, setVoice] = useState(d.voice ?? "");
-  const [avoid, setAvoid] = useState(d.avoid ?? "");
-  const [frequency, setFrequency] = useState(d.strategist?.frequency ?? "");
-  const [goals, setGoals] = useState<Goal[]>(initial.goals);
+  const [mainGoal, setMainGoal] = useState<MainGoalId | "">(g0.main_goal ?? "");
+  const [target, setTarget] = useState("");
+  const [due, setDue] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [init, setInit] = useState<{ outcomes: StepOutcome[]; briefing: Briefing } | null>(null);
   const [initErr, setInitErr] = useState<string | null>(null);
   const initStarted = useRef(false);
+  const readStarted = useRef(false);
   const headRef = useRef<HTMLHeadingElement>(null);
 
-  // Move focus to the new step's heading, so keyboard and screen-reader users land on it.
   useEffect(() => {
     headRef.current?.focus();
-  }, [step]);
+  }, [step, reading]);
+
+  /** Fill empty fields from the analysis; never overwrite what the person typed or confirmed. */
+  function seedFrom(x: Understanding) {
+    if (x.account_type) setAccountType((v) => v || x.account_type!.value);
+    if (x.niche) {
+      setNiche((v) => v || x.niche!.value.category);
+      setSubcategory((v) => v || x.niche!.value.subcategory || "");
+      setSpecific((v) => v || x.niche!.value.specific || "");
+    }
+    if (x.audience) setAudience((v) => v || x.audience!.value);
+    if (x.geography?.value.place) setLocation((v) => v || x.geography!.value.place || "");
+    const h = x.facts.find((f) => f.handle)?.handle;
+    if (h) setBrandName((v) => v || h);
+    if (x.suggested_goal) setMainGoal((v) => v || x.suggested_goal!.goal);
+  }
+
+  // Seed once from an analysis that already exists.
+  useEffect(() => {
+    if (understanding) seedFrom(understanding);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const post = (url: string, body: unknown) =>
     fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-  /** What each step saves, in the places the rest of SOCIA already reads. */
-  function payloadFor(s: Step): Record<string, unknown> | null {
-    switch (s) {
-      case "account":
-        return { brand_detail: { growth: { account_type: growth.account_type } } };
-      case "identity":
-        return {
-          niche,
-          brand_name: brandName,
-          platforms: connected,
-          ...(liveIg ? { account_connected: true } : {}),
-          brand_detail: {
-            location: location.trim() || undefined,
-            website: website.trim() || undefined,
-            growth: { focus: growth.focus ?? "", ...(growth.business ? { business: growth.business } : {}), ...(growth.creator ? { creator: growth.creator } : {}) },
-          },
-        };
-      case "audience":
-        return { brand_detail: { growth: { audience: growth.audience ?? {} } } };
-      case "voice":
-        return { brand_detail: { voice: voice || undefined, avoid: avoid.trim() || undefined, growth: { personality: growth.personality ?? {} } } };
-      case "resources":
-        return { brand_detail: { strategist: frequency ? { frequency } : {}, growth: { resources: growth.resources ?? {} } } };
-      default:
-        return null;
-    }
-  }
-
-  async function go(to: Step, save: boolean) {
-    setErr(null);
-    if (save) {
-      const body = payloadFor(step);
-      if (body) {
-        setSaving(true);
-        const r = await post("/api/profile", body).catch(() => null);
-        setSaving(false);
-        if (!r?.ok) {
-          const j = await r?.json().catch(() => null);
-          setErr(j?.error || "Couldn't save this step. Try again.");
-          return;
-        }
-      }
-    }
-    // Progress is bookkeeping: if it can't be saved, the answers above still were.
-    void post("/api/onboarding", { step: to }).catch(() => null);
-    setStep(to);
-  }
-
-  // Leaving Connect with Instagram live and no read yet: read the account for
-  // a suggested niche (the real request, shown for as long as it takes).
-  async function fromConnect() {
-    if (!liveIg || igRead || niche) return go("account", false);
+  // The account read: the real request, shown for as long as it takes.
+  async function readAccounts() {
     setReading(true);
+    setReadError(null);
     try {
-      const r = await fetch("/api/analyze-account");
+      const r = await post("/api/understand", {});
       const j = await r.json().catch(() => null);
-      if (!r.ok && isPlanError(j)) setPlanError(j);
-      const x = j?.extracted;
-      if (x) {
-        if (x.niche && NICHES.includes(x.niche)) setNiche(x.niche);
-        if (x.brand_name && !brandName) setBrandName(x.brand_name);
-        if (x.sub_niche && !growth.focus) setGrowth((g) => ({ ...g, focus: String(x.sub_niche).slice(0, 120) }));
-        setReadNote("Suggested from your recent Instagram posts. Change anything that's wrong.");
-      } else if (r.ok) {
-        setReadNote("SOCIA couldn't read your Instagram posts just now, so fill these in yourself.");
+      if (!r.ok) {
+        if (isPlanError(j)) setPlanError(j);
+        else setReadError(j?.error ?? "SOCIA couldn't read your accounts just now.");
+      } else if (j?.understanding) {
+        setUnderstanding(j.understanding);
+        seedFrom(j.understanding);
       }
-      setIgRead(true);
-      void post("/api/onboarding", { step: "account", mark: { ig_read: true } }).catch(() => null);
     } catch {
-      setReadNote("SOCIA couldn't read your Instagram posts just now, so fill these in yourself.");
+      setReadError("SOCIA couldn't read your accounts just now.");
     } finally {
       setReading(false);
     }
-    setStep("account");
   }
+
+  // Entering "Your account" with accounts connected and no analysis yet runs it once.
+  useEffect(() => {
+    if (step !== "profile" || understanding || !connected.length || readStarted.current) return;
+    readStarted.current = true;
+    void readAccounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   // The briefing step runs the real initialization once.
   useEffect(() => {
@@ -194,6 +177,64 @@ export default function OnboardingFlow({
       })
       .catch((e) => setInitErr(e instanceof Error ? e.message : "Couldn't read your accounts just now."));
   }, [step]);
+
+  async function saveProfile(): Promise<boolean> {
+    const r = await post("/api/profile", {
+      niche,
+      brand_name: brandName,
+      platforms: connected,
+      ...(connected.includes("Instagram") ? { account_connected: true } : {}),
+      brand_detail: {
+        location: location.trim() || undefined,
+        growth: {
+          account_type: accountType || undefined,
+          niche_path: { subcategory, specific },
+          audience: { who: audience },
+        },
+      },
+    }).catch(() => null);
+    if (!r?.ok) {
+      const j = await r?.json().catch(() => null);
+      setErr(j?.error || "Couldn't save this step. Try again.");
+      return false;
+    }
+    return true;
+  }
+
+  async function saveGoal(): Promise<boolean> {
+    const choice = MAIN_GOALS.find((m) => m.id === mainGoal);
+    if (!choice) return false;
+    // Without a target the goal is still the brand's stated goal; with one it becomes a measured goal.
+    const r = await post("/api/profile", { brand_detail: { growth: { main_goal: choice.id } }, ...(target ? {} : { goals: `Main goal: ${choice.label}.` }) }).catch(() => null);
+    if (!r?.ok) {
+      setErr("Couldn't save your goal. Try again.");
+      return false;
+    }
+    if (target && initial.tableReady) {
+      const m = goalMetric(choice.metric)!;
+      const where = m.measuredOn.filter((p) => connectedPlatforms.includes(p));
+      const gr = await post("/api/goals", { metric: choice.metric, target, due_date: due || null, platforms: where.length ? where : m.measuredOn.slice(0, 1), kind: "primary" }).catch(() => null);
+      if (!gr?.ok) {
+        const gj = await gr?.json().catch(() => null);
+        setErr(gj?.error || "Couldn't save the target. Try again.");
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function go(to: Step, save: boolean) {
+    setErr(null);
+    if (save) {
+      setSaving(true);
+      const ok = step === "profile" ? await saveProfile() : step === "goal" ? await saveGoal() : true;
+      setSaving(false);
+      if (!ok) return;
+    }
+    // Progress is bookkeeping: if it can't be saved, the answers above still were.
+    void post("/api/onboarding", { step: to }).catch(() => null);
+    setStep(to);
+  }
 
   async function finish() {
     setSaving(true);
@@ -211,8 +252,9 @@ export default function OnboardingFlow({
   }
 
   const i = STEPS.indexOf(step);
-  const canNext =
-    step === "account" ? Boolean(growth.account_type) : step === "identity" ? Boolean(niche) : true;
+  const canNext = step === "profile" ? Boolean(niche && accountType) : step === "goal" ? Boolean(mainGoal) : true;
+  const chosenGoal = MAIN_GOALS.find((m) => m.id === mainGoal);
+  const chosenMetric = chosenGoal ? goalMetric(chosenGoal.metric) : null;
 
   const nav = (next = "Continue") => (
     <>
@@ -264,8 +306,8 @@ export default function OnboardingFlow({
         {reading ? (
           <div className="ob-stage ob-reading" role="status" aria-live="polite">
             <Loader2 size={22} className="spin" aria-hidden />
-            <h1>Reading {igUsername ? <>@{igUsername}</> : "your Instagram"}</h1>
-            <p>SOCIA is reading your profile and recent posts to suggest your niche.</p>
+            <h1 ref={headRef} tabIndex={-1}>Reading your accounts</h1>
+            <p>SOCIA is reading your profile and recent posts on {connected.join(", ")} to work out what the account is about.</p>
           </div>
         ) : (
           <div className="ob-stage" key={step}>
@@ -273,10 +315,7 @@ export default function OnboardingFlow({
               <>
                 <div className="ob-head">
                   <h1 ref={headRef} tabIndex={-1}>Connect your accounts</h1>
-                  <p>
-                    SOCIA reads your posts and numbers from each account you connect. With Instagram
-                    connected it also suggests your niche. You can connect more later from Settings.
-                  </p>
+                  <p>SOCIA reads your profile and recent posts from each account you connect, so you don&apos;t have to describe them.</p>
                 </div>
                 {igStatus && igStatus !== "connected" && RETURN_ERRORS[igStatus] && <div className="ob-err">Instagram {RETURN_ERRORS[igStatus]}</div>}
                 {returned.filter((r) => RETURN_ERRORS[r.code]).map((r) => (
@@ -290,112 +329,130 @@ export default function OnboardingFlow({
                 </ul>
                 <div className="ob-actions">
                   <span />
-                  <button className="ob-btn ob-btn-primary" onClick={fromConnect}>
+                  <button className="ob-btn ob-btn-primary" onClick={() => go("profile", false)}>
                     {connected.length ? "Continue" : "Continue without connecting"} <ArrowRight size={17} />
                   </button>
                 </div>
               </>
             )}
 
-            {step === "account" && (
+            {step === "profile" && (
               <>
                 <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>What kind of account is this?</h1>
-                  <p>This decides which questions come next and how SOCIA plans for you.</p>
+                  <h1 ref={headRef} tabIndex={-1}>{u?.niche || u?.account_type ? "Here's what SOCIA found" : "Tell SOCIA about the account"}</h1>
+                  <p>
+                    {u?.niche || u?.account_type
+                      ? "Read from your posts. Check each line and change anything that's wrong."
+                      : connected.length
+                        ? "SOCIA couldn't infer these from your posts, so fill them in."
+                        : "No account is connected yet, so fill these in. SOCIA reads more once you connect one."}
+                  </p>
                 </div>
                 {planError && <PlanNotice error={planError} compact />}
-                <div className="ob-fields">
-                  <AccountTypeFields value={growth} onChange={setGrowth} />
-                </div>
-                {nav()}
-              </>
-            )}
+                {readError && (
+                  <div className="ob-err" role="alert">
+                    {readError} <button type="button" className="ob-link" onClick={readAccounts}>Try again</button>
+                  </div>
+                )}
 
-            {step === "identity" && (
-              <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>What is the account about?</h1>
-                  {readNote && <p>{readNote}</p>}
-                </div>
+                {u && u.facts.length > 0 && (
+                  <ul className="ob-facts" aria-label="Connected accounts">
+                    {u.facts.map((f) => (
+                      <li key={f.platform}>
+                        <b>{GOAL_PLATFORM_NAME[f.platform]}{f.handle ? `, ${f.handle}` : ""}</b>
+                        <span>
+                          {[
+                            f.followers != null ? `${f.followers.toLocaleString("en-US")} followers` : null,
+                            `${f.postsSampled} recent posts read`,
+                            f.postsPerWeek != null ? `${f.postsPerWeek} a week lately` : null,
+                            f.formats[0] ? `mostly ${f.formats[0].format.toLowerCase()}s` : null,
+                          ].filter(Boolean).join(", ")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
                 <div className="ob-fields">
-                  <Field label="Niche">
-                    <select className="s-input" value={niche} onChange={(e) => setNiche(e.target.value)}>
-                      <option value="" disabled>Choose a category…</option>
-                      {NICHES.map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="In a line, what do you post about?" optional>
-                    <Input maxLength={120} value={growth.focus ?? ""} placeholder="e.g. Wood-fired pizza and the family behind it" onChange={(e) => setGrowth({ ...growth, focus: e.target.value })} />
-                  </Field>
-                  <Field label="Account or brand name" optional>
+                  <Field label="Account or brand name">
                     <Input maxLength={80} value={brandName} placeholder="@yourhandle or your business name" onChange={(e) => setBrandName(e.target.value)} />
                   </Field>
-                  <TypeDetailFields value={growth} onChange={setGrowth} />
-                  <div className="gp-row">
+                  <div className="ob-infield">
+                    <Choices label="Account type" options={ACCOUNT_TYPES} value={accountType} onChange={(v) => setAccountType(v as AccountType)} />
+                    {u?.account_type && <Inferred confidence={u.account_type.confidence} evidence={u.account_type.evidence} />}
+                  </div>
+                  <div className="ob-infield">
+                    <div className="gp-row">
+                      <Field label="Niche">
+                        <select className="s-input" value={niche} onChange={(e) => setNiche(e.target.value)}>
+                          <option value="" disabled>Choose a category…</option>
+                          {NICHES.map((n) => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="More specifically" optional>
+                        <Input maxLength={60} value={subcategory} placeholder="e.g. Pizza" onChange={(e) => setSubcategory(e.target.value)} />
+                      </Field>
+                      <Field label="Narrower still" optional>
+                        <Input maxLength={80} value={specific} placeholder="e.g. Neighbourhood pizzeria" onChange={(e) => setSpecific(e.target.value)} />
+                      </Field>
+                    </div>
+                    {u?.niche && <Inferred confidence={u.niche.confidence} evidence={u.niche.evidence} />}
+                  </div>
+                  <div className="ob-infield">
+                    <Field label="Who it's for" optional>
+                      <Input maxLength={300} value={audience} placeholder="e.g. Families nearby who want a weekend treat" onChange={(e) => setAudience(e.target.value)} />
+                    </Field>
+                    {u?.audience && <Inferred confidence={u.audience.confidence} evidence={u.audience.evidence} />}
+                  </div>
+                  <div className="ob-infield">
                     <Field label="Location" optional>
                       <Input maxLength={120} value={location} placeholder="e.g. Hermitage, TN" onChange={(e) => setLocation(e.target.value)} />
                     </Field>
-                    <Field label="Website" optional>
-                      <Input maxLength={200} value={website} placeholder="example.com" onChange={(e) => setWebsite(e.target.value)} />
-                    </Field>
+                    {u?.geography?.value.place && <Inferred confidence={u.geography.confidence} evidence={u.geography.evidence} />}
                   </div>
+                  {u && u.themes.length > 0 && (
+                    <div className="ob-themes">
+                      <span className="s-label">Recurring in your posts</span>
+                      <ul>
+                        {u.themes.map((t) => <li key={t.name}><b>{t.name}</b>, {t.posts} posts, e.g. &ldquo;{t.example}&rdquo;</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {u && u.limitations.length > 0 && <p className="gp-note">{u.limitations.join(" ")}</p>}
+                  {connected.length > 0 && (
+                    <button type="button" className="ob-link" onClick={readAccounts}>Read my accounts again</button>
+                  )}
                 </div>
                 {nav()}
               </>
             )}
 
-            {step === "audience" && (
+            {step === "goal" && (
               <>
                 <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>Who is it for?</h1>
-                  <p>SOCIA writes plans and captions for these people.</p>
+                  <h1 ref={headRef} tabIndex={-1}>What&apos;s your main goal?</h1>
+                  <p>SOCIA plans and measures around it. You can change it, or add more goals, in Settings.</p>
                 </div>
                 <div className="ob-fields">
-                  <AudienceFields value={growth} onChange={setGrowth} />
-                </div>
-                {nav()}
-              </>
-            )}
-
-            {step === "goals" && (
-              <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>What are you working toward?</h1>
-                  <p>Set a goal SOCIA can measure, with a target and a date. You can add more, or change them, in Settings.</p>
-                </div>
-                <div className="ob-fields">
-                  <GoalsEditor initial={goals} tableReady={initial.tableReady} connected={connectedPlatforms} onChange={setGoals} />
-                </div>
-                {nav(goals.length ? "Continue" : "Skip for now")}
-              </>
-            )}
-
-            {step === "voice" && (
-              <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>How do you sound?</h1>
-                  <p>Plans, captions and replies follow this.</p>
-                </div>
-                <div className="ob-fields">
-                  <Choices label="Voice" options={VOICES.map((v) => ({ id: v, label: v }))} columns={3} value={voice} onChange={(v) => setVoice(String(v))} />
-                  <PersonalityFields value={growth} onChange={setGrowth} />
-                  <Field label="Words or topics to avoid" optional>
-                    <Input maxLength={300} value={avoid} placeholder="e.g. discounts, politics" onChange={(e) => setAvoid(e.target.value)} />
-                  </Field>
-                </div>
-                {nav()}
-              </>
-            )}
-
-            {step === "resources" && (
-              <>
-                <div className="ob-head">
-                  <h1 ref={headRef} tabIndex={-1}>What can you make?</h1>
-                  <p>SOCIA keeps plans to what you have time and tools for.</p>
-                </div>
-                <div className="ob-fields">
-                  <ResourcesFields value={growth} onChange={setGrowth} />
-                  <Choices label="How often do you want to post?" options={FREQUENCIES.map((f) => ({ id: f, label: f }))} columns={4} value={frequency} onChange={(v) => setFrequency(String(v))} />
+                  <Choices label="Main goal" options={MAIN_GOALS} value={mainGoal} onChange={(v) => setMainGoal(v as MainGoalId)} />
+                  {u?.suggested_goal && u.suggested_goal.goal === mainGoal && (
+                    <p className="gp-note">Suggested from your account: {u.suggested_goal.reason} Confirm it or pick another.</p>
+                  )}
+                  {chosenMetric && (
+                    <>
+                      <p className="gp-note">{chosenMetric.note}</p>
+                      {initial.tableReady && (
+                        <div className="gp-row">
+                          <Field label={chosenMetric.unit === "percent" ? "Target (%)" : "Target"} optional>
+                            <Input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} />
+                          </Field>
+                          <Field label="By" optional>
+                            <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+                          </Field>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
                 {nav("Finish setup")}
               </>
@@ -467,14 +524,16 @@ export default function OnboardingFlow({
 
                 {err && <div className="ob-err" role="alert">{err}</div>}
                 <div className="ob-actions">
-                  <button className="ob-btn ob-btn-ghost" onClick={() => go("resources", false)} disabled={saving}>
+                  <button className="ob-btn ob-btn-ghost" onClick={() => go("goal", false)} disabled={saving}>
                     <ArrowLeft size={17} /> Back
                   </button>
                   <button className="ob-btn ob-btn-primary" onClick={finish} disabled={saving || (!init && !initErr)}>
                     {saving ? "Opening…" : "Open SOCIA"} {!saving && <ArrowRight size={17} />}
                   </button>
                 </div>
-                <p className="ob-note">You&apos;re on the Free plan. <Link href="/pricing">Compare plans</Link></p>
+                <p className="ob-note">
+                  Add your audience, voice and what you can produce any time in <Link href="/settings#growth">Settings</Link>. You&apos;re on the Free plan. <Link href="/pricing">Compare plans</Link>
+                </p>
               </>
             )}
           </div>
