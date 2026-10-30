@@ -42,6 +42,8 @@ export type Deliverable = {
     production?: string;
     /** The one number that says whether it worked, against the account's own median. */
     successMetric?: string;
+    /** The running experiment this post tests (its id in the Growth Strategy), when it tests one. */
+    experiment?: string;
     /** "own" when the person added the idea themselves; SOCIA's otherwise. Not part of the model's schema. */
     source?: "socia" | "own";
     /** The person's call on the idea, and why when they turned it down. Not part of the model's schema. */
@@ -131,6 +133,7 @@ export const deliverableSchema = {
           direction: { type: "string" },
           production: { type: "string" },
           successMetric: { type: "string" },
+          experiment: { type: "string" },
         },
         required: [
           "day",
@@ -147,6 +150,7 @@ export const deliverableSchema = {
           "direction",
           "production",
           "successMetric",
+          "experiment",
         ],
       },
     },

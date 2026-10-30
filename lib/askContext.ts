@@ -18,6 +18,8 @@ import { buildGaps } from "./gaps";
 import { postCards, buildKpis, buildSeries, buildInsights, bucketize, bucketTitle, detectOutliers, rangeDays, fmtNum, type PostCard } from "./overview";
 import { competitorsBlock } from "./planEvidence";
 import { activeFindings } from "./intel/insightStore";
+import { experimentResults } from "./experimentsLoad";
+import { experimentsEvidence } from "./experiments";
 import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
 import { listTracked } from "./trackedCompetitors";
 import type { SavedPlan } from "./schema";
@@ -164,6 +166,12 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
         ...(ctx.comparisons?.length ? [`Measured comparison (you vs them): ${ctx.comparisons.join("; ")}`] : ["No measured comparison lines were provided."]),
         theirs.length ? `Their analysed content:\n${theirs.slice(0, 8).map((w) => `- "${w.title ?? "(untitled)"}" · views ${n(w.views)}, likes ${n(w.likes)}, comments ${n(w.comments)}${w.multiplier != null ? `, ${Number(w.multiplier).toFixed(1)}× their median` : ""}${w.trend_tags?.length ? ` · features: ${w.trend_tags.join(", ")}` : ""}${w.why_recommended ? ` · web-research note: ${w.why_recommended}` : ""}`).join("\n")}` : "No analysed posts stored for this account.");
     }
+  }
+
+  // What the experiments have shown so far (lib/experiments.ts), on the pages where it guides a decision.
+  if (ctx.page === "plan" || ctx.page === "global" || ctx.page === "dashboard") {
+    const ex = experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, profile?.brand_detail?.strategy).catch(() => []));
+    if (ex) parts.push(`# The strategy's experiments and how they're going (each test post against the account's own median; 3 settled posts before a verdict)`, ex);
   }
 
   if (ctx.page === "plan") {

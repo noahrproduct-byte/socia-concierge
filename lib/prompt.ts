@@ -45,6 +45,7 @@ Rules:
 - weeklyPlan[].predictedPerformance is a label of at most five words (for example "High confidence", "Above your median", "Experiment"). Ranges, caveats and what to measure belong in rationale.
 - Cite only numbers that appear in the evidence you were given. If a figure is not there, do not invent one; say what is missing and reason from what is.
 - Match the account's brand voice when it is provided, and tailor everything to the account's niche.
+- Every weeklyPlan item has an experiment field: the id of the running experiment it tests (from the strategy), or an empty string.
 - Every weeklyPlan item also carries: title (a working title, at most 8 words); purpose (which strategy pillar or priority it serves, or the goal when there is no strategy); audience (who it is for, in a few words); platform (one connected platform: Instagram, Facebook, YouTube or TikTok; the primary platform when unsure); direction (shots, look and pacing in one or two sentences); production (what it takes to make: people, gear and roughly how long, within the resources given; never more equipment, editing skill or help than they said they have); successMetric (the one number that says whether it worked, against the account's own median, for example "Saves against your median").`;
 
 export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null, evidence?: Evidence | null): string {
@@ -65,7 +66,7 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   if (strategy) {
     parts.push(`\n# The account's growth strategy (written with SOCIA and kept by the user; build the week from it)`);
     parts.push(strategy);
-    parts.push(`Plan ${brand!.strategy!.frequency.posts_per_week} posts this week, the strategy's pace, even where the general rule says 5 to 7. Spread them across the content pillars, include a running experiment's test when one is due, and say in each post's rationale which pillar or priority it serves.`);
+    parts.push(`Plan ${brand!.strategy!.frequency.posts_per_week} posts this week, the strategy's pace, even where the general rule says 5 to 7. Spread them across the content pillars, include a running experiment's test when one is due, and say in each post's rationale which pillar or priority it serves. A post that tests a running experiment carries that experiment's id in its experiment field; every other post has an empty experiment field.`);
   }
 
   // Real data first, the user's own notes after it. When SOCIA holds nothing,
@@ -98,6 +99,13 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
       input.competitors.trim() ||
         "(none provided — base competitor insights on well-known patterns in this niche and flag them as general rather than specific)",
     );
+  }
+
+  if (evidence?.experimentsBlock) {
+    parts.push(`\n# How the strategy's experiments are going`);
+    parts.push(`(Each test post measured against the account's own median once its numbers settle; 3 settled posts are needed for a verdict.)`);
+    parts.push(evidence.experimentsBlock);
+    parts.push(`Follow each experiment's next step: plan the missing test posts for one still too early or mixed, build a supported one into the week as a regular post, and don't test a running experiment that isn't supported again unless something about it changes. Never present a result as more certain than it says.`);
   }
 
   if (evidence?.decisionsBlock) {

@@ -39,3 +39,17 @@
   .gs-miles li { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
 .gs-set > .s-btn, .gs-edit > .gs-actions { justify-self: start; }
+
+/* Experiments tracking (lib/experiments.ts) */
+.gs-card .gs-exp > li { display: grid; gap: var(--sp-1); padding-bottom: var(--sp-3); border-bottom: 1px solid var(--rule); }
+.gs-card .gs-exp > li:last-child { border-bottom: 0; padding-bottom: 0; }
+.gs-exp-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.gs-chip { padding: 0 var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-pill); color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.gs-v-supported { border-color: transparent; background: var(--positive-bg); color: var(--positive-ink); }
+.gs-v-not_supported { border-color: transparent; background: var(--surface-hover); color: var(--ink-2); }
+.gs-v-mixed { border-color: transparent; background: var(--warning-bg); color: var(--warning-ink); }
+.gs-exp-counts { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-variant-numeric: tabular-nums; }
+.gs-card .gs-tests { list-style: none; padding: 0; gap: var(--sp-1); }
+.gs-tests li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2); }
+.gs-tests small { color: var(--ink-3); font-size: var(--fs-meta); }
+.gs-card .gs-note { margin-top: var(--sp-2); }

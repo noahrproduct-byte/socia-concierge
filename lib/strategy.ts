@@ -9,7 +9,13 @@
 import { HOURS, MAIN_GOALS, type GrowthProfile } from "./growth";
 
 export type StrategyPillar = { name: string; why: string };
-export type StrategyExperiment = { hypothesis: string; test: string; measure: string };
+export type ExperimentStatus = "running" | "done" | "stopped";
+/** A hypothesis under test. The id tags the plan's test posts (lib/experiments.ts); unique across rewrites so old tests never count toward a new one. */
+export type StrategyExperiment = { id?: string; status?: ExperimentStatus; started_at?: string | null; hypothesis: string; test: string; measure: string };
+
+const STATUSES: ExperimentStatus[] = ["running", "done", "stopped"];
+export const isExperimentId = (v: unknown): v is string => typeof v === "string" && /^e[0-9a-z]{3,14}$/.test(v);
+const newId = (now: Date, i: number) => `e${now.getTime().toString(36)}${i}`;
 export type StrategyMilestone = { label: string; by: string | null; measure: string };
 
 export type GrowthStrategy = {
@@ -130,7 +136,8 @@ export function normalizeStrategy(raw: Record<string, unknown>, ctx: { growth: G
       // Capped: the model's reasoning argued for a number that no longer applies.
       why: posts < asked ? `Held to ${cap} a week, what the time you said you have allows. Change it in your Growth Profile to plan more.` : clip(raw.frequency_why, 300),
     },
-    experiments: objs(raw.experiments).map((e) => ({ hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200) })).filter((e) => e.hypothesis).slice(0, 2),
+    experiments: objs(raw.experiments).map((e) => ({ hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200) })).filter((e) => e.hypothesis).slice(0, 2)
+      .map((e, i) => ({ id: newId(ctx.now, i), status: "running" as const, started_at: ctx.now.toISOString(), ...e })),
     priorities: clipList(raw.priorities, 3, 200),
     milestones: objs(raw.milestones).map((m) => {
       const by = clip(m.by, 10);
@@ -154,12 +161,21 @@ export function applyEdits(cur: GrowthStrategy, patch: Partial<GrowthStrategy>, 
     pillars: objs(patch.pillars)?.map((p) => ({ name: clip(p.name, 60), why: clip(p.why, 240) })).filter((p) => p.name).slice(0, 6) ?? cur.pillars,
     // The person may choose more than SOCIA suggests; only a sane week is enforced.
     frequency: patch.frequency ? { posts_per_week: Number.isFinite(ppw) && ppw > 0 ? Math.min(ppw, 21) : cur.frequency.posts_per_week, why: clip(patch.frequency.why, 300) } : cur.frequency,
-    experiments: objs(patch.experiments)?.map((e) => ({ hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200) })).filter((e) => e.hypothesis).slice(0, 4) ?? cur.experiments,
+    // Kept ids keep their test posts; a new row starts a new experiment.
+    experiments: objs(patch.experiments)?.map((e, i) => ({
+      id: isExperimentId(e.id) ? e.id : newId(now, i),
+      status: STATUSES.includes(e.status as ExperimentStatus) ? (e.status as ExperimentStatus) : "running",
+      started_at: typeof e.started_at === "string" && !Number.isNaN(Date.parse(e.started_at)) ? e.started_at : now.toISOString(),
+      hypothesis: clip(e.hypothesis, 240), test: clip(e.test, 240), measure: clip(e.measure, 200),
+    })).filter((e) => e.hypothesis).slice(0, 4) ?? cur.experiments,
     priorities: patch.priorities ? clipList(patch.priorities, 5, 200) : cur.priorities,
     milestones: objs(patch.milestones)?.map((m) => { const by = clip(m.by, 10); return { label: clip(m.label, 160), by: isDate(by) ? by : null, measure: clip(m.measure, 200) }; }).filter((m) => m.label).slice(0, 5).sort(byDate) ?? cur.milestones,
     edited_at: now.toISOString(),
   };
 }
+
+/** Experiments still being tested (older strategies without ids are treated as running, tagged by none). */
+export const running = (s: GrowthStrategy) => s.experiments.filter((e) => (e.status ?? "running") === "running" && isExperimentId(e.id));
 
 /** The strategy as lines for the plan writer and Ask SOCIA. */
 export function strategyLines(s: GrowthStrategy | null | undefined): string {
@@ -170,7 +186,7 @@ export function strategyLines(s: GrowthStrategy | null | undefined): string {
     s.audience ? `Audience: ${s.audience}` : "",
     s.pillars.length ? `Content pillars:\n${s.pillars.map((p) => `- ${p.name}: ${p.why}`).join("\n")}` : "",
     `Posts a week: ${s.frequency.posts_per_week}${s.frequency.why ? ` (${s.frequency.why})` : ""}`,
-    s.experiments.length ? `Running experiments:\n${s.experiments.map((e) => `- ${e.hypothesis} Test: ${e.test} Measure: ${e.measure}`).join("\n")}` : "",
+    running(s).length ? `Running experiments (id in brackets):\n${running(s).map((e) => `- [${e.id}] ${e.hypothesis} Test: ${e.test} Measure: ${e.measure}`).join("\n")}` : "",
     s.priorities.length ? `Priorities, in order: ${s.priorities.join("; ")}` : "",
   ].filter(Boolean).join("\n");
 }

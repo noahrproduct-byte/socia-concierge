@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, can } from "@/lib/context";
 import { readStrategy } from "@/lib/strategyLoad";
+import { experimentResults } from "@/lib/experimentsLoad";
 import PageHeader from "@/components/PageHeader";
 import StrategyView from "@/components/plan/StrategyView";
 
@@ -14,10 +15,12 @@ export default async function StrategyPage() {
   if (!user) redirect("/login");
   const ctx = await resolveContext(supabase, user.id);
   const strategy = await readStrategy(ctx).catch(() => null);
+  // Each experiment's test posts and what they show (lib/experiments.ts).
+  const experiments = await experimentResults(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, strategy).catch(() => []);
   return (
     <>
       <PageHeader title="Strategy" sub="Your objective, audience, content pillars and pace. Weekly plans are built from it." />
-      <StrategyView initial={strategy} canManage={can(ctx, "manage_workspace")} />
+      <StrategyView initial={strategy} experiments={experiments} canManage={can(ctx, "manage_workspace")} />
     </>
   );
 }

@@ -45,7 +45,7 @@ describe("connected readers", () => {
   it("gives the plan writer the format with its basis and asks it to cite and adapt", () => {
     const block = formatsEvidence([stored()]);
     expect(block).toMatch(/One-take build.*3 examples from 2 accounts/);
-    const prompt = buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "salvos", goal: "", niche: "Pizza", platform: "instagram" } as never, null, { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: block, decisionsBlock: "", used: {} as never });
+    const prompt = buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "salvos", goal: "", niche: "Pizza", platform: "instagram" } as never, null, { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: block, decisionsBlock: "", experimentsBlock: "", used: {} as never });
     expect(prompt).toMatch(/# Formats that lead in this niche/);
     expect(prompt).toMatch(/never copied/);
   });

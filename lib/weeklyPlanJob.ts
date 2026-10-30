@@ -111,7 +111,7 @@ export async function planInputsFor(svc: Supa, ownerId: string, ws: Workspace | 
   };
   if (!input.clientHandle && !input.niche) return null;
   const outcomes = await recentPlanOutcomes(svc, ownerId, wsId).catch(() => []);
-  const evidence = await loadEvidence(svc, ownerId, snap, await competitorScopeId(svc, wsId), { outcomes });
+  const evidence = await loadEvidence(svc, ownerId, snap, await competitorScopeId(svc, wsId), { outcomes, strategy: profile?.brand_detail?.strategy ?? null });
   return { input, brand: profile?.brand_detail ?? null, evidence, snap };
 }
 

@@ -12,6 +12,9 @@ import type { PlanOutcome, ItemOutcome } from "./planOutcomes";
 import { activeFindings } from "./intel/insightStore";
 import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
 import { reasonLabel } from "./planItems";
+import { experimentResults } from "./experimentsLoad";
+import { experimentsEvidence } from "./experiments";
+import type { GrowthStrategy } from "./strategy";
 import type { Deliverable } from "./schema";
 
 export type Evidence = {
@@ -23,6 +26,8 @@ export type Evidence = {
   formatsBlock: string;
   /** What the person approved, turned down (and why) and added themselves in their recent plans. */
   decisionsBlock: string;
+  /** How the strategy's experiments are going: their test posts' results and verdicts. */
+  experimentsBlock: string;
   used: EvidenceUsed;
 };
 
@@ -233,7 +238,7 @@ type Supa = any;
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[] } = {}): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null } = {}): Promise<Evidence> {
   const media = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
 
@@ -285,6 +290,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     outcomesBlock: outcomesBlock_,
     formatsBlock: formatsEvidence(formats),
     decisionsBlock: decisionsBlock(recentPlans),
+    experimentsBlock: experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, opts.strategy).catch(() => [])),
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,
