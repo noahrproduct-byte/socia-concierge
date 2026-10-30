@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import TimezoneSync from "@/components/TimezoneSync";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
@@ -25,5 +26,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       if (needsOnboarding({ isOwner: ctx.isOwner, row, tableReady, niche: profile?.niche ?? null })) redirect("/onboarding");
     }
   }
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      <TimezoneSync />
+      {children}
+    </AppShell>
+  );
 }

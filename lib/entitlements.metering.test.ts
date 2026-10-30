@@ -54,7 +54,7 @@ describe("metering fails closed", () => {
 
   it("refuses a zero allowance without touching the counter", async () => {
     const rpc = vi.fn(async () => ({ data: null, error: null }));
-    const r = await consumeUsage(client(rpc), ent("free"), "content_plan");
+    const r = await consumeUsage(client(rpc), ent("free"), "video_builds");
     expect(r.allowed).toBe(false);
     expect(rpc).not.toHaveBeenCalled();
   });

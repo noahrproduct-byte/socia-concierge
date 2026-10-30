@@ -32,7 +32,8 @@ describe("plan configuration", () => {
   it("matches the confirmed AI allowances", () => {
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.ask_socia)).toEqual([10, 50, 250, 600]);
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_studio)).toEqual([5, 30, 150, 400]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_plan)).toEqual([0, 4, 12, 40]);
+    // Free: one a month (Noah, 2026-10-30), plus one at onboarding that isn't counted.
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_plan)).toEqual([1, 4, 12, 40]);
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_ideas)).toEqual([3, 3, 3, 3]);
     expect(METER_PERIOD.content_ideas).toBe("week");
     expect(METER_PERIOD.ask_socia).toBe("month");
@@ -70,7 +71,7 @@ describe("plan configuration", () => {
     expect(PLANS.free.features.scheduling).toBe(true);
     expect(PLANS.free.features.breakout_alerts).toBe(true);
     expect(PLANS.free.features.deeper_insights).toBe(false);
-    expect(PLANS.free.features.content_plan).toBe(false);
+    expect(PLANS.free.features.content_plan).toBe(true);
     expect(PLANS.starter.features.deeper_insights).toBe(true);
     expect(PLANS.starter.features.posting_time_analysis).toBe(true);
     expect(PLANS.starter.features.content_plan).toBe(true);
