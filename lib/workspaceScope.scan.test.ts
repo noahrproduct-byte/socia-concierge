@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 const WORKSPACE_TABLES = [
   "alert_events", "audio_media", "comment_drafts", "competitor_snapshots", "discovered_accounts", "discovered_content",
-  "discovery_runs", "facebook_connections", "growth_goals", "instagram_connections", "onboarding_state", "plans", "platform_deletions", "platform_snapshots", "post_approvals",
+  "discovery_runs", "facebook_connections", "growth_goals", "insights", "instagram_connections", "intelligence_jobs", "onboarding_state", "plans", "platform_deletions", "platform_snapshots", "post_approvals",
   "post_destinations", "scheduled_posts", "studio_builds", "studio_clips", "studio_projects", "tiktok_connections",
   "tracked_competitors", "youtube_connections",
 ];
