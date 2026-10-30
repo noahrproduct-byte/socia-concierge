@@ -190,3 +190,7 @@
   box-shadow: inset 0 0 0 1px var(--border);
   color: var(--ink-2);
 }
+
+/* ---- Plan: the Content Plan | Calendar switch (components/PlanTabs.tsx) ------------- */
+.plan-tabs { margin-bottom: var(--sp-4); }
+.plan-tabs > a { display: inline-flex; align-items: center; text-decoration: none; }

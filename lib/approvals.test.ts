@@ -73,7 +73,7 @@ describe("notifications", () => {
     });
     const sent = alerts[0];
     expect(sent.map((a) => a.recipientId).sort()).toEqual(["admin-1", "owner"]);
-    expect(sent[0]).toMatchObject({ type: "approval", title: "Waiting for approval: “Fall menu drop”", entityRef: "/calendar?view=approvals" });
+    expect(sent[0]).toMatchObject({ type: "approval", title: "Waiting for approval: “Fall menu drop”", entityRef: "/plan/calendar?view=approvals" });
     expect(String(sent[0].body)).toContain("mia@example.com submitted it: “For Friday's special”");
   });
 

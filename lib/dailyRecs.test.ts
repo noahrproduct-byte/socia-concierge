@@ -86,7 +86,7 @@ describe("dailyRecommendations: Content Plan", () => {
     const s = dailyRecommendations(empty({ plan: plan("2026-10-12T13:00:00Z"), posts: [tomorrow()] }), NOW, TZ);
     const r = s.recs.find((x) => x.kind === "plan_item")!;
     expect(r.detail).toBe("“Behind the counter at opening” (Reel). It isn't on your Calendar, so nothing is set to go out for it.");
-    expect(r.href).toBe("/tool");
+    expect(r.href).toBe("/plan");
   });
 
   it("stays quiet when that day is on the Calendar, even on another date", () => {

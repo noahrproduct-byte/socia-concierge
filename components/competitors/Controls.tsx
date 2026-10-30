@@ -28,7 +28,7 @@ export function ParamSelect({ name, value, options, ariaLabel, icon, clearValue 
           const next = new URLSearchParams(params?.toString() ?? "");
           if (e.target.value === clearValue) next.delete(name); else next.set(name, e.target.value);
           const q = next.toString();
-          router.push(`/competitors${q ? `?${q}` : ""}${name === "niche_range" ? "#trends" : ""}`);
+          router.push(`/discover${q ? `?${q}` : ""}${name === "niche_range" ? "#trends" : ""}`);
         }}
       >
         {options.map((o) => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}

@@ -102,8 +102,8 @@ export function buildGaps(input: {
         performance: null,
         gap: `${plural(short, "post")} short of your own cadence this week.`,
         action: `Add ${plural(short, "post")} this week; the Calendar places them at your best hour.`,
-        cta: { label: "Add to Content Plan", href: `/tool?note=${encodeURIComponent(`Only ${last7} posts in the last 7 days vs ${ref} usual; plan ${short} more this week.`)}` },
-        secondary: { label: "Schedule content", href: "/calendar" },
+        cta: { label: "Add to Content Plan", href: `/plan?note=${encodeURIComponent(`Only ${last7} posts in the last 7 days vs ${ref} usual; plan ${short} more this week.`)}` },
+        secondary: { label: "Schedule content", href: "/plan/calendar" },
         postIds: [], planNote: `Cadence: ${last7} posts this week vs ${ref} usual.`,
       });
     }
@@ -135,7 +135,7 @@ export function buildGaps(input: {
           performance: `${best.f}s earned a median ${mult(ratio)} the ${metricLabel} of your other formats in this sample.`,
           gap: "Your strongest format is underrepresented in recent posts.",
           action: `Publish ${plural(add, `additional ${best.f.toLowerCase()}`)} this week and compare against the ${n(Math.round(restMed))} median.`,
-          cta: { label: `Create ${best.f} idea`, href: `/tool?note=${encodeURIComponent(`${best.f}s earn ${mult(ratio)} my other formats but were only ${Math.round(recentShare * 100)}% of recent posts; add ${add} more this week.`)}` },
+          cta: { label: `Create ${best.f} idea`, href: `/plan?note=${encodeURIComponent(`${best.f}s earn ${mult(ratio)} my other formats but were only ${Math.round(recentShare * 100)}% of recent posts; add ${add} more this week.`)}` },
           secondary: { label: "See posts", tab: "content" },
           postIds: ids(best.ms.slice(0, 3)), planNote: `${best.f}s earn ${mult(ratio)} other formats; weight the week toward them.`,
         });
@@ -153,7 +153,7 @@ export function buildGaps(input: {
           performance: null,
           gap: "No measured evidence yet on whether another format would earn more; this is a test to run, not a proven gap.",
           action: `Publish one ${others[0].toLowerCase()} this week as a controlled test and compare it with your ${f.toLowerCase()} median.`,
-          cta: { label: `Create ${others[0]} idea`, href: `/tool?note=${encodeURIComponent(`Every recent post is a ${f.toLowerCase()}; add one ${others[0].toLowerCase()} this week as a format test.`)}` },
+          cta: { label: `Create ${others[0]} idea`, href: `/plan?note=${encodeURIComponent(`Every recent post is a ${f.toLowerCase()}; add one ${others[0].toLowerCase()} this week as a format test.`)}` },
           postIds: [], planNote: `Test one ${others[0].toLowerCase()} against the ${f.toLowerCase()} baseline.`,
         });
       }
@@ -223,7 +223,7 @@ export function buildGaps(input: {
         performance: null,
         gap: "Content that never names the outcome you want (an order, a booking, a visit) leaves the audience without a next step.",
         action: "Give one post this week a direct line about the goal, in the caption and on screen, and track replies and clicks.",
-        cta: { label: "Add to Content Plan", href: `/tool?note=${encodeURIComponent(`Only ${hits.length}/${last10.length} recent captions mention my goal (${goalWords.slice(0, 3).join(", ")}); include one goal-led post this week.`)}` },
+        cta: { label: "Add to Content Plan", href: `/plan?note=${encodeURIComponent(`Only ${hits.length}/${last10.length} recent captions mention my goal (${goalWords.slice(0, 3).join(", ")}); include one goal-led post this week.`)}` },
         secondary: { label: "Ask SOCIA", href: `/chat?q=${encodeURIComponent(`My goal is "${input.goals}". Only ${hits.length} of my last ${last10.length} captions mention it. Give me 3 post ideas that tie directly to it.`)}` },
         postIds: ids(hits.slice(0, 3)), planNote: `Goal rarely appears in captions (${hits.length}/${last10.length}).`,
       });
@@ -245,7 +245,7 @@ export function buildGaps(input: {
           performance: null,
           gap: "For a business that needs nearby people, captions without the place give Instagram nothing local to work with.",
           action: `Name ${place} in the caption and tag the location on every post this week; compare local follower growth in two weeks.`,
-          cta: { label: "Add to Content Plan", href: `/tool?note=${encodeURIComponent(`No recent caption names ${place}; every post this week should mention it and tag the location.`)}` },
+          cta: { label: "Add to Content Plan", href: `/plan?note=${encodeURIComponent(`No recent caption names ${place}; every post this week should mention it and tag the location.`)}` },
           postIds: [], planNote: `Name ${place} in every caption this week.`,
         });
       }
@@ -270,8 +270,8 @@ export function buildGaps(input: {
           performance: null,
           gap: "Long silences interrupt the cadence Instagram uses to keep testing your content with new people.",
           action: "Schedule the next two posts now so the gap doesn't grow; drafts from your Content Plan can fill them.",
-          cta: { label: "Schedule content", href: "/calendar" },
-          secondary: { label: "Add to Content Plan", href: `/tool?note=${encodeURIComponent(`A ${Math.round(worst)}-day gap opened between posts; plan a steadier cadence.`)}` },
+          cta: { label: "Schedule content", href: "/plan/calendar" },
+          secondary: { label: "Add to Content Plan", href: `/plan?note=${encodeURIComponent(`A ${Math.round(worst)}-day gap opened between posts; plan a steadier cadence.`)}` },
           postIds: [], planNote: `Posting gaps up to ${Math.round(worst)} days; steady the cadence.`,
         });
       }
@@ -297,7 +297,7 @@ export function timingGap(w: Windows, posts: TimedPost[]): Gap | null {
     gap: "Most recent posts publish outside the windows that have performed best for this account.",
     action: `Schedule this week's most important post for ${top.label} and compare it with your median.`,
     cta: { label: "View evidence", tab: "times" },
-    secondary: { label: "Schedule content", href: "/calendar" },
+    secondary: { label: "Schedule content", href: "/plan/calendar" },
     postIds: top.postIds, planNote: `Best window so far: ${top.label} (${relText(top.rel)}, ${top.n} posts).`,
   };
 }

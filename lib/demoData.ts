@@ -82,7 +82,7 @@ export const ACTIONS: Action[] = [
     title: "Publish another educational Reel",
     body: "Educational videos generated 2.4× your average engagement.",
     cta: "Create content",
-    href: "/tool",
+    href: "/plan",
   },
   {
     tag: "Opportunity",
@@ -90,7 +90,7 @@ export const ACTIONS: Action[] = [
     title: "Competitor format gaining traction",
     body: "3 tracked competitors are using a format generating above-average engagement.",
     cta: "View opportunity",
-    href: "/competitors",
+    href: "/discover",
   },
   {
     tag: "Consistency",
@@ -98,7 +98,7 @@ export const ACTIONS: Action[] = [
     title: "You have an open posting window tomorrow",
     body: "Schedule content for your strongest engagement period.",
     cta: "Open calendar",
-    href: "/calendar",
+    href: "/plan/calendar",
   },
 ];
 

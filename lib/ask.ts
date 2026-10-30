@@ -70,14 +70,16 @@ export const ASK_SUGGESTIONS: Record<AskPage, string[]> = {
 };
 
 export const ASK_PAGE_LABEL: Record<AskPage, string> = {
-  global: "Your account", dashboard: "Dashboard", analytics: "Analytics", post: "Post", competitors: "Competitors", plan: "Content Plan", studio: "Content Studio",
+  global: "Your account", dashboard: "Dashboard", analytics: "Analytics", post: "Post", competitors: "Discover", plan: "Plan", studio: "Content Studio",
 };
 
 /** Which page an Ask belongs to, from the current path. */
 export function pageForPath(path: string): AskPage {
   if (path.startsWith("/analytics")) return "analytics";
-  if (path.startsWith("/competitors")) return "competitors";
-  if (path.startsWith("/tool")) return "plan";
+  if (path.startsWith("/discover")) return "competitors";
+  // The Calendar sits under Plan but asks about the whole account.
+  if (path.startsWith("/plan/calendar")) return "global";
+  if (path === "/plan" || path.startsWith("/plan?")) return "plan";
   if (path.startsWith("/studio")) return "studio";
   if (path.startsWith("/dashboard")) return "dashboard";
   return "global";

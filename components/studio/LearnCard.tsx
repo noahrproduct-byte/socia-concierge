@@ -60,7 +60,7 @@ export default function LearnCard() {
           </li>
         ))}
       </ul>
-      <p className="cbl-muted">SOCIA uses these results when it suggests your next post ideas and cuts. <Link href="/calendar">See them in the Calendar</Link></p>
+      <p className="cbl-muted">SOCIA uses these results when it suggests your next post ideas and cuts. <Link href="/plan/calendar">See them in the Calendar</Link></p>
     </section>
   );
 }

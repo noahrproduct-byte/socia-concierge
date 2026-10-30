@@ -24,7 +24,7 @@ import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { resolveContext, brandWorkspace, nicheScopeId } from "@/lib/context";
 
-export const metadata = { title: "Competitors — SOCIA" };
+export const metadata = { title: "Discover — SOCIA" };
 
 // Competitors. The honesty contract:
 //   YOU            authenticated Instagram data

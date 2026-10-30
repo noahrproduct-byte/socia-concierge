@@ -219,8 +219,8 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   return (
     <div className="cx cx2">
       <PageHeader
-        title="Competitors"
-        sub="See who's winning, and why."
+        title="Discover"
+        sub="The accounts you watch and what's trending in your niche: who's winning, and why."
         status={
           <span className="ov-status cx-status">
             <i className={d.lastRun ? "live" : ""} />

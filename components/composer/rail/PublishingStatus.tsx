@@ -181,7 +181,7 @@ export default function PublishingStatus({ accounts, submission, onRetry, onEdit
 
       {!inFlight && (
         <div className="cr-status-nav">
-          <Link href="/calendar" className="btn-secondary">Back to calendar</Link>
+          <Link href="/plan/calendar" className="btn-secondary">Back to calendar</Link>
           {onNew ? (
             <button type="button" className="btn-primary" onClick={onNew}>Create another</button>
           ) : (

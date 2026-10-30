@@ -64,6 +64,19 @@ const nextConfig = {
       },
     ];
   },
+  // The sections' old addresses (before Competitors became Discover and the
+  // Content Plan and Calendar became Plan) keep working for bookmarks, emails
+  // and links already sent. The query string carries over. Not permanent, so
+  // browsers don't cache them for good.
+  async redirects() {
+    return [
+      { source: "/competitors", destination: "/discover", permanent: false },
+      { source: "/competitors/:path*", destination: "/discover/:path*", permanent: false },
+      { source: "/tool", destination: "/plan", permanent: false },
+      { source: "/calendar", destination: "/plan/calendar", permanent: false },
+      { source: "/calendar/:path*", destination: "/plan/calendar/:path*", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

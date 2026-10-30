@@ -113,7 +113,7 @@ export function AlertsBell({ alerts = [], unread = 0, activity }: { alerts?: Ale
         )}
         <div className="s-bell-head">
           Recent activity
-          <Link href="/calendar" className="s-link" onClick={() => setOpen(false)}>
+          <Link href="/plan/calendar" className="s-link" onClick={() => setOpen(false)}>
             Calendar
           </Link>
         </div>

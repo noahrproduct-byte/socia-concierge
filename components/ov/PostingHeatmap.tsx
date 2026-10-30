@@ -126,7 +126,7 @@ export default function PostingHeatmap({ posts, formats, unit = "interactions" }
         </section>
       </div>
       {w.enough && w.best.length > 0 && (
-        <p className="ov-source">Medians of each window&apos;s posts against your median post, in your time zone. A window needs {SIGNAL_N} posts to be ranked and {RELIABLE_N} for high confidence. Where a post lands is not proof the hour caused its result. <Link href="/calendar" className="ov-link"><CalendarPlus size={12} /> Schedule into a window</Link></p>
+        <p className="ov-source">Medians of each window&apos;s posts against your median post, in your time zone. A window needs {SIGNAL_N} posts to be ranked and {RELIABLE_N} for high confidence. Where a post lands is not proof the hour caused its result. <Link href="/plan/calendar" className="ov-link"><CalendarPlus size={12} /> Schedule into a window</Link></p>
       )}
     </div>
   );

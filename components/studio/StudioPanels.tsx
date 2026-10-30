@@ -404,10 +404,10 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
           {items.map((i) => <li key={i.id} className={i.done ? "done" : ""}><i>{i.done ? <Check size={11} /> : null}</i><span><b>{i.label}</b><small>{i.hint}</small></span></li>)}
         </ul>
         <div className="st-row-actions">
-          <Link href={`/tool?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><Sparkles size={12} /> Add to Content Plan</Link>
+          <Link href={`/plan?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><Sparkles size={12} /> Add to Content Plan</Link>
           <button type="button" className="ov-btn ghost small" disabled={saving || handing || Boolean(savedId)} onClick={() => void onSaveDraft()}><CalendarPlus size={12} /> {saving && !handing ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
           <button type="button" className="btn-primary sm" disabled={saving || handing} onClick={publish}><Send size={12} /> {handing ? "Opening Create Post…" : "Publish or schedule"}</button>
-          {savedId && <Link href="/calendar" className="ov-btn ghost small">Open Calendar <ArrowRight size={12} /></Link>}
+          {savedId && <Link href="/plan/calendar" className="ov-btn ghost small">Open Calendar <ArrowRight size={12} /></Link>}
         </div>
         <p className="ov-source"><Info size={11} /> Both actions upload this file to your own media folder and create a draft for tomorrow at your suggested hour. Publish or schedule then opens it in Create Post, where you pick the platforms and the time; nothing is published until you confirm there.</p>
       </section>

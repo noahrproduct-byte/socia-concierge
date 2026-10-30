@@ -1450,7 +1450,7 @@ function PlanModal({
       ) : plans.length === 0 ? (
         <div className="cal2-empty">
           <p>No saved Content Plan with a weekly schedule yet.</p>
-          <Link href="/tool" className="cal2-btn primary">
+          <Link href="/plan" className="cal2-btn primary">
             Build a plan
           </Link>
         </div>

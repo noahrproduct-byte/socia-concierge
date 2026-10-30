@@ -183,7 +183,7 @@ export function NextMove({ items, themName, onIdeas, onExamples }: {
   const [lead, ...rest] = items;
   const actionEl = (l: Learning, primary: boolean) => {
     const cls = primary ? "ov-btn primary small" : "ov-btn outline small";
-    if (l.action.kind === "plan") return <Link href={`/tool?note=${encodeURIComponent(l.action.note)}`} className={cls}>{l.action.label}</Link>;
+    if (l.action.kind === "plan") return <Link href={`/plan?note=${encodeURIComponent(l.action.note)}`} className={cls}>{l.action.label}</Link>;
     if (l.action.kind === "ideas") { const q = l.action.question; return <button type="button" className={cls} onClick={() => onIdeas(q)}>{l.action.label}</button>; }
     const tag = l.action.tag;
     return <button type="button" className={cls} onClick={() => onExamples(tag, l.title)}>{l.action.label}</button>;

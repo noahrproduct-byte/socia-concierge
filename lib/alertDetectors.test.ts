@@ -219,7 +219,7 @@ describe("detectPlanResults", () => {
     const a = planReadyAlert({ id: "p9", headline: "Lean into Reels.", posts: 5, weekLabel: "Oct 6" });
     expect(a.fingerprint).toBe("plan_ready:p9");
     expect(a.title).toBe("Your plan for the week of Oct 6 is ready");
-    expect(a.entityRef).toBe("/tool");
+    expect(a.entityRef).toBe("/plan");
   });
 });
 

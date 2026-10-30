@@ -167,7 +167,7 @@ export function dailyRecommendations(f: TodayFacts, now: Date, tz: string): Toda
       kind: "failed", tone: "urgent",
       title: failed.length === 1 ? "A post didn't publish" : `${failed.length} posts didn't publish`,
       detail: `${quote(failed[0].title)} was due ${whenPhrase(failed[0].at, now, tz)}.${more} Open it on the Calendar to see what went wrong and try again.`,
-      href: "/calendar", cta: "Review",
+      href: "/plan/calendar", cta: "Review",
     });
   }
 
@@ -186,7 +186,7 @@ export function dailyRecommendations(f: TodayFacts, now: Date, tz: string): Toda
       detail: draft.hasMedia
         ? `${fromPlan(draft)}${quote(draft.title)} ${set}. It's still a draft, so nothing publishes until you schedule it.${others}`
         : `${fromPlan(draft)}${quote(draft.title)} ${set}. Attach the ${media} and schedule it, or nothing publishes.${others}`,
-      href: "/calendar", cta: draft.hasMedia ? "Schedule it" : `Add the ${media}`,
+      href: "/plan/calendar", cta: draft.hasMedia ? "Schedule it" : `Add the ${media}`,
     });
   } else {
     const going = todays.find((p) => (p.status === "scheduled" || p.status === "publishing") && ms(p.at) >= nowMs - HOUR);
@@ -195,7 +195,7 @@ export function dailyRecommendations(f: TodayFacts, now: Date, tz: string): Toda
         kind: "today_post", tone: "ok",
         title: going.status === "publishing" ? "Today's post is publishing now" : `Today's post goes out at ${formatClock(going.at, tz)}`,
         detail: `${fromPlan(going)}${quote(going.title)} is scheduled and ready.${others}`,
-        href: "/calendar", cta: "View",
+        href: "/plan/calendar", cta: "View",
       });
     }
   }
@@ -212,7 +212,7 @@ export function dailyRecommendations(f: TodayFacts, now: Date, tz: string): Toda
           kind: "plan_item", tone: "todo",
           title: "Today on your Content Plan",
           detail: `${quote(item.concept)}${item.format ? ` (${item.format})` : ""}. It isn't on your Calendar, so nothing is set to go out for it.`,
-          href: "/tool", cta: "Open plan",
+          href: "/plan", cta: "Open plan",
         });
       }
     }
@@ -269,7 +269,7 @@ export function dailyRecommendations(f: TodayFacts, now: Date, tz: string): Toda
       kind: "best_time", tone: inside ? "ok" : "chance",
       title: `Your best window today: ${shortRange(w.block)}`,
       detail: `Your Instagram posts on ${DOW_LONG[w.day]}s ${betweenPhrase(w.block)} get ${lift(w)} more engagement than your typical post (${sample(w)}).${note}`,
-      href: inside ? "/calendar" : "/create", cta: inside ? "View" : "Create a post",
+      href: inside ? "/plan/calendar" : "/create", cta: inside ? "View" : "Create a post",
     });
   }
 

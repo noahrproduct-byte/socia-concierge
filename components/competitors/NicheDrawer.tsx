@@ -124,7 +124,7 @@ export default function NicheDrawer({ post, saved, onToggleSave, saving, onClose
 
         <div className="cx-nd-actions">
           <button type="button" className="ov-btn primary" onClick={() => askSocia({ question, autoSend: true, context: { page: "competitors", competitorName: post.accountName ?? undefined, competitorPlatform: post.platform }, contextLabel: `Post: ${(post.title ?? post.url).slice(0, 40)}` })}><Sparkles size={13} /> Create your version</button>
-          <Link href={`/tool?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost"><FileText size={13} /> Add to Content Plan</Link>
+          <Link href={`/plan?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost"><FileText size={13} /> Add to Content Plan</Link>
           <button type="button" className={`ov-btn ghost${saved ? " on" : ""}`} onClick={() => onToggleSave(post)} disabled={saving}>{saving ? <Loader2 size={13} className="cx-spin" /> : saved ? <BookmarkCheck size={13} /> : <Bookmark size={13} />} {saved ? "Saved" : "Save"}</button>
           <a href={post.url} target="_blank" rel="noreferrer" className="ov-btn ghost"><ExternalLink size={13} /> View original</a>
         </div>

@@ -87,7 +87,7 @@ function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onPr
                 {onProposal ? (
                   <button type="button" className={`ov-btn ${done ? "ghost" : "primary"} small`} disabled={Boolean(done)} onClick={async () => { const ok = await onProposal(p); if (ok !== false) setApplied(key, "applied"); }}>{done ? <><Check size={12} /> Applied</> : "Apply change"}</button>
                 ) : (
-                  <Link href="/tool" className="ov-btn primary small">Open Content Plan <ArrowRight size={12} /></Link>
+                  <Link href="/plan" className="ov-btn primary small">Open Content Plan <ArrowRight size={12} /></Link>
                 )}
               </div>
             </div>

@@ -12,7 +12,7 @@ const sample = (posts: SamplePost[]): AccountSample => ({
 const insight = (over: Partial<StoredInsight> = {}): StoredInsight => ({
   id: "i1", fingerprint: "f", producer: "overview", category: "content", platform: "instagram", title: "Reels are your strongest format", observation: "Reels earn 2x",
   metrics: [], posts: [], periodStart: null, periodEnd: null, explanations: [], confidence: 60, limitations: [],
-  recommendation: { action: "Make two thirds of next week Reels", why: "Reels: median 200 vs 100", learning: "Whether the lead holds", href: "/tool" },
+  recommendation: { action: "Make two thirds of next week Reels", why: "Reels: median 200 vs 100", learning: "Whether the lead holds", href: "/plan" },
   source: { rule: "overview.format", data: [], retrievedAt: null }, status: "active", createdAt: NOW.toISOString(), updatedAt: NOW.toISOString(), lastSeenAt: NOW.toISOString(), ...over,
 });
 

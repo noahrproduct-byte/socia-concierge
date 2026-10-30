@@ -123,7 +123,7 @@ export function recommendationsFor(
       title: "Increase posting frequency",
       evidence: `You: ${cad.you.value.toFixed(1)}/week · ${name}: ${cad.them.value.toFixed(1)}/week.`,
       test: `Add ${extra} more post${extra === 1 ? "" : "s"} this week to close the gap.`,
-      cta: { label: "Add to Content Plan", href: "/tool" },
+      cta: { label: "Add to Content Plan", href: "/plan" },
     });
   }
 

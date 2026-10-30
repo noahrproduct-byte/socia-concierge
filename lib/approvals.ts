@@ -149,7 +149,7 @@ export async function notifyApprovers(svc: Supa, a: Approval): Promise<void> {
       type: "approval", platform: "", fingerprint: `approval:${a.id}:request:${rid}`, severity: "info",
       title: `Waiting for approval: “${title}”`,
       body: `${who} submitted it${a.submitNote ? `: “${a.submitNote.slice(0, 140)}”` : "."} Approve it to schedule it, or send it back with a note.`,
-      evidence: {}, entityRef: "/calendar?view=approvals", recipientId: rid,
+      evidence: {}, entityRef: "/plan/calendar?view=approvals", recipientId: rid,
     }));
     await recordAlerts(svc, { userId: a.ownerId, workspaceId: a.workspaceId }, alerts);
   } catch (e) {

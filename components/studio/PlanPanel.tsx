@@ -135,7 +135,7 @@ export default function PlanPanel({ projectId, stale }: { projectId: string; sta
           placing.phase === "done" ? (
             <>
               <p className="cbb-ok"><Check size={13} /> {placing.done} draft{placing.done === 1 ? "" : "s"} in your Calendar. Nothing is scheduled: open each one in Create Post to review it, then schedule. {placing.message}</p>
-              <Link className="ov-btn ghost small" href="/calendar">Open the Calendar <ArrowRight size={12} /></Link>
+              <Link className="ov-btn ghost small" href="/plan/calendar">Open the Calendar <ArrowRight size={12} /></Link>
             </>
           ) : (
             <>

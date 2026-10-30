@@ -89,7 +89,7 @@ export default function IntelligenceCard({ intel }: { intel: IntelState }) {
             </p>
           ) : (
             <p className="st3-intel-niche">
-              Niche not detected yet. <Link href="/competitors#trends">Run detection</Link>
+              Niche not detected yet. <Link href="/discover#trends">Run detection</Link>
             </p>
           )}
           <div className="st3-intel-facts">

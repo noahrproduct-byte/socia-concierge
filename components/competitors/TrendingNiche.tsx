@@ -243,7 +243,7 @@ export function TrendingReels({ d }: { d: CompetitorsData }) {
                   <button type="button" className="ov-btn ghost small" onClick={() => copy(r)}>
                     {copied === r.url ? <Check size={13} /> : <Copy size={13} />} {copied === r.url ? "Copied" : "Copy idea"}
                   </button>
-                  <Link href={`/tool?note=${encodeURIComponent(brief(r))}`} className="ov-btn ghost small">
+                  <Link href={`/plan?note=${encodeURIComponent(brief(r))}`} className="ov-btn ghost small">
                     <Plus size={13} /> Add to my plan
                   </Link>
                 </div>

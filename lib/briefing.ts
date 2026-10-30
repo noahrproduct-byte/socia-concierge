@@ -108,9 +108,9 @@ export function buildBriefing(input: {
   if (!connected.length) actions.push({ label: "Connect an account", why: "So SOCIA can read your real numbers.", href: "/settings#accounts" });
   else if (goalGap) actions.push({ label: `Connect ${GOAL_PLATFORM_NAME[goalGap]}`, why: "Your goal is measured there.", href: "/settings#accounts" });
   if (!goals.length) actions.push({ label: "Set a goal", why: "So progress can be measured from a starting point.", href: "/settings#growth" });
-  if (!input.hasPlan) actions.push({ label: "Make your first weekly plan", why: "Built from your profile and whatever numbers SOCIA has.", href: "/tool" });
-  if (input.trackedCompetitors === 0) actions.push({ label: "Add two accounts to watch", why: "So SOCIA can compare your posts with similar accounts.", href: "/competitors" });
-  actions.push({ label: "Schedule your next post", why: "Results are measured once posts go out.", href: "/calendar" });
+  if (!input.hasPlan) actions.push({ label: "Make your first weekly plan", why: "Built from your profile and whatever numbers SOCIA has.", href: "/plan" });
+  if (input.trackedCompetitors === 0) actions.push({ label: "Add two accounts to watch", why: "So SOCIA can compare your posts with similar accounts.", href: "/discover" });
+  actions.push({ label: "Schedule your next post", why: "Results are measured once posts go out.", href: "/plan/calendar" });
 
   const guidance = [...new Set(goals.filter((g) => (g.status ?? "active") === "active").map((g) => GUIDANCE[g.metric]).filter(Boolean))].slice(0, 3);
   if (input.growth?.resources?.hours_per_week === "lt2") guidance.push("With under two hours a week, film several short pieces in one sitting and post them through the week.");
