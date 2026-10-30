@@ -9,6 +9,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus, Link2, Activity } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";
@@ -244,6 +245,8 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
         opportunity,
       }} />
 
+      <ResearchBasis d={d} />
+
       <TrendingAccounts d={d} rows={d.platform === "all" ? d.rows : d.rows.filter((r) => r.platform === d.platform)} onSelect={setSelectedId} onTrack={track} tracking={tracking} />
       <TrendingReels d={d} />
 
@@ -373,5 +376,30 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
       <NicheDrawer post={openPost} saved={openPost ? savedSet.has(openPost.url) : false} saving={openPost ? saving === openPost.url : false} onToggleSave={toggleSave} onClose={() => setOpenPost(null)} />
       <AddCompetitor open={addOpen} onClose={() => setAddOpen(false)} tracked={d.tracked} suggestions={d.rows.filter((r) => !r.tracked)} />
     </div>
+  );
+}
+
+/** What a research run searches for and where its numbers come from, so a result is never mistaken for a full scan. */
+function ResearchBasis({ d }: { d: CompetitorsData }) {
+  const { searches, missing } = d.basis;
+  if (!searches.length) return null;
+  const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0]);
+  return (
+    <details className="cx-basis">
+      <summary>What SOCIA searches for</summary>
+      <p>
+        From your Growth Profile: {searches.map((q, i) => <span key={q}>{i ? ", " : ""}&ldquo;{q}&rdquo;</span>)}. Accounts like yours come first, then
+        creators whose formats you could adapt. Size alone never decides the order.
+      </p>
+      <p>
+        YouTube results come with the numbers YouTube publishes. Instagram and Facebook accounts are found through web search and come without numbers
+        {d.ig.enabled ? "; Instagram numbers are read through your linked Facebook Page where the account allows it." : "; their Instagram numbers appear once a Facebook Page is linked to your Instagram."}
+      </p>
+      {missing.length > 0 && (
+        <p>
+          Adding {list(missing)} to <Link href="/settings#growth">your Growth Profile</Link> makes these searches more specific.
+        </p>
+      )}
+    </details>
   );
 }

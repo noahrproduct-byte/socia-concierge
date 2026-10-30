@@ -7,7 +7,7 @@ import CompetitorsPage from "@/components/competitors/CompetitorsPage";
 import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, TrendingReel, YouSeriesPoint } from "@/components/competitors/types";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtube";
-import { nameKey } from "@/lib/discovery";
+import { buildQueries, discoveryProfileFrom, nameKey } from "@/lib/discovery";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import { competitorHistoryEnabled, competitorMomentum, type CompetitorPoint } from "@/lib/competitorHistory";
 import { competitorScopeId } from "@/lib/workspaces";
@@ -408,6 +408,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     trendingReels,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
     nicheUpgrade: upgradeFor(ent, "niche_intelligence"),
+    basis: (() => {
+      // The same profile and queries a research run uses (api/competitors/intel).
+      const dp = discoveryProfileFrom({
+        niche: profile?.niche ?? null, brandName: profile?.brand_name ?? null, goals: profile?.goals ?? null,
+        nicheDetail: subNiche ? { sub_niche: subNiche } : null, brandDetail: profile?.brand_detail ?? null,
+        ownHandle: snap?.username ?? null, ownFollowers: followers, ownFormats: [],
+      });
+      const missing: string[] = [];
+      if (!dp.specific && !dp.subNiche) missing.push("a more specific niche");
+      if (!dp.accountType) missing.push("your account type");
+      if (!dp.location) missing.push("your location");
+      if (dp.goal === "unknown") missing.push("a main goal");
+      return { searches: buildQueries(dp).map((q) => q.q), missing };
+    })(),
   };
 
   return (

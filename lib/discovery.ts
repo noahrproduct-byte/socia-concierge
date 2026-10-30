@@ -8,6 +8,8 @@
 // Relevance is deliberately explainable: each contribution appends a reason,
 // and the UI shows those reasons rather than a black-box percentage.
 
+import type { AccountType, GrowthProfile, MainGoalId, ReachScope } from "./growth";
+
 export type Platform = "instagram" | "youtube" | "facebook";
 export type DataSource = "youtube_api" | "web_research" | "instagram_api";
 
@@ -43,53 +45,136 @@ export type DiscoveryProfile = {
   ownFollowers: number | null;
   /** Formats the user actually publishes, e.g. VIDEO -> Reel. */
   ownFormats: string[];
+  // From the Growth Profile (confirmed fields first, then what SOCIA inferred).
+  /** The narrowest niche: "Neapolitan pizza" under "Pizza" under "Food & Restaurant". */
+  specific?: string | null;
+  accountType?: AccountType | null;
+  /** Who the account is for, in the person's words. */
+  audience?: string | null;
+  /** How far the customers or audience reach; local and regional make location count. */
+  scope?: ReachScope | null;
+  /** What they offer or talk about (the business offer or the creator's topics). */
+  focus?: string | null;
 };
+
+/** The main goal from onboarding, reduced to what changes ranking. */
+export function goalFromMain(main: MainGoalId | null | undefined): GoalKind | null {
+  switch (main) {
+    case "local_customers": return "local_awareness";
+    case "bookings_orders": return "sales";
+    case "views":
+    case "followers": return "followers";
+    case "engagement": return "engagement";
+    default: return null;
+  }
+}
+
+/** Location counts when the reach is local or regional, or the goal is local customers or sales. */
+export function locationMatters(p: Pick<DiscoveryProfile, "scope" | "goal" | "location">): boolean {
+  if (!p.location) return false;
+  if (p.scope === "local" || p.scope === "regional") return true;
+  if (p.scope === "national" || p.scope === "global") return false;
+  return p.goal === "local_awareness" || p.goal === "sales";
+}
+
+type ProfileSource = {
+  niche: string | null;
+  brandName: string | null;
+  goals: string | null;
+  nicheDetail: { sub_niche?: string } | null;
+  brandDetail: { location?: string; description?: string; growth?: GrowthProfile } | null;
+  ownHandle: string | null;
+  ownFollowers: number | null;
+  ownFormats: string[];
+};
+
+/**
+ * The discovery profile from a brand's stored profile. What the person
+ * confirmed in their Growth Profile wins; what SOCIA inferred from the
+ * account fills gaps; the older free-text fields come last.
+ */
+export function discoveryProfileFrom(src: ProfileSource): DiscoveryProfile {
+  const g: GrowthProfile = src.brandDetail?.growth ?? {};
+  const u = g.understanding;
+  const clean = (v: unknown, max = 80) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+  const goalText = clean(src.goals, 300);
+  const location = clean(src.brandDetail?.location) ?? clean(u?.geography?.value.place);
+  return {
+    niche: clean(src.niche) ?? clean(u?.niche?.value.category),
+    subNiche: clean(g.niche_path?.subcategory) ?? clean(src.nicheDetail?.sub_niche) ?? clean(u?.niche?.value.subcategory),
+    specific: clean(g.niche_path?.specific) ?? clean(u?.niche?.value.specific),
+    brandName: clean(src.brandName),
+    location,
+    description: clean(src.brandDetail?.description, 300),
+    goalText,
+    goal: goalFromMain(g.main_goal) ?? goalKind(goalText),
+    accountType: g.account_type ?? u?.account_type?.value ?? null,
+    audience: clean(g.audience?.who, 160) ?? clean(u?.audience?.value, 160),
+    scope: g.business?.service_area ?? g.audience?.where ?? u?.geography?.value.scope ?? null,
+    focus: clean(g.business?.offer, 120) ?? clean(g.creator?.topics, 120) ?? clean(g.focus, 120),
+    ownHandle: src.ownHandle,
+    ownFollowers: src.ownFollowers,
+    ownFormats: src.ownFormats,
+  };
+}
 
 /** Classify free-text goals into the buckets that change discovery.
  *  Order matters: the most specific intent wins. */
 export function goalKind(goals: string | null | undefined): GoalKind {
   const g = (goals ?? "").toLowerCase();
   if (!g.trim()) return "unknown";
-  if (/\b(local|nearby|foot traffic|visit|in.?store|walk.?in|community|neighborhood|city)\b/.test(g)) {
+  // Word stems, so "engagement", "bookings" and "followers" count too.
+  if (/\b(local|nearby|foot traffic|visit|in.?store|walk.?in|community|neighbo(u)?rhood|city)\w*/.test(g)) {
     return "local_awareness";
   }
-  if (/\b(sale|sell|revenue|order|book|conversion|customer|client|lead)\b/.test(g)) return "sales";
-  if (/\b(engage|comment|conversation|interact|reply|share|save)\b/.test(g)) return "engagement";
-  if (/\b(follow|grow|audience|reach|awareness|viral|subscriber)\b/.test(g)) return "followers";
+  if (/\b(sale|sell|revenue|order|book|conversion|customer|client|lead)\w*/.test(g)) return "sales";
+  if (/\b(engag|comment|conversation|interact|repl(y|ies)|share|sav(e|es|ing))\w*/.test(g)) return "engagement";
+  if (/\b(follow|grow|audience|reach|awareness|viral|subscriber)\w*/.test(g)) return "followers";
   return "unknown";
 }
 
-/** Search queries derived from who the user actually is. Not "niche keyword"
- *  alone — the goal and location change what is worth finding. */
+/**
+ * Search queries derived from who the user actually is, in the research
+ * groups that are worth studying (not just the biggest accounts):
+ *   similar   accounts like theirs: the narrowest niche, local when it matters
+ *   local     successful accounts near them, in the same broad category
+ *   creators  creators in the niche whose formats can be adapted
+ *   goal      the angle their main goal points at
+ * Most valuable first: YouTube reads only the first two for channels and the
+ * first three for videos.
+ */
 export function buildQueries(p: DiscoveryProfile): { q: string; intent: string }[] {
-  const niche = (p.subNiche || p.niche || "").trim();
-  if (!niche) return [];
-  const loc = (p.location ?? "").trim();
+  const narrow = (p.specific || p.subNiche || p.niche || "").trim();
+  if (!narrow) return [];
+  const mid = (p.subNiche || p.niche || narrow).trim();
+  // "Food & Restaurant" searches as "food restaurant".
+  const broad = (p.niche || mid).replace(/&/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  const city = (p.location ?? "").split(/[,/]/)[0].trim();
+  const local = locationMatters(p) && city.length > 1;
+  const creatorLike = p.accountType === "creator" || p.accountType === "personal_brand";
   const out: { q: string; intent: string }[] = [];
 
-  // Always: the niche itself and the creators leading it.
-  out.push({ q: niche, intent: "niche" });
-  out.push({ q: `${niche} creator`, intent: "creator" });
-
-  if (loc) {
-    out.push({ q: `${loc} ${niche}`, intent: "local" });
-    if (p.goal === "local_awareness" || p.goal === "sales") {
-      out.push({ q: `${loc} local business food`, intent: "local" });
-    }
-  }
+  // Accounts like theirs.
+  if (local && !creatorLike) out.push({ q: `${city} ${narrow}`, intent: "local" });
+  out.push({ q: narrow, intent: "niche" });
+  // Creators whose formats can be adapted.
+  out.push({ q: `${mid} creator`, intent: "creator" });
+  // Successful accounts near them, same broad category.
+  if (local) out.push({ q: `${city} ${broad}`, intent: "local" });
+  if (mid.toLowerCase() !== narrow.toLowerCase()) out.push({ q: mid, intent: "niche" });
 
   switch (p.goal) {
     case "local_awareness":
-      out.push({ q: `${niche} local marketing`, intent: "goal" });
+      out.push({ q: `${mid} local marketing`, intent: "goal" });
       break;
     case "followers":
-      out.push({ q: `${niche} viral short video`, intent: "goal" });
+      out.push({ q: `${mid} viral short video`, intent: "goal" });
       break;
     case "engagement":
-      out.push({ q: `${niche} behind the scenes`, intent: "goal" });
+      out.push({ q: `${mid} behind the scenes`, intent: "goal" });
       break;
     case "sales":
-      out.push({ q: `${niche} promotion menu`, intent: "goal" });
+      out.push({ q: `${mid} customer stories`, intent: "goal" });
       break;
     default:
       break;
@@ -146,7 +231,7 @@ function mentionsLocation(c: AccountCandidate, loc: string | null): boolean {
 }
 
 function nicheTokens(p: DiscoveryProfile): string[] {
-  return `${p.subNiche ?? ""} ${p.niche ?? ""}`
+  return `${p.specific ?? ""} ${p.subNiche ?? ""} ${p.niche ?? ""}`
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length > 3);
@@ -176,7 +261,7 @@ export function scoreAccount(c: AccountCandidate, p: DiscoveryProfile): ScoredAc
   const local = mentionsLocation(c, p.location);
   if (local) {
     // Local matters far more when the goal is local.
-    const w = p.goal === "local_awareness" || p.goal === "sales" ? 28 : 12;
+    const w = locationMatters(p) ? 28 : 12;
     score += w;
     reasons.push(`Local to ${p.location}`);
   } else if (c.matchedIntent === "local") {
