@@ -17,6 +17,8 @@ import { followerPoints, summarizeFollowers } from "./followers";
 import { buildGaps } from "./gaps";
 import { postCards, buildKpis, buildSeries, buildInsights, bucketize, bucketTitle, detectOutliers, rangeDays, fmtNum, type PostCard } from "./overview";
 import { competitorsBlock } from "./planEvidence";
+import { activeFindings } from "./intel/insightStore";
+import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
 import { listTracked } from "./trackedCompetitors";
 import type { SavedPlan } from "./schema";
 
@@ -150,6 +152,8 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const block = competitorsBlock(accounts as any, tracked as any, winning as any);
     if (block) parts.push(`# Competitors and winning content SOCIA holds (YouTube figures from the YouTube Data API; Instagram/Facebook accounts from web research carry no metrics)`, block);
+    const formats = formatsEvidence(await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5));
+    if (formats) parts.push(`# Formats that lead in this niche (SOCIA's grouping of other accounts' public posts; their results, not the user's)`, formats);
     if (ctx.competitorId || ctx.competitorName) {
       const key = (ctx.competitorId ?? ctx.competitorName ?? "").toLowerCase();
       const sel = accounts.find((a) => [a.platform_account_id, a.handle, a.display_name].some((v) => (v ?? "").toLowerCase() === key || (v ?? "").toLowerCase().includes(key)));
@@ -163,6 +167,8 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
   }
 
   if (ctx.page === "plan") {
+    const formats = formatsEvidence(await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5));
+    if (formats) parts.push(`# Formats that lead in this niche (SOCIA's grouping of other accounts' public posts; their results, not the user's). A replacement idea may use one, adapted, never copied.`, formats);
     try {
       let q = scopeToWorkspace(supabase.from("plans").select("id, client_handle, niche, platform, data, created_at").eq("user_id", userId), workspaceId).order("created_at", { ascending: false }).limit(1);
       if (ctx.planId) q = scopeToWorkspace(supabase.from("plans").select("id, client_handle, niche, platform, data, created_at").eq("user_id", userId).eq("id", ctx.planId), workspaceId).limit(1);

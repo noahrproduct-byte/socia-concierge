@@ -13,6 +13,7 @@
 import { GOAL_PLATFORM_NAME, MAIN_GOALS, type GoalPlatform, type GrowthProfile } from "../growth";
 import type { AccountSample } from "./accountSample";
 import { confidenceWord, type StoredInsight } from "./insight";
+import { FORMATS_PRODUCER } from "../nicheFormats";
 
 const median = (xs: number[]): number | null => {
   if (!xs.length) return null;
@@ -101,6 +102,15 @@ export function growthBriefing(input: {
   if (attention) {
     const from = attention.platform ? `your ${GOAL_PLATFORM_NAME[attention.platform]} posts` : "your posts";
     lines.push({ text: `Needs a look: ${attention.title.replace(/\.$/, "")}.`, source: `SOCIA finding from ${from} (${confidenceWord(attention.confidence).toLowerCase()})` });
+  }
+
+  // What leads in the niche: a format found across other accounts' posts (lib/nicheFormats.ts).
+  const format = input.insights.find((i) => i.producer === FORMATS_PRODUCER);
+  const formatMedian = format?.metrics.find((m) => m.unit === "multiple")?.value;
+  const formatExamples = format?.metrics.find((m) => m.unit === "count")?.value;
+  if (format && formatMedian != null && formatExamples != null) {
+    const name = format.title.replace(/ leads in your niche$/, "");
+    lines.push({ text: `In your niche, ${name} posts are doing best: a median ${formatMedian}x their creators' usual across ${formatExamples} examples.`, source: "Discover, from other accounts' public posts" });
   }
 
   // The goal, as the person set it.

@@ -6,6 +6,8 @@ import { requireFeature } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
 import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { buildFormatsDoc, loadExamples, readFormatsDoc, saveFormatsDoc } from "@/lib/nicheFormatsLoad";
+import { FORMATS_PRODUCER, formatInsights } from "@/lib/nicheFormats";
+import { storeInsights } from "@/lib/intel/insightStore";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -44,6 +46,8 @@ export async function POST(req: Request) {
   try {
     const doc = await buildFormatsDoc(ctx, examples, runAt, now);
     await saveFormatsDoc(ctx, doc).catch(() => undefined);
+    // The leading formats become findings every page reads (Overview, Diagnostics, Plan, Ask SOCIA).
+    await storeInsights(ctx, [FORMATS_PRODUCER], formatInsights(doc), now).catch(() => undefined);
     return NextResponse.json({ doc, cached: false });
   } catch (err) {
     const kind = aiFailureKind(err);
