@@ -43,8 +43,11 @@ import type { Candidate } from "@/lib/repurpose";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
+import { GrowthBriefingBand, NextActionsCard, WhatsWorkingCard, GoalProgressCard, RecentLearningCard, type IntelData } from "./IntelSections";
 
 export type DashboardData = {
+  /** Briefing, what's working, next actions, goals and learning (lib/intel/overview.ts). */
+  intel: IntelData;
   rangeLabel: string;
   /** Longest window the viewer's plan may look back over; ranges beyond it show as locked. */
   maxDays?: number;
@@ -340,6 +343,8 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </section>
       </header>
 
+      <GrowthBriefingBand b={d.intel.briefing} />
+
       {d.justConnected && (
         <p className="dash-notice" role="status">
           <CheckCircle2 aria-hidden />
@@ -348,6 +353,11 @@ export default function Dashboard({ d }: { d: DashboardData }) {
       )}
 
       <div className="dash-kpis">{kpiTiles}</div>
+
+      <div className="dash-intel">
+        <NextActionsCard actions={d.intel.actions} />
+        <WhatsWorkingCard works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} />
+      </div>
 
       <div className={`dash-main${d.live ? "" : " is-single"}`}>
         {series && d.series ? (
@@ -675,24 +685,6 @@ export default function Dashboard({ d }: { d: DashboardData }) {
               <b>No plan yet.</b> Generate a Content Plan and this week&apos;s three priorities appear here.
             </Empty>
           )}
-          {d.trackers.length > 0 && (
-            <ul className="dash-goals" aria-label="Goals">
-              {d.trackers.map((t) => {
-                const pct = t.target && t.current != null ? Math.min(100, Math.round((t.current / t.target) * 100)) : null;
-                return (
-                  <li key={t.label} className="dash-goal">
-                    <span>{t.label}</span>
-                    <b>{t.display}</b>
-                    {pct != null && (
-                      <span className="dash-goal-track" aria-hidden>
-                        <i style={{ width: `${pct}%` }} />
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
         </Card>
 
         {d.live && insights.length > 0 ? (
@@ -703,6 +695,11 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         ) : (
           <TodayLocked today={d.today} />
         )}
+      </CardGrid>
+
+      <CardGrid cols={2}>
+        <GoalProgressCard goals={d.intel.goals} ready={d.intel.goalsReady} />
+        <RecentLearningCard lines={d.intel.learning} storeReady={d.intel.storeReady} />
       </CardGrid>
 
       {d.repurpose.length > 0 && <RepurposeCard candidates={d.repurpose} />}

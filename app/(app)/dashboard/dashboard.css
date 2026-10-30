@@ -813,6 +813,250 @@ button.dash-kpi {
   line-height: var(--lh-meta);
 }
 
+/* ---- A. briefing: a reading band, not a card ----------------------------------------- */
+.dash-brief {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-6);
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--border);
+}
+.dash-brief h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-semibold);
+}
+.dash-brief-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.dash-brief-lines li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 78ch;
+}
+.dash-brief-lines span {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.dash-brief-lines small,
+.dash-brief-missing {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-brief-missing {
+  grid-column: 2;
+  margin: 0;
+}
+
+/* ---- C + D. next actions and what's working ---------------------------------------- */
+.dash-intel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: stretch;
+}
+.dash-action-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: act;
+}
+.dash-action-list li {
+  counter-increment: act;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  align-items: start;
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--rule);
+}
+.dash-action-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.dash-action-list li::before {
+  content: counter(act);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
+}
+.dash-action-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dash-action-body b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.dash-action-body p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-action-ev span {
+  color: var(--ink-3);
+  margin-right: var(--sp-1);
+}
+.dash-action-go {
+  display: grid;
+  place-items: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  color: var(--ink-2);
+}
+.dash-action-go:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+.dash-action-go svg {
+  width: 14px;
+  height: 14px;
+}
+.dash-works-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.dash-works-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 44px;
+  gap: var(--sp-3);
+  align-items: center;
+}
+.dash-works-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dash-works-name b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.dash-works-name small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-works-list .dash-bar i:not(.dash-works-up) {
+  background: var(--ink-3);
+}
+.dash-works-num {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.dash-works-themes {
+  margin: var(--sp-3) 0 0;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-works-themes span {
+  color: var(--ink-3);
+  margin-right: var(--sp-1);
+}
+
+/* ---- G + H. goal progress and recent learning ---------------------------------------- */
+.dash-goal-rows,
+.dash-learn {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.dash-goal-rows li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.dash-goal-top {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.dash-goal-top b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.dash-goal-top small,
+.dash-goal-note {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.dash-goal-figs {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.dash-goal-figs b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+.dash-goal-rows .dash-goal-track {
+  height: 4px;
+}
+.dash-learn {
+  gap: var(--sp-2);
+}
+.dash-learn li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--border);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.dash-learn li.dash-learn-ended {
+  color: var(--ink-2);
+}
+.dash-learn li.dash-learn-plan {
+  border-left-color: var(--ink);
+}
+.dash-learn small {
+  flex-shrink: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+}
+
 /* ---- the layout steps down -------------------------------------------------------- */
 @media (max-width: 1280px) {
   .dash-trio {
@@ -824,6 +1068,9 @@ button.dash-kpi {
   }
 }
 @media (max-width: 1100px) {
+  .dash-intel {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .dash-head {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
@@ -838,6 +1085,12 @@ button.dash-kpi {
 @media (max-width: 760px) {
   .dash-trio {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .dash-brief {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dash-brief-missing {
+    grid-column: 1;
   }
   .dash-hello h1 {
     font-size: var(--fs-title);
