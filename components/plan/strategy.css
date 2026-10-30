@@ -1,0 +1,41 @@
+/* Plan > Strategy (components/plan/StrategyView.tsx). Tokens only. */
+
+.gs { display: grid; gap: var(--sp-4); font-size: var(--fs-body); line-height: var(--lh-body); }
+.gs-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.gs-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.gs-note { margin: 0; max-width: 72ch; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.gs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.gs-card { display: grid; gap: var(--sp-2); align-content: start; min-width: 0; padding: var(--card-pad); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); }
+.gs-wide { grid-column: 1 / -1; }
+.gs-card h3 { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.gs-card h4 { margin: var(--sp-2) 0 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); font-weight: var(--fw-medium); }
+.gs-card p { margin: 0; max-width: 72ch; }
+.gs-card ul, .gs-card ol { margin: 0; padding-left: var(--sp-5); display: grid; gap: var(--sp-1); }
+.gs-card ul { list-style: disc; }
+.gs-card ol { list-style: decimal; }
+.gs-lead { font-size: var(--fs-lead); line-height: var(--lh-lead); font-weight: var(--fw-semibold); }
+.gs-sub { color: var(--ink-2); }
+.gs-pillars { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); }
+.gs-pillars dt { font-weight: var(--fw-semibold); }
+.gs-pillars dd { margin: var(--sp-1) 0 0; color: var(--ink-2); }
+.gs-card .gs-exp { list-style: none; padding: 0; gap: var(--sp-3); }
+.gs-exp li { display: grid; gap: var(--sp-1); }
+.gs-exp span { color: var(--ink-2); }
+.gs-card .gs-miles { list-style: none; padding: 0; }
+.gs-miles li { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: var(--sp-3); align-items: baseline; }
+.gs-when { color: var(--ink-3); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; }
+.gs-miles small { color: var(--ink-2); font-size: var(--fs-meta); }
+
+.gs-edit { max-width: 860px; }
+.gs-row2 { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: var(--sp-3); }
+.gs-set { display: grid; gap: var(--sp-2); margin: 0; padding: 0; border: 0; }
+.gs-set legend { margin-bottom: var(--sp-2); font-size: var(--fs-meta); font-weight: var(--fw-medium); color: var(--ink-2); }
+.gs-rowx { display: grid; grid-template-columns: 12rem minmax(0, 1fr) auto; gap: var(--sp-2); align-items: center; }
+.gs-rowx3 { grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr) minmax(0, 1.5fr) auto; }
+
+@media (max-width: 640px) {
+  .gs-grid { grid-template-columns: minmax(0, 1fr); }
+  .gs-rowx, .gs-rowx3, .gs-row2 { grid-template-columns: minmax(0, 1fr); }
+  .gs-miles li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+.gs-set > .s-btn, .gs-edit > .gs-actions { justify-self: start; }

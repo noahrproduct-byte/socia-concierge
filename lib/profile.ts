@@ -1,4 +1,5 @@
 import type { GrowthProfile } from "./growth";
+import type { GrowthStrategy } from "./strategy";
 import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -8,6 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type BrandDetail = {
   /** The Growth Profile (lib/growth.ts): account type, business or creator detail, audience, personality, resources. */
   growth?: GrowthProfile;
+  /** The Growth Strategy SOCIA wrote and the person may edit (lib/strategy.ts). */
+  strategy?: GrowthStrategy;
   website?: string;
   location?: string;
   description?: string;

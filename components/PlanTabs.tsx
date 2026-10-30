@@ -1,19 +1,21 @@
 "use client";
 
-// Plan's two pages: the weekly Content Plan and the Calendar. Links, so each
-// keeps its own address (/plan, /plan/calendar) and the back button works.
+// Plan's three views of the same planning data: the Growth Strategy, the
+// weekly Content Plan and the Calendar. Links, so each keeps its own address
+// (/plan/strategy, /plan, /plan/calendar) and the back button works.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
+  { href: "/plan/strategy", label: "Strategy" },
   { href: "/plan", label: "Content Plan" },
   { href: "/plan/calendar", label: "Calendar" },
 ];
 
 export default function PlanTabs() {
   const path = usePathname();
-  const current = path?.startsWith("/plan/calendar") ? "/plan/calendar" : "/plan";
+  const current = TABS.find((t) => t.href !== "/plan" && path?.startsWith(t.href))?.href ?? "/plan";
   return (
     <nav className="s-seg plan-tabs" aria-label="Plan">
       {TABS.map((t) => (
