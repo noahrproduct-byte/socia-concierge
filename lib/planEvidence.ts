@@ -9,12 +9,16 @@ import type { EvidenceUsed } from "./schema";
 import { listTracked } from "./trackedCompetitors";
 import { scopeToWorkspace } from "./workspaces";
 import type { PlanOutcome, ItemOutcome } from "./planOutcomes";
+import { activeFindings } from "./intel/insightStore";
+import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
 
 export type Evidence = {
   postsBlock: string;
   competitorsBlock: string;
   /** What became of the previous plans: posted or not, and each post's result against the median. */
   outcomesBlock: string;
+  /** Formats that lead across other accounts' posts in the niche (lib/nicheFormats.ts, from the insights store). */
+  formatsBlock: string;
   used: EvidenceUsed;
 };
 
@@ -231,6 +235,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     winning = (data ?? []) as WinningRow[];
   } catch { /* none */ }
 
+  const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
+
   const postsBlock = ownPostsBlock(media, followers);
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning);
   const outcomesBlock_ = outcomesBlock(opts.outcomes ?? []);
@@ -244,6 +250,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     postsBlock,
     competitorsBlock: competitorsBlock_,
     outcomesBlock: outcomesBlock_,
+    formatsBlock: formatsEvidence(formats),
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,

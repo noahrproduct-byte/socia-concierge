@@ -11,6 +11,8 @@
 // FORMAT_MIN_ACCOUNTS accounts, and its numbers are recomputed here from the
 // examples, never taken from the model. Browser-safe: no SDK imports.
 
+import { confidenceFor, type InsightDraft } from "./intel/insight";
+
 export const FORMAT_MIN_EXAMPLES = 3;
 export const FORMAT_MIN_ACCOUNTS = 2;
 /** A format "leads" when its examples' median result is at least this many times their creators' own medians. */
@@ -218,4 +220,59 @@ export function formatBrief(f: NicheFormat): string {
     "Make it original: adapt the structure, don't copy the video.",
   ];
   return lines.filter(Boolean).join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Into the shared intelligence store (lib/intel), so Overview, Analytics,
+// Plan and Ask SOCIA can use the formats that lead
+// ---------------------------------------------------------------------------
+
+export const FORMATS_PRODUCER = "niche_formats";
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+
+/**
+ * One finding per leading format. Other accounts' results, so the
+ * confidence is capped at a signal and the hypothesis says their audiences
+ * aren't this account's.
+ */
+export function formatInsights(doc: FormatsDoc): InsightDraft[] {
+  return doc.formats.filter((f) => f.leads).map((f) => ({
+    fingerprint: `niche:format:${slug(f.name)}`,
+    producer: FORMATS_PRODUCER,
+    category: "niche" as const,
+    platform: null,
+    title: `"${f.name}" leads in your niche`,
+    observation: formatBasis(f),
+    metrics: [
+      { label: "Median result", value: f.stats.medianMultiplier, unit: "multiple" as const, basis: `against each creator's own median, ${f.stats.withBaseline} examples with a baseline` },
+      { label: "Examples", value: f.stats.examples, unit: "count" as const, basis: `from ${f.stats.accounts} accounts in your niche` },
+    ],
+    posts: f.examples.slice(0, 4).map((e) => ({ platform: e.platform, id: e.url, title: `${e.account}: ${e.title.slice(0, 80)}`, permalink: e.url })),
+    periodStart: f.examples.map((e) => e.publishedAt).filter((d): d is string => Boolean(d)).sort()[0] ?? null,
+    periodEnd: doc.runAt,
+    explanations: [
+      { type: "interpretation" as const, text: `These posts share one structure: ${f.summary.charAt(0).toLowerCase()}${f.summary.slice(1)}` },
+      { type: "hypothesis" as const, text: "It may work for your audience too. These are other accounts' results, and their audiences differ from yours: one post of your own is the test." },
+    ],
+    confidence: Math.min(60, confidenceFor(f.stats.withBaseline)),
+    limitations: [
+      "Other accounts' public posts, not yours.",
+      "SOCIA grouped them by their titles and captions; it didn't watch the videos.",
+      "Per-post numbers are lifetime totals, so older posts have had longer to collect them.",
+    ],
+    recommendation: {
+      action: `Make one "${f.name}" post this week${f.steps.length ? `: ${f.steps.join(", then ").toLowerCase()}` : ""}.`,
+      why: formatBasis(f),
+      learning: "Whether the format works for your audience, measured against your own median.",
+      href: "/discover",
+    },
+    source: { rule: `niche.format: >=${FORMAT_MIN_EXAMPLES} examples from >=${FORMAT_MIN_ACCOUNTS} accounts, median >=${FORMAT_LEADS_AT}x on >=${FORMAT_MIN_EXAMPLES} baselines`, data: [`${doc.examplesRead} posts from your niche read ${doc.builtAt.slice(0, 10)}`], retrievedAt: doc.builtAt },
+  }));
+}
+
+/** Leading formats from the store, as evidence lines for the plan writer and Ask SOCIA. */
+export function formatsEvidence(insights: { title: string; observation: string; explanations: { text: string }[]; recommendation: { action: string } | null }[]): string {
+  if (!insights.length) return "";
+  return insights.slice(0, 5).map((i) => `- ${i.title}. ${i.observation} ${i.explanations[0]?.text ?? ""} Suggested: ${i.recommendation?.action ?? ""}`).join("\n");
 }

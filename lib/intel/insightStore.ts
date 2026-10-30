@@ -76,6 +76,18 @@ export async function listInsights(ctx: Ctx, opts: { status?: StoredInsight["sta
  * Store one run's findings for the given producers. Returns how many were
  * added, updated and superseded, or tableReady: false before the migration.
  */
+/** One producer's active findings for a brand, for readers without a full Ctx (plan writer, Ask SOCIA). Empty on any error. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function activeFindings(client: any, ownerId: string, workspaceId: string | null | undefined, producer: string, limit = 10): Promise<StoredInsight[]> {
+  try {
+    const { data, error } = await scopeToWorkspace(client.from("insights").select(COLS).eq("user_id", ownerId), workspaceId)
+      .eq("producer", producer).eq("status", "active").order("confidence", { ascending: false }).limit(limit);
+    return error ? [] : ((data ?? []) as Row[]).map(toStored);
+  } catch {
+    return [];
+  }
+}
+
 export async function storeInsights(ctx: Ctx, producers: string[], drafts: InsightDraft[], now = new Date()): Promise<{ tableReady: boolean; added: number; updated: number; superseded: number }> {
   const at = now.toISOString();
   const clean = drafts.map(cleanDraft).filter((d): d is InsightDraft => d !== null);

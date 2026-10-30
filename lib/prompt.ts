@@ -90,6 +90,13 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     );
   }
 
+  if (evidence?.formatsBlock) {
+    parts.push(`\n# Formats that lead in this niche`);
+    parts.push(`(Found by SOCIA across other accounts' public posts: each format has at least 3 examples from 2 accounts, and its numbers are those posts' results against their own creators' medians. Other accounts' results, not this account's.)`);
+    parts.push(evidence.formatsBlock);
+    parts.push(`You may build planned posts on these formats, adapted to this account and never copied. When a post uses one, name the format and its basis in that post's evidence field (for example "Uses the one-take build format: median 2.1x across 4 niche examples").`);
+  }
+
   if (evidence?.outcomesBlock) {
     parts.push(`\n# What happened to the last plan`);
     parts.push(evidence.outcomesBlock);
