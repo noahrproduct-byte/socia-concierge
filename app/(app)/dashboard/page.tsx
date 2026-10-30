@@ -33,6 +33,14 @@ import type { ScheduledPost } from "@/lib/scheduling";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
+import { buildAccountSample } from "@/lib/intel/accountSample";
+import { growthBriefing, goalLine, nextActions, recentLearning, whatWorks } from "@/lib/intel/overview";
+import { listInsights } from "@/lib/intel/insightStore";
+import { listGoals } from "@/lib/growthStore";
+import { currentFor } from "@/lib/briefing";
+import { engagementRateOf } from "@/lib/engagement";
+import { postsPerWeek } from "@/lib/metrics";
+import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, goalProgress, type GoalPlatform } from "@/lib/growth";
 
 export const metadata = { title: "Dashboard · SOCIA" };
 
@@ -97,6 +105,12 @@ export default async function DashboardPage({
     }
   })();
 
+  // The shared intelligence store and the brand's goals (both empty before their migrations).
+  const intelP = Promise.all([
+    listInsights(ctx, { limit: 30 }).catch(() => ({ tableReady: false, insights: [] })),
+    listInsights(ctx, { status: "superseded", limit: 5 }).catch(() => ({ tableReady: false, insights: [] })),
+    listGoals(ctx).catch(() => ({ tableReady: false, goals: [] })),
+  ]);
   const [profile, ent] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)), getEntitlements(ctx.client, ctx.ownerId)]);
   const igConnected = profile?.account_connected ?? false;
   // Daily recommendations (Growth+): the two reads only the Today card needs
@@ -250,6 +264,66 @@ export default async function DashboardPage({
   const rawName = [meta.first_name, meta.full_name, meta.name].find((v) => typeof v === "string" && v.trim()) as string | undefined;
   const firstName = rawName ? rawName.trim().split(/\s+/)[0].slice(0, 40) : null;
 
+  // ---- intelligence sections: briefing, what works, next actions, goals, learning ----
+  const [activeIntel, endedIntel, goalsRes] = await intelP;
+  const sample = buildAccountSample({
+    now,
+    ig: live ? { username: snap!.username, name: snap!.name, biography: snap!.biography, followers: snap!.followers_count, media } : null,
+    fb: fbConnected && fb ? { name: fb.page_name, followers: fb.followers_count, posts: fb.posts ?? [] } : null,
+    yt: yt ? { title: yt.channel.title, handle: yt.channel.handle, subscribers: yt.channel.subscribers, videos: yt.topVideos ?? [] } : null,
+    tt: ttConnected && ttRow ? { username: (ttRow.username as string | null) ?? null, followers: (ttRow.follower_count as number | null) ?? null, videos: Array.isArray(ttRow.videos) ? (ttRow.videos as TtVideo[]) : [] } : null,
+  });
+  const works = whatWorks(sample);
+  const summaries = [igSummary, fbSummary, ytSummary, ttSummary];
+  const connectedPlatforms = summaries.filter((x) => x.connected).map((x) => x.platform as GoalPlatform);
+  const extras = {
+    days,
+    igEngagementRate: live ? engagementRateOf(media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since), snap!.followers_count ?? null).value : null,
+    igPostsPerWeek: live ? postsPerWeek(media.map((m) => m.timestamp), 30, now.getTime()) ?? 0 : null,
+    ttPostsPerWeek: ttConnected && Array.isArray(ttRow?.videos) ? postsPerWeek((ttRow!.videos as TtVideo[]).map((v) => v.createdAt ?? undefined), 30, now.getTime()) ?? 0 : null,
+  };
+  const goalRows = goalsRes.goals.map((g) => {
+    const m = goalMetric(g.metric);
+    const cur = currentFor(g, summaries, extras);
+    const value = m?.measuredOn.length ? cur.value : g.current_value ?? null;
+    const prog = goalProgress(g, value, now);
+    return {
+      id: g.id ?? g.metric,
+      primary: g.kind === "primary",
+      label: `${m?.label ?? g.metric}${g.platforms.length ? ` on ${g.platforms.map((x) => GOAL_PLATFORM_NAME[x]).join(" and ")}` : ""}`,
+      current: value != null ? formatGoalValue(g.metric, value) : null,
+      target: formatGoalValue(g.metric, g.target),
+      start: g.baseline != null ? formatGoalValue(g.metric, g.baseline) : null,
+      share: prog.share,
+      remaining: prog.remaining != null && !prog.reached ? formatGoalValue(g.metric, prog.remaining) : null,
+      due: g.due_date ? new Date(`${g.due_date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : null,
+      daysLeft: prog.daysLeft,
+      reached: prog.reached,
+      note: m?.measuredOn.length ? (cur.why ?? prog.missing) : prog.missing,
+    };
+  });
+  const primaryGoal = goalRows.find((g) => g.primary) ?? null;
+  const growth = profile?.brand_detail?.growth ?? null;
+  const briefing = growthBriefing({
+    brandName: profile?.brand_name ?? (live ? snap!.username : null) ?? null,
+    niche: profile?.niche ?? null,
+    growth,
+    sample,
+    works,
+    insights: activeIntel.insights,
+    goalLine: goalLine(growth, primaryGoal ? { label: primaryGoal.label, current: primaryGoal.current, remaining: primaryGoal.remaining, due: primaryGoal.due } : null),
+  });
+  const goalPlatformMissing = goalsRes.goals.flatMap((g) => g.platforms).find((x) => !connectedPlatforms.includes(x)) ?? null;
+  const actions = nextActions({
+    insights: activeIntel.insights,
+    connectedCount: connectedPlatforms.length,
+    goalPlatformMissing,
+    planThisWeek: Boolean(latestPlan && now.getTime() - Date.parse(latestPlan.created_at) < 7 * DAY_MS),
+    scheduledSoon: upcoming.filter((u) => Date.parse(u.at) - now.getTime() < 3 * DAY_MS && Date.parse(u.at) >= now.getTime()).length,
+    trackedCompetitors: comp?.tracked ?? 0,
+  });
+  const learning = recentLearning({ planOutcome: focus?.outcomeLine ?? null, planAt: latestPlan?.created_at ?? null, active: activeIntel.insights, ended: endedIntel.insights, now });
+
   const d: DashboardData = {
     rangeLabel, maxDays, updatedAt,
     live,
@@ -266,6 +340,17 @@ export default async function DashboardPage({
     firstName,
     lastPost: lastIg ? { platform: "Instagram", at: lastIg } : null,
     competitors: comp ? { ...comp, you: yourLC } : null,
+    intel: {
+      briefing,
+      works,
+      themes: growth?.understanding?.themes ?? [],
+      postsRead: sample.posts.length,
+      actions,
+      goals: goalRows,
+      goalsReady: goalsRes.tableReady,
+      learning,
+      storeReady: activeIntel.tableReady,
+    },
   };
 
   return <Dashboard d={d} />;
