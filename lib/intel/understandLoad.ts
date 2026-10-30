@@ -25,7 +25,7 @@ export type UnderstandResult =
   | { status: "denied"; response: Response }
   | { status: "failed"; reason: string };
 
-async function currentDetail(ctx: Ctx): Promise<BrandDetail> {
+export async function currentDetail(ctx: Ctx): Promise<BrandDetail> {
   const ws = brandWorkspace(ctx);
   if (ws) return (ws.brand_detail ?? {}) as BrandDetail;
   const { data } = await ctx.client.from("profiles").select("brand_detail").eq("user_id", ctx.ownerId).maybeSingle();

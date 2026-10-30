@@ -1,4 +1,5 @@
 import { growthLines } from "./growth";
+import { strategyLines } from "./strategy";
 import type { GenerateInput } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
@@ -57,6 +58,14 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
 
   const brandBlock = brandContext(brand);
   if (brandBlock) parts.push(brandBlock);
+
+  // The Growth Strategy (lib/strategy.ts): the week is built from it.
+  const strategy = strategyLines(brand?.strategy);
+  if (strategy) {
+    parts.push(`\n# The account's growth strategy (written with SOCIA and kept by the user; build the week from it)`);
+    parts.push(strategy);
+    parts.push(`Plan ${brand!.strategy!.frequency.posts_per_week} posts this week, the strategy's pace, even where the general rule says 5 to 7. Spread them across the content pillars, include a running experiment's test when one is due, and say in each post's rationale which pillar or priority it serves.`);
+  }
 
   // Real data first, the user's own notes after it. When SOCIA holds nothing,
   // the notes are all there is and the model is told so.
