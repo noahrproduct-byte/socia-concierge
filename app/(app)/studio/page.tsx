@@ -6,6 +6,8 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import ContentStudio, { type DraftItem } from "@/components/studio/ContentStudio";
 import ClipsStudio from "@/components/studio/ClipsStudio";
 import StudioMode from "@/components/studio/StudioMode";
+import GuideStudio from "@/components/studio/GuideStudio";
+import { formatConcept, planConcept } from "@/lib/studioGuideLoad";
 import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
@@ -16,10 +18,27 @@ export const metadata = { title: "Content Studio — SOCIA" };
 // content and make it better before it goes live (the original Studio,
 // unchanged). Build from Clips: bring raw footage and let SOCIA find the
 // posts in it. The mode is in the URL (?mode=clips) so a refresh keeps it.
-export default async function StudioPage({ searchParams }: { searchParams: Promise<{ mode?: string; project?: string }> }) {
+export default async function StudioPage({ searchParams }: { searchParams: Promise<{ mode?: string; project?: string; plan?: string; i?: string; format?: string }> }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
-  const { mode } = await searchParams;
+  const { mode, plan, i, format } = await searchParams;
+
+  // Plan a post: the concept from a planned post or a Discover format (read
+  // here, never from the address alone), then its production guide.
+  if (mode === "guide") {
+    const gctx = await resolveContext(supabase, user.id);
+    const fromPlan = plan && i != null && /^\d{1,2}$/.test(i) ? await planConcept(gctx, plan, Number(i)).catch(() => null) : null;
+    const fromFormat = !fromPlan && format ? await formatConcept(gctx, format.slice(0, 80)).catch(() => null) : null;
+    return (
+      <GuideStudio
+        modeTabs={<StudioMode mode="guide" />}
+        concept={fromPlan?.concept ?? fromFormat ?? null}
+        guide={fromPlan?.guide ?? null}
+        source={fromPlan ? { kind: "plan", planId: plan!, index: Number(i) } : fromFormat ? { kind: "format", name: fromFormat.title } : null}
+        missing={Boolean((plan || format) && !fromPlan && !fromFormat)}
+      />
+    );
+  }
 
   if (mode === "clips") {
     return (
