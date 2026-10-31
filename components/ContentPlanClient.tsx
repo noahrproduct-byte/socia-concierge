@@ -747,18 +747,6 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
             {data.niche} · {data.platform}
           </div>
         </div>
-        <div className="cpl-score">
-          <div className="cpl-score-num">
-            <CountUp value={String(data.healthScore)} />
-          </div>
-          <div className="cpl-score-den">/ 100 health</div>
-          <div className="cpl-score-bar" aria-hidden>
-            <span
-              className={data.healthScore >= 70 ? "green" : data.healthScore >= 40 ? "amber" : "red"}
-              style={{ width: `${Math.max(0, Math.min(100, data.healthScore))}%` }}
-            />
-          </div>
-        </div>
       </div>
 
       <div className="cpl-evidence" title="What this plan was built from">

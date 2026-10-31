@@ -30,15 +30,15 @@
   },
   "em-dash": {
     "app/(app)/analytics/page.tsx": 2,
-    "app/(app)/plan/calendar/page.tsx": 1,
     "app/(app)/comments/page.tsx": 2,
-    "app/(app)/discover/page.tsx": 1,
     "app/(app)/create/page.tsx": 1,
+    "app/(app)/discover/page.tsx": 1,
+    "app/(app)/plan/calendar/page.tsx": 1,
+    "app/(app)/plan/page.tsx": 1,
     "app/(app)/reports/page.tsx": 2,
     "app/(app)/roundup/page.tsx": 6,
     "app/(app)/settings/page.tsx": 3,
     "app/(app)/studio/page.tsx": 1,
-    "app/(app)/plan/page.tsx": 1,
     "app/data-deletion/page.tsx": 1,
     "app/error.tsx": 1,
     "app/layout.tsx": 3,
@@ -108,11 +108,11 @@
     "app/globals.css": 4
   },
   "glass": {
-    "app/globals.css": 18,
+    "app/globals.css": 16,
     "app/styles/shell.css": 1
   },
   "gradient": {
-    "app/globals.css": 123,
+    "app/globals.css": 120,
     "components/composer/rail/rail.css": 1,
     "components/pageSkeleton.css": 1
   },

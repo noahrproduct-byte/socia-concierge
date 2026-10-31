@@ -6,7 +6,8 @@ export type Deliverable = {
   clientHandle: string;
   niche: string;
   platform: string;
-  healthScore: number; // 0-100
+  /** Older plans carry a model-written 0-100 score. It was never measured, so nothing shows it. */
+  healthScore?: number;
   headline: string; // one-line diagnosis
   auditSummary: string; // 2-4 sentence plain-English read
   strengths: string[];
@@ -68,7 +69,6 @@ export const deliverableSchema = {
     clientHandle: { type: "string" },
     niche: { type: "string" },
     platform: { type: "string" },
-    healthScore: { type: "integer" },
     headline: { type: "string" },
     auditSummary: { type: "string" },
     strengths: { type: "array", items: { type: "string" } },
@@ -159,7 +159,6 @@ export const deliverableSchema = {
     "clientHandle",
     "niche",
     "platform",
-    "healthScore",
     "headline",
     "auditSummary",
     "strengths",
