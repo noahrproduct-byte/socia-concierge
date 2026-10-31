@@ -5,6 +5,7 @@ import { can } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { buildFeature, buildPlayerData, isManualBuild, saveBuildEdl } from "@/lib/studioClips/server";
 import type { Edl } from "@/lib/studioClips/types";
+import { readPresets } from "@/lib/studioClips/styleStore";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     if (denied) return denied;
     const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, checkFeature(ent, feature).ok && can(ctx, "publish"));
     if (!data) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
+    data.presets = await readPresets(ctx).catch(() => ({ brand: null, templates: [] }));
+    data.canManageBrand = can(ctx, "manage_workspace");
     return NextResponse.json(data);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });

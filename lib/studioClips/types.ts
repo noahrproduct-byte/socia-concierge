@@ -3,6 +3,8 @@
 // client components.
 import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";
 
+import type { EdlStyle, VideoPresets } from "./style";
+
 export type { Transcript, TranscriptWord };
 
 export const STUDIO_BUCKET = "studio-sources";
@@ -192,6 +194,8 @@ export type EdlSegment = {
   note: string;
   /** Reframe (Editor V1): zoom 1..3 and where the frame sits in the footage, 0..1 each way (0.5 = centred). Absent = centred cover. */
   frame?: SegmentFrame;
+  /** This clip's volume (Editor V2): 0 mutes it, 2 is twice as loud. Absent = as recorded. */
+  volume?: number;
 };
 
 export type SegmentFrame = { zoom: number; x: number; y: number };
@@ -251,6 +255,8 @@ export type Edl = {
   notes: string[];
   /** Phase C: measured picture and sound corrections (absent until measured). */
   finish?: EdlFinish;
+  /** Editor V2: font, brand accent, text background and caption style (lib/studioClips/style.ts). Absent = the original look. */
+  style?: EdlStyle;
 };
 
 /**
@@ -391,6 +397,10 @@ export type BuildPlayerData = {
   canEdit: boolean;
   /** The person's own edit of their clips (Editor V1, every plan): no AI regenerate, no AI build counted. */
   manual: boolean;
+  /** The brand's video style preset and saved templates (Editor V2). */
+  presets?: VideoPresets;
+  /** The viewer may change the brand's preset (owners and admins). */
+  canManageBrand?: boolean;
 };
 
 /** Output canvas for every build (vertical, Reels/TikTok/Shorts). */

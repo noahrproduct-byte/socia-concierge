@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireFeature } from "@/lib/planGuard";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { getProjectRow, manualBuild } from "@/lib/studioClips/server";
+import { readPresets } from "@/lib/studioClips/styleStore";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (denied) return denied;
     const project = await getProjectRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!project) return NextResponse.json({ error: "That project does not exist." }, { status: 404 });
-    const build = await manualBuild(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project });
+    // A new edit starts in the brand's preset style and size, when it has one.
+    const preset = (await readPresets(ctx).catch(() => null))?.brand ?? null;
+    const build = await manualBuild(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, preset });
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });

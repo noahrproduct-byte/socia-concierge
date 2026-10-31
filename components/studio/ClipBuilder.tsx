@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Player, type PlayerRef } from "@remotion/player";
-import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Type, Music, Crop, Scissors, SkipBack, SkipForward } from "lucide-react";
+import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Type, Music, Crop, Scissors, SkipBack, SkipForward, Palette, Volume2, VolumeX } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +19,7 @@ import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
 import FinishPanel from "./FinishPanel";
 import { timeline } from "@/lib/studioClips/timeline";
+import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
@@ -42,7 +43,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  const [panel, setPanel] = useState<"cut" | "frame" | "text" | "finish" | "audio" | "regenerate">("cut");
+  const [panel, setPanel] = useState<"cut" | "frame" | "style" | "text" | "finish" | "audio" | "regenerate">("cut");
+  const [presets, setPresets] = useState<VideoPresets>({ brand: null, templates: [] });
+  const [tplName, setTplName] = useState("");
+  const [styleNote, setStyleNote] = useState<string | null>(null);
+  const [quality, setQuality] = useState<"high" | "medium">("high");
   // Before/After for the measured corrections; the export always uses After.
   const [compare, setCompare] = useState<"before" | "after">("after");
   const player = useRef<PlayerRef>(null);
@@ -61,6 +66,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
     return () => { alive = false; abort.current?.abort(); };
   }, [buildId, fixture]);
 
+  useEffect(() => { if (data?.presets) setPresets(data.presets); }, [data?.presets]);
   const sources = useMemo(() => Object.fromEntries((data?.sources ?? []).map((s) => [s.clipId, s])) as Record<string, BuildSource>, [data]);
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
   const anySpeech = useMemo(() => (edl ? edl.segments.some((s) => sources[s.clipId]?.words?.length) : false), [edl, sources]);
@@ -126,6 +132,24 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const resetFrame = (i: number) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, frame: undefined } : x)) }); };
   const setAspect = (w: number, h: number) => { if (!edl || (edl.width === w && edl.height === h)) return; commit({ ...edl, width: w, height: h }); };
 
+  // Style (Editor V2): discrete choices are one undo step each; the colour picker is live after one.
+  const st: EdlStyle = edl?.style ?? DEFAULT_STYLE;
+  const setStyle = (patch: Partial<EdlStyle>) => { if (edl) commit({ ...edl, style: { ...st, ...patch } }); };
+  const setCaptionStyle = (patch: Partial<EdlStyle["captions"]>) => setStyle({ captions: { ...st.captions, ...patch } });
+  const liveAccent = (accent: string) => { if (!edl) return; setEdl({ ...edl, style: { ...st, accent } }); setDirty(true); };
+  const applyPreset = (p: { style: EdlStyle; width: number; height: number }, label: string) => { if (!edl) return; commit({ ...edl, style: p.style, width: p.width, height: p.height }); setStyleNote(`${label} applied.`); };
+  const savePreset = async (body: Record<string, unknown>, ok: string) => {
+    if (!edl) return;
+    setStyleNote(null);
+    const r = await fetch("/api/studio/style", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, style: st, width: edl.width, height: edl.height }) }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (!r?.ok) return setStyleNote(j?.error ?? "Couldn't save that. Try again.");
+    setPresets(j as VideoPresets);
+    setStyleNote(ok);
+  };
+  const setVolume = (i: number, v: number) => { if (!edl) return; setEdl({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: v } : x)) }); setDirty(true); };
+  const toggleMute = (i: number) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: (x.volume ?? 1) === 0 ? 1 : 0 } : x)) }); };
+
   const save = async () => {
     if (!edl || fixture) { setDirty(false); return; }
     setSaving(true); setSaveErr(null);
@@ -176,7 +200,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
         composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
         inputProps: props,
         container: "mp4",
-        videoBitrate: "high",
+        videoBitrate: quality,
         pageResponsiveness: "medium",
         signal: ctrl.signal,
         onProgress: ({ progress }) => setExp((e) => (e.phase === "rendering" ? { ...e, progress } : e)),
@@ -265,6 +289,12 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
               <>
                 <p>Rendered on this computer at {edl.width}×{edl.height}, then saved as a <b>draft</b> in your Calendar. You schedule or publish it from Create Post.{data.manual ? " Nothing is counted against your plan." : ""} Works best in Chrome or Edge on a computer.</p>
                 {exp.message && <p className="cbb-err"><AlertTriangle size={12} /> {exp.message}</p>}
+                <label className="cbb-quality">Quality
+                  <select value={quality} onChange={(e) => setQuality(e.target.value as "high" | "medium")} disabled={busy}>
+                    <option value="high">High (larger file)</option>
+                    <option value="medium">Standard (smaller, faster to upload)</option>
+                  </select>
+                </label>
                 <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || !data.canEdit} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
                 {build.postId && <Link className="ov-btn ghost small" href={`/create?post=${build.postId}`}>Open the saved draft <ArrowRight size={12} /></Link>}
               </>
@@ -294,6 +324,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
           <div className="st-tabs cbb-tabs" role="tablist">
             <button type="button" role="tab" className={panel === "cut" ? "on" : ""} onClick={() => setPanel("cut")}>Cut</button>
             <button type="button" role="tab" className={panel === "frame" ? "on" : ""} onClick={() => setPanel("frame")}>Frame</button>
+            <button type="button" role="tab" className={panel === "style" ? "on" : ""} onClick={() => setPanel("style")}>Style</button>
             <button type="button" role="tab" className={panel === "text" ? "on" : ""} onClick={() => setPanel("text")}>Text &amp; captions</button>
             <button type="button" role="tab" className={panel === "finish" ? "on" : ""} onClick={() => setPanel("finish")}>Look &amp; sound</button>
             <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Music</button>
@@ -322,6 +353,68 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
               <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={endHere}><SkipForward size={12} /> End here</button>
               <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={splitHere}><Scissors size={12} /> Split here</button>
               {hereNote && <small className="cbb-err" role="status">{hereNote}</small>}
+            </div>
+          )}
+
+          {panel === "style" && (
+            <div className="cbb-frame cbb-style">
+              <div className="ov-card">
+                <b><Palette size={14} /> Text</b>
+                <label className="cbb-field">Font
+                  <select value={st.font} disabled={!data.canEdit || busy} onChange={(e) => setStyle({ font: e.target.value as EdlStyle["font"] })}>
+                    {FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                </label>
+                <label className="cbb-field">Brand colour
+                  <input type="color" value={st.accent} disabled={!data.canEdit || busy} onPointerDown={beginLive} onFocus={beginLive} onChange={(e) => liveAccent(e.target.value)} />
+                </label>
+                <small>Used for the call to action, and for text boxes set to Brand colour.</small>
+                <div className="cal2-seg" role="radiogroup" aria-label="Text background">
+                  {([["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"], ["none", "No box"]] as const).map(([id, label]) => (
+                    <button key={id} type="button" role="radio" aria-checked={st.textBox === id} className={st.textBox === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setStyle({ textBox: id })}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="ov-card">
+                <b><Captions size={14} /> Captions</b>
+                <div className="cal2-seg" role="radiogroup" aria-label="Caption position">
+                  {([["top", "Top"], ["middle", "Middle"], ["bottom", "Bottom"]] as const).map(([id, label]) => (
+                    <button key={id} type="button" role="radio" aria-checked={st.captions.position === id} className={st.captions.position === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setCaptionStyle({ position: id })}>{label}</button>
+                  ))}
+                </div>
+                <div className="cal2-seg" role="radiogroup" aria-label="Caption size">
+                  {([["s", "Small"], ["m", "Medium"], ["l", "Large"]] as const).map(([id, label]) => (
+                    <button key={id} type="button" role="radio" aria-checked={st.captions.size === id} className={st.captions.size === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setCaptionStyle({ size: id })}>{label}</button>
+                  ))}
+                </div>
+                <label className="cbb-check"><input type="checkbox" checked={st.captions.box} disabled={!data.canEdit || busy} onChange={(e) => setCaptionStyle({ box: e.target.checked })} /> Box behind captions</label>
+                <label className="cbb-check"><input type="checkbox" checked={st.captions.uppercase} disabled={!data.canEdit || busy} onChange={(e) => setCaptionStyle({ uppercase: e.target.checked })} /> Capital letters</label>
+                {!edl.captions && <small>Captions are off for this video; turn them on in Text &amp; captions.</small>}
+              </div>
+              <div className="ov-card">
+                <b>Brand style and templates</b>
+                <small>A brand style is the starting look for every new edit; templates keep other looks to reuse. Both hold the size, font, colours and caption style.</small>
+                <div className="st-row-actions">
+                  {presets.brand && <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={() => applyPreset(presets.brand!, "Brand style")}>Use brand style</button>}
+                  {data.canManageBrand && <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => void savePreset({ action: "brand" }, "Saved as the brand style: new edits start with it.")}>Save as brand style</button>}
+                </div>
+                {presets.templates.length > 0 && (
+                  <ul className="cbb-templates">
+                    {presets.templates.map((t) => (
+                      <li key={t.id}>
+                        <span>{t.name} <small>{t.width}×{t.height}</small></span>
+                        <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={() => applyPreset(t, `"${t.name}"`)}>Apply</button>
+                        <button type="button" className="cbb-icon danger" aria-label={`Delete template ${t.name}`} disabled={busy} onClick={() => void savePreset({ action: "delete_template", id: t.id }, "Template deleted.")}><Trash2 size={13} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="cbb-tpl-new">
+                  <input type="text" placeholder="Template name" value={tplName} maxLength={40} onChange={(e) => setTplName(e.target.value)} aria-label="Template name" />
+                  <button type="button" className="ov-btn ghost small" disabled={busy || !tplName.trim()} onClick={() => { void savePreset({ action: "template", name: tplName }, `Saved "${tplName.trim()}".`); setTplName(""); }}>Save as template</button>
+                </div>
+                {styleNote && <small role="status">{styleNote}</small>}
+              </div>
             </div>
           )}
 
@@ -375,6 +468,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
                         <span className="cbb-trim-sep">→</span>
                         <span className="cbb-trim-grp" title="End inside the clip"><button type="button" aria-label="End earlier" disabled={!data.canEdit || busy} onClick={() => trim(i, "out", -STEP)}><Minus size={11} /></button><em>{fmtClock(s.out)}</em><button type="button" aria-label="End later" disabled={!data.canEdit || busy} onClick={() => trim(i, "out", STEP)}><Plus size={11} /></button></span>
                         <small>{(s.out - s.in).toFixed(1)}s</small>
+                      </div>
+                      <div className="cbb-vol">
+                        <button type="button" className="cbb-icon" aria-label={(s.volume ?? 1) === 0 ? "Unmute this clip" : "Mute this clip"} disabled={!data.canEdit || busy} onClick={() => toggleMute(i)}>{(s.volume ?? 1) === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
+                        <input type="range" min={0} max={2} step={0.05} value={s.volume ?? 1} aria-label="Clip volume" disabled={!data.canEdit || busy} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setVolume(i, Number(e.target.value))} />
+                        <em>{Math.round((s.volume ?? 1) * 100)}%</em>
                       </div>
                       {s.note && <small className="cbb-note">{s.note}</small>}
                     </div>

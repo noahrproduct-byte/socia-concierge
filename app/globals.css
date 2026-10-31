@@ -11386,3 +11386,21 @@ p.cbp-muted { display: block; }
 .cb-manual { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-top: var(--sp-3); }
 .cb-manual > div { display: grid; gap: var(--sp-1); min-width: 0; }
 .cb-manual small { color: var(--text-secondary); font-size: var(--fs-meta); }
+
+/* Editor V2: style, templates, volume, export quality (components/studio/ClipBuilder.tsx) */
+.cbb-style .ov-card { display: grid; gap: var(--sp-2); }
+.cbb-field { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); align-items: center; gap: var(--sp-2); font-size: var(--fs-meta); }
+.cbb-field select { width: 100%; }
+.cbb-field input[type="color"] { width: 3rem; height: var(--control-h-sm); padding: 0; border: 1px solid var(--border); border-radius: var(--r-control); background: none; }
+.cbb-check { display: flex; align-items: center; justify-content: flex-start; gap: var(--sp-2); font-size: var(--fs-meta); }
+.cbb-check input { flex: none; width: auto; margin: 0; }
+.cbb-style small { color: var(--text-secondary); font-size: var(--fs-meta); }
+.cbb-templates { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-1); }
+.cbb-templates li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); font-size: var(--fs-meta); }
+.cbb-templates li span { flex: 1; min-width: 0; }
+.cbb-templates small { color: var(--text-secondary); margin-left: var(--sp-1); }
+.cbb-tpl-new { display: flex; gap: var(--sp-2); }
+.cbb-tpl-new input { flex: 1; min-width: 0; height: var(--control-h-sm); padding: 0 var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text-primary); font: inherit; font-size: var(--fs-meta); }
+.cbb-vol { display: grid; grid-template-columns: auto minmax(0, 1fr) 3rem; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); font-size: var(--fs-meta); }
+.cbb-vol em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.cbb-quality { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-meta); color: var(--text-secondary); }

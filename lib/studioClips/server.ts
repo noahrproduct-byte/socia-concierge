@@ -2,6 +2,7 @@
 // uses, clip registration under the plan's limits, and building one
 // opportunity's EDL + guide. Everything is scoped to the workspace owner and
 // the active Brand Workspace, like the rest of SOCIA.
+import type { EdlStyle } from "./style";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getLimit, type Entitlements } from "@/lib/entitlements";
 import { getProfile } from "@/lib/profile";
@@ -333,8 +334,8 @@ export async function isManualBuild(client: Supa, ownerId: string, wsId: string 
  * The project's own edit: opened as it was, or started with every ready clip
  * in upload order, full length, no text, no corrections. No model call.
  */
-export async function manualBuild(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow }): Promise<StudioBuild> {
-  const { ownerId, wsId, project } = args;
+export async function manualBuild(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
+  const { ownerId, wsId, project, preset } = args;
   const rows = await clipRows(client, project.id);
   const existing = await loadBuild(client, project.id, MANUAL_IDX, rows);
   if (existing) return existing;
@@ -345,6 +346,7 @@ export async function manualBuild(client: Supa, args: { ownerId: string; wsId: s
     targetSec: { min: 1, max: Math.ceil(ready.reduce((a, r) => a + (r.duration_s ?? 0), 0)) + 1 },
     segments: ready.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
+    ...(preset ? { width: preset.width, height: preset.height, style: preset.style } : {}),
   }, forEdl);
   // Captions only when the person turns them on.
   edl.captions = null;
