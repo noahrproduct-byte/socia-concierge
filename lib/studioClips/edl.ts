@@ -4,6 +4,7 @@
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
 import { aspectOf, clipLabel, fmtClock } from "./types";
 import { finishSteps, sanitizeFinish } from "./finish";
+import { cleanVolume, sanitizeStyle } from "./style";
 
 export type ClipForEdl = {
   id: string;
@@ -26,7 +27,8 @@ export type RawEdl = {
   /** One of ASPECTS; anything else falls back to vertical. */
   width?: number;
   height?: number;
-  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null }[];
+  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number }[];
+  style?: unknown;
   text?: { at: number; end?: number; text: string; role?: string }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
   cta?: string | null;
@@ -153,7 +155,8 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     const outT = snapTime(Math.max(s.in, s.out), clip, "out");
     if (outT - inT < EDL_DEFAULTS.minSegmentSec) { warnings.push(`segment ${i + 1} is too short after snapping`); return; }
     const frame = cleanFrame(s.frame);
-    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}) });
+    const volume = cleanVolume(s.volume);
+    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}) });
   });
   if (segments.length) {
     segments[0].role = "opener";
@@ -206,6 +209,8 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     caption: (raw.caption ?? "").trim(),
     notes,
   };
+  const style = sanitizeStyle(raw.style);
+  if (style) edl.style = style;
   return { edl, warnings };
 }
 
@@ -221,7 +226,8 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     targetSec: { min: edited.targetSec.min, max: Math.max(edited.targetSec.max, Math.ceil(total)) },
     width: edited.width,
     height: edited.height,
-    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame })),
+    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume })),
+    style: edited.style,
     text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
     cta: edited.cta, music: edited.music, caption: edited.caption,

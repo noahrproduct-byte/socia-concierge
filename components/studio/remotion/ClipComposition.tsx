@@ -11,13 +11,28 @@ import React, { useMemo } from "react";
 import { AbsoluteFill, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { Video } from "@remotion/media";
 import { colorCorrection } from "@remotion/effects/color-correction";
-import { loadFont } from "@remotion/google-fonts/Inter";
+import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
+import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
+import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
+import { loadFont as loadPlayfair } from "@remotion/google-fonts/PlayfairDisplay";
+import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
+import { DEFAULT_STYLE, captionLayout, textColors, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
 import type { BuildSource, Edl, EdlText } from "@/lib/studioClips/types";
 import { timeline, captionsForEdl, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS } from "@/lib/studioClips/timeline";
 import { gainAtDb } from "@/lib/studioClips/sound";
 
-const { fontFamily } = loadFont("normal", { weights: ["600", "700"], subsets: ["latin"] });
+// Inter is the default and loads at once; the others load only when an edit uses them.
+const { fontFamily: interFamily } = loadInter("normal", { weights: ["600", "700"], subsets: ["latin"] });
+const FONT_LOADERS: Record<FontId, () => string> = {
+  inter: () => interFamily,
+  montserrat: () => loadMontserrat("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily,
+  poppins: () => loadPoppins("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily,
+  playfair: () => loadPlayfair("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily,
+  bebas: () => loadBebas("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily,
+};
+const loaded = new Map<FontId, string>();
+const familyFor = (id: FontId) => { if (!loaded.has(id)) loaded.set(id, FONT_LOADERS[id]()); return loaded.get(id)!; };
 
 export type ClipCompositionProps = {
   edl: Edl;
@@ -36,7 +51,7 @@ const TEXT_STYLE: Record<EdlText["role"], { top: string; size: number }> = {
   cta: { top: "73%", size: 56 },
 };
 
-function TextLayer({ text, role }: { text: string; role: EdlText["role"] }) {
+function TextLayer({ text, role, style, fontFamily }: { text: string; role: EdlText["role"]; style: EdlStyle; fontFamily: string }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const inF = Math.round(fps * 0.25);
@@ -44,6 +59,7 @@ function TextLayer({ text, role }: { text: string; role: EdlText["role"] }) {
   const leave = interpolate(frame, [durationInFrames - inF, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const o = Math.min(appear, leave);
   const s = TEXT_STYLE[role];
+  const c = textColors(style, role);
   return (
     <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center" }}>
       <div
@@ -54,10 +70,10 @@ function TextLayer({ text, role }: { text: string; role: EdlText["role"] }) {
       >
         <div
           style={{
-            fontFamily, fontWeight: 700, fontSize: s.size, lineHeight: 1.15, color: "#fff", textAlign: "center",
+            fontFamily, fontWeight: 700, fontSize: s.size, lineHeight: 1.15, color: c.fg, textAlign: "center",
             whiteSpace: "pre-wrap", padding: "18px 28px", borderRadius: 24,
-            backgroundColor: role === "cta" ? "rgba(91, 75, 214, 0.86)" : "rgba(0, 0, 0, 0.46)",
-            textShadow: "0 2px 12px rgba(0,0,0,0.45)",
+            backgroundColor: c.bg ?? "transparent",
+            textShadow: c.shadow,
           }}
         >
           {text}
@@ -67,17 +83,20 @@ function TextLayer({ text, role }: { text: string; role: EdlText["role"] }) {
   );
 }
 
-function CaptionPage({ page }: { page: TikTokPage }) {
+function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: EdlStyle; fontFamily: string }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
+  const l = captionLayout(style.captions);
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
-      <div style={{ position: "absolute", bottom: "27%", left: "6%", right: "6%", textAlign: "center" }}>
+      <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: "6%", right: "6%", textAlign: "center" }}>
         <span
           style={{
-            display: "inline-block", fontFamily, fontWeight: 700, fontSize: 54, lineHeight: 1.2, whiteSpace: "pre-wrap",
-            padding: "10px 18px", borderRadius: 16, backgroundColor: "rgba(0,0,0,0.42)", textShadow: "0 2px 10px rgba(0,0,0,0.5)",
+            display: "inline-block", fontFamily, fontWeight: 700, fontSize: l.fontSize, lineHeight: 1.2, whiteSpace: "pre-wrap",
+            textTransform: style.captions.uppercase ? "uppercase" : "none",
+            padding: "10px 18px", borderRadius: 16, backgroundColor: style.captions.box ? "rgba(0,0,0,0.42)" : "transparent",
+            textShadow: style.captions.box ? "0 2px 10px rgba(0,0,0,0.5)" : "0 2px 14px rgba(0,0,0,0.8)",
           }}
         >
           {page.tokens.map((t, i) => {
@@ -92,6 +111,8 @@ function CaptionPage({ page }: { page: TikTokPage }) {
 
 export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, finishOn }) => {
   const { fps, width, height } = useVideoConfig();
+  const style = edl.style ?? DEFAULT_STYLE;
+  const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
   const box = (s: { clipId: string; frame?: { zoom: number; x: number; y: number } }) => videoBox(sources[s.clipId]?.width ?? null, sources[s.clipId]?.height ?? null, width, height, s.frame);
   const tl = useMemo(() => timeline(edl), [edl]);
   // Measured balance, expressed as attenuation so no clip is pushed above unity.
@@ -125,7 +146,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
               effects={effects[s.clipId]}
               // Cleanup on: the measured gain curve (it may lift quiet sound; its peaks were measured
               // to stay under -1 dBFS). Off: the Phase B balance, as attenuation only.
-              volume={(f) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames)}
+              volume={(f) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames) * (s.volume ?? 1)}
               // Cover the frame, never letterboxed: sized to the footage's own aspect and the
               // person's reframe (videoBox), or centred cover when the size isn't known.
               objectFit={box(s) ? "fill" : "cover"}
@@ -136,7 +157,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       })}
       {edl.text.map((t) => (
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} name={`text · ${t.role}`}>
-          <TextLayer text={t.text} role={t.role} />
+          <TextLayer text={t.text} role={t.role} style={style} fontFamily={fontFamily} />
         </Sequence>
       ))}
       {pages.map((page, i) => {
@@ -146,7 +167,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         if (end - start <= 0) return null;
         return (
           <Sequence key={`c${i}`} from={start} durationInFrames={end - start} name="captions">
-            <CaptionPage page={page} />
+            <CaptionPage page={page} style={style} fontFamily={fontFamily} />
           </Sequence>
         );
       })}
