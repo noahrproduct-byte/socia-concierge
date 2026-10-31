@@ -40,7 +40,7 @@ import { listInsights } from "@/lib/intel/insightStore";
 import { listGoals } from "@/lib/growthStore";
 import { currentFor } from "@/lib/briefing";
 import { engagementRateOf } from "@/lib/engagement";
-import { postsPerWeek } from "@/lib/metrics";
+import { goalPostsPerWeek } from "@/lib/metrics";
 import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, goalProgress, type GoalPlatform } from "@/lib/growth";
 
 export const metadata = { title: "Dashboard · SOCIA" };
@@ -280,8 +280,8 @@ export default async function DashboardPage({
   const extras = {
     days,
     igEngagementRate: live ? engagementRateOf(media.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= since), snap!.followers_count ?? null).value : null,
-    igPostsPerWeek: live ? postsPerWeek(media.map((m) => m.timestamp), 30, now.getTime()) ?? 0 : null,
-    ttPostsPerWeek: ttConnected && Array.isArray(ttRow?.videos) ? postsPerWeek((ttRow!.videos as TtVideo[]).map((v) => v.createdAt ?? undefined), 30, now.getTime()) ?? 0 : null,
+    igPostsPerWeek: live ? goalPostsPerWeek(media.map((m) => m.timestamp), 30, now.getTime()) : null,
+    ttPostsPerWeek: ttConnected && Array.isArray(ttRow?.videos) ? goalPostsPerWeek((ttRow!.videos as TtVideo[]).map((v) => v.createdAt), 30, now.getTime()) : null,
   };
   const goalRows = goalsRes.goals.map((g) => {
     const m = goalMetric(g.metric);

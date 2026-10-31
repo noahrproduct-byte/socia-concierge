@@ -202,9 +202,10 @@ export async function fetchDailySeries(
   return out;
 }
 
+/** `media` is null when the posts read failed (as opposed to an account with no posts). */
 async function fetchFromInstagram(token: string): Promise<{
   profile: Record<string, unknown>;
-  media: IgMediaItem[];
+  media: IgMediaItem[] | null;
 } | null> {
   try {
     const profUrl = new URL(`https://graph.instagram.com/${IG_V}/me`);
@@ -225,10 +226,10 @@ async function fetchFromInstagram(token: string): Promise<{
     const [pRes, mRes] = await Promise.all([fetch(profUrl), fetch(mediaUrl)]);
     if (!pRes.ok) return null;
     const profile = await pRes.json();
-    let media: IgMediaItem[] = [];
+    let media: IgMediaItem[] | null = null;
     if (mRes.ok) {
       const mJson = await mRes.json();
-      media = Array.isArray(mJson.data) ? mJson.data : [];
+      media = Array.isArray(mJson.data) ? mJson.data : null;
     }
     return { profile, media };
   } catch {
@@ -403,8 +404,16 @@ async function syncInstagramImpl(supabase: Supa, userId: string, workspaceId?: s
   const token = conn.access_token;
   const igId = conn.ig_user_id ?? null;
 
-  const fresh = await fetchFromInstagram(token);
-  if (!fresh) return null;
+  const fetched = await fetchFromInstagram(token);
+  if (!fetched) return null;
+  // A failed posts read keeps the posts from the last good sync rather than
+  // storing "no posts", which every screen would show as 0.
+  let media = fetched.media;
+  if (media == null) {
+    const prev = (await getActiveConnection(supabase, userId, "media", workspaceId).catch(() => null)) as { media?: unknown } | null;
+    media = Array.isArray(prev?.media) ? (prev.media as IgMediaItem[]) : [];
+  }
+  const fresh = { profile: fetched.profile, media };
 
   const now = new Date().toISOString();
 

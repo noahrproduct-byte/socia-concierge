@@ -52,17 +52,24 @@ function PostTable({ rows }: { rows: FbPostRow[] }) {
           {rows.map((p) => (
             <tr key={p.id}>
               <td>
-                <a className="yt-vid" href={p.permalink ?? "#"} target="_blank" rel="noopener noreferrer">
-                  {p.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.thumb} alt="" width={64} height={36} />
-                  ) : <span className="yt-vid-ph" aria-hidden><ImageIcon size={12} /></span>}
-                  <span className="yt-vid-meta">
-                    <b title={p.title}>{p.title}</b>
-                    <small>{fmtDay(p.published)}</small>
-                  </span>
-                  {p.permalink && <ExternalLink size={12} className="yt-vid-ext" />}
-                </a>
+                {(() => {
+                  // No permalink from Facebook: the row is plain text, not a link to nowhere.
+                  const body = (
+                    <>
+                      {p.thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.thumb} alt="" width={64} height={36} />
+                      ) : <span className="yt-vid-ph" aria-hidden><ImageIcon size={12} /></span>}
+                      <span className="yt-vid-meta">
+                        <b title={p.title}>{p.title}</b>
+                        <small>{fmtDay(p.published)}</small>
+                      </span>
+                    </>
+                  );
+                  return p.permalink ? (
+                    <a className="yt-vid" href={p.permalink} target="_blank" rel="noopener noreferrer">{body}<ExternalLink size={12} className="yt-vid-ext" /></a>
+                  ) : <span className="yt-vid">{body}</span>;
+                })()}
               </td>
               <td className="num">{num(p.reactions)}</td>
               <td className="num">{num(p.comments)}</td>

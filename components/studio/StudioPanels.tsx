@@ -334,7 +334,9 @@ export function CaptionPanel({ a, w, setCaption, improve }: { a: StudioAnalysis;
 
 /** The video's sound as measured on the device — numbers, not impressions. */
 function MeasuredSound({ m }: { m: QuickAudio }) {
-  const cells: { label: string; value: string; note?: string; warn?: boolean }[] = !m.hasAudio
+  const cells: { label: string; value: string; note?: string; warn?: boolean }[] = m.level === "unknown"
+    ? [{ label: "Sound", value: "Not measured", note: "no audio could be read from the file on this device" }]
+    : !m.hasAudio
     ? [{ label: "Sound", value: "None", note: "no audible sound in the file", warn: true }]
     : [
         { label: "Level", value: m.levelDb != null ? `${m.levelDb} dBFS` : "—", note: m.level === "quiet" ? "quiet — raise it" : m.level === "loud" ? "loud — may distort" : "comfortable", warn: m.level === "quiet" || m.level === "loud" },

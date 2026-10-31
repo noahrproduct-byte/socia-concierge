@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  goalPostsPerWeek,
   engagementOf,
   median,
   outlierMultiplier,
@@ -698,5 +699,15 @@ describe("scheduling: readiness and due", () => {
     expect(nextAction("ERROR")).toBe("fail");
     expect(nextAction("PUBLISHED")).toBe("done");
     expect(nextAction(null)).toBe("wait");
+  });
+});
+
+describe("goalPostsPerWeek", () => {
+  const now = Date.parse("2026-10-31T12:00:00Z");
+  it("is 0 when there are dated posts but none in the window, null when nothing is dated", () => {
+    expect(goalPostsPerWeek(["2026-08-01T10:00:00Z"], 30, now)).toBe(0);
+    expect(goalPostsPerWeek([], 30, now)).toBeNull();
+    expect(goalPostsPerWeek([undefined, null], 30, now)).toBeNull();
+    expect(goalPostsPerWeek(["2026-10-30T10:00:00Z", "2026-10-20T10:00:00Z"], 28, now)).toBe(0.5);
   });
 });

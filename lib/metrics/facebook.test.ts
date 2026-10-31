@@ -192,3 +192,21 @@ describe("buildFacebookAnalytics — posts against the Page's own median", () =>
     expect(capped.changes.find((c) => c.key === "posts")!.previous).toBeNull();
   });
 });
+
+describe("engagement with shares only (no pages_read_user_content)", () => {
+  const sharesOnly = snap({ posts: [post({ shares: 8 }), post({ shares: 4, created_time: "2026-09-29T10:00:00Z" })] });
+  const d = build(sharesOnly);
+
+  it("says the total is shares only and doesn't claim a share of engagement", () => {
+    expect(d.engagement.note).toMatch(/^Shares only/);
+    expect(d.insights.find((i) => i.id === "shares")).toBeUndefined();
+  });
+
+  it("skips Page-view weeks that have a day Facebook didn't report", () => {
+    const gappy = insights({ views: daily(10, 10).filter((_, i) => i !== 50) });
+    const full = build(snap(), { insights: insights({ views: daily(10, 10) }) });
+    const withGap = build(snap(), { insights: gappy });
+    expect(full.weeks.median).not.toBeNull();
+    expect(withGap.weeks.decline.every((w) => w.value > 0)).toBe(true);
+  });
+});

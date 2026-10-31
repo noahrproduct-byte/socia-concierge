@@ -410,7 +410,7 @@ export default function CalendarBoard({
   // server would compute it in UTC and the text wouldn't match).
   const bestLine =
     now && aud.peak != null
-      ? `${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)} gets the most reach with your audience.`
+      ? `Your posts published ${DOW[aud.peak.day]} around ${hourLabel(aud.peak.hour)} got the most likes and comments (${aud.postCount} Instagram posts). A pattern, not proof.`
       : null;
 
   // A day's "Add post" opens Create Post at that day's suggested hour (the
@@ -443,7 +443,7 @@ export default function CalendarBoard({
     <div className="cal2">
       <PageHeader
         title="Calendar"
-        sub="Plan your week around when your audience is actually online."
+        sub="Plan your week around when your own posts got the most likes and comments."
         status={
           aud.enough && aud.peak && now ? (
             <div className="cal2-live">
@@ -531,10 +531,10 @@ export default function CalendarBoard({
           <Lightbulb size={15} />
         </span>
         <div className="cal2-insight-body">
-          <b>Optimal times, based on your audience.</b>
+          <b>When your posts did best</b>
           <p>
             {bestLine ??
-              "Connect your Instagram and SOCIA maps when your audience actually engages."}
+              "Connect Instagram and SOCIA maps when your posts got the most likes and comments."}
             {bestLine && openDays > 0 && (
               <> {openDays} day{openDays === 1 ? " is" : "s are"} still open this week.</>
             )}
@@ -548,7 +548,7 @@ export default function CalendarBoard({
       {/* legend */}
       <div className="cal2-legend">
         <span className="cal2-legend-label">
-          Audience activity{aud.enough ? " · est. from your Instagram posts" : ""}
+          Likes and comments by publish time{aud.enough ? `, from ${aud.postCount} Instagram posts` : ""}
         </span>
         <span className="cal2-key"><i className="l" /> Low</span>
         <span className="cal2-key"><i className="m" /> Medium</span>
@@ -886,7 +886,7 @@ function WeekGrid({
                       <i key={s} className={s < Math.round(strength * 10) ? "on" : ""} />
                     ))}
                   </span>
-                  <em>Peak activity</em>
+                  <em>Best publish time</em>
                 </div>
               )}
 

@@ -26,7 +26,8 @@ const IG = (
 
 function why(p: PostCard, baseline: number | null, medianViews: number | null) {
   const observed: string[] = [];
-  observed.push(`${p.engagements.toLocaleString("en-US")} engagements (${p.likes ?? 0} likes, ${p.comments ?? 0} comments)`);
+  const parts = [p.likes != null ? `${p.likes} likes` : "likes hidden", p.comments != null ? `${p.comments} comments` : null].filter(Boolean);
+  observed.push(`${p.engagements.toLocaleString("en-US")} engagements (${parts.join(", ")})`);
   if (p.views != null) observed.push(`${p.views.toLocaleString("en-US")} views${medianViews ? ` vs. a median of ${fmtNum(medianViews)}` : ""}`);
   if (p.reach != null) observed.push(`${p.reach.toLocaleString("en-US")} accounts reached`);
   if (p.saves != null) observed.push(`${p.saves.toLocaleString("en-US")} saves`);

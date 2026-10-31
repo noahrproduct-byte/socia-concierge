@@ -59,6 +59,14 @@ export function postsPerWeek(
   return valid.length / (windowDays / 7);
 }
 
+/** Posts per week for a goal: 0 when the account has dated posts but none in
+ *  the window, null when there are no dated posts at all (nothing to count). */
+export function goalPostsPerWeek(timestamps: (string | null | undefined)[], windowDays = 30, now = Date.now()): number | null {
+  const dated = timestamps.filter((t): t is string => Boolean(t) && !isNaN(new Date(t!).getTime()));
+  if (!dated.length) return null;
+  return postsPerWeek(dated, windowDays, now) ?? 0;
+}
+
 /** Direction of a metric between an older and a more recent sample of the
  *  same kind. Compares medians; ±threshold (fraction) counts as flat.
  *  null when either sample is empty. */

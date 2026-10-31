@@ -106,8 +106,8 @@ function perfLabel(p: string): string {
   return head.length <= 28 ? head : "See notes";
 }
 
-function perfTone(p: string): "green" | "amber" | "blue" {
-  if (/high/i.test(p)) return "green";
+// No green: a guess about a post that doesn't exist yet isn't a good result.
+function perfTone(p: string): "amber" | "blue" {
   if (/experiment|test|risk/i.test(p)) return "amber";
   return "blue";
 }
@@ -866,15 +866,15 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                   <OutcomeTags o={itemOutcome(i)} />
                   <button type="button" className="cpl-improve" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to film.`, day: post.day })}><Sparkles size={11} /> Improve</button>
                   {timeFor(post.day) && (
-                    <span className="cpl-tag time" title={aud.enough ? "From your audience's engagement windows" : "No audience data yet; noon by default"}>
-                      <Clock size={10} /> {timeFor(post.day)}
+                    <span className="cpl-tag time" title={aud.enough ? "When your own posts got the most likes and comments" : "No posting history yet, so this is noon by default"}>
+                      <Clock size={10} /> {timeFor(post.day)}{aud.enough ? "" : " (default)"}
                     </span>
                   )}
                   {post.platform && <span className="cpl-tag fmt">{post.platform}</span>}
                   <span className="cpl-tag fmt">{formatLabel(post.format)}</span>
                   {post.predictedPerformance.trim() && (
-                    <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`}>
-                      {perfLabel(post.predictedPerformance)}
+                    <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`} title="SOCIA's guess before posting, not a result">
+                      Guess: {perfLabel(post.predictedPerformance)}
                     </span>
                   )}
                 </div>
@@ -896,7 +896,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                   {post.successMetric && (<><b>Success measure:</b> {post.successMetric}<br /></>)}
                   {post.predictedPerformance.trim() && perfLabel(post.predictedPerformance) !== post.predictedPerformance.trim() && (
                     <>
-                      <b>Expected:</b> {post.predictedPerformance}
+                      <b>SOCIA&apos;s guess:</b> {post.predictedPerformance}
                       <br />
                     </>
                   )}

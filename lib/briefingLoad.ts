@@ -10,7 +10,7 @@ import { getEntitlements } from "./entitlements";
 import { loadSources } from "./api/sources";
 import { platformSummaries } from "./api/read";
 import { engagementRateOf } from "./engagement";
-import { postsPerWeek } from "./metrics";
+import { goalPostsPerWeek } from "./metrics";
 import { listTracked } from "./trackedCompetitors";
 import { competitorScopeId, scopeToWorkspace } from "./workspaces";
 import { listGoals, setGoalBaseline, syncGoalsText } from "./growthStore";
@@ -28,8 +28,8 @@ async function readNow(ctx: Ctx, ent: Awaited<ReturnType<typeof getEntitlements>
   const x: Extras = {
     days: src.days,
     igEngagementRate: src.ig ? engagementRateOf(igRecent, src.ig.snap.followers_count ?? null).value : null,
-    igPostsPerWeek: src.ig ? postsPerWeek((src.ig.media ?? []).map((m) => m.timestamp), 30, src.now.getTime()) ?? 0 : null,
-    ttPostsPerWeek: src.tt ? postsPerWeek(ttVideos.map((v) => v.createdAt ?? undefined), 30, src.now.getTime()) ?? 0 : null,
+    igPostsPerWeek: src.ig ? goalPostsPerWeek((src.ig.media ?? []).map((m) => m.timestamp), 30, src.now.getTime()) : null,
+    ttPostsPerWeek: src.tt ? goalPostsPerWeek(ttVideos.map((v) => v.createdAt), 30, src.now.getTime()) : null,
   };
   return { src, rows, x };
 }
