@@ -19,7 +19,7 @@ import { fingerprintFile, probeClip, ingestClip } from "@/lib/studioClips/ingest
 import { STUDIO_BUCKET, type Opportunity, type StudioBuild, type StudioClip, type StudioProject } from "@/lib/studioClips/types";
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
-import PlanPanel from "./PlanPanel";
+import BatchPanel from "./BatchPanel";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
@@ -384,7 +384,7 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
             <div><b><Scissors size={14} /> Edit the clips yourself</b><small>Cut, arrange, reframe and add text to every clip in this project, then export. No AI, nothing counted against your plan.</small></div>
             <button type="button" className="ov-btn ghost small" disabled={manualBusy} onClick={() => void openManual()}>{manualBusy ? <Loader2 size={13} className="spin" /> : null} Open the editor</button>
           </div>
-          {project.yield.opportunities.length > 0 && <PlanPanel projectId={project.id} stale={stale} />}
+          <BatchPanel key={project.id} project={project} autoBuild={meta ? meta.autoBuild : null} />
         </>
       )}
 

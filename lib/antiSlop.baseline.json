@@ -101,8 +101,7 @@
     "components/YouTubeConnect.tsx": 1,
     "components/studio/ClipBuilder.tsx": 1,
     "components/studio/ClipsStudio.tsx": 2,
-    "components/studio/ContentStudio.tsx": 1,
-    "components/studio/PlanPanel.tsx": 1
+    "components/studio/ContentStudio.tsx": 1
   },
   "gradient-text": {
     "app/globals.css": 4

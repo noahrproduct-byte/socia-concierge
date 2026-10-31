@@ -11079,7 +11079,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cbf-not ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .cbf-compare { margin-top: 6px; align-self: flex-start; }
 
-/* Plan These Posts (components/studio/PlanPanel.tsx) */
+/* Make and schedule (components/studio/BatchPanel.tsx) */
 .cbp { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; margin-top: 12px; }
 .cbp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .cbp-head h3 { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 700; color: var(--text-primary); }
@@ -11103,9 +11103,40 @@ p.cbp-muted { display: block; }
 .cbp-unplaced { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .cbp-unplaced b { color: var(--text-primary); margin-right: 4px; }
 .cbp-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.cba-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; border: 0; padding: 0; margin: 0; }
+.cba-field legend, .cba-start > span, .cba-cap > span { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; padding: 0; }
+.cba-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+.cba-pick, .cba-dest { list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow-y: auto; }
+.cba-pick li, .cba-dest li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.cba-dest li { flex-wrap: wrap; }
+.cba-pick li.off, .cba-dest li.off { opacity: 0.6; }
+.cba-pick label, .cba-dest label, .cba-kids label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.cba-pick label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cba-pick input, .cba-dest input, .cba-kids input { accent-color: var(--accent); flex: none; }
+.cba-dest small { font-size: 12px; color: var(--text-muted); }
+.cba-dest small a { color: var(--accent); }
+.cba-kids { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.cba-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.cba-seg button { font: inherit; font-size: 13px; font-weight: 600; min-width: 40px; padding: 6px 12px; border: 0; background: var(--surface); color: var(--text-secondary); cursor: pointer; font-variant-numeric: tabular-nums; }
+.cba-seg button + button { border-left: 1px solid var(--border); }
+.cba-seg button.on { background: var(--text-primary); color: var(--surface); }
+.cba-start input, .cba-cap input, .cba-cap textarea, .cba .cbp-ctl input[type="datetime-local"] { font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; width: auto; }
+.cba-cap { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.cba-cap textarea, .cba-cap input { width: 100%; resize: vertical; line-height: 1.45; font-weight: 400; }
+.cba-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.cba-list li { display: grid; grid-template-columns: 96px 1fr 210px; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cba-list li.off { opacity: 0.55; }
+.cba-media video, .cba-ph { display: block; width: 96px; aspect-ratio: 9 / 16; max-width: 100%; border-radius: 8px; background: var(--surface-muted); object-fit: cover; }
+.cba-why { font-size: 11.5px; line-height: 1.4; color: var(--text-muted); text-align: right; }
+.cba-ok { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); }
+.cba-bad { color: var(--danger-text); }
 @media (max-width: 640px) {
   .cbp-list li { grid-template-columns: 1fr; }
   .cbp-ctl { flex-direction: row; align-items: center; justify-content: space-between; }
+  .cba-list li { grid-template-columns: 72px 1fr; }
+  .cba-list li .cbp-ctl { grid-column: 1 / -1; flex-wrap: wrap; }
+  .cba-media video, .cba-ph { width: 72px; }
+  .cba-why { text-align: left; }
 }
 
 /* Learn (components/studio/LearnCard.tsx) */
