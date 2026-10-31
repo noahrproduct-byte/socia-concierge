@@ -378,7 +378,22 @@ async function complete(ctx: PublishContext, body: { externalPostId: string }): 
   const outcome = statusFromVideo({ ...v.video, id }, ctx.now, settings.privacy);
   if (outcome.status === "failed") return { ...outcome, externalPostId: id };
   const joined = [outcome.errorMessage, ...notes].filter(Boolean).join(" ");
-  return { ...outcome, externalPostId: id, permalink: permalinkFor(id), errorMessage: joined || null };
+  // The thumbnail and playlist results are known only now; marking them lets later polls keep them.
+  return { ...outcome, externalPostId: id, permalink: permalinkFor(id), errorMessage: joined || null, errorCode: notes.length ? UPLOAD_NOTES : outcome.errorCode };
+}
+
+/** errorCode on an in-flight row whose errorMessage holds complete()'s thumbnail and playlist notes. */
+export const UPLOAD_NOTES = "upload_notes";
+
+/**
+ * A poll's outcome with the notes complete() left on the row carried over, so
+ * a status check never erases "YouTube kept its own thumbnail". Pure.
+ */
+export function withUploadNotes(outcome: PublishOutcome, prev: { errorCode: string | null; errorMessage: string | null }): PublishOutcome {
+  if (outcome.status === "failed" || prev.errorCode !== UPLOAD_NOTES || !prev.errorMessage) return outcome;
+  const own = outcome.errorMessage && !prev.errorMessage.includes(outcome.errorMessage) ? outcome.errorMessage : null;
+  const message = [own, prev.errorMessage].filter(Boolean).join(" ");
+  return { ...outcome, errorMessage: message, errorCode: outcome.errorCode ?? UPLOAD_NOTES };
 }
 
 async function poll(ctx: PublishContext): Promise<PublishOutcome> {
@@ -392,7 +407,7 @@ async function poll(ctx: PublishContext): Promise<PublishOutcome> {
   if (!v.video) return fail("YouTube has no video with that id.", "not_found", false);
   const settings = ctx.destination.settings as YouTubeSettings;
   const outcome = statusFromVideo({ ...v.video, id }, ctx.now, settings.privacy);
-  return { ...outcome, externalPostId: id, permalink: permalinkFor(id) };
+  return withUploadNotes({ ...outcome, externalPostId: id, permalink: permalinkFor(id) }, ctx.destination);
 }
 
 export const youtubeAdapter: PublishAdapter = { platform: "youtube", publish, poll, complete };

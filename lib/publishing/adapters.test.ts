@@ -3,7 +3,7 @@ import { buildContainerParams, igRetryable, containerStatus, publishContainer, m
 import { youtubeAccessToken } from "../youtubeData";
 import { containerPlan, instagramAdapter, pollBudget, POLL_EVERY_MS, MIN_CALL_MS } from "./adapters/instagram";
 import {
-  buildYouTubeMetadata, statusFromVideo, hasWriteScope, privacyMismatchNote, resumableStartHeaders,
+  buildYouTubeMetadata, statusFromVideo, hasWriteScope, privacyMismatchNote, resumableStartHeaders, withUploadNotes, UPLOAD_NOTES,
   storageFetchUrl, storageOrigin, readBodyWithin, youtubeAdapter,
 } from "./adapters/youtube";
 import { chunkRange, parseRangeHeader, isAligned, CHUNK_BYTES, CHUNK_ALIGN } from "./youtubeUpload";
@@ -304,5 +304,23 @@ describe("YouTube resumable chunk math", () => {
     expect(parseRangeHeader("bytes=0-524287")).toBe(524288);
     expect(parseRangeHeader(null)).toBe(0);
     expect(parseRangeHeader("garbage")).toBe(0);
+  });
+});
+
+describe("YouTube upload notes survive later polls", () => {
+  const note = "YouTube kept its own thumbnail (custom thumbnails are not enabled for this channel).";
+  it("carries complete()'s notes onto a poll that has none of its own", () => {
+    const out = withUploadNotes({ status: "published", errorCode: null, errorMessage: null }, { errorCode: UPLOAD_NOTES, errorMessage: note });
+    expect(out.errorMessage).toBe(note);
+  });
+  it("puts the poll's own note first and keeps the marker while still in flight", () => {
+    const out = withUploadNotes({ status: "processing", errorCode: null, errorMessage: "Still processing." }, { errorCode: UPLOAD_NOTES, errorMessage: note });
+    expect(out).toMatchObject({ status: "processing", errorCode: UPLOAD_NOTES, errorMessage: `Still processing. ${note}` });
+  });
+  it("leaves failures and rows without notes alone", () => {
+    const failed = { status: "failed" as const, errorCode: "deleted", errorMessage: "The video was deleted on YouTube." };
+    expect(withUploadNotes(failed, { errorCode: UPLOAD_NOTES, errorMessage: note })).toEqual(failed);
+    const plain = { status: "published" as const, errorCode: null, errorMessage: null };
+    expect(withUploadNotes(plain, { errorCode: null, errorMessage: "old error" })).toEqual(plain);
   });
 });
