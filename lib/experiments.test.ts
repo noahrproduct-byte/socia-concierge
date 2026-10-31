@@ -4,7 +4,7 @@ import { applyEdits, normalizeStrategy, strategyLines, running } from "./strateg
 import { normalizePlanItem } from "./planItems";
 import { buildUserPrompt } from "./prompt";
 
-const t = (multiplier: number | null, over: Partial<ExperimentTest> = {}): ExperimentTest => ({ planId: "p", planCreatedAt: "2026-10-01", day: "Friday", title: "Staff Reel", state: "published", permalink: null, multiplier, early: false, ...over });
+const t = (multiplier: number | null, over: Partial<ExperimentTest> = {}): ExperimentTest => ({ planId: "p", planCreatedAt: "2026-10-01", day: "Friday", title: "Staff Reel", state: "published", platform: "instagram", permalink: null, multiplier, early: false, ...over });
 
 describe("an experiment's verdict is arithmetic over settled results", () => {
   it("is too early under three settled posts, and says what to do", () => {
@@ -61,5 +61,33 @@ describe("experiments carry ids from the strategy to the plan's test posts", () 
     const prompt = buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "a", goal: "", niche: "b", platform: "instagram" } as never, { strategy: s }, { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: "", decisionsBlock: "", experimentsBlock: "- [x] something", used: {} as never });
     expect(prompt).toMatch(/carries that experiment's id in its experiment field/);
     expect(prompt).toMatch(/# How the strategy's experiments are going/);
+  });
+});
+
+import { experimentInsights, EXPERIMENTS_PRODUCER } from "./experiments";
+import { cleanDraft } from "./intel/insight";
+import { recentLearning } from "./intel/overview";
+
+describe("experiment results become shared findings", () => {
+  const now = new Date("2026-10-30T12:00:00Z");
+  const row = (id: string, tests: ExperimentTest[]) => ({ id, hypothesis: "Staff on camera may lift saves.", status: "running", result: evaluateExperiment(tests) });
+
+  it("one per experiment with a verdict, none while it is too early", () => {
+    const drafts = experimentInsights([row("eaaa1", [t(1.6, { permalink: "https://i/1" }), t(1.3), t(0.9)]), row("ebbb2", [t(1.4)])], now);
+    expect(drafts).toHaveLength(1);
+    const d = drafts[0];
+    expect(cleanDraft(d)).not.toBeNull();
+    expect(d).toMatchObject({ producer: EXPERIMENTS_PRODUCER, fingerprint: "experiment:eaaa1:supported", title: "Experiment supported: Staff on camera may lift saves" });
+    expect(d.confidence).toBeLessThanOrEqual(70);
+    expect(d.limitations.join(" ")).toMatch(/may differ from the experiment's own measure/);
+    expect(d.explanations.find((e) => e.type === "hypothesis")?.text).toMatch(/can't prove the cause/);
+    expect(d.posts).toHaveLength(1);
+  });
+
+  it("a verdict that changes is new learning on the Overview", () => {
+    const [d] = experimentInsights([row("eaaa1", [t(1.6), t(1.3), t(0.9)])], now);
+    const stored = { ...d, id: "x", status: "active" as const, createdAt: "2026-10-29T12:00:00Z", updatedAt: "2026-10-29T12:00:00Z", lastSeenAt: "2026-10-30T12:00:00Z" };
+    const lines = recentLearning({ planOutcome: null, planAt: null, active: [stored], ended: [], now });
+    expect(lines[0].text).toBe("New: Experiment supported: Staff on camera may lift saves");
   });
 });

@@ -38,7 +38,7 @@ export async function experimentResults(supabase: Supa, ownerId: string, workspa
       const io = o?.items[i];
       const t: ExperimentTest = {
         planId: p.id, planCreatedAt: p.created_at, day: it.day, title: it.title || it.concept.slice(0, 80),
-        state: io?.state ?? "unscheduled", permalink: io?.permalink ?? null,
+        state: io?.state ?? "unscheduled", platform: io?.result?.platform ?? null, permalink: io?.permalink ?? null,
         multiplier: io?.result?.measured ? io.result.multiplier : null, early: io?.result?.early ?? false,
       };
       testsFor.set(it.experiment, [...(testsFor.get(it.experiment) ?? []), t]);

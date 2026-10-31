@@ -43,17 +43,29 @@ export default function StrategyView({ initial, experiments = [], canManage }: {
     }
   };
 
-  const setStatus = async (id: string, status: ExperimentStatus) => {
+  // A supported experiment becomes a pillar, citing its result; the experiment is done.
+  const makePillar = async (id: string, hypothesis: string, interpretation: string) => {
     if (!s) return;
+    const name = hypothesis.replace(/\.$/, "").slice(0, 60);
+    await patch({
+      pillars: [...s.pillars, { name, why: `From your experiment: ${interpretation.split(". ")[0]}.`.slice(0, 240) }],
+      experiments: s.experiments.map((e) => (e.id === id ? { ...e, status: "done" as const } : e)),
+    }, "Couldn't add the pillar. Try again.");
+  };
+  const patch = async (body: Partial<GrowthStrategy>, failure: string) => {
     setBusy(true);
     setErr(null);
-    const next = s.experiments.map((e) => (e.id === id ? { ...e, status } : e));
-    const r = await fetch("/api/strategy", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ experiments: next }) }).catch(() => null);
+    const r = await fetch("/api/strategy", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => null);
     const j = await r?.json().catch(() => ({}));
     setBusy(false);
-    if (!r?.ok) return setErr(j?.error ?? "Couldn't update the experiment. Try again.");
+    if (!r?.ok) return setErr(j?.error ?? failure);
     setS(j.strategy);
     router.refresh();
+  };
+
+  const setStatus = async (id: string, status: ExperimentStatus) => {
+    if (!s) return;
+    await patch({ experiments: s.experiments.map((e) => (e.id === id ? { ...e, status } : e)) }, "Couldn't update the experiment. Try again.");
   };
 
   useEffect(() => {
@@ -168,6 +180,7 @@ export default function StrategyView({ initial, experiments = [], canManage }: {
                       <div className="gs-actions">
                         {status === "running" ? (
                           <>
+                            {r?.verdict === "supported" && <Button size="sm" busy={busy} onClick={() => makePillar(e.id!, e.hypothesis, r.interpretation)}>Make it a pillar</Button>}
                             <Button size="sm" variant="ghost" busy={busy} onClick={() => setStatus(e.id!, "done")}>Mark done</Button>
                             <Button size="sm" variant="ghost" busy={busy} onClick={() => setStatus(e.id!, "stopped")}>Stop</Button>
                           </>
