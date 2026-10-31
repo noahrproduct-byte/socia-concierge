@@ -150,7 +150,14 @@ export async function refreshAccessToken(refreshToken: string): Promise<YtTokens
     body,
     signal: AbortSignal.timeout(10000),
   }).catch(() => null);
-  if (!res || !res.ok) return null;
+  if (!res || !res.ok) {
+    // Google's reason (invalid_grant: access revoked or the refresh token
+    // expired; invalid_client: the client id/secret) goes to the server log.
+    // Never the token itself.
+    const j = res ? ((await res.json().catch(() => null)) as { error?: string; error_description?: string } | null) : null;
+    console.error("[youtube] token refresh failed:", res ? res.status : "network", j?.error ?? "", (j?.error_description ?? "").slice(0, 200));
+    return null;
+  }
   const tok = parseTokens(await res.json());
   if (tok && !tok.refresh_token) tok.refresh_token = refreshToken;
   return tok;

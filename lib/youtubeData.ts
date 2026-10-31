@@ -133,6 +133,8 @@ export type YouTubeAccess = {
   channelId: string | null;
   /** Granted scopes as stored; null when the connection predates scope tracking. */
   scopes: string[] | null;
+  /** True when the token has expired and Google refused to renew it: the person must reconnect. */
+  stale?: boolean;
 };
 
 /**
@@ -154,7 +156,10 @@ export async function youtubeAccessToken(supabase: SupabaseClient, userId: strin
   if (!row.refresh_token) return { token: row.access_token, channelId: row.channel_id, scopes };
 
   const tok = await refreshAccessToken(row.refresh_token);
-  if (!tok) return { token: row.access_token, channelId: row.channel_id, scopes };
+  // Google wouldn't renew it. The old token still goes back (analytics fall
+  // back to what they have), marked stale once it has actually expired, so
+  // publishing can ask for a reconnect instead of sending a dead token.
+  if (!tok) return { token: row.access_token, channelId: row.channel_id, scopes, ...(expMs <= Date.now() ? { stale: true } : {}) };
   // Scope the token write to THIS channel, so refreshing one workspace's
   // YouTube never overwrites another workspace's channel token.
   let uq = supabase
