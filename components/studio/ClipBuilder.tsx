@@ -18,6 +18,8 @@ import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
 import FinishPanel from "./FinishPanel";
+import Timeline from "./Timeline";
+import { tracksFor } from "@/lib/studioClips/tracks";
 import { timeline } from "@/lib/studioClips/timeline";
 import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
@@ -71,6 +73,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
   const anySpeech = useMemo(() => (edl ? edl.segments.some((s) => sources[s.clipId]?.words?.length) : false), [edl, sources]);
   const captionsOn = Boolean(edl?.captions);
+  const tracks = useMemo(() => (edl ? tracksFor(edl, (id) => (sources[id] ? clipLabel(sources[id].position) : "Expired clip"), Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])), captionsOn) : null), [edl, sources, captionsOn]);
   const missing = useMemo(() => (edl ? edl.segments.filter((s) => !sources[s.clipId]).length : 0), [edl, sources]);
 
   // ------------------------------------------------------------ editing ----
@@ -536,6 +539,18 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
           )}
         </div>
       </div>
+      {tracks && (
+        <div className="ov-card cbb-tl-card">
+          <Timeline
+            tracks={tracks}
+            fps={OUTPUT.fps}
+            player={player}
+            canEdit={data.canEdit && !busy}
+            onTextStart={beginLive}
+            onTextLive={(i, at, end) => { setEdl((cur) => (cur ? { ...cur, text: cur.text.map((t, k) => (k === i ? { ...t, at, end } : t)) } : cur)); setDirty(true); }}
+          />
+        </div>
+      )}
     </div>
   );
 }
