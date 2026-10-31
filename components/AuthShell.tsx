@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap, Target, CalendarDays } from "lucide-react";
+import { BarChart3, Target, CalendarDays } from "lucide-react";
 import BrandMark from "./BrandMark";
 
 // The premium split-screen wrapper shared by every auth page:
@@ -29,58 +29,27 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
 
             <ul className="brand-features">
               <li>
-                <span className="bf-ico"><Zap size={16} /></span>
+                <span className="bf-ico"><BarChart3 size={16} /></span>
                 <div>
-                  <b>Audit any account in seconds</b>
-                  <small>Instant insights and performance score.</small>
+                  <b>See what works on your own accounts</b>
+                  <small>Analytics from the accounts you connect.</small>
                 </div>
               </li>
               <li>
                 <span className="bf-ico"><Target size={16} /></span>
                 <div>
-                  <b>See what competitors are winning with</b>
-                  <small>Spot opportunities before they peak.</small>
+                  <b>See what accounts like yours post</b>
+                  <small>Trending accounts and Reels in your niche.</small>
                 </div>
               </li>
               <li>
                 <span className="bf-ico"><CalendarDays size={16} /></span>
                 <div>
-                  <b>Get a full week of posts, hooks included</b>
-                  <small>Done-for-you content you can publish.</small>
+                  <b>Plan your week from your results</b>
+                  <small>Drafts on your Calendar. You approve every post.</small>
                 </div>
               </li>
             </ul>
-
-            <div className="score-card">
-              <div className="score-left">
-                <div className="score-top">
-                  <span>Content Score</span>
-                  <span className="score-badge">Great</span>
-                </div>
-                <div className="score-num">
-                  87<small>/100</small>
-                </div>
-                <div className="score-bars">
-                  <Bar label="Hook" value={92} />
-                  <Bar label="Retention" value={85} />
-                  <Bar label="Relevance" value={88} />
-                </div>
-              </div>
-              <svg className="score-chart" viewBox="0 0 200 150" preserveAspectRatio="none" aria-hidden>
-                {[40, 80, 120, 160].map((x) => (
-                  <line key={x} x1={x} y1="10" x2={x} y2="145" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                ))}
-                <path
-                  d="M4,138 L26,120 L44,126 L66,96 L84,102 L104,78 L122,84 L142,58 L158,44 L176,30 L188,18"
-                  fill="none"
-                  stroke="#2563ff"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                />
-                <circle cx="188" cy="18" r="8" fill="rgba(96,165,250,0.25)" />
-                <circle cx="188" cy="18" r="3.5" fill="#8ab4ff" />
-              </svg>
-            </div>
           </div>
 
           <div className="brand-foot">© 2026 SOCIA</div>
@@ -90,18 +59,6 @@ export default function AuthShell({ children }: { children: React.ReactNode }) {
       <main className="auth-panel">
         <div className="auth-formcard">{children}</div>
       </main>
-    </div>
-  );
-}
-
-function Bar({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bar-row">
-      <span className="bar-label">{label}</span>
-      <span className="bar-track">
-        <span className="bar-fill" style={{ width: `${value}%` }} />
-      </span>
-      <span className="bar-val">{value}</span>
     </div>
   );
 }

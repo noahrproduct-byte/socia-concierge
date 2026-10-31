@@ -139,7 +139,7 @@
 }
 
 /* ---- headline figures --------------------------------------------------------------- */
-.s-shell .s-content :is(.cpl-score-num, .ov-point-num b, .st-ring-num, .eg-rate b, .eg-total b, .cx2-why-n) {
+.s-shell .s-content :is(.ov-point-num b, .st-ring-num, .eg-rate b, .eg-total b, .cx2-why-n) {
   font-size: var(--fs-figure);
   line-height: var(--lh-figure);
   font-weight: var(--fw-semibold);
@@ -162,7 +162,7 @@
    size, where space is the constraint. */
 .s-shell .s-content :is(
     .cm-draft-label, .pa-subh, .cp-dest-group-head, .cp-compat-head,
-    .cpl-eyebrow, .cpl-sec, .cpl-score-den, .cpl-rsec h3, .cpl-hook b,
+    .cpl-eyebrow, .cpl-sec, .cpl-rsec h3, .cpl-hook b,
     .cal2-eyebrow, .cal2-live > b,
     .st2-eyebrow, .st2-divider span, .st3-nav-group, .st3-sub,
     .ov-detail-stats dt, .ov-why-block small, .ov-evidence > small, .ov-driver > small, .ov-driver-perf, .ov-driver-stats dt, .ov-insight-tag,
