@@ -16,6 +16,7 @@ import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
+import { postLabel, type LabelSource } from "@/lib/publishing/postLabel";
 
 export const metadata = { title: "Calendar — SOCIA" };
 
@@ -46,7 +47,7 @@ type DestinationRow = {
  *  migration the table does not exist (42P01 / PGRST205 / "schema cache"):
  *  that, like any other failure here, yields no destinations and every row
  *  renders through the legacy Instagram path. */
-async function loadDestinations(supabase: SupabaseClient, userId: string, postIds: string[]): Promise<Map<string, CalDestination[]>> {
+async function loadDestinations(supabase: SupabaseClient, userId: string, postIds: string[], labels: Map<string, LabelSource[]>): Promise<Map<string, CalDestination[]>> {
   const out = new Map<string, CalDestination[]>();
   if (!postIds.length) return out;
   try {
@@ -64,6 +65,7 @@ async function loadDestinations(supabase: SupabaseClient, userId: string, postId
         trial: trialOf(r.platform, r.settings),
       };
       out.set(r.post_id, [...(out.get(r.post_id) ?? []), d]);
+      if (r.status !== "cancelled") labels.set(r.post_id, [...(labels.get(r.post_id) ?? []), { platform: r.platform, settings: r.settings }]);
     }
   } catch {
     // no destinations: the calendar still renders every row
@@ -130,7 +132,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   // Multi-destination items carry their destination rows; legacy rows carry none.
   const scheduledRows = (rows ?? []) as ScheduledPost[];
-  const destinations = await loadDestinations(ctx.client, ctx.ownerId, scheduledRows.map((r) => r.id));
+  const labelSources = new Map<string, LabelSource[]>();
+  const destinations = await loadDestinations(ctx.client, ctx.ownerId, scheduledRows.map((r) => r.id), labelSources);
   // Published posts carry how they did against the account's own median
   // (lib/postResults): measured from stored platform data, "measuring" until
   // the platform reports the post.
@@ -145,7 +148,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const scheduled: CalItem[] = scheduledRows.map((r) => {
     const ds = destinations.get(r.id);
     const result = results.get(r.id) ?? null;
-    return { ...r, ...(ds ? { destinations: ds } : {}), result };
+    return { ...r, ...(ds ? { destinations: ds } : {}), result, label: postLabel(r.caption, labelSources.get(r.id)) };
   });
 
   const board = (
