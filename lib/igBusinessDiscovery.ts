@@ -180,9 +180,11 @@ export function discoveryStats(a: IgDiscoveryAccount): {
   const spanDays = times.length >= 2 ? (times[times.length - 1] - times[0]) / 86400000 : null;
   const postsPerWeek = spanDays && spanDays >= 1 ? (times.length / spanDays) * 7 : null;
 
+  // Posts with hidden likes are left out: counting them as 0 likes would pull
+  // the median down toward comment counts.
   const engs = a.media
-    .map((m) => (m.likes ?? 0) + (m.comments ?? 0))
-    .filter((_, i) => a.media[i].likes != null || a.media[i].comments != null)
+    .filter((m) => m.likes != null)
+    .map((m) => m.likes! + (m.comments ?? 0))
     .sort((x, y) => x - y);
   const mid = Math.floor(engs.length / 2);
   const medianEngagement = engs.length

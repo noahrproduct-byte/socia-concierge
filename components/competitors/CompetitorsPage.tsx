@@ -316,7 +316,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
               </div>
               <small className="cx2-foot">
                 {score.overall != null
-                  ? `Computed from ${score.basis} of 4 metrics of your real data against published 2026 benchmarks. Hover each for the formula.`
+                  ? `Computed from ${score.basis} of 4 metrics of your real data. Engagement is compared with a published benchmark; the other parts use SOCIA's own scale. Hover each for the formula.`
                   : d.connected ? "Fills in as your data syncs; nothing is estimated meanwhile." : <>Connect Instagram to compute your score. <a href={d.igConnectHref} className="ov-link">Connect</a></>}
               </small>
               {radarAxes.length >= 3 && (

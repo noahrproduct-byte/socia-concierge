@@ -51,7 +51,8 @@ function gateText(r: CompetitorRow, igEnabled: boolean): string {
 function metricLine(x: { views: number | null; likes: number | null; comments: number | null }): string | null {
   if (x.views != null) return `${fmtN(x.views)} views`;
   const i = interactions(x);
-  return i != null ? `${fmtN(x.likes ?? 0)} likes, ${fmtN(x.comments ?? 0)} comments` : null;
+  if (i == null) return null;
+  return [x.likes != null ? `${fmtN(x.likes)} likes` : null, x.comments != null ? `${fmtN(x.comments)} comments` : null].filter(Boolean).join(", ");
 }
 
 function Locked({ what, upgrade }: { what: string; upgrade: string | null }) {

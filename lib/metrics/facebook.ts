@@ -209,13 +209,17 @@ export function buildFacebookAnalytics(input: {
   const engPts = curDays.map(engPoint);
   const engPrevPts = prevCovered ? prevDays.map(engPoint) : [];
   const anyEng = posts.some((p) => fbPostEngagement(p) != null);
+  // Without pages_read_user_content Facebook returns shares but no reactions or comments.
+  const sharesOnly = anyEng && !posts.some((p) => p.reactions != null || p.comments != null);
   const engagement: Series = {
     metric: "engagement",
     label: "Engagement",
     provenance: anyEng ? "publish_totals" : "unavailable",
-    note: anyEng
+    note: sharesOnly
+      ? "Shares only, placed on the day each post was published. Reactions and comments need the pages_read_user_content permission: reconnect Facebook to add them."
+      : anyEng
       ? "Reactions + comments + shares on each Facebook post, placed on the day it was published."
-      : "Reactions and comments need the pages_read_user_content permission — reconnect Facebook to fill these in.",
+      : "Reactions and comments need the pages_read_user_content permission. Reconnect Facebook to fill these in.",
     current: engPts,
     previous: engPrevPts,
     total: sum(engPts),
@@ -477,12 +481,13 @@ export function buildFacebookAnalytics(input: {
     });
   }
 
-  if (engCur != null && engCur > 0 && mix.shares != null && mix.shares / engCur >= 0.2) {
+  // Only with reactions and comments in hand: without them engagement is shares alone and this would always read 100%.
+  if (engCur != null && engCur > 0 && mix.shares != null && mix.reactions != null && mix.comments != null && mix.shares / engCur >= 0.2) {
     insights.push({
       id: "shares", kind: "trend", tone: "info", tag: "Shares", action: { label: "See the mix", tab: "content" },
       title: `Shares make up ${Math.round((mix.shares / engCur) * 100)}% of your engagement`,
       body: `${mix.shares.toLocaleString("en-US")} shares out of ${engCur.toLocaleString("en-US")} reactions, comments and shares in the ${lower}.`,
-      observed: [`Shares: ${mix.shares.toLocaleString("en-US")}`, `Reactions: ${(mix.reactions ?? 0).toLocaleString("en-US")}`, `Comments: ${(mix.comments ?? 0).toLocaleString("en-US")}`],
+      observed: [`Shares: ${mix.shares.toLocaleString("en-US")}`, `Reactions: ${mix.reactions.toLocaleString("en-US")}`, `Comments: ${mix.comments.toLocaleString("en-US")}`],
       interpretation: "A share puts your post in front of people who don't follow the Page. A high share of shares means your content is being passed along, which is how Pages reach new people now.",
       recommendation: "Look at which posts were shared most and make more that people would want to send to someone.",
       postIds: [...rows].filter((r) => r.shares != null).sort((a, b) => (b.shares ?? 0) - (a.shares ?? 0)).slice(0, 3).map((r) => r.id),
@@ -498,6 +503,8 @@ export function buildFacebookAnalytics(input: {
     const blocks: FbWeek[] = [];
     for (let e = lastIdx + 1; e - 7 >= 0; e -= 7) {
       const b = views.current.slice(e - 7, e);
+      // A week with a day Facebook didn't report isn't complete: skip it rather than count the gap as 0 views.
+      if (b.some((p) => p.value == null)) continue;
       blocks.unshift({ start: b[0].day, end: b[6].day, value: b.reduce((a, p) => a + (p.value ?? 0), 0), ratio: 1 });
     }
     const med = blocks.length >= 4 ? median(blocks.map((w) => w.value)) : null;

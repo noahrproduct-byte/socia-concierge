@@ -241,7 +241,7 @@ export function buildSeries(
       return { value: ms.length ? ms.reduce((s, m) => s + interactionsTotal(m), 0) : null, postIds: ids(ms) };
     };
     const current = make(curDays, pick), previous = make(prevDays, pick);
-    return { metric, label: "Engagement", provenance: "publish_totals", note: "Likes + comments + saves + shares on each post, placed on the day it was published.", current, previous, total: sum(current) ?? 0, prevTotal: sum(previous) };
+    return { metric, label: "Engagement", provenance: "publish_totals", note: "Likes + comments + saves + shares on each post, placed on the day it was published.", current, previous, total: sum(current), prevTotal: sum(previous) };
   }
 
   if (metric === "followers") {

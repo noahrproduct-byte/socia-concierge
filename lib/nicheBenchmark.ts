@@ -27,7 +27,7 @@ export type Tier = {
  * global average is the most common way these tools mislead people.
  */
 export const TIERS: Tier[] = [
-  { id: "nano",  label: "Nano (1K–10K)",     min: 0,       engLow: 5.0, engHigh: 9.0 },
+  { id: "nano",  label: "Nano (under 10K)",  min: 0,       engLow: 5.0, engHigh: 9.0 },
   { id: "micro", label: "Micro (10K–100K)",  min: 10_000,  engLow: 4.0, engHigh: 5.5 },
   { id: "mid",   label: "Mid (100K–500K)",   min: 100_000, engLow: 1.5, engHigh: 3.0 },
   { id: "macro", label: "Macro (500K–1M)",   min: 500_000, engLow: 1.2, engHigh: 2.0 },
