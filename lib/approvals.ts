@@ -15,6 +15,7 @@ import { recordAlerts } from "./alerts";
 import { createServiceClient } from "./supabase/service";
 import { displayTitle } from "./overview";
 import { isMissingTableError } from "./publishing/db";
+import { postLabel } from "./publishing/postLabel";
 import type { AlertCandidate } from "./alertDetectors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -128,7 +129,11 @@ export async function closeApproval(svc: Supa, ownerId: string, id: string, patc
 async function postTitle(svc: Supa, ownerId: string, postId: string): Promise<string> {
   const { data } = await svc.from("scheduled_posts").select("caption").eq("user_id", ownerId).eq("id", postId).maybeSingle();
   const t = displayTitle(((data as { caption?: string } | null)?.caption ?? "").trim());
-  const title = t === "(no caption)" ? "Untitled post" : t;
+  let title = t;
+  if (t === "(no caption)") {
+    const { data: ds } = await svc.from("post_destinations").select("platform, settings").eq("user_id", ownerId).eq("post_id", postId);
+    title = postLabel(null, (ds ?? []) as { platform: string; settings?: unknown }[]) ?? "Untitled post";
+  }
   return title.length > 60 ? `${title.slice(0, 59)}…` : title;
 }
 
@@ -250,7 +255,7 @@ export async function approvalItems(svc: Supa, ownerId: string, workspaceId: str
   const ids = latest.map((r) => r.postId);
   const [{ data: posts }, { data: dests }, emails] = await Promise.all([
     svc.from("scheduled_posts").select("id, caption, media, media_url, media_type").eq("user_id", ownerId).in("id", ids),
-    svc.from("post_destinations").select("post_id, platform, status").eq("user_id", ownerId).in("post_id", ids),
+    svc.from("post_destinations").select("post_id, platform, status, settings").eq("user_id", ownerId).in("post_id", ids),
     memberEmails(svc, workspaceId),
   ]);
   const byPost = new Map(((posts ?? []) as { id: string; caption: string | null; media: { kind?: string; url?: string | null }[] | null; media_url: string | null; media_type: string | null }[]).map((p) => [p.id, p]));
@@ -260,10 +265,10 @@ export async function approvalItems(svc: Supa, ownerId: string, workspaceId: str
     const caption = (p?.caption ?? "").trim();
     const title = displayTitle(caption);
     const firstImage = (p?.media ?? []).find((m) => m.kind === "image" && m.url)?.url ?? (p?.media_type === "IMAGE" ? p?.media_url ?? null : null);
-    const ds = ((dests ?? []) as { post_id: string; platform: string; status: string }[]).filter((d) => d.post_id === r.postId && d.status !== "cancelled");
+    const ds = ((dests ?? []) as { post_id: string; platform: string; status: string; settings?: unknown }[]).filter((d) => d.post_id === r.postId && d.status !== "cancelled");
     return {
       id: r.id, postId: r.postId, status: r.status,
-      title: title === "(no caption)" ? "Untitled post" : title,
+      title: title === "(no caption)" ? postLabel(null, ds) ?? "Untitled post" : title,
       // The caption after its first line (the first line is the title).
       excerpt: (() => { const rest = caption.split("\n").slice(1).join("\n").trim(); return rest.length > 220 ? `${rest.slice(0, 219)}…` : rest; })(),
       thumb: firstImage, platforms: Array.from(new Set(ds.map((d) => NAME[d.platform] ?? d.platform))),

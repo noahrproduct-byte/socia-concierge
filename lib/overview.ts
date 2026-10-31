@@ -756,14 +756,15 @@ export function buildActivity(input: { scheduled: ScheduledPost[]; plans: { id: 
 
 export type Upcoming = { id: string; at: string; title: string; status: ScheduledPost["status"]; format: string; thumb: string | null; platform: "instagram" };
 
-export function buildUpcoming(scheduled: ScheduledPost[], limit = 4): Upcoming[] {
+/** `labels`: what to call posts with no caption, from their destinations (lib/publishing/postLabel). */
+export function buildUpcoming(scheduled: ScheduledPost[], limit = 4, labels?: Map<string, string>): Upcoming[] {
   const now = Date.now();
   return scheduled
     .filter((p) => p.status !== "cancelled" && p.status !== "published" && new Date(p.scheduled_at).getTime() >= now - DAY_MS)
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
     .slice(0, limit)
     .map((p) => ({
-      id: p.id, at: p.scheduled_at, title: displayTitle(p.caption) || "Untitled post", status: p.status,
+      id: p.id, at: p.scheduled_at, title: displayTitle(p.caption) === "(no caption)" ? labels?.get(p.id) ?? "Untitled post" : displayTitle(p.caption), status: p.status,
       format: p.media_type === "IMAGE" ? "Instagram Photo" : "Instagram Reel",
       thumb: p.media_type === "IMAGE" ? p.media_url : null, platform: "instagram",
     }));

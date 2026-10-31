@@ -30,6 +30,7 @@ import type { TodayCardProps } from "@/components/TodayCard";
 import type { TtVideo } from "@/lib/tiktokAuth";
 import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
+import { captionlessLabels } from "@/lib/publishing/postLabelLoad";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
@@ -181,7 +182,7 @@ export default async function DashboardPage({
 
   const [schedRes, plansRes] = await schedPlansP;
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
-  const upcoming = buildUpcoming(scheduled);
+  const upcoming = buildUpcoming(scheduled, 4, await captionlessLabels(ctx.client, ctx.ownerId, scheduled));
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 

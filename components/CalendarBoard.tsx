@@ -54,6 +54,7 @@ import {
 import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status";
 import { PLATFORM_LABEL, type Destination, type Platform, type TrialShare } from "@/lib/publishing/types";
 import { trialLine } from "@/lib/publishing/trial";
+import { firstLineOf } from "@/lib/publishing/postLabel";
 import "./calendar-destinations.css";
 import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
 
@@ -73,7 +74,7 @@ export type CalDestination = Pick<
  *  posts and keep the original modal and publish path. */
 export type CalResult = { platform: Platform; short: string; text: string; multiplier: number | null; early: boolean; measured: boolean };
 /** A scheduled post with its destinations and, once published, how it did against the account's own median. */
-export type CalItem = ScheduledPost & { destinations?: CalDestination[]; result?: CalResult | null };
+export type CalItem = ScheduledPost & { destinations?: CalDestination[]; result?: CalResult | null; label?: string | null };
 
 const isMulti = (p: CalItem): p is CalItem & { destinations: CalDestination[] } =>
   (p.destinations?.length ?? 0) > 0;
@@ -125,6 +126,9 @@ const fmtDay = (d: Date | string) =>
   new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 const firstLine = (s: string) =>
   (s.split("\n").find((l) => l.trim()) ?? "").trim() || "Untitled post";
+/** The caption's first line as edited here, else what the server found on the
+ *  post's destinations (a YouTube title, say: lib/publishing/postLabel). */
+const titleOf = (p: CalItem) => firstLineOf(p.caption) || p.label || "Untitled post";
 const toLocalInput = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -785,7 +789,7 @@ function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platf
       >
         <span className="cal2-time">{fmtTime(at.toISOString())}</span>
         <span className="cd-also">also <PlatformMarks platforms={ghost} /></span>
-        <span className="cal2-title">{firstLine(p.caption)}</span>
+        <span className="cal2-title">{titleOf(p)}</span>
       </button>
     );
   }
@@ -794,7 +798,7 @@ function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platf
     return (
       <button type="button" className={`cal2-post st-${p.status}`} onClick={() => onOpen(p)}>
         <span className="cal2-time">{fmtTime(at.toISOString())}</span>
-        <span className="cal2-title">{firstLine(p.caption)}</span>
+        <span className="cal2-title">{titleOf(p)}</span>
         <span className="cal2-meta">
           <Marks destinations={p.destinations} />
           <DestinationChip destinations={p.destinations} />
@@ -807,7 +811,7 @@ function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platf
   return (
     <button type="button" className={`cal2-post st-${p.status}`} onClick={() => onOpen(p)}>
       <span className="cal2-time">{fmtTime(p.scheduled_at)}</span>
-      <span className="cal2-title">{firstLine(p.caption)}</span>
+      <span className="cal2-title">{titleOf(p)}</span>
       <span className="cal2-meta">
         <span className="cal2-plat">
           <MediaIcon type={p.media_type} /> {p.media_type === "IMAGE" ? "Image" : "Reel"}
@@ -983,7 +987,7 @@ function MonthGrid({
                       type="button"
                       className="cal2-mevent cd-ghost"
                       key={`${p.id}-also`}
-                      title={`${time} · ${firstLine(p.caption)} · also ${ghost.map((g) => PLATFORM_LABEL[g]).join(", ")}`}
+                      title={`${time} · ${titleOf(p)} · also ${ghost.map((g) => PLATFORM_LABEL[g]).join(", ")}`}
                       onClick={() => onOpen(p)}
                     >
                       <PlatformMarks platforms={ghost} />also
@@ -996,11 +1000,11 @@ function MonthGrid({
                     type="button"
                     className={`cal2-mevent st-${p.status}`}
                     key={p.id}
-                    title={`${time} · ${firstLine(p.caption)} · ${status}`}
+                    title={`${time} · ${titleOf(p)} · ${status}`}
                     onClick={() => onOpen(p)}
                   >
                     {isMulti(p) && <Marks destinations={p.destinations} />}
-                    {firstLine(p.caption)}
+                    {titleOf(p)}
                   </button>
                 );
               })}
