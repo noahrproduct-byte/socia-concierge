@@ -464,6 +464,12 @@ export type UpdateDestinationOptions = {
    * at the same row; the one that arrives second must not demote a live post.
    */
   unlessPublished?: boolean;
+  /**
+   * Write only while the row still has this status and no external id: the
+   * cron's "needs the browser" result must not land on a row the browser has
+   * meanwhile started uploading.
+   */
+  onlyIfUntouched?: DestinationStatus;
 };
 
 export async function updateDestination(supabase: Supa, id: string, patch: Partial<Destination>, opts: UpdateDestinationOptions = {}): Promise<void> {
@@ -471,6 +477,7 @@ export async function updateDestination(supabase: Supa, id: string, patch: Parti
   row.updated_at = new Date().toISOString();
   let q = supabase.from("post_destinations").update(row).eq("id", id);
   if (opts.unlessPublished && patch.status !== "published") q = q.neq("status", "published");
+  if (opts.onlyIfUntouched) q = q.eq("status", opts.onlyIfUntouched).is("external_post_id", null);
   const { error } = await q;
   if (error) {
     if (isMissingTableError(error)) throw new MissingTableError();

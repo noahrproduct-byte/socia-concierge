@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   backoffMinutes, planFailure, needsPoll, isDueDestination, sweepDecision, applyOutcome, withoutBrowser, persistPatch,
-  MAX_RETRIES, MISSED_MESSAGE, GRACE_HOURS, UPLOAD_STALE_HOURS, NEEDS_BROWSER_MESSAGE,
+  MAX_RETRIES, MISSED_MESSAGE, GRACE_HOURS, UPLOAD_STALE_HOURS, NEEDS_BROWSER_MESSAGE, awaitingBrowser, BROWSER_GRACE_MINUTES,
 } from "./runner";
 import {
   rowToItem, destinationPatchToRow, isMissingTableError, parentsWithDestinations, updateDestination,
@@ -246,6 +246,7 @@ describe("updateDestination unlessPublished", () => {
       const q = {
         eq: (c: string, v: string) => { entry.filters.push(`eq ${c} ${v}`); return q; },
         neq: (c: string, v: string) => { entry.filters.push(`neq ${c} ${v}`); return q; },
+        is: (c: string, v: null) => { entry.filters.push(`is ${c} ${v}`); return q; },
         then: (resolve: (v: { error: null }) => void) => resolve({ error: null }),
       };
       return q;
@@ -260,5 +261,26 @@ describe("updateDestination unlessPublished", () => {
     expect(f.calls[1].filters).toEqual(["eq id d1"]);
     await updateDestination(f.client, "d1", { status: "draft" });
     expect(f.calls[2].filters).toEqual(["eq id d1"]);
+  });
+
+  it("onlyIfUntouched writes only to a row still in the status read and with nothing on the platform", async () => {
+    const f = fakeUpdate();
+    await updateDestination(f.client, "d1", { status: "failed", errorCode: "needs_browser" }, { unlessPublished: true, onlyIfUntouched: "scheduled" });
+    expect(f.calls[0].filters).toEqual(["eq id d1", "neq status published", "eq status scheduled", "is external_post_id null"]);
+  });
+});
+
+describe("awaitingBrowser", () => {
+  const yt = (over: Partial<Destination> = {}) => dest({ platform: "youtube", settings: defaultSettings("youtube"), ...over });
+  it("leaves a fresh scheduled YouTube row to the browser that is about to upload it", () => {
+    expect(awaitingBrowser(yt({ scheduledAt: ago(30_000) }), NOW)).toBe(true);
+    expect(awaitingBrowser(yt({ scheduledAt: ago((BROWSER_GRACE_MINUTES - 1) * 60_000) }), NOW)).toBe(true);
+  });
+  it("lets the cron act after the grace window, on other platforms, and on rows already in flight", () => {
+    expect(awaitingBrowser(yt({ scheduledAt: ago(BROWSER_GRACE_MINUTES * 60_000) }), NOW)).toBe(false);
+    expect(awaitingBrowser(dest({ scheduledAt: ago(30_000) }), NOW)).toBe(false);
+    expect(awaitingBrowser(yt({ status: "uploading", scheduledAt: ago(30_000) }), NOW)).toBe(false);
+    expect(awaitingBrowser(yt({ externalPostId: "v1", scheduledAt: ago(30_000) }), NOW)).toBe(false);
+    expect(awaitingBrowser(yt({ scheduledAt: new Date(NOW.getTime() + 60_000).toISOString() }), NOW)).toBe(false);
   });
 });

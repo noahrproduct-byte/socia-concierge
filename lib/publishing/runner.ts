@@ -47,6 +47,12 @@ export const MAX_RETRIES = 3;
 export const GRACE_HOURS = 12;
 /** An upload that never reported an external id after this long is abandoned. */
 export const UPLOAD_STALE_HOURS = 24;
+/**
+ * A YouTube upload starts in the browser of the person who pressed Publish.
+ * For this long after its time the cron leaves such a row alone, so it never
+ * fails a post whose upload is about to start.
+ */
+export const BROWSER_GRACE_MINUTES = 15;
 /** Per-destination wall-clock budget inside a cron tick. */
 export const STEP_BUDGET_MS = 40_000;
 
@@ -95,6 +101,20 @@ export function isDueDestination(d: Pick<Destination, "status" | "scheduledAt" |
   if (IN_FLIGHT.includes(d.status)) return true;
   if (d.status !== "scheduled" || !d.scheduledAt) return false;
   return new Date(d.scheduledAt).getTime() <= now.getTime();
+}
+
+/** Platforms whose upload has to come from the person's browser. */
+const BROWSER_UPLOAD: Platform[] = ["youtube"];
+
+/**
+ * True while the cron should leave a row to the browser: a browser-upload
+ * platform, still scheduled with nothing on the platform, inside the grace
+ * window after its time.
+ */
+export function awaitingBrowser(d: Pick<Destination, "platform" | "status" | "scheduledAt" | "externalPostId">, now: Date): boolean {
+  if (!BROWSER_UPLOAD.includes(d.platform) || d.status !== "scheduled" || d.externalPostId || !d.scheduledAt) return false;
+  const since = now.getTime() - new Date(d.scheduledAt).getTime();
+  return since >= 0 && since < BROWSER_GRACE_MINUTES * 60_000;
 }
 
 export type SweepDecision = "demote" | "missed" | "stale_upload" | "run";
@@ -189,7 +209,8 @@ export async function publishDestination(ctx: PublishContext): Promise<PublishOu
     outcome = { status: "failed", errorCode: "exception", errorMessage: message, retryable: true };
   }
   outcome = withoutBrowser(outcome, ctx.interactive);
-  await persistOutcome(supabase, dest, outcome, now);
+  // Recorded only if the row is as the cron read it: the browser may have started the upload since.
+  await persistOutcome(supabase, dest, outcome, now, outcome.errorCode === "needs_browser" && !ctx.interactive ? dest.status : undefined);
   return outcome;
 }
 
@@ -223,9 +244,9 @@ export function persistPatch(dest: Destination, outcome: PublishOutcome, now: Da
  * A row that meanwhile became published is left alone unless this outcome
  * publishes it too.
  */
-export async function persistOutcome(supabase: Supa, dest: Destination, outcome: PublishOutcome, now: Date): Promise<void> {
+export async function persistOutcome(supabase: Supa, dest: Destination, outcome: PublishOutcome, now: Date, onlyIfUntouched?: DestinationStatus): Promise<void> {
   try {
-    await updateDestination(supabase, dest.id, persistPatch(dest, outcome, now), { unlessPublished: true });
+    await updateDestination(supabase, dest.id, persistPatch(dest, outcome, now), { unlessPublished: true, onlyIfUntouched });
   } finally {
     await refreshParent(supabase, dest.postId).catch(() => undefined);
   }
@@ -339,6 +360,7 @@ export async function runDueDestinations(svc: Supa, opts: { now: Date; budgetMs:
         row.result = "failed: upload stale";
         continue;
       }
+      if (awaitingBrowser(d, now)) { row.result = "waiting: browser upload"; continue; }
       // The post must belong to the destination's owner: a destination planted
       // on someone else's post is never published (and never touches it).
       const item = await loadItem(svc, d.postId, d.userId);
