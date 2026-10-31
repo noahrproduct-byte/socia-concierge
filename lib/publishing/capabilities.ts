@@ -195,7 +195,6 @@ const YOUTUBE: PlatformCapabilities = {
   },
   notes: [
     "YouTube schedules natively: a scheduled video is uploaded now as private and goes live at the chosen time.",
-    "Until Google completes its API audit of SOCIA, videos uploaded through SOCIA stay private on YouTube regardless of the visibility chosen.",
     "Custom thumbnails need a channel YouTube has enabled for them; otherwise YouTube keeps its own.",
   ],
   sources: [
