@@ -315,7 +315,7 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
       words: r.transcript?.words?.length ? r.transcript.words : null,
       moments: r.card?.moments ?? [],
     }));
-  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: row.opportunity_idx === MANUAL_IDX };
+  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx) };
 }
 
 /** The plan feature a build needs: the person's own edit is on every plan; SOCIA's first cut is Growth and Pro. */
@@ -324,10 +324,20 @@ export const buildFeature = (manual: boolean): "build_from_clips" | "auto_build"
 /** The opportunity index of a project's own edit (Editor V1): one per project, made by the person, never by AI. */
 export const MANUAL_IDX = -1;
 
+/**
+ * One clip posted on its own (Make and schedule: "each clip on its own").
+ * Its index is CLIP_IDX_BASE minus the clip's position, so each clip has at
+ * most one such build. No AI writes it, so it counts like the person's own edit.
+ */
+export const CLIP_IDX_BASE = -1000;
+export const clipIdx = (position: number) => CLIP_IDX_BASE - position;
+/** The person's own edit or a single-clip post: no AI made the cut, nothing is counted. */
+export const isOwnCutIdx = (idx: number) => idx === MANUAL_IDX || idx <= CLIP_IDX_BASE;
+
 /** Is this build the person's own edit? Decides which plan feature and allowance apply. */
 export async function isManualBuild(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<boolean | null> {
   const row = await loadBuildRow(client, ownerId, wsId, buildId);
-  return row ? row.opportunity_idx === MANUAL_IDX : null;
+  return row ? isOwnCutIdx(row.opportunity_idx) : null;
 }
 
 /**
@@ -353,6 +363,36 @@ export async function manualBuild(client: Supa, args: { ownerId: string; wsId: s
   if (!edl.segments.length) throw new Error("These clips are too short to edit.");
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: MANUAL_IDX, edl, guide, caption: null, model: "manual", updated_at: now() };
+  if (wsId) row.workspace_id = wsId;
+  const { data, error } = await client.from("studio_builds").upsert(row, { onConflict: "project_id,opportunity_idx" }).select(BUILD_COLS).single();
+  if (error) throw error;
+  return rowToBuild(data as BuildRow, rows);
+}
+
+/**
+ * One clip as its own post: opened as it was, or started from the whole clip
+ * with no text. Captions are on when the clip has transcribed speech (they
+ * come from its real words); the brand preset sets size and style. No model call.
+ */
+export async function clipBuild(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; clipId: string; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
+  const { ownerId, wsId, project, clipId, preset } = args;
+  const rows = await clipRows(client, project.id);
+  const clip = rows.find((r) => r.id === clipId);
+  if (!clip || !clip.source_path || clip.purged_at || clip.status === "expired" || !((clip.duration_s ?? 0) > 0)) throw new Error("That clip isn't ready to post.");
+  const idx = clipIdx(clip.position);
+  const existing = await loadBuild(client, project.id, idx, rows);
+  if (existing) return existing;
+  const dur = clip.duration_s ?? 0;
+  const { edl } = validateEdl({
+    targetSec: { min: 1, max: Math.ceil(dur) + 1 },
+    segments: [{ clipId: clip.id, in: 0, out: dur }],
+    text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
+    ...(preset ? { width: preset.width, height: preset.height, style: preset.style } : {}),
+  }, [toClipForEdl(clip)]);
+  edl.captions = clip.transcript?.words?.length ? { source: "transcript" } : null;
+  if (!edl.segments.length) throw new Error("That clip is too short to post.");
+  const guide = guideFromEdl(edl, [toClipForEdl(clip)]);
+  const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: null, model: "manual", updated_at: now() };
   if (wsId) row.workspace_id = wsId;
   const { data, error } = await client.from("studio_builds").upsert(row, { onConflict: "project_id,opportunity_idx" }).select(BUILD_COLS).single();
   if (error) throw error;

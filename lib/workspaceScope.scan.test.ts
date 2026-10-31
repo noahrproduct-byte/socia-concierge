@@ -24,10 +24,8 @@ const SAFE: Record<string, [number, string]> = {
   "app/api/posts/[id]/route.ts scheduled_posts": [1, "delete by id after loadItem refused another workspace's post"],
   "app/api/schedule/publish/route.ts scheduled_posts": [1, "read-back by an id already loaded with the workspace"],
   "app/api/schedule/route.ts post_destinations": [2, "by post_id after the parent post was loaded or updated with the workspace"],
-  "app/api/studio/projects/[id]/plan/route.ts studio_builds": [1, "a build id from a workspace-scoped list"],
   "app/api/schedule/route.ts scheduled_posts": [2, "inserts without workspace_id only when there is no workspace, or its column is missing"],
   "app/api/studio/builds/[id]/draft/route.ts scheduled_posts": [4, "the build's own post (loadBuildRow is workspace-scoped); inserts without workspace_id only with no workspace or a missing column"],
-  "app/api/studio/projects/[id]/plan/route.ts scheduled_posts": [5, "posts of builds of a workspace-scoped project; inserts without workspace_id only with no workspace or a missing column"],
 };
 
 function files(dir: string, out: string[] = []): string[] {

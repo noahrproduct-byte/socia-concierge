@@ -3,7 +3,7 @@ import { getEntitlements, releaseUsage } from "@/lib/entitlements";
 import { requireFeature, requireUsage } from "@/lib/planGuard";
 import { rateHit } from "@/lib/oauth/runtime";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
-import { loadBuildRow, MANUAL_IDX } from "@/lib/studioClips/server";
+import { loadBuildRow, isOwnCutIdx } from "@/lib/studioClips/server";
 import { signedExportPath, verifyExportPath } from "@/lib/studioClips/exportToken";
 
 export const runtime = "nodejs";
@@ -28,7 +28,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (!row) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     const path = signedExportPath(viewerId, id);
     if (!path) return NextResponse.json({ error: "Exporting isn't set up on this server." }, { status: 503 });
-    if (row.opportunity_idx === MANUAL_IDX) {
+    if (isOwnCutIdx(row.opportunity_idx)) {
       const { denied } = await requireFeature(ctx.client, ctx.ownerId, "build_from_clips");
       if (denied) return denied;
       return NextResponse.json({ path, usage: null });
@@ -57,7 +57,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const row = await loadBuildRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!row) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     // The person's own edit counted nothing, so there is nothing to give back.
-    if (row.opportunity_idx === MANUAL_IDX) return NextResponse.json({ ok: true, refunded: false });
+    if (isOwnCutIdx(row.opportunity_idx)) return NextResponse.json({ ok: true, refunded: false });
     // A render that was kept is not refunded.
     if ((row as { render_path?: string | null }).render_path === path) return NextResponse.json({ ok: true, refunded: false });
     // Once per issued path (atomic): a second DELETE for the same export does nothing.
