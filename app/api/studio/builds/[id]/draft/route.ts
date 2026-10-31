@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireFeature } from "@/lib/planGuard";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
-import { loadBuildRow, markRendered } from "@/lib/studioClips/server";
+import { buildFeature, loadBuildRow, markRendered, MANUAL_IDX } from "@/lib/studioClips/server";
 import { isOwnPath } from "@/lib/storagePaths";
 import { verifyExportPath } from "@/lib/studioClips/exportToken";
 import { dbErrorResponse } from "@/lib/dbError";
@@ -25,10 +25,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // The path must be one the export step signed: proof the video build was counted.
   if (!body?.path || !isOwnPath(body.path, [viewerId]) || !verifyExportPath(body.path, viewerId, id)) return NextResponse.json({ error: "That media file is not yours." }, { status: 403 });
   try {
-    const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
-    if (denied) return denied;
     const row = await loadBuildRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!row) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
+    const { denied } = await requireFeature(ctx.client, ctx.ownerId, buildFeature(row.opportunity_idx === MANUAL_IDX));
+    if (denied) return denied;
 
     const conn = (await getActiveConnection(ctx.client, ctx.ownerId, "ig_user_id", ctx.workspace?.id ?? null)) as { ig_user_id?: string } | null;
     const { data: pub } = ctx.client.storage.from("scheduled-media").getPublicUrl(body.path);

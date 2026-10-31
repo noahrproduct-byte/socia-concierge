@@ -1,8 +1,8 @@
 // The edit decision list: validated and snapped from the model's proposal,
 // then rendered as a plain-language edit guide. The same EDL feeds the Player
 // in Phase B, so the guide and the preview can never disagree.
-import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, TranscriptWord } from "./types";
-import { clipLabel, fmtClock } from "./types";
+import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
+import { aspectOf, clipLabel, fmtClock } from "./types";
 import { finishSteps, sanitizeFinish } from "./finish";
 
 export type ClipForEdl = {
@@ -23,7 +23,10 @@ export type ClipForEdl = {
 /** What pass 3 hands over, before validation. */
 export type RawEdl = {
   targetSec?: { min: number; max: number };
-  segments: { clipId: string; in: number; out: number; role?: string; note?: string }[];
+  /** One of ASPECTS; anything else falls back to vertical. */
+  width?: number;
+  height?: number;
+  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null }[];
   text?: { at: number; end?: number; text: string; role?: string }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
   cta?: string | null;
@@ -126,6 +129,14 @@ export function gateEnhancements(raw: NonNullable<RawEdl["enhance"]>, clips: Cli
   return { kept, dropped };
 }
 
+/** A reframe, bounded; null when it is the default (centred, no zoom). */
+export function cleanFrame(f: { zoom?: number; x?: number; y?: number } | null | undefined): SegmentFrame | null {
+  if (!f) return null;
+  const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
+  const out = { zoom: r2(num(f.zoom, 1, 3, 1)), x: r2(num(f.x, 0, 1, 0.5)), y: r2(num(f.y, 0, 1, 0.5)) };
+  return out.zoom === 1 && out.x === 0.5 && out.y === 0.5 ? null : out;
+}
+
 export const edlDurationSec = (edl: Pick<Edl, "segments">): number => r2(edl.segments.reduce((a, s) => a + (s.out - s.in), 0));
 
 export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?: { min: number; max: number } } = {}): { edl: Edl; warnings: string[] } {
@@ -141,7 +152,8 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     const inT = snapTime(Math.min(s.in, s.out), clip, "in");
     const outT = snapTime(Math.max(s.in, s.out), clip, "out");
     if (outT - inT < EDL_DEFAULTS.minSegmentSec) { warnings.push(`segment ${i + 1} is too short after snapping`); return; }
-    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim() });
+    const frame = cleanFrame(s.frame);
+    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}) });
   });
   if (segments.length) {
     segments[0].role = "opener";
@@ -181,8 +193,8 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
   const edl: Edl = {
     version: 1,
     fps: EDL_DEFAULTS.fps,
-    width: EDL_DEFAULTS.width,
-    height: EDL_DEFAULTS.height,
+    width: aspectOf(raw.width ?? 0, raw.height ?? 0).width,
+    height: aspectOf(raw.width ?? 0, raw.height ?? 0).height,
     targetSec: target,
     segments,
     text,
@@ -207,7 +219,9 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   const total = edlDurationSec(edited);
   const raw: RawEdl = {
     targetSec: { min: edited.targetSec.min, max: Math.max(edited.targetSec.max, Math.ceil(total)) },
-    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note })),
+    width: edited.width,
+    height: edited.height,
+    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame })),
     text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
     cta: edited.cta, music: edited.music, caption: edited.caption,

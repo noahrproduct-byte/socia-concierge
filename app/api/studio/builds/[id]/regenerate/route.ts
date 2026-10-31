@@ -4,7 +4,7 @@ import { requireFeature } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
 import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
-import { regenerateBuild, accountContext } from "@/lib/studioClips/server";
+import { regenerateBuild, accountContext, isManualBuild } from "@/lib/studioClips/server";
 import { REGENERATE_OPTIONS, type RegenerateDirective } from "@/lib/studioClips/types";
 
 export const runtime = "nodejs";
@@ -26,6 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!directive) return NextResponse.json({ error: "Pick one of the regenerate options." }, { status: 400 });
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
   try {
+    if (await isManualBuild(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id)) return NextResponse.json({ error: "Your own edit has no AI rewrite. Edit it directly." }, { status: 400 });
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
     const limited = await perUserLimit(ctx.ownerId, "clip_edl", 40, "video edits");

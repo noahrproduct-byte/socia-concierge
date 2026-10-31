@@ -71,3 +71,23 @@ export function edgeEnvelope(frameInSegment: number, durationFrames: number, fad
   const outRamp = Math.min(1, (durationFrames - frameInSegment) / fade);
   return Math.max(0, Math.min(1, Math.min(inRamp, outRamp)));
 }
+
+/**
+ * Where a clip's video sits in the output frame (Editor V1 reframe). The
+ * element keeps the footage's own aspect (so "fill" never distorts it), is
+ * sized to cover the frame, scaled by the zoom, and offset so the chosen
+ * focus point (0..1 each way) sits in view; anything outside the frame is
+ * simply not drawn. Unknown footage size: null, and the clip is drawn
+ * centred with object-fit cover as before. With no reframe this matches
+ * cover, centred.
+ */
+export function videoBox(srcW: number | null, srcH: number | null, outW: number, outH: number, frame?: { zoom: number; x: number; y: number }): { position: "absolute"; width: string; height: string; left: string; top: string } | null {
+  if (!srcW || !srcH || !outW || !outH) return null;
+  const srcA = srcW / srcH, outA = outW / outH;
+  const z = Math.min(3, Math.max(1, frame?.zoom ?? 1));
+  const w = (srcA > outA ? (srcA / outA) * 100 : 100) * z;
+  const h = (srcA > outA ? 100 : (outA / srcA) * 100) * z;
+  const x = Math.min(1, Math.max(0, frame?.x ?? 0.5)), y = Math.min(1, Math.max(0, frame?.y ?? 0.5));
+  const pct = (n: number) => `${Math.round(n * 100) / 100}%`;
+  return { position: "absolute", width: pct(w), height: pct(h), left: pct(-(w - 100) * x), top: pct(-(h - 100) * y) };
+}
