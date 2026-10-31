@@ -120,7 +120,9 @@ label .opt {
   color: var(--slate);
   font-weight: 500;
 }
-input,
+/* Text fields only: checkboxes and radios keep their native size. :where()
+   keeps this at element specificity so component classes still win. */
+input:where(:not([type="checkbox"], [type="radio"])),
 textarea,
 select {
   width: 100%;
