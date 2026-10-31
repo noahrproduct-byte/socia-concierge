@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { ytAuthUrl, YT_READ_SCOPES, YT_WRITE_SCOPE } from "./youtubeAuth";
 
-// The default YouTube connect must request ONLY the two verified read scopes,
-// so Google shows no "unverified app" warning. The write scope (not verified
-// yet) is added only on the explicit publish opt-in.
+// The default YouTube connect must request ONLY the two read scopes. The write
+// scope is added only on the explicit publish opt-in.
 beforeAll(() => {
   process.env.GOOGLE_CLIENT_ID = "test-client-id";
 });

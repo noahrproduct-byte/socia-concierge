@@ -20,8 +20,8 @@ export async function GET(req: Request) {
   // Where to land after the callback: settings (default) or onboarding, carried
   // through Google in the second half of the state value.
   const dest = url.searchParams.get("next") === "onboarding" ? "onboarding" : "settings";
-  // Opt-in publishing: only this path requests the (unverified) write scope, so
-  // an ordinary analytics connect never triggers the "unverified app" warning.
+  // Opt-in publishing: only this path requests the write scope, so an ordinary
+  // analytics connect asks for read access alone.
   const write = url.searchParams.get("publish") === "1";
 
   if (!ytAuthConfigured()) {

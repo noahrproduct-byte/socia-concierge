@@ -23,12 +23,10 @@ export const YT_READ_SCOPES = [
 
 // The `youtube` write scope the composer needs to upload, edit and add to
 // playlists (videos.insert/update, thumbnails.set, playlistItems.insert;
-// youtube.upload alone would not cover update or playlists). It is NOT yet
-// registered/verified on the OAuth project, so requesting it makes Google show
-// the "app isn't verified" warning. It is therefore requested only on an
-// explicit opt-in (the "enable YouTube publishing" path, /start?publish=1),
-// via incremental auth, so ordinary analytics connects stay clean. Submit this
-// scope for verification before YouTube publishing goes public.
+// youtube.upload alone would not cover update or playlists). Google verified it
+// for the OAuth project on 2026-10-31. It is still requested only on an explicit
+// opt-in (the "enable YouTube publishing" path, /start?publish=1), via
+// incremental auth, so an analytics-only connect asks for read access alone.
 export const YT_WRITE_SCOPE = "https://www.googleapis.com/auth/youtube";
 
 // Full set (read + write), for the publish-enabled connect. Channels connected
@@ -76,8 +74,8 @@ export function ytAuthUrl(state: string, redirectUri: string, opts: { write?: bo
   u.searchParams.set("client_id", ytClientId()!);
   u.searchParams.set("redirect_uri", redirectUri);
   u.searchParams.set("response_type", "code");
-  // Default: verified read scopes only (no warning). The unverified write scope
-  // is added only when publishing is explicitly requested.
+  // Default: read scopes only. The write scope is added only when publishing is
+  // explicitly requested.
   u.searchParams.set("scope", (opts.write ? YT_SCOPES : YT_READ_SCOPES).join(" "));
   u.searchParams.set("access_type", "offline");
   u.searchParams.set("prompt", "consent");
