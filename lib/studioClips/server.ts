@@ -314,7 +314,47 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
       words: r.transcript?.words?.length ? r.transcript.words : null,
       moments: r.card?.moments ?? [],
     }));
-  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit };
+  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: row.opportunity_idx === MANUAL_IDX };
+}
+
+/** The plan feature a build needs: the person's own edit is on every plan; SOCIA's first cut is Growth and Pro. */
+export const buildFeature = (manual: boolean): "build_from_clips" | "auto_build" => (manual ? "build_from_clips" : "auto_build");
+
+/** The opportunity index of a project's own edit (Editor V1): one per project, made by the person, never by AI. */
+export const MANUAL_IDX = -1;
+
+/** Is this build the person's own edit? Decides which plan feature and allowance apply. */
+export async function isManualBuild(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<boolean | null> {
+  const row = await loadBuildRow(client, ownerId, wsId, buildId);
+  return row ? row.opportunity_idx === MANUAL_IDX : null;
+}
+
+/**
+ * The project's own edit: opened as it was, or started with every ready clip
+ * in upload order, full length, no text, no corrections. No model call.
+ */
+export async function manualBuild(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow }): Promise<StudioBuild> {
+  const { ownerId, wsId, project } = args;
+  const rows = await clipRows(client, project.id);
+  const existing = await loadBuild(client, project.id, MANUAL_IDX, rows);
+  if (existing) return existing;
+  const ready = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
+  if (!ready.length) throw new Error("Add at least one clip that finished uploading.");
+  const forEdl = ready.map(toClipForEdl);
+  const { edl } = validateEdl({
+    targetSec: { min: 1, max: Math.ceil(ready.reduce((a, r) => a + (r.duration_s ?? 0), 0)) + 1 },
+    segments: ready.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
+    text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
+  }, forEdl);
+  // Captions only when the person turns them on.
+  edl.captions = null;
+  if (!edl.segments.length) throw new Error("These clips are too short to edit.");
+  const guide = guideFromEdl(edl, forEdl);
+  const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: MANUAL_IDX, edl, guide, caption: null, model: "manual", updated_at: now() };
+  if (wsId) row.workspace_id = wsId;
+  const { data, error } = await client.from("studio_builds").upsert(row, { onConflict: "project_id,opportunity_idx" }).select(BUILD_COLS).single();
+  if (error) throw error;
+  return rowToBuild(data as BuildRow, rows);
 }
 
 /** A person's edit, re-validated and saved; the guide is re-rendered from the same EDL. */

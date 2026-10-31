@@ -1,15 +1,16 @@
 "use client";
 
-// Make This Video (Growth/Pro). SOCIA's first cut of a post, previewed by
-// Remotion from the same EDL the edit guide describes, with the few controls
-// the brief asked for: reorder, trim, replace, delete, edit text, captions
-// on/off, undo/redo, regenerate with a directive. The video is rendered HERE
+// The video editor. Two kinds of build share it: SOCIA's first cut of a post
+// (Make This Video, Growth/Pro) and the person's own edit of their clips
+// (Editor V1, every plan; no AI regenerate). Previewed by Remotion from the
+// EDL: reorder, trim (by step or at the playhead), split, replace, delete,
+// aspect ratio and reframe, text lines, captions on/off, undo/redo. The video is rendered HERE
 // in the browser (WebCodecs) and saved as a DRAFT post — nothing is scheduled
 // or published without the person doing it in Create Post.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Player } from "@remotion/player";
-import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Type, Music } from "lucide-react";
+import { Player, type PlayerRef } from "@remotion/player";
+import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Type, Music, Crop, Scissors, SkipBack, SkipForward } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
@@ -18,7 +19,7 @@ import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
 import FinishPanel from "./FinishPanel";
 import { timeline } from "@/lib/studioClips/timeline";
-import { clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
+import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
 const STEP = 0.5;
@@ -41,9 +42,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  const [panel, setPanel] = useState<"cut" | "text" | "finish" | "audio" | "regenerate">("cut");
+  const [panel, setPanel] = useState<"cut" | "frame" | "text" | "finish" | "audio" | "regenerate">("cut");
   // Before/After for the measured corrections; the export always uses After.
   const [compare, setCompare] = useState<"before" | "after">("after");
+  const player = useRef<PlayerRef>(null);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -93,6 +95,37 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const addText = () => { if (!edl || !tl) return; const at = Math.min(Math.max(0, tl.durationSec - 4), Math.round(tl.durationSec / 2)); commit({ ...edl, text: [...edl.text, { id: `t${Date.now()}`, at, end: Math.min(tl.durationSec, at + 3), text: "New line", role: "mid" }] }); };
   const toggleCaptions = () => { if (!edl) return; commit({ ...edl, captions: edl.captions ? null : { source: "transcript" } }); };
 
+  // At the playhead: which cut it is in, and where that is inside the clip.
+  const at = () => {
+    if (!tl) return null;
+    const sec = (player.current?.getCurrentFrame() ?? 0) / OUTPUT.fps;
+    const i = tl.segments.findIndex((x) => sec >= x.startSec && sec < x.startSec + x.durationFrames / OUTPUT.fps);
+    const k = i < 0 ? tl.segments.length - 1 : i;
+    const seg = tl.segments[k];
+    return { sec, i: k, clipT: r2(seg.in + Math.max(0, sec - seg.startSec)) };
+  };
+  const [hereNote, setHereNote] = useState<string | null>(null);
+  const startHere = () => { const p = at(); if (!edl || !p) return; const s = edl.segments[p.i]; if (s.out - p.clipT < MIN_SEG) return setHereNote(`Too close to the end of that cut; a cut needs ${MIN_SEG}s.`); setHereNote(null); commit({ ...edl, segments: edl.segments.map((x, k) => (k === p.i ? { ...x, in: p.clipT } : x)) }); };
+  const endHere = () => { const p = at(); if (!edl || !p) return; const s = edl.segments[p.i]; if (p.clipT - s.in < MIN_SEG) return setHereNote(`Too close to the start of that cut; a cut needs ${MIN_SEG}s.`); setHereNote(null); commit({ ...edl, segments: edl.segments.map((x, k) => (k === p.i ? { ...x, out: p.clipT } : x)) }); };
+  const splitHere = () => {
+    const p = at(); if (!edl || !p) return; const s = edl.segments[p.i];
+    if (p.clipT - s.in < MIN_SEG || s.out - p.clipT < MIN_SEG) return setHereNote(`Move the playhead at least ${MIN_SEG}s from either end of the cut to split it.`);
+    setHereNote(null);
+    const a = { ...s, out: p.clipT }, b = { ...s, id: `s${Date.now()}`, in: p.clipT, role: "body" as const };
+    commit({ ...edl, segments: [...edl.segments.slice(0, p.i), a, b, ...edl.segments.slice(p.i + 1)] });
+  };
+  const lineHere = () => { const p = at(); if (!edl || !tl) return; const t0 = r2(Math.min(Math.max(0, (p?.sec ?? 0)), Math.max(0, tl.durationSec - 0.5))); commit({ ...edl, text: [...edl.text, { id: `t${Date.now()}`, at: t0, end: r2(Math.min(tl.durationSec, t0 + 3)), text: "New line", role: t0 < 1 ? "opening" : "mid" }] }); };
+
+  // Reframe: a drag is one undo step (history pushed when it starts), applied live while it moves.
+  const beginLive = () => { if (edl) { setPast((p) => [...p.slice(-49), edl]); setFuture([]); } };
+  const setFrame = (i: number, patch: Partial<{ zoom: number; x: number; y: number }>) => {
+    if (!edl) return;
+    setEdl({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, frame: { zoom: 1, x: 0.5, y: 0.5, ...x.frame, ...patch } } : x)) });
+    setDirty(true);
+  };
+  const resetFrame = (i: number) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, frame: undefined } : x)) }); };
+  const setAspect = (w: number, h: number) => { if (!edl || (edl.width === w && edl.height === h)) return; commit({ ...edl, width: w, height: h }); };
+
   const save = async () => {
     if (!edl || fixture) { setDirty(false); return; }
     setSaving(true); setSaveErr(null);
@@ -123,10 +156,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
     setExp({ phase: "checking", progress: 0, message: null, postId: null });
     try {
       const { canRenderMediaOnWeb, renderMediaOnWeb } = await import("@remotion/web-renderer");
-      const check = await canRenderMediaOnWeb({ width: OUTPUT.width, height: OUTPUT.height, container: "mp4" });
+      const check = await canRenderMediaOnWeb({ width: edl.width, height: edl.height, container: "mp4" });
       if (!check.canRender) {
         const why = check.issues.filter((i) => i.severity === "error").map((i) => i.message).join(" ");
-        setExp({ phase: "error", progress: 0, message: `This browser can't render video: ${why || "WebCodecs is unavailable."} Open SOCIA in Chrome, Edge or Firefox on a computer to make the video; the edit guide works everywhere.`, postId: null });
+        setExp({ phase: "error", progress: 0, message: `This browser can't render video: ${why || "WebCodecs is unavailable."} Open SOCIA in Chrome or Edge on a computer to make the video; your edit is saved and opens there as it is.`, postId: null });
         return;
       }
       if (dirty && !fixture) await save();
@@ -140,7 +173,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
       setExp({ phase: "rendering", progress: 0, message: null, postId: null });
       const props = { edl, sources, captionsOn };
       const { getBlob } = await renderMediaOnWeb({
-        composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: OUTPUT.width, height: OUTPUT.height, defaultProps: props, calculateMetadata: null },
+        composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
         inputProps: props,
         container: "mp4",
         videoBitrate: "high",
@@ -187,7 +220,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   return (
     <div className="cbb">
       <div className="cbb-head">
-        <button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button>
+        <button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> {data.manual ? "Back to your clips" : "Back to the guide"}</button>
         <div className="cbb-head-actions">
           <button type="button" className="ov-btn ghost small" disabled={!past.length || busy} onClick={undo} title="Undo"><Undo2 size={13} /> Undo</button>
           <button type="button" className="ov-btn ghost small" disabled={!future.length || busy} onClick={redo} title="Redo"><Redo2 size={13} /> Redo</button>
@@ -201,20 +234,21 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
           <div className="ov-card cbb-player-card">
             <div className="cbb-player">
               <Player
+                ref={player}
                 component={ClipComposition}
                 inputProps={{ edl, sources, captionsOn, finishOn: compare === "after" }}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
-                compositionWidth={OUTPUT.width}
-                compositionHeight={OUTPUT.height}
+                compositionWidth={edl.width}
+                compositionHeight={edl.height}
                 controls
                 acknowledgeRemotionLicense
-                style={{ width: "100%", aspectRatio: "9 / 16" }}
+                style={{ width: "100%", aspectRatio: `${edl.width} / ${edl.height}` }}
               />
             </div>
             <div className="cbb-player-meta">
               <b>{title}</b>
-              <span>{tl.durationSec.toFixed(1)}s · {edl.segments.length} cut{edl.segments.length === 1 ? "" : "s"} · {OUTPUT.width}×{OUTPUT.height}</span>
+              <span>{tl.durationSec.toFixed(1)}s, {edl.segments.length} cut{edl.segments.length === 1 ? "" : "s"}, {edl.width}×{edl.height}</span>
               {edl.finish && (
                 <div className="cal2-seg cbf-compare" role="radiogroup" aria-label="Compare corrections">
                   <button type="button" role="radio" aria-checked={compare === "before"} className={compare === "before" ? "on" : ""} onClick={() => setCompare("before")}>Before</button>
@@ -229,7 +263,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
             <h3><Clapperboard size={14} /> Make the video</h3>
             {exp.phase === "idle" || exp.phase === "error" ? (
               <>
-                <p>Rendered on this computer at {OUTPUT.width}×{OUTPUT.height}, then saved as a <b>draft</b> in your Calendar. You schedule or publish it from Create Post.</p>
+                <p>Rendered on this computer at {edl.width}×{edl.height}, then saved as a <b>draft</b> in your Calendar. You schedule or publish it from Create Post.{data.manual ? " Nothing is counted against your plan." : ""} Works best in Chrome or Edge on a computer.</p>
                 {exp.message && <p className="cbb-err"><AlertTriangle size={12} /> {exp.message}</p>}
                 <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || !data.canEdit} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
                 {build.postId && <Link className="ov-btn ghost small" href={`/create?post=${build.postId}`}>Open the saved draft <ArrowRight size={12} /></Link>}
@@ -259,10 +293,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
         <div className="cbb-panels">
           <div className="st-tabs cbb-tabs" role="tablist">
             <button type="button" role="tab" className={panel === "cut" ? "on" : ""} onClick={() => setPanel("cut")}>Cut</button>
+            <button type="button" role="tab" className={panel === "frame" ? "on" : ""} onClick={() => setPanel("frame")}>Frame</button>
             <button type="button" role="tab" className={panel === "text" ? "on" : ""} onClick={() => setPanel("text")}>Text &amp; captions</button>
             <button type="button" role="tab" className={panel === "finish" ? "on" : ""} onClick={() => setPanel("finish")}>Look &amp; sound</button>
             <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Music</button>
-            <button type="button" role="tab" className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>
+            {!data.manual && <button type="button" role="tab" className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>}
           </div>
 
           {panel === "finish" && (
@@ -277,6 +312,51 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
                 <small>SOCIA never adds a track to the file. Add music from Instagram&apos;s library when you post, or bake in a track you have the rights to.</small>
               </div>
               <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
+            </div>
+          )}
+
+          {panel === "cut" && (
+            <div className="cbb-here" role="group" aria-label="At the playhead">
+              <span>At the playhead:</span>
+              <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={startHere}><SkipBack size={12} /> Start here</button>
+              <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={endHere}><SkipForward size={12} /> End here</button>
+              <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={splitHere}><Scissors size={12} /> Split here</button>
+              {hereNote && <small className="cbb-err" role="status">{hereNote}</small>}
+            </div>
+          )}
+
+          {panel === "frame" && (
+            <div className="cbb-frame">
+              <div className="ov-card">
+                <b><Crop size={14} /> Size</b>
+                <div className="cal2-seg cbb-aspects" role="radiogroup" aria-label="Aspect ratio">
+                  {ASPECTS.map((a) => (
+                    <button key={a.id} type="button" role="radio" aria-checked={edl.width === a.width && edl.height === a.height} className={edl.width === a.width && edl.height === a.height ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setAspect(a.width, a.height)}>{a.label}</button>
+                  ))}
+                </div>
+                <small>Reels, TikTok and Shorts are vertical; 4:5 and square suit the feed; 16:9 suits YouTube.</small>
+              </div>
+              <ol className="cbb-frames">
+                {edl.segments.map((s, i) => {
+                  const src = sources[s.clipId];
+                  const f = s.frame ?? { zoom: 1, x: 0.5, y: 0.5 };
+                  return (
+                    <li key={s.id} className="ov-card">
+                      <div className="cbb-frame-head">
+                        <b>{src ? clipLabel(src.position) : "Expired clip"} <small>{fmtClock(s.in)} to {fmtClock(s.out)}</small></b>
+                        <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || !s.frame} onClick={() => resetFrame(i)}>Reset</button>
+                      </div>
+                      {!src?.width || !src?.height ? <small>This clip&apos;s size wasn&apos;t measured, so it stays centred.</small> : (
+                        <>
+                          <label className="cbb-range"><span>Zoom</span><input type="range" min={1} max={3} step={0.05} value={f.zoom} disabled={!data.canEdit || busy} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setFrame(i, { zoom: Number(e.target.value) })} /><em>{f.zoom.toFixed(2)}×</em></label>
+                          <label className="cbb-range"><span>Left to right</span><input type="range" min={0} max={1} step={0.01} value={f.x} disabled={!data.canEdit || busy} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setFrame(i, { x: Number(e.target.value) })} /><em>{Math.round(f.x * 100)}%</em></label>
+                          <label className="cbb-range"><span>Top to bottom</span><input type="range" min={0} max={1} step={0.01} value={f.y} disabled={!data.canEdit || busy} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setFrame(i, { y: Number(e.target.value) })} /><em>{Math.round(f.y * 100)}%</em></label>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           )}
 
@@ -334,7 +414,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
               </ul>
               <div className="st-row-actions">
                 <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || edl.text.length >= 4} onClick={addText}><Type size={12} /> Add a line</button>
-                <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || Boolean(regen)} onClick={() => regenerate("different_hook")}>{regen === "different_hook" ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />} Different hook</button>
+                <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={lineHere}><Type size={12} /> Add a line at the playhead</button>
+                {!data.manual && <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || Boolean(regen)} onClick={() => regenerate("different_hook")}>{regen === "different_hook" ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />} Different hook</button>}
               </div>
               <div className="ov-card cbb-caption-copy">
                 <b>Caption for the post</b>

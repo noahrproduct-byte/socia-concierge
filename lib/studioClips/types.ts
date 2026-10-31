@@ -190,7 +190,20 @@ export type EdlSegment = {
   out: number;
   role: "opener" | "body" | "ending";
   note: string;
+  /** Reframe (Editor V1): zoom 1..3 and where the frame sits in the footage, 0..1 each way (0.5 = centred). Absent = centred cover. */
+  frame?: SegmentFrame;
 };
+
+export type SegmentFrame = { zoom: number; x: number; y: number };
+
+/** The output sizes the editor offers (width × height at 1080 on the short side). */
+export const ASPECTS = [
+  { id: "9:16", label: "Vertical 9:16", width: 1080, height: 1920 },
+  { id: "4:5", label: "Portrait 4:5", width: 1080, height: 1350 },
+  { id: "1:1", label: "Square 1:1", width: 1080, height: 1080 },
+  { id: "16:9", label: "Landscape 16:9", width: 1920, height: 1080 },
+] as const;
+export const aspectOf = (w: number, h: number) => ASPECTS.find((a) => a.width === w && a.height === h) ?? ASPECTS[0];
 
 export type EdlText = {
   id: string;
@@ -374,8 +387,10 @@ export type BuildSource = {
 export type BuildPlayerData = {
   build: StudioBuild;
   sources: BuildSource[];
-  /** the viewer may edit, regenerate and export (owner/admin, plan includes auto_build) */
+  /** the viewer may edit and export (owner/admin, and the plan includes this kind of build) */
   canEdit: boolean;
+  /** The person's own edit of their clips (Editor V1, every plan): no AI regenerate, no AI build counted. */
+  manual: boolean;
 };
 
 /** Output canvas for every build (vertical, Reels/TikTok/Shorts). */

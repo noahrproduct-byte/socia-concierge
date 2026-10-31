@@ -3,12 +3,14 @@ import { getEntitlements, checkFeature } from "@/lib/entitlements";
 import { requireFeature } from "@/lib/planGuard";
 import { can } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
-import { buildPlayerData, saveBuildEdl } from "@/lib/studioClips/server";
+import { buildFeature, buildPlayerData, isManualBuild, saveBuildEdl } from "@/lib/studioClips/server";
 import type { Edl } from "@/lib/studioClips/types";
 
 export const runtime = "nodejs";
 
-// One build for Make This Video (Growth/Pro).
+// One build: SOCIA's first cut (Make This Video, Growth/Pro, feature
+// auto_build) or the person's own edit of their clips (Editor V1, every plan,
+// feature build_from_clips).
 //   GET          -> BuildPlayerData: the EDL, the guide and signed clip sources for the Player
 //   PATCH { edl } -> the person's edit, re-validated (cuts snap to word/pause
 //                    boundaries, nothing outside a clip) and saved; previous
@@ -21,9 +23,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { ctx } = r;
   try {
     const ent = await getEntitlements(ctx.client, ctx.ownerId);
-    const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build", ent);
+    const manual = await isManualBuild(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
+    if (manual == null) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
+    const feature = buildFeature(manual);
+    const { denied } = await requireFeature(ctx.client, ctx.ownerId, feature, ent);
     if (denied) return denied;
-    const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, checkFeature(ent, "auto_build").ok && can(ctx, "publish"));
+    const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, checkFeature(ent, feature).ok && can(ctx, "publish"));
     if (!data) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     return NextResponse.json(data);
   } catch (e) {
@@ -42,7 +47,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const body = (await req.json().catch(() => null)) as { edl?: Edl } | null;
   if (!body?.edl || !Array.isArray(body.edl.segments)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   try {
-    const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
+    const manual = await isManualBuild(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
+    if (manual == null) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
+    const { denied } = await requireFeature(ctx.client, ctx.ownerId, buildFeature(manual));
     if (denied) return denied;
     const build = await saveBuildEdl(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, body.edl);
     return NextResponse.json(build);

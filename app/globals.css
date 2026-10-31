@@ -11369,3 +11369,20 @@ p.cbp-muted { display: block; }
 .wf-ex small { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); overflow-wrap: anywhere; }
 @media (max-width: 640px) { .wf-examples { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .st-plan-ctx { margin: 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text-secondary); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+
+/* Editor V1 (components/studio/ClipBuilder.tsx, ClipsStudio.tsx) */
+.cbb-here { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); color: var(--text-secondary); font-size: var(--fs-meta); }
+.cbb-frame { display: grid; gap: var(--sp-3); }
+.cbb-frame > .ov-card { display: grid; gap: var(--sp-2); }
+.cbb-frame small { color: var(--text-secondary); font-size: var(--fs-meta); }
+.cbb-aspects { flex-wrap: wrap; }
+.cbb-frames { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-2); }
+.cbb-frames > li { display: grid; gap: var(--sp-2); }
+.cbb-frame-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.cbb-frame-head small { margin-left: var(--sp-1); color: var(--text-secondary); font-weight: var(--fw-regular); }
+.cbb-range { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 3.5rem; align-items: center; gap: var(--sp-2); font-size: var(--fs-meta); }
+.cbb-range em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.cbb-range input { width: 100%; }
+.cb-manual { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); margin-top: var(--sp-3); }
+.cb-manual > div { display: grid; gap: var(--sp-1); min-width: 0; }
+.cb-manual small { color: var(--text-secondary); font-size: var(--fs-meta); }

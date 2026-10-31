@@ -14,7 +14,7 @@ import { colorCorrection } from "@remotion/effects/color-correction";
 import { loadFont } from "@remotion/google-fonts/Inter";
 import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
 import type { BuildSource, Edl, EdlText } from "@/lib/studioClips/types";
-import { timeline, captionsForEdl, dbToGain, edgeEnvelope, secToFrames, FPS } from "@/lib/studioClips/timeline";
+import { timeline, captionsForEdl, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS } from "@/lib/studioClips/timeline";
 import { gainAtDb } from "@/lib/studioClips/sound";
 
 const { fontFamily } = loadFont("normal", { weights: ["600", "700"], subsets: ["latin"] });
@@ -91,7 +91,8 @@ function CaptionPage({ page }: { page: TikTokPage }) {
 }
 
 export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, finishOn }) => {
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const box = (s: { clipId: string; frame?: { zoom: number; x: number; y: number } }) => videoBox(sources[s.clipId]?.width ?? null, sources[s.clipId]?.height ?? null, width, height, s.frame);
   const tl = useMemo(() => timeline(edl), [edl]);
   // Measured balance, expressed as attenuation so no clip is pushed above unity.
   const maxGain = useMemo(() => Math.max(0, ...tl.segments.map((s) => s.gainDb)), [tl]);
@@ -125,9 +126,10 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
               // Cleanup on: the measured gain curve (it may lift quiet sound; its peaks were measured
               // to stay under -1 dBFS). Off: the Phase B balance, as attenuation only.
               volume={(f) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames)}
-              // Fill the vertical frame; landscape footage is cropped at the sides, never letterboxed.
-              objectFit="cover"
-              style={{ width: "100%", height: "100%" }}
+              // Cover the frame, never letterboxed: sized to the footage's own aspect and the
+              // person's reframe (videoBox), or centred cover when the size isn't known.
+              objectFit={box(s) ? "fill" : "cover"}
+              style={box(s) ?? { width: "100%", height: "100%" }}
             />
           </Sequence>
         );

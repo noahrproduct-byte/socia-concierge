@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Upload, Sparkles, AlertTriangle, Loader2, RefreshCw, Layers, FolderOpen } from "lucide-react";
+import { Upload, Sparkles, AlertTriangle, Loader2, RefreshCw, Layers, FolderOpen, Scissors } from "lucide-react";
 import PageHeader from "../PageHeader";
 import PlanNotice, { UsageLine } from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
@@ -62,6 +62,9 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
   const [build, setBuild] = useState<StudioBuild | null>(null);
   const [buildLoading, setBuildLoading] = useState(false);
   const [buildError, setBuildError] = useState<string | null>(null);
+  // The person's own edit of these clips (Editor V1, every plan, no AI).
+  const [manual, setManual] = useState<StudioBuild | null>(null);
+  const [manualBusy, setManualBusy] = useState(false);
   const [building, setBuilding] = useState(false);
   const [busyIds, setBusyIds] = useState(0);
   const projectRef = useRef<StudioProject | null>(null);
@@ -262,6 +265,16 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     setProject((p) => (p && !p.builds.includes(o.idx) ? { ...p, builds: [...p.builds, o.idx] } : p));
   }, [project]);
 
+  const openManual = useCallback(async () => {
+    if (!project) return;
+    setManualBusy(true); setNotice(null);
+    const res = await fetch(`/api/studio/projects/${project.id}/edit`, { method: "POST" });
+    const j = await res.json().catch(() => null);
+    setManualBusy(false);
+    if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setNotice(j?.error ?? "Couldn't open the editor."); return; }
+    setManual(j as StudioBuild);
+  }, [project]);
+
   const deleteProject = useCallback(async (id: string) => {
     if (!window.confirm("Delete this project and its uploaded clips?")) return;
     const res = await fetch(`/api/studio/projects/${id}`, { method: "DELETE" });
@@ -276,8 +289,8 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
   const footageSec = readyClips.reduce((a, l) => a + (l.durationSec ?? 0), 0);
   const bytes = readyClips.reduce((a, l) => a + (l.clip?.bytes ?? 0), 0);
   const stale = Boolean(project?.yield && project.status === "collecting");
-  const view: "start" | "collect" | "understanding" | "yield" | "opportunity" | "builder" =
-    !project ? "start" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
+  const view: "start" | "collect" | "understanding" | "yield" | "opportunity" | "builder" | "manual" =
+    !project ? "start" : manual ? "manual" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
   const canUnderstand = readyClips.length > 0 && !uploading && !starting;
   const limits = meta?.limits;
 
@@ -345,6 +358,11 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
               {meta?.usage && <UsageLine meter="content_build" used={meta.usage.used} limit={meta.usage.limit} resetsOn={meta.usage.resetsOn} always />}
               {view === "collect" && project.yield && <button type="button" className="ov-btn ghost small" onClick={() => setAdding(false)}>Back to results</button>}
               {view === "collect" && (
+                <button type="button" className="ov-btn ghost" disabled={!(readyClips.length > 0 && !uploading) || manualBusy} onClick={() => void openManual()} title="Cut, arrange and export these clips yourself. No AI, nothing counted.">
+                  {manualBusy ? <Loader2 size={14} className="spin" /> : <Scissors size={14} />} Edit them yourself
+                </button>
+              )}
+              {view === "collect" && (
                 <button type="button" className="ov-btn primary" disabled={!canUnderstand} onClick={() => void understand()}>
                   {starting ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {project.yield ? "Understand again" : "Understand this footage"}
                 </button>
@@ -362,12 +380,20 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
       {view === "yield" && project?.yield && (
         <>
           <YieldView y={project.yield} clips={project.clips} builds={project.builds} onOpen={(o) => void openOpportunity(o)} onAddMore={() => setAdding(true)} stale={stale} outcomes={learn?.outcomes} />
+          <div className="ov-card cb-manual">
+            <div><b><Scissors size={14} /> Edit the clips yourself</b><small>Cut, arrange, reframe and add text to every clip in this project, then export. No AI, nothing counted against your plan.</small></div>
+            <button type="button" className="ov-btn ghost small" disabled={manualBusy} onClick={() => void openManual()}>{manualBusy ? <Loader2 size={13} className="spin" /> : null} Open the editor</button>
+          </div>
           {project.yield.opportunities.length > 0 && <PlanPanel projectId={project.id} stale={stale} />}
         </>
       )}
 
       {view === "opportunity" && project && openOpp && (
         <OpportunityView o={openOpp} build={build} clips={project.clips} loading={buildLoading} error={buildError} onBack={() => { setOpenOpp(null); setBuild(null); }} onRetry={() => void openOpportunity(openOpp)} canMake={meta ? meta.autoBuild : null} onMake={() => setBuilding(true)} />
+      )}
+
+      {view === "manual" && manual && (
+        <ClipBuilder buildId={manual.id} title={project?.title || "Your edit"} onBack={() => setManual(null)} />
       )}
 
       {view === "builder" && openOpp && build && (
