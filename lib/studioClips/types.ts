@@ -264,6 +264,8 @@ export type Edl = {
   playlist?: Playlist;
   /** The track mixed in, and the two levels the person chose. */
   soundtrack?: Soundtrack;
+  /** When SOCIA tried adding music on its own (once per cut, whatever happened). Server-owned. */
+  musicAuto?: string;
 };
 
 export type EdlBrief = { prompt: string | null; reference: string | null; referenceName: string | null };

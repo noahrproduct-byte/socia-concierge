@@ -77,6 +77,16 @@ Write ${PLAYLIST_SIZE} tracks and the searches.` }],
   return playlist;
 }
 
+/** Whether any clip the cut uses has speech (music then sits lower under the voice). */
+export async function cutHasSpeech(client: Supa, edl: Edl, projectId: string): Promise<boolean> {
+  const rows = await clipRows(client, projectId);
+  const used = new Set(edl.segments.map((s) => s.clipId));
+  return rows.some((r) => used.has(r.id) && (r.transcript?.words?.length ?? 0) > 0);
+}
+
+/** Levels for a track SOCIA adds on its own: lower under speech, the clips' own sound kept. */
+export const autoLevels = (speech: boolean) => ({ musicVolume: speech ? 0.35 : 0.6, originalVolume: 1 });
+
 /** Make one track of the cut's playlist and store it; returns its storage path. Already made = returned as is. */
 export async function makeTrack(client: Supa, args: { ownerId: string; wsId: string | null; buildId: string; trackId: string }): Promise<{ path: string; made: boolean }> {
   const { ownerId, wsId, buildId, trackId } = args;

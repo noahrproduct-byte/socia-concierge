@@ -13,10 +13,13 @@ import { fmtClock } from "@/lib/studioClips/types";
 import { fileLabel } from "@/lib/publishing/postLabel";
 import type { LibraryClip } from "@/lib/studioClips/library";
 
-export default function ClipLibrary({ onOpenCut, allowPost = true }: {
+export default function ClipLibrary({ onOpenCut, allowPost = true, onUse, useLabel = "Make a new video" }: {
   /** a clip opened as its own post: the cut to edit and schedule */
   onOpenCut?: (buildId: string, title: string) => void;
   allowPost?: boolean;
+  /** Video editor: the picked clips go into the video being made here (instead of a new Build project) */
+  onUse?: (clipIds: string[]) => Promise<string | null>;
+  useLabel?: string;
 }) {
   const router = useRouter();
   const [clips, setClips] = useState<LibraryClip[] | null>(null);
@@ -44,6 +47,12 @@ export default function ClipLibrary({ onOpenCut, allowPost = true }: {
 
   const newVideo = async () => {
     setBusy("new"); setError(null); setPlanError(null);
+    if (onUse) {
+      const err = await onUse(Array.from(picked));
+      setBusy(null);
+      if (err) setError(err); else setPicked(new Set());
+      return;
+    }
     const res = await fetch("/api/studio/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fromClips: Array.from(picked) }) }).catch(() => null);
     const j = res ? await res.json().catch(() => null) : null;
     if (!res?.ok || !j?.id) { setBusy(null); if (isPlanError(j)) setPlanError(j); else setError(j?.error ?? "Couldn't start a new video."); return; }
@@ -83,9 +92,9 @@ export default function ClipLibrary({ onOpenCut, allowPost = true }: {
             ))}
           </ul>
           <div className="cb-lib-bar">
-            <span>{picked.size ? `${picked.size} clip${picked.size === 1 ? "" : "s"} picked` : "Pick clips to make a new video"}</span>
+            <span>{picked.size ? `${picked.size} clip${picked.size === 1 ? "" : "s"} picked` : onUse ? "Pick clips to use in this video" : "Pick clips to make a new video"}</span>
             <button type="button" className="ov-btn primary small" disabled={!picked.size || busy != null} onClick={() => void newVideo()}>
-              {busy === "new" ? <Loader2 size={12} className="spin" /> : <Layers size={12} />} Make a new video
+              {busy === "new" ? <Loader2 size={12} className="spin" /> : <Layers size={12} />} {useLabel}
             </button>
           </div>
         </>
