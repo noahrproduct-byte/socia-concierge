@@ -31,7 +31,7 @@ export const maxDuration = 60;
 // owner's calendar and never on a private copy.
 
 const ACTIONS: CreatePostPayload["action"][] = ["draft", "schedule", "publish"];
-const SOURCES = ["calendar", "composer", "quick", "studio", "plan", "repurpose"];
+const SOURCES = ["calendar", "composer", "quick", "studio", "plan", "repurpose", "assistant"];
 const BUCKET = "scheduled-media";
 
 // Platforms that schedule natively and whose upload runs in the browser: a

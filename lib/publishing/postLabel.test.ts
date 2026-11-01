@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstLineOf, postLabel } from "./postLabel";
+import { fileLabel, firstLineOf, postLabel } from "./postLabel";
 
 describe("postLabel", () => {
   it("uses the caption's first line when there is one", () => {
@@ -23,5 +23,18 @@ describe("postLabel", () => {
   it("is null when nothing has text, and ignores odd settings", () => {
     expect(postLabel("  \n ", [{ platform: "youtube", settings: { title: "" } }, { platform: "instagram", settings: null }, { platform: "x" }])).toBeNull();
     expect(postLabel(undefined)).toBeNull();
+  });
+});
+
+describe("fileLabel", () => {
+  it("reads a file name as words", () => {
+    expect(fileLabel("latte_art-01.mp4")).toBe("latte art 01");
+    expect(fileLabel("user/ask/abc_Croissants.JPG")).toBe("abc Croissants");
+    expect(fileLabel("IMG.2041.mov")).toBe("IMG 2041");
+  });
+  it("is null when nothing readable is left", () => {
+    expect(fileLabel("")).toBeNull();
+    expect(fileLabel(null)).toBeNull();
+    expect(fileLabel("___.mp4")).toBeNull();
   });
 });

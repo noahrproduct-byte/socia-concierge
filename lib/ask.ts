@@ -38,6 +38,8 @@ export type AskContext = {
   studio?: StudioAskContext;
   /** The viewer's IANA time zone, for scheduling in their own clock. */
   tz?: string;
+  /** Drafts the person made from footage in this chat ("schedule these"). */
+  newPosts?: string[];
 };
 
 export type PlanDayDraft = { concept: string; hook: string; format: string; rationale: string };
@@ -74,7 +76,11 @@ export type AskAnswer = {
   post: AskPost | null;
 };
 
-export type AskMessage = { role: "user" | "assistant"; content: string; answer?: AskAnswer };
+export type AskMessage = {
+  role: "user" | "assistant"; content: string; answer?: AskAnswer;
+  /** drafts this turn saved from footage the person added in the chat */
+  drafts?: string[];
+};
 
 export const ASK_SUGGESTIONS: Record<AskPage, string[]> = {
   global: ["What should I focus on this week?", "Show me my best content.", "Why has my engagement changed?", "Create a plan around my goal."],

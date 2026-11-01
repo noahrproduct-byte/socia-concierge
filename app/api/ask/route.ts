@@ -32,7 +32,7 @@ function zoneOr(tz: unknown): string {
 }
 
 const SCHEDULE_RULES = `Scheduling: when the user asks to schedule, post, spread out, space out or move posts, set schedule.want to true and fill it from their words:
-- posts: the [S#] numbers of the posts they mean, in the order they want them. "These clips", "the videos I just made" or "my drafts" means the drafts listed (newest first, made together). Empty means every draft listed.
+- posts: the [S#] numbers of the posts they mean, in the order they want them. "These clips", "the videos I just made" or "my drafts" means the drafts listed (newest first, made together); when some drafts are marked "added in this chat", "these", "them" and "the footage" mean exactly those. Empty means every draft listed.
 - startLocal: when they named a start, "YYYY-MM-DDTHH:MM" in their time zone, or "YYYY-MM-DD" for a day without a time; "" when they didn't.
 - spacingMinutes: a gap between posts they asked for ("2 hours each" = 120, "every 30 minutes" = 30); 0 otherwise.
 - perDay: how many a day they asked for; 0 otherwise.
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
     loadSchedulable(ctx.client, ctx.ownerId, wsId, nowDate).catch(() => ({ posts: [] as Schedulable[], others: [] })),
   ]);
   const nowLocal = new Intl.DateTimeFormat("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(nowDate);
-  const schedEvidence = `# Posts SOCIA can schedule or move (the user's time zone is ${tz}; it is now ${nowLocal})\n${schedulableBlock(sched.posts, tz)}`;
+  const schedEvidence = `# Posts SOCIA can schedule or move (the user's time zone is ${tz}; it is now ${nowLocal})\n${schedulableBlock(sched.posts, tz, new Set((Array.isArray(askCtx.newPosts) ? askCtx.newPosts : []).filter((x): x is string => typeof x === "string")))}`;
   const first = messages[0];
   const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
   // A follow-up needs the current list too: it may have changed since the first turn.

@@ -4,7 +4,7 @@
 // time, an upload in flight), is listed as fixed with the reason. Server only.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scopeToWorkspace } from "@/lib/workspaces";
-import { postLabel, type LabelSource } from "@/lib/publishing/postLabel";
+import { fileLabel, postLabel, type LabelSource } from "@/lib/publishing/postLabel";
 import type { CalendarPost } from "@/lib/studioClips/distribute";
 
 export type Schedulable = {
@@ -24,15 +24,15 @@ export type Schedulable = {
 const MAX = 40;
 const HORIZON_DAYS = 62;
 
-type PostRow = { id: string; caption: string | null; status: string; scheduled_at: string | null; created_at: string };
+type PostRow = { id: string; caption: string | null; status: string; scheduled_at: string | null; created_at: string; media: unknown };
 type DestRow = { post_id: string; platform: string; status: string; external_post_id: string | null; settings: unknown };
 
 export async function loadSchedulable(client: SupabaseClient, ownerId: string, wsId: string | null, now = new Date()): Promise<{ posts: Schedulable[]; others: CalendarPost[] }> {
   const until = new Date(now.getTime() + HORIZON_DAYS * 86400_000).toISOString();
   const [drafts, upcoming] = await Promise.all([
-    scopeToWorkspace(client.from("scheduled_posts").select("id, caption, status, scheduled_at, created_at").eq("user_id", ownerId).eq("status", "draft"), wsId)
+    scopeToWorkspace(client.from("scheduled_posts").select("id, caption, status, scheduled_at, created_at, media").eq("user_id", ownerId).eq("status", "draft"), wsId)
       .order("created_at", { ascending: false }).limit(MAX),
-    scopeToWorkspace(client.from("scheduled_posts").select("id, caption, status, scheduled_at, created_at").eq("user_id", ownerId).in("status", ["scheduled", "publishing"]), wsId)
+    scopeToWorkspace(client.from("scheduled_posts").select("id, caption, status, scheduled_at, created_at, media").eq("user_id", ownerId).in("status", ["scheduled", "publishing"]), wsId)
       .gte("scheduled_at", now.toISOString()).lte("scheduled_at", until).order("scheduled_at", { ascending: true }).limit(100),
   ]);
   const rows = [...((drafts.data ?? []) as PostRow[]), ...((upcoming.data ?? []) as PostRow[])];
@@ -46,7 +46,9 @@ export async function loadSchedulable(client: SupabaseClient, ownerId: string, w
   const others: CalendarPost[] = [];
   for (const r of rows) {
     const ds = dests.get(r.id) ?? [];
-    const title = postLabel(r.caption, ds.map<LabelSource>((d) => ({ platform: d.platform, settings: d.settings }))) ?? "Untitled post";
+    const title = postLabel(r.caption, ds.map<LabelSource>((d) => ({ platform: d.platform, settings: d.settings })))
+      ?? fileLabel(Array.isArray(r.media) ? (r.media[0] as { name?: string } | undefined)?.name : null)
+      ?? "Untitled post";
     const short = title.length > 60 ? `${title.slice(0, 59)}…` : title;
     const fixed = r.status === "publishing" || ds.some((d) => d.status === "uploading" || d.status === "processing" || d.status === "publishing")
       ? "It's being published right now."
@@ -64,8 +66,8 @@ export async function loadSchedulable(client: SupabaseClient, ownerId: string, w
 }
 
 /** The evidence block the model reads: one line per post, numbered [S#]. */
-export function schedulableBlock(posts: Schedulable[], tz: string): string {
+export function schedulableBlock(posts: Schedulable[], tz: string, fresh: ReadonlySet<string> = new Set()): string {
   if (!posts.length) return "No drafts and nothing scheduled for later.";
   const when = (iso: string) => new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(new Date(iso));
-  return posts.map((p) => `[S${p.n}] ${p.status === "draft" ? `draft, made ${when(p.createdAt)}` : `scheduled for ${when(p.at!)}`}: "${p.title}"${p.platforms.length ? ` (${p.platforms.join(", ")})` : ""}${p.fixed ? `. Can't be moved: ${p.fixed}` : ""}`).join("\n");
+  return posts.map((p) => `[S${p.n}] ${p.status === "draft" ? `draft${fresh.has(p.id) ? " added in this chat" : ""}, made ${when(p.createdAt)}` : `scheduled for ${when(p.at!)}`}: "${p.title}"${p.platforms.length ? ` (${p.platforms.join(", ")})` : ""}${p.fixed ? `. Can't be moved: ${p.fixed}` : ""}`).join("\n");
 }

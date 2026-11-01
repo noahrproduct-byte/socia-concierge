@@ -15,13 +15,15 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import { usePathname } from "next/navigation";
-import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw } from "lucide-react";
+import { Sparkles, Send, ArrowRight, Check, Copy, RotateCcw, Paperclip } from "lucide-react";
 import Drawer from "./ov/Drawer";
 import { ASK_EVENT, ASK_PAGE_LABEL, ASK_SUGGESTIONS, pageForPath, type AskAnswer, type AskContext, type AskEvent, type AskMessage, type AskProposal } from "@/lib/ask";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import PlanNotice, { UsageLine } from "./PlanNotice";
 import ScheduleProposal from "./ask/ScheduleProposal";
+import FootageTray, { MAX_FOOTAGE, type FootageResult } from "./ask/FootageTray";
+import { acceptFor } from "./composer/MediaSection";
 import { viewerTimeZone } from "@/lib/publishing/timing";
 
 type ProposalHandler = (p: AskProposal, choice?: string) => Promise<boolean | void> | boolean | void;
@@ -42,10 +44,11 @@ type AskResult =
 
 /** Throws on ordinary failures; a plan limit comes back as a result so the drawer can render the notice. */
 async function askApi(context: AskContext, messages: AskMessage[]): Promise<AskResult> {
+  const newPosts = messages.flatMap((m) => m.drafts ?? []).slice(-MAX_FOOTAGE * 4);
   const res = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ context: { ...context, tz: viewerTimeZone() ?? undefined }, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
+    body: JSON.stringify({ context: { ...context, tz: viewerTimeZone() ?? undefined, ...(newPosts.length ? { newPosts } : {}) }, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -123,10 +126,12 @@ function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onPr
   );
 }
 
-export function AskDrawer({ open, onClose, context, contextLabel, suggestions, initialQuestion, autoSend = false, onProposal, title = "Ask SOCIA", persist }: {
+export function AskDrawer({ open, onClose, context, contextLabel, suggestions, initialQuestion, autoSend = false, onProposal, title = "Ask SOCIA", persist, footage = false }: {
   open: boolean; onClose: () => void; context: AskContext; contextLabel?: string | null; suggestions?: string[]; initialQuestion?: string | null; autoSend?: boolean; onProposal?: ProposalHandler; title?: string;
   /** Session key: the thread is kept as the person moves between pages (and over a reload) instead of starting fresh. */
   persist?: string;
+  /** The person can add videos and photos, saved as drafts they then schedule from the chat. */
+  footage?: boolean;
 }) {
   const [messages, setMessages] = useState<AskMessage[]>(() => {
     if (!persist || typeof window === "undefined") return [];
@@ -143,6 +148,37 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
   const [applied, setAppliedState] = useState<Record<string, string>>({});
   const setApplied = useCallback((k: string, v: string) => setAppliedState((s) => ({ ...s, [k]: v })), []);
+  const [files, setFiles] = useState<File[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const pickRef = useRef<HTMLInputElement>(null);
+  const accept = useMemo(() => acceptFor(["instagram", "youtube"]), []);
+  const addFiles = useCallback((list: FileList | File[]) => {
+    const all = Array.from(list);
+    const ok = all.filter((f) => accept.includes(f.type));
+    setFiles((cur) => {
+      const next = [...cur, ...ok].slice(0, MAX_FOOTAGE);
+      const skipped = all.length - ok.length;
+      const over = cur.length + ok.length - next.length;
+      setFileNote([skipped ? `${skipped} ${skipped === 1 ? "file isn't" : "files aren't"} a video or photo Instagram or YouTube takes.` : "", over ? `Up to ${MAX_FOOTAGE} at a time: ${over} left out.` : ""].filter(Boolean).join(" ") || null);
+      return next;
+    });
+  }, [accept]);
+  const footageDone = useCallback((r: FootageResult) => {
+    const names = r.names.length > 3 ? `${r.names.slice(0, 3).join(", ")} and ${r.names.length - 3} more` : r.names.join(", ");
+    const saved = r.drafts.length;
+    const text = [
+      saved ? `Saved ${saved} ${saved === 1 ? "draft" : "drafts"} from your footage: ${r.drafts.map((d) => `\u201c${d.label}\u201d`).join(", ")}.` : "None of the footage was saved.",
+      r.failed.length ? `Not saved: ${r.failed.join("; ")}.` : "",
+      ...r.notes,
+      saved ? `Tell me when to post ${saved === 1 ? "it" : "them"}, for example \u201cone a day at 6 PM from tomorrow\u201d or \u201c2 hours apart from 9 AM\u201d.` : "",
+    ].filter(Boolean).join(" ");
+    const answer: AskAnswer = { text, observed: [], derived: [], interpretation: "", recommendation: "", proposals: [], post: null,
+      actions: [...(saved ? [{ label: "Open the calendar", href: "/plan/calendar" }] : []), ...(r.planHref ? [{ label: "See plans", href: r.planHref }] : [])] };
+    setMessages((m) => [...m, { role: "user", content: `Added ${r.names.length} ${r.names.length === 1 ? "file" : "files"}: ${names}` }, { role: "assistant", content: text, answer, drafts: r.drafts.map((d) => d.id) }]);
+    setFiles([]); setFileNote(null);
+  }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastKey = useRef<string>("");
   const chips = useMemo(() => contextChips(context, contextLabel), [context, contextLabel]);
@@ -184,11 +220,16 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, context, initialQuestion, autoSend]);
 
-  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, busy]);
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, busy, files.length]);
 
   return (
     <Drawer open={open} title={title} onClose={onClose} width={520}>
-      <div className="ask">
+      <div
+        className={`ask${dropping ? " dropping" : ""}`}
+        onDragOver={footage ? (e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDropping(true); } } : undefined}
+        onDragLeave={footage ? (e) => { if (e.currentTarget === e.target) setDropping(false); } : undefined}
+        onDrop={footage ? (e) => { e.preventDefault(); setDropping(false); if (!saving) addFiles(e.dataTransfer.files); } : undefined}
+      >
         <div className="ask-chips" aria-label="What SOCIA knows here">
           <span className="ask-mark"><Sparkles size={12} /></span>
           {chips.map((c) => <span key={c} className="ov-chip muted">{c}</span>)}
@@ -199,6 +240,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
         <div className="ask-thread" ref={scrollRef}>
           {messages.length === 0 && !busy && (
             <div className="ask-suggest">
+              {footage && <p className="ask-footage-hint">Add videos or photos with the paperclip (or drop them here). SOCIA saves each one as a draft with its own caption, then you tell it when to post them.</p>}
               <small>Try asking</small>
               {sugg.map((s) => <button key={s} type="button" className="ask-sug" onClick={() => send(s)}>{s} <ArrowRight size={12} /></button>)}
             </div>
@@ -207,6 +249,10 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
             : <div key={i} className="ask-msg assistant"><span className="ask-avatar">S</span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} /> : <p>{m.content}</p>}</div>)}
           {busy && <div className="ask-msg assistant"><span className="ask-avatar">S</span><div className="ask-typing"><span /><span /><span /></div></div>}
+          {footage && files.length > 0 && (
+            <FootageTray files={files} onRemove={(i) => setFiles((f) => f.filter((_, j) => j !== i))} onClear={() => { setFiles([]); setFileNote(null); }} onDone={footageDone} onBusy={setSaving} />
+          )}
+          {footage && fileNote && <p className="ask-footage-note" role="status">{fileNote}</p>}
           {planError && <PlanNotice error={planError} compact />}
           {error && !planError && (
             <div className="ask-error">
@@ -217,9 +263,15 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
             </div>
           )}
         </div>
-        <form className="ask-composer" onSubmit={(e) => { e.preventDefault(); if (!planError) send(input); }}>
+        <form className="ask-composer" onSubmit={(e) => { e.preventDefault(); if (!planError && !saving) send(input); }}>
+          {footage && (
+            <>
+              <input ref={pickRef} type="file" multiple accept={accept.join(",")} hidden onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+              <button type="button" className="ask-attach" onClick={() => pickRef.current?.click()} disabled={saving} aria-label="Add videos or photos"><Paperclip size={15} /></button>
+            </>
+          )}
           <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={planError ? "Allowance used for this period" : context.page === "studio" ? "Ask SOCIA about this content…" : "Ask SOCIA…"} aria-label="Ask SOCIA" disabled={busy || Boolean(planError)} />
-          <button type="submit" disabled={busy || Boolean(planError) || !input.trim()} aria-label="Send"><Send size={14} /></button>
+          <button type="submit" disabled={busy || saving || Boolean(planError) || !input.trim()} aria-label="Send"><Send size={14} /></button>
         </form>
         <p className="ask-disclaimer">SOCIA cites only your own data. Review before publishing.</p>
       </div>
@@ -305,7 +357,7 @@ export function AskHost() {
       {mounted && createPortal(
         <>
           {!open && <button type="button" className="ask-bubble" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={22} /></button>}
-          <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist="socia-ask-thread" suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
+          <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist="socia-ask-thread" footage suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
         </>,
         document.body,
       )}
