@@ -25,7 +25,6 @@
     "components/studio/ClipBuilder.tsx": 1,
     "components/studio/ClipsStudio.tsx": 1,
     "components/studio/ContentStudio.tsx": 1,
-    "components/studio/StudioMode.tsx": 1,
     "components/studio/StudioPanels.tsx": 1
   },
   "em-dash": {
@@ -83,7 +82,7 @@
     "components/ov/PostingHeatmap.tsx": 2,
     "components/studio/AudioPanel.tsx": 2,
     "components/studio/ClipBuilder.tsx": 2,
-    "components/studio/ClipsStudio.tsx": 6,
+    "components/studio/ClipsStudio.tsx": 3,
     "components/studio/ClipsViews.tsx": 7,
     "components/studio/ContentStudio.tsx": 1,
     "components/studio/StudioPanels.tsx": 4

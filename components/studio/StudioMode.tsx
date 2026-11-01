@@ -1,21 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, Layers, ClipboardList, CalendarClock } from "lucide-react";
+import { Gauge, Layers, Scissors } from "lucide-react";
 
-export type StudioModeId = "guide" | "quick" | "clips" | "autopost";
+export type StudioModeId = "quick" | "clips" | "edit" | "guide";
 
-// The ways into Content Studio. Plan a post writes the concept and a
-// production guide; Quick Analyze reviews one finished post; Build from Clips
-// starts from raw footage. The mode lives in the URL so a refresh keeps it.
+// Content Studio does three things. Rate a video you've made, Build videos
+// from raw clips (and schedule them), Edit any video. Plan a post (the
+// production guide) is opened from a planned post, so no tab is lit there.
+// The mode lives in the URL so a refresh keeps it.
+const HINT: Record<StudioModeId, string> = {
+  quick: "Rate a video you've made and fix it before it goes out.",
+  clips: "Drop raw clips. SOCIA makes the videos and schedules them after you check.",
+  edit: "Open any video SOCIA made, or upload one, and edit it yourself.",
+  guide: "Hooks, script and shot list for a planned post, before you film.",
+};
+
 export default function StudioMode({ mode }: { mode: StudioModeId }) {
+  const tab = (id: StudioModeId, href: string, icon: React.ReactNode, label: string) => (
+    <Link href={href} role="tab" aria-selected={mode === id} className={mode === id ? "on" : ""}>{icon} {label}</Link>
+  );
   return (
-    <nav className="st-tabs cb-mode" aria-label="Content Studio mode">
-      <Link href="/studio?mode=guide" role="tab" aria-selected={mode === "guide"} className={mode === "guide" ? "on" : ""}><ClipboardList size={13} /> Plan a post</Link>
-      <Link href="/studio" role="tab" aria-selected={mode === "quick"} className={mode === "quick" ? "on" : ""}><Sparkles size={13} /> Quick analyze</Link>
-      <Link href="/studio?mode=autopost" role="tab" aria-selected={mode === "autopost"} className={mode === "autopost" ? "on" : ""}><CalendarClock size={13} /> Clips to posts</Link>
-      <Link href="/studio?mode=clips" role="tab" aria-selected={mode === "clips"} className={mode === "clips" ? "on" : ""}><Layers size={13} /> Build from clips</Link>
-      <span className="cb-mode-hint">{mode === "guide" ? "Hooks, script and shot list for one post, before you film." : mode === "quick" ? "Review one post you've already made." : mode === "autopost" ? "Drop clips; SOCIA makes the videos and schedules them after you check." : "Upload raw clips; SOCIA finds the posts in them."}</span>
+    <nav className="st-tabs cb-mode" aria-label="Content Studio">
+      {tab("quick", "/studio", <Gauge size={13} />, "Rate")}
+      {tab("clips", "/studio?mode=clips", <Layers size={13} />, "Build")}
+      {tab("edit", "/studio?mode=edit", <Scissors size={13} />, "Edit")}
+      <span className="cb-mode-hint">{HINT[mode]}</span>
     </nav>
   );
 }
