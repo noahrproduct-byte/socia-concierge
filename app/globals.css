@@ -10917,6 +10917,11 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cb-editor .cbp { margin-top: 0; }
 .cb-editor .cb-manual b { display: inline-flex; align-items: center; gap: 6px; }
 
+/* Rate: Put the text on the video (components/studio/ContentStudio.tsx) */
+.st-puttext ul { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.st-puttext li { font-size: 12.5px; color: var(--text-primary); background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px; padding: 3px 8px; }
+.st-puttext b { display: inline-flex; align-items: center; gap: 6px; }
+
 /* Your clips (components/studio/ClipLibrary.tsx) */
 .cb-lib .cb-grid { display: grid; margin-top: 8px; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 .cb-lib .cb-clip-dur { color: #fff; }

@@ -35,7 +35,7 @@ type ExportState = { phase: ExportPhase; progress: number; message: string | nul
 export default function ClipBuilder({ buildId, title, onBack, fixture, initialPanel }: {
   buildId: string; title: string; onBack: () => void; fixture?: BuildPlayerData;
   /** the tab to open on (the Audio tab opens on Music) */
-  initialPanel?: "audio";
+  initialPanel?: "audio" | "text";
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [data, setData] = useState<BuildPlayerData | null>(fixture ?? null);

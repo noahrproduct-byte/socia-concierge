@@ -29,7 +29,7 @@ export type RawEdl = {
   height?: number;
   segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number }[];
   style?: unknown;
-  text?: { at: number; end?: number; text: string; role?: string }[];
+  text?: { at: number; end?: number; text: string; role?: string; size?: string }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
   cta?: string | null;
   music?: string | null;
@@ -185,7 +185,8 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     .map((t, i) => {
       const at = r2(clamp(t.at ?? 0, 0, Math.max(0, total - 0.5)));
       const end = r2(clamp(t.end ?? at + 2.5, at + 0.5, total || at + 2.5));
-      return { id: `t${i + 1}`, at, end, text: t.text.trim(), role: (ROLES.has(t.role ?? "") ? t.role : at < 1 ? "opening" : "mid") as EdlText["role"] };
+      const size = t.size === "s" || t.size === "l" ? t.size : undefined;
+      return { id: `t${i + 1}`, at, end, text: t.text.trim(), role: (ROLES.has(t.role ?? "") ? t.role : at < 1 ? "opening" : "mid") as EdlText["role"], ...(size ? { size } : {}) };
     });
 
   const inCut = clips.filter((c) => segments.some((s) => s.clipId === c.id));
@@ -228,7 +229,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     height: edited.height,
     segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume })),
     style: edited.style,
-    text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role })),
+    text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, size: t.size })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
     cta: edited.cta, music: edited.music, caption: edited.caption,
     notes: edited.notes.filter((n) => !/^This cut runs/.test(n)),

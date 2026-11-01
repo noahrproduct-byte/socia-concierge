@@ -16,14 +16,15 @@ import type { UsageSnapshot } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { fingerprintFile, probeClip, ingestClip } from "@/lib/studioClips/ingest";
-import { STUDIO_BUCKET, type Opportunity, type StudioBuild, type StudioClip, type StudioProject } from "@/lib/studioClips/types";
+import { STUDIO_BUCKET, type BuildPlayerData, type Opportunity, type StudioBuild, type StudioClip, type StudioProject } from "@/lib/studioClips/types";
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
 import BatchPanel from "./BatchPanel";
 import BriefPanel from "./BriefPanel";
 import VideoList from "./VideoList";
 import ClipLibrary from "./ClipLibrary";
-import { takeFiles } from "@/lib/studioClips/handoff";
+import { takeHandoff } from "@/lib/studioClips/handoff";
+import { overlayStyle, placeOverlays, type OverlayLine } from "@/lib/studioClips/overlay";
 import { fileLabel } from "@/lib/publishing/postLabel";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
@@ -78,12 +79,15 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   // The person's own edit of these clips (Editor V1, every plan, no AI).
   const [manual, setManual] = useState<StudioBuild | null>(null);
   // A cut made from a prompt or a reference video, open in the editor.
-  const [custom, setCustom] = useState<{ id: string; title: string } | null>(null);
+  const [custom, setCustom] = useState<{ id: string; title: string; panel?: "text" | "audio" } | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
   const [building, setBuilding] = useState(false);
   const [busyIds, setBusyIds] = useState(0);
   const [autoStart, setAutoStart] = useState(false);
   const [autoAudio, setAutoAudio] = useState(false);
+  // Rate → "Put the text on the video": the lines to put on the clip once it's in.
+  const overlaysRef = useRef<OverlayLine[] | null>(null);
+  const [autoText, setAutoText] = useState(false);
   // Edit: every video made in this brand (null while loading).
   const [videos, setVideos] = useState<VideoSummary[] | null>(null);
   const projectRef = useRef<StudioProject | null>(null);
@@ -250,18 +254,21 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     const fresh = await openProject(p.id, true);
     void loadMeta();
     const usable = Boolean(fresh?.clips.some((c) => c.status === "ready" || c.status === "uploaded"));
-    // Audio: the footage opens straight in the editor, on Music.
+    // Audio: the footage opens straight in the editor, on Music. Text from Rate: on Text, with the lines in.
     if (audio && fresh && usable) setAutoAudio(true);
+    else if (editing && overlaysRef.current && fresh && usable) setAutoText(true);
     // Build: the first time clips are in, SOCIA starts understanding them without another click.
     // Footage added after a result waits for "Understand again" (each run counts on the plan).
     else if (!editing && fresh && !fresh.yield && fresh.status !== "understanding" && usable) setAutoStart(true);
   }, [ensureProject, registerFile, uploadFile, openProject, loadMeta, editing, audio]);
 
-  // Rate → "Add music": the video comes with it.
+  // Rate → "Add music" (Audio) or "Put the text on the video" (Video editor): the video comes with it.
   useEffect(() => {
-    if (!audio) return;
-    const handed = takeFiles("audio");
-    if (handed.length) void onFiles(handed);
+    if (!audio && !editing) return;
+    const handed = takeHandoff(audio ? "audio" : "edit");
+    if (!handed.files.length) return;
+    if (editing) overlaysRef.current = handed.data.overlays?.length ? handed.data.overlays : null;
+    void onFiles(handed.files);
     // Once, on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -375,6 +382,43 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       setCustom({ id: j.id as string, title: fileLabel(clip.name) ?? clip.name });
     })();
   }, [autoAudio, busyIds, manualBusy, project, openManual]);
+
+  // The lines from Rate go on the clip in the plain creator look (lib/studioClips/overlay.ts), then it opens on Text.
+  useEffect(() => {
+    if (!autoText || busyIds > 0 || manualBusy || !project) return;
+    setAutoText(false);
+    const lines = overlaysRef.current ?? [];
+    overlaysRef.current = null;
+    const clip = project.clips.filter((c) => c.status === "ready" || c.status === "uploaded").slice(-1)[0];
+    if (!clip) return;
+    void (async () => {
+      setManualBusy(true);
+      try {
+        const res = await fetch(`/api/studio/projects/${project.id}/clip-build`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ clipId: clip.id }) }).catch(() => null);
+        const j = res ? await res.json().catch(() => null) : null;
+        if (!res?.ok || !j?.id) { if (isPlanError(j)) setPlanError(j); else setNotice(j?.error ?? "Couldn't open the video."); return; }
+        const id = j.id as string;
+        const title = fileLabel(clip.name) ?? clip.name;
+        const pres = await fetch(`/api/studio/builds/${id}`).catch(() => null);
+        const pj = pres?.ok ? ((await pres.json().catch(() => null)) as BuildPlayerData | null) : null;
+        const edl = pj?.build.edl;
+        if (edl) {
+          const dur = edl.segments.reduce((a, s) => a + Math.max(0, s.out - s.in), 0);
+          const text = placeOverlays(lines, dur);
+          if (text.length) {
+            const style = overlayStyle({ preset: pj?.presets?.brand?.style ?? null, brightness: clip.facts?.visual?.brightness ?? null });
+            const saved = await fetch(`/api/studio/builds/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: { ...edl, text, style } }) }).catch(() => null);
+            if (!saved?.ok) setNotice("The video is open, but SOCIA couldn't put the text on it. Add it in Text & captions.");
+          } else if (lines.length) {
+            setNotice("None of those lines read naturally enough to put on the video. Write your own in Text & captions.");
+          }
+        }
+        setCustom({ id, title, panel: "text" });
+      } finally {
+        setManualBusy(false);
+      }
+    })();
+  }, [autoText, busyIds, manualBusy, project]);
 
   const deleteProject = useCallback(async (id: string) => {
     if (!window.confirm("Delete this project and its uploaded clips?")) return;
@@ -548,7 +592,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       )}
 
       {view === "custom" && custom && (
-        <ClipBuilder buildId={custom.id} title={custom.title} initialPanel={audio ? "audio" : undefined} onBack={() => { if (audio) { backToStart(); return; } setCustom(null); if (editing) void loadVideos(); }} />
+        <ClipBuilder buildId={custom.id} title={custom.title} initialPanel={custom.panel ?? (audio ? "audio" : undefined)} onBack={() => { if (audio) { backToStart(); return; } setCustom(null); if (editing) void loadVideos(); }} />
       )}
 
       {view === "manual" && manual && (

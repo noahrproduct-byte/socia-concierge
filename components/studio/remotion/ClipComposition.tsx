@@ -56,7 +56,9 @@ const TEXT_STYLE: Record<EdlText["role"], { top: string; size: number }> = {
   cta: { top: "73%", size: 56 },
 };
 
-function TextLayer({ text, role, style, fontFamily }: { text: string; role: EdlText["role"]; style: EdlStyle; fontFamily: string }) {
+const SIZE_SCALE = { s: 0.8, m: 1, l: 1.2 } as const;
+
+function TextLayer({ text, role, size = "m", style, fontFamily }: { text: string; role: EdlText["role"]; size?: EdlText["size"]; style: EdlStyle; fontFamily: string }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const inF = Math.round(fps * 0.25);
@@ -75,7 +77,7 @@ function TextLayer({ text, role, style, fontFamily }: { text: string; role: EdlT
       >
         <div
           style={{
-            fontFamily, fontWeight: 700, fontSize: s.size, lineHeight: 1.15, color: c.fg, textAlign: "center",
+            fontFamily, fontWeight: 700, fontSize: Math.round(s.size * SIZE_SCALE[size ?? "m"]), lineHeight: 1.15, color: c.fg, textAlign: "center",
             whiteSpace: "pre-wrap", padding: "18px 28px", borderRadius: 24,
             backgroundColor: c.bg ?? "transparent",
             textShadow: c.shadow,
@@ -173,7 +175,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       )}
       {edl.text.map((t) => (
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} name={`text · ${t.role}`}>
-          <TextLayer text={t.text} role={t.role} style={style} fontFamily={fontFamily} />
+          <TextLayer text={t.text} role={t.role} size={t.size} style={style} fontFamily={fontFamily} />
         </Sequence>
       ))}
       {pages.map((page, i) => {

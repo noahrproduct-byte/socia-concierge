@@ -216,6 +216,8 @@ export type EdlText = {
   end: number;
   text: string;
   role: "opening" | "mid" | "cta";
+  /** Type size against the role's own (lib/studioClips/overlay.ts picks it from the line's length). Absent = medium. */
+  size?: "s" | "m" | "l";
 };
 
 export type EdlEnhance = {
