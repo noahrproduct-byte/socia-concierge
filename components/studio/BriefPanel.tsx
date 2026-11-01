@@ -31,7 +31,7 @@ const toBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 
-export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote }: {
+export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote, initialPrompt }: {
   /** null: no clips yet (the Video editor shows this panel before any are added) */
   projectId: string | null; viewerId: string;
   /** null = plan unknown yet; false = not on this plan */ canMake: boolean | null;
@@ -41,9 +41,12 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   heading?: string;
   /** what to say while there are no clips */
   noClipsNote?: string;
+  /** a prompt to start from (a video idea from the Dashboard) */
+  initialPrompt?: string | null;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt ?? "");
+  useEffect(() => { if (initialPrompt) setPrompt(initialPrompt); }, [initialPrompt]);
   const [ref, setRef] = useState<Reference | null>(null);
   const [reading, setReading] = useState<string | null>(null);
   const [refNote, setRefNote] = useState<string | null>(null);

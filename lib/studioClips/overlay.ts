@@ -38,7 +38,7 @@ export function humanText(raw: string): string | null {
   // One emoji at most, at the end (where people put it).
   const emojis = t.match(EMOJI) ?? [];
   t = t.replace(EMOJI, "").replace(/\s+/g, " ").trim();
-  t = t.replace(/^["'“”‘’]+|["'“”‘’]+$/g, "").trim();
+  t = t.replace(/["“”]/g, "").replace(/^['‘’]+|['‘’]+$/g, "").replace(/\s+/g, " ").trim();
   if (!t || AI_TELLS.test(t)) return null;
   const words = t.split(" ");
   const letters = t.replace(/[^\p{L}]/gu, "");

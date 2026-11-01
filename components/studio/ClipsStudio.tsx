@@ -88,6 +88,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   // Rate → "Put the text on the video": the lines to put on the clip once it's in.
   const overlaysRef = useRef<OverlayLine[] | null>(null);
   const [autoText, setAutoText] = useState(false);
+  // A video idea from the Dashboard: its plan starts the prompt.
+  const [startPrompt, setStartPrompt] = useState<string | null>(null);
   // Edit: every video made in this brand (null while loading).
   const [videos, setVideos] = useState<VideoSummary[] | null>(null);
   const projectRef = useRef<StudioProject | null>(null);
@@ -266,6 +268,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   useEffect(() => {
     if (!audio && !editing) return;
     const handed = takeHandoff(audio ? "audio" : "edit");
+    if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
     if (!handed.files.length) return;
     if (editing) overlaysRef.current = handed.data.overlays?.length ? handed.data.overlays : null;
     void onFiles(handed.files);
@@ -492,6 +495,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             viewerId={viewerId}
             canMake={meta ? meta.autoBuild : null}
             heading="Prompt and reference"
+            initialPrompt={startPrompt}
             noClipsNote="Add clips above first, or pick some from Your clips below."
             beforeMake={ensureUnderstood}
             onOpen={(id, title) => setCustom({ id, title })}
