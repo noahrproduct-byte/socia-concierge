@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: October 31, 2026</p>
+      <p className="legal-date">Last updated: November 1, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -93,8 +93,8 @@ export default function PrivacyPage() {
           images and videos you schedule. In Content Studio, a video you
           analyze is read in your browser, which sends sampled frames for
           analysis; its sound is uploaded briefly for transcription. Clips you
-          add to Build from Clips are uploaded to private storage so SOCIA can
-          analyze them and you can edit them.
+          add to Build or Edit are uploaded to private storage so SOCIA can
+          analyze them and you can edit them and use them again later.
         </li>
         <li>
           <b>Brand and profile details you provide</b>: your niche, goals,
@@ -249,9 +249,9 @@ export default function PrivacyPage() {
           you disconnect it (see below).
         </li>
         <li>
-          Build from Clips footage: 14 days on Free and Starter, 30 days on
-          Growth and 60 days on Pro, counted from upload; then it is deleted
-          automatically, together with its audio. Audio from a video you
+          Clips you upload to Content Studio, with their frames and audio,
+          until you delete them, their project or your account, so you can
+          post them again or use them in a new video. Audio from a video you
           analyze or caption is deleted as soon as the transcript is back.
         </li>
         <li>Media you schedule, until you delete the post.</li>
