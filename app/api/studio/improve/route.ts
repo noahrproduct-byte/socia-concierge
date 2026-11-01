@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { humanText } from "@/lib/studioClips/overlay";
 import { LIMITS, clip, clipList } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
     hooks: `Write 4 new opening lines (hooks) for this content${body.styles?.length ? ` in these styles: ${body.styles.join(", ")}` : ", each in a different style (curiosity, direct, local, educational, challenge, story)"}. label = the style, text = the line (under 90 characters, no quotes), steps = [].${body.exclude?.length ? ` Do not repeat these: ${body.exclude.map((s) => `"${s}"`).join(", ")}.` : ""}`,
     caption: `Rewrite the caption ${body.mode ? `to be ${body.mode}` : "in three useful directions"} while keeping the account's voice and facts. Return 3 options: label = the direction, text = the full caption (with an ask that fits the goal), steps = [].`,
     cta: `Write 4 closing lines (calls to action) that fit the goal and could be spoken or shown as the last on-screen text. label = the kind of ask, text = the line, steps = [].`,
-    onscreen: `Propose on-screen text for the opening, the middle and the ending. Return 3 options: label = "0:00 opening" / "mid" / "ending", text = the text (under 60 characters), steps = [].`,
+    onscreen: `Propose on-screen text for the opening, the middle and the ending. Write it the way a person types on-screen text in the Instagram or TikTok text tool: a few plain words, sentence case or all lowercase, no hashtags, at most one emoji, no dashes, no marketing words (unlock, elevate, ultimate, journey, mouthwatering, game-changer and the like). Return 3 options: label = "0:00 opening" / "mid" / "ending", text = the text (under 45 characters), steps = [].`,
     variations: `Propose 5 variations of this piece as editing briefs: a 15-second version, a 6-second teaser, a TikTok-native version, a Story version, and a photo-carousel concept. label = the variation, text = one sentence on the idea, steps = 3-5 concrete editing instructions with timestamps where they apply. Do not claim any performance outcome.`,
   };
   const task = TASK[body.task] ? body.task : "hooks";
@@ -91,7 +92,15 @@ export async function POST(req: Request) {
     try {
       raw = block && "text" in block ? JSON.parse(block.text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) : null;
     } catch { raw = null; }
-    const options = Array.isArray(raw?.options) ? raw.options.slice(0, 6) : [];
+    let options = Array.isArray(raw?.options) ? raw.options.slice(0, 6) : [];
+    // On-screen text that can't read like a person typed it is dropped (lib/studioClips/overlay.ts).
+    if (task === "onscreen") {
+      options = options.flatMap((o) => {
+        const x = o as { text?: unknown };
+        const text = typeof x?.text === "string" ? humanText(x.text) : null;
+        return text ? [{ ...(o as object), text }] : [];
+      });
+    }
     if (!options.length) {
       await u.release();
       return NextResponse.json({ error: "SOCIA returned no options. Try again." }, { status: 502 });

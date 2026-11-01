@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
+import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Sparkles, AlertTriangle, Check, Type, X } from "lucide-react";
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { AnalyzePanel, ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
@@ -25,6 +25,7 @@ import { describeQuickAudio, quickAudioFrom, timedTranscript, type QuickAudio } 
 import { saveStudioHandoff } from "@/lib/studioHandoff";
 import type { AskProposal } from "@/lib/ask";
 import { handFiles } from "@/lib/studioClips/handoff";
+import { humanText, type OverlayLine } from "@/lib/studioClips/overlay";
 import { rememberRated, updateRatedCaption } from "@/lib/assistant/rated";
 import { transcriptSkippedNote } from "@/lib/transcribe/limits";
 
@@ -284,6 +285,12 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     return `From Content Studio: ${source?.name ?? "draft"} has a creative readiness of ${analysis.score.overall}/100. ${f ? `Top fix: ${f.title} (${f.suggestion}).` : ""}${w.hook ? ` Hook: "${w.hook}".` : ""}`.slice(0, 380);
   }, [analysis, source, w.hook]);
   const summaryForAsk = analysis ? analysisSummary(analysis) : null;
+  // Text SOCIA can put on the video itself: the lines the person applied (and their ask), otherwise
+  // the analysis's own on-screen suggestions, each only if it reads like a person wrote it.
+  const overlayLines: OverlayLine[] = w.onscreen.length
+    ? [...w.onscreen.map((text, i) => ({ text, role: i === 0 ? ("opening" as const) : ("mid" as const) })), ...(w.cta ? [{ text: w.cta, role: "cta" as const }] : [])]
+    : (analysis?.onScreenText ?? []).map((o) => ({ text: o.text, t: o.t, role: o.role }));
+  const overlayPreview = overlayLines.map((l) => humanText(l.text)).filter((x): x is string => Boolean(x)).slice(0, 4);
   const busy = phase === "extracting" || phase === "listening" || phase === "transcribing" || phase === "analyzing" || phase === "loading";
 
   return (
@@ -414,6 +421,16 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
           {source && !analysis && phase === "done" && <div className="ov-empty">No analysis yet.</div>}
         </div>
       </div>
+      {analysis && source?.kind === "video" && source.file && overlayPreview.length > 0 && (
+        <div className="ov-card cb-manual st-puttext">
+          <div>
+            <b><Type size={14} /> Put the text on the video</b>
+            <small>SOCIA adds {overlayPreview.length === 1 ? "this line" : `these ${overlayPreview.length} lines`} where they fit, in a plain style (your brand look if you saved one) sized to the words, then opens it in the Video editor to change anything.</small>
+            <ul>{overlayPreview.map((l) => <li key={l}>“{l}”</li>)}</ul>
+          </div>
+          <button type="button" className="ov-btn primary small" onClick={() => { handFiles("edit", [source.file!], { overlays: overlayLines }); router.push("/studio?mode=edit"); }}>Put it on the video</button>
+        </div>
+      )}
       {(w.hook || w.cta || w.onscreen.length > 0) && source && (
         <div className="st-inuse ov-card">
           <small>In use for this piece</small>

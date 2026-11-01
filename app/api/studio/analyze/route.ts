@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { humanText } from "@/lib/studioClips/overlay";
 import { LIMITS } from "@/lib/inputLimits";
 import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
@@ -155,7 +156,7 @@ Return the JSON. Requirements:
 - topFixes: exactly 3, ranked by impact; when a fix is a line to paste (hook text, CTA, caption), fill applyField and applyValue.
 - hooks: 4-5 alternative opening lines in different styles (include local when a place is known). currentHook: the current opening line if one is visible or spoken, else "".
 - ctaOptions: 3 endings that fit the goal. currentCta: the current ask if any, else "".
-- onScreenText: opening, mid and CTA text with timestamps${kind !== "video" ? " (t=-1)" : ""}.
+- onScreenText: opening, mid and CTA text with timestamps. Write it the way a person types on-screen text in the Instagram or TikTok text tool: a few plain words, sentence case or all lowercase, no hashtags, at most one emoji, no dashes, no marketing words (unlock, elevate, ultimate, journey, mouthwatering, game-changer and the like), under 45 characters${kind !== "video" ? " (t=-1)" : ""}.
 - cuts: dead space, repeats, long setups${kind !== "video" ? " (none for images)" : ""}.
 - audio: what the measured sound and the transcript show (level, a silent opening, long pauses, whether music or a beat is present, what is said and when), or that nothing can be assessed; then a recommended music direction and one alternative (style, BPM range, texture, why it fits the pacing and visuals). Never name a specific trending track.
 - platformFit: Instagram Reels, TikTok, YouTube Shorts, each with a fit and a one-line reason grounded in length, opening and text.
@@ -226,7 +227,10 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       topFixes: (r.topFixes ?? []).slice(0, 3).map((f: { title: string; observed: string; suggestion: string; kind: string; t: number; applyField: string; applyValue: string }) => ({ title: f.title, observed: f.observed, suggestion: f.suggestion, kind: f.kind, t: tOrNull(f.t), apply: f.applyField && f.applyField !== "none" && f.applyValue ? { field: f.applyField, value: f.applyValue } : null })),
       hooks: { current: r.currentHook || null, options: (r.hooks ?? []).slice(0, 5) },
       cta: { current: r.currentCta || null, options: (r.ctaOptions ?? []).slice(0, 4) },
-      onScreenText: (r.onScreenText ?? []).map((o: { t: number; text: string; role: string }) => ({ t: kind === "video" ? Math.max(0, Math.min(duration, o.t)) : 0, text: o.text, role: o.role })).slice(0, 6),
+      onScreenText: (r.onScreenText ?? []).flatMap((o: { t: number; text: string; role: string }) => {
+        const text = humanText(o.text ?? "");
+        return text ? [{ t: kind === "video" ? Math.max(0, Math.min(duration, o.t)) : 0, text, role: o.role }] : [];
+      }).slice(0, 6),
       cuts: kind === "video" && r.cuts && Array.isArray(r.cuts.edits) && r.cuts.edits.length ? { currentSec: duration, suggestedSec: r.cuts.suggestedSec > 0 ? Math.round(r.cuts.suggestedSec) : duration, edits: r.cuts.edits.slice(0, 6), note: r.cuts.note ?? "" } : null,
       audio: r.audio ?? { observed: "", direction: { style: "", bpm: "", texture: "", why: "" }, alternative: { style: "", bpm: "", texture: "", why: "" } },
       platformFit: (r.platformFit ?? []).slice(0, 3),
