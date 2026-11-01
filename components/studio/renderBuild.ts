@@ -24,7 +24,7 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
   const missing = edl.segments.filter((s) => !sources[s.clipId]).length;
   if (missing) throw new Error("Some of its clips have expired from storage, so it can't be made.");
   const { renderMediaOnWeb } = await import("@remotion/web-renderer");
-  const props = { edl, sources, captionsOn: Boolean(edl.captions) };
+  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null };
   const { getBlob } = await renderMediaOnWeb({
     composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
     inputProps: props,

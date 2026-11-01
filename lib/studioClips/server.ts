@@ -8,13 +8,14 @@ import { getLimit, type Entitlements } from "@/lib/entitlements";
 import { getProfile } from "@/lib/profile";
 import type { Workspace } from "@/lib/workspaces";
 import { scopeToWorkspace } from "@/lib/workspaces";
-import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder } from "./storage";
+import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder, storageClient } from "./storage";
 import { checkClipFits, projectTotals, ownerStorageBytes, expiryFor, type FitResult } from "./limits";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
 import { studioLearnedLine } from "./learnLoad";
-import { MAX_REGENERATIONS } from "./types";
+import { MAX_REGENERATIONS, STUDIO_BUCKET } from "./types";
+import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
 import { briefText, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
@@ -316,7 +317,20 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
       words: r.transcript?.words?.length ? r.transcript.words : null,
       moments: r.card?.moments ?? [],
     }));
-  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx) };
+  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx), music: await madeTracks(client, ownerId, row.project_id, buildId) };
+}
+
+/** The tracks already made for a cut, as signed URLs by track id (files are named <buildId>-<trackId>.mp3). */
+export async function madeTracks(client: Supa, ownerId: string, projectId: string, buildId: string): Promise<Record<string, string>> {
+  try {
+    const folder = `${ownerId}/${projectId}/music`;
+    const { data } = await storageClient(client).storage.from(STUDIO_BUCKET).list(folder, { limit: 100, search: buildId });
+    const files = (data ?? []).filter((o) => o.id && o.name.startsWith(`${buildId}-`) && o.name.endsWith(".mp3"));
+    const urls = await signUrls(client, files.map((f) => `${folder}/${f.name}`));
+    return Object.fromEntries(files.map((f) => [f.name.slice(buildId.length + 1, -4), urls[`${folder}/${f.name}`]]).filter(([, u]) => Boolean(u)));
+  } catch {
+    return {};
+  }
 }
 
 /** The plan feature a build needs: the person's own edit is on every plan; SOCIA's first cut is Growth and Pro. */
@@ -408,6 +422,10 @@ export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string |
   const forEdl = rows.map(toClipForEdl);
   // A cut made from a brief keeps its brief through every save, so Regenerate still follows it.
   const edl = withBrief(revalidateEdl(edited, forEdl).edl, row.edl?.brief);
+  // The playlist is the server's; the person chooses which of its tracks plays, and the levels.
+  if (row.edl?.playlist) edl.playlist = row.edl.playlist;
+  const soundtrack = sanitizeSoundtrack(edited.soundtrack, row.edl?.playlist, (trackId) => musicPath(ownerId, row.project_id, buildId, trackId));
+  if (soundtrack) edl.soundtrack = soundtrack;
   if (!edl.segments.length) throw new Error("A cut needs at least one clip.");
   const history = [...(row.edl_history ?? []), row.edl].slice(-HISTORY_MAX);
   const guide = guideFromEdl(edl, forEdl);
@@ -441,6 +459,9 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
   // A brief's cut keeps its size, its look and the brief itself.
   if (brief) { edl.brief = brief; edl.width = row.edl.width; edl.height = row.edl.height; if (row.edl.style) edl.style = row.edl.style; if (row.edl.captions) edl.captions = row.edl.captions; }
+  // The music made for the cut, and the track chosen, stay with it.
+  if (row.edl.playlist) edl.playlist = row.edl.playlist;
+  if (row.edl.soundtrack) edl.soundtrack = row.edl.soundtrack;
   // Picture and sound corrections are per clip, so they still hold for the clips the new cut keeps;
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));

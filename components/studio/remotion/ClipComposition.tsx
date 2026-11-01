@@ -9,7 +9,7 @@
 // the Player, the browser render and Safari all support.
 import React, { useMemo } from "react";
 import { AbsoluteFill, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { Video } from "@remotion/media";
+import { Audio, Video } from "@remotion/media";
 import { colorCorrection } from "@remotion/effects/color-correction";
 import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
@@ -40,7 +40,12 @@ export type ClipCompositionProps = {
   captionsOn: boolean;
   /** false shows the cut without the measured corrections (Before); omitted = After */
   finishOn?: boolean;
+  /** a playable link to the cut's soundtrack (edl.soundtrack), when it has one */
+  musicUrl?: string | null;
 };
+
+/** The soundtrack fades in over 0.2 s and out over the last 0.8 s, so it never starts or stops abruptly. */
+const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
 
 /** Captions page every ~1.2 s, like short-form captions people are used to. */
 const CAPTION_PAGE_MS = 1200;
@@ -109,7 +114,7 @@ function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: Edl
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, finishOn }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, finishOn, musicUrl }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
@@ -118,6 +123,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   // Measured balance, expressed as attenuation so no clip is pushed above unity.
   const maxGain = useMemo(() => Math.max(0, ...tl.segments.map((s) => s.gainDb)), [tl]);
   const words = useMemo(() => Object.fromEntries(Object.values(sources).map((s) => [s.clipId, s.words])), [sources]);
+  // With a soundtrack, the clips' own sound plays at the level the person chose for it.
+  const music = edl.soundtrack && musicUrl ? edl.soundtrack : null;
+  const original = music ? music.originalVolume : 1;
   const finish = finishOn === false ? undefined : edl.finish;
   // One effect instance per graded clip, so the WebGL program isn't rebuilt every frame.
   const effects = useMemo(() => {
@@ -146,7 +154,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
               effects={effects[s.clipId]}
               // Cleanup on: the measured gain curve (it may lift quiet sound; its peaks were measured
               // to stay under -1 dBFS). Off: the Phase B balance, as attenuation only.
-              volume={(f) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames) * (s.volume ?? 1)}
+              volume={(f) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames) * (s.volume ?? 1) * original}
               // Cover the frame, never letterboxed: sized to the footage's own aspect and the
               // person's reframe (videoBox), or centred cover when the size isn't known.
               objectFit={box(s) ? "fill" : "cover"}
@@ -155,6 +163,14 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           </Sequence>
         );
       })}
+      {music && (
+        <Sequence from={0} durationInFrames={tl.durationFrames} name="soundtrack">
+          <Audio
+            src={musicUrl!}
+            volume={(f) => music.musicVolume * Math.min(1, f / MUSIC_FADE_IN, (tl.durationFrames - f) / MUSIC_FADE_OUT)}
+          />
+        </Sequence>
+      )}
       {edl.text.map((t) => (
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} name={`text · ${t.role}`}>
           <TextLayer text={t.text} role={t.role} style={style} fontFamily={fontFamily} />

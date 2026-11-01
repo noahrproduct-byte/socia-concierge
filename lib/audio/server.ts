@@ -141,6 +141,15 @@ export async function storeMeasurement(client: Supa, ownerId: string, wsId: stri
 }
 
 /** One sentence for the EDL pass when the account has a measured answer; null otherwise. Never throws. */
+/** The account's own sound profile (best measured posts, library vs original), or null when nothing is measured. */
+export async function ownAudio(client: Supa, ownerId: string, wsId: string | null): Promise<AudioInsights["own"]> {
+  try {
+    return buildInsights((await loadRows(client, ownerId, wsId)).map(toMediaRow)).own;
+  } catch {
+    return null;
+  }
+}
+
 export async function audioLine(client: Supa, ownerId: string, wsId: string | null): Promise<string | null> {
   try {
     const rows = await loadRows(client, ownerId, wsId);

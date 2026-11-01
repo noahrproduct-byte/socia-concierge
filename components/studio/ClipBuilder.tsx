@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
+import MusicPlaylist from "./MusicPlaylist";
 import FinishPanel from "./FinishPanel";
 import Timeline from "./Timeline";
 import { tracksFor } from "@/lib/studioClips/tracks";
@@ -73,6 +74,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
   const anySpeech = useMemo(() => (edl ? edl.segments.some((s) => sources[s.clipId]?.words?.length) : false), [edl, sources]);
   const captionsOn = Boolean(edl?.captions);
+  // The soundtrack's playable link: made tracks are signed when the cut loads, and when one is made here.
+  const [trackUrls, setTrackUrls] = useState<Record<string, string>>({});
+  useEffect(() => { if (data?.music) setTrackUrls((u) => ({ ...data.music, ...u })); }, [data?.music]);
+  const musicUrl = edl?.soundtrack ? trackUrls[edl.soundtrack.trackId] ?? null : null;
   const tracks = useMemo(() => (edl ? tracksFor(edl, (id) => (sources[id] ? clipLabel(sources[id].position) : "Expired clip"), Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])), captionsOn) : null), [edl, sources, captionsOn]);
   const missing = useMemo(() => (edl ? edl.segments.filter((s) => !sources[s.clipId]).length : 0), [edl, sources]);
 
@@ -198,7 +203,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
         path = j.path as string;
       }
       setExp({ phase: "rendering", progress: 0, message: null, postId: null });
-      const props = { edl, sources, captionsOn };
+      const props = { edl, sources, captionsOn, musicUrl };
       const { getBlob } = await renderMediaOnWeb({
         composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
         inputProps: props,
@@ -263,7 +268,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
               <Player
                 ref={player}
                 component={ClipComposition}
-                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after" }}
+                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl }}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={edl.width}
@@ -345,6 +350,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
                 <p>{edl.music ?? "No music recommendation in this cut."}</p>
                 <small>SOCIA never adds a track to the file. Add music from Instagram&apos;s library when you post, or bake in a track you have the rights to.</small>
               </div>
+              <MusicPlaylist
+                buildId={buildId}
+                edl={edl}
+                canEdit={data.canEdit && !busy && !fixture}
+                trackUrls={trackUrls}
+                onTrackUrl={(id, url) => setTrackUrls((u) => ({ ...u, [id]: url }))}
+                // The server already saved these: the cut takes them without becoming "unsaved".
+                onPlaylist={(p) => setEdl((e) => (e ? { ...e, playlist: p } : e))}
+                onSoundtrack={(st) => setEdl((e) => { if (!e) return e; if (st) return { ...e, soundtrack: st }; const { soundtrack: _drop, ...rest } = e; void _drop; return rest; })}
+                onLevels={(musicVolume, originalVolume) => { setEdl((e) => (e?.soundtrack ? { ...e, soundtrack: { ...e.soundtrack, musicVolume, originalVolume } } : e)); setDirty(true); }}
+              />
               <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
             </div>
           )}
