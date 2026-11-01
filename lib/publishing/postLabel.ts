@@ -27,6 +27,17 @@ export function postLabel(caption: string | null | undefined, destinations: read
   return null;
 }
 
+/**
+ * A file's name as a label ("latte_art-01.mp4" → "latte art 01"), for a post
+ * that has no text at all yet, such as footage saved from Ask SOCIA without a
+ * caption. Null when nothing readable is left.
+ */
+export function fileLabel(name: string | null | undefined): string | null {
+  const base = (name ?? "").split("/").pop() ?? "";
+  const t = base.replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, 100) : null;
+}
+
 const rank = (p: string) => {
   const i = ORDER.indexOf(p);
   return i < 0 ? ORDER.length : i;
