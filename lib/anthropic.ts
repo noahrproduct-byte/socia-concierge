@@ -3,6 +3,38 @@ import Anthropic from "@anthropic-ai/sdk";
 // Zero-arg constructor reads ANTHROPIC_API_KEY from the environment.
 export const anthropic = new Anthropic();
 
+/** The most output a retried call may ask for. */
+export const RETRY_MAX_TOKENS = 32_000;
+
+/**
+ * Thinking can't be turned off on the 5 family and it shares max_tokens with
+ * the answer, so a call with a tight budget can stop mid-answer (stop_reason
+ * "max_tokens"): unreadable JSON, half a caption. Every non-streaming call
+ * through this client is therefore asked once more with 2.5x the room when
+ * that happens. The returned usage adds both calls, so cost records stay true.
+ */
+export function retryOnMaxTokens(client: Anthropic): void {
+  const messages = client.messages;
+  const raw = messages.create.bind(messages);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (messages as any).create = async (params: any, options?: any) => {
+    if (params?.stream) return raw(params, options);
+    const first = await raw(params, options);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const res = first as any;
+    const budget = Number(params?.max_tokens) || 0;
+    if (res?.stop_reason !== "max_tokens" || !budget || budget >= RETRY_MAX_TOKENS) return first;
+    const more = Math.min(RETRY_MAX_TOKENS, Math.round(budget * 2.5));
+    console.warn(`[anthropic] answer cut off at ${budget} tokens (${params.model}); asking again with ${more}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const second = (await raw({ ...params, max_tokens: more }, options)) as any;
+    const sum = (k: string) => (Number(res.usage?.[k]) || 0) + (Number(second.usage?.[k]) || 0);
+    if (second?.usage) second.usage = { ...second.usage, input_tokens: sum("input_tokens"), output_tokens: sum("output_tokens") };
+    return second;
+  };
+}
+retryOnMaxTokens(anthropic);
+
 // Opus 5.5 is the default: it succeeds Opus 5 at a lower price. The
 // deliverable quality is the whole product, so we don't downgrade for cost
 // here. Override with ANTHROPIC_MODEL if needed.

@@ -125,7 +125,7 @@ ${speech ? `Speech with times:\n${speech}` : "No speech was transcribed."}
 The images that follow are frames at ${ref.frames.map((f) => `${f.t}s`).join(", ")}.` },
     ...ref.frames.map((f) => ({ type: "image" as const, source: { type: "base64" as const, media_type: "image/jpeg" as const, data: f.jpeg } })),
   ];
-  const { data, model } = await structured<unknown>("studio_edl", system, content, BREAKDOWN_SCHEMA, 2500, { ownerId: acct.ownerId, feature: "clip_edl" });
+  const { data, model } = await structured<unknown>("studio_edl", system, content, BREAKDOWN_SCHEMA, 6000, { ownerId: acct.ownerId, feature: "clip_edl" });
   return { raw: data, model };
 }
 
@@ -138,6 +138,7 @@ async function structured<T>(task: Parameters<typeof modelFor>[0], system: strin
     output_config: { format: { type: "json_schema", schema }, ...effortFor(model) },
     messages: [{ role: "user", content }],
   };
+  // An answer cut off at the budget is asked for again with more room by the client (lib/anthropic.ts).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = await anthropic.messages.create(params as any);
   recordAiUsage(usage.ownerId, usage.feature, res);
@@ -148,7 +149,9 @@ async function structured<T>(task: Parameters<typeof modelFor>[0], system: strin
   try {
     return { data: JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as T, model };
   } catch {
-    throw new AnalysisError("parse", "Could not read the model's response.");
+    // Why it couldn't be read goes to the log (never the content): the stop reason and the length.
+    console.error(`[studio] ${usage.feature}: unreadable response, stop ${res.stop_reason}, ${text.length} chars`);
+    throw new AnalysisError("parse", res.stop_reason === "max_tokens" ? "The answer was too long to finish. Try a shorter reference or a shorter brief." : "SOCIA's answer came back incomplete. Try again.");
   }
 }
 
@@ -310,6 +313,6 @@ ${used.map((c) => `${cardText(c)}\n  measurements: ${factsText(c.facts)}${c.tran
 The images that follow are one frame from each clip, in the same order (${used.map((c) => clipLabel(c.position)).join(", ")}).` },
     ...used.filter((c) => c.frames.length).map((c) => ({ type: "image" as const, source: { type: "url" as const, url: (c.frames[Math.min(1, c.frames.length - 1)] ?? c.frames[0]).url } })),
   ];
-  const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, 3000, { ownerId: acct.ownerId, feature: "clip_edl" });
+  const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, brief ? 6000 : 3000, { ownerId: acct.ownerId, feature: "clip_edl" });
   return { raw: data, model };
 }
