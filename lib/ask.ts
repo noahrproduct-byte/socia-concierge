@@ -5,6 +5,8 @@
 // recommendation) with real actions and, where the page allows it, concrete
 // proposals the user can apply. Browser-safe: no SDK imports.
 
+import type { AskInstagram, AskRatedVideo } from "./assistant/askExtras";
+
 export type AskPage = "global" | "dashboard" | "analytics" | "post" | "competitors" | "plan" | "studio";
 
 export type StudioAskContext = {
@@ -40,6 +42,8 @@ export type AskContext = {
   tz?: string;
   /** Drafts the person made from footage in this chat ("schedule these"). */
   newPosts?: string[];
+  /** Videos rated in Content Studio in this tab ("the video I just rated"); lib/assistant/rated.ts. */
+  rated?: AskRatedVideo[];
 };
 
 export type PlanDayDraft = { concept: string; hook: string; format: string; rationale: string };
@@ -58,10 +62,12 @@ export type AskScheduleItem = {
   platforms: string[];
   /** a post saved before multi-platform publishing: moved by time only */
   legacy: boolean;
+  /** a video rated in Content Studio, not a post yet: [V#], saved as a post when the schedule is confirmed */
+  rated?: string;
 };
 export type AskProposal =
   | { kind: "plan_day"; planId: string; index: number; day: string; current: PlanDayDraft; proposed: PlanDayDraft; why: string }
-  | { kind: "schedule"; summary: string; items: AskScheduleItem[]; left: { title: string; reason: string }[] }
+  | { kind: "schedule"; summary: string; items: AskScheduleItem[]; left: { title: string; reason: string }[]; instagram?: AskInstagram | null }
   | { kind: "text"; field: "hook" | "caption" | "cta" | "onscreen"; label: string; options: string[] };
 export type AskPost = { id: string; title: string; thumb: string | null; stat: string; permalink: string | null };
 
@@ -89,7 +95,7 @@ export const ASK_SUGGESTIONS: Record<AskPage, string[]> = {
   post: ["Why did this post perform the way it did?", "What should I do next with this?", "Which of my posts should I repeat?", "Write a follow-up caption."],
   competitors: ["Why is this competitor outperforming me?", "What are they doing differently?", "Give me an idea inspired by this without copying.", "What gap do they have that I can use?"],
   plan: ["Make Friday's post more focused on my goal.", "Give me another idea for Tuesday.", "Make this week easier to film.", "Give me 3 more Reels.", "Move my hardest posts to the weekend."],
-  studio: ["How do I make the first 3 seconds better?", "Is this too long?", "Rewrite the hook.", "What caption should I use?", "What should the CTA be?", "Should I post this on Instagram or TikTok?"],
+  studio: ["How do I make the first 3 seconds better?", "Is this too long?", "Rewrite the hook.", "What caption should I use?", "What should the CTA be?", "Schedule this for Friday at 6 PM as a Trial Reel."],
 };
 
 export const ASK_PAGE_LABEL: Record<AskPage, string> = {
@@ -151,6 +157,14 @@ export type ModelAnswer = {
     perDay: number;
     times: string[];
     days: number;
+    /** the [V#] refs of rated videos meant */
+    videos: string[];
+    /** "yes" | "no" | "unchanged" */
+    trialReel: string;
+    /** "manual" | "if_performing" | "default" */
+    trialShare: string;
+    /** Instagram usernames named as collaborators */
+    collaborators: string[];
   };
 };
 
@@ -204,8 +218,12 @@ export const askAnswerSchema = {
         perDay: { type: "integer" },
         times: { type: "array", items: { type: "string" } },
         days: { type: "integer" },
+        videos: { type: "array", items: { type: "string" } },
+        trialReel: { type: "string", enum: ["unchanged", "yes", "no"] },
+        trialShare: { type: "string", enum: ["default", "manual", "if_performing"] },
+        collaborators: { type: "array", items: { type: "string" } },
       },
-      required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days"],
+      required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days", "videos", "trialReel", "trialShare", "collaborators"],
     },
   },
   required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "schedule"],

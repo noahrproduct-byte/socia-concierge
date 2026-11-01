@@ -13,6 +13,8 @@ import { getIgSnapshot } from "@/lib/instagramSync";
 import { interactionsTotal } from "@/lib/engagement";
 import { loadSchedulable, schedulableBlock, type Schedulable } from "@/lib/assistant/schedulable";
 import { planReschedule } from "@/lib/assistant/reschedule";
+import { instagramAsk, ratedBlock, sanitizeRated } from "@/lib/assistant/askExtras";
+import { fileLabel, postLabel } from "@/lib/publishing/postLabel";
 import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -38,7 +40,10 @@ const SCHEDULE_RULES = `Scheduling: when the user asks to schedule, post, spread
 - perDay: how many a day they asked for; 0 otherwise.
 - times: times of day they named, as 24-hour "HH:MM"; [] otherwise.
 - days: how many days the run may cover when they gave a limit ("for the rest of the week" = the days from the start up to and including Sunday); 0 otherwise.
-Never work out or state the times yourself: SOCIA calculates them and shows the list for the person to confirm. In "text", say in one sentence what you understood. A post listed as "Can't be moved" stays where it is. When they aren't asking to schedule, want is false, posts [], strings "", numbers 0 and times [].`;
+- videos: the [V#] refs of videos they rated in Content Studio that they mean ("the video I just rated" = the latest one; "the ones I rated" = all of them); [] otherwise. A rated video isn't a post yet; scheduling saves it as one. posts and videos can both be filled.
+- trialReel: "yes" when they ask for a Trial Reel, "no" when they ask for a normal Reel instead of a trial, "unchanged" otherwise. trialShare: "manual" when they say they'll share it to followers themselves, "if_performing" when they say to share it if it does well, "default" otherwise.
+- collaborators: the Instagram usernames they name as collaborators, exactly as they wrote them; never add one they didn't write. [] otherwise.
+Never work out or state the times yourself: SOCIA calculates them and shows the list for the person to confirm. In "text", say in one sentence what you understood. A post listed as "Can't be moved" stays where it is. When they aren't asking to schedule, want is false, posts [], videos [], collaborators [], strings "", numbers 0, times [], trialReel "unchanged" and trialShare "default".`;
 
 function parseJson(text: string): ModelAnswer | null {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -100,7 +105,10 @@ export async function POST(req: Request) {
     loadSchedulable(ctx.client, ctx.ownerId, wsId, nowDate).catch(() => ({ posts: [] as Schedulable[], others: [] })),
   ]);
   const nowLocal = new Intl.DateTimeFormat("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(nowDate);
-  const schedEvidence = `# Posts SOCIA can schedule or move (the user's time zone is ${tz}; it is now ${nowLocal})\n${schedulableBlock(sched.posts, tz, new Set((Array.isArray(askCtx.newPosts) ? askCtx.newPosts : []).filter((x): x is string => typeof x === "string")))}`;
+  const rated = sanitizeRated(askCtx.rated);
+  delete askCtx.rated;
+  const ratedEvidence = ratedBlock(rated, nowDate);
+  const schedEvidence = `# Posts SOCIA can schedule or move (the user's time zone is ${tz}; it is now ${nowLocal})\n${schedulableBlock(sched.posts, tz, new Set((Array.isArray(askCtx.newPosts) ? askCtx.newPosts : []).filter((x): x is string => typeof x === "string")))}${ratedEvidence ? `\n\n${ratedEvidence}` : ""}`;
   const first = messages[0];
   const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
   // A follow-up needs the current list too: it may have changed since the first turn.
@@ -148,7 +156,13 @@ export async function POST(req: Request) {
       const want = raw.schedule;
       const byN = new Map(sched.posts.map((p) => [p.n, p]));
       const picked = (want.posts ?? []).map((n) => byN.get(n)).filter((p): p is Schedulable => Boolean(p));
-      const chosen = picked.length ? Array.from(new Set(picked)) : sched.posts.filter((p) => p.status === "draft");
+      // Rated videos become posts on confirm: listed here as drafts with no platforms yet.
+      const byRef = new Map(rated.map((v) => [v.ref, v]));
+      const ratedPicked = Array.from(new Set((want.videos ?? []).filter((r) => typeof r === "string" && byRef.has(r.replace(/^\[|\]$/g, ""))).map((r) => r.replace(/^\[|\]$/g, "")))).map((ref) => {
+        const v = byRef.get(ref)!;
+        return { n: 0, id: `rated:${ref}`, title: postLabel(v.caption, []) ?? fileLabel(v.name) ?? "Your rated video", status: "draft" as const, at: null, createdAt: v.ratedAt, platforms: [], legacy: false, fixed: null } satisfies Schedulable;
+      });
+      const chosen = picked.length || ratedPicked.length ? [...Array.from(new Set(picked)), ...ratedPicked] : sched.posts.filter((p) => p.status === "draft");
       const movable = chosen.filter((p) => !p.fixed);
       const left = chosen.filter((p) => p.fixed).map((p) => ({ title: p.title, reason: p.fixed! }));
       const gate = checkFeature(ent, "scheduling");
@@ -168,8 +182,9 @@ export async function POST(req: Request) {
         const byId = new Map(movable.map((p) => [p.id, p]));
         proposals.push({
           kind: "schedule", summary: plan.summary,
-          items: plan.slots.map((s) => { const p = byId.get(s.id)!; return { postId: p.id, title: p.title, status: p.status, from: p.at, at: s.at, reason: s.reason, platforms: p.platforms, legacy: p.legacy }; }),
+          items: plan.slots.map((s) => { const p = byId.get(s.id)!; return { postId: p.id, title: p.title, status: p.status, from: p.at, at: s.at, reason: s.reason, platforms: p.platforms, legacy: p.legacy, ...(p.id.startsWith("rated:") ? { rated: p.id.slice(6) } : {}) }; }),
           left: [...left, ...plan.unplaced.map((u) => ({ title: byId.get(u.id)?.title ?? "A post", reason: u.reason }))],
+          instagram: instagramAsk({ trialReel: want.trialReel, trialShare: want.trialShare, collaborators: want.collaborators ?? [] }, latest.role === "user" ? latest.content : ""),
         });
       } else {
         proposals.push({ kind: "schedule", summary: blocked ? "Nothing can be scheduled from here." : "There's nothing here SOCIA can schedule.", items: [], left });
