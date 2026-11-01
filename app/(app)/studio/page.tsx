@@ -16,8 +16,9 @@ export const metadata = { title: "Content Studio — SOCIA" };
 
 // Content Studio has four parts. Rate: bring a finished video and make it
 // better before it goes live. Build: bring raw footage; SOCIA finds the posts
-// in it, makes the videos and schedules them after you check. Edit: open any
-// video SOCIA made, or upload one, and edit it yourself. Audio: drop a video
+// in it, makes the videos and schedules them after you check. Video editor (?mode=edit):
+// put in clips, then a prompt and/or a reference video to copy, or edit
+// them yourself; every video made and every clip kept are below. Audio: drop a video
 // and SOCIA adds music made for it. The mode is in the URL (?mode=clips,
 // ?mode=edit, ?mode=audio) so a refresh keeps it; Plan a post
 // (?mode=guide) is opened from a planned post.

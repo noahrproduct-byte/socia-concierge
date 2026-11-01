@@ -10906,6 +10906,13 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cbm-auto input { accent-color: var(--accent); }
 .cbm-make { align-self: flex-start; margin-top: 4px; }
 
+/* Video editor (components/studio/ClipsStudio.tsx, variant "edit"): clips, then prompt and reference */
+.cb-editor { display: grid; gap: var(--sp-3); max-width: 920px; }
+.cb-editor > .cb-manual { margin-top: 0; }
+.cb-editor .cb-drop:not(.compact) { min-height: 200px; }
+.cb-editor .cbp { margin-top: 0; }
+.cb-editor .cb-manual b { display: inline-flex; align-items: center; gap: 6px; }
+
 /* Your clips (components/studio/ClipLibrary.tsx) */
 .cb-lib .cb-grid { display: grid; margin-top: 8px; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 .cb-lib .cb-clip-dur { color: #fff; }

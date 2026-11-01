@@ -31,7 +31,17 @@ const toBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
   r.readAsDataURL(blob);
 });
 
-export default function BriefPanel({ projectId, viewerId, canMake, onOpen }: { projectId: string; viewerId: string; /** null = plan unknown yet; false = not on this plan */ canMake: boolean | null; onOpen: (buildId: string, title: string) => void }) {
+export default function BriefPanel({ projectId, viewerId, canMake, onOpen, beforeMake, heading = "Make a video your way", noClipsNote }: {
+  /** null: no clips yet (the Video editor shows this panel before any are added) */
+  projectId: string | null; viewerId: string;
+  /** null = plan unknown yet; false = not on this plan */ canMake: boolean | null;
+  onOpen: (buildId: string, title: string) => void;
+  /** run first (the Video editor understands new clips here); returns an error to show, or null to go on */
+  beforeMake?: (say: (step: string) => void) => Promise<string | null>;
+  heading?: string;
+  /** what to say while there are no clips */
+  noClipsNote?: string;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState("");
   const [ref, setRef] = useState<Reference | null>(null);
@@ -41,8 +51,10 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen }: { p
   const [error, setError] = useState<string | null>(null);
   const [past, setPast] = useState<Past[]>([]);
   const [drag, setDrag] = useState(false);
+  const [step, setStep] = useState<string | null>(null);
 
   const loadPast = useCallback(async () => {
+    if (!projectId) { setPast([]); return; }
     const res = await fetch(`/api/studio/projects/${projectId}/brief`).catch(() => null);
     const j = res?.ok ? ((await res.json().catch(() => null)) as { builds?: Past[] } | null) : null;
     setPast(j?.builds ?? []);
@@ -87,8 +99,14 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen }: { p
   }, [viewerId]);
 
   const make = async () => {
+    if (!projectId) return;
     setBusy(true); setError(null);
     try {
+      if (beforeMake) {
+        const err = await beforeMake(setStep);
+        setStep(null);
+        if (err) { setError(err); return; }
+      }
       const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: prompt.trim() || null, reference: ref }) });
       const j = (await res.json().catch(() => null)) as { build?: StudioBuild; error?: string } | null;
       if (!res.ok || !j?.build) { setError(j?.error ?? "SOCIA couldn't make that cut. Try again."); return; }
@@ -101,13 +119,13 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen }: { p
     }
   };
 
-  const ready = (prompt.trim().length >= 3 || ref) && !reading && !busy;
+  const ready = Boolean(projectId) && (prompt.trim().length >= 3 || ref) && !reading && !busy;
   const shots = ref?.cuts ? ref.cuts.length + 1 : null;
 
   return (
     <section className="ov-card cbp cbr" aria-labelledby="cbr-h">
       <div className="cbp-head">
-        <h3 id="cbr-h"><Clapperboard size={15} /> Make a video your way</h3>
+        <h3 id="cbr-h"><Clapperboard size={15} /> {heading}</h3>
         <span className="cbp-muted">From these clips</span>
       </div>
       <p className="cbp-muted">Write what you want, add a video for SOCIA to copy, or both. SOCIA copies the reference&apos;s length, pace, order of shots and on-screen text style using your clips, never its footage, then opens the cut in the editor.</p>
@@ -148,8 +166,9 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen }: { p
           {error && <p className="cbb-err" role="alert"><AlertTriangle size={12} /> {error}</p>}
           <div className="cbp-foot">
             <button type="button" className="ov-btn primary" disabled={!ready} onClick={() => void make()}>
-              {busy ? <Loader2 size={14} className="spin" /> : <Clapperboard size={14} />} {busy ? (ref ? "Studying the reference and cutting…" : "Cutting…") : "Make the video"}
+              {busy ? <Loader2 size={14} className="spin" /> : <Clapperboard size={14} />} {busy ? step ?? (ref ? "Studying the reference and cutting…" : "Cutting…") : "Make the video"}
             </button>
+            {!projectId && noClipsNote && <p className="cbp-muted">{noClipsNote}</p>}
             <p className="cbp-muted">Opens in the editor to change anything. Making the final video counts one video build, as with any of SOCIA&apos;s cuts.</p>
           </div>
         </>
