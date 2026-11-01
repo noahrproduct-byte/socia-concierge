@@ -14,10 +14,12 @@ import { scopeToWorkspace } from "@/lib/workspaces";
 
 export const metadata = { title: "Content Studio — SOCIA" };
 
-// Content Studio has two ways in. Quick Analyze: bring a finished piece of
-// content and make it better before it goes live (the original Studio,
-// unchanged). Build from Clips: bring raw footage and let SOCIA find the
-// posts in it. The mode is in the URL (?mode=clips) so a refresh keeps it.
+// Content Studio has three parts. Rate: bring a finished video and make it
+// better before it goes live. Build: bring raw footage; SOCIA finds the posts
+// in it, makes the videos and schedules them after you check. Edit: open any
+// video SOCIA made, or upload one, and edit it yourself. The mode is in the
+// URL (?mode=clips, ?mode=edit) so a refresh keeps it; Plan a post
+// (?mode=guide) is opened from a planned post.
 export default async function StudioPage({ searchParams }: { searchParams: Promise<{ mode?: string; project?: string; plan?: string; i?: string; format?: string }> }) {
   const { supabase, user } = await getViewer();
   if (!user) redirect("/login");
@@ -40,10 +42,12 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
     );
   }
 
-  if (mode === "clips" || mode === "autopost") {
+  // Build (raw clips → videos → schedule; "Clips to posts" lives inside it now) and Edit.
+  if (mode === "clips" || mode === "autopost" || mode === "edit") {
+    const variant = mode === "edit" ? "edit" : "build";
     return (
       <Suspense fallback={null}>
-        <ClipsStudio key={mode} viewerId={user.id} modeTabs={<StudioMode mode={mode} />} autopilot={mode === "autopost"} />
+        <ClipsStudio key={variant} viewerId={user.id} modeTabs={<StudioMode mode={variant === "edit" ? "edit" : "clips"} />} variant={variant} />
       </Suspense>
     );
   }

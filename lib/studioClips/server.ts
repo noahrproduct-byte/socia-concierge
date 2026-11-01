@@ -18,6 +18,7 @@ import { MAX_REGENERATIONS, STUDIO_BUCKET } from "./types";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
 import { briefText, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
+import { videoKind, videoTitle, type VideoSummary } from "./videos";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -486,6 +487,44 @@ export async function listBriefBuilds(client: Supa, ownerId: string, wsId: strin
     const title = brief?.prompt ? titleFor(brief.prompt, null) : brief?.referenceName ? `Like “${brief.referenceName}”` : "Your video";
     return { id: b.id, title, referenceName: brief?.referenceName ?? null, createdAt: b.created_at };
   });
+}
+
+/** Every cut of this Brand Workspace, newest first, for the Edit tab (lib/studioClips/videos.ts names them). */
+export async function listVideos(client: Supa, ownerId: string, wsId: string | null, limit = 30): Promise<VideoSummary[]> {
+  type Row = { id: string; project_id: string; opportunity_idx: number; edl: Edl | null; created_at: string; updated_at?: string | null; render_path?: string | null; post_id?: string | null };
+  const run = (cols: string) => scopeToWorkspace(client.from("studio_builds").select(cols).eq("user_id", ownerId), wsId).order("created_at", { ascending: false }).limit(limit);
+  let res = await run("id, project_id, opportunity_idx, edl, created_at, updated_at, render_path, post_id");
+  if (res.error && /column|does not exist/i.test(res.error.message ?? "")) res = await run("id, project_id, opportunity_idx, edl, created_at");
+  if (res.error) throw res.error;
+  const rows = (res.data ?? []) as unknown as Row[];
+  if (!rows.length) return [];
+  const projectIds = Array.from(new Set(rows.map((r) => r.project_id)));
+  const [projects, clips] = await Promise.all([
+    scopeToWorkspace(client.from("studio_projects").select("id, title, yield, created_at").eq("user_id", ownerId).in("id", projectIds), wsId),
+    client.from("studio_clips").select("project_id, position, name").eq("user_id", ownerId).in("project_id", projectIds),
+  ]);
+  const proj = new Map(((projects.data ?? []) as { id: string; title: string | null; yield: YieldResult | null; created_at: string }[]).map((p) => [p.id, p]));
+  const clipName = new Map(((clips.data ?? []) as { project_id: string; position: number; name: string | null }[]).map((c) => [`${c.project_id}:${c.position}`, c.name]));
+  return rows
+    // A cut whose project is gone (or belongs elsewhere) isn't listed.
+    .filter((r) => proj.has(r.project_id))
+    .map((r) => {
+      const p = proj.get(r.project_id)!;
+      const idx = r.opportunity_idx;
+      return {
+        id: r.id, projectId: r.project_id, kind: videoKind(idx),
+        title: videoTitle({
+          idx, brief: r.edl?.brief ?? null,
+          ideaTitle: idx >= 0 ? p.yield?.opportunities.find((o) => o.idx === idx)?.title ?? null : null,
+          clipName: idx <= CLIP_IDX_BASE ? clipName.get(`${r.project_id}:${CLIP_IDX_BASE - idx}`) ?? null : null,
+          projectTitle: p.title, projectDate: p.created_at,
+        }),
+        updatedAt: r.updated_at ?? r.created_at,
+        rendered: Boolean(r.render_path),
+        postId: r.post_id ?? null,
+      };
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 /**
