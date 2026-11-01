@@ -20,6 +20,7 @@ import { STUDIO_BUCKET, type Opportunity, type StudioBuild, type StudioClip, typ
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
 import BatchPanel from "./BatchPanel";
+import BriefPanel from "./BriefPanel";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
@@ -40,7 +41,7 @@ const errCopy = (e: unknown): string => {
   return m.replace(/^Upload failed: /, "");
 };
 
-export default function ClipsStudio({ modeTabs, autopilot = false }: { viewerId: string; modeTabs?: ReactNode; /** Clips to posts: understand as soon as the clips are in, and lead with Make and schedule. */ autopilot?: boolean }) {
+export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: { viewerId: string; modeTabs?: ReactNode; /** Clips to posts: understand as soon as the clips are in, and lead with Make and schedule. */ autopilot?: boolean }) {
   const modeParam = autopilot ? "autopost" : "clips";
   const router = useRouter();
   const params = useSearchParams();
@@ -65,6 +66,8 @@ export default function ClipsStudio({ modeTabs, autopilot = false }: { viewerId:
   const [buildError, setBuildError] = useState<string | null>(null);
   // The person's own edit of these clips (Editor V1, every plan, no AI).
   const [manual, setManual] = useState<StudioBuild | null>(null);
+  // A cut made from a prompt or a reference video, open in the editor.
+  const [custom, setCustom] = useState<{ id: string; title: string } | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
   const [building, setBuilding] = useState(false);
   const [busyIds, setBusyIds] = useState(0);
@@ -299,8 +302,8 @@ export default function ClipsStudio({ modeTabs, autopilot = false }: { viewerId:
   const footageSec = readyClips.reduce((a, l) => a + (l.durationSec ?? 0), 0);
   const bytes = readyClips.reduce((a, l) => a + (l.clip?.bytes ?? 0), 0);
   const stale = Boolean(project?.yield && project.status === "collecting");
-  const view: "start" | "collect" | "understanding" | "yield" | "opportunity" | "builder" | "manual" =
-    !project ? "start" : manual ? "manual" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
+  const view: "start" | "collect" | "understanding" | "yield" | "opportunity" | "builder" | "manual" | "custom" =
+    !project ? "start" : custom ? "custom" : manual ? "manual" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
   const canUnderstand = readyClips.length > 0 && !uploading && !starting;
   const limits = meta?.limits;
 
@@ -321,7 +324,7 @@ export default function ClipsStudio({ modeTabs, autopilot = false }: { viewerId:
         status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured — clips are understood from frames and measured sound"}</span> : null}
         actions={
           <>
-            {project && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={() => { setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); router.replace(`/studio?mode=${modeParam}`, { scroll: false }); void loadMeta(); }}><FolderOpen size={14} /> Projects</button>}
+            {project && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={() => { setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); setCustom(null); router.replace(`/studio?mode=${modeParam}`, { scroll: false }); void loadMeta(); }}><FolderOpen size={14} /> Projects</button>}
             <button type="button" className="ov-btn primary" disabled={view === "understanding"} onClick={() => input.current?.click()}><Upload size={14} /> Add clips</button>
             <input ref={input} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" multiple onChange={(e) => { if (e.target.files) void onFiles(e.target.files); e.target.value = ""; }} />
           </>
@@ -404,12 +407,17 @@ export default function ClipsStudio({ modeTabs, autopilot = false }: { viewerId:
             <div><b><Scissors size={14} /> Edit the clips yourself</b><small>Cut, arrange, reframe and add text to every clip in this project, then export. No AI, nothing counted against your plan.</small></div>
             <button type="button" className="ov-btn ghost small" disabled={manualBusy} onClick={() => void openManual()}>{manualBusy ? <Loader2 size={13} className="spin" /> : null} Open the editor</button>
           </div>
+          <BriefPanel projectId={project.id} viewerId={viewerId} canMake={meta ? meta.autoBuild : null} onOpen={(id, title) => setCustom({ id, title })} />
           {!autopilot && <BatchPanel key={project.id} project={project} autoBuild={meta ? meta.autoBuild : null} />}
         </>
       )}
 
       {view === "opportunity" && project && openOpp && (
         <OpportunityView o={openOpp} build={build} clips={project.clips} loading={buildLoading} error={buildError} onBack={() => { setOpenOpp(null); setBuild(null); }} onRetry={() => void openOpportunity(openOpp)} canMake={meta ? meta.autoBuild : null} onMake={() => setBuilding(true)} />
+      )}
+
+      {view === "custom" && custom && (
+        <ClipBuilder buildId={custom.id} title={custom.title} onBack={() => setCustom(null)} />
       )}
 
       {view === "manual" && manual && (

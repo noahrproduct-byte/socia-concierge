@@ -11130,6 +11130,21 @@ p.cbp-muted { display: block; }
 .cbp-unplaced { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .cbp-unplaced b { color: var(--text-primary); margin-right: 4px; }
 .cbp-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+/* Make a video your way (components/studio/BriefPanel.tsx) */
+.cbr-ref { display: flex; flex-direction: column; gap: 6px; }
+.cbr-ref-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.cbr-drop { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 12px; border: 1px dashed var(--border-strong); border-radius: 12px; background: var(--surface); font-size: 13px; color: var(--text-secondary); cursor: pointer; text-align: center; }
+.cbr-drop.drag, .cbr-drop:hover { border-color: var(--accent); color: var(--text-primary); }
+.cbr-drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cbr-ref-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.cbr-ref-card > span { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cbr-ref-card b { font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cbr-ref-card small, .cbr-note { font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.cbr-past { list-style: none; display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+.cbr-past li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cbr-past li > span { display: flex; flex-direction: column; min-width: 0; }
+.cbr-past b { font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cbr-past small { font-size: 11.5px; color: var(--text-muted); }
 .cba-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; border: 0; padding: 0; margin: 0; }
 .cba-field legend, .cba-start > span, .cba-cap > span { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; padding: 0; }
 .cba-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }

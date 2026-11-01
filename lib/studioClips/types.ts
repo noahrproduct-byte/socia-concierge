@@ -257,7 +257,11 @@ export type Edl = {
   finish?: EdlFinish;
   /** Editor V2: font, brand accent, text background and caption style (lib/studioClips/style.ts). Absent = the original look. */
   style?: EdlStyle;
+  /** A cut made from a written brief and/or a reference video (lib/studioClips/reference.ts): what it follows, so Regenerate follows it too. */
+  brief?: EdlBrief;
 };
+
+export type EdlBrief = { prompt: string | null; reference: string | null; referenceName: string | null };
 
 /**
  * The colorCorrection() parameters SOCIA chose for one clip (same names and
