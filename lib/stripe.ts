@@ -6,7 +6,8 @@
 //   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
 //   STRIPE_PRICE_STARTER, STRIPE_PRICE_GROWTH, STRIPE_PRICE_PRO   (the monthly
 //   Price id, or the Product id — the monthly price is then looked up; the
-//   longer STRIPE_PRICE_<PLAN>_MONTHLY names are accepted too)
+//   longer STRIPE_PRICE_<PLAN>_MONTHLY names are accepted too; Growth is also
+//   read from STRIPE_PRICE_GRWOTH, the spelling it has in Vercel)
 //   (optional, only if yearly prices are ever created: STRIPE_PRICE_<PLAN>_ANNUAL)
 import Stripe from "stripe";
 import { PLAN_ORDER, type BillingInterval, type PlanId } from "@/lib/plans";
@@ -26,7 +27,7 @@ export type PaidPlan = Exclude<PlanId, "free">;
 // Each price can be set under either name; the first one found wins.
 const PRICE_ENV: Record<PaidPlan, Record<BillingInterval, string[]>> = {
   starter: { month: ["STRIPE_PRICE_STARTER", "STRIPE_PRICE_STARTER_MONTHLY"], year: ["STRIPE_PRICE_STARTER_ANNUAL"] },
-  growth: { month: ["STRIPE_PRICE_GROWTH", "STRIPE_PRICE_GROWTH_MONTHLY"], year: ["STRIPE_PRICE_GROWTH_ANNUAL"] },
+  growth: { month: ["STRIPE_PRICE_GROWTH", "STRIPE_PRICE_GROWTH_MONTHLY", "STRIPE_PRICE_GRWOTH"], year: ["STRIPE_PRICE_GROWTH_ANNUAL"] },
   pro: { month: ["STRIPE_PRICE_PRO", "STRIPE_PRICE_PRO_MONTHLY"], year: ["STRIPE_PRICE_PRO_ANNUAL"] },
 };
 
