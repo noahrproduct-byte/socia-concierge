@@ -58,7 +58,7 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
         if (res?.ok && j?.url) { onTrackUrl(t.id, j.url); setStatus((s) => ({ ...s, [t.id]: { state: "ready", error: null } })); continue; }
         if (isPlanError(j)) { setPlanError(j); stop = true; }
         // The music service itself isn't available: no point asking for the rest.
-        if (j?.notConfigured) { setNotReady(true); stop = true; }
+        else if (j?.notConfigured) { setNotReady(true); stop = true; }
         setStatus((s) => ({ ...s, [t.id]: { state: "failed", error: j?.error ?? "Couldn't make this track." } }));
       }
       for (const t of queue) setStatus((s) => ({ ...s, [t.id]: { state: "failed", error: "Not made." } }));
