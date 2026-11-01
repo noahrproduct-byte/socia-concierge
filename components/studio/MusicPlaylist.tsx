@@ -54,12 +54,14 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
         const t = queue.shift()!;
         setStatus((s) => ({ ...s, [t.id]: { state: "making", error: null } }));
         const res = await fetch(`/api/studio/builds/${buildId}/music/${t.id}`, { method: "POST" }).catch(() => null);
-        const j = res ? ((await res.json().catch(() => null)) as { url?: string | null; error?: string } | null) : null;
+        const j = res ? ((await res.json().catch(() => null)) as { url?: string | null; error?: string; notConfigured?: boolean } | null) : null;
         if (res?.ok && j?.url) { onTrackUrl(t.id, j.url); setStatus((s) => ({ ...s, [t.id]: { state: "ready", error: null } })); continue; }
         if (isPlanError(j)) { setPlanError(j); stop = true; }
+        // The music service itself isn't available: no point asking for the rest.
+        if (j?.notConfigured) { setNotReady(true); stop = true; }
         setStatus((s) => ({ ...s, [t.id]: { state: "failed", error: j?.error ?? "Couldn't make this track." } }));
       }
-      for (const t of queue) setStatus((s) => ({ ...s, [t.id]: { state: "failed", error: "Not made: your music allowance ran out." } }));
+      for (const t of queue) setStatus((s) => ({ ...s, [t.id]: { state: "failed", error: "Not made." } }));
     };
     await Promise.all(Array.from({ length: PARALLEL }, worker));
     running.current = false;
