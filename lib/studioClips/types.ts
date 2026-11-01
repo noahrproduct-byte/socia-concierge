@@ -4,6 +4,7 @@
 import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";
 
 import type { EdlStyle, VideoPresets } from "./style";
+import type { Playlist, Soundtrack } from "@/lib/music/taste";
 
 export type { Transcript, TranscriptWord };
 
@@ -259,6 +260,10 @@ export type Edl = {
   style?: EdlStyle;
   /** A cut made from a written brief and/or a reference video (lib/studioClips/reference.ts): what it follows, so Regenerate follows it too. */
   brief?: EdlBrief;
+  /** Original tracks SOCIA made for this cut from the account's taste (lib/music/taste.ts). Server-owned. */
+  playlist?: Playlist;
+  /** The track mixed in, and the two levels the person chose. */
+  soundtrack?: Soundtrack;
 };
 
 export type EdlBrief = { prompt: string | null; reference: string | null; referenceName: string | null };
@@ -405,6 +410,8 @@ export type BuildPlayerData = {
   presets?: VideoPresets;
   /** The viewer may change the brand's preset (owners and admins). */
   canManageBrand?: boolean;
+  /** Tracks already made for this cut's playlist: signed URL by track id. */
+  music?: Record<string, string>;
 };
 
 /** Output canvas for every build (vertical, Reels/TikTok/Shorts). */

@@ -11130,6 +11130,36 @@ p.cbp-muted { display: block; }
 .cbp-unplaced { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .cbp-unplaced b { color: var(--text-primary); margin-right: 4px; }
 .cbp-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+/* Music playlist in the editor's Music tab (components/studio/MusicPlaylist.tsx) */
+.cbm { display: flex; flex-direction: column; gap: 10px; padding: 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.cbm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cbm-head h4 { display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 700; color: var(--text-primary); }
+.cbm-muted { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+p.cbm-muted { display: block; }
+.cbm-bad { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--danger-text); }
+.cbm-taste { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.cbm-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.cbm-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-muted); }
+.cbm-list li.on { border-color: var(--border-strong); background: var(--surface); }
+.cbm-track { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.cbm-track b { font-size: 13px; color: var(--text-primary); }
+.cbm-track small { font-size: 11.5px; color: var(--text-secondary); line-height: 1.45; }
+.cbm-track small.cbm-why { color: var(--text-muted); }
+.cbm-track audio { width: 100%; max-width: 320px; height: 32px; margin-top: 4px; }
+.cbm-mix { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+.cbm-mix > b { font-size: 12.5px; color: var(--text-primary); }
+.cbm-mix label { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+.cbm-mix input[type="range"] { accent-color: var(--accent); width: 100%; padding: 0; border: 0; background: transparent; }
+.cbm-mix em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
+.cbm-mix .ov-btn { align-self: flex-start; }
+.cbm-sugg { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.cbm-sugg > b { font-size: 12.5px; color: var(--text-primary); }
+.cbm-sugg > small { font-size: 11.5px; color: var(--text-muted); }
+.cbm-sugg ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.cbm-sugg li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cbm-sugg li > span { display: flex; flex-direction: column; min-width: 0; }
+.cbm-sugg li b { font-size: 12.5px; color: var(--text-primary); }
+.cbm-sugg li small { font-size: 11.5px; color: var(--text-muted); }
 /* Make a video your way (components/studio/BriefPanel.tsx) */
 .cbr-ref { display: flex; flex-direction: column; gap: 6px; }
 .cbr-ref-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
