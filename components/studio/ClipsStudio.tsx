@@ -21,9 +21,14 @@ import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
 import BatchPanel from "./BatchPanel";
 import BriefPanel from "./BriefPanel";
+import VideoList from "./VideoList";
+import ClipLibrary from "./ClipLibrary";
+import { takeFiles } from "@/lib/studioClips/handoff";
+import { fileLabel } from "@/lib/publishing/postLabel";
+import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 
-type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
+type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
 // The video builder pulls in Remotion; load it only when a post is opened for building.
 const ClipBuilder = dynamic(() => import("./ClipBuilder"), { ssr: false, loading: () => <div className="ov-card st-progress"><ul><li className="on"><i />Opening the video builder</li></ul></div> });
@@ -41,8 +46,14 @@ const errCopy = (e: unknown): string => {
   return m.replace(/^Upload failed: /, "");
 };
 
-export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: { viewerId: string; modeTabs?: ReactNode; /** Clips to posts: understand as soon as the clips are in, and lead with Make and schedule. */ autopilot?: boolean }) {
-  const modeParam = autopilot ? "autopost" : "clips";
+export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
+  viewerId: string; modeTabs?: ReactNode;
+  /** build: SOCIA understands the clips as soon as they're in and leads with Make and schedule. edit: the person's videos, and new footage opens straight in the editor. audio: a video dropped here opens on Music, with a track added from the brand's taste. */
+  variant?: "build" | "edit" | "audio";
+}) {
+  const editing = variant === "edit";
+  const audio = variant === "audio";
+  const modeParam = editing ? "edit" : audio ? "audio" : "clips";
   const router = useRouter();
   const params = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -72,6 +83,9 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
   const [building, setBuilding] = useState(false);
   const [busyIds, setBusyIds] = useState(0);
   const [autoStart, setAutoStart] = useState(false);
+  const [autoAudio, setAutoAudio] = useState(false);
+  // Edit: every video made in this brand (null while loading).
+  const [videos, setVideos] = useState<VideoSummary[] | null>(null);
   const projectRef = useRef<StudioProject | null>(null);
   projectRef.current = project;
 
@@ -115,7 +129,14 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
     return p;
   }, [params, router, syncLocals, modeParam]);
 
+  const loadVideos = useCallback(async () => {
+    const res = await fetch("/api/studio/videos").catch(() => null);
+    const j = res?.ok ? ((await res.json().catch(() => null)) as { videos?: VideoSummary[] } | null) : null;
+    setVideos(j?.videos ?? []);
+  }, []);
+
   useEffect(() => { void loadMeta(); }, [loadMeta]);
+  useEffect(() => { if (editing) void loadVideos(); }, [editing, loadVideos]);
   useEffect(() => {
     const id = params.get("project");
     if (id && !project) void openProject(id, true);
@@ -228,9 +249,22 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
     setBusyIds((n) => n - 1);
     const fresh = await openProject(p.id, true);
     void loadMeta();
-    // Clips to posts: once the clips are in, SOCIA starts understanding them without another click.
-    if (autopilot && fresh && fresh.status !== "understanding" && fresh.clips.some((c) => c.status === "ready" || c.status === "uploaded")) setAutoStart(true);
-  }, [ensureProject, registerFile, uploadFile, openProject, loadMeta, autopilot]);
+    const usable = Boolean(fresh?.clips.some((c) => c.status === "ready" || c.status === "uploaded"));
+    // Audio: the footage opens straight in the editor, on Music.
+    if (audio && fresh && usable) setAutoAudio(true);
+    // Build: the first time clips are in, SOCIA starts understanding them without another click.
+    // Footage added after a result waits for "Understand again" (each run counts on the plan).
+    else if (!editing && fresh && !fresh.yield && fresh.status !== "understanding" && usable) setAutoStart(true);
+  }, [ensureProject, registerFile, uploadFile, openProject, loadMeta, editing, audio]);
+
+  // Rate → "Add music": the video comes with it.
+  useEffect(() => {
+    if (!audio) return;
+    const handed = takeFiles("audio");
+    if (handed.length) void onFiles(handed);
+    // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const removeClip = useCallback(async (l: LocalClip) => {
     if (l.clip) {
@@ -288,6 +322,60 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
     setManual(j as StudioBuild);
   }, [project]);
 
+  // Video editor: new clips are understood when the person asks for a video from a prompt or a
+  // reference (that's what the cut needs), never just for being added. Waits for the result.
+  const ensureUnderstood = useCallback(async (say: (step: string) => void): Promise<string | null> => {
+    const p = projectRef.current;
+    if (!p) return "Add your clips first.";
+    if (busyIds > 0) return "Wait for your clips to finish uploading.";
+    if (p.yield && p.status === "ready") return null;
+    say("Understanding your clips first (about a minute)…");
+    if (p.status !== "understanding") {
+      const res = await fetch(`/api/studio/projects/${p.id}/understand`, { method: "POST" }).catch(() => null);
+      const j = res ? await res.json().catch(() => null) : null;
+      if (!res?.ok && !(res?.status === 409 && j?.running)) {
+        if (isPlanError(j)) { setPlanError(j); return "Your plan doesn't have a footage analysis left this month."; }
+        return j?.error ?? "SOCIA couldn't understand these clips. Try again.";
+      }
+      if (j?.usage) setMeta((m) => (m ? { ...m, usage: j.usage } : m));
+    }
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      const fresh = await openProject(p.id, true);
+      if (fresh && fresh.status !== "understanding") return fresh.status === "failed" ? (fresh.error ?? "Understanding didn't finish. Nothing was counted.") : null;
+    }
+    return "Understanding is taking longer than usual. Try again in a minute.";
+  }, [busyIds, openProject]);
+
+  // Video editor: clips picked from Your clips join the video being made here.
+  const addFromLibrary = useCallback(async (clipIds: string[]): Promise<string | null> => {
+    const p = projectRef.current ?? (await ensureProject());
+    if (!p) return "Couldn't start a video.";
+    const res = await fetch(`/api/studio/projects/${p.id}/from-library`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ clipIds }) }).catch(() => null);
+    const j = res ? await res.json().catch(() => null) : null;
+    if (!res?.ok) { if (isPlanError(j)) setPlanError(j); return j?.error ?? "Couldn't add those clips."; }
+    await openProject(p.id, true);
+    const skipped = (j?.skipped as string[] | undefined) ?? [];
+    return j?.added ? (skipped.length ? skipped.join(" ") : null) : skipped.join(" ") || "Those clips are already in this video.";
+  }, [ensureProject, openProject]);
+
+  // Audio: one video opens as its own cut; several open together in the editor.
+  useEffect(() => {
+    if (!autoAudio || busyIds > 0 || manualBusy || !project) return;
+    setAutoAudio(false);
+    const usable = project.clips.filter((c) => c.status === "ready" || c.status === "uploaded");
+    if (usable.length !== 1) { void openManual(); return; }
+    const clip = usable[0];
+    void (async () => {
+      setManualBusy(true);
+      const res = await fetch(`/api/studio/projects/${project.id}/clip-build`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ clipId: clip.id }) }).catch(() => null);
+      const j = res ? await res.json().catch(() => null) : null;
+      setManualBusy(false);
+      if (!res?.ok || !j?.id) { if (isPlanError(j)) setPlanError(j); else setNotice(j?.error ?? "Couldn't open the video."); return; }
+      setCustom({ id: j.id as string, title: fileLabel(clip.name) ?? clip.name });
+    })();
+  }, [autoAudio, busyIds, manualBusy, project, openManual]);
+
   const deleteProject = useCallback(async (id: string) => {
     if (!window.confirm("Delete this project and its uploaded clips?")) return;
     const res = await fetch(`/api/studio/projects/${id}`, { method: "DELETE" });
@@ -303,15 +391,22 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
   const bytes = readyClips.reduce((a, l) => a + (l.clip?.bytes ?? 0), 0);
   const stale = Boolean(project?.yield && project.status === "collecting");
   const view: "start" | "collect" | "understanding" | "yield" | "opportunity" | "builder" | "manual" | "custom" =
-    !project ? "start" : custom ? "custom" : manual ? "manual" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
+    custom ? "custom" : !project ? "start" : manual ? "manual" : project.status === "understanding" ? "understanding" : openOpp && building && build ? "builder" : openOpp ? "opportunity" : project.yield && !adding ? "yield" : "collect";
   const canUnderstand = readyClips.length > 0 && !uploading && !starting;
   const limits = meta?.limits;
+
+  const backToStart = () => {
+    setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); setCustom(null); setManual(null);
+    router.replace(`/studio?mode=${modeParam}`, { scroll: false });
+    void loadMeta();
+    if (editing) void loadVideos();
+  };
 
   const dropZone = (compact: boolean) => (
     <div className={`st-drop cb-drop${compact ? " compact" : ""}${drag ? " drag" : ""}`} role="button" tabIndex={0} onClick={() => input.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}>
       <span className="st-drop-ico"><Upload size={compact ? 16 : 22} /></span>
-      <b>{drag ? "Drop them" : compact ? "Drop more clips, or click to browse" : "Drop your raw clips here, or click to browse"}</b>
-      {!compact && <p>MP4 or MOV, the raw footage from your phone. SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and stores the footage privately{limits ? ` for ${limits.retentionDays} days` : ""}.</p>}
+      <b>{drag ? "Drop them" : compact ? "Drop more clips, or click to browse" : audio ? "Drop a video to add music, or click to browse" : editing ? "Drop your clips here, or click to browse" : "Drop your raw clips here, or click to browse"}</b>
+      {!compact && <p>MP4 or MOV{audio ? ". SOCIA listens to it, makes a track for it from your taste and puts it in." : editing ? ", one video or many clips." : ", the raw footage from your phone."} SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and keeps the footage privately until you delete it, so you can post it again or use it in a new video.</p>}
       {limits && <small className="cb-limits">Up to {limits.clipsPerProject} clips · {limits.footageMinutes} minutes · {limits.uploadMb} MB per project</small>}
     </div>
   );
@@ -320,12 +415,12 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
     <div className="st cb" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length && view !== "understanding") void onFiles(e.dataTransfer.files); }}>
       <PageHeader
         title="Content Studio"
-        sub={autopilot ? "Drop your clips. SOCIA makes the videos and schedules them, a set number a day, after you check the list." : "Upload raw clips. SOCIA tells you which posts are in them, and how to make each one."}
+        sub={audio ? "Drop a video. SOCIA adds music made for it from your taste, and you can hear the others and pick one." : editing ? "Put in your clips, then write what you want or add a video to copy. SOCIA cuts it, and you finish it in the editor." : "Drop your raw clips. SOCIA finds the posts in them, makes the videos and schedules them after you check the list."}
         status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured — clips are understood from frames and measured sound"}</span> : null}
         actions={
           <>
-            {project && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={() => { setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); setCustom(null); router.replace(`/studio?mode=${modeParam}`, { scroll: false }); void loadMeta(); }}><FolderOpen size={14} /> Projects</button>}
-            <button type="button" className="ov-btn primary" disabled={view === "understanding"} onClick={() => input.current?.click()}><Upload size={14} /> Add clips</button>
+            {(project || custom) && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={backToStart}><FolderOpen size={14} /> {editing ? "Your videos" : "Projects"}</button>}
+            <button type="button" className="ov-btn primary" disabled={view === "understanding"} onClick={() => input.current?.click()}><Upload size={14} /> {audio ? "Upload a video" : "Add clips"}</button>
             <input ref={input} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" multiple onChange={(e) => { if (e.target.files) void onFiles(e.target.files); e.target.value = ""; }} />
           </>
         }
@@ -338,36 +433,73 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
       {planError && <div className="ov-card st-error cb-notice"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact onCta={() => setPlanError(null)} /></div></div>}
       {notice && <div className="cal2-toast cb-toast" role="status">{notice}<button type="button" className="ov-x" aria-label="Dismiss" onClick={() => setNotice(null)}>×</button></div>}
 
-      {view === "start" && !migration && (
+      {editing && view !== "custom" && view !== "manual" && !migration && (
+        <div className="cb-editor">
+          <section className="ov-card cbp" aria-labelledby="cb-ed-clips">
+            <div className="cbp-head">
+              <h3 id="cb-ed-clips"><Layers size={15} /> Clips for this video</h3>
+              {readyClips.length > 0 && <span className="cbp-muted">{readyClips.length} clip{readyClips.length === 1 ? "" : "s"} · {fmtMinutes(footageSec)}{uploading ? " · adding more" : ""}</span>}
+            </div>
+            {locals.length > 0 && <ClipGrid clips={locals} onRemove={(c) => void removeClip(c)} busy={uploading || view === "understanding"} />}
+            {view === "understanding" && project ? <UnderstandCard progress={project.progress} clipCount={readyClips.length} /> : dropZone(locals.length > 0)}
+          </section>
+          <BriefPanel
+            projectId={project && readyClips.length ? project.id : null}
+            viewerId={viewerId}
+            canMake={meta ? meta.autoBuild : null}
+            heading="Prompt and reference"
+            noClipsNote="Add clips above first, or pick some from Your clips below."
+            beforeMake={ensureUnderstood}
+            onOpen={(id, title) => setCustom({ id, title })}
+          />
+          <div className="ov-card cb-manual">
+            <div><b><Scissors size={14} /> Or edit them yourself</b><small>Cut, arrange, reframe and add text and music to these clips by hand. No AI, nothing counted against your plan.</small></div>
+            <button type="button" className="ov-btn ghost small" disabled={!readyClips.length || uploading || manualBusy} onClick={() => void openManual()}>{manualBusy ? <Loader2 size={13} className="spin" /> : null} Open the editor</button>
+          </div>
+          <VideoList videos={videos} onOpen={(v) => setCustom({ id: v.id, title: v.title })} />
+          <ClipLibrary onOpenCut={(id, title) => setCustom({ id, title })} onUse={addFromLibrary} useLabel="Add to this video" />
+        </div>
+      )}
+
+      {view === "start" && !migration && audio && (
         <div className="st-grid empty">
           <div className="st-preview">{dropZone(false)}</div>
           <div className="st-work">
             <div className="ov-card st-intro">
               <h2>What happens</h2>
-              {autopilot ? (
-                <ul>
-                  <li><b>1 · Drop your clips</b><span>Everything from the shoot. Each clip is measured on this device and uploaded privately.</span></li>
-                  <li><b>2 · SOCIA understands them</b><span>It starts on its own once the clips are in: speech, scenes and the posts the footage supports. Counts one footage analysis on your plan.</span></li>
-                  <li><b>3 · Make the videos</b><span>Pick the ideas (or post each clip on its own), how many a day and where. SOCIA makes each video and writes its caption.</span></li>
-                  <li><b>4 · Check, then schedule</b><span>See every video with its day, time and caption, change anything, then schedule them all with one click.</span></li>
-                </ul>
-              ) : (
               <ul>
-                <li><b>1 · Upload</b><span>Drop everything from the shoot. Each clip is measured here first — length, picture, sound — and uploaded privately.</span></li>
-                <li><b>2 · Understand</b><span>Speech is transcribed with timestamps; SOCIA reads a few frames per clip and writes down what&apos;s in it and where the strong moments are. Done once per clip and remembered.</span></li>
-                <li><b>3 · Content Yield</b><span>SOCIA groups clips that belong together and counts only posts with enough distinct, usable footage. If 20 clips make one post, it says one.</span></li>
-                <li><b>4 · Edit guide</b><span>Open a post and get the exact cut: which clip, which seconds, the on-screen text, what to brighten or turn up, the recommended length.</span></li>
+                <li><b>1 · Drop a video</b><span>It&apos;s measured on this device and kept privately until you delete it.</span></li>
+                <li><b>2 · SOCIA picks the music</b><span>From your taste: how your best posts sound, whether music or your own sound has done better, and the tracks you chose before. Lower under speech.</span></li>
+                <li><b>3 · Hear the others</b><span>The rest of the playlist is there to listen to and pick instead, with levels for the music and the video&apos;s own sound.</span></li>
+                <li><b>4 · Make it and post it</b><span>Make the video with the music in, then schedule it. Each track counts as a music track on your plan.</span></li>
               </ul>
-              )}
-              <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. Music is a recommendation — SOCIA never adds a track.</p>
             </div>
-            <LearnCard />
-            <ProjectList projects={projects} onOpen={(id) => void openProject(id)} onDelete={(id) => void deleteProject(id)} busy={uploading} />
           </div>
         </div>
       )}
 
-      {(view === "collect" || view === "understanding") && project && (
+      {view === "start" && !migration && !editing && !audio && (
+        <div className="st-grid empty">
+          <div className="st-preview">{dropZone(false)}</div>
+          <div className="st-work">
+            <div className="ov-card st-intro">
+              <h2>What happens</h2>
+              <ul>
+                <li><b>1 · Drop your clips</b><span>Everything from the shoot. Each clip is measured on this device and uploaded privately.</span></li>
+                <li><b>2 · SOCIA understands them</b><span>It starts on its own once the clips are in: speech, scenes and the posts the footage really supports. If 20 clips make one post, it says one. Counts one footage analysis on your plan.</span></li>
+                <li><b>3 · Make the videos</b><span>Pick the ideas, post each clip on its own, or describe a video or give a reference to copy. SOCIA makes each one and writes its caption.</span></li>
+                <li><b>4 · Check, then schedule</b><span>See every video with its day, time and caption, change anything, then schedule them all with one click. Or tell Ask SOCIA when to post them.</span></li>
+              </ul>
+              <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. On Growth and Pro, music made from your taste goes in on its own; you can pick another or take it out.</p>
+            </div>
+            <LearnCard />
+            <ProjectList projects={projects} onOpen={(id) => void openProject(id)} onDelete={(id) => void deleteProject(id)} busy={uploading} />
+            <ClipLibrary allowPost={false} />
+          </div>
+        </div>
+      )}
+
+      {!editing && (view === "collect" || view === "understanding") && project && (
         <div className="cb-collect">
           <div className="ov-card cb-bar">
             <div className="cb-bar-facts">
@@ -380,11 +512,11 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
               {meta?.usage && <UsageLine meter="content_build" used={meta.usage.used} limit={meta.usage.limit} resetsOn={meta.usage.resetsOn} always />}
               {view === "collect" && project.yield && <button type="button" className="ov-btn ghost small" onClick={() => setAdding(false)}>Back to results</button>}
               {view === "collect" && (
-                <button type="button" className="ov-btn ghost" disabled={!(readyClips.length > 0 && !uploading) || manualBusy} onClick={() => void openManual()} title="Cut, arrange and export these clips yourself. No AI, nothing counted.">
-                  {manualBusy ? <Loader2 size={14} className="spin" /> : <Scissors size={14} />} Edit them yourself
+                <button type="button" className={`ov-btn ${editing ? "primary" : "ghost"}`} disabled={!(readyClips.length > 0 && !uploading) || manualBusy} onClick={() => void openManual()} title="Cut, arrange and export these clips yourself. No AI, nothing counted.">
+                  {manualBusy ? <Loader2 size={14} className="spin" /> : <Scissors size={14} />} {editing ? "Open the editor" : "Edit them yourself"}
                 </button>
               )}
-              {view === "collect" && (
+              {view === "collect" && !editing && (
                 <button type="button" className="ov-btn primary" disabled={!canUnderstand} onClick={() => void understand()}>
                   {starting ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {project.yield ? "Understand again" : "Understand this footage"}
                 </button>
@@ -399,29 +531,28 @@ export default function ClipsStudio({ viewerId, modeTabs, autopilot = false }: {
         </div>
       )}
 
-      {view === "yield" && project?.yield && (
+      {!editing && view === "yield" && project?.yield && (
         <>
-          {autopilot && <BatchPanel key={`top-${project.id}`} project={project} autoBuild={meta ? meta.autoBuild : null} />}
+          {!editing && <BatchPanel key={project.id} project={project} autoBuild={meta ? meta.autoBuild : null} />}
           <YieldView y={project.yield} clips={project.clips} builds={project.builds} onOpen={(o) => void openOpportunity(o)} onAddMore={() => setAdding(true)} stale={stale} outcomes={learn?.outcomes} />
           <div className="ov-card cb-manual">
             <div><b><Scissors size={14} /> Edit the clips yourself</b><small>Cut, arrange, reframe and add text to every clip in this project, then export. No AI, nothing counted against your plan.</small></div>
             <button type="button" className="ov-btn ghost small" disabled={manualBusy} onClick={() => void openManual()}>{manualBusy ? <Loader2 size={13} className="spin" /> : null} Open the editor</button>
           </div>
           <BriefPanel projectId={project.id} viewerId={viewerId} canMake={meta ? meta.autoBuild : null} onOpen={(id, title) => setCustom({ id, title })} />
-          {!autopilot && <BatchPanel key={project.id} project={project} autoBuild={meta ? meta.autoBuild : null} />}
         </>
       )}
 
-      {view === "opportunity" && project && openOpp && (
+      {!editing && view === "opportunity" && project && openOpp && (
         <OpportunityView o={openOpp} build={build} clips={project.clips} loading={buildLoading} error={buildError} onBack={() => { setOpenOpp(null); setBuild(null); }} onRetry={() => void openOpportunity(openOpp)} canMake={meta ? meta.autoBuild : null} onMake={() => setBuilding(true)} />
       )}
 
       {view === "custom" && custom && (
-        <ClipBuilder buildId={custom.id} title={custom.title} onBack={() => setCustom(null)} />
+        <ClipBuilder buildId={custom.id} title={custom.title} initialPanel={audio ? "audio" : undefined} onBack={() => { if (audio) { backToStart(); return; } setCustom(null); if (editing) void loadVideos(); }} />
       )}
 
       {view === "manual" && manual && (
-        <ClipBuilder buildId={manual.id} title={project?.title || "Your edit"} onBack={() => setManual(null)} />
+        <ClipBuilder buildId={manual.id} title={project?.title || "Your edit"} initialPanel={audio ? "audio" : undefined} onBack={() => { setManual(null); if (editing || audio) backToStart(); }} />
       )}
 
       {view === "builder" && openOpp && build && (
