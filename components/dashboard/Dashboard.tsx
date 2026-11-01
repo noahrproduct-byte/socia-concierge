@@ -26,6 +26,7 @@ import AccountSwitcher from "@/components/AccountSwitcher";
 import UpdatedAgo from "@/components/UpdatedAgo";
 import TodayCard, { useTodaySummary, type TodayCardProps } from "@/components/TodayCard";
 import RepurposeCard from "@/components/RepurposeCard";
+import VideoIdeasCard from "@/components/VideoIdeasCard";
 import {
   ButtonLink,
   Card,
@@ -590,6 +591,8 @@ export default function Dashboard({ d }: { d: DashboardData }) {
       </div>
 
       {!nothingConnected && d.today.facts && <TodayCard {...d.today} view={todayView} />}
+
+      {!nothingConnected && <VideoIdeasCard />}
 
       <Card flush>
         <CardHeader title="Platforms" period={d.rangeLabel} />
