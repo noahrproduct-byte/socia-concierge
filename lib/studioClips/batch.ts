@@ -61,16 +61,19 @@ export function scheduleBatch(input: {
   now: Date;
   tz: string;
   horizonDays?: number;
+  /** Times the person asked for, as minutes after local midnight; they replace the defaults and the history window. */
+  minutesOfDay?: number[];
 }): BatchPlan {
   const { items, existing, history, now, tz } = input;
-  const perDay = Math.max(1, Math.min(MAX_PER_DAY, Math.round(input.perDay)));
+  const asked = (input.minutesOfDay ?? []).filter((m) => Number.isInteger(m) && m >= 0 && m < 24 * 60).sort((a, b) => a - b);
+  const perDay = asked.length ? Math.min(asked.length, 8) : Math.max(1, Math.min(MAX_PER_DAY, Math.round(input.perDay)));
   const horizon = input.horizonDays ?? BATCH_HORIZON_DAYS;
 
   const w = history ? buildWindows(history, (d) => { const p = zonedParts(d, tz); return { day: (p.weekday + 6) % 7, hour: p.hour }; }) : null;
   const bestByWeekday = new Map<number, NonNullable<typeof w>["best"][number]>();
   if (w?.enough) for (const b of w.best) if (!bestByWeekday.has(b.day)) bestByWeekday.set(b.day, b);
-  const defaults = DEFAULT_HOURS[perDay].map((h) => `${h > 12 ? h - 12 : h} ${h >= 12 ? "PM" : "AM"}`).join(" and ");
-  const timing = !history
+  const defaults = (DEFAULT_HOURS[perDay] ?? []).map((h) => `${h > 12 ? h - 12 : h} ${h >= 12 ? "PM" : "AM"}`).join(" and ");
+  const timing = asked.length ? "At the times you asked for." : !history
     ? `SOCIA hasn't read this account's posting history, so every post uses a default time (${defaults}). Change any of them below.`
     : !w?.enough
       ? `Not enough posting history to pick times (${w?.posts ?? 0} posts; SOCIA needs ${MIN_POSTS}), so every post uses a default time (${defaults}). Change any of them below.`
@@ -96,8 +99,8 @@ export function scheduleBatch(input: {
     const taken = [...(busy.get(day.date) ?? [])];
     let room = perDay - taken.length;
     if (room <= 0) continue;
-    const win = bestByWeekday.get(day.weekday);
-    const wanted: { min: number; chosen: boolean }[] = DEFAULT_HOURS[perDay].map((h) => ({ min: h * 60, chosen: false }));
+    const win = asked.length ? undefined : bestByWeekday.get(day.weekday);
+    const wanted: { min: number; chosen: boolean }[] = asked.length ? asked.map((m) => ({ min: m, chosen: false })) : DEFAULT_HOURS[perDay].map((h) => ({ min: h * 60, chosen: false }));
     // The history's window for this weekday takes the place of the nearest default slot.
     if (win) {
       const wmin = BLOCK_STARTS[win.block] * 60 + MINUTES_INTO_BLOCK;
@@ -107,7 +110,9 @@ export function scheduleBatch(input: {
     }
     // Default slots that are clear of the day's posts come first; a clashing one is nudged
     // forward an hour at a time only if the day still has room after that.
-    const clash = (min: number) => taken.some((t) => Math.abs(t - min) < MIN_GAP_MIN);
+    // Times the person named are kept unless another post sits within half an hour.
+    const gap = asked.length ? 30 : MIN_GAP_MIN;
+    const clash = (min: number) => taken.some((t) => Math.abs(t - min) < gap);
     const order = [...wanted.filter((x) => !clash(x.min)), ...wanted.filter((x) => clash(x.min))];
     for (const want of order) {
       if (room <= 0 || !queue.length) break;
@@ -123,8 +128,8 @@ export function scheduleBatch(input: {
       const reason = chosen && win
         ? `Your Instagram posts on ${DOW_LONG[win.day]}s ${betweenPhrase(win.block)} have done ${relText(win.rel)} (${win.n} post${win.n === 1 ? "" : "s"}${win.confidence === "early" ? ", an early signal" : ""}).`
         : min !== want.min
-          ? "Default time, moved to keep two hours from another post that day."
-          : "Default time.";
+          ? asked.length ? "The time you asked for, moved to keep clear of another post that day." : "Default time, moved to keep two hours from another post that day."
+          : asked.length ? "The time you asked for." : "Default time.";
       slots.push({ key: item.key, at: at.toISOString(), date: day.date, timeChosen: chosen, reason });
       taken.push(min);
       room--;

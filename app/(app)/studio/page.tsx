@@ -40,10 +40,10 @@ export default async function StudioPage({ searchParams }: { searchParams: Promi
     );
   }
 
-  if (mode === "clips") {
+  if (mode === "clips" || mode === "autopost") {
     return (
       <Suspense fallback={null}>
-        <ClipsStudio viewerId={user.id} modeTabs={<StudioMode mode="clips" />} />
+        <ClipsStudio key={mode} viewerId={user.id} modeTabs={<StudioMode mode={mode} />} autopilot={mode === "autopost"} />
       </Suspense>
     );
   }

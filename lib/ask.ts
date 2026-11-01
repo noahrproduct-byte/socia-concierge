@@ -36,13 +36,30 @@ export type AskContext = {
   planId?: string;
   planDay?: string;
   studio?: StudioAskContext;
+  /** The viewer's IANA time zone, for scheduling in their own clock. */
+  tz?: string;
 };
 
 export type PlanDayDraft = { concept: string; hook: string; format: string; rationale: string };
 
 export type AskAction = { label: string; href: string };
+/** One post in a schedule proposal: where it is now and where SOCIA would put it. */
+export type AskScheduleItem = {
+  postId: string;
+  title: string;
+  status: "draft" | "scheduled";
+  /** current time for a scheduled post; null for a draft */
+  from: string | null;
+  at: string;
+  reason: string;
+  /** a Create Post item (it publishes to these platforms); false = a calendar row with no destinations yet */
+  platforms: string[];
+  /** a post saved before multi-platform publishing: moved by time only */
+  legacy: boolean;
+};
 export type AskProposal =
   | { kind: "plan_day"; planId: string; index: number; day: string; current: PlanDayDraft; proposed: PlanDayDraft; why: string }
+  | { kind: "schedule"; summary: string; items: AskScheduleItem[]; left: { title: string; reason: string }[] }
   | { kind: "text"; field: "hook" | "caption" | "cta" | "onscreen"; label: string; options: string[] };
 export type AskPost = { id: string; title: string; thumb: string | null; stat: string; permalink: string | null };
 
@@ -118,6 +135,17 @@ export type ModelAnswer = {
     options: string[];
   }[];
   postId: string;
+  /** Scheduling: what the person asked for, in their own terms. The server works out the times. */
+  schedule: {
+    want: boolean;
+    /** the [S#] numbers of the posts meant; empty = every draft listed */
+    posts: number[];
+    startLocal: string;
+    spacingMinutes: number;
+    perDay: number;
+    times: string[];
+    days: number;
+  };
 };
 
 export const askAnswerSchema = {
@@ -159,6 +187,20 @@ export const askAnswerSchema = {
       },
     },
     postId: { type: "string" },
+    schedule: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        want: { type: "boolean" },
+        posts: { type: "array", items: { type: "integer" } },
+        startLocal: { type: "string" },
+        spacingMinutes: { type: "integer" },
+        perDay: { type: "integer" },
+        times: { type: "array", items: { type: "string" } },
+        days: { type: "integer" },
+      },
+      required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days"],
+    },
   },
-  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId"],
+  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "schedule"],
 } as const;

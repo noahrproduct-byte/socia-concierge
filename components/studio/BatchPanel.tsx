@@ -21,7 +21,7 @@ import { formatClock, fromLocalInput, toLocalInput, viewerTimeZone } from "@/lib
 import { availabilityFor } from "@/lib/publishing/capabilities";
 import { defaultSettings, PLATFORM_LABEL, type DestinationSettings, type Platform, type YouTubeSettings, type InstagramSettings, type FacebookSettings } from "@/lib/publishing/types";
 import type { PickerAccount } from "@/lib/publishing/composer";
-import { uploadToYouTube, relayEndpoint } from "@/lib/publishing/youtubeUpload";
+import { schedulePost } from "@/lib/publishing/scheduleClient";
 import type { CalendarPost } from "@/lib/studioClips/distribute";
 import { batchOrder, MAX_PER_DAY, scheduleBatch, tomorrowIn, type BatchItem } from "@/lib/studioClips/batch";
 import { clipLabel, type BuildPlayerData, type StudioBuild, type StudioProject } from "@/lib/studioClips/types";
@@ -294,40 +294,13 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
     setPhase("scheduling"); setRunError(null);
     for (const m of list) {
       patch(m.key, { outcome: null });
-      try {
-        const res = await fetch("/api/posts", {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            id: m.postId, caption: m.caption, scheduledAt: m.at, source: "studio", planId: null, planDay: null, customizePerPlatform: false, action: "schedule",
-            media: [{ id: `studio-${m.postId}`, kind: "video", name: "video.mp4", mime: "video/mp4", size: m.blob?.size ?? null, width: m.width, height: m.height, duration: m.durationSec, path: m.path }],
-            destinations: chosenAccounts.map((a) => ({ platform: a.platform, accountId: a.accountId, settings: settingsFor(a.platform, m), scheduledAt: m.at })),
-          }),
-        });
-        const j = await readJson(res);
-        if (!res.ok) {
-          const issues = j?.issues ? Object.values(j.issues as Record<string, { message: string }[]>).flat().map((i) => i.message) : [];
-          patch(m.key, { outcome: { ok: false, text: [j?.error as string ?? "Couldn't schedule it.", ...issues].join(" ") } });
-          continue;
-        }
-        // YouTube holds a scheduled video privately until its time; the bytes go from this browser now.
-        const item = j!.item as { id: string };
-        const uploads = (j!.uploads ?? []) as { destinationId: string; uploadHandle: string }[];
-        const notes: string[] = [];
-        for (const u of uploads) {
-          try {
-            const blob = m.blob ?? await (await fetch(m.url!)).blob();
-            const { videoId } = await uploadToYouTube({ endpoint: relayEndpoint(item.id, u.destinationId), handle: u.uploadHandle, blob });
-            await fetch(`/api/posts/${encodeURIComponent(item.id)}/destinations/${encodeURIComponent(u.destinationId)}/complete`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ externalPostId: videoId }) });
-          } catch (e) {
-            const msg = (e as Error)?.message || "The upload did not complete.";
-            await fetch(`/api/posts/${encodeURIComponent(item.id)}/destinations/${encodeURIComponent(u.destinationId)}/complete`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ error: msg }) }).catch(() => null);
-            notes.push(`YouTube upload didn't finish (${msg}); open the post to upload it again.`);
-          }
-        }
-        patch(m.key, { outcome: { ok: notes.length === 0, text: notes.length ? `Scheduled. ${notes.join(" ")}` : "Scheduled." } });
-      } catch {
-        patch(m.key, { outcome: { ok: false, text: "Couldn't reach SOCIA. It's still a draft in your Calendar." } });
-      }
+      const r = await schedulePost({
+        postId: m.postId, caption: m.caption, at: m.at!, source: "studio",
+        media: [{ id: `studio-${m.postId}`, kind: "video", name: "video.mp4", mime: "video/mp4", size: m.blob?.size ?? null, width: m.width, height: m.height, duration: m.durationSec, path: m.path }],
+        destinations: chosenAccounts.map((a) => ({ platform: a.platform, accountId: a.accountId, settings: settingsFor(a.platform, m) })),
+        blob: m.blob, mediaUrl: m.url,
+      });
+      patch(m.key, { outcome: { ok: r.ok, text: r.text } });
     }
     setPhase("done");
   };
