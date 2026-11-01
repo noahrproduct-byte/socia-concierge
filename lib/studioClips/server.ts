@@ -15,6 +15,7 @@ import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForE
 import { sanitizeFinish } from "./finish";
 import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS } from "./types";
+import { briefText, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
 
@@ -405,7 +406,8 @@ export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string |
   if (!row) throw new Error("That build does not exist.");
   const rows = await clipRows(client, row.project_id);
   const forEdl = rows.map(toClipForEdl);
-  const { edl } = revalidateEdl(edited, forEdl);
+  // A cut made from a brief keeps its brief through every save, so Regenerate still follows it.
+  const edl = withBrief(revalidateEdl(edited, forEdl).edl, row.edl?.brief);
   if (!edl.segments.length) throw new Error("A cut needs at least one clip.");
   const history = [...(row.edl_history ?? []), row.edl].slice(-HISTORY_MAX);
   const guide = guideFromEdl(edl, forEdl);
@@ -421,17 +423,24 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   if (!row) throw new Error("That build does not exist.");
   if ((row.regenerations ?? 0) >= MAX_REGENERATIONS) throw new Error(`This post has been regenerated ${MAX_REGENERATIONS} times, the limit for one build. Edit the cut directly, or open another post.`);
   const project = await getProjectRow(client, ownerId, wsId, row.project_id);
-  const opp = project?.yield?.opportunities.find((o) => o.idx === row.opportunity_idx);
-  if (!project || !opp) throw new Error("That post is not in this project's results.");
+  if (!project) throw new Error("That post is not in this project's results.");
   const rows = await clipRows(client, project.id);
+  // A cut made from a brief has no Content Yield post behind it: the brief is the post.
+  const brief = isBriefIdx(row.opportunity_idx) ? row.edl?.brief ?? null : null;
+  const opp = brief
+    ? opportunityFromBrief(titleFor(brief.prompt, null), brief.prompt ?? "Recreate the reference's structure and style.", rows.filter((r) => r.card && !r.purged_at).map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, card: r.card })), row.opportunity_idx)
+    : project.yield?.opportunities.find((o) => o.idx === row.opportunity_idx);
+  if (!opp) throw new Error("That post is not in this project's results.");
   // "Use different clips" may draw on the whole project; the others stay on the post's clips.
   const pool = directive === "different_clips" ? rows.filter((r) => r.card && !r.purged_at) : rows.filter((r) => opp.clipIds.includes(r.id));
   const ordered = [...pool.filter((r) => opp.clipIds.includes(r.id)), ...pool.filter((r) => !opp.clipIds.includes(r.id))];
   const urls = await frameUrls(client, ordered);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl });
+  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, brief ? briefText(brief) : null);
   const forEdl = rows.map(toClipForEdl);
   const { edl } = validateEdl(raw, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
+  // A brief's cut keeps its size, its look and the brief itself.
+  if (brief) { edl.brief = brief; edl.width = row.edl.width; edl.height = row.edl.height; if (row.edl.style) edl.style = row.edl.style; if (row.edl.captions) edl.captions = row.edl.captions; }
   // Picture and sound corrections are per clip, so they still hold for the clips the new cut keeps;
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));
@@ -443,6 +452,61 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   if (error && /column|does not exist/i.test(error.message ?? "")) ({ error } = await client.from("studio_builds").update(patch).eq("id", buildId).eq("user_id", ownerId));
   if (error) throw error;
   return rowToBuild({ ...row, edl, edl_history: history, guide, caption: edl.caption || null, regenerations: (row.regenerations ?? 0) + 1 }, rows);
+}
+
+// ------------------------------------------------- from a brief or a reference ----
+
+/** The project's cuts made from a brief, newest first: id, title and what they follow. */
+export async function listBriefBuilds(client: Supa, ownerId: string, wsId: string | null, projectId: string): Promise<{ id: string; title: string; referenceName: string | null; createdAt: string }[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = await selectBuilds(client, (q: any) => scopeToWorkspace(q.eq("project_id", projectId).eq("user_id", ownerId).lte("opportunity_idx", -2).gte("opportunity_idx", -999), wsId).order("created_at", { ascending: false }).limit(20));
+  return rows.map((b) => {
+    const brief = b.edl?.brief ?? null;
+    const title = brief?.prompt ? titleFor(brief.prompt, null) : brief?.referenceName ? `Like “${brief.referenceName}”` : "Your video";
+    return { id: b.id, title, referenceName: brief?.referenceName ?? null, createdAt: b.created_at };
+  });
+}
+
+/**
+ * Pass 3 from a written brief, a reference breakdown, or both, over every
+ * understood clip in the project. The reference's text style is applied to
+ * the cut; the brand preset gives the size. Saved as a new build.
+ */
+export async function buildFromBrief(client: Supa, args: {
+  ownerId: string; wsId: string | null; project: ProjectRow; acct: AccountContext;
+  prompt: string | null;
+  reference: { name: string; breakdown: ReferenceBreakdown; brief: string } | null;
+  preset?: { style: EdlStyle; width: number; height: number } | null;
+}): Promise<StudioBuild> {
+  const { ownerId, wsId, project, acct, prompt, reference, preset } = args;
+  const rows = await clipRows(client, project.id);
+  const usable = rows.filter((r) => r.card && !r.purged_at && r.status !== "expired");
+  if (!usable.length) throw new Error("SOCIA hasn't understood these clips yet. Run Understand this footage first.");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existing = await selectBuilds(client, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
+  const idx = nextBriefIdx(existing.map((b) => b.opportunity_idx));
+  const title = titleFor(prompt, reference?.breakdown ?? null);
+  const opp = opportunityFromBrief(title, prompt ?? reference?.breakdown.summary ?? title, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, card: r.card })), idx);
+  if (!opp.clipIds.length) throw new Error("None of the clips has a usable moment to cut from.");
+  const brief = { prompt, reference: reference?.brief ?? null, referenceName: reference?.name ?? null };
+  const urls = await frameUrls(client, usable);
+  const { raw, model } = await opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, undefined, briefText(brief));
+  const forEdl = rows.map(toClipForEdl);
+  const { edl } = validateEdl(raw, forEdl);
+  if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
+  if (preset) { edl.width = preset.width; edl.height = preset.height; edl.style = preset.style; }
+  if (reference) {
+    edl.style = referenceStyle(reference.breakdown, edl.style);
+    // Word-by-word captions only when the reference has them and the clips have real speech.
+    if (reference.breakdown.captions && usable.some((r) => r.transcript?.words?.length)) edl.captions = { source: "transcript" };
+  }
+  edl.brief = brief;
+  const guide = guideFromEdl(edl, forEdl);
+  const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: edl.caption || null, model, updated_at: now() };
+  if (wsId) row.workspace_id = wsId;
+  const { data, error } = await client.from("studio_builds").insert(row).select(BUILD_COLS).single();
+  if (error) throw error;
+  return rowToBuild(data as BuildRow, rows);
 }
 
 /** The browser finished rendering and uploading; the draft post exists. */

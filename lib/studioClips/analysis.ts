@@ -12,6 +12,7 @@ import type { ClipCard, ClipFacts, Edl, Opportunity, RegenerateDirective, Transc
 import { clipLabel, fmtClock } from "./types";
 import type { ProposedGroup } from "./yield";
 import type { RawEdl } from "./edl";
+import { BREAKDOWN_SCHEMA, shotStats, timedSpeech, type ReferenceInput } from "./reference";
 
 export type AccountContext = {
   niche: string | null; location: string | null; goals: string | null; brand: BrandDetail | null;
@@ -93,7 +94,40 @@ const accountText = (acct: AccountContext): string => [
   brandContext(acct.brand) || "",
 ].filter(Boolean).join("\n");
 
-type Content = ({ type: "text"; text: string } | { type: "image"; source: { type: "url"; url: string } })[];
+type Content = ({ type: "text"; text: string } | { type: "image"; source: { type: "url"; url: string } | { type: "base64"; media_type: "image/jpeg"; data: string } })[];
+
+// ------------------------------------------------------ reference video ----
+
+/**
+ * A reference video broken down from what the browser measured: its frames,
+ * its cut times and its speech with times. Structure and style only; the
+ * breakdown describes what is seen and heard, it never guesses results.
+ */
+export async function breakDownReference(ref: ReferenceInput, acct: AccountContext): Promise<{ raw: unknown; model: string }> {
+  const stats = shotStats(ref);
+  const speech = timedSpeech(ref.words);
+  const system = `You break down a short-form vertical video (a Reel, TikTok or Short) so an editor can recreate its structure, pacing and on-screen text style with different footage. Describe only what the frames, cut times and speech show; when something can't be seen in the frames given, say "not visible" rather than guess. Never comment on how well it performed.
+- summary: one sentence on what the video is and how it's built.
+- hook: what happens in the first 2 seconds and why it holds attention.
+- pace: how often it cuts and how that changes (use the measured cut times).
+- ending: how it ends (a reveal, a question, an ask, a loop).
+- beats: 3 to 10 in order, covering the whole video, each with start/end seconds, what it shows (shot type and action, not who), the on-screen text exactly as written in the frames ("" when none) and what is said ("" when nothing).
+- text: the on-screen text style as seen in the frames: where it sits, its background (dark box, light box, a coloured box = accent, or none), capitals or not, size relative to the frame, the closest font from the list (bebas = tall condensed bold, montserrat = wide geometric bold, poppins = rounded, playfair = serif, inter = plain sans), and accent as #rrggbb only when a coloured box or text colour is clearly visible, else "".
+- captions: true when word-by-word subtitles of the speech are on screen.`;
+  const content: Content = [
+    { type: "text", text: `${accountText(acct)}
+
+The reference: ${ref.durationSec}s, ${ref.width ?? "?"}×${ref.height ?? "?"}.
+Cuts measured at: ${ref.cuts ? (ref.cuts.length ? ref.cuts.map((c) => `${c}s`).join(", ") : "none found") : "not measured"}${stats.shots ? ` (${stats.shots} shots, median ${stats.medianShotSec}s)` : ""}.
+Sound: ${ref.audio ? `${ref.audio.hasAudio ? `level ${ref.audio.level}` : "no sound"}` : "not measured"}.
+${speech ? `Speech with times:\n${speech}` : "No speech was transcribed."}
+
+The images that follow are frames at ${ref.frames.map((f) => `${f.t}s`).join(", ")}.` },
+    ...ref.frames.map((f) => ({ type: "image" as const, source: { type: "base64" as const, media_type: "image/jpeg" as const, data: f.jpeg } })),
+  ];
+  const { data, model } = await structured<unknown>("studio_edl", system, content, BREAKDOWN_SCHEMA, 2500, { ownerId: acct.ownerId, feature: "clip_edl" });
+  return { raw: data, model };
+}
 
 async function structured<T>(task: Parameters<typeof modelFor>[0], system: string, content: Content, schema: unknown, maxTokens: number, usage: { ownerId?: string; feature: AiFeature }): Promise<{ data: T; model: string }> {
   const model = modelFor(task);
@@ -249,7 +283,7 @@ const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
 
 export type EdlVariant = { directive: RegenerateDirective; previous: Edl };
 
-export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant): Promise<{ raw: RawEdl; model: string }> {
+export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant, brief?: string | null): Promise<{ raw: RawEdl; model: string }> {
   const used = clips.filter((c) => (variant ? true : opp.clipIds.includes(c.id)) && c.card);
   const previous = variant
     ? `\n\nThe previous cut (${variant.previous.segments.reduce((a, s) => a + (s.out - s.in), 0).toFixed(1)}s): ${variant.previous.segments.map((s) => `${clipLabel(used.find((c) => c.id === s.clipId)?.position ?? 0)} ${s.in.toFixed(1)}–${s.out.toFixed(1)}s`).join("; ")}${variant.previous.text[0] ? `; opening line "${variant.previous.text[0].text}"` : ""}.\nChange requested: ${DIRECTIVE_TEXT[variant.directive]}`
@@ -265,7 +299,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   const content: Content = [
     { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}
 
-The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
+${brief ? `The brief for this video. Follow it closely: its length, order, pace, on-screen lines and ending win over the general rules below, except the honesty rules. Where it asks for footage the clips don't have, say so in notes and use the nearest real moment.\n"""\n${brief.trim()}\n"""\n\n` : ""}The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.
 ${opp.opener ? `Opener candidate: ${clipLabel(used.find((c) => c.id === opp.opener!.clipId)?.position ?? 0)} ${opp.opener.start.toFixed(1)}–${opp.opener.end.toFixed(1)}s (${opp.opener.why}).` : "No opener was identified; choose the strongest available moment."}${previous}
 
