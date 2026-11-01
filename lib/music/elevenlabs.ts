@@ -24,7 +24,8 @@ export async function composeTrack(args: { prompt: string; lengthMs: number; sig
   // The reason, never the key, goes to the log.
   const detail = (await res.text().catch(() => "")).slice(0, 300);
   console.error("[music] compose failed:", res.status, detail);
-  if (res.status === 401 || res.status === 403) throw new MusicError("not_configured", "SOCIA's music account isn't accepting requests. Try again later.");
+  // 402: the ElevenLabs account is on a plan without the Music API (it needs a paid plan).
+  if (res.status === 401 || res.status === 402 || res.status === 403) throw new MusicError("not_configured", "Music isn't available in SOCIA right now. Nothing was counted.");
   if (res.status === 422 || res.status === 400) throw new MusicError("rejected", "The music service couldn't make that track. Try another one.");
   if (res.status === 429) throw new MusicError("busy", "The music service is busy. Try again in a minute.");
   throw new MusicError("failed", "The music service couldn't make that track just now.");

@@ -38,7 +38,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   } catch (e) {
     await u.release();
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    if (e instanceof MusicError) return NextResponse.json({ error: e.message, kind: e.kind }, { status: e.kind === "busy" ? 429 : e.kind === "not_configured" ? 503 : 502 });
+    if (e instanceof MusicError) return NextResponse.json({ error: e.message, kind: e.kind, notConfigured: e.kind === "not_configured" }, { status: e.kind === "busy" ? 429 : e.kind === "not_configured" ? 503 : 502 });
     return bad(e);
   }
 }

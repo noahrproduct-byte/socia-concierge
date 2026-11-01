@@ -63,6 +63,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       path = made.path;
     } catch (e) {
       await u.release();
+      // The music service itself isn't available (not set up, or its plan has no Music API):
+      // take the stamp back off so this cut gets its track once it is.
+      if (e instanceof MusicError && e.kind === "not_configured") {
+        const cur = await loadBuildRow(ctx.client, ctx.ownerId, wsId, id).catch(() => null);
+        if (cur?.edl?.musicAuto) { const { musicAuto: _drop, ...rest } = cur.edl; void _drop; await save(rest).catch(() => null); }
+      }
       throw e;
     }
 
@@ -78,7 +84,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ state: "added", playlist: fresh.edl.playlist, soundtrack, url, usage: u.usage });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    if (e instanceof MusicError) return NextResponse.json({ error: e.message, kind: e.kind }, { status: e.kind === "busy" ? 429 : e.kind === "not_configured" ? 503 : 502 });
+    if (e instanceof MusicError) return NextResponse.json({ error: e.message, kind: e.kind, notConfigured: e.kind === "not_configured" }, { status: e.kind === "busy" ? 429 : e.kind === "not_configured" ? 503 : 502 });
     const kind = aiFailureKind(e);
     return NextResponse.json({ error: kind === "failed" ? ((e as Error).message || "SOCIA couldn't add music. Pick a track in Music.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });
   }
