@@ -9,7 +9,8 @@ import { getProfile } from "@/lib/profile";
 import type { Workspace } from "@/lib/workspaces";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder, storageClient } from "./storage";
-import { checkClipFits, projectTotals, ownerStorageBytes, expiryFor, type FitResult } from "./limits";
+import { checkClipFits, projectTotals, ownerStorageBytes, type FitResult } from "./limits";
+import { copyPaths, dedupeByFootage, MAX_COPY, type LibraryClip } from "./library";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
@@ -154,8 +155,7 @@ export type RegisterResult =
  * Reserve a slot for a clip before its bytes are uploaded: the plan's limits
  * are checked here, on the server, and an identical clip the owner analysed
  * before lends its transcript, measurements and card (no second transcription
- * or model call). The bytes are still uploaded: each project owns its footage
- * and its retention date.
+ * or model call). The bytes are still uploaded: each project owns its footage.
  */
 export async function registerClip(client: Supa, args: { ownerId: string; viewerId: string; wsId: string | null; ent: Entitlements; project: ProjectRow; input: RegisterInput }): Promise<RegisterResult> {
   const { ownerId, viewerId, wsId, ent, project, input } = args;
@@ -180,7 +180,8 @@ export async function registerClip(client: Supa, args: { ownerId: string; viewer
     project_id: project.id, user_id: ownerId, position: existing.length, fingerprint: input.fingerprint,
     name: input.name.slice(0, 160), mime: input.mime, bytes: input.bytes, duration_s: input.durationSec,
     width: input.width, height: input.height, recorded_at: input.recordedAt, status: "registered",
-    expires_at: expiryFor(ent),
+    // Footage is kept until the person deletes it (or its project), within the plan's storage.
+    expires_at: null,
     facts: reuse?.facts ?? null, transcript: reuse?.transcript ?? null, card: reuse?.card ?? null,
   };
   if (wsId) row.workspace_id = wsId;
@@ -489,6 +490,79 @@ export async function listBriefBuilds(client: Supa, ownerId: string, wsId: strin
   });
 }
 
+/** Your clips: every clip of this Brand Workspace whose footage is still stored, one per piece of footage. */
+export async function listLibrary(client: Supa, ownerId: string, wsId: string | null): Promise<LibraryClip[]> {
+  const { data, error } = await scopeToWorkspace(
+    client.from("studio_clips").select("id, project_id, fingerprint, name, duration_s, bytes, frames, source_path, status, created_at").eq("user_id", ownerId).is("purged_at", null).in("status", ["ready", "uploaded"]),
+    wsId,
+  ).order("created_at", { ascending: false }).limit(400);
+  if (error) throw error;
+  type Row = Pick<ClipRow, "id" | "project_id" | "fingerprint" | "name" | "duration_s" | "bytes" | "frames" | "source_path" | "status" | "created_at">;
+  const rows = dedupeByFootage(((data ?? []) as Row[]).filter((r) => clipOwnsPath(r, r.source_path))).slice(0, 200);
+  if (!rows.length) return [];
+  const projectIds = Array.from(new Set(rows.map((r) => r.project_id)));
+  const { data: projects } = await scopeToWorkspace(client.from("studio_projects").select("id, title").eq("user_id", ownerId).in("id", projectIds), wsId);
+  const titles = new Map(((projects ?? []) as { id: string; title: string | null }[]).map((p) => [p.id, p.title]));
+  const thumbPath = (r: Row) => { const f = r.frames?.[0]?.path; return f && clipOwnsPath(r, f) ? f : null; };
+  const urls = await signUrls(client, rows.map(thumbPath).filter((x): x is string => Boolean(x)));
+  return rows.filter((r) => titles.has(r.project_id)).map((r) => ({
+    id: r.id, projectId: r.project_id, projectTitle: titles.get(r.project_id) ?? null, name: r.name,
+    durationSec: r.duration_s, bytes: r.bytes, addedAt: r.created_at, thumb: urls[thumbPath(r) ?? ""] ?? null,
+  }));
+}
+
+/**
+ * A new video from clips you already have: each chosen clip is copied (row
+ * and files) into the project, keeping what SOCIA already understood about
+ * it, within the plan's limits. Returns how many were added and why any weren't.
+ */
+export async function copyClipsInto(client: Supa, args: { ownerId: string; viewerId: string; wsId: string | null; ent: Entitlements; project: ProjectRow; clipIds: string[] }): Promise<{ added: number; skipped: string[] }> {
+  const { ownerId, viewerId, wsId, ent, project } = args;
+  const ids = Array.from(new Set(args.clipIds)).slice(0, MAX_COPY);
+  const { data, error } = await scopeToWorkspace(client.from("studio_clips").select("*").eq("user_id", ownerId).in("id", ids).is("purged_at", null), wsId);
+  if (error) throw error;
+  const byId = new Map(((data ?? []) as ClipRow[]).map((r) => [r.id, r]));
+  const st = storageClient(client).storage.from(STUDIO_BUCKET);
+  const skipped: string[] = [];
+  let added = 0;
+  for (const id of ids) {
+    const src = byId.get(id);
+    const folder = src ? clipFolderOf(src) : null;
+    if (!src || !folder) { skipped.push("A clip whose footage is no longer stored was left out."); continue; }
+    const existing = await clipRows(client, project.id);
+    if (existing.some((c) => c.fingerprint === src.fingerprint && !c.purged_at)) continue;
+    const [totals, ownerBytes] = await Promise.all([projectTotals(client, project.id), ownerStorageBytes(client, ownerId)]);
+    const fit = checkClipFits(ent, totals, ownerBytes, { bytes: src.bytes, durationSec: src.duration_s ?? 0 });
+    if (!fit.ok) { skipped.push(`${src.name}: ${"plan" in fit ? fit.plan.error : fit.message}`); continue; }
+    const row: Record<string, unknown> = {
+      project_id: project.id, user_id: ownerId, position: existing.length, fingerprint: src.fingerprint,
+      name: src.name, mime: src.mime, bytes: src.bytes, duration_s: src.duration_s, width: src.width, height: src.height,
+      recorded_at: src.recorded_at, status: "registered", expires_at: null, facts: src.facts, transcript: src.transcript, card: src.card,
+    };
+    if (wsId) row.workspace_id = wsId;
+    const { data: ins, error: insErr } = await client.from("studio_clips").insert(row).select("*").single();
+    if (insErr) throw insErr;
+    const clip = ins as ClipRow;
+    const plan = copyPaths({ folder, source: src.source_path, frames: src.frames ?? [], audio: src.audio_path }, { uploaderId: viewerId, projectId: project.id, clipId: clip.id });
+    let ok = Boolean(plan.source);
+    for (const [from, to] of plan.pairs) {
+      if (!ok) break;
+      const { error: cpErr } = await st.copy(from, to);
+      if (cpErr) ok = false;
+    }
+    if (!ok) {
+      await removeFolder(client, clipFolder(viewerId, project.id, clip.id));
+      await client.from("studio_clips").delete().eq("id", clip.id).eq("user_id", ownerId);
+      skipped.push(`${src.name}: its footage couldn't be copied.`);
+      continue;
+    }
+    await client.from("studio_clips").update({ source_path: plan.source, frames: plan.frames, audio_path: plan.audio, status: clip.card ? "ready" : "uploaded", updated_at: now() }).eq("id", clip.id).eq("user_id", ownerId);
+    added++;
+  }
+  if (added) await updateProject(client, project.id, project.status === "ready" ? { status: "collecting" } : {}).catch(() => null);
+  return { added, skipped };
+}
+
 /** Every cut of this Brand Workspace, newest first, for the Edit tab (lib/studioClips/videos.ts names them). */
 export async function listVideos(client: Supa, ownerId: string, wsId: string | null, limit = 30): Promise<VideoSummary[]> {
   type Row = { id: string; project_id: string; opportunity_idx: number; edl: Edl | null; created_at: string; updated_at?: string | null; render_path?: string | null; post_id?: string | null };
@@ -603,6 +677,5 @@ export function studioLimits(ent: Entitlements) {
     clipsPerProject: getLimit(ent, "studio_clips_per_project"),
     footageMinutes: getLimit(ent, "studio_footage_minutes"),
     uploadMb: getLimit(ent, "studio_upload_mb"),
-    retentionDays: getLimit(ent, "studio_retention_days"),
   };
 }

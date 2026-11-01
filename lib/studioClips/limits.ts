@@ -63,9 +63,3 @@ export function checkClipFits(ent: Entitlements, totals: ProjectTotals, ownerByt
   }
   return { ok: true };
 }
-
-/** When the raw footage of a clip registered now will expire. */
-export function expiryFor(ent: Entitlements, now: Date = new Date()): string {
-  const days = Math.max(1, getLimit(ent, "studio_retention_days"));
-  return new Date(now.getTime() + days * 86400000).toISOString();
-}

@@ -22,10 +22,11 @@ import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtM
 import BatchPanel from "./BatchPanel";
 import BriefPanel from "./BriefPanel";
 import VideoList from "./VideoList";
+import ClipLibrary from "./ClipLibrary";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 
-type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number; retentionDays: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
+type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
 // The video builder pulls in Remotion; load it only when a post is opened for building.
 const ClipBuilder = dynamic(() => import("./ClipBuilder"), { ssr: false, loading: () => <div className="ov-card st-progress"><ul><li className="on"><i />Opening the video builder</li></ul></div> });
@@ -345,7 +346,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     <div className={`st-drop cb-drop${compact ? " compact" : ""}${drag ? " drag" : ""}`} role="button" tabIndex={0} onClick={() => input.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}>
       <span className="st-drop-ico"><Upload size={compact ? 16 : 22} /></span>
       <b>{drag ? "Drop them" : compact ? "Drop more clips, or click to browse" : editing ? "Drop a video to edit, or click to browse" : "Drop your raw clips here, or click to browse"}</b>
-      {!compact && <p>MP4 or MOV{editing ? ", one video or several clips. It opens in the editor once it's uploaded." : ", the raw footage from your phone."} SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and stores the footage privately{limits ? ` for ${limits.retentionDays} days` : ""}.</p>}
+      {!compact && <p>MP4 or MOV{editing ? ", one video or several clips. It opens in the editor once it's uploaded." : ", the raw footage from your phone."} SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and keeps the footage privately until you delete it, so you can post it again or use it in a new video.</p>}
       {limits && <small className="cb-limits">Up to {limits.clipsPerProject} clips · {limits.footageMinutes} minutes · {limits.uploadMb} MB per project</small>}
     </div>
   );
@@ -377,6 +378,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
           <div className="st-preview">{dropZone(false)}</div>
           <div className="st-work">
             <VideoList videos={videos} onOpen={(v) => setCustom({ id: v.id, title: v.title })} />
+            <ClipLibrary onOpenCut={(id, title) => setCustom({ id, title })} />
           </div>
         </div>
       )}
@@ -397,6 +399,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
             </div>
             <LearnCard />
             <ProjectList projects={projects} onOpen={(id) => void openProject(id)} onDelete={(id) => void deleteProject(id)} busy={uploading} />
+            <ClipLibrary allowPost={false} />
           </div>
         </div>
       )}
