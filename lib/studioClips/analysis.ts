@@ -129,43 +129,30 @@ The images that follow are frames at ${ref.frames.map((f) => `${f.t}s`).join(", 
   return { raw: data, model };
 }
 
-/** The largest output budget a retry may ask for. */
-const MAX_OUTPUT_TOKENS = 16_000;
-
 async function structured<T>(task: Parameters<typeof modelFor>[0], system: string, content: Content, schema: unknown, maxTokens: number, usage: { ownerId?: string; feature: AiFeature }): Promise<{ data: T; model: string }> {
   const model = modelFor(task);
-  let budget = maxTokens;
-  // An answer cut off at the output budget (the model's reasoning shares it) is unreadable JSON:
-  // ask once more with room to finish instead of failing.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const params = {
-      model,
-      max_tokens: budget,
-      system,
-      output_config: { format: { type: "json_schema", schema }, ...effortFor(model) },
-      messages: [{ role: "user", content }],
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await anthropic.messages.create(params as any);
-    recordAiUsage(usage.ownerId, usage.feature, res);
-    if (res.stop_reason === "refusal") throw new AnalysisError("refusal", "The model declined this request.");
-    if (res.stop_reason === "max_tokens" && attempt === 0 && budget < MAX_OUTPUT_TOKENS) {
-      console.warn(`[studio] ${usage.feature}: output hit ${budget} tokens, retrying with more room`);
-      budget = Math.min(MAX_OUTPUT_TOKENS, Math.round(budget * 2.5));
-      continue;
-    }
-    const block = res.content.find((b) => b.type === "text");
-    const text = block && "text" in block ? block.text : "";
-    if (!text) throw new AnalysisError("empty", "Empty response from the model.");
-    try {
-      return { data: JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as T, model };
-    } catch {
-      // Why it couldn't be read goes to the log (never the content): the stop reason and the length.
-      console.error(`[studio] ${usage.feature}: unreadable response, stop ${res.stop_reason}, ${text.length} chars, budget ${budget}`);
-      throw new AnalysisError("parse", res.stop_reason === "max_tokens" ? "The answer was too long to finish. Try a shorter reference or a shorter brief." : "SOCIA's answer came back incomplete. Try again.");
-    }
+  const params = {
+    model,
+    max_tokens: maxTokens,
+    system,
+    output_config: { format: { type: "json_schema", schema }, ...effortFor(model) },
+    messages: [{ role: "user", content }],
+  };
+  // An answer cut off at the budget is asked for again with more room by the client (lib/anthropic.ts).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = await anthropic.messages.create(params as any);
+  recordAiUsage(usage.ownerId, usage.feature, res);
+  if (res.stop_reason === "refusal") throw new AnalysisError("refusal", "The model declined this request.");
+  const block = res.content.find((b) => b.type === "text");
+  const text = block && "text" in block ? block.text : "";
+  if (!text) throw new AnalysisError("empty", "Empty response from the model.");
+  try {
+    return { data: JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()) as T, model };
+  } catch {
+    // Why it couldn't be read goes to the log (never the content): the stop reason and the length.
+    console.error(`[studio] ${usage.feature}: unreadable response, stop ${res.stop_reason}, ${text.length} chars`);
+    throw new AnalysisError("parse", res.stop_reason === "max_tokens" ? "The answer was too long to finish. Try a shorter reference or a shorter brief." : "SOCIA's answer came back incomplete. Try again.");
   }
-  throw new AnalysisError("parse", "The answer was too long to finish. Try a shorter reference or a shorter brief.");
 }
 
 // ------------------------------------------------------------- pass 1 ----

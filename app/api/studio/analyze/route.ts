@@ -177,7 +177,7 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
     // tolerantly; every field is mapped defensively below.
     const params = {
       model: MODEL,
-      max_tokens: 6000,
+      max_tokens: 12000,
       system: SYSTEM,
       output_config: effortFor(MODEL),
       messages: [{ role: "user", content: [...images, { type: "text", text }] }],
@@ -199,7 +199,9 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       raw = JSON.parse(s0 === -1 || e0 <= s0 ? cleaned : cleaned.slice(s0, e0 + 1));
     } catch {
       await u.release();
-      return NextResponse.json({ error: "The analysis came back unreadable. Try again." }, { status: 502 });
+      // Why it couldn't be read goes to the log (never the content).
+      console.error(`[studio/analyze] unreadable response, stop ${res.stop_reason}, ${rawText.length} chars`);
+      return NextResponse.json({ error: "The analysis came back incomplete. Try again." }, { status: 502 });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
