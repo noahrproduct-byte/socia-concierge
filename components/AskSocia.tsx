@@ -11,6 +11,7 @@
 // place instead of sending the user to a separate page.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import { usePathname } from "next/navigation";
@@ -245,6 +246,8 @@ export function AskSociaButton({ context, contextLabel, suggestions, label = "As
 export function AskHost() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [req, setReq] = useState<{ context: AskContext; question: string | null; autoSend: boolean; label: string | null }>({ context: { page: "global" }, question: null, autoSend: false, label: null });
 
   const openWith = useCallback((detail: AskEvent & { contextLabel?: string | null }) => {
@@ -297,9 +300,15 @@ export function AskHost() {
   return (
     <>
       <button type="button" className="s-btn s-btn--secondary s-ask" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={16} /> <span>Ask SOCIA</span></button>
-      {/* The same assistant from the corner of every page, so it is always a click away. */}
-      {!open && <button type="button" className="ask-bubble" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={22} /></button>}
-      <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist="socia-ask-thread" suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
+      {/* The corner bubble and the drawer render on <body>: the top bar's blur makes it the containing
+          block for anything fixed inside it, which pinned them to the bar instead of the window. */}
+      {mounted && createPortal(
+        <>
+          {!open && <button type="button" className="ask-bubble" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={22} /></button>}
+          <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist="socia-ask-thread" suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
+        </>,
+        document.body,
+      )}
     </>
   );
 }
