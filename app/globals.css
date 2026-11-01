@@ -10901,6 +10901,11 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cb-clip:hover .cb-clip-x, .cb-clip-x:focus-visible { opacity: 1; }
 .cb-clip-x:hover { color: var(--danger-text); border-color: rgba(var(--danger-rgb), 0.45); }
 
+/* Music added on its own (components/studio/ClipBuilder.tsx, MusicPlaylist.tsx) */
+.cbm-auto { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; color: var(--text-primary); cursor: pointer; }
+.cbm-auto input { accent-color: var(--accent); }
+.cbm-make { align-self: flex-start; margin-top: 4px; }
+
 /* Your clips (components/studio/ClipLibrary.tsx) */
 .cb-lib .cb-grid { display: grid; margin-top: 8px; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 .cb-lib .cb-clip-dur { color: #fff; }

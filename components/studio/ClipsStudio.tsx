@@ -23,6 +23,8 @@ import BatchPanel from "./BatchPanel";
 import BriefPanel from "./BriefPanel";
 import VideoList from "./VideoList";
 import ClipLibrary from "./ClipLibrary";
+import { takeFiles } from "@/lib/studioClips/handoff";
+import { fileLabel } from "@/lib/publishing/postLabel";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 
@@ -46,11 +48,12 @@ const errCopy = (e: unknown): string => {
 
 export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   viewerId: string; modeTabs?: ReactNode;
-  /** build: SOCIA understands the clips as soon as they're in and leads with Make and schedule. edit: the person's videos, and new footage opens straight in the editor. */
-  variant?: "build" | "edit";
+  /** build: SOCIA understands the clips as soon as they're in and leads with Make and schedule. edit: the person's videos, and new footage opens straight in the editor. audio: a video dropped here opens on Music, with a track added from the brand's taste. */
+  variant?: "build" | "edit" | "audio";
 }) {
   const editing = variant === "edit";
-  const modeParam = editing ? "edit" : "clips";
+  const audio = variant === "audio";
+  const modeParam = editing ? "edit" : audio ? "audio" : "clips";
   const router = useRouter();
   const params = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -81,6 +84,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   const [busyIds, setBusyIds] = useState(0);
   const [autoStart, setAutoStart] = useState(false);
   const [autoEdit, setAutoEdit] = useState(false);
+  const [autoAudio, setAutoAudio] = useState(false);
   // Edit: every video made in this brand (null while loading).
   const [videos, setVideos] = useState<VideoSummary[] | null>(null);
   const projectRef = useRef<StudioProject | null>(null);
@@ -247,12 +251,22 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     const fresh = await openProject(p.id, true);
     void loadMeta();
     const usable = Boolean(fresh?.clips.some((c) => c.status === "ready" || c.status === "uploaded"));
-    // Edit: the footage opens straight in the editor (no AI, nothing counted).
+    // Edit: the footage opens straight in the editor (no AI, nothing counted). Audio: the same, on Music.
     if (editing && fresh && usable) setAutoEdit(true);
+    else if (audio && fresh && usable) setAutoAudio(true);
     // Build: the first time clips are in, SOCIA starts understanding them without another click.
     // Footage added after a result waits for "Understand again" (each run counts on the plan).
     else if (!editing && fresh && !fresh.yield && fresh.status !== "understanding" && usable) setAutoStart(true);
-  }, [ensureProject, registerFile, uploadFile, openProject, loadMeta, editing]);
+  }, [ensureProject, registerFile, uploadFile, openProject, loadMeta, editing, audio]);
+
+  // Rate → "Add music": the video comes with it.
+  useEffect(() => {
+    if (!audio) return;
+    const handed = takeFiles("audio");
+    if (handed.length) void onFiles(handed);
+    // Once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const removeClip = useCallback(async (l: LocalClip) => {
     if (l.clip) {
@@ -316,6 +330,23 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     void openManual();
   }, [autoEdit, busyIds, manualBusy, openManual]);
 
+  // Audio: one video opens as its own cut; several open together in the editor.
+  useEffect(() => {
+    if (!autoAudio || busyIds > 0 || manualBusy || !project) return;
+    setAutoAudio(false);
+    const usable = project.clips.filter((c) => c.status === "ready" || c.status === "uploaded");
+    if (usable.length !== 1) { void openManual(); return; }
+    const clip = usable[0];
+    void (async () => {
+      setManualBusy(true);
+      const res = await fetch(`/api/studio/projects/${project.id}/clip-build`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ clipId: clip.id }) }).catch(() => null);
+      const j = res ? await res.json().catch(() => null) : null;
+      setManualBusy(false);
+      if (!res?.ok || !j?.id) { if (isPlanError(j)) setPlanError(j); else setNotice(j?.error ?? "Couldn't open the video."); return; }
+      setCustom({ id: j.id as string, title: fileLabel(clip.name) ?? clip.name });
+    })();
+  }, [autoAudio, busyIds, manualBusy, project, openManual]);
+
   const deleteProject = useCallback(async (id: string) => {
     if (!window.confirm("Delete this project and its uploaded clips?")) return;
     const res = await fetch(`/api/studio/projects/${id}`, { method: "DELETE" });
@@ -345,8 +376,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   const dropZone = (compact: boolean) => (
     <div className={`st-drop cb-drop${compact ? " compact" : ""}${drag ? " drag" : ""}`} role="button" tabIndex={0} onClick={() => input.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}>
       <span className="st-drop-ico"><Upload size={compact ? 16 : 22} /></span>
-      <b>{drag ? "Drop them" : compact ? "Drop more clips, or click to browse" : editing ? "Drop a video to edit, or click to browse" : "Drop your raw clips here, or click to browse"}</b>
-      {!compact && <p>MP4 or MOV{editing ? ", one video or several clips. It opens in the editor once it's uploaded." : ", the raw footage from your phone."} SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and keeps the footage privately until you delete it, so you can post it again or use it in a new video.</p>}
+      <b>{drag ? "Drop them" : compact ? "Drop more clips, or click to browse" : audio ? "Drop a video to add music, or click to browse" : editing ? "Drop a video to edit, or click to browse" : "Drop your raw clips here, or click to browse"}</b>
+      {!compact && <p>MP4 or MOV{audio ? ". SOCIA listens to it, makes a track for it from your taste and puts it in." : editing ? ", one video or several clips. It opens in the editor once it's uploaded." : ", the raw footage from your phone."} SOCIA measures each clip on your device, keeps a few frames and the sound for analysis, and keeps the footage privately until you delete it, so you can post it again or use it in a new video.</p>}
       {limits && <small className="cb-limits">Up to {limits.clipsPerProject} clips · {limits.footageMinutes} minutes · {limits.uploadMb} MB per project</small>}
     </div>
   );
@@ -355,12 +386,12 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     <div className="st cb" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length && view !== "understanding") void onFiles(e.dataTransfer.files); }}>
       <PageHeader
         title="Content Studio"
-        sub={editing ? "Open any video SOCIA made for you, or upload one, and cut it, add text and captions, and add music." : "Drop your raw clips. SOCIA finds the posts in them, makes the videos and schedules them after you check the list."}
+        sub={audio ? "Drop a video. SOCIA adds music made for it from your taste, and you can hear the others and pick one." : editing ? "Open any video SOCIA made for you, or upload one, and cut it, add text and captions, and add music." : "Drop your raw clips. SOCIA finds the posts in them, makes the videos and schedules them after you check the list."}
         status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured — clips are understood from frames and measured sound"}</span> : null}
         actions={
           <>
             {(project || custom) && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={backToStart}><FolderOpen size={14} /> {editing ? "Your videos" : "Projects"}</button>}
-            <button type="button" className="ov-btn primary" disabled={view === "understanding"} onClick={() => input.current?.click()}><Upload size={14} /> {editing ? "Upload a video" : "Add clips"}</button>
+            <button type="button" className="ov-btn primary" disabled={view === "understanding"} onClick={() => input.current?.click()}><Upload size={14} /> {editing || audio ? "Upload a video" : "Add clips"}</button>
             <input ref={input} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" multiple onChange={(e) => { if (e.target.files) void onFiles(e.target.files); e.target.value = ""; }} />
           </>
         }
@@ -383,7 +414,24 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
         </div>
       )}
 
-      {view === "start" && !migration && !editing && (
+      {view === "start" && !migration && audio && (
+        <div className="st-grid empty">
+          <div className="st-preview">{dropZone(false)}</div>
+          <div className="st-work">
+            <div className="ov-card st-intro">
+              <h2>What happens</h2>
+              <ul>
+                <li><b>1 · Drop a video</b><span>It&apos;s measured on this device and kept privately until you delete it.</span></li>
+                <li><b>2 · SOCIA picks the music</b><span>From your taste: how your best posts sound, whether music or your own sound has done better, and the tracks you chose before. Lower under speech.</span></li>
+                <li><b>3 · Hear the others</b><span>The rest of the playlist is there to listen to and pick instead, with levels for the music and the video&apos;s own sound.</span></li>
+                <li><b>4 · Make it and post it</b><span>Make the video with the music in, then schedule it. Each track counts as a music track on your plan.</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {view === "start" && !migration && !editing && !audio && (
         <div className="st-grid empty">
           <div className="st-preview">{dropZone(false)}</div>
           <div className="st-work">
@@ -453,11 +501,11 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       )}
 
       {view === "custom" && custom && (
-        <ClipBuilder buildId={custom.id} title={custom.title} onBack={() => { setCustom(null); if (editing) void loadVideos(); }} />
+        <ClipBuilder buildId={custom.id} title={custom.title} initialPanel={audio ? "audio" : undefined} onBack={() => { if (audio) { backToStart(); return; } setCustom(null); if (editing) void loadVideos(); }} />
       )}
 
       {view === "manual" && manual && (
-        <ClipBuilder buildId={manual.id} title={project?.title || "Your edit"} onBack={() => { setManual(null); if (editing) backToStart(); }} />
+        <ClipBuilder buildId={manual.id} title={project?.title || "Your edit"} initialPanel={audio ? "audio" : undefined} onBack={() => { setManual(null); if (editing || audio) backToStart(); }} />
       )}
 
       {view === "builder" && openOpp && build && (

@@ -426,6 +426,7 @@ export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string |
   const edl = withBrief(revalidateEdl(edited, forEdl).edl, row.edl?.brief);
   // The playlist is the server's; the person chooses which of its tracks plays, and the levels.
   if (row.edl?.playlist) edl.playlist = row.edl.playlist;
+  if (row.edl?.musicAuto) edl.musicAuto = row.edl.musicAuto;
   const soundtrack = sanitizeSoundtrack(edited.soundtrack, row.edl?.playlist, (trackId) => musicPath(ownerId, row.project_id, buildId, trackId));
   if (soundtrack) edl.soundtrack = soundtrack;
   if (!edl.segments.length) throw new Error("A cut needs at least one clip.");
@@ -464,6 +465,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   // The music made for the cut, and the track chosen, stay with it.
   if (row.edl.playlist) edl.playlist = row.edl.playlist;
   if (row.edl.soundtrack) edl.soundtrack = row.edl.soundtrack;
+  if (row.edl.musicAuto) edl.musicAuto = row.edl.musicAuto;
   // Picture and sound corrections are per clip, so they still hold for the clips the new cut keeps;
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));

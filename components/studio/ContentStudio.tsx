@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Upload, FolderOpen, FileVideo, Image as ImageIcon, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
+import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { AnalyzePanel, ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
@@ -24,6 +24,7 @@ import { decodeToMono16k } from "@/lib/audio/decode";
 import { describeQuickAudio, quickAudioFrom, timedTranscript, type QuickAudio } from "@/lib/audio/quick";
 import { saveStudioHandoff } from "@/lib/studioHandoff";
 import type { AskProposal } from "@/lib/ask";
+import { handFiles } from "@/lib/studioClips/handoff";
 import { transcriptSkippedNote } from "@/lib/transcribe/limits";
 
 export type DraftItem = { id: string; caption: string; media_url: string | null; media_type: string; scheduled_at: string; status: string };
@@ -389,7 +390,17 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               {tab === "analyze" && <AnalyzePanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} onCompare={() => window.open("/analytics#content", "_self")} />}
               {tab === "improve" && <ImprovePanel a={analysis} w={w} apply={apply} seek={doSeek} improve={improve} firstFrame={frames?.thumbs[0]?.src ?? null} />}
               {tab === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
-              {tab === "audio" && <AudioPanel a={analysis} w={w} setAudio={(b) => setW((c) => ({ ...c, audioChosen: b }))} />}
+              {tab === "audio" && (
+                <>
+                  {source.kind === "video" && source.file && (
+                    <div className="ov-card cb-manual">
+                      <div><b><Music size={14} /> Add music to this video</b><small>SOCIA makes a track for it from your taste and puts it in. Hear the others and pick one, then make the video and post it.</small></div>
+                      <button type="button" className="ov-btn primary small" onClick={() => { handFiles("audio", [source.file!]); router.push("/studio?mode=audio"); }}>Add music</button>
+                    </div>
+                  )}
+                  <AudioPanel a={analysis} w={w} setAudio={(b) => setW((c) => ({ ...c, audioChosen: b }))} />
+                </>
+              )}
               {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} />}
             </>
           )}

@@ -32,7 +32,11 @@ const r2 = (n: number) => Number(n.toFixed(2));
 type ExportPhase = "idle" | "checking" | "rendering" | "uploading" | "saving" | "done" | "error";
 type ExportState = { phase: ExportPhase; progress: number; message: string | null; postId: string | null };
 
-export default function ClipBuilder({ buildId, title, onBack, fixture }: { buildId: string; title: string; onBack: () => void; fixture?: BuildPlayerData }) {
+export default function ClipBuilder({ buildId, title, onBack, fixture, initialPanel }: {
+  buildId: string; title: string; onBack: () => void; fixture?: BuildPlayerData;
+  /** the tab to open on (the Audio tab opens on Music) */
+  initialPanel?: "audio";
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [data, setData] = useState<BuildPlayerData | null>(fixture ?? null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -46,7 +50,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  const [panel, setPanel] = useState<"cut" | "frame" | "style" | "text" | "finish" | "audio" | "regenerate">("cut");
+  const [panel, setPanel] = useState<"cut" | "frame" | "style" | "text" | "finish" | "audio" | "regenerate">(initialPanel ?? "cut");
+  // Music added on its own (Growth/Pro, once per cut, unless the brand turned it off): lib/music, music/auto.
+  const [autoMusic, setAutoMusic] = useState<{ state: "adding" | "added" | "skipped" | "failed"; note: string | null } | null>(null);
+  const [musicAutoOn, setMusicAutoOn] = useState<boolean | null>(null);
   const [presets, setPresets] = useState<VideoPresets>({ brand: null, templates: [] });
   const [tplName, setTplName] = useState("");
   const [styleNote, setStyleNote] = useState<string | null>(null);
@@ -70,6 +77,45 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
   }, [buildId, fixture]);
 
   useEffect(() => { if (data?.presets) setPresets(data.presets); }, [data?.presets]);
+
+  // Once the cut is loaded: a cut with no track that SOCIA hasn't tried before gets one, from the brand's taste.
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (fixture || !data?.canEdit || !edl || autoTried.current) return;
+    autoTried.current = true;
+    if (edl.soundtrack || edl.musicAuto) return;
+    let alive = true;
+    setAutoMusic({ state: "adding", note: null });
+    (async () => {
+      const res = await fetch(`/api/studio/builds/${buildId}/music/auto`, { method: "POST" }).catch(() => null);
+      const j = res ? ((await res.json().catch(() => null)) as { state?: string; playlist?: Edl["playlist"]; soundtrack?: Edl["soundtrack"]; url?: string | null; error?: string; notConfigured?: boolean } | null) : null;
+      if (!alive) return;
+      const stamp = new Date().toISOString();
+      if (res?.ok && j?.state === "added" && j.playlist && j.soundtrack) {
+        setEdl((e) => (e ? { ...e, playlist: j.playlist, soundtrack: j.soundtrack, musicAuto: stamp } : e));
+        if (j.url) setTrackUrls((u) => ({ ...u, [j.soundtrack!.trackId]: j.url! }));
+        setAutoMusic({ state: "added", note: null });
+        return;
+      }
+      setEdl((e) => (e ? { ...e, musicAuto: e.musicAuto ?? stamp } : e));
+      // Not on the plan, not switched on, or turned off: the Music tab says so; nothing else changes.
+      if (res?.ok || isPlanError(j) || j?.notConfigured) { setAutoMusic({ state: "skipped", note: null }); return; }
+      setAutoMusic({ state: "failed", note: j?.error ?? "SOCIA couldn't add music this time. Pick a track in Music." });
+    })();
+    return () => { alive = false; };
+    // Once per opened cut, after it loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.canEdit, edl == null]);
+
+  useEffect(() => {
+    if (fixture || panel !== "audio" || musicAutoOn != null) return;
+    fetch("/api/studio/music").then((r) => (r.ok ? r.json() : null)).then((j) => setMusicAutoOn(typeof j?.auto === "boolean" ? j.auto : null)).catch(() => null);
+  }, [panel, fixture, musicAutoOn]);
+  const toggleMusicAuto = async (on: boolean) => {
+    setMusicAutoOn(on);
+    const res = await fetch("/api/studio/music", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ auto: on }) }).catch(() => null);
+    if (!res?.ok) setMusicAutoOn(!on);
+  };
   const sources = useMemo(() => Object.fromEntries((data?.sources ?? []).map((s) => [s.clipId, s])) as Record<string, BuildSource>, [data]);
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
   const anySpeech = useMemo(() => (edl ? edl.segments.some((s) => sources[s.clipId]?.words?.length) : false), [edl, sources]);
@@ -303,7 +349,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
                     <option value="medium">Standard (smaller, faster to upload)</option>
                   </select>
                 </label>
-                <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || !data.canEdit} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
+                <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || !data.canEdit || autoMusic?.state === "adding"} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
+                {autoMusic?.state === "adding" && <small className="ov-source"><Loader2 size={11} className="spin" /> Adding music first (about a minute).</small>}
                 {build.postId && <Link className="ov-btn ghost small" href={`/create?post=${build.postId}`}>Open the saved draft <ArrowRight size={12} /></Link>}
               </>
             ) : exp.phase === "done" ? (
@@ -346,14 +393,19 @@ export default function ClipBuilder({ buildId, title, onBack, fixture }: { build
           {panel === "audio" && (
             <div className="cbb-audio">
               <div className="ov-card cba-current">
-                <b><Music size={14} /> Music line in this cut</b>
-                <p>{edl.music ?? "No music recommendation in this cut."}</p>
-                <small>SOCIA never adds a track to the file. Add music from Instagram&apos;s library when you post, or bake in a track you have the rights to.</small>
+                <b><Music size={14} /> Music in this video</b>
+                {autoMusic?.state === "adding" ? <p><Loader2 size={12} className="spin" /> SOCIA is adding a track from your taste (about a minute).</p>
+                  : edl.soundtrack ? <p>{edl.musicAuto && autoMusic?.state === "added" ? `SOCIA added “${edl.soundtrack.name}” on its own. Pick another below, change the levels, or take it out.` : `“${edl.soundtrack.name}” plays in this video.`}</p>
+                  : <p>{autoMusic?.note ?? "No track in this video yet. Pick one from your playlist below."}</p>}
+                {musicAutoOn != null && data.canEdit && (
+                  <label className="cbm-auto"><input type="checkbox" checked={musicAutoOn} onChange={(e) => void toggleMusicAuto(e.target.checked)} /> Add a track to new videos on their own</label>
+                )}
               </div>
               <MusicPlaylist
                 buildId={buildId}
                 edl={edl}
                 canEdit={data.canEdit && !busy && !fixture}
+                autoAdding={autoMusic?.state === "adding"}
                 trackUrls={trackUrls}
                 onTrackUrl={(id, url) => setTrackUrls((u) => ({ ...u, [id]: url }))}
                 // The server already saved these: the cut takes them without becoming "unsaved".

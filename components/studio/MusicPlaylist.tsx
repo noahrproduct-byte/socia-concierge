@@ -17,7 +17,7 @@ import type { Playlist, Soundtrack } from "@/lib/music/taste";
 type TrackStatus = { state: "waiting" | "making" | "ready" | "failed"; error: string | null };
 const PARALLEL = 2;
 
-export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrackUrl, onPlaylist, onSoundtrack, onLevels }: {
+export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrackUrl, onPlaylist, onSoundtrack, onLevels, autoAdding = false }: {
   buildId: string;
   edl: Edl;
   canEdit: boolean;
@@ -29,6 +29,8 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
   onSoundtrack: (s: Soundtrack | null) => void;
   /** the person moved a level slider (one undo step; saved with the cut) */
   onLevels: (musicVolume: number, originalVolume: number) => void;
+  /** SOCIA is adding a track on its own right now */
+  autoAdding?: boolean;
 }) {
   const playlist = edl.playlist ?? null;
   const st = edl.soundtrack ?? null;
@@ -40,11 +42,11 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
   const [copied, setCopied] = useState<string | null>(null);
   const running = useRef(false);
 
-  // Make every track of the playlist that isn't made yet, two at a time; each one is counted on its own.
-  const makeMissing = useCallback(async (p: Playlist) => {
+  // Make these tracks of the playlist (those not made yet), two at a time; each one is counted on its own.
+  const make = useCallback(async (list: Playlist["tracks"]) => {
     if (running.current) return;
     running.current = true;
-    const queue = p.tracks.filter((t) => !trackUrls[t.id]);
+    const queue = list.filter((t) => !trackUrls[t.id]);
     setStatus((s) => ({ ...s, ...Object.fromEntries(queue.map((t) => [t.id, { state: "waiting", error: null } as TrackStatus])) }));
     let stop = false;
     const worker = async () => {
@@ -63,9 +65,12 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
     running.current = false;
   }, [buildId, trackUrls, onTrackUrl]);
 
-  // A playlist made before (and saved on the cut) finishes any track that wasn't made.
+  const makeMissing = useCallback((p: Playlist) => make(p.tracks), [make]);
+  // A playlist the person asked for (and saved on the cut) finishes any track that wasn't made.
+  // One SOCIA made on its own made only the track it added: the others are made when asked for.
+  const autoMade = Boolean(edl.musicAuto);
   useEffect(() => {
-    if (playlist && canEdit && playlist.tracks.some((t) => !trackUrls[t.id]) && !Object.keys(status).length) void makeMissing(playlist);
+    if (playlist && canEdit && !autoMade && playlist.tracks.some((t) => !trackUrls[t.id]) && !Object.keys(status).length) void makeMissing(playlist);
     // Once, when the panel opens on a playlist with tracks still to make.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playlist?.createdAt]);
@@ -112,6 +117,8 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
         <p className="cbm-muted">Music isn&apos;t switched on for SOCIA yet. It appears here once it is.</p>
       ) : planError ? (
         <PlanNotice error={planError} compact />
+      ) : !playlist && autoAdding ? (
+        <p className="cbm-muted"><Loader2 size={12} className="spin" /> SOCIA is picking music for this video from your taste and making the track (about a minute).</p>
       ) : !playlist ? (
         <>
           <p className="cbm-muted">SOCIA makes six original tracks for this video from your taste: how your best posts sound, whether music or your own sound has done better, and the tracks you picked before. They&apos;re made for you and cleared for business use, so they can go on any platform. Each one counts as a music track on your plan.</p>
@@ -131,7 +138,9 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
                     <b>{t.name}</b>
                     <small>{t.mood} {t.style} · {t.bpm} BPM · {t.energy} energy</small>
                     {t.why && <small className="cbm-why">{t.why}</small>}
-                    {url ? <audio src={url} controls preload="none" aria-label={`Listen to ${t.name}`} /> : (
+                    {url ? <audio src={url} controls preload="none" aria-label={`Listen to ${t.name}`} /> : !s && autoMade ? (
+                      canEdit ? <button type="button" className="ov-btn ghost small cbm-make" onClick={() => void make([t])}>Make it to listen</button> : <small className="cbm-muted">Not made yet</small>
+                    ) : (
                       <small className={s?.state === "failed" ? "cbm-bad" : "cbm-muted"}>
                         {s?.state === "failed" ? <><AlertTriangle size={11} /> {s.error}</> : s?.state === "making" ? <><Loader2 size={11} className="spin" /> Making it (about a minute)…</> : "Waiting to be made"}
                       </small>
