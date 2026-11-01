@@ -9834,6 +9834,33 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .ask-options li::before { counter-increment: opt; content: counter(opt); flex-shrink: 0; width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; font-size: 10px; font-weight: 750; background: var(--primary-subtle); color: var(--primary-text); }
 .ask-options li > span:first-of-type { flex: 1; }
 .ask-opt-actions { display: inline-flex; gap: 4px; flex-shrink: 0; }
+/* Ask SOCIA in the corner of every page (components/AskSocia.tsx AskHost) */
+.ask-bubble { position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 60; width: 52px; height: 52px; border-radius: 999px; display: grid; place-items: center; border: 1px solid var(--border); background: var(--surface-elevated); box-shadow: 0 8px 24px rgba(var(--shadow-rgb), 0.22); cursor: pointer; transition: transform 0.15s ease; }
+.ask-bubble:hover { transform: translateY(-1px); }
+.ask-bubble:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .ask-bubble { transition: none; } .ask-bubble:hover { transform: none; } }
+@media print { .ask-bubble { display: none; } }
+.ask-new { margin-left: auto; }
+/* Ask SOCIA's schedule proposal (components/ask/ScheduleProposal.tsx) */
+.ask-sched > small { display: flex; align-items: center; gap: 5px; }
+.ask-sched-list { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ask-sched-list li { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 8px 10px; border-radius: 9px; background: var(--surface); border: 1px solid var(--border); }
+.ask-sched-when { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.ask-sched-when b { font-size: 12.5px; color: var(--text-primary); }
+.ask-sched-when em, .ask-sched-what em { font-style: normal; font-size: 11.5px; color: var(--text-secondary); line-height: 1.4; }
+.ask-sched-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ask-sched-what b { font-size: 12.5px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ask-sched-what em.ok { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); }
+.ask-sched-what em.bad { display: inline-flex; align-items: center; gap: 4px; color: var(--danger-text); }
+.ask-sched-left { list-style: none; display: flex; flex-direction: column; gap: 3px; margin-top: 8px; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
+.ask-sched-left b { color: var(--text-primary); margin-right: 4px; }
+.ask-sched-dest { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+.ask-sched-dest > small { font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
+.ask-sched-dest label, .ask-sched-kids label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-primary); cursor: pointer; }
+.ask-sched-dest label.off { color: var(--text-muted); cursor: not-allowed; }
+.ask-sched-dest input, .ask-sched-kids input { accent-color: var(--accent); }
+.ask-sched-kids { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 12.5px; color: var(--text-secondary); }
+.ask-sched-muted { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); margin-top: 6px; }
 .ask-typing { display: inline-flex; gap: 4px; padding: 10px 12px; background: var(--surface-muted); border-radius: 12px; }
 .ask-typing span { width: 6px; height: 6px; border-radius: 99px; background: var(--text-muted); animation: ask-dot 1s infinite ease-in-out; }
 .ask-typing span:nth-child(2) { animation-delay: 0.15s; } .ask-typing span:nth-child(3) { animation-delay: 0.3s; }

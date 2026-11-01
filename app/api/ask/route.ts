@@ -6,9 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 import { buildAskEvidence } from "@/lib/askContext";
 import { askAnswerSchema, type AskAnswer, type AskContext, type ModelAnswer, type AskProposal } from "@/lib/ask";
 import { requireUsage } from "@/lib/planGuard";
-import { getEntitlements, maxHistoryDays } from "@/lib/entitlements";
-import { rangeDays } from "@/lib/overview";
-import { resolveContext, brandWorkspace } from "@/lib/context";
+import { checkFeature, getEntitlements, maxHistoryDays } from "@/lib/entitlements";
+import { formatOf, rangeDays } from "@/lib/overview";
+import { resolveContext, brandWorkspace, can } from "@/lib/context";
+import { getIgSnapshot } from "@/lib/instagramSync";
+import { interactionsTotal } from "@/lib/engagement";
+import { loadSchedulable, schedulableBlock, type Schedulable } from "@/lib/assistant/schedulable";
+import { planReschedule } from "@/lib/assistant/reschedule";
 import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -20,6 +24,21 @@ export const maxDuration = 60;
 // the model never writes a URL.
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+/** A real IANA zone from the browser, or UTC. */
+function zoneOr(tz: unknown): string {
+  if (typeof tz !== "string" || !tz || tz.length > 64) return "UTC";
+  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return "UTC"; }
+}
+
+const SCHEDULE_RULES = `Scheduling: when the user asks to schedule, post, spread out, space out or move posts, set schedule.want to true and fill it from their words:
+- posts: the [S#] numbers of the posts they mean, in the order they want them. "These clips", "the videos I just made" or "my drafts" means the drafts listed (newest first, made together). Empty means every draft listed.
+- startLocal: when they named a start, "YYYY-MM-DDTHH:MM" in their time zone, or "YYYY-MM-DD" for a day without a time; "" when they didn't.
+- spacingMinutes: a gap between posts they asked for ("2 hours each" = 120, "every 30 minutes" = 30); 0 otherwise.
+- perDay: how many a day they asked for; 0 otherwise.
+- times: times of day they named, as 24-hour "HH:MM"; [] otherwise.
+- days: how many days the run may cover when they gave a limit ("for the rest of the week" = the days from the start up to and including Sunday); 0 otherwise.
+Never work out or state the times yourself: SOCIA calculates them and shows the list for the person to confirm. In "text", say in one sentence what you understood. A post listed as "Can't be moved" stays where it is. When they aren't asking to schedule, want is false, posts [], strings "", numbers 0 and times [].`;
 
 function parseJson(text: string): ModelAnswer | null {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -73,9 +92,19 @@ export async function POST(req: Request) {
   const ent = await getEntitlements(ctx.client, ctx.ownerId);
   if (askCtx.range && rangeDays(askCtx.range) > maxHistoryDays(ent)) askCtx.range = "30";
 
-  const ev = await buildAskEvidence(ctx.client, ctx.ownerId, askCtx, ctx.workspace?.id ?? null, brandWorkspace(ctx));
+  const wsId = ctx.workspace?.id ?? null;
+  const tz = zoneOr(askCtx.tz);
+  const nowDate = new Date();
+  const [ev, sched] = await Promise.all([
+    buildAskEvidence(ctx.client, ctx.ownerId, askCtx, wsId, brandWorkspace(ctx)),
+    loadSchedulable(ctx.client, ctx.ownerId, wsId, nowDate).catch(() => ({ posts: [] as Schedulable[], others: [] })),
+  ]);
+  const nowLocal = new Intl.DateTimeFormat("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(nowDate);
+  const schedEvidence = `# Posts SOCIA can schedule or move (the user's time zone is ${tz}; it is now ${nowLocal})\n${schedulableBlock(sched.posts, tz)}`;
   const first = messages[0];
-  const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
+  const convo: Msg[] = [{ role: "user", content: `${ev.evidence}\n\n${schedEvidence}\n\n# The user's question\n${first.content}` }, ...messages.slice(1)];
+  // A follow-up needs the current list too: it may have changed since the first turn.
+  if (convo.length > 1 && convo[convo.length - 1].role === "user") convo[convo.length - 1] = { role: "user", content: `${schedEvidence}\n\n# The user's message\n${convo[convo.length - 1].content}` };
 
   // One question per unit of the Ask SOCIA allowance; counted right before
   // the model is called, and given back when the call produces no answer.
@@ -86,7 +115,7 @@ export async function POST(req: Request) {
     const params = {
       model: MODEL,
       max_tokens: 2000,
-      system: ev.system,
+      system: `${ev.system}\n${SCHEDULE_RULES}`,
       output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(MODEL) },
       messages: convo,
     };
@@ -112,6 +141,38 @@ export async function POST(req: Request) {
         proposals.push({ kind: "plan_day", planId: ev.plan.id, index: p.index, day: cur.day, current: { concept: cur.concept, hook: cur.hook, format: cur.format, rationale: cur.rationale }, proposed: { concept: p.concept, hook: p.hook, format: p.format || cur.format, rationale: p.rationale }, why: p.why });
       } else if (p.kind === "text" && p.field !== "none" && p.options?.length) {
         proposals.push({ kind: "text", field: p.field, label: p.label || p.field, options: p.options.slice(0, 5) });
+      }
+    }
+    // Scheduling: the model says which posts and what rule; the times are worked out here.
+    if (raw.schedule?.want) {
+      const want = raw.schedule;
+      const byN = new Map(sched.posts.map((p) => [p.n, p]));
+      const picked = (want.posts ?? []).map((n) => byN.get(n)).filter((p): p is Schedulable => Boolean(p));
+      const chosen = picked.length ? Array.from(new Set(picked)) : sched.posts.filter((p) => p.status === "draft");
+      const movable = chosen.filter((p) => !p.fixed);
+      const left = chosen.filter((p) => p.fixed).map((p) => ({ title: p.title, reason: p.fixed! }));
+      const gate = checkFeature(ent, "scheduling");
+      let blocked = false;
+      if (!can(ctx, "publish")) { blocked = true; left.unshift({ title: "Scheduling", reason: "Only the brand's owner or an admin can schedule posts." }); }
+      else if (!gate.ok) { blocked = true; left.unshift({ title: "Scheduling", reason: gate.error.error }); }
+      if (!blocked && movable.length) {
+        const ids = new Set(movable.map((p) => p.id));
+        const needsHistory = !(want.spacingMinutes > 0) && !(want.times ?? []).length;
+        const snap = needsHistory ? await getIgSnapshot(ctx.client, ctx.ownerId, wsId).catch(() => null) : null;
+        const history = snap ? (snap.media ?? []).filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })) : null;
+        const plan = planReschedule({
+          posts: movable.map((p) => ({ id: p.id, title: p.title })),
+          rule: { startLocal: want.startLocal || null, spacingMinutes: Math.max(0, want.spacingMinutes | 0), perDay: Math.max(0, Math.min(8, want.perDay | 0)), times: (want.times ?? []).slice(0, 8), days: Math.max(0, Math.min(60, want.days | 0)) },
+          existing: sched.others.filter((o) => !ids.has(o.id)), history, now: nowDate, tz,
+        });
+        const byId = new Map(movable.map((p) => [p.id, p]));
+        proposals.push({
+          kind: "schedule", summary: plan.summary,
+          items: plan.slots.map((s) => { const p = byId.get(s.id)!; return { postId: p.id, title: p.title, status: p.status, from: p.at, at: s.at, reason: s.reason, platforms: p.platforms, legacy: p.legacy }; }),
+          left: [...left, ...plan.unplaced.map((u) => ({ title: byId.get(u.id)?.title ?? "A post", reason: u.reason }))],
+        });
+      } else {
+        proposals.push({ kind: "schedule", summary: blocked ? "Nothing can be scheduled from here." : "There's nothing here SOCIA can schedule.", items: [], left });
       }
     }
     // Post ids are for the model's postId field, never for prose; and the

@@ -20,6 +20,8 @@ import { ASK_EVENT, ASK_PAGE_LABEL, ASK_SUGGESTIONS, pageForPath, type AskAnswer
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import PlanNotice, { UsageLine } from "./PlanNotice";
+import ScheduleProposal from "./ask/ScheduleProposal";
+import { viewerTimeZone } from "@/lib/publishing/timing";
 
 type ProposalHandler = (p: AskProposal, choice?: string) => Promise<boolean | void> | boolean | void;
 
@@ -42,7 +44,7 @@ async function askApi(context: AskContext, messages: AskMessage[]): Promise<AskR
   const res = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ context, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
+    body: JSON.stringify({ context: { ...context, tz: viewerTimeZone() ?? undefined }, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -93,6 +95,7 @@ function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onPr
             </div>
           );
         }
+        if (p.kind === "schedule") return <ScheduleProposal key={key} p={p} />;
         return (
           <div key={key} className="ask-proposal">
             <small>{p.label}</small>
@@ -119,10 +122,19 @@ function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onPr
   );
 }
 
-export function AskDrawer({ open, onClose, context, contextLabel, suggestions, initialQuestion, autoSend = false, onProposal, title = "Ask SOCIA" }: {
+export function AskDrawer({ open, onClose, context, contextLabel, suggestions, initialQuestion, autoSend = false, onProposal, title = "Ask SOCIA", persist }: {
   open: boolean; onClose: () => void; context: AskContext; contextLabel?: string | null; suggestions?: string[]; initialQuestion?: string | null; autoSend?: boolean; onProposal?: ProposalHandler; title?: string;
+  /** Session key: the thread is kept as the person moves between pages (and over a reload) instead of starting fresh. */
+  persist?: string;
 }) {
-  const [messages, setMessages] = useState<AskMessage[]>([]);
+  const [messages, setMessages] = useState<AskMessage[]>(() => {
+    if (!persist || typeof window === "undefined") return [];
+    try { const raw = window.sessionStorage.getItem(persist); const m = raw ? (JSON.parse(raw) as AskMessage[]) : []; return Array.isArray(m) ? m.slice(-30) : []; } catch { return []; }
+  });
+  useEffect(() => {
+    if (!persist) return;
+    try { window.sessionStorage.setItem(persist, JSON.stringify(messages.slice(-30))); } catch { /* storage unavailable: the thread lives in memory */ }
+  }, [persist, messages]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +170,12 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     const key = `${JSON.stringify(context)}|${initialQuestion ?? ""}`;
     if (key === lastKey.current) return;
     lastKey.current = key;
+    // A kept thread carries on across pages: a question from a link joins it.
+    if (persist) {
+      setError(null); setPlanError(null);
+      if (initialQuestion) { if (autoSend) send(initialQuestion); else setInput(initialQuestion); }
+      return;
+    }
     setMessages([]); setError(null); setPlanError(null); setAppliedState({});
     if (initialQuestion) {
       if (autoSend) send(initialQuestion, []); else setInput(initialQuestion);
@@ -174,6 +192,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           <span className="ask-mark"><Sparkles size={12} /></span>
           {chips.map((c) => <span key={c} className="ov-chip muted">{c}</span>)}
           <span className="ask-chips-note">answers from your verified data</span>
+          {persist && messages.length > 0 && <button type="button" className="ov-btn ghost small ask-new" onClick={() => { setMessages([]); setAppliedState({}); setError(null); setPlanError(null); }}>New chat</button>}
           {usage && <UsageLine meter="ask_socia" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} />}
         </div>
         <div className="ask-thread" ref={scrollRef}>
@@ -278,7 +297,9 @@ export function AskHost() {
   return (
     <>
       <button type="button" className="s-btn s-btn--secondary s-ask" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={16} /> <span>Ask SOCIA</span></button>
-      <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} />
+      {/* The same assistant from the corner of every page, so it is always a click away. */}
+      {!open && <button type="button" className="ask-bubble" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={22} /></button>}
+      <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist="socia-ask-thread" suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
     </>
   );
 }

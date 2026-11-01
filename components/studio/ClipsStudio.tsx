@@ -40,7 +40,8 @@ const errCopy = (e: unknown): string => {
   return m.replace(/^Upload failed: /, "");
 };
 
-export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?: ReactNode }) {
+export default function ClipsStudio({ modeTabs, autopilot = false }: { viewerId: string; modeTabs?: ReactNode; /** Clips to posts: understand as soon as the clips are in, and lead with Make and schedule. */ autopilot?: boolean }) {
+  const modeParam = autopilot ? "autopost" : "clips";
   const router = useRouter();
   const params = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -67,6 +68,7 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
   const [manualBusy, setManualBusy] = useState(false);
   const [building, setBuilding] = useState(false);
   const [busyIds, setBusyIds] = useState(0);
+  const [autoStart, setAutoStart] = useState(false);
   const projectRef = useRef<StudioProject | null>(null);
   projectRef.current = project;
 
@@ -105,10 +107,10 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     setProject(p);
     syncLocals(p);
     const sp = new URLSearchParams(Array.from(params.entries()));
-    sp.set("mode", "clips"); sp.set("project", id);
+    sp.set("mode", modeParam); sp.set("project", id);
     router.replace(`/studio?${sp.toString()}`, { scroll: false });
     return p;
-  }, [params, router, syncLocals]);
+  }, [params, router, syncLocals, modeParam]);
 
   useEffect(() => { void loadMeta(); }, [loadMeta]);
   useEffect(() => {
@@ -221,9 +223,11 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     });
     await Promise.all(workers);
     setBusyIds((n) => n - 1);
-    await openProject(p.id, true);
+    const fresh = await openProject(p.id, true);
     void loadMeta();
-  }, [ensureProject, registerFile, uploadFile, openProject, loadMeta]);
+    // Clips to posts: once the clips are in, SOCIA starts understanding them without another click.
+    if (autopilot && fresh && fresh.status !== "understanding" && fresh.clips.some((c) => c.status === "ready" || c.status === "uploaded")) setAutoStart(true);
+  }, [ensureProject, registerFile, uploadFile, openProject, loadMeta, autopilot]);
 
   const removeClip = useCallback(async (l: LocalClip) => {
     if (l.clip) {
@@ -252,6 +256,12 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     if (j?.usage) setMeta((m) => (m ? { ...m, usage: j.usage } : m));
   }, [project]);
 
+  useEffect(() => {
+    if (!autoStart || busyIds > 0 || starting) return;
+    setAutoStart(false);
+    void understand();
+  }, [autoStart, busyIds, starting, understand]);
+
   const openOpportunity = useCallback(async (o: Opportunity) => {
     if (!project) return;
     setOpenOpp(o); setBuild(null); setBuildError(null); setBuildLoading(true);
@@ -279,9 +289,9 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     if (!window.confirm("Delete this project and its uploaded clips?")) return;
     const res = await fetch(`/api/studio/projects/${id}`, { method: "DELETE" });
     if (!res.ok) { setNotice("Couldn't delete that project."); return; }
-    if (project?.id === id) { setProject(null); setLocals([]); router.replace("/studio?mode=clips", { scroll: false }); }
+    if (project?.id === id) { setProject(null); setLocals([]); router.replace(`/studio?mode=${modeParam}`, { scroll: false }); }
     void loadMeta();
-  }, [project, router, loadMeta]);
+  }, [project, router, loadMeta, modeParam]);
 
   // ------------------------------------------------------------ derive ----
   const uploading = busyIds > 0;
@@ -307,11 +317,11 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
     <div className="st cb" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.length && view !== "understanding") void onFiles(e.dataTransfer.files); }}>
       <PageHeader
         title="Content Studio"
-        sub="Upload raw clips. SOCIA tells you which posts are in them, and how to make each one."
+        sub={autopilot ? "Drop your clips. SOCIA makes the videos and schedules them, a set number a day, after you check the list." : "Upload raw clips. SOCIA tells you which posts are in them, and how to make each one."}
         status={meta ? <span className="ov-status"><i className={meta.transcription ? "live" : ""} />{meta.transcription ? "Speech is transcribed with timestamps" : "No transcription service configured — clips are understood from frames and measured sound"}</span> : null}
         actions={
           <>
-            {project && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={() => { setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); router.replace("/studio?mode=clips", { scroll: false }); void loadMeta(); }}><FolderOpen size={14} /> Projects</button>}
+            {project && view !== "understanding" && <button type="button" className="ov-btn ghost" onClick={() => { setProject(null); setLocals([]); setOpenOpp(null); setBuilding(false); setAdding(false); router.replace(`/studio?mode=${modeParam}`, { scroll: false }); void loadMeta(); }}><FolderOpen size={14} /> Projects</button>}
             <button type="button" className="ov-btn primary" disabled={view === "understanding"} onClick={() => input.current?.click()}><Upload size={14} /> Add clips</button>
             <input ref={input} type="file" hidden accept="video/mp4,video/quicktime,video/webm,video/*" multiple onChange={(e) => { if (e.target.files) void onFiles(e.target.files); e.target.value = ""; }} />
           </>
@@ -331,12 +341,21 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
           <div className="st-work">
             <div className="ov-card st-intro">
               <h2>What happens</h2>
+              {autopilot ? (
+                <ul>
+                  <li><b>1 · Drop your clips</b><span>Everything from the shoot. Each clip is measured on this device and uploaded privately.</span></li>
+                  <li><b>2 · SOCIA understands them</b><span>It starts on its own once the clips are in: speech, scenes and the posts the footage supports. Counts one footage analysis on your plan.</span></li>
+                  <li><b>3 · Make the videos</b><span>Pick the ideas (or post each clip on its own), how many a day and where. SOCIA makes each video and writes its caption.</span></li>
+                  <li><b>4 · Check, then schedule</b><span>See every video with its day, time and caption, change anything, then schedule them all with one click.</span></li>
+                </ul>
+              ) : (
               <ul>
                 <li><b>1 · Upload</b><span>Drop everything from the shoot. Each clip is measured here first — length, picture, sound — and uploaded privately.</span></li>
                 <li><b>2 · Understand</b><span>Speech is transcribed with timestamps; SOCIA reads a few frames per clip and writes down what&apos;s in it and where the strong moments are. Done once per clip and remembered.</span></li>
                 <li><b>3 · Content Yield</b><span>SOCIA groups clips that belong together and counts only posts with enough distinct, usable footage. If 20 clips make one post, it says one.</span></li>
                 <li><b>4 · Edit guide</b><span>Open a post and get the exact cut: which clip, which seconds, the on-screen text, what to brighten or turn up, the recommended length.</span></li>
               </ul>
+              )}
               <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. Music is a recommendation — SOCIA never adds a track.</p>
             </div>
             <LearnCard />
@@ -379,12 +398,13 @@ export default function ClipsStudio({ modeTabs }: { viewerId: string; modeTabs?:
 
       {view === "yield" && project?.yield && (
         <>
+          {autopilot && <BatchPanel key={`top-${project.id}`} project={project} autoBuild={meta ? meta.autoBuild : null} />}
           <YieldView y={project.yield} clips={project.clips} builds={project.builds} onOpen={(o) => void openOpportunity(o)} onAddMore={() => setAdding(true)} stale={stale} outcomes={learn?.outcomes} />
           <div className="ov-card cb-manual">
             <div><b><Scissors size={14} /> Edit the clips yourself</b><small>Cut, arrange, reframe and add text to every clip in this project, then export. No AI, nothing counted against your plan.</small></div>
             <button type="button" className="ov-btn ghost small" disabled={manualBusy} onClick={() => void openManual()}>{manualBusy ? <Loader2 size={13} className="spin" /> : null} Open the editor</button>
           </div>
-          <BatchPanel key={project.id} project={project} autoBuild={meta ? meta.autoBuild : null} />
+          {!autopilot && <BatchPanel key={project.id} project={project} autoBuild={meta ? meta.autoBuild : null} />}
         </>
       )}
 
