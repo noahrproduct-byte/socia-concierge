@@ -12,14 +12,11 @@ import { AlertTriangle, Check, Film, Image as ImageIcon, Loader2, X } from "luci
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
-import { uploadMedia } from "@/lib/supabase/uploadMedia";
-import { compressVideo, shouldOfferCompression } from "@/lib/videoCompress";
-import { fmtBytes, measure } from "@/lib/publishing/mediaInfo";
+import { fmtBytes } from "@/lib/publishing/mediaInfo";
+import { removePostUpload, uploadForPost } from "@/lib/publishing/uploadForPost";
 import { seeMedia, type SeePhase } from "@/lib/publishing/captionMedia";
 import { fileLabel, postLabel } from "@/lib/publishing/postLabel";
-import type { MediaItem } from "@/lib/publishing/types";
 
-const BUCKET = "scheduled-media";
 export const MAX_FOOTAGE = 10;
 
 type Step = "waiting" | "measuring" | "compressing" | "uploading" | SeePhase | "writing" | "saving" | "saved" | "failed";
@@ -72,20 +69,9 @@ export default function FootageTray({ files, onRemove, onClear, onDone, onBusy }
       let file = files[i];
       let path: string | null = null;
       try {
-        set(i, "measuring");
-        let m = await measure(file);
-        URL.revokeObjectURL(m.previewUrl);
-        if (shouldOfferCompression(file)) {
-          set(i, "compressing");
-          const smaller = await compressVideo(file);
-          if (smaller) { file = smaller; m = await measure(smaller); URL.revokeObjectURL(m.previewUrl); }
-        }
-
-        set(i, "uploading");
-        path = `${user.id}/ask/${crypto.randomUUID()}_${file.name.replace(/[^\w.\-]+/g, "_").slice(-80)}`;
-        await uploadMedia(supabase, BUCKET, path, file);
-        const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-        const media: MediaItem = { id: crypto.randomUUID(), kind: m.kind, name: file.name, mime: m.mime ?? "", size: file.size, width: m.width ?? null, height: m.height ?? null, duration: m.duration ?? null, path, url };
+        const up = await uploadForPost(file, user.id, (st) => set(i, st));
+        file = up.file; path = up.media.path;
+        const media = up.media;
 
         let caption = "";
         if (write) {
@@ -123,7 +109,7 @@ export default function FootageTray({ files, onRemove, onClear, onDone, onBusy }
         set(i, "saved");
       } catch (e) {
         // A file whose draft wasn't saved doesn't stay in storage.
-        if (path) await supabase.storage.from(BUCKET).remove([path]).then(() => null, () => null);
+        if (path) await removePostUpload(path);
         const msg = e instanceof Error ? e.message : "It couldn't be saved.";
         set(i, "failed", msg);
         result.failed.push(`${file.name} (${msg.replace(/[.\s]+$/, "")})`);

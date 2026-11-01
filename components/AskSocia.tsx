@@ -22,6 +22,7 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import PlanNotice, { UsageLine } from "./PlanNotice";
 import ScheduleProposal from "./ask/ScheduleProposal";
+import { ratedVideos } from "@/lib/assistant/rated";
 import FootageTray, { MAX_FOOTAGE, type FootageResult } from "./ask/FootageTray";
 import { acceptFor } from "./composer/MediaSection";
 import { viewerTimeZone } from "@/lib/publishing/timing";
@@ -45,10 +46,11 @@ type AskResult =
 /** Throws on ordinary failures; a plan limit comes back as a result so the drawer can render the notice. */
 async function askApi(context: AskContext, messages: AskMessage[]): Promise<AskResult> {
   const newPosts = messages.flatMap((m) => m.drafts ?? []).slice(-MAX_FOOTAGE * 4);
+  const rated = ratedVideos();
   const res = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ context: { ...context, tz: viewerTimeZone() ?? undefined, ...(newPosts.length ? { newPosts } : {}) }, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
+    body: JSON.stringify({ context: { ...context, tz: viewerTimeZone() ?? undefined, ...(newPosts.length ? { newPosts } : {}), ...(rated.length ? { rated } : {}) }, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {

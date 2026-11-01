@@ -25,6 +25,7 @@ import { describeQuickAudio, quickAudioFrom, timedTranscript, type QuickAudio } 
 import { saveStudioHandoff } from "@/lib/studioHandoff";
 import type { AskProposal } from "@/lib/ask";
 import { handFiles } from "@/lib/studioClips/handoff";
+import { rememberRated, updateRatedCaption } from "@/lib/assistant/rated";
 import { transcriptSkippedNote } from "@/lib/transcribe/limits";
 
 export type DraftItem = { id: string; caption: string; media_url: string | null; media_type: string; scheduled_at: string; status: string };
@@ -68,6 +69,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [pickDraft, setPickDraft] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [ratedRef, setRatedRef] = useState<string | null>(null);
+  useEffect(() => { if (ratedRef) updateRatedCaption(ratedRef, w.caption); }, [ratedRef, w.caption]);
   const [toast, setToast] = useState<string | null>(null);
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -107,6 +110,10 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       setVersions((v) => { const next = [...v, { analysis: a, at: new Date().toISOString() }]; a.meta.version = next.length; return next; });
       setAnalysis(a);
       setW((cur) => ({ ...cur, hook: cur.hook || a.hooks.current || "", cta: cur.cta || a.cta.current || "" }));
+      // Ask SOCIA can schedule "the video I just rated": it knows the file from here on, in this tab.
+      if (src.file && (src.kind === "video" || src.kind === "image")) {
+        setRatedRef(rememberRated(src.file, { name: src.name, kind: src.kind, durationSec: fr.duration ?? null, summary: analysisSummary(a).slice(0, 400), caption: opts?.caption ?? w.caption }));
+      }
       setPhase("done"); setTab("analyze");
     } catch {
       setErr({ kind: "api" }); setPhase("error");
