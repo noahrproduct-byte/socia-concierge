@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_OPTIONS, getSupabaseAnonKey, getSupabaseUrl } from "./env";
+import { ALIVE_COOKIE, FORGET_COOKIE, shouldForget } from "@/lib/rememberMe";
 
 // Runs on every request to keep the login session fresh (refreshes expiring
 // tokens) and to bounce logged-out visitors away from protected pages.
@@ -39,6 +40,13 @@ export async function updateSession(request: NextRequest) {
     user = null;
   }
 
+  // "Remember me" was off and the browser has closed since: end the session.
+  if (user && shouldForget({ forget: request.cookies.get(FORGET_COOKIE)?.value, alive: request.cookies.get(ALIVE_COOKIE)?.value })) {
+    await supabase.auth.signOut().catch(() => null);
+    user = null;
+    response.cookies.set(FORGET_COOKIE, "", { path: "/", maxAge: 0 });
+  }
+
   // Protect logged-in pages: if not logged in, send to /login.
   const path = request.nextUrl.pathname;
   const protectedPaths = [
@@ -60,7 +68,10 @@ export async function updateSession(request: NextRequest) {
   if (!user && protectedPaths.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    // Keep any cookie changes made above (a refreshed or ended session).
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
   }
 
   return response;

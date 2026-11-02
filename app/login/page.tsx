@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import BrandMark from "@/components/BrandMark";
 import AuthShell, { GoogleIcon } from "@/components/AuthShell";
 import { safeNext } from "@/lib/safeNext";
+import { applyRemember } from "@/lib/rememberMe";
 
 /** Where to go after signing in: ?next= when it is a path on this site (e.g. an AI app's consent screen). */
 const nextPath = () => safeNext(typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("next"));
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export default function LoginPage() {
     setLoading(true);
     setErr(null);
     setMsg(null);
+    applyRemember(remember);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -55,6 +58,7 @@ export default function LoginPage() {
 
   async function loginWithGoogle() {
     setErr(null);
+    applyRemember(remember);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: callbackUrl() },
@@ -70,6 +74,7 @@ export default function LoginPage() {
     setLoading(true);
     setErr(null);
     setMsg(null);
+    applyRemember(remember);
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: callbackUrl() },
@@ -98,10 +103,12 @@ export default function LoginPage() {
       </div>
 
       <form onSubmit={loginWithPassword}>
-        <label>Email</label>
+        <label htmlFor="login-email">Email</label>
         <div className="field">
-          <Mail size={16} className="field-ico" />
+          <Mail size={18} className="field-ico" aria-hidden />
           <input
+            id="login-email"
+            autoComplete="email"
             type="email"
             required
             value={email}
@@ -109,10 +116,12 @@ export default function LoginPage() {
             placeholder="you@example.com"
           />
         </div>
-        <label>Password</label>
+        <label htmlFor="login-password">Password</label>
         <div className="field">
-          <Lock size={16} className="field-ico" />
+          <Lock size={18} className="field-ico" aria-hidden />
           <input
+            id="login-password"
+            autoComplete="current-password"
             type={showPw ? "text" : "password"}
             required
             value={password}
@@ -131,13 +140,13 @@ export default function LoginPage() {
 
         <div className="auth-row">
           <label className="remember">
-            <input type="checkbox" defaultChecked /> Remember me
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember me
           </label>
           <Link href="/forgot-password" className="auth-mini">Forgot password?</Link>
         </div>
 
         <button className="authbtn" type="submit" disabled={loading}>
-          {loading ? "Logging in…" : <>Log in <ArrowRight size={15} /></>}
+          {loading ? "Logging in…" : <>Log in <ArrowRight size={18} aria-hidden /></>}
         </button>
       </form>
 
@@ -150,7 +159,7 @@ export default function LoginPage() {
 
       <div className="authfoot">
         <span>
-          No account? <Link href="/signup">Sign up</Link>
+          No account?<Link href="/signup">Sign up</Link>
         </span>
       </div>
     </AuthShell>
