@@ -70,9 +70,12 @@ Write ${PLAYLIST_SIZE} tracks and the searches.` }],
   const stamp = (args.now ?? new Date()).getTime().toString(36);
   const { tracks, suggestions } = cleanPlaylist(raw, () => `m${stamp}${n++}`);
   if (!tracks.length) throw new Error("SOCIA couldn't put a playlist together just now. Try again.");
-  const kept = row.edl.soundtrack ? row.edl.playlist?.tracks.find((t) => t.id === row.edl.soundtrack!.trackId) : null;
+  // The model call takes a while and the person may have changed the cut
+  // meanwhile: merge into the cut as it is now, not as it was when this started.
+  const fresh = (await loadBuildRow(client, ownerId, wsId, buildId))?.edl ?? row.edl;
+  const kept = fresh.soundtrack ? fresh.playlist?.tracks.find((t) => t.id === fresh.soundtrack!.trackId) : null;
   const playlist: Playlist = { taste: lines, tracks: kept ? [kept, ...tracks] : tracks, suggestions, createdAt: (args.now ?? new Date()).toISOString() };
-  const { error } = await scopeToWorkspace(client.from("studio_builds").update({ edl: { ...row.edl, playlist }, updated_at: new Date().toISOString() }).eq("id", buildId).eq("user_id", ownerId), wsId);
+  const { error } = await scopeToWorkspace(client.from("studio_builds").update({ edl: { ...fresh, playlist }, updated_at: new Date().toISOString() }).eq("id", buildId).eq("user_id", ownerId), wsId);
   if (error) throw error;
   return playlist;
 }

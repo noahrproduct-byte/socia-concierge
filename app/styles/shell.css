@@ -301,6 +301,22 @@
 .s-ws svg:last-child {
   color: var(--ink-3);
 }
+/* The headbar's copy: the active workspace's name, quiet like the dock's tools. */
+.s-headbar .s-ws--bar {
+  width: auto;
+  max-width: 180px;
+  margin: 0 var(--sp-1) 0 0;
+  padding: 0 var(--sp-2);
+  border-color: var(--border-strong);
+  background: transparent;
+  font-size: var(--fs-nav);
+}
+@media (hover: hover) and (pointer: fine) {
+  .s-headbar .s-ws--bar:hover {
+    border-color: var(--ink-3);
+    background: var(--dock-active);
+  }
+}
 .s-nav {
   display: flex;
   flex-direction: column;
@@ -791,6 +807,9 @@ html[data-ws-switching]::after {
   .s-headbar-tools {
     margin-left: var(--sp-3);
   }
+  .s-headbar .s-ws--bar {
+    max-width: 128px;
+  }
 }
 
 /* ---- tablets and phones: the links move into the All sections panel -------------- */
@@ -803,7 +822,8 @@ html[data-ws-switching]::after {
     padding: 0 var(--sp-1) 0 var(--sp-3);
   }
   .s-hnav,
-  .s-headbar-account {
+  .s-headbar-account,
+  .s-headbar .s-ws--bar {
     display: none;
   }
   .s-brand span {

@@ -36,7 +36,7 @@ function billingLine(b: BillingInfo, cfg: PlanConfig): string | null {
   return null;
 }
 
-const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_build", "video_builds", "content_ideas", "content_plan", "content_generation", "account_audit"];
+const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_build", "video_builds", "music_tracks", "content_ideas", "content_plan", "content_generation", "account_audit"];
 
 function Meter({
   label,
@@ -90,6 +90,7 @@ export default function PlanBilling({
   competitors,
   overLimits,
   teamUsed = null,
+  workspaceCount = null,
   billing = null,
   notice = null,
 }: {
@@ -105,6 +106,8 @@ export default function PlanBilling({
   overLimits: OverLimits;
   /** Team seats in use (you + distinct members across your workspaces); null when unknown. */
   teamUsed?: number | null;
+  /** Active (not paused) Brand Workspaces you own; null before workspaces exist. */
+  workspaceCount?: number | null;
   /** Subscription state mirrored from Stripe; null before billing exists. */
   billing?: BillingInfo | null;
   /** A one-off message, e.g. just back from Checkout. */
@@ -115,16 +118,19 @@ export default function PlanBilling({
   const competitorLimit = getLimit(ent, "competitors");
   const memberLimit = getLimit(ent, "team_members");
   const historyDays = getLimit(ent, "analytics_history_days");
-  // Workspaces in use is derived from the accounts (a workspace holds one
-  // account per platform); unknown when a platform table could not be read.
-  const workspacesUsed = activeCount == null ? null : workspacesInUse(accounts);
+  // Workspaces in use: the active (not paused) workspace rows when they could
+  // be read, else derived from the accounts (one account per platform each).
+  const workspacesUsed = workspaceCount ?? (activeCount == null ? null : workspacesInUse(accounts));
   const teamSoon = FEATURE_STATUS.team === "coming_soon";
 
-  const keepAccounts = overLimits.accounts
+  // The chooser shows when accounts are over the plan, and also whenever one
+  // is paused, so a paused account's card always has somewhere to resume it.
+  const anyPaused = accounts.some((a) => a.suspended);
+  const keepAccounts = overLimits.accounts || anyPaused
     ? {
-        limit: overLimits.accounts.limit,
-        active: overLimits.accounts.active,
-        byPlatform: overLimits.accounts.byPlatform,
+        limit: overLimits.accounts?.limit ?? workspaceLimit,
+        active: overLimits.accounts?.active ?? 0,
+        byPlatform: overLimits.accounts?.byPlatform ?? {},
         items: accounts.map<KeepAccount>((a) => ({
           id: a.id, label: a.label, handle: a.handle, platform: a.platform, suspended: a.suspended, current: a.current,
         })),
@@ -191,7 +197,7 @@ export default function PlanBilling({
 
       <div className="pb-actions">
         <Link href={PRICING_PATH} className="btn-secondary">{ent.plan === "free" && checkoutAvailable() ? "Upgrade" : "Compare plans"}</Link>
-        {billing?.hasCustomer && checkoutAvailable() && <ManageBillingButton />}
+        {billing?.hasCustomer && <ManageBillingButton />}
         {!checkoutAvailable() && (
           <p>
             Checkout is opening soon. To change your plan today,{" "}

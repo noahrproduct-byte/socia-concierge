@@ -10,7 +10,7 @@ import type { Workspace } from "@/lib/workspaces";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder, storageClient } from "./storage";
 import { checkClipFits, projectTotals, ownerStorageBytes, type FitResult } from "./limits";
-import { copyPaths, dedupeByFootage, MAX_COPY, type LibraryClip } from "./library";
+import { copyPaths, dedupeByFootage, MAX_COPY, nextPosition, type LibraryClip } from "./library";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
@@ -135,6 +135,8 @@ export async function deleteProject(client: Supa, ownerId: string, wsId: string 
     const folder = !c.purged_at ? clipFolderOf(c) : null;
     if (folder) await removeFolder(client, folder);
   }
+  // The project's music tracks (lib/music/taste.ts musicPath) go with it.
+  await removeFolder(client, `${ownerId}/${id}/music`);
   const { error } = await client.from("studio_projects").delete().eq("id", id).eq("user_id", ownerId);
   if (error) throw error;
   return true;
@@ -177,7 +179,7 @@ export async function registerClip(client: Supa, args: { ownerId: string; viewer
   } catch { reuse = null; }
 
   const row: Record<string, unknown> = {
-    project_id: project.id, user_id: ownerId, position: existing.length, fingerprint: input.fingerprint,
+    project_id: project.id, user_id: ownerId, position: nextPosition(existing), fingerprint: input.fingerprint,
     name: input.name.slice(0, 160), mime: input.mime, bytes: input.bytes, duration_s: input.durationSec,
     width: input.width, height: input.height, recorded_at: input.recordedAt, status: "registered",
     // Footage is kept until the person deletes it (or its project), within the plan's storage.
@@ -537,7 +539,7 @@ export async function copyClipsInto(client: Supa, args: { ownerId: string; viewe
     const fit = checkClipFits(ent, totals, ownerBytes, { bytes: src.bytes, durationSec: src.duration_s ?? 0 });
     if (!fit.ok) { skipped.push(`${src.name}: ${"plan" in fit ? fit.plan.error : fit.message}`); continue; }
     const row: Record<string, unknown> = {
-      project_id: project.id, user_id: ownerId, position: existing.length, fingerprint: src.fingerprint,
+      project_id: project.id, user_id: ownerId, position: nextPosition(existing), fingerprint: src.fingerprint,
       name: src.name, mime: src.mime, bytes: src.bytes, duration_s: src.duration_s, width: src.width, height: src.height,
       recorded_at: src.recorded_at, status: "registered", expires_at: null, facts: src.facts, transcript: src.transcript, card: src.card,
     };

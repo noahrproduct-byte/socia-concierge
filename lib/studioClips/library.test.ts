@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { copyPaths, dedupeByFootage } from "./library";
+import { copyPaths, dedupeByFootage, nextPosition } from "./library";
 
 describe("Your clips", () => {
   it("shows the same footage once, newest copy first", () => {
@@ -30,5 +30,12 @@ describe("Your clips", () => {
     expect(r.pairs).toEqual([]);
     expect(r.source).toBeNull();
     expect(r.frames).toEqual([]);
+  });
+});
+
+describe("clip positions", () => {
+  it("puts a new clip after the highest, even after a delete left a gap", () => {
+    expect(nextPosition([])).toBe(0);
+    expect(nextPosition([{ position: 0 }, { position: 2 }])).toBe(3);
   });
 });

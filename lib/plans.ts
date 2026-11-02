@@ -122,7 +122,6 @@ export type FeatureKey =
   | "team"
   // Growth
   | "auto_build"
-  | "plan_posts"
   | "cross_platform_analytics"
   | "comment_replies"
   | "daily_recommendations"
@@ -168,7 +167,6 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
   weekly_summary: "available",
   team: "available",
   auto_build: "available",
-  plan_posts: "available",
   cross_platform_analytics: "available",
   comment_replies: "available",
   daily_recommendations: "available",
@@ -209,7 +207,6 @@ export const FEATURE_LABEL: Record<FeatureKey, string> = {
   weekly_summary: "Weekly performance summary",
   team: "Invite team members",
   auto_build: "Make This Video: SOCIA cuts the first draft from your clips (editable)",
-  plan_posts: "Plan these posts: SOCIA places a project's posts in your Calendar as drafts",
   cross_platform_analytics: "Cross-platform analytics",
   comment_replies: "AI comment replies (draft, approve, send)",
   daily_recommendations: "Daily recommendations",
@@ -330,7 +327,6 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   ai_assistant_publishing: "starter",
   // Growth
   auto_build: "growth",
-  plan_posts: "growth",
   cross_platform_analytics: "growth",
   comment_replies: "growth",
   daily_recommendations: "growth",

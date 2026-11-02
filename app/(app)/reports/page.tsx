@@ -19,7 +19,7 @@ import LearnedSection, { type Learned } from "@/components/reports/LearnedSectio
 import "./reports.css";
 import "@/components/planRange.css";
 
-export const metadata = { title: "Reports — SOCIA" };
+export const metadata = { title: "Reports | SOCIA" };
 
 type Search = { range?: string; from?: string; to?: string; platform?: string; print?: string };
 
@@ -215,7 +215,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
       <p className="dsh-trust">
         <ShieldCheck size={13} /> Report values come from the same calculations the dashboard uses. Anything a platform doesn&apos;t provide is shown as &quot;—&quot;, never as zero.
-        {" "}<Link href="/api/export" className="dsh-link">Export all account data (JSON) <ArrowRight size={12} /></Link>
+        {" "}<a href="/api/export" className="dsh-link">Export all account data (JSON) <ArrowRight size={12} /></a>
       </p>
     </>
   );

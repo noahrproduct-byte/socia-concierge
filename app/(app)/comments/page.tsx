@@ -12,7 +12,7 @@ import { getFbSnapshot } from "@/lib/facebookSync";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import "@/components/comments.css";
 
-export const metadata = { title: "Comments — SOCIA" };
+export const metadata = { title: "Comments | SOCIA" };
 
 // AI comment replies: SOCIA drafts a reply to every new comment on your posts,
 // you approve (or edit, or skip) each one. Growth and up. Nothing is ever sent

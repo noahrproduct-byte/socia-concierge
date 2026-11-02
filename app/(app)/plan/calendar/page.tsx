@@ -18,7 +18,7 @@ import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
 import { postLabel, type LabelSource } from "@/lib/publishing/postLabel";
 
-export const metadata = { title: "Calendar — SOCIA" };
+export const metadata = { title: "Calendar | SOCIA" };
 
 /** A Member's answer in the shape the board already renders for a plan answer:
  *  the sentence, then one quiet link. Publishing is owner/admin only. */
