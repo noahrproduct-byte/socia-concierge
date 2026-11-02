@@ -224,7 +224,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     const next: AskMessage[] = [...(base ?? messages), { role: "user", content: q }];
     setMessages(next); setInput(""); setBusy(true); setError(null); setPlanError(null);
     try {
-      const r = await askApi(context, next, (t) => setLive(t.replace(/\s*—\s*/g, ", ").replace(/\s*–\s*/g, " to ")));
+      const r = await askApi(context, next, (t) => setLive(t.replace(/\s*\u2014\s*/g, ", ").replace(/\s*\u2013\s*/g, " to ")));
       if (!r.ok) { setPlanError(r.planError); return; }
       const a = r.answer;
       if (r.usage) setUsage(r.usage);
