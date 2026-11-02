@@ -1,58 +1,55 @@
 import Link from "next/link";
-import { BarChart3, Target, CalendarDays } from "lucide-react";
+import { BarChart3, CalendarDays, Layers } from "lucide-react";
 import BrandMark from "./BrandMark";
 
-// The premium split-screen wrapper shared by every auth page:
-// a branded showcase panel on the left, the form on the right.
+// The split-screen wrapper shared by every auth page: the dark showcase on
+// the left (Noah's reference, 2026-11-01), the form on the right. Each line
+// on the left names something SOCIA really does.
 export default function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="auth-shell">
       <aside className="auth-brand">
         <div className="auth-brand-inner">
-          <Link href="/" className="brand-logo">
-            <BrandMark size={44} />
-            <span className="brand-word">
-              SOCIA<em>Your AI Social Strategist</em>
-            </span>
+          <Link href="/" className="brand-logo" aria-label="SOCIA home">
+            <BrandMark size={40} />
+            <span className="brand-word">SOCIA</span>
           </Link>
 
           <div className="brand-mid">
+            <p className="brand-eyebrow">Your AI social strategist</p>
             <h2 className="brand-head">
               Know what to post
-              <br />
-              <span className="grad">before you post it.</span>
+              <em>before you post it.</em>
             </h2>
             <p className="brand-sub">
-              AI-powered content ideas, scoring, and scheduling, built for
-              creators and brands that grow on purpose.
+              AI-powered content ideas, analytics, and strategy built for
+              creators and brands that grow with purpose.
             </p>
 
             <ul className="brand-features">
               <li>
-                <span className="bf-ico"><BarChart3 size={16} /></span>
+                <span className="bf-ico"><BarChart3 size={24} aria-hidden /></span>
                 <div>
-                  <b>See what works on your own accounts</b>
-                  <small>Analytics from the accounts you connect.</small>
+                  <b>Analyze your performance</b>
+                  <small>See what&apos;s working and why.</small>
                 </div>
               </li>
               <li>
-                <span className="bf-ico"><Target size={16} /></span>
+                <span className="bf-ico"><Layers size={24} aria-hidden /></span>
                 <div>
-                  <b>See what accounts like yours post</b>
-                  <small>Trending accounts and Reels in your niche.</small>
+                  <b>Discover what&apos;s trending</b>
+                  <small>Find relevant content and proven formats.</small>
                 </div>
               </li>
               <li>
-                <span className="bf-ico"><CalendarDays size={16} /></span>
+                <span className="bf-ico"><CalendarDays size={24} aria-hidden /></span>
                 <div>
-                  <b>Plan your week from your results</b>
-                  <small>Drafts on your Calendar. You approve every post.</small>
+                  <b>Plan with purpose</b>
+                  <small>Get a weekly plan built from your data.</small>
                 </div>
               </li>
             </ul>
           </div>
-
-          <div className="brand-foot">© 2026 SOCIA</div>
         </div>
       </aside>
 

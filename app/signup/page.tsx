@@ -84,10 +84,12 @@ export default function SignupPage() {
       </div>
 
       <form onSubmit={signUp}>
-        <label>Email</label>
+        <label htmlFor="signup-email">Email</label>
         <div className="field">
-          <Mail size={16} className="field-ico" />
+          <Mail size={18} className="field-ico" aria-hidden />
           <input
+            id="signup-email"
+            autoComplete="email"
             type="email"
             required
             value={email}
@@ -95,10 +97,12 @@ export default function SignupPage() {
             placeholder="you@example.com"
           />
         </div>
-        <label>Password</label>
+        <label htmlFor="signup-password">Password</label>
         <div className="field">
-          <Lock size={16} className="field-ico" />
+          <Lock size={18} className="field-ico" aria-hidden />
           <input
+            id="signup-password"
+            autoComplete="new-password"
             type={showPw ? "text" : "password"}
             required
             value={password}
@@ -115,7 +119,7 @@ export default function SignupPage() {
           </button>
         </div>
         <button className="authbtn" type="submit" disabled={loading}>
-          {loading ? "Creating account…" : <>Create account <ArrowRight size={15} /></>}
+          {loading ? "Creating account…" : <>Create account <ArrowRight size={18} aria-hidden /></>}
         </button>
       </form>
 
@@ -124,7 +128,7 @@ export default function SignupPage() {
 
       <div className="authfoot">
         <span>
-          Already have an account? <Link href="/login">Log in</Link>
+          Already have an account?<Link href="/login">Log in</Link>
         </span>
         <span className="tos">
           By signing up you agree to our <Link href="/terms">Terms</Link> and <Link href="/privacy">Privacy Policy</Link>.
