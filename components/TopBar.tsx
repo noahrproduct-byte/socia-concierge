@@ -31,6 +31,7 @@ export default function TopBar({
   unread = 0,
   account,
   workspace,
+  workspaceId = null,
   sheet,
 }: {
   index: SearchItem[];
@@ -40,6 +41,8 @@ export default function TopBar({
   account: ReactNode;
   /** The headbar's workspace switcher (hidden on phones, where the panel has it). */
   workspace?: ReactNode;
+  /** The active Brand Workspace's id: Ask SOCIA keeps a separate thread for each. */
+  workspaceId?: string | null;
   sheet: ReactNode;
 }) {
   const [cmd, setCmd] = useState(false);
@@ -72,7 +75,7 @@ export default function TopBar({
         <button type="button" className="s-search" onClick={() => setCmd(true)} aria-haspopup="dialog" aria-expanded={cmd} aria-label="Search pages, posts and actions" title={`Search (${mod}K)`}>
           <Search aria-hidden />
         </button>
-        <AskHost />
+        <AskHost workspaceId={workspaceId} />
         <AlertsBell alerts={alerts} unread={unread} activity={activity} />
         <div className="s-headbar-account">{account}</div>
         <IconButton label="Menu" className="s-headbar-menu" onClick={() => setMenu(true)} aria-haspopup="dialog" aria-expanded={menu}>

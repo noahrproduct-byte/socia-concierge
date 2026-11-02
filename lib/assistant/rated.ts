@@ -20,6 +20,14 @@ const CAPTION_MAX = 600;
 
 const MAX = 10;
 let items: { video: RatedVideo; file: File }[] = [];
+// The Brand Workspace the list belongs to: a switch starts an empty list.
+let scope: string | null | undefined;
+
+/** Called with the active workspace whenever the shell mounts; a different workspace empties the list. */
+export function scopeRated(workspaceId: string | null): void {
+  if (scope !== undefined && scope !== workspaceId) items = [];
+  scope = workspaceId;
+}
 // Refs start at a random number per page load: an Ask SOCIA thread kept from
 // before a reload can still name "V1", which must not now mean another file.
 let seq = 100 + Math.floor(Math.random() * 800);

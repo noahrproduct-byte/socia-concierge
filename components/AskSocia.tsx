@@ -22,7 +22,7 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import PlanNotice, { UsageLine } from "./PlanNotice";
 import ScheduleProposal from "./ask/ScheduleProposal";
-import { ratedVideos } from "@/lib/assistant/rated";
+import { ratedVideos, scopeRated } from "@/lib/assistant/rated";
 import FootageTray, { MAX_FOOTAGE, type FootageResult } from "./ask/FootageTray";
 import { acceptFor } from "./composer/MediaSection";
 import { viewerTimeZone } from "@/lib/publishing/timing";
@@ -297,11 +297,18 @@ export function AskSociaButton({ context, contextLabel, suggestions, label = "As
 /** The global host (top bar): opens on the Ask SOCIA button, on `socia-ask`
  *  events from any component, and on clicks of legacy "/chat?q=" links, using
  *  the current page as context. */
-export function AskHost() {
+/** `workspaceId`: the active Brand Workspace. The kept thread is per workspace, so one brand's conversation never shows in another. */
+export function AskHost({ workspaceId = null }: { workspaceId?: string | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+    // The single thread kept before threads were per workspace mixed brands: drop it.
+    try { window.sessionStorage.removeItem("socia-ask-thread"); } catch { /* storage unavailable */ }
+    // Videos rated in another workspace's Studio are not this brand's to schedule.
+    scopeRated(workspaceId);
+  }, [workspaceId]);
   const [req, setReq] = useState<{ context: AskContext; question: string | null; autoSend: boolean; label: string | null }>({ context: { page: "global" }, question: null, autoSend: false, label: null });
 
   const openWith = useCallback((detail: AskEvent & { contextLabel?: string | null }) => {
@@ -359,7 +366,7 @@ export function AskHost() {
       {mounted && createPortal(
         <>
           {!open && <button type="button" className="ask-bubble" onClick={() => openWith({})} aria-label="Ask SOCIA"><BrandMark size={22} /></button>}
-          <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist="socia-ask-thread" footage suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
+          <AskDrawer open={open} onClose={() => setOpen(false)} context={req.context} contextLabel={req.label} initialQuestion={req.question} autoSend={req.autoSend} persist={`socia-ask-thread:${workspaceId ?? "default"}`} footage suggestions={req.context.page === "global" ? [...ASK_SUGGESTIONS.global.slice(0, 2), "Schedule my drafts one a day at 6 PM.", "Space my new videos 2 hours apart from 9 AM tomorrow."] : undefined} />
         </>,
         document.body,
       )}

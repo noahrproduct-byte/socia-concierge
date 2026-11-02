@@ -110,7 +110,9 @@ function seedFrom(props: ComposerPageProps["initial"], accounts: PickerAccount[]
 
 const hasContent = (d: ComposerDraft) => d.masterCaption.trim().length > 0 || d.media.length > 0;
 
-const storageKey = (userId: string, postId: string | null) => `socia:composer:${userId}:${postId ?? "new"}`;
+// Per person AND per Brand Workspace: a new post half-written in one brand
+// never opens in another.
+const storageKey = (userId: string, workspaceId: string | null, postId: string | null) => `socia:composer:${userId}:${workspaceId ?? "default"}:${postId ?? "new"}`;
 
 function readLocal(key: string): LocalCopy | null {
   try {
@@ -164,6 +166,7 @@ export type Composer = {
 
 export function useComposer(props: ComposerPageProps & { postId?: string | null }): Composer {
   const { userId, accounts, initial, ready, accountsComplete } = props;
+  const workspaceId = props.workspaceId ?? null;
   const requestedPostId = props.postId ?? initial.item?.id ?? null;
   const router = useRouter();
 
@@ -265,7 +268,7 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
   }, [loading, draft.media]);
 
   // ---- local autosave + one-time restore prompt --------------------------------
-  const localKey = storageKey(userId, draft.postId ?? requestedPostId);
+  const localKey = storageKey(userId, workspaceId, draft.postId ?? requestedPostId);
   const restoreChecked = useRef(false);
 
   useEffect(() => {
@@ -302,8 +305,8 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
 
   // When the row gets its id the "new" copy is stale.
   useEffect(() => {
-    if (draft.postId) removeLocal(storageKey(userId, null));
-  }, [draft.postId, userId]);
+    if (draft.postId) removeLocal(storageKey(userId, workspaceId, null));
+  }, [draft.postId, userId, workspaceId]);
 
   // ---- server autosave -----------------------------------------------------------
   const saveNow = useCallback((): Promise<string | null> => {
@@ -522,13 +525,13 @@ export function useComposer(props: ComposerPageProps & { postId?: string | null 
     try {
       const res = await api<{ item: ContentItem; uploads?: ClientUpload[] }>("/api/posts", { method: "POST", body: JSON.stringify(toPayload(draftRef.current, action)) });
       dirty.current = false;
-      removeLocal(storageKey(userId, null));
-      if (res.item?.id) removeLocal(storageKey(userId, res.item.id));
+      removeLocal(storageKey(userId, workspaceId, null));
+      if (res.item?.id) removeLocal(storageKey(userId, workspaceId, res.item.id));
       await handleServerAnswer(res, action);
     } catch (e) {
       failSubmission(e);
     }
-  }, [accountsComplete, failSubmission, handleServerAnswer, stopPolling, userId]);
+  }, [accountsComplete, failSubmission, handleServerAnswer, stopPolling, userId, workspaceId]);
 
   const retry = useCallback(async (destinationId: string) => {
     const postId = submissionRef.current.item?.id ?? draftRef.current.postId;
