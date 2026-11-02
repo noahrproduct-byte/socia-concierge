@@ -9,7 +9,7 @@
 // Content intelligence and Diagnostics (brand-wide, from SOCIA's findings),
 // kept in ?view= the same way.
 
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { SegmentedControl } from "@/components/system";
 import PlatformTabs, { type PlatformTab } from "./PlatformTabs";
 import AllPlatformsAnalytics from "./AllPlatformsAnalytics";
@@ -47,6 +47,17 @@ export default function AnalyticsShell({
     setParam("view", v === "performance" ? null : v);
   }, []);
 
+  // Links like /analytics#content name a section of the Instagram panel
+  // (Dashboard, Ask SOCIA, search). With more than one platform the page opens
+  // on All Platforms, which has no such section: open Instagram instead, whose
+  // panel reads the same hash when it mounts.
+  useEffect(() => {
+    const section = window.location.hash.slice(1);
+    if (active === "all" && INSTAGRAM_SECTIONS.has(section) && tabs.some((t) => t.id === "instagram")) select("instagram");
+    // Only on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <>
       {views && (
@@ -78,6 +89,8 @@ export default function AnalyticsShell({
     </>
   );
 }
+
+const INSTAGRAM_SECTIONS = new Set(["overview", "content", "audience", "times", "growth", "posts"]);
 
 const VIEWS = [
   { id: "performance", label: "Performance" },

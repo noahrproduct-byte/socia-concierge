@@ -54,15 +54,23 @@ export function InsightList({ insights, numbered = false, posts = [], compact = 
             {evidence.length > 0 && (
               <div className="ov-evidence">
                 <small>Relevant content</small>
-                {evidence.map((p) => (
-                  <a key={p.id} href={p.permalink ?? "#"} target="_blank" rel="noreferrer" className="ov-evidence-row">
+                {evidence.map((p) => {
+                  const body = (
+                    <>
                     {p.thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={p.thumb} alt="" width={40} height={40} />
                     ) : <span className="ov-card-ph" />}
                     <span><b>{p.title}</b><em>{p.engagements.toLocaleString("en-US")} interactions{p.views != null ? ` · ${p.views.toLocaleString("en-US")} views` : ""}</em></span>
-                  </a>
-                ))}
+                    </>
+                  );
+                  // A post without a public link is shown, not linked.
+                  return p.permalink ? (
+                    <a key={p.id} href={p.permalink} target="_blank" rel="noreferrer" className="ov-evidence-row">{body}</a>
+                  ) : (
+                    <div key={p.id} className="ov-evidence-row">{body}</div>
+                  );
+                })}
               </div>
             )}
             <div className="ov-detail-actions">

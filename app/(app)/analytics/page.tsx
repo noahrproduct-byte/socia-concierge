@@ -48,7 +48,7 @@ import { canUseFeature, getEntitlements, maxHistoryDays, upgradeFor } from "@/li
 import type { PlanId } from "@/lib/plans";
 import { withoutComparison } from "@/lib/analyticsGate";
 
-export const metadata = { title: "Analytics — SOCIA" };
+export const metadata = { title: "Analytics | SOCIA" };
 
 // Analytics. One experience, switched by platform. Each platform's panel is
 // built from the data that platform actually provides (Instagram keeps its full

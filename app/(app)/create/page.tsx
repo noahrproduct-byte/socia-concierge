@@ -15,7 +15,7 @@ import { approvalRole as approvalRoleFor } from "@/lib/approvals";
 import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
 
-export const metadata = { title: "Create post — SOCIA" };
+export const metadata = { title: "Create post | SOCIA" };
 
 /** A Member's answer in the shape the composer already renders for a plan
  *  answer: the sentence, then one quiet link. Publishing is owner/admin only. */

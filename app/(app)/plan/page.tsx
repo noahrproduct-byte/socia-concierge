@@ -7,7 +7,7 @@ import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
 import { competitorScopeId } from "@/lib/workspaces";
 
-export const metadata = { title: "Content Plan — SOCIA" };
+export const metadata = { title: "Content Plan | SOCIA" };
 
 const engOf = (m: IgMediaItem) => (m.like_count ?? 0) + (m.comments_count ?? 0);
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);

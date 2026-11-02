@@ -59,8 +59,10 @@ const GROUPS: Group[] = [
   },
 ];
 
-export default function SettingsNav() {
+/** `hidden`: sections this page didn't render (workspaces or team not set up), so their links are left out. */
+export default function SettingsNav({ hidden = [] }: { hidden?: string[] }) {
   const [active, setActive] = useState("brand");
+  const groups = GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !hidden.includes(i.id)) }));
 
   useEffect(() => {
     const ids = GROUPS.flatMap((g) => g.items.map((i) => i.id));
@@ -84,7 +86,7 @@ export default function SettingsNav() {
 
   return (
     <nav className="st3-nav" aria-label="Settings sections">
-      {GROUPS.map((g) => (
+      {groups.map((g) => (
         <div key={g.label}>
           <small className="st3-nav-group">{g.label}</small>
           {g.items.map(({ id, label, Icon }) => (

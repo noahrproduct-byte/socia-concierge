@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/service";
 import { applySubscription, billingEventSeen, markBillingEvent, saveCustomerId, userIdForSubscription } from "@/lib/billing";
-import { enforcePlanLimits } from "@/lib/planDowngrade";
+import { fitToPlan } from "@/lib/planDowngrade";
 
 export const runtime = "nodejs";
 
@@ -13,19 +13,23 @@ export const runtime = "nodejs";
 //   customer.subscription.created, customer.subscription.updated, customer.subscription.deleted
 // The signature is verified against the raw body; each event id is applied
 // once; anything unexpected returns a non-2xx so Stripe retries.
-/** After a plan change: pause what the new plan doesn't cover (never deletes; Settings can change the choice). */
-async function pauseOverLimits(svc: Parameters<typeof enforcePlanLimits>[0], userId: string): Promise<void> {
+/**
+ * After a plan change: pause what the new plan doesn't cover, and resume what
+ * an earlier downgrade paused once it fits again (never deletes; Settings can
+ * change the choice).
+ */
+async function fitResources(svc: Parameters<typeof fitToPlan>[0], userId: string): Promise<void> {
   try {
-    const r = await enforcePlanLimits(svc, userId);
-    if (r.workspacesPaused || r.accountsPaused || r.competitorsPaused) console.log("[billing] paused over-limit items", JSON.stringify({ userId, ...r }));
+    const r = await fitToPlan(svc, userId);
+    if (Object.values(r).some(Boolean)) console.log("[billing] fitted items to the plan", JSON.stringify({ userId, ...r }));
   } catch (e) {
     // The plan itself is already right; a failure here must not make Stripe retry the event.
-    console.error("[billing] could not pause over-limit items:", e instanceof Error ? e.message : e);
+    console.error("[billing] could not fit items to the plan:", e instanceof Error ? e.message : e);
   }
 }
 
 /** The profile holds a different subscription that has not ended. */
-async function anotherSubscriptionIsLive(svc: Parameters<typeof enforcePlanLimits>[0], userId: string, subId: string): Promise<boolean> {
+async function anotherSubscriptionIsLive(svc: Parameters<typeof fitToPlan>[0], userId: string, subId: string): Promise<boolean> {
   const { data } = await svc.from("profiles").select("stripe_subscription_id, subscription_status").eq("user_id", userId).maybeSingle();
   const row = data as { stripe_subscription_id?: string | null; subscription_status?: string | null } | null;
   if (!row?.stripe_subscription_id || row.stripe_subscription_id === subId) return false;
@@ -64,6 +68,7 @@ export async function POST(req: Request) {
         if (userId && subId) {
           const sub = await stripe.subscriptions.retrieve(subId);
           await applySubscription(svc, userId, sub);
+          await fitResources(svc, userId);
         }
         break;
       }
@@ -86,7 +91,7 @@ export async function POST(req: Request) {
           break;
         }
         await applySubscription(svc, userId, live);
-        await pauseOverLimits(svc, userId);
+        await fitResources(svc, userId);
         break;
       }
       default:

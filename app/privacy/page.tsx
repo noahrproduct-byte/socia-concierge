@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export const metadata = { title: "Privacy Policy — SOCIA" };
+export const metadata = { title: "Privacy Policy | SOCIA" };
 
 // Required by TikTok, Meta and Google app review, and owed to users regardless.
 // Plain-language on purpose: it describes what the app actually does today,

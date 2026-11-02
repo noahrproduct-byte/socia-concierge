@@ -176,6 +176,7 @@ export default async function AppShell({ children }: { children: React.ReactNode
             activity={activity}
             alerts={alerts}
             unread={unreadAlerts}
+            workspace={<WorkspaceSwitcher initial={activeWs} accounts={accounts} bar />}
             account={<AccountMenu email={userEmail} plan={viewerPlan} compact upgrade={next ? { href: pricingHref(next), name: PLANS[next].name } : null} />}
             sheet={sheetBody}
           />

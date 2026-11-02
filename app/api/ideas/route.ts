@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext } from "@/lib/context";
 import { requireUsage } from "@/lib/planGuard";
+import { canUseFeature, getEntitlements } from "@/lib/entitlements";
 import { AI_UNAVAILABLE_COPY, aiFailureKind } from "@/lib/anthropic";
 import { writeIdeas } from "@/lib/ideas/server";
 import { readIdeas, saveIdeas } from "@/lib/ideas/store";
@@ -11,7 +12,8 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 // Video ideas for the active Brand Workspace (Dashboard).
-//   GET  -> { set } the last ideas written, or null
+//   GET  -> { set, canMake } the last ideas written (or null), and whether
+//        this plan can make one in the Video editor (SOCIA's first cut)
 //   POST { styles, about? } -> { set, usage }: new ideas in those styles. One
 //        batch of the plan's content ideas allowance, given back on failure.
 
@@ -20,7 +22,8 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
-  return NextResponse.json({ set: await readIdeas(ctx) });
+  const [set, ent] = await Promise.all([readIdeas(ctx), getEntitlements(ctx.client, ctx.ownerId).catch(() => null)]);
+  return NextResponse.json({ set, canMake: ent ? canUseFeature(ent, "auto_build") : false });
 }
 
 export async function POST(req: Request) {

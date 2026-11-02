@@ -172,10 +172,17 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
       if (!res.ok) { if (isPlanError(j)) throw Object.assign(new Error("plan"), { plan: j }); throw new Error((j?.error as string) ?? "Couldn't prepare the clip."); }
       build = j as unknown as StudioBuild;
     }
-    // Music, on its own (Growth/Pro, once per cut, unless the brand turned it off). A video that
-    // can't get a track is still made, without one; the editor's Music tab has the playlist.
-    patch(key, { step: "music", progress: 0 });
-    await fetch(`/api/studio/builds/${build.id}/music/auto`, { method: "POST", signal }).catch((e) => { if ((e as Error)?.name === "AbortError") throw e; return null; });
+    // 2. The video: made once. A video already made for this cut, still a draft, is reused.
+    const prior = (data?.builds ?? []).find((b) => b.id === build.id);
+    let path = prior?.renderPath && prior.postId && (prior.postStatus ?? "draft") === "draft" ? prior.renderPath : null;
+    let postId = path ? prior!.postId : null;
+    // Music, on its own (Growth/Pro, once per cut, unless the brand turned it off), only when a
+    // video is about to be made: a reused video keeps its sound. A video that can't get a track
+    // is still made, without one; the editor's Music tab has the playlist.
+    if (!path) {
+      patch(key, { step: "music", progress: 0 });
+      await fetch(`/api/studio/builds/${build.id}/music/auto`, { method: "POST", signal }).catch((e) => { if ((e as Error)?.name === "AbortError") throw e; return null; });
+    }
     const pres = await fetch(`/api/studio/builds/${build.id}`, { signal });
     const pj = await readJson(pres);
     if (!pres.ok) { if (isPlanError(pj)) throw Object.assign(new Error("plan"), { plan: pj }); throw new Error((pj?.error as string) ?? "Couldn't open the cut."); }
@@ -184,10 +191,6 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
     if (!edl) throw new Error("This idea has no cut yet.");
     const title = c.title;
 
-    // 2. The video: made once. A video already made for this cut, still a draft, is reused.
-    const prior = (data?.builds ?? []).find((b) => b.id === build.id);
-    let path = prior?.renderPath && prior.postId && (prior.postStatus ?? "draft") === "draft" ? prior.renderPath : null;
-    let postId = path ? prior!.postId : null;
     let blob: Blob | null = null;
     let durationSec: number | null = null;
     const width = edl.width, height = edl.height;

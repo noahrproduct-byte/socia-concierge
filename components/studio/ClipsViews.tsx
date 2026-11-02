@@ -176,7 +176,7 @@ const STEP_ICON: Record<GuideStep["kind"], ReactNode> = {
 export function OpportunityView({ o, build, clips, loading, error, onBack, onRetry, canMake, onMake }: { o: Opportunity; build: StudioBuild | null; clips: StudioClip[]; loading: boolean; error: string | null; onBack: () => void; onRetry: () => void; /** null = plan unknown yet; false = not on this plan */ canMake: boolean | null; onMake: () => void }) {
   const byId = new Map(clips.map((c) => [c.id, c]));
   const guideText = build ? build.guide.map((s) => `${s.n}. ${s.text}`).join("\n") : "";
-  const createHref = build?.caption ? `/create?caption=${encodeURIComponent(build.caption)}&source=studio` : "/create?source=studio";
+  const createHref = build?.caption ? `/create?caption=${encodeURIComponent(build.caption)}&from=studio` : "/create?from=studio";
   return (
     <div className="cb-opp-view">
       <button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> All posts</button>

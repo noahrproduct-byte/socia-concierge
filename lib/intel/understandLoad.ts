@@ -32,9 +32,21 @@ export async function currentDetail(ctx: Ctx): Promise<BrandDetail> {
   return ((data as { brand_detail?: BrandDetail } | null)?.brand_detail ?? {}) as BrandDetail;
 }
 
+/**
+ * The brand's details as saved right now, for a write that merges into them.
+ * ctx carries the workspace row as it was when the request started; merging
+ * into that copy would undo a save made since (an idea set, a music pick).
+ */
+export async function freshDetail(ctx: Ctx): Promise<BrandDetail> {
+  const ws = brandWorkspace(ctx);
+  if (!ws) return currentDetail(ctx);
+  const { data } = await ctx.client.from("workspaces").select("brand_detail").eq("owner_id", ctx.ownerId).eq("id", ws.id).maybeSingle();
+  return ((data as { brand_detail?: BrandDetail } | null)?.brand_detail ?? ws.brand_detail ?? {}) as BrandDetail;
+}
+
 /** Store the understanding beside the confirmed profile, on the brand's own row. */
 export async function saveUnderstanding(ctx: Ctx, u: Understanding): Promise<boolean> {
-  const detail = await currentDetail(ctx);
+  const detail = await freshDetail(ctx);
   const next: BrandDetail = { ...detail, growth: { ...(detail.growth ?? {}), understanding: u } };
   const ws = brandWorkspace(ctx);
   if (ws) return updateWorkspace(ctx.client, ctx.ownerId, ws.id, { brand_detail: next });

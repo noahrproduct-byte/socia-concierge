@@ -104,7 +104,10 @@ export async function POST(req: Request) {
       ...("growth" in body.brand_detail ? { growth: mergeGrowth(existing.growth, normalizeGrowth(body.brand_detail.growth)) } : existing.growth ? { growth: existing.growth } : {}),
     };
     // Brand details go into almost every AI prompt, so their size is the cost of every call.
-    if (JSON.stringify(brand.brand_detail).length > LIMITS.brandDetailChars) return tooLongResponse("Your brand details", LIMITS.brandDetailChars);
+    // What SOCIA stores there itself (the last idea set, music picks) is not
+    // something the person typed and is not counted.
+    const { ideas: _ideas, music: _music, ...typed } = brand.brand_detail as Record<string, unknown>;
+    if (JSON.stringify(typed).length > LIMITS.brandDetailChars) return tooLongResponse("Your brand details", LIMITS.brandDetailChars);
     brandSaved = true;
   }
 

@@ -48,3 +48,6 @@ export function copyPaths(
   if (audio) pairs.push([from.audio!, audio]);
   return { pairs, source, frames, audio };
 }
+
+/** The next free clip position: one past the highest, so a deleted clip's gap never makes two clips share one. */
+export const nextPosition = (rows: { position: number }[]): number => rows.reduce((m, r) => Math.max(m, r.position + 1), 0);
