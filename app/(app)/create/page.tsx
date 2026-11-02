@@ -96,6 +96,7 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
   const props: ComposerPageProps = {
     approvalRole,
     userId: user.id,
+    workspaceId: ctx.workspace?.id ?? null,
     accounts: accountsRes.accounts,
     accountsComplete: accountsRes.complete,
     timing,

@@ -94,6 +94,8 @@ export type RailProps = {
 /** What the server page hands the client composer. */
 export type ComposerPageProps = {
   userId: string;
+  /** The active Brand Workspace; local drafts are kept per workspace. */
+  workspaceId?: string | null;
   accounts: PickerAccount[];
   /** false when a connections table could not be read: the list is a lower bound, not the truth. */
   accountsComplete: boolean;

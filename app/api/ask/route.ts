@@ -43,7 +43,8 @@ const SCHEDULE_RULES = `Scheduling: when the user asks to schedule, post, spread
 - videos: the [V#] refs of videos they rated in Content Studio that they mean ("the video I just rated" = the latest one; "the ones I rated" = all of them); [] otherwise. A rated video isn't a post yet; scheduling saves it as one. posts and videos can both be filled.
 - trialReel: "yes" when they ask for a Trial Reel, "no" when they ask for a normal Reel instead of a trial, "unchanged" otherwise. trialShare: "manual" when they say they'll share it to followers themselves, "if_performing" when they say to share it if it does well, "default" otherwise.
 - collaborators: the Instagram usernames they name as collaborators, exactly as they wrote them; never add one they didn't write. [] otherwise.
-Never work out or state the times yourself: SOCIA calculates them and shows the list for the person to confirm. In "text", say in one sentence what you understood. A post listed as "Can't be moved" stays where it is. When they aren't asking to schedule, want is false, posts [], videos [], collaborators [], strings "", numbers 0, times [], trialReel "unchanged" and trialShare "default".`;
+- ideas: when they ask to fill the calendar with ideas, planned videos or posts they'll film or make later (not posts they already have), one entry per post: title (2 to 6 words), hook (the first line they'd say or show), concept (one sentence: what to film). Write them for this brand from its data, varied, each easy to make. As many as they asked for ("2 a day for a week" = 14; "fill my week" = their saved posts-a-week pace, else 5), at most 21. Leave posts [] unless they also mean existing drafts. [] otherwise.
+Never work out or state the times yourself: SOCIA calculates them and shows the list for the person to confirm. In "text", say in one sentence what you understood. A post listed as "Can't be moved" stays where it is. When they aren't asking to schedule, want is false, posts [], videos [], collaborators [], ideas [], strings "", numbers 0, times [], trialReel "unchanged" and trialShare "default".`;
 
 function parseJson(text: string): ModelAnswer | null {
   const cleaned = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -162,13 +163,25 @@ export async function POST(req: Request) {
         const v = byRef.get(ref)!;
         return { n: 0, id: `rated:${ref}`, title: postLabel(v.caption, []) ?? fileLabel(v.name) ?? "Your rated video", status: "draft" as const, at: null, createdAt: v.ratedAt, platforms: [], legacy: false, fixed: null } satisfies Schedulable;
       });
-      const chosen = picked.length || ratedPicked.length ? [...Array.from(new Set(picked)), ...ratedPicked] : sched.posts.filter((p) => p.status === "draft");
-      const movable = chosen.filter((p) => !p.fixed);
+      // New video ideas: drafts with no media yet, made on confirm (any plan may save drafts).
+      const ideaList = (want.ideas ?? []).filter((x) => x && (x.hook?.trim() || x.concept?.trim())).slice(0, 21);
+      const ideaById = new Map(ideaList.map((x, i) => [`idea:${i}`, { hook: x.hook.trim().slice(0, 300), concept: x.concept.trim().slice(0, 600) }]));
+      const ideaPicked = ideaList.map((x, i) => ({ n: 0, id: `idea:${i}`, title: (x.title || x.hook).trim().slice(0, 80) || "Video idea", status: "draft" as const, at: null, createdAt: nowDate.toISOString(), platforms: [], legacy: false, fixed: null }) satisfies Schedulable);
+      const named = picked.length || ratedPicked.length;
+      const chosen = named || ideaPicked.length ? [...Array.from(new Set(picked)), ...ratedPicked, ...ideaPicked] : sched.posts.filter((p) => p.status === "draft");
+      let movable = chosen.filter((p) => !p.fixed);
       const left = chosen.filter((p) => p.fixed).map((p) => ({ title: p.title, reason: p.fixed! }));
       const gate = checkFeature(ent, "scheduling");
       let blocked = false;
       if (!can(ctx, "publish")) { blocked = true; left.unshift({ title: "Scheduling", reason: "Only the brand's owner or an admin can schedule posts." }); }
       else if (!gate.ok) { blocked = true; left.unshift({ title: "Scheduling", reason: gate.error.error }); }
+      // Ideas are saved as drafts, which every plan and role may do: they still go on the calendar.
+      if (blocked && ideaPicked.length) {
+        movable = movable.filter((p) => p.id.startsWith("idea:"));
+        blocked = false;
+        // Only ideas were asked for: the scheduling note doesn't apply to them.
+        if (!named) left.shift();
+      }
       if (!blocked && movable.length) {
         const ids = new Set(movable.map((p) => p.id));
         const needsHistory = !(want.spacingMinutes > 0) && !(want.times ?? []).length;
@@ -182,7 +195,7 @@ export async function POST(req: Request) {
         const byId = new Map(movable.map((p) => [p.id, p]));
         proposals.push({
           kind: "schedule", summary: plan.summary,
-          items: plan.slots.map((s) => { const p = byId.get(s.id)!; return { postId: p.id, title: p.title, status: p.status, from: p.at, at: s.at, reason: s.reason, platforms: p.platforms, legacy: p.legacy, ...(p.id.startsWith("rated:") ? { rated: p.id.slice(6) } : {}) }; }),
+          items: plan.slots.map((s) => { const p = byId.get(s.id)!; return { postId: p.id, title: p.title, status: p.status, from: p.at, at: s.at, reason: s.reason, platforms: p.platforms, legacy: p.legacy, ...(p.id.startsWith("rated:") ? { rated: p.id.slice(6) } : {}), ...(ideaById.has(p.id) ? { idea: ideaById.get(p.id)! } : {}) }; }),
           left: [...left, ...plan.unplaced.map((u) => ({ title: byId.get(u.id)?.title ?? "A post", reason: u.reason }))],
           instagram: instagramAsk({ trialReel: want.trialReel, trialShare: want.trialShare, collaborators: want.collaborators ?? [] }, latest.role === "user" ? latest.content : ""),
         });
