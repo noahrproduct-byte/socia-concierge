@@ -44,7 +44,7 @@ type AskResult =
   | { ok: false; planError: PlanError };
 
 /** Throws on ordinary failures; a plan limit comes back as a result so the drawer can render the notice. */
-async function askApi(context: AskContext, messages: AskMessage[]): Promise<AskResult> {
+async function askApi(context: AskContext, messages: AskMessage[], onText?: (text: string) => void): Promise<AskResult> {
   const newPosts = messages.flatMap((m) => m.drafts ?? []).slice(-MAX_FOOTAGE * 4);
   const rated = ratedVideos();
   const res = await fetch("/api/ask", {
@@ -52,12 +52,42 @@ async function askApi(context: AskContext, messages: AskMessage[]): Promise<AskR
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ context: { ...context, tz: viewerTimeZone() ?? undefined, ...(newPosts.length ? { newPosts } : {}), ...(rated.length ? { rated } : {}) }, messages: messages.map((m) => ({ role: m.role, content: m.content })) }),
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    if (isPlanError(json)) return { ok: false, planError: json };
-    throw new Error(json.error ?? "SOCIA couldn't answer right now.");
+  // The answer streams as lines of JSON (app/api/ask/route.ts): its text as
+  // it's written, then the whole answer. Refusals before the model runs
+  // (sign-in, limits, plan) are ordinary JSON replies.
+  if (!res.ok || !res.body || !(res.headers.get("content-type") ?? "").includes("ndjson")) {
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (isPlanError(json)) return { ok: false, planError: json };
+      throw new Error(json.error ?? "SOCIA couldn't answer right now.");
+    }
+    return { ok: true, answer: json.answer as AskAnswer, usage: (json.usage as UsageSnapshot | undefined) ?? null };
   }
-  return { ok: true, answer: json.answer as AskAnswer, usage: (json.usage as UsageSnapshot | undefined) ?? null };
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  let final: Record<string, unknown> | null = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) buf += dec.decode(value, { stream: !done });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let o: Record<string, unknown>;
+      try { o = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
+      if (o.type === "text" && typeof o.text === "string") onText?.(o.text);
+      else final = o;
+    }
+    if (done) break;
+  }
+  if (!final) throw new Error("SOCIA's answer was cut off. Try again.");
+  if (final.type === "error") {
+    if (isPlanError(final)) return { ok: false, planError: final };
+    throw new Error((final.error as string | undefined) ?? "SOCIA couldn't answer right now.");
+  }
+  return { ok: true, answer: final.answer as AskAnswer, usage: (final.usage as UsageSnapshot | undefined) ?? null };
 }
 
 function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void }) {
@@ -145,6 +175,8 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
   }, [persist, messages]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // The answer's text while SOCIA is still writing it.
+  const [live, setLive] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<PlanError | null>(null);
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
@@ -192,14 +224,14 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     const next: AskMessage[] = [...(base ?? messages), { role: "user", content: q }];
     setMessages(next); setInput(""); setBusy(true); setError(null); setPlanError(null);
     try {
-      const r = await askApi(context, next);
+      const r = await askApi(context, next, (t) => setLive(t.replace(/\s*—\s*/g, ", ").replace(/\s*–\s*/g, " to ")));
       if (!r.ok) { setPlanError(r.planError); return; }
       const a = r.answer;
       if (r.usage) setUsage(r.usage);
       setMessages([...next, { role: "assistant", content: a.text, answer: a }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "SOCIA couldn't answer right now.");
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setLive(null); }
   }, [busy, messages, context]);
 
   // A new question arriving from outside (a link, the dashboard box) starts a
@@ -222,7 +254,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, context, initialQuestion, autoSend]);
 
-  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, busy, files.length]);
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [messages, busy, files.length, live]);
 
   return (
     <Drawer open={open} title={title} onClose={onClose} width={520}>
@@ -256,7 +288,12 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           {messages.map((m, i) => m.role === "user"
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
             : <div key={i} className="ask-msg assistant"><span className="ask-avatar">S</span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} /> : <p>{m.content}</p>}</div>)}
-          {busy && <div className="ask-msg assistant"><span className="ask-avatar">S</span><div className="ask-typing"><span /><span /><span /></div></div>}
+          {busy && (
+            <div className="ask-msg assistant" aria-live="polite">
+              <span className="ask-avatar">S</span>
+              {live ? <div className="ask-answer"><p className="ask-text">{live}</p></div> : <div className="ask-typing"><span /><span /><span /></div>}
+            </div>
+          )}
           {footage && files.length > 0 && (
             <FootageTray files={files} onRemove={(i) => setFiles((f) => f.filter((_, j) => j !== i))} onClear={() => { setFiles([]); setFileNote(null); }} onDone={footageDone} onBusy={setSaving} />
           )}
