@@ -6,6 +6,7 @@ import type { GenerateInput } from "@/lib/schema";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { resolveContext, brandWorkspace, type Ctx } from "@/lib/context";
 import { competitorScopeId } from "@/lib/workspaces";
+import { readStrategy } from "@/lib/strategyLoad";
 
 export const metadata = { title: "Content Plan | SOCIA" };
 
@@ -103,7 +104,11 @@ export default async function ContentPlanPage() {
   // Entitlements are the workspace owner's: a member's plans count against
   // the owner's allowance.
   const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
-  const [counts, ent] = await Promise.all([evidenceCounts(ctx.client, ctx.ownerId, cwid), getEntitlements(ctx.client, ctx.ownerId)]);
+  const [counts, ent, strategy] = await Promise.all([
+    evidenceCounts(ctx.client, ctx.ownerId, cwid),
+    getEntitlements(ctx.client, ctx.ownerId),
+    readStrategy(ctx).catch(() => null),
+  ]);
   const evidence = { posts: Math.min(media.length, 25), ...counts };
   // Drafts are always saved; whether they can publish themselves is a plan question.
   const canSchedule = canUseFeature(ent, "scheduling");
@@ -139,6 +144,7 @@ export default async function ContentPlanPage() {
     engRate,
     posts: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engOf(m) })),
     evidence,
+    strategy,
   };
 
   return (

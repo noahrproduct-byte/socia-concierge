@@ -49,6 +49,9 @@ import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button } from "@/components/system";
 import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
 import { reasonLabel } from "@/lib/planItems";
+import { Tabs, TabList, Tab, TabPanel } from "@/components/system";
+import type { GrowthStrategy } from "@/lib/strategy";
+import { AuditSection, CompetitorSection, OverviewSection, PLAN_SECTIONS, StrategySection, formatLabel, weekOrder, type PlanSectionId } from "@/components/plan/PlanSections";
 
 // Server-assembled context: real prefill from the connected account/profile,
 // plus the live metrics shown in the preview strip. Nothing here is invented —
@@ -66,6 +69,8 @@ export type PlanContext = {
   posts: CalPost[];
   /** What SOCIA will attach to the brief automatically, counted on the server. */
   evidence: { posts: number; competitors: number; winning: number };
+  /** The brand's Growth Strategy, for the report's Growth strategy section; null before one is written. */
+  strategy: GrowthStrategy | null;
 };
 
 // Soft guidance limits — counters only, never truncation.
@@ -84,21 +89,9 @@ function Counter({ value, max }: { value: string; max: number }) {
   );
 }
 
-// Older plans (and an occasionally wordy model) put production notes in
-// `format` and a paragraph in `predictedPerformance`. Tags show a short label;
-// the full text still renders, underneath, as its own line.
-const FORMAT_LABELS: [RegExp, string][] = [
-  [/reel|video|short/i, "Reel"],
-  [/carousel|slides?/i, "Carousel"],
-  [/stor(y|ies)/i, "Story"],
-  [/static|photo|image|single/i, "Static"],
-];
-function formatLabel(f: string): string {
-  const s = f.trim();
-  if (s.length <= 14) return s;
-  for (const [re, label] of FORMAT_LABELS) if (re.test(s)) return label;
-  return s.split(/[,;:.–—(]/)[0].trim().slice(0, 14);
-}
+// Older plans (and an occasionally wordy model) put a paragraph in
+// `predictedPerformance`. Tags show a short label; the full text still renders
+// underneath as its own line. (Format labels: components/plan/PlanSections.)
 function perfLabel(p: string): string {
   const s = p.trim();
   if (s.length <= 28) return s;
@@ -415,7 +408,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
               </div>
             </div>
           ) : result ? (
-            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
+            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
           ) : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
@@ -564,7 +557,8 @@ function OutcomeTags({ o }: { o: ItemOutcome | null }) {
   );
 }
 
-function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; onUpdate: (d: Deliverable) => void }) {
+function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; strategy: GrowthStrategy | null; goal: string | null; onUpdate: (d: Deliverable) => void }) {
+  const [section, setSection] = useState<PlanSectionId>("overview");
   // Times are SOCIA's, from the audience data, never the model's guess. The
   // same rule the Calendar uses, so the two never disagree.
   const aud = useMemo(() => buildAudience(posts), [posts]);
@@ -667,6 +661,8 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
     return `/create?${q.toString()}`;
   };
   const ev = data.evidenceUsed;
+  // Shown Monday first; actions keep each post's index in the saved plan.
+  const weekIdx = useMemo(() => (data.weeklyPlan ?? []).map((_, i) => i).sort((a, b) => weekOrder(data.weeklyPlan[a].day) - weekOrder(data.weeklyPlan[b].day) || a - b), [data.weeklyPlan]);
   // What became of this plan: each day's state on the Calendar and, once
   // published, the result against the account's own median. Re-read after
   // "Schedule this week" so the chips update at once.
@@ -765,82 +761,33 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
         )}
       </div>
 
-      <section className="cpl-rsec">
-        <h3>The diagnosis</h3>
-        <p className="cpl-lede">{data.headline}</p>
-        <p className="cpl-body">{data.auditSummary}</p>
-      </section>
-
-      {data.strengths?.length > 0 && (
-        <section className="cpl-rsec">
-          <h3>What&apos;s working</h3>
-          <div className="cpl-pills">
-            {data.strengths.map((s, i) => (
-              <span className="cpl-pill" key={i}>
-                {s}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {data.problems?.length > 0 && (
-        <section className="cpl-rsec">
-          <h3>What&apos;s holding it back</h3>
-          {data.problems.map((p, i) => (
-            <div className="cpl-item" key={i}>
-              <h4>{p.issue}</h4>
-              <div className="cpl-item-meta">
-                <b>Evidence:</b> {p.evidence}
-                <br />
-                <b>Impact:</b> {p.impact}
-              </div>
-            </div>
+      <Tabs value={section} onValueChange={(v) => setSection(v as PlanSectionId)}>
+        <TabList className="cpl-tabs" aria-label="Plan sections">
+          {PLAN_SECTIONS.map((t) => (
+            <Tab key={t.id} value={t.id}>
+              <span className="cpl-tab-num" aria-hidden>{t.num}</span>
+              {t.label}
+            </Tab>
           ))}
-        </section>
-      )}
-
-      {data.topFixes?.length > 0 && (
-        <section className="cpl-rsec">
-          <h3>Top fixes, ranked by impact</h3>
-          {data.topFixes.map((f, i) => (
-            <div className="cpl-item" key={i}>
-              <h4>
-                <span className="cpl-rank">{i + 1}</span>
-                {f.fix}
-              </h4>
-              <div className="cpl-item-meta">
-                <b>Why:</b> {f.why}
-                <br />
-                <b>Expected impact:</b> {f.expectedImpact}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {data.competitorInsights?.length > 0 && (
-        <section className="cpl-rsec">
-          <h3>Competitor gaps to close</h3>
-          {data.competitorInsights.map((c, i) => (
-            <div className="cpl-item" key={i}>
-              <h4>{c.competitor}</h4>
-              <div className="cpl-item-meta">
-                <b>What&apos;s working:</b> {c.whatsWorking} ({c.format})
-                <br />
-                <b>Why it wins:</b> {c.whyItWins}
-                <br />
-                <b>The gap for you:</b> {c.gap}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
+        </TabList>
+        {/* Every panel stays mounted (hidden when not chosen) so Export as PDF prints the whole plan. */}
+        <TabPanel value="overview" keepMounted className="cpl-panel">
+          <OverviewSection data={data} onCalendar={outcome?.summary.onCalendar ?? null} onOpen={setSection} />
+        </TabPanel>
+        <TabPanel value="audit" keepMounted className="cpl-panel">
+          <AuditSection data={data} />
+        </TabPanel>
+        <TabPanel value="competitors" keepMounted className="cpl-panel">
+          <CompetitorSection data={data} />
+        </TabPanel>
+        <TabPanel value="strategy" keepMounted className="cpl-panel">
+          <StrategySection data={data} strategy={strategy} goal={goal} />
+        </TabPanel>
+        <TabPanel value="week" keepMounted className="cpl-panel">
       {data.weeklyPlan?.length > 0 && (
         <section className="cpl-rsec">
           <div className="cpl-rsec-head">
-            <h3>This week&apos;s plan</h3>
+            <h3>Monday to Sunday</h3>
             <button type="button" className="ov-btn ghost small" onClick={() => setAsk({ q: null, day: null })}><Sparkles size={12} /> Ask SOCIA about this plan</button>
           </div>
           {saveNote && <p className="cpl-sched-msg ok">{saveNote}</p>}
@@ -858,7 +805,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
             </div>
           )}
           <div className="cpl-posts">
-            {data.weeklyPlan.map((post, i) => (
+            {weekIdx.map((i) => { const post = data.weeklyPlan[i]; return (
               <article className={`cpl-post${applied === post.day ? " applied" : ""}${post.decision?.status === "rejected" ? " pi-rejected" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="cpl-post-tags">
                   <span className="cpl-tag day">{post.day}</span>
@@ -928,7 +875,7 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
                   onUndo={() => undo(i)}
                 />
               </article>
-            ))}
+            ); })}
           </div>
           <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
           <RejectDialog open={rejecting != null} day={rejecting != null ? data.weeklyPlan[rejecting]?.day ?? "" : ""} onClose={() => setRejecting(null)} onConfirm={(r, n, replace) => rejecting != null && reject(rejecting, r, n, replace)} />
@@ -944,6 +891,9 @@ function Report({ data, planId, posts, canSchedule, onUpdate }: { data: Delivera
           )}
         </section>
       )}
+      {!data.weeklyPlan?.length && <p className="cpl-sec-empty">This plan has no posts for the week.</p>}
+        </TabPanel>
+      </Tabs>
 
       {ask && (
         <AskDrawer open onClose={() => setAsk(null)} context={{ page: "plan", planId: planId ?? undefined, planDay: ask.day ?? undefined }} contextLabel={ask.day ? `Day: ${ask.day}` : `Plan for ${data.clientHandle}`} initialQuestion={ask.q} onProposal={onProposal} title="Ask SOCIA about this plan" />
