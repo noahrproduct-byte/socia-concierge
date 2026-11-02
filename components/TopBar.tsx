@@ -30,6 +30,7 @@ export default function TopBar({
   alerts = [],
   unread = 0,
   account,
+  workspace,
   sheet,
 }: {
   index: SearchItem[];
@@ -37,6 +38,8 @@ export default function TopBar({
   alerts?: AlertItem[];
   unread?: number;
   account: ReactNode;
+  /** The headbar's workspace switcher (hidden on phones, where the panel has it). */
+  workspace?: ReactNode;
   sheet: ReactNode;
 }) {
   const [cmd, setCmd] = useState(false);
@@ -65,6 +68,7 @@ export default function TopBar({
       <span className="s-headbar-title">{title}</span>
       <HeadNav onAll={() => setMenu(true)} allOpen={menu} />
       <div className="s-headbar-tools">
+        {workspace}
         <button type="button" className="s-search" onClick={() => setCmd(true)} aria-haspopup="dialog" aria-expanded={cmd} aria-label="Search pages, posts and actions" title={`Search (${mod}K)`}>
           <Search aria-hidden />
         </button>

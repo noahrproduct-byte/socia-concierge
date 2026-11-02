@@ -12,7 +12,7 @@ import type { GoalId } from "@/lib/studio";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace } from "@/lib/workspaces";
 
-export const metadata = { title: "Content Studio — SOCIA" };
+export const metadata = { title: "Content Studio | SOCIA" };
 
 // Content Studio has four parts. Rate: bring a finished video and make it
 // better before it goes live. Build: bring raw footage; SOCIA finds the posts

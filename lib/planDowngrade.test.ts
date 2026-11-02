@@ -13,7 +13,7 @@ vi.mock("./entitlements", () => ({
   ],
 }));
 
-const { enforcePlanLimits } = await import("./planDowngrade");
+const { enforcePlanLimits, resumeWithin } = await import("./planDowngrade");
 
 function svc(workspaces: { id: string; is_default: boolean; plan_suspended_at: string | null; created_at: string }[], competitors: { platform: string; handle: string; is_active: boolean; added_at: string }[]) {
   const calls: { op: string; table?: string; value?: unknown; ids?: unknown }[] = [];
@@ -62,5 +62,13 @@ describe("after a downgrade", () => {
     const r = await enforcePlanLimits(s.client, "owner-1");
     expect(r.workspacesPaused).toBe(0);
     expect(s.calls.filter((c) => c.op === "update")).toEqual([]);
+  });
+});
+
+describe("resuming after an upgrade", () => {
+  it("resumes paused items in order, only as far as the plan allows", () => {
+    expect(resumeWithin(["a"], ["b", "c", "d"], 3)).toEqual(["b", "c"]);
+    expect(resumeWithin(["a", "b"], ["c"], 2)).toEqual([]);
+    expect(resumeWithin(["a", "b", "c"], ["d"], 2)).toEqual([]);
   });
 });

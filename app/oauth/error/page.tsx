@@ -3,7 +3,7 @@ import { DECIDE_MESSAGES, type DecideError } from "@/lib/oauth/server";
 import BrandMark from "@/components/BrandMark";
 import "../oauth.css";
 
-export const metadata = { title: "Connect an app — SOCIA", robots: { index: false } };
+export const metadata = { title: "Connect an app | SOCIA", robots: { index: false } };
 
 // Messages are chosen by code, never taken from the URL, so a crafted link
 // can't put words on a sociaos.com page.

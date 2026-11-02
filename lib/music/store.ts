@@ -5,7 +5,7 @@
 import type { Ctx } from "@/lib/context";
 import { brandWorkspace } from "@/lib/context";
 import { updateWorkspace } from "@/lib/workspaces";
-import { currentDetail } from "@/lib/intel/understandLoad";
+import { currentDetail, freshDetail } from "@/lib/intel/understandLoad";
 import type { BrandDetail } from "@/lib/profile";
 import { addPick, sanitizePicks, type MusicPick } from "./taste";
 
@@ -24,7 +24,7 @@ export async function readMusicAuto(ctx: Ctx): Promise<boolean> {
 }
 
 async function writeMusic(ctx: Ctx, patch: (cur: MusicDetail) => MusicDetail): Promise<void> {
-  const detail = await currentDetail(ctx);
+  const detail = await freshDetail(ctx);
   const next = { ...detail, music: patch(musicOf(detail)) } as BrandDetail;
   const ws = brandWorkspace(ctx);
   if (ws) { await updateWorkspace(ctx.client, ctx.ownerId, ws.id, { brand_detail: next }); return; }

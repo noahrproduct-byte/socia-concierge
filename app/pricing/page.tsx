@@ -15,7 +15,7 @@ import "./pricing.css";
 const geist = Geist({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-display" });
 
 export const metadata = {
-  title: "Pricing — SOCIA",
+  title: "Pricing | SOCIA",
   description: "Four SOCIA plans, from a free account audit to multi-brand workspaces. What each plan includes and what is limited by plan.",
 };
 

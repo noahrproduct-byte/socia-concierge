@@ -60,7 +60,7 @@ import type { GoalPlatform } from "@/lib/growth";
 import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
 import { Briefcase } from "lucide-react";
 
-export const metadata = { title: "Settings — SOCIA" };
+export const metadata = { title: "Settings | SOCIA" };
 
 function ago(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -234,7 +234,7 @@ export default async function SettingsPage({
         ? { tone: "good" as const, text: `Your ${PLANS[ent.plan].name} trial has started. Nothing is charged until ${new Date(synced.trialEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" })}; cancel before then in Manage billing if it isn't for you.` }
         : synced
           ? { tone: "good" as const, text: `You're on ${PLANS[ent.plan].name}. Thank you.` }
-          : { tone: "info" as const, text: "Payment received. Your plan will update here in a moment; refresh if it hasn't." }
+          : { tone: "info" as const, text: "Checkout finished. Your plan will update here in a moment; refresh if it hasn't." }
       : billingParam === "cancelled"
         ? { tone: "info" as const, text: "Checkout was cancelled. Nothing was charged." }
         : null;
@@ -372,7 +372,7 @@ export default async function SettingsPage({
         <PageHeader title="Settings" sub="Manage your brand, connections, intelligence, and plan." />
 
         <div className="st3-layout">
-          <SettingsNav />
+          <SettingsNav hidden={[...(wsEnabled ? [] : ["workspaces"]), ...(team ? [] : ["team"])]} />
 
           <div className="st3-main">
             {/* 1 — Profile & Brand */}
@@ -602,6 +602,7 @@ export default async function SettingsPage({
                 competitors={keepCompetitors}
                 overLimits={overLimits}
                 teamUsed={teamUsed}
+                workspaceCount={wsEnabled ? workspaceUsed : null}
                 billing={billing}
                 notice={billingNotice}
               />

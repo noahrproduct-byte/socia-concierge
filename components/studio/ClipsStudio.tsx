@@ -143,11 +143,14 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
 
   useEffect(() => { void loadMeta(); }, [loadMeta]);
   useEffect(() => { if (editing) void loadVideos(); }, [editing, loadVideos]);
+  // Open the project the address names: on load, and when something on this
+  // page pushes a new one (the clip library's "Make a new video" stays on
+  // /studio, so this component is not remounted).
+  const wantedProject = params.get("project");
   useEffect(() => {
-    const id = params.get("project");
-    if (id && !project) void openProject(id, true);
+    if (wantedProject && wantedProject !== projectRef.current?.id) void openProject(wantedProject, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [wantedProject]);
 
   // Poll while SOCIA is understanding (also after a refresh mid-run).
   useEffect(() => {

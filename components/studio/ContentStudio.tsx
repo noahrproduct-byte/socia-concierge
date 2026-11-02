@@ -26,7 +26,7 @@ import { saveStudioHandoff } from "@/lib/studioHandoff";
 import type { AskProposal } from "@/lib/ask";
 import { handFiles } from "@/lib/studioClips/handoff";
 import { humanText, type OverlayLine } from "@/lib/studioClips/overlay";
-import { rememberRated, updateRatedCaption } from "@/lib/assistant/rated";
+import { forgetRated, rememberRated, updateRatedCaption } from "@/lib/assistant/rated";
 import { transcriptSkippedNote } from "@/lib/transcribe/limits";
 
 export type DraftItem = { id: string; caption: string; media_url: string | null; media_type: string; scheduled_at: string; status: string };
@@ -253,12 +253,16 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         setSavedId(id);
         saved = id;
       }
-      if (saved) notify("Draft saved to the Calendar");
+      if (saved) {
+        notify("Draft saved to the Calendar");
+        // It's a post now: Ask SOCIA must not offer to schedule the same file again.
+        if (ratedRef) { forgetRated(ratedRef); setRatedRef(null); }
+      }
     } catch (e) {
       notify(e instanceof Error ? e.message : "Couldn't save the draft");
     } finally { setSaving(false); }
     return saved;
-  }, [source, w.caption, w.cta, userId]);
+  }, [source, w.caption, w.cta, userId, ratedRef]);
 
   // ---- hand the piece to Create Post ---------------------------------------
   // Same save as above (an already saved draft is reused), then the composer
@@ -401,7 +405,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
                 <span className="st-tabs-ask"><AskSociaButton className="ov-btn ghost small" label="Ask SOCIA about this content" context={{ page: "studio", studio: { kind: source.kind, durationSec: frames?.duration ?? null, goal: w.goal, transcript: transcript || null, caption: w.caption || null, summary: summaryForAsk } }} contextLabel={source.name} onProposal={onProposal} /></span>
               </div>
-              {tab === "analyze" && <AnalyzePanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} onCompare={() => window.open("/analytics#content", "_self")} />}
+              {tab === "analyze" && <AnalyzePanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} onCompare={() => window.location.assign("/analytics#content")} />}
               {tab === "improve" && <ImprovePanel a={analysis} w={w} apply={apply} seek={doSeek} improve={improve} firstFrame={frames?.thumbs[0]?.src ?? null} />}
               {tab === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
               {tab === "audio" && (

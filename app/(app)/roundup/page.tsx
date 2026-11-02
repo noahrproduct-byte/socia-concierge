@@ -11,7 +11,7 @@ import { getActiveWorkspace } from "@/lib/workspaces";
 import { buildWeeklyRoundup, type RoundupItem } from "@/lib/weeklyRoundup";
 import "./roundup.css";
 
-export const metadata = { title: "Weekly roundup — SOCIA" };
+export const metadata = { title: "Weekly roundup | SOCIA" };
 
 function Section({ icon, title, items, empty }: { icon: ReactNode; title: string; items: RoundupItem[]; empty: string }) {
   return (

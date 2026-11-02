@@ -135,8 +135,10 @@ export default function PlanKeepChooser({
           <h4>Choose which accounts stay active</h4>
           <p>
             {planName} includes {countWord(accounts.limit, "Brand Workspace", "Brand Workspaces")}, and a workspace holds one account per
-            platform, so up to {accounts.limit} {accounts.limit === 1 ? "account" : "accounts"} on each platform can stay active. You have{" "}
-            {overPlatforms.join(" and ")}. Choose which to keep.
+            platform, so up to {accounts.limit} {accounts.limit === 1 ? "account" : "accounts"} on each platform can stay active.{" "}
+            {overPlatforms.length
+              ? `You have ${overPlatforms.join(" and ")}. Choose which to keep.`
+              : "A paused account is kept but not read. Choose which accounts stay active."}
           </p>
           <ul className="pb-keep-list">
             {accounts.items.map((a) => {

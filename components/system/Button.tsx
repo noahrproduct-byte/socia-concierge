@@ -63,6 +63,15 @@ export function ButtonLink({
   children,
   ...rest
 }: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & { href: string; variant?: ButtonVariant; size?: ButtonSize; children: ReactNode }) {
+  // A route handler (an OAuth start, a download) is a full page load: next/link
+  // would prefetch it and try to render it as a page.
+  if (href.startsWith("/api/")) {
+    return (
+      <a href={href} className={buttonClass(variant, size, false, className)} {...rest}>
+        {children}
+      </a>
+    );
+  }
   return (
     <Link href={href} className={buttonClass(variant, size, false, className)} {...rest}>
       {children}

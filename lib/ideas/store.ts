@@ -3,7 +3,7 @@
 import type { Ctx } from "@/lib/context";
 import { brandWorkspace } from "@/lib/context";
 import { updateWorkspace } from "@/lib/workspaces";
-import { currentDetail } from "@/lib/intel/understandLoad";
+import { currentDetail, freshDetail } from "@/lib/intel/understandLoad";
 import type { BrandDetail } from "@/lib/profile";
 import { sanitizeIdeaSet, type IdeaSet } from "./videoIdeas";
 
@@ -15,7 +15,7 @@ export async function readIdeas(ctx: Ctx): Promise<IdeaSet | null> {
 /** Best effort: ideas that can't be saved are still returned to the person. */
 export async function saveIdeas(ctx: Ctx, set: IdeaSet): Promise<boolean> {
   try {
-    const detail = await currentDetail(ctx);
+    const detail = await freshDetail(ctx);
     const next = { ...detail, ideas: set } as BrandDetail;
     const ws = brandWorkspace(ctx);
     if (ws) { await updateWorkspace(ctx.client, ctx.ownerId, ws.id, { brand_detail: next }); return true; }

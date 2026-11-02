@@ -8,7 +8,7 @@ import ConsentScreen from "@/components/oauth/ConsentScreen";
 import "../oauth.css";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Connect an app — SOCIA", robots: { index: false } };
+export const metadata = { title: "Connect an app | SOCIA", robots: { index: false } };
 
 type Params = Record<string, string | string[] | undefined>;
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

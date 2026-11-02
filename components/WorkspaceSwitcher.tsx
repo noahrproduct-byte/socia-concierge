@@ -19,7 +19,10 @@ import { fetchWorkspaces, markSwitching, requestSwitch, type WorkspaceRow, type 
 
 export type ShellAccount = { platform: Platform; label: string; connected: boolean; href: string };
 
-export default function WorkspaceSwitcher({ initial, accounts }: { initial?: { id: string; name: string } | null; accounts: ShellAccount[] }) {
+// `bar` is the copy in the floating headbar: the active workspace's name, one
+// click from switching on every page. It renders nothing when workspaces are
+// off for this person, and the All sections panel keeps the full version.
+export default function WorkspaceSwitcher({ initial, accounts, bar = false }: { initial?: { id: string; name: string } | null; accounts: ShellAccount[]; bar?: boolean }) {
   const router = useRouter();
   const [data, setData] = useState<WorkspacesData | null>(() =>
     initial ? { enabled: true, activeId: initial.id, workspaces: [{ id: initial.id, name: initial.name, isDefault: false, suspended: false, active: true }] } : null,
@@ -70,16 +73,23 @@ export default function WorkspaceSwitcher({ initial, accounts }: { initial?: { i
     setSwitching(null);
   }
 
+  if (bar && !enabled) return null;
+
   const used = typeof data?.used === "number" && typeof data?.limit === "number" ? ` ${data.used} of ${data.limit}` : "";
 
   return (
     <Menu>
-      <MenuTrigger className="s-btn s-btn--secondary s-ws" aria-label="Brand Workspace and connected accounts" aria-busy={busy || undefined}>
+      <MenuTrigger
+        className={bar ? "s-btn s-btn--secondary s-ws s-ws--bar" : "s-btn s-btn--secondary s-ws"}
+        aria-label={`Brand Workspace: ${active?.name ?? "none"}. Switch workspace or see connected accounts`}
+        title={bar ? "Switch Brand Workspace" : undefined}
+        aria-busy={busy || undefined}
+      >
         <Briefcase aria-hidden />
         <span className="s-ws-name">{active?.name ?? "Brand Workspace"}</span>
         {busy ? <Loader2 className="s-spin" aria-hidden /> : <ChevronDown aria-hidden />}
       </MenuTrigger>
-      <MenuContent align="start" style={{ minWidth: 260 }}>
+      <MenuContent align={bar ? "end" : "start"} style={{ minWidth: 260 }}>
         {enabled && (
           <>
             <MenuGroup label={`Brand Workspaces${used}`}>

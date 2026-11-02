@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/service";
 import { readDeletionStatus } from "@/lib/metaDeletion";
 
-export const metadata = { title: "Data Deletion — SOCIA" };
+export const metadata = { title: "Data Deletion | SOCIA" };
 export const dynamic = "force-dynamic";
 
 // Meta's "User data deletion" instructions URL, and the status page its

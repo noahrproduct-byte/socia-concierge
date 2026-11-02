@@ -31,6 +31,8 @@ export default function VideoIdeasCard() {
   const [error, setError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<PlanError | null>(null);
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
+  // Whether this plan can have SOCIA make an idea in the Video editor; the button only shows when it can.
+  const [canMake, setCanMake] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -40,6 +42,7 @@ export default function VideoIdeasCard() {
       if (!alive) return;
       const s = (j?.set as IdeaSet | null) ?? null;
       setSet(s);
+      setCanMake(j?.canMake === true);
       if (s?.styles.length) setStyles(s.styles);
       setLoaded(true);
     }).catch(() => { if (alive) setLoaded(true); });
@@ -125,7 +128,7 @@ export default function VideoIdeasCard() {
                       {idea.caption && <div><dt>Caption</dt><dd>{idea.caption}</dd></div>}
                     </dl>
                     <div className="dash-ideas-actions">
-                      {idea.style !== "animation" && <Button size="sm" variant="secondary" onClick={() => makeIt(idea)}><Clapperboard size={13} aria-hidden /> Make it in the Video editor</Button>}
+                      {canMake && idea.style !== "animation" && <Button size="sm" variant="secondary" onClick={() => makeIt(idea)}><Clapperboard size={13} aria-hidden /> Make it in the Video editor</Button>}
                       <Button size="sm" variant="ghost" onClick={() => void copy(idea)}>{copied === idea.id ? <><Check size={13} aria-hidden /> Copied</> : <><Copy size={13} aria-hidden /> Copy the plan</>}</Button>
                     </div>
                   </div>

@@ -149,9 +149,11 @@
 
   /* ---- stacking ------------------------------------------------------------ */
   --z-sticky: 30;
-  --z-menu: 50;
   --z-drawer: 60;
   --z-dialog: 70;
+  /* Menus, popovers and tooltips sit above dialogs and panels: a menu opened
+     inside the All sections panel (the workspace switcher) must not open behind it. */
+  --z-menu: 75;
   --z-toast: 80;
 
   /* ======================================================================

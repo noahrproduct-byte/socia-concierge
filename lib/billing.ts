@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BillingInterval, PlanId } from "@/lib/plans";
 import { getStripe, planForPrice } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/service";
+import { fitToPlan } from "@/lib/planDowngrade";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -179,7 +180,10 @@ export async function syncCheckoutSession(sessionId: string, userId: string): Pr
     if (customerId) await saveCustomerId(svc, userId, customerId);
     const sub = session.subscription;
     if (!sub || typeof sub === "string") return null;
-    return await applySubscription(svc, userId, sub);
+    const state = await applySubscription(svc, userId, sub);
+    // Resume what a past downgrade paused, now that the plan covers it again.
+    await fitToPlan(svc, userId).catch((e) => console.error("[billing] could not fit items to the plan:", e instanceof Error ? e.message : e));
+    return state;
   } catch (e) {
     console.error("[billing] checkout sync failed:", e instanceof Error ? e.message : e);
     return null;
