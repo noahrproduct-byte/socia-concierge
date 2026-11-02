@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   PLANS, PLAN_ORDER, FEATURE_STATUS, FEATURE_LABEL, METER_LABEL, LIMIT_LABEL, METER_UNIT, LIMIT_UNIT, METER_PERIOD,
-  HISTORY_ALL_RETAINED, PLATFORMS_PER_WORKSPACE, WORKSPACE_PLATFORMS,
+  HISTORY_ALL_RETAINED, PLATFORMS_PER_WORKSPACE, WORKSPACE_PLATFORMS, FEATURE_MIN_PLAN,
   normalizePlan, isAtLeast, minPlanWithFeature, minPlanWithLimit, minPlanWithMeter, nextPlan, formatPrice, formatHistory, pricingHref,
   isAllHistory,
   type FeatureKey, type LimitKey, type MeterKey,
@@ -34,9 +34,20 @@ describe("plan configuration", () => {
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_studio)).toEqual([5, 30, 150, 400]);
     // Free: one a month (Noah, 2026-10-30), plus one at onboarding that isn't counted.
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_plan)).toEqual([1, 4, 12, 40]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_ideas)).toEqual([3, 3, 3, 3]);
+    // Batches of 5 video ideas a week (Noah, 2026-11-02).
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_ideas)).toEqual([2, 5, 10, 25]);
+    // Starter gets a taste of SOCIA making videos (Noah, 2026-11-02).
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.video_builds)).toEqual([0, 5, 30, 100]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.music_tracks)).toEqual([0, 10, 40, 120]);
+    expect(FEATURE_MIN_PLAN.auto_build).toBe("starter");
     expect(METER_PERIOD.content_ideas).toBe("week");
     expect(METER_PERIOD.ask_socia).toBe("month");
+  });
+
+  it("scales Build from clips per project with the plan", () => {
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_clips_per_project)).toEqual([10, 20, 40, 60]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_footage_minutes)).toEqual([5, 10, 20, 30]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_upload_mb)).toEqual([250, 500, 1000, 2000]);
   });
 
   it("caps workspaces, never platforms: every workspace holds one account per platform", () => {

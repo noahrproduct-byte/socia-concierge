@@ -541,7 +541,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
                 <li><b>3 · Make the videos</b><span>Pick the ideas, post each clip on its own, or describe a video or give a reference to copy. SOCIA makes each one and writes its caption.</span></li>
                 <li><b>4 · Check, then schedule</b><span>See every video with its day, time and caption, change anything, then schedule them all with one click. Or tell Ask SOCIA when to post them.</span></li>
               </ul>
-              <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. On Growth and Pro, music made from your taste goes in on its own; you can pick another or take it out.</p>
+              <p className="ov-source">No invented scores. Picture and sound fixes appear only where the measurements support them. From Starter, music made from your taste goes in on its own; you can pick another or take it out.</p>
             </div>
             <LearnCard />
             <ProjectList projects={projects} onOpen={(id) => void openProject(id)} onDelete={(id) => void deleteProject(id)} busy={uploading} />

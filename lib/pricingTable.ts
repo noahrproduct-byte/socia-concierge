@@ -72,9 +72,10 @@ export const CONNECTED_PLATFORMS = WORKSPACE_PLATFORMS.map((p) => PLATFORM_NAME[
 
 /**
  * Platforms SOCIA can publish to today. Facebook publishing waits on Meta's
- * pages_manage_posts review, so it is not listed until it is real.
+ * pages_manage_posts review and TikTok on TikTok's content-posting audit, so
+ * neither is listed as publishing until it is real.
  */
-export const PUBLISHING_PLATFORMS = "Instagram, YouTube, TikTok";
+export const PUBLISHING_PLATFORMS = "Instagram and YouTube";
 
 export const COMPARISON: ComparisonCategory[] = [
   {
@@ -112,7 +113,7 @@ export const COMPARISON: ComparisonCategory[] = [
     category: "SOCIA intelligence",
     rows: [
       { label: "Ask SOCIA questions", cells: meterCell("ask_socia") },
-      { label: "Content ideas", note: "Quick recommendations built from your recent performance.", cells: meterCell("content_ideas") },
+      { label: "Video ideas", note: "Each batch is 5 ideas following your own theme: every shot, what to say, the sound and the length.", cells: meterCell("content_ideas") },
       { label: "Full weekly Content Plan", cells: contentPlanCells() },
       feature("daily_recommendations", "A Today card on your Dashboard: posts due or failed, comments waiting, gaps in your schedule, your best window and posts taking off."),
       feature("repurposing", "Your best recent posts that aren't on your other platforms yet, made into a draft for each with a caption written for that platform."),
@@ -121,8 +122,16 @@ export const COMPARISON: ComparisonCategory[] = [
   {
     category: "Content creation",
     rows: [
-      { label: "Content Studio analyses", cells: meterCell("content_studio") },
+      { label: "Content Studio analyses", note: "Rate a video or photo before you post it.", cells: meterCell("content_studio") },
       { label: "Hooks, captions and CTAs", cells: meterCell("content_generation") },
+      feature("build_from_clips", "Upload your clips; SOCIA finds the posts they support and you edit them in the Video editor."),
+      { label: "Footage analyses", note: "One for each batch of clips SOCIA watches and understands.", cells: meterCell("content_build") },
+      { label: "Clips per project", cells: limitCell("studio_clips_per_project") },
+      { label: "Footage per project", cells: limitCell("studio_footage_minutes", (m) => `${m} minutes`) },
+      { label: "Upload per project", cells: limitCell("studio_upload_mb", (mb) => (mb >= 1000 ? `${mb / 1000} GB` : `${mb} MB`)) },
+      feature("auto_build", "SOCIA cuts and renders the video from your clips or a prompt; you can change anything after."),
+      { label: "AI-made videos", cells: meterCell("video_builds") },
+      { label: "Music tracks", note: "Made for your videos from your brand's taste.", cells: meterCell("music_tracks") },
       { label: "Account audits", cells: meterCell("account_audit") },
     ],
   },
@@ -138,7 +147,8 @@ export const COMPARISON: ComparisonCategory[] = [
   {
     category: "Publishing",
     rows: [
-      { label: "Scheduling and direct publishing", note: `On ${PUBLISHING_PLATFORMS} today.`, cells: publishingCells() },
+      { label: "Scheduling and direct publishing", note: `On ${PUBLISHING_PLATFORMS} today. Facebook after Meta's review, TikTok after TikTok's audit.`, cells: publishingCells() },
+      feature("comment_replies", "SOCIA drafts a reply to each comment; you approve before anything is sent."),
     ],
   },
   {

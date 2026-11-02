@@ -54,7 +54,7 @@ describe("the edit keeps its size and reframes", () => {
 });
 
 describe("plans", () => {
-  it("the person's own edit is on every plan; SOCIA's first cut is Growth and Pro", () => {
+  it("the person's own edit is on every plan; SOCIA's first cut is Starter and up", () => {
     expect(buildFeature(true)).toBe("build_from_clips");
     expect(buildFeature(false)).toBe("auto_build");
     expect(MANUAL_IDX).toBe(-1);

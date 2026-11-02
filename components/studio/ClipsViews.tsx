@@ -204,7 +204,7 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
               <small>SOCIA cuts the first draft from these clips — same cut as the guide — and you fix what you want: trim, reorder, replace, text, captions. Rendered on your computer, saved as a draft.</small>
             </div>
           ) : canMake === false ? (
-            <p className="cb-locked"><Clapperboard size={13} /> <b>Make this video</b> — SOCIA cuts the first draft for you, editable — is included on Growth and Pro. <Link href="/pricing">See plans</Link></p>
+            <p className="cb-locked"><Clapperboard size={13} /> <b>Make this video</b>: SOCIA cuts the first draft for you to edit. Included from Starter. <Link href="/pricing">See plans</Link></p>
           ) : null
         )}
       </div>

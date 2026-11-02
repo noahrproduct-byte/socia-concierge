@@ -62,7 +62,7 @@ describe("metering fails closed", () => {
   it("counts a weekly meter in its week, not the month", async () => {
     const rpc = vi.fn(async () => ({ data: [{ allowed: true, used_count: 1 }], error: null }));
     const r = await consumeUsage(client(rpc), ent("free"), "content_ideas");
-    expect(rpc).toHaveBeenCalledWith("socia_consume_usage", { p_meter: "content_ideas", p_period_start: "2026-09-21", p_limit: 3 });
+    expect(rpc).toHaveBeenCalledWith("socia_consume_usage", { p_meter: "content_ideas", p_period_start: "2026-09-21", p_limit: 2 });
     expect(r.usage.resetsOn).toBe("2026-09-28");
   });
 });

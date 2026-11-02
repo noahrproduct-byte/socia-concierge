@@ -72,7 +72,7 @@
     "components/studio/AudioPanel.tsx": 2,
     "components/studio/ClipBuilder.tsx": 2,
     "components/studio/ClipsStudio.tsx": 3,
-    "components/studio/ClipsViews.tsx": 7,
+    "components/studio/ClipsViews.tsx": 5,
     "components/studio/ContentStudio.tsx": 1,
     "components/studio/StudioPanels.tsx": 4
   },

@@ -40,13 +40,13 @@ export type PlanError = {
 export const METER_PHRASE: Record<MeterKey, string> = {
   ask_socia: "Ask SOCIA questions",
   content_studio: "Content Studio analyses",
-  content_build: "clip builds",
-  video_builds: "video builds",
+  content_build: "footage analyses",
+  video_builds: "AI-made videos",
   music_tracks: "music tracks",
   content_generation: "hook and caption generations",
   account_audit: "account audits",
   content_plan: "Content Plan generations",
-  content_ideas: "content ideas",
+  content_ideas: "batches of video ideas",
   assistant_requests: "AI assistant requests",
 };
 
