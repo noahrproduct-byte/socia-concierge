@@ -11474,17 +11474,37 @@ p.cbm-muted { display: block; }
 
 /* Editor V2: multi-track timeline (components/studio/Timeline.tsx) */
 .cbb-tl-card { padding: var(--sp-3); }
+.cbb-tl-wrap { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cbb-tl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); }
+.cbb-tl-btn { display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--control-h-sm); min-width: var(--control-h-sm); justify-content: center; padding: 0 var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+.cbb-tl-btn:disabled { color: var(--ink-3); cursor: not-allowed; }
+.cbb-tl-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: hover) and (pointer: fine) { .cbb-tl-btn:not(:disabled):hover { background: var(--surface-hover); } }
+.cbb-tl-time { min-width: 7.5rem; padding: 0 var(--sp-2); font-size: var(--fs-meta); font-variant-numeric: tabular-nums; color: var(--ink); }
+.cbb-tl-time span { color: var(--text-secondary); }
+.cbb-tl-sep { width: 1px; height: 18px; margin: 0 var(--sp-1); background: var(--border); }
+.cbb-tl-note { flex: 1; min-width: 0; font-size: var(--fs-meta); color: var(--warning-ink); }
+.cbb-tl-keys { margin: 0; font-size: var(--fs-meta); color: var(--text-secondary); }
 .cbb-tl { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--sp-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
-.cbb-tl-labels { display: grid; grid-auto-rows: 28px; grid-template-rows: 18px; color: var(--text-secondary); }
+.cbb-tl-labels { display: grid; grid-auto-rows: 32px; grid-template-rows: 18px; color: var(--text-secondary); }
 .cbb-tl-labels span { display: flex; align-items: center; }
-.cbb-tl-area { position: relative; display: grid; grid-template-rows: 18px; grid-auto-rows: 28px; cursor: pointer; touch-action: none; user-select: none; }
+.cbb-tl-scroll { min-width: 0; overflow-x: auto; overflow-y: hidden; }
+.cbb-tl-area { position: relative; display: grid; grid-template-rows: 18px; grid-auto-rows: 32px; min-width: 100%; cursor: text; touch-action: none; user-select: none; }
 .cbb-tl-ruler { position: relative; border-bottom: 1px solid var(--border); }
 .cbb-tl-ruler span { position: absolute; top: 0; transform: translateX(-50%); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .cbb-tl-ruler span:first-child { transform: none; }
 .cbb-tl-track { position: relative; border-bottom: 1px solid var(--rule); }
 .cbb-tl-clip, .cbb-tl-text, .cbb-tl-cap { position: absolute; top: 3px; bottom: 3px; border-radius: var(--r-chip); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.cbb-tl-clip { padding: 0 var(--sp-1); background: var(--accent-subtle); border: 1px solid var(--accent-line); color: var(--ink); }
+.cbb-tl-clip { display: flex; align-items: center; background: var(--accent-subtle); border: 1px solid var(--accent-line); color: var(--ink); cursor: grab; }
 .cbb-tl-clip.alt { background: var(--surface-hover); border-color: var(--border-strong); }
+.cbb-tl-clip em { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; padding: 0 var(--sp-1); }
+.cbb-tl-clip.on, .cbb-tl-text.on { outline: 2px solid var(--ink); outline-offset: -1px; z-index: 1; }
+.cbb-tl-clip.lifted { z-index: 2; opacity: 0.85; cursor: grabbing; box-shadow: var(--shadow-dialog); }
+.cbb-tl-cut-edge { flex: none; width: 8px; align-self: stretch; cursor: ew-resize; background: var(--accent-line); }
+@media (hover: hover) and (pointer: fine) { .cbb-tl-cut-edge:hover { background: var(--accent); } }
+@media (pointer: coarse) { .cbb-tl-cut-edge, .cbb-tl-edge { width: 14px; } }
+@media (hover: none) { .cbb-tl-keys { display: none; } }
+.cbb-tl-drop { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--accent); border-radius: var(--r-chip); pointer-events: none; z-index: 3; }
 .cbb-tl-text { display: flex; align-items: center; background: var(--warning-bg); border: 1px solid var(--warning); color: var(--warning-ink); cursor: grab; }
 .cbb-tl-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .cbb-tl-text em { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-style: normal; padding: 0 var(--sp-1); }

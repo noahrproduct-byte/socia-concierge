@@ -1,7 +1,7 @@
 "use client";
 
 // The video editor. Two kinds of build share it: SOCIA's first cut of a post
-// (Make This Video, Growth/Pro) and the person's own edit of their clips
+// (Make This Video, Starter and up) and the person's own edit of their clips
 // (Editor V1, every plan; no AI regenerate). Previewed by Remotion from the
 // EDL: reorder, trim (by step or at the playhead), split, replace, delete,
 // aspect ratio and reframe, text lines, captions on/off, undo/redo. The video is rendered HERE
@@ -19,8 +19,8 @@ import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
 import MusicPlaylist from "./MusicPlaylist";
 import FinishPanel from "./FinishPanel";
-import Timeline from "./Timeline";
-import { tracksFor } from "@/lib/studioClips/tracks";
+import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
+import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
 import { timeline } from "@/lib/studioClips/timeline";
 import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
@@ -286,6 +286,62 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       setExp({ phase: "error", progress: 0, message: (e as Error)?.message?.replace(/^Upload failed: /, "") ?? "Something went wrong.", postId: null });
     }
   };
+
+  // ------------------------------------------------------ timeline edits ----
+  // What's selected on the timeline (Delete removes it). Trims are applied live
+  // from the cut as it was when the drag began, as one undo step.
+  const [sel, setSel] = useState<TimelineSelection>(null);
+  const trimBase = useRef<Edl | null>(null);
+  const cutStart = () => { trimBase.current = edl; beginLive(); };
+  const cutTrimLive = (i: number, edge: "in" | "out", delta: number) => {
+    const base = trimBase.current;
+    const s = base?.segments[i];
+    if (!base || !s) return;
+    const next = trimCut(s, edge, delta, sources[s.clipId]?.durationSec ?? s.out);
+    setEdl({ ...base, segments: base.segments.map((x, k) => (k === i ? { ...x, ...next } : x)) });
+    setDirty(true);
+  };
+  const cutMove = (from: number, to: number) => { if (!edl) return; commit({ ...edl, segments: reorder(edl.segments, from, to) }); setSel({ kind: "cut", index: to }); };
+  const deleteSelected = () => {
+    if (!edl || !sel) return;
+    if (sel.kind === "cut") {
+      if (!edl.segments[sel.index]) return setSel(null);
+      if (edl.segments.length <= 1) return setHereNote("A video needs at least one cut.");
+      setHereNote(null); remove(sel.index);
+    } else {
+      if (!edl.text[sel.index]) return setSel(null);
+      removeText(sel.index);
+    }
+    setSel(null);
+  };
+  const step = (frames: number) => {
+    const p = player.current;
+    if (!p || !tl) return;
+    p.pause();
+    p.seekTo(Math.min(Math.max(0, p.getCurrentFrame() + frames), tl.durationFrames - 1));
+  };
+
+  // Keyboard shortcuts, as in a video editor. The handlers change every
+  // render; the listener reads the latest through a ref.
+  const keys = useRef({ edit: false, undo, redo, split: splitHere, del: deleteSelected, step });
+  keys.current = { edit: Boolean(data?.canEdit) && !regen && !saving && !(exp.phase !== "idle" && exp.phase !== "done" && exp.phase !== "error"), undo, redo, split: splitHere, del: deleteSelected, step };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!editorKey(e.target, e.key)) return;
+      const k = keys.current;
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+      if (e.key === " " && !mod) { e.preventDefault(); player.current?.toggle(); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); k.step((e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? OUTPUT.fps : 1)); }
+      else if (!k.edit) return;
+      else if (mod && key === "z") { e.preventDefault(); if (e.shiftKey) k.redo(); else k.undo(); }
+      else if (mod && key === "y") { e.preventDefault(); k.redo(); }
+      else if (!mod && !e.altKey && key === "s") { e.preventDefault(); k.split(); }
+      else if (!mod && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); k.del(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;
@@ -614,8 +670,20 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             fps={OUTPUT.fps}
             player={player}
             canEdit={data.canEdit && !busy}
+            selected={sel}
+            onSelect={setSel}
             onTextStart={beginLive}
             onTextLive={(i, at, end) => { setEdl((cur) => (cur ? { ...cur, text: cur.text.map((t, k) => (k === i ? { ...t, at, end } : t)) } : cur)); setDirty(true); }}
+            onCutStart={cutStart}
+            onCutTrimLive={cutTrimLive}
+            onCutMove={cutMove}
+            onSplit={splitHere}
+            onDelete={deleteSelected}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={past.length > 0 && data.canEdit && !busy}
+            canRedo={future.length > 0 && data.canEdit && !busy}
+            note={hereNote}
           />
         </div>
       )}
