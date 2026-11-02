@@ -335,7 +335,7 @@ export async function madeTracks(client: Supa, ownerId: string, projectId: strin
   }
 }
 
-/** The plan feature a build needs: the person's own edit is on every plan; SOCIA's first cut is Growth and Pro. */
+/** The plan feature a build needs: the person's own edit is on every plan; SOCIA's first cut is Starter and up. */
 export const buildFeature = (manual: boolean): "build_from_clips" | "auto_build" => (manual ? "build_from_clips" : "auto_build");
 
 /** The opportunity index of a project's own edit (Editor V1): one per project, made by the person, never by AI. */

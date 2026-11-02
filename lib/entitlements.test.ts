@@ -180,7 +180,7 @@ describe("plan errors", () => {
     expect(isPlanError(e)).toBe(true);
   });
   it("says 'this week' for a weekly meter", () => {
-    expect(usageError("free", "content_ideas", 3, 3, "2026-09-28").error).toBe("You've used all 3 content ideas included in Free this week.");
+    expect(usageError("free", "content_ideas", 2, 2, "2026-09-28").error).toBe("You've used all 2 batches of video ideas included in Free this week.");
   });
   it("explains a zero allowance as not included rather than used up", () => {
     expect(usageError("free", "content_plan", 0, 0, "2026-10-01").error).toBe("Content Plans is not included in Free.");

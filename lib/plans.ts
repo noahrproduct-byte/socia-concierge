@@ -247,13 +247,13 @@ export const LIMIT_LABEL: Record<LimitKey, string> = {
 export const METER_LABEL: Record<MeterKey, string> = {
   ask_socia: "Ask SOCIA",
   content_studio: "Content Studio",
-  content_build: "Clip builds",
-  video_builds: "Video builds",
+  content_build: "Footage analyses",
+  video_builds: "AI-made videos",
   music_tracks: "Music tracks",
   content_generation: "Hooks and captions",
   account_audit: "Account audits",
   content_plan: "Content Plans",
-  content_ideas: "Content ideas",
+  content_ideas: "Video idea batches",
   assistant_requests: "AI assistant requests",
 };
 
@@ -261,13 +261,13 @@ export const METER_LABEL: Record<MeterKey, string> = {
 export const METER_UNIT: Record<MeterKey, { one: string; many: string }> = {
   ask_socia: { one: "question", many: "questions" },
   content_studio: { one: "analysis", many: "analyses" },
-  content_build: { one: "build", many: "builds" },
+  content_build: { one: "footage analysis", many: "footage analyses" },
   video_builds: { one: "video", many: "videos" },
   music_tracks: { one: "track", many: "tracks" },
   content_generation: { one: "generation", many: "generations" },
   account_audit: { one: "audit", many: "audits" },
   content_plan: { one: "plan", many: "plans" },
-  content_ideas: { one: "idea", many: "ideas" },
+  content_ideas: { one: "batch of video ideas", many: "batches of video ideas" },
   assistant_requests: { one: "request", many: "requests" },
 };
 
@@ -328,8 +328,10 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   weekly_summary: "starter",
   team: "starter",
   ai_assistant_publishing: "starter",
+  // Starter gets a taste of SOCIA making videos (a few a month, see meters);
+  // Growth and Pro get more.
+  auto_build: "starter",
   // Growth
-  auto_build: "growth",
   plan_posts: "growth",
   cross_platform_analytics: "growth",
   comment_replies: "growth",
@@ -363,10 +365,14 @@ const featuresOf = (plan: PlanId): Record<FeatureKey, boolean> => {
   return out;
 };
 
-// Build from Clips: DEVELOPMENT PLACEHOLDERS, identical across plans except
-// retention. Not pricing promises; tune here (or in plan_config_overrides)
-// once real storage, transcription, AI and rendering costs are measured.
-const STUDIO_DEV_LIMITS = { studio_clips_per_project: 20, studio_footage_minutes: 10, studio_upload_mb: 500 };
+// Build from Clips, per project: clips, minutes of footage and upload size
+// grow with the plan (Noah, 2026-11-02). Tune here or in plan_config_overrides.
+const STUDIO_LIMITS = {
+  free: { studio_clips_per_project: 10, studio_footage_minutes: 5, studio_upload_mb: 250 },
+  starter: { studio_clips_per_project: 20, studio_footage_minutes: 10, studio_upload_mb: 500 },
+  growth: { studio_clips_per_project: 40, studio_footage_minutes: 20, studio_upload_mb: 1000 },
+  pro: { studio_clips_per_project: 60, studio_footage_minutes: 30, studio_upload_mb: 2000 },
+} as const;
 
 export const PLANS: Record<PlanId, PlanConfig> = {
   free: {
@@ -375,8 +381,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 0,
     tagline: "Understand one brand.",
     audience: "People trying SOCIA and managing one brand.",
-    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_DEV_LIMITS, studio_storage_gb: 5, assistant_requests_per_minute: 10, assistant_posts_per_hour: 0 },
-    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 1, content_ideas: 3, content_build: 3, video_builds: 0, music_tracks: 0, assistant_requests: 100 },
+    limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_LIMITS.free, studio_storage_gb: 5, assistant_requests_per_minute: 10, assistant_posts_per_hour: 0 },
+    meters: { ask_socia: 10, content_studio: 5, content_generation: 6, account_audit: 1, content_plan: 1, content_ideas: 2, content_build: 3, video_builds: 0, music_tracks: 0, assistant_requests: 100 },
     features: featuresOf("free"),
     cta: "Get started free",
   },
@@ -386,8 +392,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 19,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
-    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_DEV_LIMITS, studio_storage_gb: 10, assistant_requests_per_minute: 20, assistant_posts_per_hour: 5 },
-    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 3, content_build: 10, video_builds: 0, music_tracks: 0, assistant_requests: 1000 },
+    limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_LIMITS.starter, studio_storage_gb: 10, assistant_requests_per_minute: 20, assistant_posts_per_hour: 5 },
+    meters: { ask_socia: 50, content_studio: 30, content_generation: 120, account_audit: 4, content_plan: 4, content_ideas: 5, content_build: 10, video_builds: 5, music_tracks: 10, assistant_requests: 1000 },
     features: featuresOf("starter"),
     cta: "Start Starter",
   },
@@ -397,8 +403,8 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 49,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
-    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_DEV_LIMITS, studio_storage_gb: 25, assistant_requests_per_minute: 30, assistant_posts_per_hour: 10 },
-    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 3, content_build: 40, video_builds: 30, music_tracks: 40, assistant_requests: 5000 },
+    limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_LIMITS.growth, studio_storage_gb: 25, assistant_requests_per_minute: 30, assistant_posts_per_hour: 10 },
+    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 10, content_build: 40, video_builds: 30, music_tracks: 40, assistant_requests: 5000 },
     features: featuresOf("growth"),
     cta: "Start Growth",
     popular: true,
@@ -409,9 +415,9 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     priceMonthly: 99,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
-    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_DEV_LIMITS, studio_storage_gb: 50, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20 },
+    limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_LIMITS.pro, studio_storage_gb: 50, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20 },
     // Deliberately higher, deliberately finite. Tune in plan_config_overrides.
-    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 3, content_build: 100, video_builds: 100, music_tracks: 120, assistant_requests: 20000 },
+    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 25, content_build: 100, video_builds: 100, music_tracks: 120, assistant_requests: 20000 },
     features: featuresOf("pro"),
     cta: "Start Pro",
   },

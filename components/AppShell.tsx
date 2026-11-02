@@ -30,7 +30,7 @@ function nextPlanLine(p: PlanId): string {
   const ws = `${L.workspaces} Brand ${L.workspaces === 1 ? "Workspace" : "Workspaces"}`;
   switch (p) {
     case "starter":
-      return `${ws}, deeper analytics, the full weekly Content Plan and ${M.ask_socia} Ask SOCIA questions a month.`;
+      return `${ws}, deeper analytics, ${M.content_plan} Content Plans, ${M.video_builds} AI-made videos and ${M.ask_socia} Ask SOCIA questions a month.`;
     case "growth":
       return `${ws}, cross-platform analytics, ${L.competitors} competitors and ${M.ask_socia} Ask SOCIA questions a month.`;
     case "pro":

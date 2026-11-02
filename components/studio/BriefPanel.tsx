@@ -134,7 +134,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
       <p className="cbp-muted">Write what you want, add a video for SOCIA to copy, or both. SOCIA copies the reference&apos;s length, pace, order of shots and on-screen text style using your clips, never its footage, then opens the cut in the editor.</p>
 
       {canMake === false ? (
-        <p className="cb-locked"><Clapperboard size={13} /> Making a video from a prompt or a reference is included on Growth and Pro. <Link href="/pricing">See plans</Link></p>
+        <p className="cb-locked"><Clapperboard size={13} /> Making a video from a prompt or a reference is included from Starter. <Link href="/pricing">See plans</Link></p>
       ) : (
         <>
           <label className="cba-cap">
