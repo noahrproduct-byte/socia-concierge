@@ -42,7 +42,7 @@
     "components/CalendarBoard.tsx": 1,
     "components/CommentsInbox.tsx": 1,
     "components/ContentLibrary.tsx": 2,
-    "components/ContentPlanClient.tsx": 2,
+    "components/ContentPlanClient.tsx": 1,
     "components/CrossBrandPanel.tsx": 1,
     "components/FacebookAnalytics.tsx": 13,
     "components/FacebookConnect.tsx": 11,

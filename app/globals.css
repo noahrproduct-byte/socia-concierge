@@ -7651,6 +7651,28 @@ a.hub-card:hover {
 .cpl-item-meta b { font-weight: 650; color: var(--text-secondary); }
 .cpl-rank { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 7px; font-size: 11px; font-weight: 750; background: rgba(var(--primary-rgb), 0.18); color: var(--primary-text); }
 
+/* the report's five sections (components/plan/PlanSections.tsx) */
+.cpl-tabs { margin-top: var(--sp-4); }
+.cpl-tab-num { margin-right: var(--sp-2); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cpl-panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--r-chip); }
+.cpl-sec-lead { margin-top: var(--sp-4); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-secondary); max-width: 68ch; }
+.cpl-sec-empty { margin-top: var(--sp-4); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-secondary); }
+.cpl-list { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; padding-left: 1.1em; font-size: 13px; line-height: 1.6; color: var(--text-primary); }
+.cpl-list b { font-weight: 650; }
+.cpl-src { color: var(--text-secondary); font-size: 12px; }
+.cpl-findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-3); margin-bottom: var(--sp-2); }
+.cpl-finding { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-muted); }
+.cpl-finding > b { display: block; margin-bottom: var(--sp-1); font-size: 12px; font-weight: 700; }
+.cpl-finding.good > b { color: var(--positive-ink); }
+.cpl-finding.bad > b { color: var(--warning-ink); }
+.cpl-finding ul { margin: 0; padding-left: 1.1em; font-size: 13px; line-height: 1.55; color: var(--text-primary); }
+.cpl-rsec > .ov-link { margin-top: var(--sp-2); }
+@media print {
+  .cpl-tabs { display: none; }
+  .cpl-panel[hidden] { display: block !important; }
+  .cpl-panel + .cpl-panel { margin-top: var(--sp-6); padding-top: var(--sp-4); border-top: 1px solid var(--border-strong); }
+}
+
 /* weekly plan cards */
 .cpl-posts { display: flex; flex-direction: column; gap: 10px; }
 .cpl-post {
