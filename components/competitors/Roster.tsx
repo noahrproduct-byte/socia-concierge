@@ -96,7 +96,7 @@ export default function Roster({ you, rows, ranks, youRank, selectedId, onSelect
               <span className="cx2-rank" title={rank != null ? "Rank by published engagement rate on this page" : classLabel(r.classification) ?? undefined}>
                 {rank != null ? `#${rank}` : <PlatformMark p={r.platform} size={10} />}
               </span>
-              {r.tracked && <i className="cx2-live-dot" title="Tracked" />}
+              {r.tracked && <i className="cx2-live-dot" title={r.pickedBySocia ? "Picked by SOCIA" : "Tracked"} />}
               <div className="cx2-chip-head">
                 <Avatar src={r.avatar} name={r.name} size={34} />
                 <span className="cx2-chip-id">

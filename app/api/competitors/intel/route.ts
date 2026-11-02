@@ -20,6 +20,7 @@ import {
   type AccountCandidate, type ContentCandidate, type DiscoveryProfile,
   type ScoredAccount, type ScoredContent, type TrendRollup,
 } from "@/lib/discovery";
+import { autoPickCompetitors, type Pick } from "@/lib/competitorAutoPick";
 
 /** Fresh research runs one account may start per hour. */
 const INTEL_RUNS_PER_HOUR = 6;
@@ -62,6 +63,8 @@ export type IntelDoc = {
   ranAt: string | null;
   sources: IntelSources;
   profileGaps: string[];
+  /** Competitors SOCIA added to the roster on this run (fresh runs only). */
+  picked?: Pick[];
 };
 
 function parseJsonArray(text: string): unknown[] {
@@ -445,12 +448,17 @@ Output ONLY this JSON, no other text:
     }
   }
 
+  // ---- SOCIA picks competitors into empty roster slots -------------------
+  // Only Instagram accounts that Business Discovery confirms, never more than
+  // the plan allows, never one the customer removed (lib/competitorAutoPick.ts).
+  const picked = await autoPickCompetitors({ client: ctx.client, ownerId: ctx.ownerId, wsId, accounts, own });
+
   // Return everything SOCIA knows, not just what this run happened to find —
   // otherwise a refresh visibly loses accounts it had already discovered.
   const merged = await readStored(ctx.client, ctx.ownerId, wsId, own);
   const doc: IntelDoc = merged
-    ? { ...merged, ranAt, sources, profileGaps }
-    : { accounts, content, trends, ranAt, sources, profileGaps };
+    ? { ...merged, ranAt, sources, profileGaps, picked }
+    : { accounts, content, trends, ranAt, sources, profileGaps, picked };
   return NextResponse.json(doc);
 }
 

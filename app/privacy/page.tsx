@@ -80,7 +80,11 @@ export default function PrivacyPage() {
           <b>Other accounts&apos; public information</b>: when you track
           competitors or explore your niche, SOCIA reads public profile and post
           information about other accounts through the platforms&apos; APIs and
-          public web research, to compare it with yours.
+          public web research, to compare it with yours. For Instagram, SOCIA
+          asks through your own linked Facebook Page when you have one, and
+          otherwise through SOCIA&apos;s own Instagram account. SOCIA may add
+          competitors it finds this way to your list; you can remove any of
+          them, and SOCIA remembers the removal so it does not add them again.
         </li>
         <li>
           <b>Comments on your posts</b>: for AI comment replies, we store the

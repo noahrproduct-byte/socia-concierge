@@ -26,6 +26,10 @@ export const runtime = "nodejs";
 // The roster belongs to the ACTIVE Brand Workspace: every read and write is
 // scoped to its owner (lib/context). Any role may read it; adding and removing
 // is for the owner and admins.
+//
+// SOCIA also fills empty slots itself after a discovery run
+// (lib/competitorAutoPick.ts). Every removal here is remembered in
+// competitor_dismissals so a removed account is never picked again.
 
 const HANDLE_RE = /^[a-zA-Z0-9._]{1,30}$/;
 // YouTube handles/ids allow hyphens and are longer than Instagram's.
@@ -212,5 +216,17 @@ export async function DELETE(req: Request) {
   if (cwid) del = del.eq("workspace_id", cwid);
   const { error } = await del;
   if (error) return dbErrorResponse("competitors", error);
+
+  // Remember the removal so SOCIA never picks this account again
+  // (lib/competitorAutoPick.ts). Best effort: a duplicate or a missing table
+  // (competitor-autopick.sql not run) must not fail the removal itself.
+  const svc = createServiceClient();
+  if (svc) {
+    try {
+      await svc.from("competitor_dismissals").insert({ user_id: ctx.ownerId, workspace_id: cwid, platform: platformOf(body?.platform), handle });
+    } catch {
+      /* see above */
+    }
+  }
   return NextResponse.json({ ok: true });
 }

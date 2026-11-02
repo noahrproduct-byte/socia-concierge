@@ -7,7 +7,12 @@ import type { LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 
-export type Tracked = { platform: string; handle: string; added_at: string };
+export type Tracked = {
+  platform: string; handle: string; added_at: string;
+  /** "socia" when SOCIA picked it (lib/competitorAutoPick.ts); absent before competitor-autopick.sql. */
+  added_by?: string | null;
+  pick_reason?: string | null;
+};
 
 /** One of the user's own posts, for the trajectory chart. All real. */
 export type YouSeriesPoint = { t: string; interactions: number; views: number | null };
