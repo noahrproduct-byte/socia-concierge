@@ -22,7 +22,7 @@ import { withInstagramAsk, type AskInstagram } from "@/lib/assistant/askExtras";
 import { forgetRated, ratedFile } from "@/lib/assistant/rated";
 import type { PickerAccount } from "@/lib/publishing/composer";
 import { postLabel } from "@/lib/publishing/postLabel";
-import { schedulePost, type ScheduleMedia } from "@/lib/publishing/scheduleClient";
+import { placeDraft, schedulePost, type ScheduleMedia } from "@/lib/publishing/scheduleClient";
 import { formatClock, viewerTimeZone } from "@/lib/publishing/timing";
 
 type Proposal = Extract<AskProposal, { kind: "schedule" }>;
@@ -44,7 +44,10 @@ async function checkWithInstagram(accountId: string, usernames: string[]): Promi
 
 export default function ScheduleProposal({ p }: { p: Proposal }) {
   const tz = useMemo(() => viewerTimeZone() ?? "UTC", []);
-  const needsPlatforms = p.items.some((i) => i.platforms.length === 0 && !(i.legacy && i.status === "scheduled"));
+  // Ideas can wait for their platforms (they're drafts); anything that will publish needs them now.
+  const needsPlatforms = p.items.some((i) => !i.idea && i.platforms.length === 0 && !(i.legacy && i.status === "scheduled"));
+  const offerPlatforms = needsPlatforms || p.items.some((i) => i.idea);
+  const allIdeas = p.items.length > 0 && p.items.every((i) => i.idea);
   const [accounts, setAccounts] = useState<PickerAccount[] | null>(null);
   const [dest, setDest] = useState<Set<string>>(new Set());
   const [kids, setKids] = useState<boolean | null>(null);
@@ -69,7 +72,7 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
   }, [doneKey]);
 
   useEffect(() => {
-    if (!needsPlatforms) return;
+    if (!offerPlatforms) return;
     let alive = true;
     (async () => {
       const res = await fetch("/api/publishing/accounts").catch(() => null);
@@ -80,7 +83,7 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
       setDest(new Set(list.filter((a) => availabilityFor(a.platform, a).state === "available").map((a) => `${a.platform}:${a.accountId}`)));
     })();
     return () => { alive = false; };
-  }, [needsPlatforms]);
+  }, [offerPlatforms]);
 
   const chosen = (accounts ?? []).filter((a) => dest.has(`${a.platform}:${a.accountId}`));
   const askNames = sortedNames(ask?.collaborators ?? []);
@@ -152,7 +155,13 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
     for (const it of p.items) {
       let out: Outcome;
       try {
-        if (it.rated) {
+        if (it.idea) {
+          // A video to make later: a draft with its hook and plan as the caption, at this time.
+          const caption = [it.idea.hook, it.idea.concept].filter(Boolean).join("\n\n");
+          const destinations = chosen.map((a) => ({ platform: a.platform, accountId: a.accountId, settings: settingsFor(a.platform, it.title, a.accountId) }));
+          const r = await placeDraft({ postId: null, caption, media: [], at: it.at, destinations });
+          out = { ok: r.ok, text: r.ok ? "On the Calendar as an idea. Make the video, add it in Create Post, then schedule it." : r.text };
+        } else if (it.rated) {
           out = await scheduleRated(it);
         } else if (it.legacy && it.status === "scheduled") {
           // A calendar post saved before multi-platform publishing moves by time alone.
@@ -164,13 +173,19 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
           const j = (await res.json().catch(() => null)) as { item?: ContentItem; error?: string } | null;
           const item = j?.item;
           if (!res.ok || !item) throw new Error(j?.error ?? "Couldn't open the post.");
-          if (!item.media.length) throw new Error("It has no video or photo yet. Add one in Create Post.");
           const live = item.destinations.filter((d) => d.status !== "cancelled");
           const title = postLabel(item.caption, live) ?? it.title;
           const destinations = live.length
             ? await Promise.all(live.map(async (d) => ({ platform: d.platform, accountId: d.accountId, settings: d.platform === "instagram" ? await instagramFor(d.accountId, d.settings as InstagramSettings) : d.settings })))
             : chosen.map((a) => ({ platform: a.platform, accountId: a.accountId, settings: settingsFor(a.platform, title, a.accountId) }));
-          if (!destinations.length) throw new Error("Choose where it posts.");
+          if (!destinations.length && item.media.length) throw new Error("Choose where it posts.");
+          if (!item.media.length) {
+            // No video yet: it goes on the calendar at this time as a draft; nothing publishes.
+            const r = await placeDraft({ postId: item.id, caption: item.caption, media: [], at: it.at, destinations, source: item.source ?? undefined });
+            results[it.postId] = { ok: r.ok, text: r.text };
+            setOutcomes({ ...results });
+            continue;
+          }
           const media: ScheduleMedia[] = item.media.map((m) => ({ id: m.id, kind: m.kind === "image" ? "image" : "video", name: m.name, mime: m.mime, size: m.size, width: m.width, height: m.height, duration: m.duration, path: m.path }));
           const r = await schedulePost({ postId: item.id, caption: item.caption, media, at: it.at, destinations, source: "calendar", mediaUrl: item.media[0]?.url ?? null });
           out = { ok: r.ok, text: it.status === "scheduled" && r.ok ? "Moved." : r.text };
@@ -200,7 +215,7 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
                 <span className="ask-sched-when"><b>{day(it.at)}</b><em>{formatClock(it.at, tz)}</em></span>
                 <span className="ask-sched-what">
                   <b>{it.title}</b>
-                  <em>{it.from ? `Now ${day(it.from)}, ${formatClock(it.from, tz)}. ` : it.rated ? (ratedFile(it.rated)?.video.caption ? "Rated in Studio, with your caption. " : "Rated in Studio, no caption yet. ") : "Draft. "}{it.platforms.length ? it.platforms.map((x) => PLATFORM_LABEL[x as Platform] ?? x).join(", ") : it.legacy && it.status === "scheduled" ? "Instagram" : "Platforms chosen below"}</em>
+                  <em>{it.from ? `Now ${day(it.from)}, ${formatClock(it.from, tz)}. ` : it.idea ? "Idea to film. " : it.rated ? (ratedFile(it.rated)?.video.caption ? "Rated in Studio, with your caption. " : "Rated in Studio, no caption yet. ") : "Draft. "}{it.platforms.length ? it.platforms.map((x) => PLATFORM_LABEL[x as Platform] ?? x).join(", ") : it.legacy && it.status === "scheduled" ? "Instagram" : it.idea ? "Platforms below, or choose later" : "Platforms chosen below"}</em>
                   {o && <em className={o.ok ? "ok" : "bad"}>{o.ok ? <Check size={11} /> : <AlertTriangle size={11} />} {o.text}</em>}
                 </span>
               </li>
@@ -212,9 +227,9 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
         <ul className="ask-sched-left">{p.left.map((l, i) => <li key={i}><b>{l.title}</b> {l.reason}</li>)}</ul>
       )}
 
-      {p.items.length > 0 && needsPlatforms && phase === "idle" && (
+      {p.items.length > 0 && offerPlatforms && phase === "idle" && (
         <div className="ask-sched-dest">
-          <small>Drafts without platforms post to</small>
+          <small>{needsPlatforms ? "Drafts without platforms post to" : "Plan them for (optional, you can choose later)"}</small>
           {accounts == null ? <span className="ask-sched-muted"><Loader2 size={11} className="spin" /> Reading your accounts…</span> : accounts.length === 0 ? <span className="ask-sched-muted">No accounts connected. <Link href="/settings">Connect one in Settings</Link>.</span> : accounts.map((a) => {
             const k = `${a.platform}:${a.accountId}`;
             const av = availabilityFor(a.platform, a);
@@ -267,7 +282,7 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
         <div className="ask-proposal-actions">
           {phase === "idle" && (
             <button type="button" className="ov-btn primary small" disabled={!ready} onClick={() => void apply()}>
-              {moving === p.items.length ? `Move ${p.items.length === 1 ? "it" : `these ${p.items.length}`}` : `Schedule ${p.items.length === 1 ? "it" : `these ${p.items.length}`}`}
+              {allIdeas ? `Put ${p.items.length === 1 ? "it" : `these ${p.items.length}`} on the Calendar` : moving === p.items.length ? `Move ${p.items.length === 1 ? "it" : `these ${p.items.length}`}` : `Schedule ${p.items.length === 1 ? "it" : `these ${p.items.length}`}`}
             </button>
           )}
           {phase === "busy" && <span className="ask-sched-muted"><Loader2 size={12} className="spin" /> Scheduling{wantsYouTube ? " and uploading to YouTube" : ""}. Keep this open.</span>}
@@ -275,7 +290,12 @@ export default function ScheduleProposal({ p }: { p: Proposal }) {
           <Link href="/plan/calendar" className="ov-btn ghost small">Open the Calendar <ArrowRight size={12} /></Link>
         </div>
       )}
-      {phase === "idle" && p.items.length > 0 && <p className="ask-sched-muted">Nothing changes until you press the button. They publish on their own at these times.</p>}
+      {phase === "idle" && p.items.length > 0 && (
+        <p className="ask-sched-muted">
+          Nothing changes until you press the button.{" "}
+          {allIdeas ? "They go on the Calendar as drafts; nothing posts until you add the video and schedule it." : "Posts with a video publish on their own at these times; ones without a video go on the Calendar as drafts."}
+        </p>
+      )}
     </div>
   );
 }

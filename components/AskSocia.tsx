@@ -228,6 +228,12 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
     <Drawer open={open} title={title} onClose={onClose} width={520}>
       <div
         className={`ask${dropping ? " dropping" : ""}`}
+        // A link in an answer goes to another page: close the panel so that page shows.
+        onClickCapture={(e) => {
+          const link = (e.target as HTMLElement | null)?.closest?.("a[href]");
+          const href = link?.getAttribute("href") ?? "";
+          if (link && href.startsWith("/") && link.getAttribute("target") !== "_blank" && !e.metaKey && !e.ctrlKey) onClose();
+        }}
         onDragOver={footage ? (e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDropping(true); } } : undefined}
         onDragLeave={footage ? (e) => { if (e.currentTarget === e.target) setDropping(false); } : undefined}
         onDrop={footage ? (e) => { e.preventDefault(); setDropping(false); if (!saving) addFiles(e.dataTransfer.files); } : undefined}

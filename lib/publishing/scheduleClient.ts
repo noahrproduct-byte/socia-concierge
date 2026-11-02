@@ -58,3 +58,26 @@ export async function schedulePost(r: ScheduleRequest): Promise<ScheduleResult> 
   }
   return { ok: notes.length === 0, text: notes.length ? `Scheduled. ${notes.join(" ")}` : "Scheduled.", postId };
 }
+
+/**
+ * Put a post on the calendar as a DRAFT at a time, with or without media: a
+ * video idea to make later, or a draft whose video isn't made yet. Nothing
+ * publishes; the person adds the video and schedules it in Create Post.
+ */
+export async function placeDraft(r: { postId: string | null; caption: string; media: ScheduleMedia[]; at: string; destinations: ScheduleRequest["destinations"]; source?: string }): Promise<ScheduleResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/posts", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: r.postId, caption: r.caption, scheduledAt: r.at, source: r.source ?? "assistant", planId: null, planDay: null, customizePerPlatform: false, action: "draft",
+        media: r.media, destinations: r.destinations.map((d) => ({ ...d, scheduledAt: r.at })),
+      }),
+    });
+  } catch {
+    return { ok: false, text: "Couldn't reach SOCIA. Nothing changed.", postId: r.postId };
+  }
+  const j = (await res.json().catch(() => null)) as { error?: string; item?: { id: string } } | null;
+  if (!res.ok || !j?.item) return { ok: false, text: j?.error ?? "Couldn't put it on the Calendar.", postId: r.postId };
+  return { ok: true, text: "On the Calendar as a draft. Add the video when it's made, then schedule it.", postId: j.item.id };
+}

@@ -64,7 +64,11 @@ export type AskScheduleItem = {
   legacy: boolean;
   /** a video rated in Content Studio, not a post yet: [V#], saved as a post when the schedule is confirmed */
   rated?: string;
+  /** a new video idea, not made yet: saved on confirm as a draft with no media at this time */
+  idea?: AskIdea;
 };
+/** A video the person will film or make later: what goes in the draft's caption until then. */
+export type AskIdea = { hook: string; concept: string };
 export type AskProposal =
   | { kind: "plan_day"; planId: string; index: number; day: string; current: PlanDayDraft; proposed: PlanDayDraft; why: string }
   | { kind: "schedule"; summary: string; items: AskScheduleItem[]; left: { title: string; reason: string }[]; instagram?: AskInstagram | null }
@@ -165,6 +169,8 @@ export type ModelAnswer = {
     trialShare: string;
     /** Instagram usernames named as collaborators */
     collaborators: string[];
+    /** New video ideas to put on the calendar as drafts, one per slot, when they ask for ideas rather than existing posts */
+    ideas: { title: string; hook: string; concept: string }[];
   };
 };
 
@@ -222,8 +228,17 @@ export const askAnswerSchema = {
         trialReel: { type: "string", enum: ["unchanged", "yes", "no"] },
         trialShare: { type: "string", enum: ["default", "manual", "if_performing"] },
         collaborators: { type: "array", items: { type: "string" } },
+        ideas: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: { title: { type: "string" }, hook: { type: "string" }, concept: { type: "string" } },
+            required: ["title", "hook", "concept"],
+          },
+        },
       },
-      required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days", "videos", "trialReel", "trialShare", "collaborators"],
+      required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days", "videos", "trialReel", "trialShare", "collaborators", "ideas"],
     },
   },
   required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "schedule"],
