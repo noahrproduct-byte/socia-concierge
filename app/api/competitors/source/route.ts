@@ -60,12 +60,12 @@ export async function GET() {
   );
 
   const conn = await igConnection(ctx.client, ctx.ownerId);
-  // One real lookup of a public account, profile only, so a failure shows
-  // Meta's own words instead of SOCIA's summary of them.
-  const probe = conn ? await businessDiscovery(conn.igUserId, conn.pageToken, "instagram", 0) : null;
+  // One real lookup of a public account (profile and 3 posts, with views when
+  // Meta returns them), so a failure shows Meta's own words.
+  const probe = conn ? await businessDiscovery(conn.igUserId, conn.pageToken, "instagram", 3) : null;
   return NextResponse.json({
     using: conn?.source ?? null,
-    testLookup: probe ? (probe.ok ? { ok: true, followers: probe.account.followers } : { ok: false, reason: probe.reason, meta: probe.detail ?? null }) : null,
+    testLookup: probe ? (probe.ok ? { ok: true, followers: probe.account.followers, recentViews: probe.account.media.map((m) => m.views) } : { ok: false, reason: probe.reason, meta: probe.detail ?? null }) : null,
     pages,
     research: { configured: researchConfigured(), found: Boolean(await researchConnection()) },
   });

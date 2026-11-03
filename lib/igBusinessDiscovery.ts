@@ -10,7 +10,10 @@
 //
 // What it genuinely returns for a PUBLIC Business/Creator account:
 //   followers_count, media_count, username, profile_picture_url, biography,
-//   and recent media with like_count / comments_count / caption / permalink.
+//   and recent media with like_count / comments_count / view_count / caption /
+//   permalink. view_count (Meta's Business Discovery guide: paid and organic
+//   views) is asked for too; if Meta refuses the field the lookup is repeated
+//   without it, so views are a bonus and never cost the rest.
 //
 // What it does NOT return, ever: reach, impressions, saves, shares, watch
 // time, follower history, or anything else private to that account's owner.
@@ -33,6 +36,8 @@ export type IgDiscoveryMedia = {
   timestamp: string | null;
   likes: number | null;
   comments: number | null;
+  /** Views as Meta reports them (paid and organic); null when not returned. */
+  views: number | null;
 };
 
 export type IgDiscoveryAccount = {
@@ -102,20 +107,23 @@ export async function businessDiscovery(
   if (!/^[a-zA-Z0-9._]{1,30}$/.test(handle)) return { ok: false, reason: "not_found" };
 
   // mediaLimit 0 = the profile only (username lookups), no posts.
-  const fields =
+  const fieldsFor = (withViews: boolean) =>
     `business_discovery.username(${handle}){username,name,biography,profile_picture_url,followers_count,media_count` +
-    (mediaLimit > 0 ? `,media.limit(${mediaLimit}){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count}}` : "}");
+    (mediaLimit > 0 ? `,media.limit(${mediaLimit}){id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count${withViews ? ",view_count" : ""}}}` : "}");
 
-  const u = new URL(`${BASE}/${igUserId}`);
-  u.searchParams.set("fields", fields);
-  u.searchParams.set("access_token", pageToken);
+  type Reply = { business_discovery?: Record<string, unknown>; error?: { message?: string; code?: number; error_subcode?: number } };
+  const ask = async (withViews: boolean): Promise<Reply> => {
+    const u = new URL(`${BASE}/${igUserId}`);
+    u.searchParams.set("fields", fieldsFor(withViews));
+    u.searchParams.set("access_token", pageToken);
+    const res = await fetch(u, { signal: AbortSignal.timeout(12000) });
+    return (await res.json()) as Reply;
+  };
 
   try {
-    const res = await fetch(u, { signal: AbortSignal.timeout(12000) });
-    const j = (await res.json()) as {
-      business_discovery?: Record<string, unknown>;
-      error?: { message?: string; code?: number; error_subcode?: number };
-    };
+    let j = await ask(mediaLimit > 0);
+    // Meta refusing view_count must not cost the followers, likes and comments.
+    if (j.error && mediaLimit > 0 && /view_count|nonexisting field/i.test(j.error.message ?? "")) j = await ask(false);
 
     if (j.error) {
       const msg = (j.error.message ?? "").toLowerCase();
@@ -156,6 +164,7 @@ export async function businessDiscovery(
           timestamp: (m.timestamp as string) ?? null,
           likes: num(m.like_count),
           comments: num(m.comments_count),
+          views: num(m.view_count),
         })),
       },
     };
