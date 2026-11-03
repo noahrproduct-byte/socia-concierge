@@ -1,20 +1,13 @@
 "use client";
 
 // The account control: who is signed in and on which plan, opening
-// appearance, Settings, the next plan (owners only) and Log out. In the
+// Settings, the next plan (owners only) and Log out. In the
 // headbar it is the avatar alone with the name and plan at the top of its
 // menu; in the phone sheet it is the full row.
 
-import { ArrowUpRight, Check, ChevronsUpDown, LogOut, Moon, Settings, Sun, SunMoon } from "lucide-react";
-import { useTheme, type Appearance } from "@/components/ThemeProvider";
-import { Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger } from "@/components/system";
+import { ArrowUpRight, ChevronsUpDown, LogOut, Settings } from "lucide-react";
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "@/components/system";
 import { PLANS, type PlanId } from "@/lib/plans";
-
-const APPEARANCES: { value: Appearance; label: string; Icon: typeof Sun }[] = [
-  { value: "light", label: "Light", Icon: Sun },
-  { value: "dark", label: "Dark", Icon: Moon },
-  { value: "system", label: "System", Icon: SunMoon },
-];
 
 export default function AccountMenu({
   email,
@@ -28,7 +21,6 @@ export default function AccountMenu({
   /** The next plan's pricing link, shown to the workspace owner only. */
   upgrade?: { href: string; name: string } | null;
 }) {
-  const { appearance, setAppearance, ready } = useTheme();
   const name = (email?.split("@")[0] ?? "account").replace(/[._-]+/g, " ");
   const initial = (email?.[0] ?? "?").toUpperCase();
 
@@ -58,15 +50,6 @@ export default function AccountMenu({
             <MenuSeparator />
           </>
         )}
-        <MenuGroup label="Appearance">
-          {APPEARANCES.map(({ value, label, Icon }) => (
-            <MenuItem key={value} closeOnClick={false} onClick={() => setAppearance(value)} end={ready && appearance === value ? <Check aria-label="Selected" /> : undefined}>
-              <Icon aria-hidden />
-              <span>{label}</span>
-            </MenuItem>
-          ))}
-        </MenuGroup>
-        <MenuSeparator />
         <MenuItem href="/settings">
           <Settings aria-hidden />
           <span>Settings</span>

@@ -1,25 +1,12 @@
 "use client";
 
-// Appearance: light / dark / system. The preference lives in localStorage for
-// instant paint (a blocking script in <head> applies it before React runs),
-// and on the signed-in user's profile so it follows them across devices.
-// `system` tracks prefers-color-scheme live; an explicit choice never does.
+// Appearance: SOCIA is light only (lib/appearance.ts). The head script
+// (lib/themeScript.ts) paints the light theme before React runs; this provider
+// paints it again after hydration, in case React recovered from a hydration
+// mismatch and re-rendered <html> without the attributes the script set.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
-import { APPEARANCE_KEY, THEME_COLOR, defaultAppearance, isAppearance, type Appearance, type Resolved } from "@/lib/appearance";
-
-export { APPEARANCE_KEY, THEME_COLOR, isAppearance };
-export type { Appearance, Resolved };
-
-function systemResolved(): Resolved {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-export function resolveAppearance(a: Appearance): Resolved {
-  return a === "system" ? systemResolved() : a;
-}
+import { createContext, useContext, useEffect, useState } from "react";
+import { APPEARANCE_KEY, THEME_COLOR, type Resolved } from "@/lib/appearance";
 
 /** Paint the theme on <html>: data attribute (tokens), `dark` class (Tailwind
  *  variant), color-scheme (native controls), browser chrome color. */
@@ -33,145 +20,29 @@ export function applyResolved(resolved: Resolved) {
   });
 }
 
-/** A restrained 200ms crossfade of colors while the theme flips. */
-function withTransition(fn: () => void) {
-  const el = document.documentElement;
-  el.classList.add("theme-switching");
-  fn();
-  window.setTimeout(() => el.classList.remove("theme-switching"), 260);
-}
-
-/** The stored choice, or null when this person has never chosen one. */
-function storedChoice(): Appearance | null {
-  try {
-    const v = localStorage.getItem(APPEARANCE_KEY);
-    return isAppearance(v) ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The choice, or the default for this page: light in the app, the system setting on the public site. */
-function readStored(): Appearance {
-  return storedChoice() ?? defaultAppearance(window.location.pathname);
-}
-
-type Ctx = {
-  appearance: Appearance;
-  resolved: Resolved;
-  /** Apply immediately, remember on this device, and save to the account. */
-  setAppearance: (a: Appearance) => void;
-  /** True once the client has read the stored preference (avoids SSR guesses). */
-  ready: boolean;
-};
+type Ctx = { resolved: Resolved; ready: boolean };
 
 const ThemeContext = createContext<Ctx | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [appearance, setAppearanceState] = useState<Appearance>("system");
-  const [resolved, setResolved] = useState<Resolved>("light");
   const [ready, setReady] = useState(false);
 
-  // Read what the head script already applied, and apply it again: if React
-  // had to recover from a hydration mismatch it re-renders <html> and drops
-  // the attributes the script set. This runs right after hydration.
   useEffect(() => {
-    const a = readStored();
-    const r = resolveAppearance(a);
-    setAppearanceState(a);
-    setResolved(r);
-    applyResolved(r);
+    applyResolved("light");
+    // A choice saved before the app went light only would otherwise sit unused on the device.
+    try {
+      localStorage.removeItem(APPEARANCE_KEY);
+    } catch {
+      /* private mode */
+    }
     setReady(true);
   }, []);
 
-  // With no stored choice the default depends on the page (light in the app),
-  // so a client-side move from sign-in into the app re-resolves it.
-  const pathname = usePathname();
-  useEffect(() => {
-    if (!ready || storedChoice()) return;
-    const a = defaultAppearance(pathname ?? "/");
-    const r = resolveAppearance(a);
-    setAppearanceState(a);
-    setResolved(r);
-    applyResolved(r);
-  }, [pathname, ready]);
-
-  // The account's saved preference (ThemeSync) arrives as an event.
-  useEffect(() => {
-    const on = (e: Event) => {
-      const a = (e as CustomEvent).detail;
-      if (!isAppearance(a)) return;
-      setAppearanceState(a);
-      setResolved(resolveAppearance(a));
-    };
-    window.addEventListener("socia-appearance", on);
-    return () => window.removeEventListener("socia-appearance", on);
-  }, []);
-
-  // System mode follows the OS live; explicit choices ignore it.
-  useEffect(() => {
-    if (appearance !== "system") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      const r = systemResolved();
-      setResolved(r);
-      withTransition(() => applyResolved(r));
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, [appearance]);
-
-  const setAppearance = useCallback((a: Appearance) => {
-    const r = resolveAppearance(a);
-    setAppearanceState(a);
-    setResolved(r);
-    withTransition(() => applyResolved(r));
-    try {
-      localStorage.setItem(APPEARANCE_KEY, a);
-    } catch {
-      /* private mode: the account copy still saves */
-    }
-    // Account-level copy, best effort; the device copy already took effect.
-    fetch("/api/profile", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appearance: a }),
-    }).catch(() => {});
-  }, []);
-
-  const value = useMemo(() => ({ appearance, resolved, setAppearance, ready }), [appearance, resolved, setAppearance, ready]);
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={{ resolved: "light", ready }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): Ctx {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error("useTheme must be used inside ThemeProvider");
   return ctx;
-}
-
-/**
- * Brings the account's saved preference onto this device. Rendered by the app
- * shell with the value from the profile row: when it differs from what this
- * device last used, the account wins (it is the user's most recent explicit
- * choice anywhere) and the device copy is updated.
- */
-export function ThemeSync({ appearance }: { appearance: Appearance | null }) {
-  const { appearance: local, ready } = useTheme();
-  const synced = useRef(false);
-  useEffect(() => {
-    // Once per page load. After that the user's clicks are the truth; the
-    // account copy is updated by setAppearance, not the other way round.
-    if (synced.current || !ready || !appearance) return;
-    synced.current = true;
-    if (appearance === local) return;
-    try {
-      localStorage.setItem(APPEARANCE_KEY, appearance);
-    } catch {
-      /* ignore */
-    }
-    applyResolved(resolveAppearance(appearance));
-    // Re-read into context without a network save (it came from the account).
-    window.dispatchEvent(new CustomEvent("socia-appearance", { detail: appearance }));
-  }, [appearance, local, ready]);
-  return null;
 }

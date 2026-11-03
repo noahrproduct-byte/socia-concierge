@@ -48,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("font-sans", inter.variable)} suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#f5f6fa" />
+        <meta name="theme-color" content="#f5f4f1" />
         <ThemeScript />
       </head>
       <body>

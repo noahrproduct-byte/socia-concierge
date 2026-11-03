@@ -14,7 +14,6 @@ import {
   Bell,
   CreditCard,
   Lock,
-  SunMoon,
   Bot,
   Target,
   type LucideIcon,
@@ -40,7 +39,6 @@ const GROUPS: Group[] = [
   {
     label: "Preferences",
     items: [
-      { id: "appearance", label: "Appearance", Icon: SunMoon },
       { id: "notifications", label: "Notifications & Reports", Icon: Bell },
     ],
   },

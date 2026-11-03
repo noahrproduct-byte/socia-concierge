@@ -32,6 +32,15 @@ Also: **Ask SOCIA**, an assistant on every page that answers from the account's 
 - Stripe for billing, ElevenLabs for music, AssemblyAI for transcription
 - Deployed on Vercel; scheduled jobs run from Supabase pg_cron
 
+## Appearance
+
+Light only since 2026-11-03. Every page renders the light theme, whatever the device setting or an old saved choice, and there is no Light/Dark/System picker.
+
+- `lib/themeScript.ts` and `components/ThemeProvider.tsx` always paint the light tokens and clear any old `socia-appearance` value.
+- The app's top bar (`.s-headbar`) is frosted white glass; its tokens (`--headbar`, `--dock-*`) are in `app/styles/tokens.css`.
+- The landing page (`components/home/`) and `/pricing` were built dark and now use light palettes matched to the app's tokens.
+- The dark token values stay in `app/styles/tokens.css` and `profiles.appearance` is untouched, so dark mode can return. The login and signup pages keep their dark left panel on purpose.
+
 ## Run it locally
 
 Needs Node 20 or newer (Vercel runs 24).
