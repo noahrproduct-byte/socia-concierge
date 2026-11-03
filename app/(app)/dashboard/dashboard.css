@@ -1142,6 +1142,7 @@ button.dash-kpi {
 .dash-ideas-body { display: flex; flex-direction: column; gap: var(--sp-3); }
 .dash-ideas-fit { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .dash-ideas-fit b { color: var(--ink); margin-right: var(--sp-1); }
+.dash-ideas-evidence { font-weight: var(--fw-semibold); color: var(--ink); }
 .dash-ideas-shots { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--r-control); overflow-x: auto; }
 .dash-ideas-row { display: grid; grid-template-columns: 96px minmax(160px, 2fr) minmax(120px, 1fr) minmax(140px, 1.4fr); gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-top: 1px solid var(--rule); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); min-width: 560px; }
 .dash-ideas-row:first-child { border-top: 0; }
