@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 1, 2026</p>
+      <p className="legal-date">Last updated: November 3, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -45,10 +45,11 @@ export default function PrivacyPage() {
           (<code>pages_show_list</code>, <code>pages_read_engagement</code>,{" "}
           <code>pages_read_user_content</code>, <code>pages_manage_posts</code>,{" "}
           <code>pages_manage_engagement</code>, <code>read_insights</code>,{" "}
-          <code>instagram_basic</code>, <code>instagram_manage_contents</code>,{" "}
-          <code>business_management</code>), we read the Page&apos;s details,
-          posts, engagement, insights and comments. We publish and reply only
-          when you do. We keep your Facebook user token next to the Page token
+          <code>instagram_basic</code>, <code>instagram_manage_insights</code>,{" "}
+          <code>instagram_manage_contents</code>, <code>business_management</code>),
+          we read the Page&apos;s details, posts, engagement, insights and
+          comments, and look up other public Instagram business accounts for
+          competitor research. We publish and reply only when you do. We keep your Facebook user token next to the Page token
           because Meta lets an Instagram post be deleted only with it; we use
           it, and <code>instagram_manage_contents</code>, only to delete a post
           from the Instagram account linked to your Page when you ask SOCIA to.
