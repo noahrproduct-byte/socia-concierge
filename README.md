@@ -39,7 +39,8 @@ Light only since 2026-11-03. Every page renders the light theme, whatever the de
 - `lib/themeScript.ts` and `components/ThemeProvider.tsx` always paint the light tokens and clear any old `socia-appearance` value.
 - The app's top bar (`.s-headbar`) is frosted white glass; its tokens (`--headbar`, `--dock-*`) are in `app/styles/tokens.css`.
 - The landing page (`components/home/`) and `/pricing` were built dark and now use light palettes matched to the app's tokens.
-- The dark token values stay in `app/styles/tokens.css` and `profiles.appearance` is untouched, so dark mode can return. The login and signup pages keep their dark left panel on purpose.
+- The login and signup showcase panel (`.auth-brand` in `app/globals.css`) is white, with its sweeping arc in hairline grey and accent blue.
+- The dark token values stay in `app/styles/tokens.css` and `profiles.appearance` is untouched, so dark mode can return.
 
 ## Run it locally
 
