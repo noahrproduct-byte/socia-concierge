@@ -353,6 +353,16 @@ export const clipIdx = (position: number) => CLIP_IDX_BASE - position;
 /** The person's own edit or a single-clip post: no AI made the cut, nothing is counted. */
 export const isOwnCutIdx = (idx: number) => idx === MANUAL_IDX || idx <= CLIP_IDX_BASE;
 
+/**
+ * SOCIA's cut as plans without Make This Video (auto_build) see it: the edit
+ * guide, caption and notes, without the cut itself. The guide tells the person
+ * how to edit it; the cut stays out of reach, so it can't be pasted into their
+ * own edit and exported for free.
+ */
+export function guideOnly(b: StudioBuild): StudioBuild {
+  return { ...b, edl: { ...b.edl, segments: [], text: [], enhance: [], audio: [], captions: null }, historyLength: 0 };
+}
+
 /** Is this build the person's own edit? Decides which plan feature and allowance apply. */
 export async function isManualBuild(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<boolean | null> {
   const row = await loadBuildRow(client, ownerId, wsId, buildId);
