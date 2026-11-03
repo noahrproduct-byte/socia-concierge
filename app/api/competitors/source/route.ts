@@ -5,6 +5,7 @@ import { FB_GRAPH_V } from "@/lib/facebook";
 import { igConnection } from "@/lib/igCompetitorData";
 import { businessDiscovery } from "@/lib/igBusinessDiscovery";
 import { researchConfigured, researchConnection } from "@/lib/igResearch";
+import { connectionWorkspaceId } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
@@ -40,11 +41,15 @@ export async function GET() {
   const ctx = await resolveContext(supabase, user.id);
   if (!can(ctx, "manage_workspace")) return NextResponse.json({ error: forbiddenCopy("manage_workspace") }, { status: 403 });
 
-  const { data } = await ctx.client
+  // The owner sees all their Pages (any of them can ask Business Discovery,
+  // like igConnection); an Admin invited to one brand sees only that brand's.
+  const wsId = ctx.viewerId === ctx.ownerId ? null : await connectionWorkspaceId(ctx.client, ctx.ownerId, ctx.workspace?.id ?? undefined);
+  let q = ctx.client
     .from("facebook_connections")
     .select("page_id, page_name, ig_business_username, ig_business_id, access_token, connection_status")
-    .eq("user_id", ctx.ownerId)
-    .limit(20);
+    .eq("user_id", ctx.ownerId);
+  if (wsId) q = q.eq("workspace_id", wsId);
+  const { data } = await q.limit(20);
   const pages = await Promise.all(
     ((data ?? []) as Row[]).map(async (r) => ({
       page: r.page_name ?? null,

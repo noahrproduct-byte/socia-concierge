@@ -11,6 +11,7 @@ import { studioRequest, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips
 import { getProjectRow } from "@/lib/studioClips/server";
 import type { CalendarPost } from "@/lib/studioClips/distribute";
 import { BATCH_HORIZON_DAYS } from "@/lib/studioClips/batch";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -69,6 +70,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects/[id]/batch", e);
   }
 }

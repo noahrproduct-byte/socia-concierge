@@ -6,6 +6,7 @@ import { deny } from "@/lib/planGuard";
 import { PLANS, nextPlan } from "@/lib/plans";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
 import { isMissingColumnError } from "@/lib/workspaces";
+import { dbErrorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -152,13 +153,13 @@ export async function POST(req: Request) {
     .from("instagram_connections")
     .update({ is_active: false })
     .eq("user_id", ctx.ownerId);
-  if (off.error) return NextResponse.json({ error: off.error.message }, { status: 500 });
+  if (off.error) return dbErrorResponse("accounts", off.error);
   const on = await ctx.client
     .from("instagram_connections")
     .update({ is_active: true })
     .eq("user_id", ctx.ownerId)
     .eq("ig_user_id", igId);
-  if (on.error) return NextResponse.json({ error: on.error.message }, { status: 500 });
+  if (on.error) return dbErrorResponse("accounts", on.error);
 
   return NextResponse.json({ ok: true, active: igId });
 }

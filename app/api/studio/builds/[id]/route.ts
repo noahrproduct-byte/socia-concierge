@@ -6,6 +6,7 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { buildFeature, buildPlayerData, isManualBuild, saveBuildEdl } from "@/lib/studioClips/server";
 import type { Edl } from "@/lib/studioClips/types";
 import { readPresets } from "@/lib/studioClips/styleStore";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -36,7 +37,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json(data);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/builds/[id]", e);
   }
 }
 
@@ -58,6 +59,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/builds/[id]", e);
   }
 }

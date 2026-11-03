@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rankNiche, workingNow, momentum, pickOpportunity, baselineText, type NichePost } from "./nicheTrends";
+import { rankNiche, workingNow, momentum, pickOpportunity, baselineText, cleanSavedPost, type NichePost } from "./nicheTrends";
 
 const NOW = new Date("2026-09-07T12:00:00Z");
 const ago = (d: number) => new Date(NOW.getTime() - d * 86400000).toISOString();
@@ -91,5 +91,26 @@ describe("baselineText", () => {
     expect(t.post).toBe("84,200 views");
     expect(t.median).toBe("6,846 views");
     expect(t.mult).toBe("12.3× baseline");
+  });
+});
+
+describe("cleanSavedPost", () => {
+  const base = { url: "https://www.instagram.com/reel/abc/", platform: "instagram", title: "t", thumb: "https://scontent.cdninstagram.com/x.jpg", views: 10, tags: ["hook"] };
+  it("keeps a real post's known fields", () => {
+    const p = cleanSavedPost({ ...base, extra: "x".repeat(10_000) });
+    expect(p?.url).toBe(base.url);
+    expect(p?.thumb).toBe(base.thumb);
+    expect(p && "extra" in p).toBe(false);
+  });
+  it("refuses links that aren't https", () => {
+    expect(cleanSavedPost({ ...base, url: "javascript:alert(1)" })).toBeNull();
+    expect(cleanSavedPost({ ...base, url: "http://example.com" })).toBeNull();
+    expect(cleanSavedPost({ ...base, thumb: "data:image/svg+xml,<svg/>" })?.thumb).toBeNull();
+  });
+  it("clips text and drops numbers that aren't real", () => {
+    const p = cleanSavedPost({ ...base, title: "x".repeat(5000), views: Number.NaN, likes: -1 });
+    expect(p?.title?.length).toBe(500);
+    expect(p?.views).toBeNull();
+    expect(p?.likes).toBeNull();
   });
 });
