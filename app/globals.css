@@ -9025,6 +9025,19 @@ button.cal2-add { border: none; background: none; width: 100%; font-family: inhe
 
 /* month view */
 button.cal2-mevent { width: 100%; text-align: left; border: none; border-left: 2px solid var(--cobalt); font-family: inherit; cursor: pointer; }
+/* Drafts and ideas: drag to another day, or Move / Delete (components/CalendarBoard.tsx) */
+.cal2-item { display: flex; flex-direction: column; gap: 4px; cursor: grab; }
+.cal2-item.dragging, .cal2-mevent.dragging { opacity: 0.45; }
+.cal2-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 11px; color: var(--text-secondary); }
+.cal2-acts button { display: inline-flex; align-items: center; gap: 3px; min-height: 24px; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 11px; cursor: pointer; }
+.cal2-acts button:hover { background: var(--surface-hover); }
+.cal2-acts button:focus-visible, .cal2-acts input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal2-acts button.danger { border-color: var(--negative); color: var(--negative); }
+.cal2-acts input[type="date"] { height: 24px; padding: 0 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 11px; }
+.cal2-grip { color: var(--text-muted); }
+@media (hover: none) { .cal2-grip { display: none; } }
+.cal2-col.drop, .cal2-mcell.drop { outline: 2px dashed var(--accent-line); outline-offset: -3px; }
+.cal2-col.drop:hover, .cal2-mcell.drop:hover { background: var(--accent-subtle); }
 .cal2-mevent.st-draft { border-left-color: var(--warning); background: rgba(var(--warning-rgb), 0.08); color: var(--warning-text); }
 .cal2-mevent.st-published { border-left-color: var(--success); background: rgba(var(--success-rgb), 0.1); color: var(--success-text); }
 .cal2-mevent.st-failed { border-left-color: var(--danger); background: rgba(var(--danger-rgb), 0.08); color: var(--danger-text); }

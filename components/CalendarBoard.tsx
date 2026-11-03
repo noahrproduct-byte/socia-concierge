@@ -28,7 +28,10 @@ import {
   CheckCircle2,
   Loader2,
   Trash2,
+  CalendarDays,
+  GripVertical,
 } from "lucide-react";
+import { dayShift, isMovableDraft, moveProblem, shiftDays } from "@/lib/calendarMoves";
 import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
@@ -52,7 +55,7 @@ import {
   type CalPost,
 } from "@/lib/audience";
 import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status";
-import { PLATFORM_LABEL, type Destination, type Platform, type TrialShare } from "@/lib/publishing/types";
+import { PLATFORM_LABEL, type ContentItem, type Destination, type Platform, type TrialShare } from "@/lib/publishing/types";
 import { trialLine } from "@/lib/publishing/trial";
 import { firstLineOf } from "@/lib/publishing/postLabel";
 import "./calendar-destinations.css";
@@ -373,6 +376,69 @@ export default function CalendarBoard({
     });
   const remove = (id: string) => setItems((xs) => xs.filter((x) => x.id !== id));
 
+  // ---- drafts and ideas: move to another day, or delete -------------------
+  // Only drafts (lib/calendarMoves.ts). A move keeps the time of day; a post
+  // with several destination times keeps the gaps between them.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const moveItem = async (p: CalItem, target: Date) => {
+    const bad = moveProblem(target, new Date());
+    if (bad) { setNotice(bad); return; }
+    const days = dayShift(new Date(p.scheduled_at), target);
+    if (!days || busyId) return;
+    setBusyId(p.id);
+    try {
+      if (isMulti(p)) {
+        const r = await fetch(`/api/posts/${encodeURIComponent(p.id)}`);
+        const j = (await r.json().catch(() => null)) as { item?: ContentItem; error?: string } | null;
+        const item = j?.item;
+        if (!r.ok || !item) throw new Error(j?.error ?? "Couldn't open the draft.");
+        const res = await fetch("/api/posts", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: item.id, caption: item.caption, action: "draft",
+            scheduledAt: shiftDays(item.scheduledAt ?? p.scheduled_at, days),
+            source: item.source, planId: item.planId, planDay: item.planDay, customizePerPlatform: false,
+            media: item.media.map(({ id, kind, name, mime, size, width, height, duration, path }) => ({ id, kind, name, mime, size, width, height, duration, path })),
+            destinations: item.destinations.filter((d) => d.status !== "cancelled").map((d) => ({ platform: d.platform, accountId: d.accountId, settings: d.settings, scheduledAt: d.scheduledAt ? shiftDays(d.scheduledAt, days) : null })),
+          }),
+        });
+        const k = (await res.json().catch(() => null)) as { error?: string } | null;
+        if (!res.ok) throw new Error(k?.error ?? "Couldn't move the draft.");
+        setItems((xs) => xs.map((x) => (x.id === p.id ? { ...x, scheduled_at: shiftDays(x.scheduled_at, days), destinations: x.destinations?.map((d) => ({ ...d, scheduledAt: d.scheduledAt ? shiftDays(d.scheduledAt, days) : d.scheduledAt })) } : x)).sort(byTime));
+      } else {
+        const j = await api<{ post: ScheduledPost }>("PATCH", { id: p.id, scheduled_at: shiftDays(p.scheduled_at, days), keep_draft: true });
+        upsert({ ...p, ...j.post });
+      }
+      setNotice(`Moved to ${fmtDay(target)}.`);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Couldn't move the draft.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const deleteItem = async (p: CalItem) => {
+    if (busyId) return;
+    setBusyId(p.id);
+    try {
+      if (isMulti(p)) {
+        const r = await fetch(`/api/posts/${encodeURIComponent(p.id)}`, { method: "DELETE" });
+        const j = (await r.json().catch(() => null)) as { error?: string } | null;
+        if (!r.ok) throw new Error(j?.error ?? "Couldn't delete the draft.");
+      } else {
+        await api("DELETE", { id: p.id });
+      }
+      remove(p.id);
+      setNotice("Draft deleted.");
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Couldn't delete the draft.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const drafts_ = { dragId, setDragId, busyId, move: moveItem, del: deleteItem };
+
   // While Instagram is processing a video, refresh so the grid shows the outcome.
   const anyPublishing = items.some((p) => p.status === "publishing");
   useEffect(() => {
@@ -509,6 +575,7 @@ export default function CalendarBoard({
                 canSchedule={canSchedule}
                 onOpen={openItem}
                 onNew={openNew}
+                drafts={drafts_}
               />
             ) : (
               <MonthGrid
@@ -519,6 +586,7 @@ export default function CalendarBoard({
                 canSchedule={canSchedule}
                 onOpen={openItem}
                 onNew={openNew}
+                drafts={drafts_}
               />
             )}
           </>
@@ -777,6 +845,84 @@ function Toolbar({
   );
 }
 
+/** What the grids need to move and delete drafts (CalendarBoard owns the work). */
+type DraftOps = {
+  dragId: string | null;
+  setDragId: (id: string | null) => void;
+  busyId: string | null;
+  move: (p: CalItem, day: Date) => void;
+  del: (p: CalItem) => void;
+};
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Move and Delete under a draft: the way to do both without dragging (keyboard, phones). */
+function DraftActions({ p, ops }: { p: CalItem; ops: DraftOps }) {
+  const [mode, setMode] = useState<null | "move" | "delete">(null);
+  if (ops.busyId === p.id) return <span className="cal2-acts"><Loader2 size={12} className="cal2-spin" aria-hidden /> Saving</span>;
+  if (mode === "delete") {
+    return (
+      <span className="cal2-acts confirm" role="group" aria-label="Delete this draft?">
+        Delete it?
+        <button type="button" className="danger" onClick={() => { setMode(null); ops.del(p); }}>Delete</button>
+        <button type="button" onClick={() => setMode(null)}>Keep</button>
+      </span>
+    );
+  }
+  if (mode === "move") {
+    return (
+      <span className="cal2-acts">
+        <label>
+          <span className="sr-only">Move to</span>
+          <input
+            type="date"
+            min={ymd(new Date())}
+            defaultValue={ymd(new Date(p.scheduled_at))}
+            autoFocus
+            onChange={(e) => {
+              const [y, m, d] = e.target.value.split("-").map(Number);
+              if (!y || !m || !d) return;
+              setMode(null);
+              ops.move(p, new Date(y, m - 1, d));
+            }}
+          />
+        </label>
+        <button type="button" onClick={() => setMode(null)}>Cancel</button>
+      </span>
+    );
+  }
+  return (
+    <span className="cal2-acts">
+      <GripVertical size={12} className="cal2-grip" aria-hidden />
+      <button type="button" onClick={() => setMode("move")} aria-label={`Move ${titleOf(p)} to another day`}><CalendarDays size={12} aria-hidden /> Move</button>
+      <button type="button" onClick={() => setMode("delete")} aria-label={`Delete ${titleOf(p)}`}><Trash2 size={12} aria-hidden /> Delete</button>
+    </span>
+  );
+}
+
+/** Drop target props for a day: only while a draft is being dragged, and never a past day. */
+function dropProps(ops: DraftOps, items: CalItem[], day: Date, isPast: boolean) {
+  if (!ops.dragId || isPast) return {};
+  return {
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      const p = items.find((x) => x.id === ops.dragId);
+      ops.setDragId(null);
+      if (p) ops.move(p, day);
+    },
+  };
+}
+
+/** A draft can be picked up and dropped on another day. */
+function dragProps(ops: DraftOps, p: CalItem) {
+  return {
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", p.id); ops.setDragId(p.id); },
+    onDragEnd: () => ops.setDragId(null),
+  };
+}
+
 function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platform[] | null; onOpen: (p: CalItem) => void }) {
   if (ghost) {
     // The same item, seen from a day where only some destinations publish.
@@ -839,6 +985,7 @@ function WeekGrid({
   canSchedule,
   onOpen,
   onNew,
+  drafts,
 }: {
   now: Date;
   weekOffset: number;
@@ -847,6 +994,7 @@ function WeekGrid({
   canSchedule: boolean;
   onOpen: (p: CalItem) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
+  drafts: DraftOps;
 }) {
   const monday = new Date(mondayOf(now).getTime() + weekOffset * 7 * DAY_MS);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -865,7 +1013,7 @@ function WeekGrid({
         const strength = bars[bestHour] ?? 0;
 
         return (
-          <div className={`cal2-col${best ? " best" : ""}${isPast ? " past" : ""}`} key={dow}>
+          <div className={`cal2-col${best ? " best" : ""}${isPast ? " past" : ""}${drafts.dragId && !isPast ? " drop" : ""}`} key={dow} {...dropProps(drafts, items, date, isPast)}>
             <div className="cal2-dayhead">
               <span className="cal2-dow">{dow}</span>
               <span className={`cal2-num${isToday ? " today" : ""}`}>{date.getDate()}</span>
@@ -890,9 +1038,16 @@ function WeekGrid({
                 </div>
               )}
 
-              {dayEvents.map((e) => (
-                <PostCard p={e.p} at={e.at} ghost={e.ghost} key={`${e.p.id}${e.ghost ? "-also" : ""}`} onOpen={onOpen} />
-              ))}
+              {dayEvents.map((e) => {
+                const movable = !e.ghost && isMovableDraft(e.p);
+                if (!movable) return <PostCard p={e.p} at={e.at} ghost={e.ghost} key={`${e.p.id}${e.ghost ? "-also" : ""}`} onOpen={onOpen} />;
+                return (
+                  <div key={e.p.id} className={`cal2-item${drafts.dragId === e.p.id ? " dragging" : ""}`} {...dragProps(drafts, e.p)} title="Drag to another day to move it">
+                    <PostCard p={e.p} at={e.at} ghost={null} onOpen={onOpen} />
+                    <DraftActions p={e.p} ops={drafts} />
+                  </div>
+                );
+              })}
 
               {!isPast && (
                 <button type="button" className="cal2-add" onClick={() => onNew(date, i)}>
@@ -939,6 +1094,7 @@ function MonthGrid({
   canSchedule,
   onOpen,
   onNew,
+  drafts,
 }: {
   now: Date;
   monthOffset: number;
@@ -947,6 +1103,7 @@ function MonthGrid({
   canSchedule: boolean;
   onOpen: (p: CalItem) => void;
   onNew: (date: Date, weekdayMonFirst: number) => void;
+  drafts: DraftOps;
 }) {
   const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
@@ -977,7 +1134,7 @@ function MonthGrid({
           const isPast = d.getTime() < todayStart.getTime();
           const evs = eventByDate.get(d.toDateString()) ?? [];
           return (
-            <div className={`cal2-mcell${best ? " best" : ""}${isPast ? " past" : ""}`} key={d.getTime()}>
+            <div className={`cal2-mcell${best ? " best" : ""}${isPast ? " past" : ""}${drafts.dragId && !isPast ? " drop" : ""}`} key={d.getTime()} {...dropProps(drafts, items, d, isPast)}>
               <span className={`cal2-mnum${sameDay(d, now) ? " today" : ""}`}>{d.getDate()}</span>
               {evs.map(({ p, at, ghost }) => {
                 const time = fmtTime(at.toISOString());
@@ -998,10 +1155,11 @@ function MonthGrid({
                 return (
                   <button
                     type="button"
-                    className={`cal2-mevent st-${p.status}`}
+                    className={`cal2-mevent st-${p.status}${drafts.dragId === p.id ? " dragging" : ""}`}
                     key={p.id}
-                    title={`${time} · ${titleOf(p)} · ${status}`}
+                    title={`${time} · ${titleOf(p)} · ${status}${isMovableDraft(p) ? ". Drag to another day to move it" : ""}`}
                     onClick={() => onOpen(p)}
+                    {...(isMovableDraft(p) ? dragProps(drafts, p) : {})}
                   >
                     {isMulti(p) && <Marks destinations={p.destinations} />}
                     {titleOf(p)}
