@@ -7,6 +7,11 @@
 // them fill the customer's EMPTY roster slots, never more than PICKS_PER_RUN at
 // once, and never beyond the plan's competitor limit.
 //
+// When no Instagram check is possible (no Page of their own and SOCIA's research
+// account not connected), SOCIA still adds what web research found, at most
+// UNVERIFIED_PICKS, marked as unchecked. No number is ever shown for those
+// until Instagram returns one; the roster renders "—" with its reason.
+//
 // Rules that keep this honest and in the customer's control:
 // - An account the customer removed is never picked again (competitor_dismissals).
 //   Without that table (supabase/competitor-autopick.sql not run yet) nothing is
@@ -30,6 +35,8 @@ export const PICKS_PER_RUN = 5;
 export const MIN_FOLLOWERS = 100;
 /** Candidates checked against Instagram per run (each is one Business Discovery call). */
 const MAX_CHECKS = 8;
+/** Picks per run when Instagram can't confirm anything: fewer, since nothing was checked. */
+export const UNVERIFIED_PICKS = 3;
 
 // Closest rivals first; pure inspiration last.
 const CLASS_RANK: Record<Classification, number> = {
@@ -78,6 +85,22 @@ export function choosePicks(
     )
     .slice(0, Math.min(freeSlots, PICKS_PER_RUN))
     .map(({ c, v }) => ({ handle: v.handle.toLowerCase(), reason: pickReason(c, v) }));
+}
+
+/**
+ * Pure choice when Instagram can't confirm anything: web research's Instagram
+ * finds, closest rivals first, each saying it was not checked.
+ */
+export function chooseUnverifiedPicks(candidates: ScoredAccount[], freeSlots: number): Pick[] {
+  if (freeSlots <= 0) return [];
+  return candidates
+    .filter((c) => c.handle && c.dataSource === "web_research")
+    .sort((a, b) => (CLASS_RANK[a.classification] ?? 9) - (CLASS_RANK[b.classification] ?? 9) || b.relevanceScore - a.relevanceScore)
+    .slice(0, Math.min(freeSlots, UNVERIFIED_PICKS))
+    .map((c) => {
+      const why = (c.note ?? c.relevanceReasons[0] ?? "").trim().replace(/\.$/, "");
+      return { handle: c.handle!.toLowerCase(), reason: [why, "Found by web research; Instagram has not confirmed its numbers yet"].filter(Boolean).join(". ").slice(0, 240) };
+    });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,9 +152,9 @@ export async function autoPickCompetitors(opts: {
     if (!candidates.length) return [];
 
     const res = await igCompetitorRows(client, ownerId, candidates.map((c) => c.handle!));
-    if (!res.enabled) return [];
-    const verified = new Map(res.competitors.map((c) => [c.handle.toLowerCase(), c]));
-    const picks = choosePicks(candidates, verified, free);
+    const picks = res.enabled
+      ? choosePicks(candidates, new Map(res.competitors.map((c) => [c.handle.toLowerCase(), c])), free)
+      : chooseUnverifiedPicks(candidates, free);
 
     const added: Pick[] = [];
     for (const p of picks) {

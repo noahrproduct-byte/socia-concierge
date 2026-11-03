@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choosePicks, pickReason, MIN_FOLLOWERS, PICKS_PER_RUN } from "./competitorAutoPick";
+import { choosePicks, chooseUnverifiedPicks, pickReason, MIN_FOLLOWERS, PICKS_PER_RUN, UNVERIFIED_PICKS } from "./competitorAutoPick";
 import type { ScoredAccount, Classification } from "./discovery";
 import type { IgCompetitor } from "./igCompetitorData";
 
@@ -49,5 +49,23 @@ describe("pickReason", () => {
 
   it("leaves out numbers Instagram did not return", () => {
     expect(pickReason(cand("x", "local_competitor", 70), ig("x", 950, null))).toBe("Same niche. 950 followers");
+  });
+});
+
+describe("chooseUnverifiedPicks", () => {
+  it("adds only web-research finds, fewer of them, each marked as unchecked", () => {
+    const yt = { ...cand("tube", "direct_competitor", 99), platform: "youtube" as const, dataSource: "youtube_api" as const };
+    const picks = chooseUnverifiedPicks(
+      [yt, cand("inspo", "content_inspiration", 95), cand("rival", "direct_competitor", 40, "Same street."), cand("b", "local_competitor", 50), cand("c", "niche_leader", 60)],
+      10,
+    );
+    expect(picks.map((p) => p.handle)).toEqual(["rival", "b", "c"]);
+    expect(picks).toHaveLength(UNVERIFIED_PICKS);
+    expect(picks[0].reason).toBe("Same street. Found by web research; Instagram has not confirmed its numbers yet");
+  });
+
+  it("respects the free slots", () => {
+    expect(chooseUnverifiedPicks([cand("a", "direct_competitor", 1), cand("b", "direct_competitor", 2)], 1)).toHaveLength(1);
+    expect(chooseUnverifiedPicks([cand("a", "direct_competitor", 1)], 0)).toHaveLength(0);
   });
 });
