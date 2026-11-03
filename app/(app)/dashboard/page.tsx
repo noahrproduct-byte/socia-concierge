@@ -19,7 +19,7 @@ import { buildFacebookAnalytics } from "@/lib/metrics/facebook";
 import { buildTikTokAnalytics } from "@/lib/metrics/tiktok";
 import { instagramSummary, facebookSummary, youtubeSummary, tiktokSummary } from "@/lib/platformSummaries";
 import {
-  RANGES, rangeDays, clampRangeId, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf,
+  RANGES, rangeDays, clampRangeId, DAY_MS, postCards, rankPosts, buildKpis, buildSeries, buildInsights, buildFocus, buildGoals, buildUpcoming, formatOf, displayTitle,
 } from "@/lib/overview";
 import { getEntitlements, maxHistoryDays, canUseFeature } from "@/lib/entitlements";
 import { minPlanWithFeature, pricingHref, PLANS } from "@/lib/plans";
@@ -31,6 +31,8 @@ import type { TtVideo } from "@/lib/tiktokAuth";
 import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { captionlessLabels } from "@/lib/publishing/postLabelLoad";
+import { computeContentScore } from "@/lib/contentScore";
+import type { CalendarItem, Competitors, PlanDayItem } from "@/lib/overviewVisual";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
@@ -84,9 +86,9 @@ export default async function DashboardPage({
 
   // Competitors preview: tracked Instagram accounts whose public numbers SOCIA
   // has already read (Business Discovery, cached 6 hours), compared on the
-  // only measure both sides publish: median likes + comments per post.
-  // No live calls here; an account without a cached read is simply left out.
-  const compP: Promise<Omit<NonNullable<DashboardData["competitors"]>, "you"> | null> = (async () => {
+  // two measures both sides publish: median likes + comments per post, and
+  // followers. No live calls here; an account without a cached read is simply left out.
+  const compP: Promise<Omit<Competitors, "you"> | null> = (async () => {
     try {
       const cwid = await competitorScopeId(ctx.client, wsId ?? undefined);
       const [tracked, own] = await Promise.all([
@@ -96,10 +98,10 @@ export default async function DashboardPage({
       const theirs = tracked.filter((t) => !isOwnAccount(own, { handle: t.handle }));
       const ig = theirs.filter((t) => t.platform === "instagram").map((t) => t.handle.toLowerCase()).slice(0, 6);
       if (!ig.length) return { tracked: theirs.length, rows: [] };
-      const { data } = await ctx.client.from("ig_competitor_snapshots").select("handle, display_name, profile_picture, median_engagement").eq("user_id", ctx.ownerId).in("handle", ig);
-      const rows = ((data ?? []) as { handle: string; display_name: string | null; profile_picture: string | null; median_engagement: number | null }[])
-        .filter((r) => r.median_engagement != null)
-        .map((r) => ({ handle: r.handle, name: r.display_name ?? `@${r.handle}`, avatar: r.profile_picture, value: Number(r.median_engagement) }));
+      const { data } = await ctx.client.from("ig_competitor_snapshots").select("handle, display_name, profile_picture, median_engagement, followers").eq("user_id", ctx.ownerId).in("handle", ig);
+      const rows = ((data ?? []) as { handle: string; display_name: string | null; profile_picture: string | null; median_engagement: number | null; followers: number | null }[])
+        .filter((r) => r.median_engagement != null || r.followers != null)
+        .map((r) => ({ handle: r.handle, name: r.display_name ?? `@${r.handle}`, avatar: r.profile_picture, engagement: r.median_engagement != null ? Number(r.median_engagement) : null, followers: r.followers != null ? Number(r.followers) : null }));
       return { tracked: theirs.length, rows };
     } catch {
       return null; // competitor tables absent: the card says so
@@ -182,7 +184,13 @@ export default async function DashboardPage({
 
   const [schedRes, plansRes] = await schedPlansP;
   const scheduled = (schedRes.data ?? []) as ScheduledPost[];
-  const upcoming = buildUpcoming(scheduled, 4, await captionlessLabels(ctx.client, ctx.ownerId, scheduled));
+  const labels = await captionlessLabels(ctx.client, ctx.ownerId, scheduled);
+  const upcoming = buildUpcoming(scheduled, 4, labels);
+  // The 7-day strip: calendar posts around this week (the viewer's own week
+  // is cut in the browser, in their time zone), with their titles.
+  const calendar: CalendarItem[] = scheduled
+    .filter((p) => Math.abs(new Date(p.scheduled_at).getTime() - now.getTime()) <= 9 * DAY_MS)
+    .map((p) => ({ id: p.id, at: p.scheduled_at, status: p.status, mediaType: p.media_type, title: displayTitle(p.caption) === "(no caption)" ? labels?.get(p.id) ?? "Untitled post" : displayTitle(p.caption) }));
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
@@ -258,6 +266,15 @@ export default async function DashboardPage({
   const recent12 = [...media].filter((m) => m.timestamp).sort((a, b) => Date.parse(b.timestamp!) - Date.parse(a.timestamp!)).slice(0, 12);
   const yourLC = recent12.length >= 3 ? median(recent12.map((m) => (m.like_count ?? 0) + (m.comments_count ?? 0))) : null;
   const comp = await compP;
+  // The content score (lib/contentScore.ts): calculated from the account's own
+  // posts, followers and daily reach; null until five dated posts exist.
+  const dailyReach = dailyRows.filter((r) => r.source === "instagram_api" && r.reach != null).map((r) => r.reach as number);
+  const score = live ? computeContentScore(media, snap!.followers_count ?? null, dailyReach, days) : null;
+  // The latest plan's week, for the strip, only while that plan is this week's.
+  const planIsThisWeek = Boolean(latestPlan && now.getTime() - Date.parse(latestPlan.created_at) < 7 * DAY_MS);
+  const planWeek: PlanDayItem[] | null = planIsThisWeek && Array.isArray(latestPlan?.data?.weeklyPlan)
+    ? latestPlan!.data.weeklyPlan.map((w) => ({ day: w.day, format: w.format, title: w.title ?? w.concept }))
+    : null;
   // The most recent post on any connected platform SOCIA reads, for the priority line.
   const lastIg = media.reduce<string | null>((acc, m) => (m.timestamp && (!acc || m.timestamp > acc) ? m.timestamp : acc), null);
   // The person's first name, only if their sign-in account carries one.
@@ -340,7 +357,10 @@ export default async function DashboardPage({
     repurpose,
     firstName,
     lastPost: lastIg ? { platform: "Instagram", at: lastIg } : null,
-    competitors: comp ? { ...comp, you: yourLC } : null,
+    competitors: comp ? { ...comp, you: { engagement: yourLC, followers: live ? snap!.followers_count ?? null : null } } : null,
+    score: score ? { score: score.score, verdict: score.verdict, dims: score.dims.map((x) => ({ label: x.label, value: x.value, method: x.method })), sampleSize: score.sampleSize } : null,
+    calendar,
+    planWeek,
     intel: {
       briefing,
       works,
