@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { FB_GRAPH_V } from "@/lib/facebook";
 import { igConnection } from "@/lib/igCompetitorData";
+import { businessDiscovery } from "@/lib/igBusinessDiscovery";
 import { researchConfigured, researchConnection } from "@/lib/igResearch";
 
 export const runtime = "nodejs";
@@ -11,7 +12,8 @@ export const runtime = "nodejs";
 // and why not when they don't: each connected Facebook Page, the Instagram
 // account SOCIA saved for it, what Facebook says is linked right now (or the
 // error it gives), and whether SOCIA's research account (lib/igResearch.ts) is
-// found. Read only; tokens never leave the server. Owner and admins only.
+// found, plus one real test lookup with Meta's own error text when it fails.
+// Read only; tokens never leave the server. Owner and admins only.
 
 type Row = { page_id?: string | null; page_name?: string | null; ig_business_username?: string | null; ig_business_id?: string | null; access_token?: string | null; connection_status?: string | null };
 
@@ -53,8 +55,12 @@ export async function GET() {
   );
 
   const conn = await igConnection(ctx.client, ctx.ownerId);
+  // One real lookup of a public account, profile only, so a failure shows
+  // Meta's own words instead of SOCIA's summary of them.
+  const probe = conn ? await businessDiscovery(conn.igUserId, conn.pageToken, "instagram", 0) : null;
   return NextResponse.json({
     using: conn?.source ?? null,
+    testLookup: probe ? (probe.ok ? { ok: true, followers: probe.account.followers } : { ok: false, reason: probe.reason, meta: probe.detail ?? null }) : null,
     pages,
     research: { configured: researchConfigured(), found: Boolean(await researchConnection()) },
   });
