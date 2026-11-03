@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choosePicks, chooseUnverifiedPicks, pickReason, MIN_FOLLOWERS, PICKS_PER_RUN, UNVERIFIED_PICKS } from "./competitorAutoPick";
+import { choosePicks, chooseUnverifiedPicks, fmtRate, pickReason, MIN_FOLLOWERS, PICKS_PER_RUN, UNVERIFIED_PICKS } from "./competitorAutoPick";
 import type { ScoredAccount, Classification } from "./discovery";
 import type { IgCompetitor } from "./igCompetitorData";
 
@@ -67,5 +67,20 @@ describe("chooseUnverifiedPicks", () => {
   it("respects the free slots", () => {
     expect(chooseUnverifiedPicks([cand("a", "direct_competitor", 1), cand("b", "direct_competitor", 2)], 1)).toHaveLength(1);
     expect(chooseUnverifiedPicks([cand("a", "direct_competitor", 1)], 0)).toHaveLength(0);
+  });
+});
+
+describe("reason text", () => {
+  it("never shows a tiny rate as 0.0%", () => {
+    expect(fmtRate(0.04)).toBe("under 0.1%");
+    expect(fmtRate(0)).toBe("0.0%");
+    expect(fmtRate(2.34)).toBe("2.3%");
+  });
+
+  it("cuts a long reason at a word and keeps the numbers", () => {
+    const long = "Same-niche peer: " + "sells an AI social media agent that writes and publishes posts ".repeat(5);
+    const r = pickReason(cand("x", "direct_competitor", 70, long), ig("x", 663000, 0.02));
+    expect(r.endsWith("663k followers, under 0.1% engagement")).toBe(true);
+    expect(r).toMatch(/\w… 663k/);
   });
 });
