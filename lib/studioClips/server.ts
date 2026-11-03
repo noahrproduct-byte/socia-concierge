@@ -116,7 +116,7 @@ export async function loadProject(client: Supa, ownerId: string, wsId: string | 
   if (!row) return null;
   const [rows, builds] = await Promise.all([
     clipRows(client, id),
-    client.from("studio_builds").select("opportunity_idx").eq("project_id", id),
+    client.from("studio_builds").select("opportunity_idx").eq("project_id", id).eq("user_id", ownerId),
   ]);
   const urls = await frameUrls(client, rows);
   return {
@@ -281,25 +281,25 @@ function rowToBuild(b: BuildRow, rows: ClipRow[]): StudioBuild {
 }
 
 /** Select build rows, tolerating a database without the Phase B columns. */
-async function selectBuilds(client: Supa, apply: (q: ReturnType<Supa["from"]>["select"] extends (...a: never[]) => infer R ? R : never) => unknown): Promise<BuildRow[]> {
+async function selectBuilds(client: Supa, ownerId: string, apply: (q: ReturnType<Supa["from"]>["select"] extends (...a: never[]) => infer R ? R : never) => unknown): Promise<BuildRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const run = async (cols: string) => apply(client.from("studio_builds").select(cols) as any) as Promise<{ data: unknown; error: { message?: string } | null }>;
+  const run = async (cols: string) => apply(client.from("studio_builds").select(cols).eq("user_id", ownerId) as any) as Promise<{ data: unknown; error: { message?: string } | null }>;
   let res = await run(BUILD_COLS_B);
   if (res.error && /column|does not exist/i.test(res.error.message ?? "")) res = await run(BUILD_COLS);
   if (res.error) throw res.error;
   return ((res.data ?? []) as BuildRow[]);
 }
 
-export async function loadBuild(client: Supa, projectId: string, idx: number, rows: ClipRow[]): Promise<StudioBuild | null> {
+export async function loadBuild(client: Supa, ownerId: string, projectId: string, idx: number, rows: ClipRow[]): Promise<StudioBuild | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [b] = await selectBuilds(client, (q: any) => q.eq("project_id", projectId).eq("opportunity_idx", idx).limit(1));
+  const [b] = await selectBuilds(client, ownerId, (q: any) => q.eq("project_id", projectId).eq("opportunity_idx", idx).limit(1));
   return b ? rowToBuild(b, rows) : null;
 }
 
 /** A build of this owner, in this Brand Workspace only (a guest of one brand never reaches another's). */
 export async function loadBuildRow(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<BuildRow | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [b] = await selectBuilds(client, (q: any) => scopeToWorkspace(q.eq("id", buildId).eq("user_id", ownerId), wsId).limit(1));
+  const [b] = await selectBuilds(client, ownerId, (q: any) => scopeToWorkspace(q.eq("id", buildId), wsId).limit(1));
   return b ?? null;
 }
 
@@ -376,7 +376,7 @@ export async function isManualBuild(client: Supa, ownerId: string, wsId: string 
 export async function manualBuild(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
   const { ownerId, wsId, project, preset } = args;
   const rows = await clipRows(client, project.id);
-  const existing = await loadBuild(client, project.id, MANUAL_IDX, rows);
+  const existing = await loadBuild(client, ownerId, project.id, MANUAL_IDX, rows);
   if (existing) return existing;
   const ready = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
   if (!ready.length) throw new Error("Add at least one clip that finished uploading.");
@@ -410,7 +410,7 @@ export async function clipBuild(client: Supa, args: { ownerId: string; wsId: str
   const clip = rows.find((r) => r.id === clipId);
   if (!clip || !clip.source_path || clip.purged_at || clip.status === "expired" || !((clip.duration_s ?? 0) > 0)) throw new Error("That clip isn't ready to post.");
   const idx = clipIdx(clip.position);
-  const existing = await loadBuild(client, project.id, idx, rows);
+  const existing = await loadBuild(client, ownerId, project.id, idx, rows);
   if (existing) return existing;
   const dur = clip.duration_s ?? 0;
   const { edl } = validateEdl({
@@ -501,7 +501,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
 /** The project's cuts made from a brief, newest first: id, title and what they follow. */
 export async function listBriefBuilds(client: Supa, ownerId: string, wsId: string | null, projectId: string): Promise<{ id: string; title: string; referenceName: string | null; createdAt: string }[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = await selectBuilds(client, (q: any) => scopeToWorkspace(q.eq("project_id", projectId).eq("user_id", ownerId).lte("opportunity_idx", -2).gte("opportunity_idx", -999), wsId).order("created_at", { ascending: false }).limit(20));
+  const rows = await selectBuilds(client, ownerId, (q: any) => scopeToWorkspace(q.eq("project_id", projectId).lte("opportunity_idx", -2).gte("opportunity_idx", -999), wsId).order("created_at", { ascending: false }).limit(20));
   return rows.map((b) => {
     const brief = b.edl?.brief ?? null;
     const title = brief?.prompt ? titleFor(brief.prompt, null) : brief?.referenceName ? `Like “${brief.referenceName}”` : "Your video";
@@ -636,7 +636,7 @@ export async function buildFromBrief(client: Supa, args: {
   const usable = rows.filter((r) => r.card && !r.purged_at && r.status !== "expired");
   if (!usable.length) throw new Error("SOCIA hasn't understood these clips yet. Run Understand this footage first.");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const existing = await selectBuilds(client, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
+  const existing = await selectBuilds(client, ownerId, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
   const idx = nextBriefIdx(existing.map((b) => b.opportunity_idx));
   const title = titleFor(prompt, reference?.breakdown ?? null);
   const opp = opportunityFromBrief(title, prompt ?? reference?.breakdown.summary ?? title, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, card: r.card })), idx);

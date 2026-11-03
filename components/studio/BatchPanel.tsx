@@ -416,7 +416,7 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
               <CalendarClock size={14} /> Make {chosen.length === 1 ? "this video" : `${chosen.length} videos`}
             </button>
             <p className="cbp-muted">
-              {ideasChosen > 0 ? `Each idea counts as one video build on your plan. ` : ""}Keep this tab open while they&apos;re made: the videos render on this computer.
+              {ideasChosen > 0 ? `Each idea counts as one AI-made video on your plan. ` : ""}Keep this tab open while they&apos;re made: the videos render on this computer.
             </p>
           </div>
         </>

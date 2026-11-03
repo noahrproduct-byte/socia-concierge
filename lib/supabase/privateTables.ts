@@ -1,7 +1,8 @@
-// Tables that hold platform OAuth tokens. A browser session has no access to
-// them at all (supabase/security-hardening.sql revokes every privilege from
-// anon and authenticated), so an XSS or a curious owner with devtools can't
-// read a token through Supabase REST.
+// Tables that hold platform OAuth tokens, and SOCIA's video cuts. A browser
+// session has no access to them at all (supabase/security-hardening.sql and
+// studio-cut-meter.sql revoke every privilege from anon and authenticated),
+// so an XSS or a curious owner with devtools can't read a token, or take a
+// cut around the routes that count it, through Supabase REST.
 //
 // SOCIA's server still reads and writes them for the signed-in person. This
 // wraps the server's per-request client so that `.from(<private table>)`
@@ -22,6 +23,10 @@ export const PRIVATE_TABLES: ReadonlySet<string> = new Set([
   "youtube_connections",
   "tiktok_connections",
   "facebook_pending_tokens",
+  // SOCIA's video cuts: the cut is a paid, counted product (Make This Video),
+  // so the browser can't read or rewrite it around the routes that count it
+  // (lib/studioClips/cutMeter.ts, supabase/studio-cut-meter.sql).
+  "studio_builds",
 ]);
 
 const WRAPPED = Symbol.for("socia.privateTables");

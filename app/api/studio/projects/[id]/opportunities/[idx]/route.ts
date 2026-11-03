@@ -3,12 +3,10 @@ import { AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { getProjectRow, clipRows, loadBuild, buildOpportunity, accountContext, guideOnly } from "@/lib/studioClips/server";
-import { checkFeature, getEntitlements } from "@/lib/entitlements";
 import { AnalysisError } from "@/lib/studioClips/analysis";
 import { requireFeature } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
 import { errorResponse, publicMessage } from "@/lib/dbError";
-import type { StudioBuild } from "@/lib/studioClips/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -19,8 +17,9 @@ export const maxDuration = 120;
 //           the project's clip-build credit; no extra meter in Phase A, but
 //           it needs Build from Clips on the plan and shares an hourly
 //           ceiling with regenerations (each is an AI call).
-// Without Make This Video (auto_build, Starter and up) both answer the guide
-// only: the cut itself is what that plan feature pays for.
+// Both answer the guide, caption and notes only, on every plan: the cut itself
+// reaches the browser through the video builder (GET /api/studio/builds/[id]),
+// where it counts as one AI-made video (lib/studioClips/cutMeter.ts).
 
 async function load(idParam: string, idxParam: string) {
   const idx = Number(idxParam);
@@ -33,19 +32,15 @@ async function load(idParam: string, idxParam: string) {
   return { r, idx, project } as const;
 }
 
-/** The build as this owner's plan may see it. */
-async function forPlan(client: Parameters<typeof getEntitlements>[0], ownerId: string, build: StudioBuild): Promise<StudioBuild> {
-  return checkFeature(await getEntitlements(client, ownerId), "auto_build").ok ? build : guideOnly(build);
-}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string; idx: string }> }) {
   const { id, idx } = await params;
   try {
     const l = await load(id, idx);
     if ("res" in l) return l.res;
-    const build = await loadBuild(l.r.ctx.client, l.project.id, l.idx, await clipRows(l.r.ctx.client, l.project.id));
+    const build = await loadBuild(l.r.ctx.client, l.r.ctx.ownerId, l.project.id, l.idx, await clipRows(l.r.ctx.client, l.project.id));
     if (!build) return NextResponse.json({ error: "Not built yet." }, { status: 404 });
-    return NextResponse.json(await forPlan(l.r.ctx.client, l.r.ctx.ownerId, build));
+    return NextResponse.json(guideOnly(build));
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     return errorResponse("studio/projects/[id]/opportunities/[idx]", e);
@@ -60,8 +55,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const { ctx } = l.r;
     const forbidden = requireMutate(ctx);
     if (forbidden) return forbidden;
-    const existing = await loadBuild(ctx.client, l.project.id, l.idx, await clipRows(ctx.client, l.project.id));
-    if (existing) return NextResponse.json(await forPlan(ctx.client, ctx.ownerId, existing));
+    const existing = await loadBuild(ctx.client, ctx.ownerId, l.project.id, l.idx, await clipRows(ctx.client, l.project.id));
+    if (existing) return NextResponse.json(guideOnly(existing));
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "build_from_clips");
     if (denied) return denied;
@@ -69,7 +64,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (limited) return limited;
     const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
     const build = await buildOpportunity(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project: l.project, idx: l.idx, acct });
-    return NextResponse.json(await forPlan(ctx.client, ctx.ownerId, build));
+    return NextResponse.json(guideOnly(build));
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     const msg = e instanceof AnalysisError ? `${e.message} Try again.` : publicMessage("studio/projects/[id]/opportunities/[idx]", e);
