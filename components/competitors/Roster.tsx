@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Link2 } from "lucide-react";
-import type { LeaderRow } from "@/lib/competitorRollup";
+import { fmtRate, type LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import { Avatar, PlatformMark, classLabel, fmtN } from "./shared";
 
@@ -66,7 +66,7 @@ export default function Roster({ you, rows, ranks, youRank, selectedId, onSelect
               <div className="cx2-chip-stats">
                 <span><b>{you.audience.state === "ok" ? fmtN(you.audience.value) : "—"}</b><small>followers</small></span>
                 <span>
-                  <b className={you.engagement.state === "ok" ? "" : "none"}>{you.engagement.state === "ok" ? `${you.engagement.value!.toFixed(1)}%` : "—"}</b>
+                  <b className={you.engagement.state === "ok" ? "" : "none"}>{you.engagement.state === "ok" ? fmtRate(you.engagement.value!, true) : "—"}</b>
                   <small>{youRank != null ? `eng · #${youRank}` : "eng"}</small>
                 </span>
               </div>
@@ -113,7 +113,7 @@ export default function Roster({ you, rows, ranks, youRank, selectedId, onSelect
                   {r.match != null
                     ? <><b>{r.match}%</b><small>match</small></>
                     : r.engagement.state === "ok"
-                      ? <><b>{r.engagement.value!.toFixed(1)}%</b><small>eng</small></>
+                      ? <><b>{fmtRate(r.engagement.value!, true)}</b><small>eng</small></>
                       : <><b className="none">—</b><small>added</small></>}
                 </span>
               </div>

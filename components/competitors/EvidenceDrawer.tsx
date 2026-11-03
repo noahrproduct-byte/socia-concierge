@@ -6,7 +6,7 @@
 
 import { ExternalLink } from "lucide-react";
 import Drawer from "@/components/ov/Drawer";
-import { SOURCE_LABEL, type LeaderRow } from "@/lib/competitorRollup";
+import { fmtRate, SOURCE_LABEL, type LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow, CompPost, Reason } from "@/lib/competitorIntel";
 import { locationTokens, tagsFor } from "@/lib/competitorPatterns";
 import { cellText, fmtDate, fmtN } from "./shared";
@@ -22,7 +22,7 @@ const DEFINITION: Record<Reason["key"], { label: string; you: string; them: stri
   engagement: { label: "Engagement rate", you: "Interactions ÷ reach (or ÷ followers when reach is missing), all synced posts.", them: "YouTube: (likes + comments) ÷ views, median per video. Instagram: median (likes + comments) ÷ followers." },
 };
 
-const fmtVal = (unit: Reason["unit"], n: number) => (unit === "pct" ? `${n.toFixed(1)}%` : unit === "perWeek" ? n.toFixed(1) : fmtN(n));
+const fmtVal = (unit: Reason["unit"], n: number) => (unit === "pct" ? fmtRate(n) : unit === "perWeek" ? n.toFixed(1) : fmtN(n));
 
 export default function EvidenceDrawer({ item, them, days, location, onClose }: {
   item: Evidence | null; you: LeaderRow; them: CompetitorRow | null; days: number; location: string | null; onClose: () => void;
