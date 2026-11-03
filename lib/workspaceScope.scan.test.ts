@@ -20,6 +20,7 @@ const SAFE: Record<string, [number, string]> = {
   "app/(app)/discover/page.tsx competitor_snapshots": [1, "owner-wide by design (competitors-workspaces.sql): public counts, read only for handles this workspace shows"],
   "app/api/accounts/route.ts instagram_connections": [3, "owner-wide only on a missing column; the is_active flips run after the target was found in this workspace (is_active is a pointer, reads filter by workspace)"],
   "app/api/auth/facebook/disconnect/route.ts facebook_connections": [1, "owner-wide only without a workspace (never a guest) or on a missing column"],
+  "app/api/competitors/source/route.ts facebook_connections": [1, "owner-wide by design, like igConnection: any of the owner's Pages can ask Business Discovery; owner/admin only, read only, no token returned"],
   "app/api/competitors/route.ts tracked_competitors": [2, "upsert rows carry workspace_id (wsRow); the pooled row only on a constraint mismatch"],
   "app/api/posts/[id]/route.ts scheduled_posts": [1, "delete by id after loadItem refused another workspace's post"],
   "app/api/schedule/publish/route.ts scheduled_posts": [1, "read-back by an id already loaded with the workspace"],
