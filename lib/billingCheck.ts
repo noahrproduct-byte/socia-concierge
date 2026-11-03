@@ -27,8 +27,27 @@ export type BillingFacts = {
   prices: PriceFacts[];
   webhooks: { url: string; status: string; events: string[] }[] | null;
   portal: { active: boolean; isDefault: boolean; updateEnabled: boolean; productIds: string[]; updateProration: string | null; cancelEnabled: boolean; cancelMode: string | null; cardUpdate: boolean } | null;
+  /** Active promotion codes (what people type at checkout) and their coupon; null when they couldn't be read. */
+  promos?: PromoFacts[] | null;
   /** errors reading the webhook or portal lists */
   errors: string[];
+};
+
+export type PromoFacts = {
+  code: string;
+  percentOff: number | null;
+  amountOff: number | null;
+  duration: string;
+  durationMonths: number | null;
+  /** the code's own end, else the coupon's (unix seconds) */
+  expiresAt: number | null;
+  /** the code's own cap, else the coupon's */
+  maxRedemptions: number | null;
+  timesRedeemed: number;
+  firstTimeOnly: boolean;
+  couponValid: boolean;
+  /** products the coupon is limited to; empty = every product */
+  appliesTo: string[];
 };
 
 export const WEBHOOK_EVENTS = ["checkout.session.completed", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"];
@@ -91,6 +110,24 @@ export function assessBilling(f: BillingFacts): CheckLine[] {
     line("portal", problems.length ? "fix" : "ok", "Customer Portal", problems.length ? `Fix in Stripe: ${problems.join("; ")}.` : "Switch plans, update the card and cancel at period end are all on.");
     if (f.portal.updateEnabled && f.portal.updateProration && f.portal.updateProration !== "none") {
       line("proration", "info", "Plan switch proration", `Set to "${f.portal.updateProration}". Managed Payments can't bill one-off proration invoices; if a switch fails, set proration to none.`);
+    }
+  }
+  if (f.promos !== undefined) {
+    if (f.promos == null) line("promos", "info", "Promo codes", "SOCIA couldn't list the promotion codes with this key.");
+    else if (!f.promos.length) line("promos", "info", "Promo codes", "No active promotion code. Customers pay the full price.");
+    const sold = f.prices.map((p) => p.product?.id).filter((x): x is string => Boolean(x));
+    for (const pc of f.promos ?? []) {
+      const off = pc.percentOff != null ? `${pc.percentOff}% off` : pc.amountOff != null ? `${usd(pc.amountOff)} off` : "a discount";
+      const how = pc.duration === "once" ? "the first month" : pc.duration === "forever" ? "every month, forever" : `${pc.durationMonths ?? "?"} months`;
+      const until = pc.expiresAt ? `, until ${new Date(pc.expiresAt * 1000).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" })}` : ", with no end date";
+      const cap = pc.maxRedemptions != null ? `, ${pc.timesRedeemed} of ${pc.maxRedemptions} used` : `, used ${pc.timesRedeemed} times`;
+      const problems = [
+        !pc.couponValid ? "its coupon is no longer valid" : null,
+        pc.maxRedemptions === 1 ? "it can be used only once in total, by one customer" : null,
+        pc.appliesTo.length && sold.some((id) => !pc.appliesTo.includes(id)) ? "its coupon doesn't apply to every plan" : null,
+      ].filter(Boolean);
+      line(`promo-${pc.code.toLowerCase()}`, problems.length ? "fix" : "ok", `Promo code ${pc.code}`,
+        `${off} ${how}${until}${cap}${pc.firstTimeOnly ? ", new customers only" : ""}.${problems.length ? ` Fix: ${problems.join("; ")}.` : ""}`);
     }
   }
   for (const e of f.errors) line(`err-${out.length}`, "fix", "Stripe error", e);
