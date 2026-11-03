@@ -64,10 +64,11 @@ export const FAST_MODEL = process.env.ANTHROPIC_MODEL_FAST || "claude-sonnet-5-5
  *   studio_batch  batch reasoning (pass 2)    ANTHROPIC_MODEL_STUDIO_BATCH  default: MODEL
  *   studio_edl    EDL + edit guide (pass 3)   ANTHROPIC_MODEL_STUDIO_EDL    default: fast
  *   caption       Generate Caption (composer) ANTHROPIC_MODEL_CAPTION       default: MODEL
+ *   ask           Ask SOCIA answers           ANTHROPIC_MODEL_ASK           default: fast (Noah, 2026-11-02: speed first)
  * The EDL pass defaults to the fast model because its output is validated and
  * snapped deterministically afterwards (lib/studioClips/edl.ts).
  */
-export type ModelTask = "default" | "fast" | "studio_clip" | "studio_batch" | "studio_edl" | "caption";
+export type ModelTask = "default" | "fast" | "studio_clip" | "studio_batch" | "studio_edl" | "caption" | "ask";
 export function modelFor(task: ModelTask): string {
   switch (task) {
     case "fast": return FAST_MODEL;
@@ -75,6 +76,7 @@ export function modelFor(task: ModelTask): string {
     case "studio_batch": return process.env.ANTHROPIC_MODEL_STUDIO_BATCH || MODEL;
     case "studio_edl": return process.env.ANTHROPIC_MODEL_STUDIO_EDL || FAST_MODEL;
     case "caption": return process.env.ANTHROPIC_MODEL_CAPTION || MODEL;
+    case "ask": return process.env.ANTHROPIC_MODEL_ASK || FAST_MODEL;
     default: return MODEL;
   }
 }

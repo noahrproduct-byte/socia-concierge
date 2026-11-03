@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { LIMITS, clipDeep, tooLongResponse } from "@/lib/inputLimits";
-import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, modelFor, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { partialStringField } from "@/lib/assistant/streamText";
+import type { Message } from "@anthropic-ai/sdk/resources/messages";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { buildAskEvidence } from "@/lib/askContext";
@@ -95,16 +97,24 @@ export async function POST(req: Request) {
 
   // The evidence window is the client's choice, but never longer than the
   // plan's analytics history.
-  const ent = await getEntitlements(ctx.client, ctx.ownerId);
-  if (askCtx.range && rangeDays(askCtx.range) > maxHistoryDays(ent)) askCtx.range = "30";
-
+  // The reads run together. Only a page that names its own range (Analytics)
+  // has to wait for the plan first, to keep that range inside its history.
   const wsId = ctx.workspace?.id ?? null;
   const tz = zoneOr(askCtx.tz);
   const nowDate = new Date();
-  const [ev, sched] = await Promise.all([
-    buildAskEvidence(ctx.client, ctx.ownerId, askCtx, wsId, brandWorkspace(ctx)),
-    loadSchedulable(ctx.client, ctx.ownerId, wsId, nowDate).catch(() => ({ posts: [] as Schedulable[], others: [] })),
-  ]);
+  const entP = getEntitlements(ctx.client, ctx.ownerId);
+  const schedP = loadSchedulable(ctx.client, ctx.ownerId, wsId, nowDate).catch(() => ({ posts: [] as Schedulable[], others: [] }));
+  const evidenceFor = () => buildAskEvidence(ctx.client, ctx.ownerId, askCtx, wsId, brandWorkspace(ctx));
+  let ent: Awaited<typeof entP>;
+  let ev: Awaited<ReturnType<typeof evidenceFor>>;
+  if (askCtx.range) {
+    ent = await entP;
+    if (rangeDays(askCtx.range) > maxHistoryDays(ent)) askCtx.range = "30";
+    ev = await evidenceFor();
+  } else {
+    [ent, ev] = await Promise.all([entP, evidenceFor()]);
+  }
+  const sched = await schedP;
   const nowLocal = new Intl.DateTimeFormat("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }).format(nowDate);
   const rated = sanitizeRated(askCtx.rated);
   delete askCtx.rated;
@@ -120,16 +130,18 @@ export async function POST(req: Request) {
   const u = await requireUsage(ctx.client, ctx.ownerId, "ask_socia", { ent });
   if (u.denied) return u.denied;
 
+  const model = modelFor("ask");
+  const params = {
+    model,
+    max_tokens: 2000,
+    system: `${ev.system}\n${SCHEDULE_RULES}`,
+    output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(model, "medium") },
+    messages: convo,
+  };
+
+  // From the finished model message to the answer (or an error response).
+  const answerFrom = async (res: Message): Promise<Response> => {
   try {
-    const params = {
-      model: MODEL,
-      max_tokens: 2000,
-      system: `${ev.system}\n${SCHEDULE_RULES}`,
-      output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(MODEL) },
-      messages: convo,
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await anthropic.messages.create(params as any);
     recordAiUsage(ctx.ownerId, "ask", res);
     if (res.stop_reason === "refusal") {
       await u.release();
@@ -237,4 +249,38 @@ export async function POST(req: Request) {
     const kind = aiFailureKind(err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }
+  };
+
+  // Streamed as lines of JSON: {"type":"text"} with the answer's text so far,
+  // while the model writes, then one {"type":"answer"} (or {"type":"error"})
+  // with exactly what the non-streamed reply used to carry.
+  const enc = new TextEncoder();
+  const streamBody = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (o: unknown) => controller.enqueue(enc.encode(`${JSON.stringify(o)}\n`));
+      let res: Message | null = null;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const stream = anthropic.messages.stream(params as any);
+        let json = "", shown = "";
+        stream.on("text", (delta: string) => {
+          json += delta;
+          const t = partialStringField(json, "text");
+          if (t != null && t.length > shown.length) { shown = t; send({ type: "text", text: t }); }
+        });
+        res = await stream.finalMessage();
+      } catch (err) {
+        await u.release();
+        const kind = aiFailureKind(err);
+        send({ type: "error", status: kind === "rate_limited" ? 429 : 502, error: AI_UNAVAILABLE_COPY[kind], kind });
+        controller.close();
+        return;
+      }
+      const out = await answerFrom(res);
+      const j = await out.json().catch(() => ({ error: "SOCIA couldn't answer right now." }));
+      send(out.ok ? { type: "answer", ...j } : { type: "error", status: out.status, ...j });
+      controller.close();
+    },
+  });
+  return new Response(streamBody, { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" } });
 }
