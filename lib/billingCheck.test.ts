@@ -9,7 +9,7 @@ const price = (plan: PriceFacts["plan"], cents: number, extra: Partial<PriceFact
 });
 const good: BillingFacts = {
   keyMode: "test", checkoutSwitch: true, webhookSecretSet: true, appUrl: "https://sociaos.com",
-  prices: [price("starter", 1900), price("growth", 4900), price("pro", 9900)],
+  prices: [price("starter", 1999), price("growth", 3499), price("pro", 4999)],
   webhooks: [{ url: "https://sociaos.com/api/stripe/webhook", status: "enabled", events: WEBHOOK_EVENTS }],
   portal: { active: true, isDefault: true, updateEnabled: true, productIds: ["prod_starter", "prod_growth", "prod_pro"], updateProration: "none", cancelEnabled: true, cancelMode: "at_period_end", cardUpdate: true },
   errors: [],
@@ -22,7 +22,7 @@ describe("is Stripe ready to take a payment", () => {
     expect(readyToSell(assessBilling(good))).toBe(true);
   });
   it("flags the checkout switch, a wrong amount and a missing tax code", () => {
-    const f = { ...good, checkoutSwitch: false, prices: [price("starter", 1500), price("growth", 4900, { product: { id: "prod_growth", name: "Growth", active: true, taxCode: null } }), price("pro", 9900)] };
+    const f = { ...good, checkoutSwitch: false, prices: [price("starter", 1500), price("growth", 3499, { product: { id: "prod_growth", name: "Growth", active: true, taxCode: null } }), price("pro", 4999)] };
     expect(fixes(f)).toEqual(["switch", "price-starter", "tax-growth"]);
     expect(assessBilling(f).find((l) => l.id === "price-starter")?.detail).toContain("$15");
   });
