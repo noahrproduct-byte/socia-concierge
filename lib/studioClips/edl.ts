@@ -253,6 +253,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   const finish = sanitizeFinish(edited.finish, new Set(r.edl.segments.map((s) => s.clipId)));
   if (finish) r.edl.finish = finish;
   if (edited.cleanSound === true) r.edl.cleanSound = true;
+  if (typeof edited.lookAuto === "string" && !Number.isNaN(Date.parse(edited.lookAuto))) r.edl.lookAuto = new Date(edited.lookAuto).toISOString();
   return r;
 }
 

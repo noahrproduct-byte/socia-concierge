@@ -483,6 +483,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   if (row.edl.playlist) edl.playlist = row.edl.playlist;
   if (row.edl.soundtrack) edl.soundtrack = row.edl.soundtrack;
   if (row.edl.musicAuto) edl.musicAuto = row.edl.musicAuto;
+  if (row.edl.lookAuto) edl.lookAuto = row.edl.lookAuto;
   // Picture and sound corrections are per clip, so they still hold for the clips the new cut keeps;
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));
