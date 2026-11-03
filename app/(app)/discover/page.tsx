@@ -95,7 +95,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // Everything below that only needs the scope starts now and is awaited where
   // it is used. Each resolves to "nothing" on a missing table or a failed read.
   const formatsP = readFormatsDoc(ctx).then((r) => r.doc).catch(() => null);
-  const trackedP: Promise<Tracked[]> = listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid }).catch(() => []);
+  // added_by and pick_reason exist once competitor-autopick.sql has run; before
+  // that the plain read keeps the roster.
+  const trackedP: Promise<Tracked[]> = listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at, added_by, pick_reason", { byAdded: true, workspaceId: cwid })
+    .catch(() => listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at", { byAdded: true, workspaceId: cwid }))
+    .catch(() => []);
   const suggestedRowsP: Promise<Record<string, unknown>[]> = (async () => {
     try {
       let dq = ctx.client
@@ -323,7 +327,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
   for (const t of tracked) {
     const p = t.platform === "youtube" ? "youtube" : t.platform === "facebook" ? "facebook" : "instagram";
-    push(build(p, t.handle, true, matchFor(p, t.handle)));
+    const row = build(p, t.handle, true, matchFor(p, t.handle));
+    push(t.added_by === "socia" ? { ...row, pickedBySocia: true, pickReason: t.pick_reason ?? null, reasons: row.reasons.length ? row.reasons : t.pick_reason ? [t.pick_reason] : [] } : row);
   }
   for (const sg of suggested) {
     if (!sg.handle) continue;

@@ -2,14 +2,17 @@
 // and the server-rendered Competitors page.
 //
 // Meta serves another account's public numbers only through a Facebook Page
-// linked to the user's Instagram Professional account. Without that link the
-// result says so (enabled: false) and nothing is estimated. Fresh rows are
-// cached in ig_competitor_snapshots because Discovery is rate limited.
+// linked to an Instagram Professional account: the user's own, or else SOCIA's
+// research account (lib/igResearch.ts). With neither, the result says so
+// (enabled: false) and nothing is estimated. Fresh rows are cached per user in
+// ig_competitor_snapshots because Discovery is rate limited, and SOCIA's
+// research account is shared by every customer who has no Page.
 
 import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { activeWorkspaceId, workspacesEnabled } from "@/lib/workspaces";
 import { businessDiscovery, discoveryStats, IG_DISCOVERY_REASON, type IgDiscoveryReason } from "@/lib/igBusinessDiscovery";
+import { researchConnection } from "@/lib/igResearch";
 
 const FRESH_MS = 6 * 60 * 60 * 1000;
 
@@ -42,15 +45,30 @@ export type IgCompetitorResult = { enabled: boolean; reason?: string; competitor
 type Supa = SupabaseClient<any, any, any>;
 
 /**
- * A connected Facebook Page with a linked Instagram business account, used to
- * read OTHER accounts through Business Discovery. Since Brand Workspaces an
- * owner can have one Page per workspace (a single-row read errored and
- * competitor data silently disappeared): prefer the active workspace's Page,
- * else any of the owner's connected Pages — Business Discovery reads public
- * data about the competitor, so whichever of the owner's Pages asks, the
- * answer is the same.
+ * The Instagram account that asks Business Discovery about OTHER accounts: the
+ * customer's own linked Page when they have one, else SOCIA's research account.
+ * Null only when neither exists.
  */
-export async function igConnection(supabase: Supa, userId: string): Promise<{ igUserId: string; pageToken: string } | null> {
+export async function igConnection(supabase: Supa, userId: string): Promise<IgDiscoveryConnection | null> {
+  const own = await ownPageConnection(supabase, userId);
+  if (own) return { ...own, source: "own" };
+  // No Page of their own: ask with SOCIA's research account (lib/igResearch.ts).
+  const socia = await researchConnection();
+  return socia ? { ...socia, source: "socia" } : null;
+}
+
+/** Who asks Instagram: the customer's own linked Page, or SOCIA's research account. */
+export type IgDiscoveryConnection = { igUserId: string; pageToken: string; source: "own" | "socia" };
+
+/**
+ * A connected Facebook Page with a linked Instagram business account. Since
+ * Brand Workspaces an owner can have one Page per workspace (a single-row read
+ * errored and competitor data silently disappeared): prefer the active
+ * workspace's Page, else any of the owner's connected Pages — Business
+ * Discovery reads public data about the competitor, so whichever of the
+ * owner's Pages asks, the answer is the same.
+ */
+async function ownPageConnection(supabase: Supa, userId: string): Promise<{ igUserId: string; pageToken: string } | null> {
   type Row = { ig_business_id?: string | null; access_token?: string | null; connection_status?: string | null; workspace_id?: string | null };
   const read = async (cols: string): Promise<Row[] | null> => {
     const { data, error } = await supabase.from("facebook_connections").select(cols).eq("user_id", userId).limit(20);
@@ -101,7 +119,12 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
       const hit = cached.get(h);
       if (hit) return hit;
       const res = await businessDiscovery(conn.igUserId, conn.pageToken, h);
-      if (!res.ok) return { handle: h, found: false, reason: IG_DISCOVERY_REASON[res.reason], reasonKind: res.reason };
+      if (!res.ok) {
+        // A permission problem on SOCIA's research account is SOCIA's to fix;
+        // telling the customer to reconnect Facebook would be wrong.
+        const kind: IgDiscoveryReason = conn.source === "socia" && res.reason === "no_permission" ? "failed" : res.reason;
+        return { handle: h, found: false, reason: IG_DISCOVERY_REASON[kind], reasonKind: kind };
+      }
       const a = res.account;
       const stats = discoveryStats(a);
       const media: IgCompetitorPost[] = a.media.map((m) => ({

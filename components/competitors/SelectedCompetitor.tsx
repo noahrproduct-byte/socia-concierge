@@ -56,10 +56,11 @@ export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking, notice
       <div className="cx2-profilebar-actions">
         {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="ov-btn ghost small">Profile <ExternalLink size={11} /></a>}
         {r.tracked
-          ? <span className="cx2-tracked"><Check size={12} /> Tracked</span>
+          ? <span className="cx2-tracked" title={r.pickedBySocia ? (r.pickReason ?? "SOCIA found this account in your niche and checked it on Instagram.") : undefined}><Check size={12} /> {r.pickedBySocia ? "Picked by SOCIA" : "Tracked"}</span>
           : <button type="button" className="ov-btn primary small" onClick={() => onTrack(r)} disabled={tracking}>{tracking ? <Loader2 size={12} className="cx-spin" /> : <Plus size={12} />} Track</button>}
       </div>
     </div>
+    {r.pickedBySocia && r.pickReason && <p className="cx2-pick-reason">Picked by SOCIA: {r.pickReason}</p>}
     {notice}
     </>
   );

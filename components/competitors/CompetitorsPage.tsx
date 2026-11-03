@@ -7,7 +7,7 @@
 // competitor without a reload. The honesty contract from page.tsx holds
 // everywhere: real numbers keep provenance, absences keep their reason.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Link2, Activity } from "lucide-react";
@@ -67,6 +67,21 @@ const upgradeClicked = (e: PlanError) => {
 export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
   const router = useRouter();
   const now = useMemo(() => new Date(d.now), [d.now]);
+
+  // The first visit with a niche and no discovery run yet starts one, so a new
+  // account gets competitors without pressing anything. The run picks verified
+  // competitors into empty slots (lib/competitorAutoPick.ts); one attempt per visit.
+  const [finding, setFinding] = useState(false);
+  const firstRunTried = useRef(false);
+  useEffect(() => {
+    if (d.lastRun || !d.niche || firstRunTried.current) return;
+    firstRunTried.current = true;
+    setFinding(true);
+    fetch("/api/competitors/intel")
+      .then(() => router.refresh())
+      .catch(() => {})
+      .finally(() => setFinding(false));
+  }, [d.lastRun, d.niche, router]);
   const you = d.you ?? placeholderYou();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [metric, setMetric] = useState<Metric>("interactions");
@@ -226,7 +241,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
         status={
           <span className="ov-status cx-status">
             <i className={d.lastRun ? "live" : ""} />
-            {d.lastRun ? <>Live intelligence · {agoText(d.lastRun, now)}</> : <>No discovery run yet</>}
+            {d.lastRun ? <>Live intelligence · {agoText(d.lastRun, now)}</> : finding ? <>Finding competitors in your niche…</> : <>No discovery run yet</>}
             {webPaused && <em className="cx-status-warn" title={`Web research: ${d.sources?.web}`}>· web research paused</em>}
             <RefreshButton />
           </span>
@@ -256,8 +271,8 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
         <Roster you={d.you} rows={roster} ranks={ranks} youRank={youRank} selectedId={active?.id ?? null} onSelect={setSelectedId} connectHref={d.igConnectHref} />
       ) : (
         <div className="ov-empty cx-roster-empty">
-          <b>{d.niche ? (d.platform === "all" ? "No competitors found yet" : `No ${d.platform} competitors yet`) : "Set your niche to find competitors"}</b>
-          <p>{d.niche ? "Run a discovery refresh so SOCIA searches your niche, or add one by hand." : "SOCIA searches for competitors inside your niche. Choose it in the Niche Trends section below."}</p>
+          <b>{finding ? "Finding competitors in your niche" : d.niche ? (d.platform === "all" ? "No competitors found yet" : `No ${d.platform} competitors yet`) : "Set your niche to find competitors"}</b>
+          <p>{finding ? "SOCIA is searching your niche and checking each account on Instagram. This takes up to a minute." : d.niche ? "Run a discovery refresh so SOCIA searches your niche, or add one by hand." : "SOCIA searches for competitors inside your niche. Choose it in the Niche Trends section below."}</p>
           <div className="cx-empty-actions">
             {d.niche && <RefreshButton className="ov-btn ghost small" label="Refresh discovery" />}
             <button type="button" className="ov-btn primary small" onClick={() => setAddOpen(true)}><Plus size={13} /> Add competitor</button>

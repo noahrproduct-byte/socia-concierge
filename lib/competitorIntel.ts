@@ -33,6 +33,9 @@ export type CompetitorRow = LeaderRow & {
   location: string | null;
   /** Discovery's stated reasons for the relevance score. */
   reasons: string[];
+  /** SOCIA added this competitor itself (lib/competitorAutoPick.ts), and why. */
+  pickedBySocia?: boolean;
+  pickReason?: string | null;
   /** Lifetime post/video count where the platform publishes it. */
   postsCount: number | null;
   posts: CompPost[];
