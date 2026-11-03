@@ -28,6 +28,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { igCompetitorRows, type IgCompetitor } from "@/lib/igCompetitorData";
 import { isOwnAccount, type OwnAccounts } from "@/lib/ownAccounts";
 import type { ScoredAccount, Classification } from "@/lib/discovery";
+import { fmtRate } from "@/lib/competitorRollup";
 
 /** At most this many competitors are added by one run. */
 export const PICKS_PER_RUN = 5;
@@ -65,8 +66,8 @@ export function pickReason(candidate: ScoredAccount, verified: IgCompetitor): st
 const joinReason = (why: string, rest: string): string =>
   [why, rest].filter(Boolean).reduce((a, b) => (a ? `${a}${a.endsWith("…") ? " " : ". "}${b}` : b), "");
 
-/** A rate under 0.1% reads as "under 0.1%", never "0.0%", which looks like none. */
-export const fmtRate = (pct: number): string => (pct > 0 && pct < 0.1 ? "under 0.1%" : `${pct.toFixed(1)}%`);
+/** A rate under 0.1% reads as "under 0.1%", never "0.0%", which looks like none (lib/competitorRollup). */
+export { fmtRate };
 
 /** Discovery's reason, cut at a word so the facts after it always show. */
 const WHY_MAX = 180;

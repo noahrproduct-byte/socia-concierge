@@ -32,6 +32,13 @@ export const cell = (
 
 export const absent = (state: Exclude<CellState, "ok">): Cell => ({ value: null, state });
 
+/**
+ * A percentage, never shown as "0.0%" when it isn't zero: a rate under 0.1%
+ * reads "under 0.1%" in a sentence, or "<0.1%" where space is tight.
+ */
+export const fmtRate = (pct: number, compact = false): string =>
+  pct > 0 && pct < 0.1 ? (compact ? "<0.1%" : "under 0.1%") : `${pct.toFixed(1)}%`;
+
 export const CELL_REASON: Record<Exclude<CellState, "ok">, string> = {
   unavailable: "Not available from platform",
   connection_needed: "Connection required",

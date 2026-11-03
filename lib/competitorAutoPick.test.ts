@@ -84,3 +84,10 @@ describe("reason text", () => {
     expect(r).toMatch(/\w… 663k/);
   });
 });
+
+describe("fmtRate, compact", () => {
+  it("says <0.1% where space is tight", () => {
+    expect(fmtRate(0.04, true)).toBe("<0.1%");
+    expect(fmtRate(1.25, true)).toBe("1.3%");
+  });
+});

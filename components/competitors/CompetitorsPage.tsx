@@ -15,7 +15,7 @@ import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { askSocia } from "@/lib/ask";
-import { absent, type LeaderRow } from "@/lib/competitorRollup";
+import { absent, fmtRate, type LeaderRow } from "@/lib/competitorRollup";
 import { compareRows, leadsOn, pickMostSimilar, similarity, type SimilarPick } from "@/lib/similarCompetitor";
 import { groupedPatterns, learnings, reasonsFor, type CompetitorRow, type Reason } from "@/lib/competitorIntel";
 import { engagementRank, performanceScore } from "@/lib/competitorScore";
@@ -35,7 +35,7 @@ import AddCompetitor from "./AddCompetitor";
 import { TrendingAccounts, TrendingReels } from "./TrendingNiche";
 import { fmtN } from "./shared";
 
-const fmtC = (unit: "count" | "pct" | "perWeek", v: number) => (unit === "pct" ? `${v.toFixed(1)}%` : unit === "perWeek" ? v.toFixed(1) : fmtN(v));
+const fmtC = (unit: "count" | "pct" | "perWeek", v: number) => (unit === "pct" ? fmtRate(v) : unit === "perWeek" ? v.toFixed(1) : fmtN(v));
 
 function placeholderYou(): LeaderRow {
   return {
