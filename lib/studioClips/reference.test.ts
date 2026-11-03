@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeReference, cleanPrompt, shotStats, timedSpeech, cleanBreakdown, referenceBrief, referenceStyle, titleFor, nextBriefIdx, isBriefIdx, opportunityFromBrief, briefText, withBrief } from "./reference";
+import { sanitizeReference, cleanPrompt, shotStats, timedSpeech, cleanBreakdown, referenceBrief, referenceStyle, titleFor, nextBriefIdx, isBriefIdx, opportunityFromBrief, briefText, withBrief, bestMoment, fillCut, briefFloorSec, FILL_SEC } from "./reference";
 import { DEFAULT_STYLE } from "./style";
-import type { ClipCard, Edl } from "./types";
+import type { ClipCard, ClipMoment, Edl, EdlSegment } from "./types";
 
 const jpeg = "QUJD"; // base64 placeholder
 const ref = (over: Record<string, unknown> = {}) => ({ name: "ref.mp4", durationSec: 12, width: 1080, height: 1920, cuts: [1.5, 3, 4.5, 9], frames: [{ t: 0.2, jpeg }, { t: 5, jpeg }], words: [{ text: "Watch", startMs: 100, endMs: 400 }, { text: "this", startMs: 400, endMs: 700 }], audio: { hasAudio: true, level: "ok", audibleRatio: 0.9 }, ...over });
@@ -75,10 +75,12 @@ describe("cuts made from a brief", () => {
     expect(isBriefIdx(-1000)).toBe(false);
     expect(() => nextBriefIdx([-999])).toThrow(/limit/);
   });
-  it("offers every usable moment and names a title", () => {
+  it("offers every clip, a weak-only one by its best moment, and names a title", () => {
     const card = (strength: "strong" | "weak", opener = false): ClipCard => ({ subject: "", setting: "", action: "", people: "none", moments: [{ start: 0, end: 4, label: "", strength, why: "" }], speech: { present: false, summary: "", hookLine: null }, quality: { visual: "ok", audio: "ok", notes: [] }, tags: [], openerCandidate: opener, createdAt: "2026-01-01T00:00:00Z" } as unknown as ClipCard);
     const o = opportunityFromBrief("T", "A", [{ id: "a", position: 0, durationSec: 4, card: card("strong", true) }, { id: "b", position: 1, durationSec: 4, card: card("weak") }, { id: "c", position: 2, durationSec: 4, card: null }], -2);
-    expect(o.clipIds).toEqual(["a"]);
+    // A handheld POV clip marked weak everywhere is still the person's footage: it stays in play.
+    expect(o.clipIds).toEqual(["a", "b"]);
+    expect(o.moments.filter((m) => m.clipId === "b")).toHaveLength(1);
     expect(o.opener?.clipId).toBe("a");
     expect(titleFor("Fast cuts. Then a slow reveal.", null)).toBe("Fast cuts");
     expect(titleFor(null, null)).toBe("Your video");
@@ -88,5 +90,59 @@ describe("cuts made from a brief", () => {
     expect(briefText(brief)).toBe('The person\'s own words:\n"""\nMake it punchy\n"""\n\nRecreate the structure…');
     expect(withBrief({ segments: [] } as unknown as Edl, brief).brief).toEqual(brief);
     expect(withBrief({ segments: [] } as unknown as Edl, undefined).brief).toBeUndefined();
+  });
+});
+
+describe("a brief cut uses all the footage and is long enough", () => {
+  const m = (start: number, end: number, strength: ClipMoment["strength"]): ClipMoment => ({ start, end, label: "", strength, why: "" } as ClipMoment);
+  const seg = (clipId: string, inT: number, outT: number): EdlSegment => ({ id: "", clipId, in: inT, out: outT, role: "body", note: "" });
+  // Noah's Halloween clips: a 13.8 s walk-in and oven, a 2.9 s ticket rail, an 8.8 s pan along the line.
+  const clips = [
+    { id: "walk", position: 0, durationSec: 13.8, moments: [m(0, 13.8, "weak")] },
+    { id: "rail", position: 1, durationSec: 2.9, moments: [m(0, 2.9, "good")] },
+    { id: "line", position: 2, durationSec: 8.8, moments: [m(0, 3, "weak"), m(6.5, 8.8, "good")] },
+  ];
+
+  it("picks a clip's strongest, then longest, moment", () => {
+    expect(bestMoment([m(0, 1, "weak"), m(2, 3, "good"), m(4, 8, "good")])).toMatchObject({ start: 4, end: 8 });
+    expect(bestMoment([m(0, 5, "weak"), m(6, 7, "strong")])).toMatchObject({ start: 6 });
+    expect(bestMoment([])).toBeNull();
+  });
+
+  it("turns the 2-second, one-clip cut into one that uses every clip and reaches the floor", () => {
+    const floor = briefFloorSec(13.8 + 2.9 + 8.8);
+    expect(floor).toBe(10);
+    const { segments, added } = fillCut([seg("rail", 0, 2)], clips, floor);
+    expect(added).toEqual(["walk", "line"]);
+    expect(new Set(segments.map((s) => s.clipId))).toEqual(new Set(["walk", "rail", "line"]));
+    const total = segments.reduce((a, s) => a + (s.out - s.in), 0);
+    expect(total).toBeGreaterThanOrEqual(floor - 0.01);
+    for (const s of segments) {
+      const c = clips.find((x) => x.id === s.clipId)!;
+      expect(s.in).toBeGreaterThanOrEqual(0);
+      expect(s.out).toBeLessThanOrEqual(c.durationSec);
+    }
+    expect(segments.map((s) => s.role)).toEqual(["opener", ...segments.slice(1, -1).map(() => "body"), "ending"]);
+    expect(segments.map((s) => s.id)).toEqual(segments.map((_, i) => `s${i + 1}`));
+  });
+
+  it("adds a missing clip as a quick beat before the ending, from the middle of its best moment", () => {
+    const { segments } = fillCut([seg("walk", 1, 3), seg("rail", 0, 2), seg("walk", 10, 12.6)], clips, 0);
+    expect(segments.map((s) => s.clipId)).toEqual(["walk", "rail", "line", "walk"]);
+    const added = segments[2];
+    expect(added.out - added.in).toBeLessThanOrEqual(FILL_SEC.max);
+    expect(added.in).toBeGreaterThanOrEqual(6.5);
+  });
+
+  it("leaves a cut that already uses everything and is long enough alone", () => {
+    const cut = [seg("walk", 1, 3), seg("rail", 0, 2), seg("line", 0.4, 2.6), seg("line", 7, 8.6), seg("walk", 4.6, 6.2), seg("walk", 10, 12.6)];
+    const { segments, added } = fillCut(cut, clips, 10);
+    expect(added).toEqual([]);
+    expect(segments.map((s) => [s.clipId, s.in, s.out])).toEqual(cut.map((s) => [s.clipId, s.in, s.out]));
+  });
+
+  it("asks for most of the footage when there is little of it", () => {
+    expect(briefFloorSec(5)).toBe(3);
+    expect(briefFloorSec(60)).toBe(10);
   });
 });
