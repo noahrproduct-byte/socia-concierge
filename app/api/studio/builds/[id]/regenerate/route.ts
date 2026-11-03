@@ -7,6 +7,7 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { regenerateBuild, accountContext, isManualBuild } from "@/lib/studioClips/server";
 import { REGENERATE_OPTIONS, type RegenerateDirective } from "@/lib/studioClips/types";
 import { publicMessage } from "@/lib/dbError";
+import { handOverCut } from "@/lib/studioClips/cutMeter";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -30,6 +31,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (await isManualBuild(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id)) return NextResponse.json({ error: "Your own edit has no AI rewrite. Edit it directly." }, { status: 400 });
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
+    // The new cut comes back to the browser: the build counts (once) if it hadn't yet.
+    const handed = await handOverCut(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, { id, opportunity_idx: 0 });
+    if (!handed.ok) return handed.res;
     const limited = await perUserLimit(ctx.ownerId, "clip_edl", 40, "video edits");
     if (limited) return limited;
     const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);

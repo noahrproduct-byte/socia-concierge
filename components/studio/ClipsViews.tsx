@@ -201,7 +201,7 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
           canMake ? (
             <div className="cb-make">
               <button type="button" className="ov-btn primary" onClick={onMake}><Clapperboard size={14} /> {build.renderPath ? "Open the video builder" : "Make this video"}</button>
-              <small>SOCIA cuts the first draft from these clips — same cut as the guide — and you fix what you want: trim, reorder, replace, text, captions. Rendered on your computer, saved as a draft.</small>
+              <small>SOCIA cuts the first draft from these clips, the same cut as the guide, and you fix what you want: trim, reorder, replace, text, captions. Rendered on your computer, saved as a draft. {build.renderPath ? null : "Opening it counts one AI-made video on your plan, once."}</small>
             </div>
           ) : canMake === false ? (
             <p className="cb-locked"><Clapperboard size={13} /> <b>Make this video</b>: SOCIA cuts the first draft for you to edit. Included from Starter. <Link href="/pricing">See plans</Link></p>

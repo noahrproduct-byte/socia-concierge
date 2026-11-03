@@ -172,7 +172,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
               {busy ? <Loader2 size={14} className="spin" /> : <Clapperboard size={14} />} {busy ? step ?? (ref ? "Studying the reference and cutting…" : "Cutting…") : "Make the video"}
             </button>
             {!projectId && noClipsNote && <p className="cbp-muted">{noClipsNote}</p>}
-            <p className="cbp-muted">Opens in the editor to change anything. Making the final video counts one video build, as with any of SOCIA&apos;s cuts.</p>
+            <p className="cbp-muted">Opens in the editor to change anything. Making it counts one AI-made video on your plan, as with any of SOCIA&apos;s cuts; editing and exporting it after that don&apos;t count again.</p>
           </div>
         </>
       )}
