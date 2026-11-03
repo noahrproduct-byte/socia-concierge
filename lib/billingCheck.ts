@@ -61,6 +61,8 @@ export function assessBilling(f: BillingFacts): CheckLine[] {
     if (p.price.currency !== "usd") problems.push(`it is in ${p.price.currency.toUpperCase()}, not USD`);
     if (p.price.unitAmount !== want) problems.push(`it charges ${p.price.unitAmount == null ? "a custom amount" : usd(p.price.unitAmount)}, but SOCIA's pricing page says ${usd(want)}`);
     if (p.product && !p.product.active) problems.push("the product is archived");
+    // The pricing page says prices include sales tax (Noah, 2026-11-03).
+    if (p.price.taxBehavior !== "inclusive") problems.push(`"Include tax in price" is ${p.price.taxBehavior === "exclusive" ? "No" : "not set"}; set it to Yes, as the pricing page says prices include tax`);
     line(id, problems.length ? "fix" : "ok", `${name} price`, problems.length ? `Fix in Stripe: ${problems.join("; ")}.` : `${usd(want)} a month (${p.price.id}).`);
     const tax = p.product?.taxCode ?? null;
     line(`tax-${p.plan}`, tax ? "ok" : "fix", `${name} tax code`,

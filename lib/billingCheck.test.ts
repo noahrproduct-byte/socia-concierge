@@ -3,7 +3,7 @@ import { assessBilling, readyToSell, SAAS_TAX_CODE, WEBHOOK_EVENTS, type Billing
 
 const price = (plan: PriceFacts["plan"], cents: number, extra: Partial<PriceFacts> = {}): PriceFacts => ({
   plan, configured: "product", error: null,
-  price: { id: `price_${plan}`, active: true, currency: "usd", unitAmount: cents, interval: "month", taxBehavior: "exclusive" },
+  price: { id: `price_${plan}`, active: true, currency: "usd", unitAmount: cents, interval: "month", taxBehavior: "inclusive" },
   product: { id: `prod_${plan}`, name: plan, active: true, taxCode: SAAS_TAX_CODE },
   ...extra,
 });
@@ -25,6 +25,11 @@ describe("is Stripe ready to take a payment", () => {
     const f = { ...good, checkoutSwitch: false, prices: [price("starter", 1500), price("growth", 3499, { product: { id: "prod_growth", name: "Growth", active: true, taxCode: null } }), price("pro", 4999)] };
     expect(fixes(f)).toEqual(["switch", "price-starter", "tax-growth"]);
     expect(assessBilling(f).find((l) => l.id === "price-starter")?.detail).toContain("$15");
+  });
+  it("flags a price that doesn't include tax", () => {
+    const pro = price("pro", 4999);
+    const f = { ...good, prices: [price("starter", 1999), price("growth", 3499), { ...pro, price: { ...pro.price!, taxBehavior: "exclusive" } }] };
+    expect(fixes(f)).toEqual(["price-pro"]);
   });
   it("flags a webhook missing events and a portal that cancels at once", () => {
     const f = { ...good, webhooks: [{ url: "https://sociaos.com/api/stripe/webhook/", status: "enabled", events: ["checkout.session.completed"] }], portal: { ...good.portal!, cancelMode: "immediately" } };
