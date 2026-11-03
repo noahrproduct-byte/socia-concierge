@@ -43,7 +43,8 @@ export async function loadBillingFacts(appUrl: string): Promise<BillingFacts> {
   const [prices, hooks, portal, promos] = await Promise.all([
     Promise.all((["starter", "growth", "pro"] as const).map((p) => priceFacts(stripe, p))),
     stripe.webhookEndpoints.list({ limit: 50 }).then((r) => r.data.map((w) => ({ url: w.url, status: w.status, events: w.enabled_events })), (e) => { base.errors.push(`Webhook endpoints: ${msg(e)}`); return null; }),
-    stripe.billingPortal.configurations.list({ active: true, limit: 20 }).then((r) => {
+    // The product list is left out of the response unless asked for.
+    stripe.billingPortal.configurations.list({ active: true, limit: 20, expand: ["data.features.subscription_update.products"] }).then((r) => {
       const c = r.data.find((x) => x.is_default) ?? null;
       if (!c) return null;
       const f = c.features;
