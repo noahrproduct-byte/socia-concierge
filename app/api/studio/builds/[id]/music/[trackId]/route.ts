@@ -8,6 +8,7 @@ import { makeTrack } from "@/lib/music/server";
 import { MusicError } from "@/lib/music/elevenlabs";
 import { rememberPick } from "@/lib/music/store";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -19,7 +20,7 @@ export const maxDuration = 180;
 //             levels; remembered as one of the brand's picks
 //   DELETE -> take the music out of the cut
 
-const bad = (e: unknown) => NextResponse.json({ error: (e as Error)?.message || "Something went wrong." }, { status: 500 });
+const bad = (e: unknown) => errorResponse("studio/builds/[id]/music/[trackId]", e);
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string; trackId: string }> }) {
   const { id, trackId } = await params;

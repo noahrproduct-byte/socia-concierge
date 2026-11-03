@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { studioRequest, requireMutate, isMissingTable } from "@/lib/studioClips/auth";
 import { storeMeasurement } from "@/lib/audio/server";
 import type { AudioFeatures } from "@/lib/audio/features";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: "Run supabase/studio-audio.sql first.", migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/audio/measure", e);
   }
 }

@@ -67,7 +67,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
   const startLabel = signedIn ? "Open your dashboard" : "Get started free";
 
   return (
-    <div className="hm" data-theme="dark">
+    <div className="hm">
       <HomeMotion />
       <HomeNav signedIn={signedIn} />
 
@@ -79,26 +79,26 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
             {/* a local readability wash behind the words and buttons, drawn in SVG; see the note on .hm-cine-scrim */}
             <defs>
               <radialGradient id="hm-scrim" cx="50" cy="34" r="40" gradientUnits="userSpaceOnUse" gradientTransform="translate(50 34) scale(0.9 1) translate(-50 -34)">
-                <stop offset="0" stopColor="#040506" stopOpacity="0.92" />
-                <stop offset="0.62" stopColor="#040506" stopOpacity="0.7" />
-                <stop offset="1" stopColor="#040506" stopOpacity="0" />
+                <stop offset="0" stopColor="#f7f6f3" stopOpacity="0.92" />
+                <stop offset="0.62" stopColor="#f7f6f3" stopOpacity="0.7" />
+                <stop offset="1" stopColor="#f7f6f3" stopOpacity="0" />
               </radialGradient>
               <radialGradient id="hm-scrim-cta" cx="50" cy="60" r="26" gradientUnits="userSpaceOnUse" gradientTransform="translate(50 60) scale(1 0.26) translate(-50 -60)">
-                <stop offset="0" stopColor="#040506" stopOpacity="0.85" />
-                <stop offset="0.6" stopColor="#040506" stopOpacity="0.6" />
-                <stop offset="1" stopColor="#040506" stopOpacity="0" />
+                <stop offset="0" stopColor="#f7f6f3" stopOpacity="0.85" />
+                <stop offset="0.6" stopColor="#f7f6f3" stopOpacity="0.6" />
+                <stop offset="1" stopColor="#f7f6f3" stopOpacity="0" />
               </radialGradient>
               <linearGradient id="hm-scrim-side" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stopColor="#040506" stopOpacity="0.85" />
-                <stop offset="0.14" stopColor="#040506" stopOpacity="0" />
-                <stop offset="0.86" stopColor="#040506" stopOpacity="0" />
-                <stop offset="1" stopColor="#040506" stopOpacity="0.85" />
+                <stop offset="0" stopColor="#f7f6f3" stopOpacity="0.85" />
+                <stop offset="0.14" stopColor="#f7f6f3" stopOpacity="0" />
+                <stop offset="0.86" stopColor="#f7f6f3" stopOpacity="0" />
+                <stop offset="1" stopColor="#f7f6f3" stopOpacity="0.85" />
               </linearGradient>
               <linearGradient id="hm-scrim-edge" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stopColor="#040506" stopOpacity="0.9" />
-                <stop offset="0.14" stopColor="#040506" stopOpacity="0" />
-                <stop offset="0.95" stopColor="#040506" stopOpacity="0" />
-                <stop offset="1" stopColor="#040506" stopOpacity="0.8" />
+                <stop offset="0" stopColor="#f7f6f3" stopOpacity="0.9" />
+                <stop offset="0.14" stopColor="#f7f6f3" stopOpacity="0" />
+                <stop offset="0.95" stopColor="#f7f6f3" stopOpacity="0" />
+                <stop offset="1" stopColor="#f7f6f3" stopOpacity="0.8" />
               </linearGradient>
             </defs>
             <rect width="100" height="100" fill="url(#hm-scrim)" />

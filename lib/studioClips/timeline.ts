@@ -1,7 +1,7 @@
 // The EDL on a frame timeline. Shared by the Remotion composition (preview
 // and render), the builder's controls and the tests, so every surface agrees
 // on where each cut, text line and caption falls. Pure.
-import type { Edl, EdlSegment, TranscriptWord } from "./types";
+import type { Edl, EdlSegment, TranscriptWord, TransitionKind } from "./types";
 import { OUTPUT } from "./types";
 
 export const FPS = OUTPUT.fps;
@@ -10,11 +10,23 @@ export const framesToSec = (f: number): number => f / FPS;
 /** dB → linear gain for volume props. */
 export const dbToGain = (db: number): number => Math.pow(10, db / 20);
 
+/** A transition overlaps two cuts for this many frames (about 0.27 s, CapCut's usual length). */
+export const TRANSITION_FRAMES = 8;
+
+/** Frames a cut overlaps the one before it: none for a hard cut, and never more than half of either cut. */
+export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number): number {
+  if (!kind || kind === "cut") return 0;
+  return Math.max(0, Math.min(TRANSITION_FRAMES, Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
+}
+
 export type TimelineSegment = EdlSegment & {
   /** output-relative start, seconds / frames */
   startSec: number;
   startFrame: number;
   durationFrames: number;
+  /** frames this cut overlaps the previous one (its transition in) and the next one (the next cut's transition) */
+  overlapIn: number;
+  overlapOut: number;
   /** clip-relative in point in frames (the trim) */
   inFrame: number;
   /** measured balance for this clip (0 when none) */
@@ -25,13 +37,18 @@ export type Timeline = { segments: TimelineSegment[]; durationFrames: number; du
 
 export function timeline(edl: Edl): Timeline {
   const gain = new Map(edl.audio.map((a) => [a.clipId, a.gainDb]));
+  // Each cut starts where the one before ends, less the overlap of its transition.
   let frame = 0;
   const segments: TimelineSegment[] = [];
-  for (const s of edl.segments) {
+  edl.segments.forEach((s, i) => {
     const durationFrames = Math.max(1, secToFrames(s.out - s.in));
-    segments.push({ ...s, startSec: framesToSec(frame), startFrame: frame, durationFrames, inFrame: secToFrames(s.in), gainDb: gain.get(s.clipId) ?? 0 });
-    frame += durationFrames;
-  }
+    const prev = segments[i - 1];
+    const overlapIn = prev ? overlapFrames(s.transition, prev.durationFrames, durationFrames) : 0;
+    if (prev) prev.overlapOut = overlapIn;
+    const startFrame = Math.max(0, frame - overlapIn);
+    segments.push({ ...s, startSec: framesToSec(startFrame), startFrame, durationFrames, overlapIn, overlapOut: 0, inFrame: secToFrames(s.in), gainDb: gain.get(s.clipId) ?? 0 });
+    frame = startFrame + durationFrames;
+  });
   return { segments, durationFrames: Math.max(1, frame), durationSec: framesToSec(Math.max(1, frame)) };
 }
 

@@ -17,7 +17,9 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
   const M = p.meters;
   const workspaces = n(L.workspaces, "Brand Workspace", "Brand Workspaces");
   const askSocia = `${M.ask_socia} Ask SOCIA questions/month`;
-  const studio = `${M.content_studio} Content Studio analyses/month`;
+  // Listed under "Everything in <the plan below>, plus" only when it's more than that plan's.
+  const below = PLAN_ORDER[PLAN_ORDER.indexOf(p.id) - 1];
+  const studio = below && PLANS[below].meters.content_studio >= M.content_studio ? null : `${M.content_studio} Content Studio analyses/month`;
   const competitors = n(L.competitors, "competitor", "competitors");
   // Team members are a headline only once invites exist; until then the seat
   // count would be a promise about a feature that is not built, so it lives in

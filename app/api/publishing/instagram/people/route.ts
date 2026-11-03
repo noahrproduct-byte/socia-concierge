@@ -4,6 +4,7 @@ import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { knownPeople } from "@/lib/publishing/peopleServer";
 import { rememberUsername, scopeKey } from "@/lib/publishing/knownUsernames";
 import type { LookupAccount } from "@/lib/publishing/people";
+import { publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export async function GET() {
     const people = await knownPeople(ctx.client, { ownerId: ctx.ownerId, workspaceId: ctx.workspace?.id ?? null, isOwner: ctx.isOwner });
     return NextResponse.json({ people }, { headers: { "cache-control": "private, no-store" } });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message, people: [] }, { status: 500 });
+    return NextResponse.json({ error: publicMessage("publishing/instagram/people", e), people: [] }, { status: 500 });
   }
 }
 

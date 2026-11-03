@@ -6,6 +6,8 @@ import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { regenerateBuild, accountContext, isManualBuild } from "@/lib/studioClips/server";
 import { REGENERATE_OPTIONS, type RegenerateDirective } from "@/lib/studioClips/types";
+import { publicMessage } from "@/lib/dbError";
+import { handOverCut } from "@/lib/studioClips/cutMeter";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -29,6 +31,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (await isManualBuild(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id)) return NextResponse.json({ error: "Your own edit has no AI rewrite. Edit it directly." }, { status: 400 });
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
+    // The new cut comes back to the browser: the build counts (once) if it hadn't yet.
+    const handed = await handOverCut(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, { id, opportunity_idx: 0 });
+    if (!handed.ok) return handed.res;
     const limited = await perUserLimit(ctx.ownerId, "clip_edl", 40, "video edits");
     if (limited) return limited;
     const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
@@ -36,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    const msg = (e as Error).message ?? "";
+    const msg = publicMessage("studio/builds/regenerate", e, "");
     if (/regenerated .* times/.test(msg) || /not in this project/.test(msg)) return NextResponse.json({ error: msg }, { status: 409 });
     const kind = aiFailureKind(e);
     return NextResponse.json({ error: kind === "failed" ? (msg || "Regenerating failed. Try again.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });

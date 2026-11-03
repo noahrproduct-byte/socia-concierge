@@ -20,6 +20,14 @@ import { fileLabel, postLabel } from "@/lib/publishing/postLabel";
 import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
+
+/** The provider's own reason, in the server log only: the reply keeps the
+ *  plain sentence, but "couldn't be reached" alone can't be diagnosed. */
+function logAskFailure(where: string, kind: string, err: unknown) {
+  const e = err as { status?: number; error?: { error?: { type?: string; message?: string } }; message?: string } | null;
+  const detail = e?.error?.error?.message ?? e?.message ?? String(err);
+  console.error(`[ask] ${where} failed (${kind})`, e?.status ?? "", e?.error?.error?.type ?? "", detail.slice(0, 500));
+}
 export const maxDuration = 60;
 
 // Ask SOCIA, in context. The page and object the user is looking at arrive
@@ -247,6 +255,7 @@ export async function POST(req: Request) {
   } catch (err) {
     await u.release();
     const kind = aiFailureKind(err);
+    logAskFailure("answer", kind, err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }
   };
@@ -272,6 +281,7 @@ export async function POST(req: Request) {
       } catch (err) {
         await u.release();
         const kind = aiFailureKind(err);
+        logAskFailure("stream", kind, err);
         send({ type: "error", status: kind === "rate_limited" ? 429 : 502, error: AI_UNAVAILABLE_COPY[kind], kind });
         controller.close();
         return;

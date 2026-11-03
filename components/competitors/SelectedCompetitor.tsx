@@ -8,12 +8,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, ExternalLink, Link2, Loader2, Plus, Sparkles, TrendingUp, TrendingDown } from "lucide-react";
-import { SOURCE_LABEL } from "@/lib/competitorRollup";
+import { fmtRate, SOURCE_LABEL } from "@/lib/competitorRollup";
 import type { Comparison as Cmp } from "@/lib/similarCompetitor";
 import type { CompetitorRow, Learning, Reason } from "@/lib/competitorIntel";
 import { Avatar, PlatformMark, cellText, classLabel, fmtN, platName } from "./shared";
 
-const fmtC = (unit: Cmp["unit"], v: number) => (unit === "pct" ? `${v.toFixed(1)}%` : unit === "perWeek" ? `${v.toFixed(1)}/wk` : fmtN(v));
+const fmtC = (unit: Cmp["unit"], v: number) => (unit === "pct" ? fmtRate(v, true) : unit === "perWeek" ? `${v.toFixed(1)}/wk` : fmtN(v));
 
 /* ---------- identity bar ---------- */
 

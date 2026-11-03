@@ -28,6 +28,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { igCompetitorRows, type IgCompetitor } from "@/lib/igCompetitorData";
 import { isOwnAccount, type OwnAccounts } from "@/lib/ownAccounts";
 import type { ScoredAccount, Classification } from "@/lib/discovery";
+import { fmtRate } from "@/lib/competitorRollup";
 
 /** At most this many competitors are added by one run. */
 export const PICKS_PER_RUN = 5;
@@ -54,12 +55,27 @@ const fmt = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `
 
 /** The reason shown for a pick: why discovery found it, plus what Instagram reported. */
 export function pickReason(candidate: ScoredAccount, verified: IgCompetitor): string {
-  const why = (candidate.note ?? candidate.relevanceReasons[0] ?? "").trim().replace(/\.$/, "");
   const facts = [
     verified.followers != null ? `${fmt(verified.followers)} followers` : null,
-    verified.engagementRate != null ? `${verified.engagementRate.toFixed(1)}% engagement` : null,
+    verified.engagementRate != null ? `${fmtRate(verified.engagementRate)} engagement` : null,
   ].filter(Boolean).join(", ");
-  return [why, facts].filter(Boolean).join(". ").slice(0, 240);
+  return joinReason(whyOf(candidate), facts);
+}
+
+/** "why. facts", without a full stop after a cut reason's "…". */
+const joinReason = (why: string, rest: string): string =>
+  [why, rest].filter(Boolean).reduce((a, b) => (a ? `${a}${a.endsWith("…") ? " " : ". "}${b}` : b), "");
+
+/** A rate under 0.1% reads as "under 0.1%", never "0.0%", which looks like none (lib/competitorRollup). */
+export { fmtRate };
+
+/** Discovery's reason, cut at a word so the facts after it always show. */
+const WHY_MAX = 180;
+function whyOf(c: ScoredAccount): string {
+  const why = (c.note ?? c.relevanceReasons[0] ?? "").trim().replace(/\.$/, "");
+  if (why.length <= WHY_MAX) return why;
+  const cut = why.slice(0, WHY_MAX);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 1)).replace(/[,;:]$/, "")}…`;
 }
 
 /**
@@ -97,10 +113,10 @@ export function chooseUnverifiedPicks(candidates: ScoredAccount[], freeSlots: nu
     .filter((c) => c.handle && c.dataSource === "web_research")
     .sort((a, b) => (CLASS_RANK[a.classification] ?? 9) - (CLASS_RANK[b.classification] ?? 9) || b.relevanceScore - a.relevanceScore)
     .slice(0, Math.min(freeSlots, UNVERIFIED_PICKS))
-    .map((c) => {
-      const why = (c.note ?? c.relevanceReasons[0] ?? "").trim().replace(/\.$/, "");
-      return { handle: c.handle!.toLowerCase(), reason: [why, "Found by web research; Instagram has not confirmed its numbers yet"].filter(Boolean).join(". ").slice(0, 240) };
-    });
+    .map((c) => ({
+      handle: c.handle!.toLowerCase(),
+      reason: joinReason(whyOf(c), "Found by web research; Instagram has not confirmed its numbers yet"),
+    }));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

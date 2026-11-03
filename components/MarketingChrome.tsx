@@ -18,7 +18,7 @@ export function Nav({ signedIn, current }: { signedIn: boolean; current?: string
   const [menu, setMenu] = useState(false);
   return (
     <>
-      <header className="so-nav on-dark pr-nav">
+      <header className="so-nav on-light pr-nav">
         <Link href="/" className="so-brand"><BrandMark size={26} /> SOCIA</Link>
         <nav className="so-nav-links" aria-label="Pages">
           {NAV_LINKS.map((l) => (

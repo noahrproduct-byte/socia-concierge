@@ -291,7 +291,7 @@ export function Scatter({ posts, yLabel, height = 210, unit }: { posts: ScatterP
             style={{ transitionDelay: `${i * 24}ms` }}
             onMouseEnter={() => setHover({ ...p, x: X(p.t), py: Y(p.y) })}
             onMouseLeave={() => setHover(null)}
-            onClick={() => window.open(p.url, "_blank", "noopener")}
+            onClick={() => { if (/^https:\/\//i.test(p.url)) window.open(p.url, "_blank", "noopener"); }}
           />
         ))}
       </svg>

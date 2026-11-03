@@ -49,6 +49,8 @@ export const MIGRATIONS = [
   "growth-profile.sql",
   "platform-deletions.sql",
   "intelligence.sql",
+  "competitor-autopick.sql",
+  "studio-cut-meter.sql",
 ];
 
 const SUPABASE_STANDIN = `

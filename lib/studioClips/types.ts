@@ -197,7 +197,18 @@ export type EdlSegment = {
   frame?: SegmentFrame;
   /** This clip's volume (Editor V2): 0 mutes it, 2 is twice as loud. Absent = as recorded. */
   volume?: number;
+  /** How this cut comes in from the one before (ignored on the first): a hard cut, a fade, or a CapCut-style zoom or whip blur. Absent = a hard cut. */
+  transition?: TransitionKind;
 };
+
+export const TRANSITIONS = [
+  { id: "cut", label: "Cut" },
+  { id: "fade", label: "Fade" },
+  { id: "zoom", label: "Zoom blur" },
+  { id: "whip", label: "Whip blur" },
+] as const;
+export type TransitionKind = (typeof TRANSITIONS)[number]["id"];
+export const isTransition = (v: unknown): v is TransitionKind => TRANSITIONS.some((t) => t.id === v);
 
 export type SegmentFrame = { zoom: number; x: number; y: number };
 
@@ -258,6 +269,8 @@ export type Edl = {
   notes: string[];
   /** Phase C: measured picture and sound corrections (absent until measured). */
   finish?: EdlFinish;
+  /** Reduce background noise in the clips' sound (lib/studioClips/cleanSound.ts), done in the browser. On for cuts made since 2026-11-02; absent = off. */
+  cleanSound?: boolean;
   /** Editor V2: font, brand accent, text background and caption style (lib/studioClips/style.ts). Absent = the original look. */
   style?: EdlStyle;
   /** A cut made from a written brief and/or a reference video (lib/studioClips/reference.ts): what it follows, so Regenerate follows it too. */
@@ -268,6 +281,8 @@ export type Edl = {
   soundtrack?: Soundtrack;
   /** When SOCIA tried adding music on its own (once per cut, whatever happened). Server-owned. */
   musicAuto?: string;
+  /** When SOCIA coloured the cut on its own (lib/studioClips/autoLook.ts), once per cut whatever happened. */
+  lookAuto?: string;
 };
 
 export type EdlBrief = { prompt: string | null; reference: string | null; referenceName: string | null };

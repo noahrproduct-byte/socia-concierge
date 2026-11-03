@@ -2,7 +2,7 @@
 // uses, clip registration under the plan's limits, and building one
 // opportunity's EDL + guide. Everything is scoped to the workspace owner and
 // the active Brand Workspace, like the rest of SOCIA.
-import type { EdlStyle } from "./style";
+import { CAPCUT_STYLE, type EdlStyle } from "./style";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getLimit, type Entitlements } from "@/lib/entitlements";
 import { getProfile } from "@/lib/profile";
@@ -12,7 +12,7 @@ import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder, storage
 import { checkClipFits, projectTotals, ownerStorageBytes, type FitResult } from "./limits";
 import { copyPaths, dedupeByFootage, MAX_COPY, nextPosition, type LibraryClip } from "./library";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
-import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
+import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl, type RawEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
 import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
@@ -116,7 +116,7 @@ export async function loadProject(client: Supa, ownerId: string, wsId: string | 
   if (!row) return null;
   const [rows, builds] = await Promise.all([
     clipRows(client, id),
-    client.from("studio_builds").select("opportunity_idx").eq("project_id", id),
+    client.from("studio_builds").select("opportunity_idx").eq("project_id", id).eq("user_id", ownerId),
   ]);
   const urls = await frameUrls(client, rows);
   return {
@@ -281,25 +281,25 @@ function rowToBuild(b: BuildRow, rows: ClipRow[]): StudioBuild {
 }
 
 /** Select build rows, tolerating a database without the Phase B columns. */
-async function selectBuilds(client: Supa, apply: (q: ReturnType<Supa["from"]>["select"] extends (...a: never[]) => infer R ? R : never) => unknown): Promise<BuildRow[]> {
+async function selectBuilds(client: Supa, ownerId: string, apply: (q: ReturnType<Supa["from"]>["select"] extends (...a: never[]) => infer R ? R : never) => unknown): Promise<BuildRow[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const run = async (cols: string) => apply(client.from("studio_builds").select(cols) as any) as Promise<{ data: unknown; error: { message?: string } | null }>;
+  const run = async (cols: string) => apply(client.from("studio_builds").select(cols).eq("user_id", ownerId) as any) as Promise<{ data: unknown; error: { message?: string } | null }>;
   let res = await run(BUILD_COLS_B);
   if (res.error && /column|does not exist/i.test(res.error.message ?? "")) res = await run(BUILD_COLS);
   if (res.error) throw res.error;
   return ((res.data ?? []) as BuildRow[]);
 }
 
-export async function loadBuild(client: Supa, projectId: string, idx: number, rows: ClipRow[]): Promise<StudioBuild | null> {
+export async function loadBuild(client: Supa, ownerId: string, projectId: string, idx: number, rows: ClipRow[]): Promise<StudioBuild | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [b] = await selectBuilds(client, (q: any) => q.eq("project_id", projectId).eq("opportunity_idx", idx).limit(1));
+  const [b] = await selectBuilds(client, ownerId, (q: any) => q.eq("project_id", projectId).eq("opportunity_idx", idx).limit(1));
   return b ? rowToBuild(b, rows) : null;
 }
 
 /** A build of this owner, in this Brand Workspace only (a guest of one brand never reaches another's). */
 export async function loadBuildRow(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<BuildRow | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [b] = await selectBuilds(client, (q: any) => scopeToWorkspace(q.eq("id", buildId).eq("user_id", ownerId), wsId).limit(1));
+  const [b] = await selectBuilds(client, ownerId, (q: any) => scopeToWorkspace(q.eq("id", buildId), wsId).limit(1));
   return b ?? null;
 }
 
@@ -353,6 +353,16 @@ export const clipIdx = (position: number) => CLIP_IDX_BASE - position;
 /** The person's own edit or a single-clip post: no AI made the cut, nothing is counted. */
 export const isOwnCutIdx = (idx: number) => idx === MANUAL_IDX || idx <= CLIP_IDX_BASE;
 
+/**
+ * SOCIA's cut as plans without Make This Video (auto_build) see it: the edit
+ * guide, caption and notes, without the cut itself. The guide tells the person
+ * how to edit it; the cut stays out of reach, so it can't be pasted into their
+ * own edit and exported for free.
+ */
+export function guideOnly(b: StudioBuild): StudioBuild {
+  return { ...b, edl: { ...b.edl, segments: [], text: [], enhance: [], audio: [], captions: null }, historyLength: 0 };
+}
+
 /** Is this build the person's own edit? Decides which plan feature and allowance apply. */
 export async function isManualBuild(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<boolean | null> {
   const row = await loadBuildRow(client, ownerId, wsId, buildId);
@@ -366,7 +376,7 @@ export async function isManualBuild(client: Supa, ownerId: string, wsId: string 
 export async function manualBuild(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
   const { ownerId, wsId, project, preset } = args;
   const rows = await clipRows(client, project.id);
-  const existing = await loadBuild(client, project.id, MANUAL_IDX, rows);
+  const existing = await loadBuild(client, ownerId, project.id, MANUAL_IDX, rows);
   if (existing) return existing;
   const ready = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
   if (!ready.length) throw new Error("Add at least one clip that finished uploading.");
@@ -375,10 +385,11 @@ export async function manualBuild(client: Supa, args: { ownerId: string; wsId: s
     targetSec: { min: 1, max: Math.ceil(ready.reduce((a, r) => a + (r.duration_s ?? 0), 0)) + 1 },
     segments: ready.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
-    ...(preset ? { width: preset.width, height: preset.height, style: preset.style } : {}),
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
   }, forEdl);
   // Captions only when the person turns them on.
   edl.captions = null;
+  edl.cleanSound = true;
   if (!edl.segments.length) throw new Error("These clips are too short to edit.");
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: MANUAL_IDX, edl, guide, caption: null, model: "manual", updated_at: now() };
@@ -399,16 +410,17 @@ export async function clipBuild(client: Supa, args: { ownerId: string; wsId: str
   const clip = rows.find((r) => r.id === clipId);
   if (!clip || !clip.source_path || clip.purged_at || clip.status === "expired" || !((clip.duration_s ?? 0) > 0)) throw new Error("That clip isn't ready to post.");
   const idx = clipIdx(clip.position);
-  const existing = await loadBuild(client, project.id, idx, rows);
+  const existing = await loadBuild(client, ownerId, project.id, idx, rows);
   if (existing) return existing;
   const dur = clip.duration_s ?? 0;
   const { edl } = validateEdl({
     targetSec: { min: 1, max: Math.ceil(dur) + 1 },
     segments: [{ clipId: clip.id, in: 0, out: dur }],
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
-    ...(preset ? { width: preset.width, height: preset.height, style: preset.style } : {}),
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
   }, [toClipForEdl(clip)]);
   edl.captions = clip.transcript?.words?.length ? { source: "transcript" } : null;
+  edl.cleanSound = true;
   if (!edl.segments.length) throw new Error("That clip is too short to post.");
   const guide = guideFromEdl(edl, [toClipForEdl(clip)]);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: null, model: "manual", updated_at: now() };
@@ -462,12 +474,16 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const forEdl = rows.map(toClipForEdl);
   const { edl } = validateEdl(raw, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
+  // A new version keeps the look the cut had.
+  edl.style = row.edl.style ?? CAPCUT_STYLE;
+  edl.cleanSound = row.edl.cleanSound ?? true;
   // A brief's cut keeps its size, its look and the brief itself.
   if (brief) { edl.brief = brief; edl.width = row.edl.width; edl.height = row.edl.height; if (row.edl.style) edl.style = row.edl.style; if (row.edl.captions) edl.captions = row.edl.captions; }
   // The music made for the cut, and the track chosen, stay with it.
   if (row.edl.playlist) edl.playlist = row.edl.playlist;
   if (row.edl.soundtrack) edl.soundtrack = row.edl.soundtrack;
   if (row.edl.musicAuto) edl.musicAuto = row.edl.musicAuto;
+  if (row.edl.lookAuto) edl.lookAuto = row.edl.lookAuto;
   // Picture and sound corrections are per clip, so they still hold for the clips the new cut keeps;
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));
@@ -486,7 +502,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
 /** The project's cuts made from a brief, newest first: id, title and what they follow. */
 export async function listBriefBuilds(client: Supa, ownerId: string, wsId: string | null, projectId: string): Promise<{ id: string; title: string; referenceName: string | null; createdAt: string }[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = await selectBuilds(client, (q: any) => scopeToWorkspace(q.eq("project_id", projectId).eq("user_id", ownerId).lte("opportunity_idx", -2).gte("opportunity_idx", -999), wsId).order("created_at", { ascending: false }).limit(20));
+  const rows = await selectBuilds(client, ownerId, (q: any) => scopeToWorkspace(q.eq("project_id", projectId).lte("opportunity_idx", -2).gte("opportunity_idx", -999), wsId).order("created_at", { ascending: false }).limit(20));
   return rows.map((b) => {
     const brief = b.edl?.brief ?? null;
     const title = brief?.prompt ? titleFor(brief.prompt, null) : brief?.referenceName ? `Like “${brief.referenceName}”` : "Your video";
@@ -621,23 +637,25 @@ export async function buildFromBrief(client: Supa, args: {
   const usable = rows.filter((r) => r.card && !r.purged_at && r.status !== "expired");
   if (!usable.length) throw new Error("SOCIA hasn't understood these clips yet. Run Understand this footage first.");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const existing = await selectBuilds(client, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
+  const existing = await selectBuilds(client, ownerId, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
   const idx = nextBriefIdx(existing.map((b) => b.opportunity_idx));
   const title = titleFor(prompt, reference?.breakdown ?? null);
   const opp = opportunityFromBrief(title, prompt ?? reference?.breakdown.summary ?? title, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, card: r.card })), idx);
   if (!opp.clipIds.length) throw new Error("None of the clips has a usable moment to cut from.");
   const brief = { prompt, reference: reference?.brief ?? null, referenceName: reference?.name ?? null };
   const urls = await frameUrls(client, usable);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, undefined, briefText(brief));
+  const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = rows.map(toClipForEdl);
-  const { edl } = validateEdl(raw, forEdl);
+  const footageSec = usable.filter((r) => opp.clipIds.includes(r.id)).reduce((a, r) => a + (r.duration_s ?? 0), 0);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry), forEdl, footageSec);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
   // Every clip the person gave is in the cut, and the cut is long enough to be a post.
-  const footageSec = usable.reduce((a, r) => a + (r.duration_s ?? 0), 0);
   const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec));
   if (filled.added.length) edl.notes.push(`SOCIA added ${filled.added.map((id) => clipLabel(rows.find((r) => r.id === id)?.position ?? 0)).join(", ")} so every clip you gave is in the cut.`);
   edl.segments = filled.segments;
-  if (preset) { edl.width = preset.width; edl.height = preset.height; edl.style = preset.style; }
+  if (preset) { edl.width = preset.width; edl.height = preset.height; }
+  edl.style = preset?.style ?? CAPCUT_STYLE;
+  edl.cleanSound = true;
   if (reference) {
     edl.style = referenceStyle(reference.breakdown, edl.style);
     // Word-by-word captions only when the reference has them and the clips have real speech.
@@ -650,6 +668,25 @@ export async function buildFromBrief(client: Supa, args: {
   const { data, error } = await client.from("studio_builds").insert(row).select(BUILD_COLS).single();
   if (error) throw error;
   return rowToBuild(data as BuildRow, rows);
+}
+
+/**
+ * Pass 3 with a floor: a cut far shorter than its footage allows (the
+ * 2-second Halloween video, 2026-11-02) is made once more, told how long it
+ * should be. The longer of the two is kept.
+ */
+async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number): Promise<{ edl: Edl; model: string }> {
+  const first = await make(null);
+  let edl = validateEdl(first.raw, forEdl).edl;
+  let model = first.model;
+  const len = edlDurationSec(edl);
+  const floor = Math.min(10, footageSec * 0.5);
+  if (footageSec >= 6 && len < floor) {
+    const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
+    const second = validateEdl(again.raw, forEdl).edl;
+    if (edlDurationSec(second) > len) { edl = second; model = again.model; }
+  }
+  return { edl, model };
 }
 
 /** The browser finished rendering and uploading; the draft post exists. */
@@ -668,10 +705,13 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   const rows = await clipRows(client, project.id);
   const used = rows.filter((r) => opp.clipIds.includes(r.id));
   const urls = await frameUrls(client, used);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) });
+  const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = used.map(toClipForEdl);
-  const { edl } = validateEdl(raw, forEdl);
+  const footageSec = used.reduce((a, r) => a + (r.duration_s ?? 0), 0);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry), forEdl, footageSec);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from these clips.");
+  edl.style = edl.style ?? CAPCUT_STYLE;
+  edl.cleanSound = true;
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: edl.caption || null, model, updated_at: now() };
   if (wsId) row.workspace_id = wsId;

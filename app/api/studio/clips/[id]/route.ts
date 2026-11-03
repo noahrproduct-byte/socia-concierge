@@ -3,6 +3,7 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { completeClip, deleteClip, type CompleteInput } from "@/lib/studioClips/server";
 import type { ClipFacts } from "@/lib/studioClips/types";
 import { isOwnPath } from "@/lib/storagePaths";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json(clip);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/clips/[id]", e);
   }
 }
 
@@ -50,6 +51,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (!ok) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/clips/[id]", e);
   }
 }

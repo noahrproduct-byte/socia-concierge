@@ -31,4 +31,10 @@ describe("platform_deletions", () => {
     // Control: the owner records into their own brand.
     expect((await refused(db, as(U.A), `insert into public.platform_deletions (user_id, workspace_id, platform, account_id, external_id) values ($1, $2, 'youtube', 'x', 'y')`, [U.A, W.WA])).refused).toBe(false);
   });
+
+  it("the record can't be rewritten or removed from the browser, even by its owner", async () => {
+    expect((await refused(db, as(U.B), `update public.platform_deletions set deleted_by = null, caption = 'x' where user_id = $1`, [U.B])).refused).toBe(true);
+    expect((await refused(db, as(U.B), `delete from public.platform_deletions where user_id = $1`, [U.B])).refused).toBe(true);
+    expect((await rowsAs(db, as(U.B), `select id from public.platform_deletions`)).length).toBe(1);
+  });
 });

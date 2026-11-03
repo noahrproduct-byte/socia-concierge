@@ -13,11 +13,18 @@
 .psk-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; }
 .psk-card.tall { height: 320px; }
 .psk-card.wide { height: 220px; }
+/* The Overview's shapes (components/dashboard/Dashboard.tsx): hero, four stat cards, the week strip, two grids. */
+.psk-hero { height: 168px; }
+.psk-strip { height: 176px; }
+.psk-grid--dash { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); }
+.psk-grid--duo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.psk-grid--dash .psk-card.tall { height: 300px; }
 @keyframes psk-sweep { to { transform: translateX(100%); } }
 @keyframes psk-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 900px) {
   .psk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .psk-grid { grid-template-columns: 1fr; }
+  .psk-grid, .psk-grid--dash, .psk-grid--duo { grid-template-columns: 1fr; }
+  .psk-hero { height: 220px; }
   .psk-card.tall { height: 220px; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -2,11 +2,10 @@
 
 // The floating dock: the brand, six direct section links and All sections,
 // then search (the command menu), Ask SOCIA, the bell and the account, in one
-// smoked-glass object centred above the page that stays put while pages
-// change beneath it. It always wears the dark token scope (class "dark"), so
-// its controls read on the charcoal glass in either theme; its popups are
-// portalled to the page and keep the page's theme. On phones the links move
-// into the All sections panel, opened by the menu button.
+// frosted-glass object centred above the page that stays put while pages
+// change beneath it. It wears the page's tokens, like its portalled popups.
+// On phones the links move into the All sections panel, opened by the menu
+// button.
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -63,7 +62,7 @@ export default function TopBar({
   }, []);
 
   return (
-    <header className="s-headbar dark">
+    <header className="s-headbar">
       <Link href="/dashboard" className="s-brand" aria-label="SOCIA, go to the dashboard">
         <BrandMark size={24} />
         <span>SOCIA</span>

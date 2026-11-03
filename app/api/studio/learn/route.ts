@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { studioRequest, isMissingTable } from "@/lib/studioClips/auth";
 import { loadStudioOutcomes } from "@/lib/studioClips/learnLoad";
 import { studioLessons } from "@/lib/studioClips/learn";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ outcomes, lessons: studioLessons(outcomes) });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ outcomes: [], lessons: studioLessons([]) });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/learn", e);
   }
 }

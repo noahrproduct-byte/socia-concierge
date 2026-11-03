@@ -32,16 +32,16 @@
   --nav-active: #ecebe7;
   --inverse-surface: #17191d;
   --inverse-text: #ffffff;
-  /* The floating dock is smoked glass in both themes: the header carries the
-     dark token scope (class "dark"), so these two resolve to the dark values
-     there. Listed here so every token starts on :root. */
-  --headbar: rgba(20, 22, 26, 0.86);
-  --headbar-line: rgba(255, 255, 255, 0.1);
-  /* The dock's own constants, never themed: the selection surface, the lit
-     top edge of the glass, and its lift off the page. */
-  --dock-active: rgba(255, 255, 255, 0.08);
-  --dock-edge: inset 0 1px 0 rgba(255, 255, 255, 0.07);
-  --dock-shadow: 0 1px 2px rgba(23, 25, 29, 0.14), 0 14px 36px rgba(23, 25, 29, 0.2);
+  /* The floating dock is frosted white glass (light only since 2026-11-03;
+     it was smoked charcoal in both themes before). The dark block below
+     keeps the smoked values. */
+  --headbar: rgba(255, 255, 255, 0.86);
+  --headbar-line: rgba(23, 25, 29, 0.08);
+  /* The dock's own constants: the selection surface, the lit top edge of
+     the glass, and its lift off the page. */
+  --dock-active: rgba(23, 25, 29, 0.06);
+  --dock-edge: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --dock-shadow: 0 1px 2px rgba(23, 25, 29, 0.06), 0 12px 32px rgba(23, 25, 29, 0.1);
 
   /* ---- ink ----------------------------------------------------------------- */
   --ink: #17191d;
@@ -258,6 +258,9 @@
   --ground: #0b0d10;
   --headbar: rgba(20, 22, 26, 0.86);
   --headbar-line: rgba(255, 255, 255, 0.1);
+  --dock-active: rgba(255, 255, 255, 0.08);
+  --dock-edge: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --dock-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 14px 36px rgba(0, 0, 0, 0.4);
   --surface: #14181e;
   --surface-raised: #191e25;
   --surface-hover: #1f252d;

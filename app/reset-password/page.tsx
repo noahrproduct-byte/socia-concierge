@@ -14,8 +14,8 @@ export default function ResetPasswordPage() {
 
   async function updatePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (password.length < 6) {
-      setErr("Password must be at least 6 characters.");
+    if (password.length < 8) {
+      setErr("Password must be at least 8 characters.");
       return;
     }
     setLoading(true);
@@ -46,7 +46,7 @@ export default function ResetPasswordPage() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 6 characters"
+          placeholder="At least 8 characters"
         />
         <button className="authbtn" type="submit" disabled={loading}>
           {loading ? "Updating…" : "Update password"}

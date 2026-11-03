@@ -26,6 +26,7 @@ import type { CalendarPost } from "@/lib/studioClips/distribute";
 import { batchOrder, MAX_PER_DAY, scheduleBatch, tomorrowIn, type BatchItem } from "@/lib/studioClips/batch";
 import { clipLabel, type BuildPlayerData, type StudioBuild, type StudioProject } from "@/lib/studioClips/types";
 import { renderBlocker, renderBuild, spokenText } from "./renderBuild";
+import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
 
 type BuildInfo = { idx: number; id: string; renderPath: string | null; postId: string | null; postStatus: string | null };
 type BatchData = {
@@ -41,7 +42,7 @@ type BatchData = {
 
 type Source = { kind: "idea"; idx: number } | { kind: "clip"; clipId: string };
 type Candidate = BatchItem & { source: Source; done: string | null };
-type Step = "waiting" | "cut" | "music" | "render" | "upload" | "caption" | "ready" | "failed" | "skipped";
+type Step = "waiting" | "cut" | "music" | "look" | "render" | "upload" | "caption" | "ready" | "failed" | "skipped";
 type Made = {
   key: string;
   title: string;
@@ -69,7 +70,7 @@ type Made = {
 /** TikTok asks who may see each post and, until it audits SOCIA, allows only private posts: Create Post handles it one by one. */
 const BATCH_PLATFORMS: Platform[] = ["instagram", "youtube", "facebook"];
 const STEP_COPY: Record<Step, string> = {
-  waiting: "Waiting", cut: "Writing the cut", music: "Adding music from your taste", render: "Making the video", upload: "Saving the video", caption: "Writing the caption",
+  waiting: "Waiting", cut: "Writing the cut", music: "Adding music from your taste", look: "Correcting the colour", render: "Making the video", upload: "Saving the video", caption: "Writing the caption",
   ready: "Ready", failed: "Didn't finish", skipped: "Skipped",
 };
 
@@ -186,7 +187,16 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
     const pres = await fetch(`/api/studio/builds/${build.id}`, { signal });
     const pj = await readJson(pres);
     if (!pres.ok) { if (isPlanError(pj)) throw Object.assign(new Error("plan"), { plan: pj }); throw new Error((pj?.error as string) ?? "Couldn't open the cut."); }
-    const player = pj as unknown as BuildPlayerData;
+    let player = pj as unknown as BuildPlayerData;
+    // Colour, on its own, once per cut, before a new video is made (lib/studioClips/autoLook.ts).
+    if (!path && wantsAutoLook(player.build.edl)) {
+      patch(key, { step: "look", progress: 0 });
+      const out = await autoLook(player.build.edl!, Object.fromEntries(player.sources.map((x) => [x.clipId, x])), signal);
+      const saved = await fetch(`/api/studio/builds/${build.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: out.edl }), signal });
+      const sj = await readJson(saved);
+      // A cut that can't be saved is still made, as it was.
+      if (saved.ok && sj) player = { ...player, build: sj as unknown as StudioBuild };
+    }
     const edl = player.build.edl;
     if (!edl) throw new Error("This idea has no cut yet.");
     const title = c.title;
@@ -416,7 +426,7 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
               <CalendarClock size={14} /> Make {chosen.length === 1 ? "this video" : `${chosen.length} videos`}
             </button>
             <p className="cbp-muted">
-              {ideasChosen > 0 ? `Each idea counts as one video build on your plan. ` : ""}Keep this tab open while they&apos;re made: the videos render on this computer.
+              {ideasChosen > 0 ? `Each idea counts as one AI-made video on your plan. ` : ""}Keep this tab open while they&apos;re made: the videos render on this computer.
             </p>
           </div>
         </>

@@ -15,12 +15,40 @@ export const IDEA_STYLES: { id: IdeaStyle; label: string; hint: string }[] = [
 ];
 export const isIdeaStyle = (v: unknown): v is IdeaStyle => v === "face" || v === "in_person" || v === "animation";
 
+/**
+ * How the idea is filmed, chosen to suit the concept: a funny situation is acted
+ * out (sketch or POV), a how-to is shown (demo), news or an opinion is said to
+ * the camera. Each style allows only the treatments that fit it.
+ */
+export type IdeaTreatment = "sketch" | "pov" | "talking" | "demo" | "behind_scenes" | "animation";
+export const TREATMENT_LABEL: Record<IdeaTreatment, string> = {
+  sketch: "Sketch", pov: "POV", talking: "Talking to camera", demo: "Demo", behind_scenes: "Behind the scenes", animation: "Animation",
+};
+export const STYLE_TREATMENTS: Record<IdeaStyle, IdeaTreatment[]> = {
+  face: ["talking", "sketch", "pov"],
+  in_person: ["sketch", "pov", "demo", "behind_scenes"],
+  animation: ["animation"],
+};
+const DEFAULT_TREATMENT: Record<IdeaStyle, IdeaTreatment> = { face: "talking", in_person: "behind_scenes", animation: "animation" };
+
+/**
+ * How much the account's own results back the idea. strong: two or more similar
+ * posts clearly above the account's median. promising: one similar post above
+ * it, or only a small margin. untested: nothing similar posted yet.
+ */
+export type IdeaEvidence = "strong" | "promising" | "untested";
+export const EVIDENCE_LABEL: Record<IdeaEvidence, string> = { strong: "Strong signal", promising: "Promising signal", untested: "Untested idea" };
+const isEvidence = (v: unknown): v is IdeaEvidence => v === "strong" || v === "promising" || v === "untested";
+
 export type IdeaShot = { from: number; to: number; onCamera: string; onScreenText: string | null; say: string | null };
 export type IdeaSound = { kind: "original" | "music" | "voiceover"; feel: string };
 export type VideoIdea = {
   id: string;
   title: string;
   style: IdeaStyle;
+  treatment: IdeaTreatment;
+  /** null on ideas written before SOCIA labelled its evidence */
+  evidence: IdeaEvidence | null;
   /** what the video is, in one or two sentences */
   premise: string;
   /** which of the account's own posts or patterns it follows; "" when SOCIA has too little to go on */
@@ -50,6 +78,8 @@ export const IDEAS_SCHEMA = {
         properties: {
           title: { type: "string" },
           style: { type: "string", enum: ["face", "in_person", "animation"] },
+          treatment: { type: "string", enum: ["sketch", "pov", "talking", "demo", "behind_scenes", "animation"] },
+          evidence: { type: "string", enum: ["strong", "promising", "untested"] },
           premise: { type: "string" },
           themeFit: { type: "string" },
           lengthSec: { type: "integer" },
@@ -62,7 +92,7 @@ export const IDEAS_SCHEMA = {
           caption: { type: "string" },
           needs: { type: "string" },
         },
-        required: ["title", "style", "premise", "themeFit", "lengthSec", "sound", "shots", "script", "caption", "needs"],
+        required: ["title", "style", "treatment", "evidence", "premise", "themeFit", "lengthSec", "sound", "shots", "script", "caption", "needs"],
       },
     },
   },
@@ -110,8 +140,9 @@ export function cleanIdeas(raw: unknown, styles: IdeaStyle[], ids: () => string)
     seen.add(title.toLowerCase());
     const kind = (i.sound as { kind?: unknown } | undefined)?.kind;
     const sound: IdeaSound = { kind: kind === "music" || kind === "voiceover" ? kind : "original", feel: plain((i.sound as { feel?: unknown } | undefined)?.feel, 160) };
+    const treatment = STYLE_TREATMENTS[style].includes(i.treatment as IdeaTreatment) ? (i.treatment as IdeaTreatment) : DEFAULT_TREATMENT[style];
     return [{
-      id: ids(), title, style, premise, themeFit: plain(i.themeFit, 400), lengthSec, sound, shots: fitted,
+      id: ids(), title, style, treatment, evidence: isEvidence(i.evidence) ? i.evidence : null, premise, themeFit: plain(i.themeFit, 400), lengthSec, sound, shots: fitted,
       script: style === "animation" && sound.kind !== "voiceover" ? "" : plain(i.script, 1500),
       caption: plain(i.caption, 600), needs: plain(i.needs, 300),
     }];
@@ -123,7 +154,7 @@ const SOUND: Record<IdeaSound["kind"], string> = { original: "Its own sound", mu
 
 /** The whole idea as text, to copy or to hand to the Video editor as a prompt. */
 export function ideaText(idea: VideoIdea): string {
-  const style = IDEA_STYLES.find((s) => s.id === idea.style)?.label ?? idea.style;
+  const style = TREATMENT_LABEL[idea.treatment] ?? IDEA_STYLES.find((s) => s.id === idea.style)?.label ?? idea.style;
   return [
     `${idea.title} (${style}, about ${idea.lengthSec} seconds)`,
     idea.premise,

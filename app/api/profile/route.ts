@@ -95,10 +95,21 @@ export async function POST(req: Request) {
       const { data: cur } = await supabase.from("profiles").select("brand_detail").eq("user_id", user.id).maybeSingle();
       existing = (cur?.brand_detail ?? {}) as BrandDetail;
     }
+    // Only the fields people fill in here are taken from the request. What
+    // SOCIA writes itself (the strategy, time zone, idea sets, music picks)
+    // has its own routes and checks, so a request can't overwrite it.
+    const sent = body.brand_detail as Record<string, unknown>;
+    const filled: Partial<BrandDetail> = {};
+    for (const k of ["website", "location", "description", "voice", "avoid"] as const) {
+      if (k in sent) filled[k] = typeof sent[k] === "string" ? (sent[k] as string) : undefined;
+    }
+    const sentStrategist = sent.strategist && typeof sent.strategist === "object" ? (sent.strategist as Record<string, unknown>) : {};
+    const strategist: Record<string, unknown> = {};
+    for (const k of ["aggressiveness", "formats", "frequency", "prioritize"]) if (k in sentStrategist) strategist[k] = sentStrategist[k];
     brand.brand_detail = {
       ...existing,
-      ...body.brand_detail,
-      strategist: { ...(existing.strategist ?? {}), ...(body.brand_detail.strategist ?? {}) },
+      ...filled,
+      strategist: { ...(existing.strategist ?? {}), ...strategist },
       // The Growth Profile is saved a step or a section at a time: validate
       // what was sent and merge it one section deep, never replace the whole.
       ...("growth" in body.brand_detail ? { growth: mergeGrowth(existing.growth, normalizeGrowth(body.brand_detail.growth)) } : existing.growth ? { growth: existing.growth } : {}),

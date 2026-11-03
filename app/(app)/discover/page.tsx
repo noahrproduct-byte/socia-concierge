@@ -57,7 +57,7 @@ function ytPosts(s: YtStats): CompPost[] {
 function igPosts(c: IgCompetitor): CompPost[] {
   return (c.media ?? []).map((m) => ({
     url: m.permalink ?? "", title: m.caption ? m.caption.split("\n")[0].slice(0, 140) : null, thumb: m.thumbnail,
-    views: null, likes: m.likes, comments: m.comments, publishedAt: m.timestamp,
+    views: m.views ?? null, likes: m.likes, comments: m.comments, publishedAt: m.timestamp,
     format: m.mediaType ? IG_FORMAT[m.mediaType] ?? null : null, durationSec: null, multiplier: null,
   })).filter((p) => p.url);
 }
@@ -307,8 +307,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
         audience: live ? cell(live.followers ?? null, "public_api") : absent(igRes.enabled ? "unknown" : "connection_needed"),
         engagement: live ? cell(live.engagementRate ?? null, "calculated", n) : absent(igRes.enabled ? "unknown" : "connection_needed"),
         cadence: live ? cell(live.postsPerWeek ?? null, "calculated", n) : absent(igRes.enabled ? "unknown" : "connection_needed"),
-        // Meta never publishes another account's views.
-        medianViews: absent("unavailable"),
+        // Views as Meta reports them through Business Discovery, when it does.
+        medianViews: (() => {
+          const vs = postsRead.map((x) => x.views).filter((v): v is number => v != null);
+          return vs.length ? cell(median(vs), "public_api", vs.length) : absent("unavailable");
+        })(),
         momentum: momentumFor(p, handle), match: sg?.relevanceScore ?? null,
         topFormat: postsRead.length ? (postsRead.filter((x) => x.format === "Reel").length >= postsRead.length / 2 ? "Reels" : "Photos") : null,
         description: live?.biography ?? null, location: sg?.location ?? null, reasons: sg?.relevanceReasons ?? [],
@@ -369,8 +372,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // Short-form posts from the accounts on this page (Business Discovery for
   // Instagram, the Data API for YouTube) plus Reels and Shorts discovery found.
   // "Trending" is relative to the account's OWN median, the only fair
-  // comparison: likes and comments for Instagram (Meta publishes no views),
-  // views for YouTube. Nothing is estimated; a post without a baseline says so.
+  // comparison: views for YouTube, and for Instagram views when Business
+  // Discovery returned them for at least three posts, otherwise likes and
+  // comments. Nothing is estimated; a post without a baseline says so.
   const SHORT = new Set(["Reel", "Short"]);
   const reelCutoff = now.getTime() - 60 * 86400000;
   const recent = (iso: string | null) => !iso || new Date(iso).getTime() >= reelCutoff;
@@ -379,16 +383,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     const shorts = r.posts.filter((p) => p.format && SHORT.has(p.format) && p.url);
     const inter = (p: { likes: number | null; comments: number | null }) => (p.likes != null || p.comments != null ? (p.likes ?? 0) + (p.comments ?? 0) : null);
     const base = r.platform === "instagram" ? median(r.posts.map(inter).filter((v): v is number => v != null)) : null;
+    // Instagram views, when Meta returned them for enough of this account's posts.
+    const igViews = r.platform === "instagram" ? r.posts.map((p) => p.views).filter((v): v is number => v != null) : [];
+    const viewBase = igViews.length >= 3 ? median(igViews) : null;
     for (const p of shorts) {
       if (!recent(p.publishedAt)) continue;
       const i = inter(p);
+      const byViews = r.platform === "instagram" && viewBase != null && viewBase > 0 && p.views != null;
       const multiplier = r.platform === "instagram"
-        ? (base && base > 0 && i != null && r.posts.length >= 3 ? i / base : null)
+        ? (byViews ? p.views! / viewBase! : base && base > 0 && i != null && r.posts.length >= 3 ? i / base : null)
         : p.multiplier;
       reels.set(p.url, {
         url: p.url, platform: r.platform, accountName: r.name, accountHandle: r.handle, accountAvatar: r.avatar,
         title: p.title, thumb: p.thumb, publishedAt: p.publishedAt, views: p.views, likes: p.likes, comments: p.comments,
-        multiplier, basis: r.platform === "instagram" ? "likes and comments" : "views", format: p.format!,
+        multiplier, basis: r.platform === "instagram" && !byViews ? "likes and comments" : "views", format: p.format!,
       });
     }
   }

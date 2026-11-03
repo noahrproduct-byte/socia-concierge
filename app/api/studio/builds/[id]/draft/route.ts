@@ -5,7 +5,7 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { buildFeature, loadBuildRow, markRendered, isOwnCutIdx } from "@/lib/studioClips/server";
 import { isOwnPath } from "@/lib/storagePaths";
 import { verifyExportPath } from "@/lib/studioClips/exportToken";
-import { dbErrorResponse } from "@/lib/dbError";
+import { dbErrorResponse, errorResponse } from "@/lib/dbError";
 import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -69,6 +69,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ postId });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/builds/[id]/draft", e);
   }
 }

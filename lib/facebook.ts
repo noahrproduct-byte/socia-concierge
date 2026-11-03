@@ -71,7 +71,13 @@ export const FB_GRAPH_V = "v23.0";
 //                            safe: the delete resolver (lib/platformDelete)
 //                            then answers "Reconnect Facebook".
 export const FB_IG_DELETE_SCOPE = "instagram_manage_contents";
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "pages_manage_engagement", "read_insights", "instagram_basic", FB_IG_DELETE_SCOPE, "business_management"].join(",");
+//   instagram_manage_insights -> Meta's Business Discovery reference lists it
+//                            with instagram_basic and pages_read_engagement as
+//                            required for business_discovery (competitor
+//                            numbers). Without it the lookup fails with a
+//                            permission error even though the Page is linked.
+export const FB_IG_INSIGHTS_SCOPE = "instagram_manage_insights";
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "pages_manage_engagement", "read_insights", "instagram_basic", FB_IG_INSIGHTS_SCOPE, FB_IG_DELETE_SCOPE, "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

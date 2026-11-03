@@ -4,6 +4,7 @@ import { requireFeature } from "@/lib/planGuard";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { listProjects, createProject, copyClipsInto, studioLimits } from "@/lib/studioClips/server";
 import { transcriptionConfigured } from "@/lib/transcribe";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,7 @@ export async function GET() {
     });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects", e);
   }
 }
 
@@ -49,6 +50,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ id: row.id, added, skipped });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects", e);
   }
 }

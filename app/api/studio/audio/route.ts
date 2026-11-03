@@ -3,6 +3,7 @@ import { refuseCrossSite } from "@/lib/crossSite";
 import { requireFeature } from "@/lib/planGuard";
 import { studioRequest, isMissingTable } from "@/lib/studioClips/auth";
 import { syncAudioCandidates, audioData } from "@/lib/audio/server";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,6 +25,6 @@ export async function GET(req: Request) {
     return NextResponse.json(await audioData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, competitors));
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: "Audio insights need their table. Run supabase/studio-audio.sql in the Supabase SQL editor.", migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/audio", e);
   }
 }

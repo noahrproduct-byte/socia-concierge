@@ -6,6 +6,8 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { buildFeature, buildPlayerData, isManualBuild, saveBuildEdl } from "@/lib/studioClips/server";
 import type { Edl } from "@/lib/studioClips/types";
 import { readPresets } from "@/lib/studioClips/styleStore";
+import { errorResponse } from "@/lib/dbError";
+import { handOverCut } from "@/lib/studioClips/cutMeter";
 
 export const runtime = "nodejs";
 
@@ -29,6 +31,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const feature = buildFeature(manual);
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, feature, ent);
     if (denied) return denied;
+    // Opening SOCIA's cut is when it counts (once): lib/studioClips/cutMeter.ts.
+    const handed = await handOverCut(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, { id, opportunity_idx: manual ? -1 : 0 });
+    if (!handed.ok) return handed.res;
     const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, checkFeature(ent, feature).ok && can(ctx, "publish"));
     if (!data) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     data.presets = await readPresets(ctx).catch(() => ({ brand: null, templates: [] }));
@@ -36,7 +41,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json(data);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/builds/[id]", e);
   }
 }
 
@@ -54,10 +59,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (manual == null) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, buildFeature(manual));
     if (denied) return denied;
+    const handed = await handOverCut(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, { id, opportunity_idx: manual ? -1 : 0 });
+    if (!handed.ok) return handed.res;
     const build = await saveBuildEdl(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, body.edl);
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/builds/[id]", e);
   }
 }

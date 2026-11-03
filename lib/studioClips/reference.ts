@@ -219,8 +219,9 @@ export function opportunityFromBrief(title: string, angle: string, clips: BriefC
     const usable = c.card!.moments.filter((m) => m.strength !== "weak" && m.end > m.start);
     // A brief is about the person's own footage: every clip they gave is in
     // play. A clip whose moments were all marked weak (a handheld pan, a POV
-    // walk) still offers its best one instead of disappearing from the cut.
-    const offer = usable.length ? usable : [bestMoment(c.card!.moments)].filter((m): m is ClipMoment => Boolean(m));
+    // walk) still offers its best one; a clip with no moments at all, the whole clip.
+    const best = usable.length ? null : bestMoment(c.card!.moments);
+    const offer = usable.length ? usable : best ? [best] : c.durationSec > 0 ? [{ start: 0, end: c.durationSec }] : [];
     for (const m of offer) moments.push({ clipId: c.id, start: m.start, end: m.end });
   }
   const clipIds = [...new Set(moments.map((m) => m.clipId))];

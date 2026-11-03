@@ -1,6 +1,10 @@
-// Appearance preference: shared by the client ThemeProvider and server code
-// (AppShell, the profile API). No "use client" here on purpose, so server
-// components can call these without crossing the client boundary.
+// Appearance: shared by the client ThemeProvider and the theme script. No
+// "use client" here on purpose, so server code can import it too.
+//
+// SOCIA is light only for now (2026-11-03): every page, the public site
+// included, paints the light tokens and there is no picker. The dark values
+// are kept in app/styles/tokens.css and the profiles.appearance column is
+// left in place, so a dark mode can return without a migration.
 
 export type Appearance = "light" | "dark" | "system";
 export type Resolved = "light" | "dark";
@@ -10,17 +14,3 @@ export const THEME_COLOR: Record<Resolved, string> = { light: "#f5f4f1", dark: "
 
 export const isAppearance = (v: unknown): v is Appearance =>
   v === "light" || v === "dark" || v === "system";
-
-/** Paths that keep the old default (follow the system): the public site and auth, which have their own looks. */
-const PUBLIC_PREFIXES = ["/login", "/signup", "/reset-password", "/pricing", "/privacy", "/terms", "/oauth", "/scorer", "/auth"];
-
-/**
- * The appearance for someone who has never chosen one. Inside the app it is
- * light (Noah's light reference, 2026-10-28, replacing the dark default of
- * the same morning); the public site and auth pages keep following the
- * system. An explicit choice (Settings, Appearance) always wins.
- */
-export function defaultAppearance(pathname: string): Appearance {
-  if (pathname === "/" || PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return "system";
-  return "light";
-}

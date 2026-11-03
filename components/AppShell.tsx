@@ -3,11 +3,9 @@ import { ArrowUpRight } from "lucide-react";
 import WorkspaceSwitcher, { type ShellAccount } from "@/components/WorkspaceSwitcher";
 import TopBar, { type SearchItem, type AlertItem } from "@/components/TopBar";
 import AccountMenu from "@/components/AccountMenu";
-import { ThemeSync } from "@/components/ThemeProvider";
 import { SideNav } from "@/components/SideNav";
 import PageTransition from "@/components/PageTransition";
 import { ToastProvider, TooltipProvider } from "@/components/system";
-import { isAppearance, type Appearance } from "@/lib/appearance";
 import { getViewer } from "@/lib/supabase/server";
 import { NAV } from "@/lib/nav";
 import { resolveContext } from "@/lib/context";
@@ -42,7 +40,6 @@ function nextPlanLine(p: PlanId): string {
 
 const PAGES: SearchItem[] = [
   ...NAV.map((n) => ({ kind: "page" as const, label: n.label, href: n.href })),
-  { kind: "page", label: "Appearance", hint: "Settings", href: "/settings#appearance" },
   { kind: "page", label: "Connected accounts", hint: "Settings", href: "/settings#accounts" },
   { kind: "page", label: "Brand Workspaces", hint: "Settings", href: "/settings#workspaces" },
 ];
@@ -60,7 +57,6 @@ export default async function AppShell({ children }: { children: React.ReactNode
   let ownsWorkspace = true;
   /** The signed-in person's own plan, for the account row (a Member's differs from the workspace's). */
   let viewerPlan: PlanId = "free";
-  let appearance: Appearance | null = null;
   let searchIndex: SearchItem[] = PAGES;
   let activity: Activity[] = [];
   let alerts: AlertItem[] = [];
@@ -72,16 +68,14 @@ export default async function AppShell({ children }: { children: React.ReactNode
     if (user) {
       userEmail = user.email ?? null;
       // The shell describes the ACTIVE Brand Workspace (the owner's accounts,
-      // activity and posts when the viewer is an invited team member). Theme and
-      // the plan on the account row are the viewer's own.
+      // activity and posts when the viewer is an invited team member). The plan
+      // on the account row is the viewer's own.
       const ctx = await resolveContext(supabase, user.id);
       activeWs = ctx.workspace ? { id: ctx.workspace.id, name: ctx.workspace.name } : null;
-      const [conn, fbRes, appRes, entRes, schedRes, plansRes, ytRes, ttRes] = await Promise.all([
+      const [conn, fbRes, entRes, schedRes, plansRes, ytRes, ttRes] = await Promise.all([
         getActiveConnection(ctx.client, ctx.ownerId, "username, media, last_synced_at", ctx.workspace?.id ?? null),
         // Connections are one per workspace: read the active workspace's row, not "the" row for the owner.
         scopeToWorkspace(ctx.client.from("facebook_connections").select("page_name, connection_status").eq("user_id", ctx.ownerId), ctx.workspace?.id).limit(1).maybeSingle(),
-        // Viewer's theme. The appearance column may not exist yet: a failed read is simply "no preference".
-        supabase.from("profiles").select("appearance").eq("user_id", user.id).maybeSingle().then((r) => r, () => ({ data: null })),
         // The active workspace's plan (its owner's): what the features here follow.
         getEntitlements(ctx.client, ctx.ownerId).catch(() => null),
         // Activity is the active brand's only: a guest of one brand never sees another brand's posts or plans.
@@ -97,8 +91,6 @@ export default async function AppShell({ children }: { children: React.ReactNode
       ytTitle = (ytRes.data as { title?: string } | null)?.title ?? null;
       const tt = ttRes.data as { username?: string | null; display_name?: string | null } | null;
       ttName = tt ? (tt.username ? `@${tt.username}` : tt.display_name ?? "TikTok") : null;
-      const appRaw = (appRes.data as { appearance?: string } | null)?.appearance;
-      appearance = isAppearance(appRaw) ? appRaw : null;
       plan = entRes?.plan ?? "free";
       ownsWorkspace = ctx.isOwner;
       viewerPlan = ctx.isOwner ? plan : ((await getEntitlements(supabase, user.id).catch(() => null))?.plan ?? "free");
@@ -170,7 +162,6 @@ export default async function AppShell({ children }: { children: React.ReactNode
     <TooltipProvider>
       <ToastProvider>
         <div className="s-shell" key={activeWs?.id ?? "default"}>
-          <ThemeSync appearance={appearance} />
           <TopBar
             index={searchIndex}
             activity={activity}

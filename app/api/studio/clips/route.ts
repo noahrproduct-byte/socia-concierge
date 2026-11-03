@@ -5,6 +5,7 @@ import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/
 import { getProjectRow, registerClip, type RegisterInput } from "@/lib/studioClips/server";
 import { sourcePath, framePath, audioPath } from "@/lib/studioClips/storage";
 import { MAX_CLIP_SEC, MIN_CLIP_SEC } from "@/lib/studioClips/types";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,6 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/clips", e);
   }
 }

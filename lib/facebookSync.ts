@@ -6,6 +6,7 @@ import { timedFn } from "@/lib/timing";
 import { scheduleBackground, onceEvery } from "@/lib/background";
 import { FB_GRAPH_V } from "./facebook";
 import { connectionWorkspaceId } from "./workspaces";
+import { igAccountForPage } from "./igBusinessDiscovery";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -177,6 +178,11 @@ async function syncFacebookImpl(supabase: Supa, userId: string, workspaceId?: st
 
   const p = fresh.page;
   const followers = (p.followers_count as number) ?? (p.fan_count as number) ?? null;
+  // The Page's linked Instagram account can be linked after the Page was
+  // connected; re-read it so Instagram competitor lookups (Business Discovery)
+  // start working on the next sync without a reconnect. Only a found link is
+  // written: a failed read never clears a working one.
+  const ig = await igAccountForPage(conn.page_id, conn.access_token).catch(() => null);
   const picture = (p.picture as { data?: { url?: string } } | undefined)?.data?.url ?? null;
 
   await supabase
@@ -190,6 +196,7 @@ async function syncFacebookImpl(supabase: Supa, userId: string, workspaceId?: st
       media: fresh.posts,
       connection_status: "connected",
       last_synced_at: now,
+      ...(ig ? { ig_business_id: ig.id, ig_business_username: ig.username } : {}),
     })
     .eq("user_id", userId)
     .eq("page_id", conn.page_id);

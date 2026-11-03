@@ -21,9 +21,11 @@ import MusicPlaylist from "./MusicPlaylist";
 import FinishPanel from "./FinishPanel";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
+import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { timeline } from "@/lib/studioClips/timeline";
+import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
 import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
-import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
+import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
 const STEP = 0.5;
@@ -107,6 +109,37 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.canEdit, edl == null]);
 
+  // Once the cut is loaded: colour it on its own, once per cut (lib/studioClips/autoLook.ts).
+  // It goes in as one edit, so Undo takes it back and Look can change it or switch it off.
+  const [lookState, setLookState] = useState<{ state: "working" | "done"; corrected: number } | null>(null);
+  const lookTried = useRef(false);
+  const edlRef = useRef<Edl | null>(null);
+  const dirtyRef = useRef(false);
+  useEffect(() => { edlRef.current = edl; dirtyRef.current = dirty; }, [edl, dirty]);
+  const sourceCount = data?.sources?.length ?? 0;
+  useEffect(() => {
+    if (fixture || !data?.canEdit || !edl || lookTried.current || !sourceCount) return;
+    lookTried.current = true;
+    if (!wantsAutoLook(edl)) return;
+    const ctrl = new AbortController();
+    setLookState({ state: "working", corrected: 0 });
+    (async () => {
+      const out = await autoLook(edl, sources, ctrl.signal).catch(() => null);
+      if (!out || ctrl.signal.aborted) return;
+      const cur = edlRef.current;
+      setLookState({ state: "done", corrected: out.corrected });
+      // The person set a look in the meantime: theirs stays.
+      if (!cur || cur.finish || cur.lookAuto) return;
+      const next: Edl = { ...cur, ...(out.edl.finish ? { finish: out.edl.finish } : {}), lookAuto: out.edl.lookAuto };
+      commit(next);
+      // Saved right away unless the person has unsaved edits, which then save together.
+      if (!dirtyRef.current) await save(next);
+    })();
+    return () => ctrl.abort();
+    // Once per opened cut, after it and its clips load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.canEdit, edl == null, sourceCount]);
+
   useEffect(() => {
     if (fixture || panel !== "audio" || musicAutoOn != null) return;
     fetch("/api/studio/music").then((r) => (r.ok ? r.json() : null)).then((j) => setMusicAutoOn(typeof j?.auto === "boolean" ? j.auto : null)).catch(() => null);
@@ -124,6 +157,21 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [trackUrls, setTrackUrls] = useState<Record<string, string>>({});
   useEffect(() => { if (data?.music) setTrackUrls((u) => ({ ...data.music, ...u })); }, [data?.music]);
   const musicUrl = edl?.soundtrack ? trackUrls[edl.soundtrack.trackId] ?? null : null;
+  // Background noise reduced in this browser, per clip (lib/studioClips/cleanSound.ts); the preview and the export play it.
+  const [cleanAudio, setCleanAudio] = useState<Record<string, string>>({});
+  const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
+  const cleanOn = Boolean(edl?.cleanSound);
+  const usedClips = useMemo(() => (edl ? Array.from(new Set(edl.segments.map((s) => s.clipId))).filter((id) => sources[id]).sort() : []), [edl, sources]);
+  const cleanFor = useCallback(async () => {
+    const todo = usedClips.map((id) => ({ clipId: id, url: sources[id].url }));
+    if (!todo.length) return {};
+    setCleaning({ done: 0, total: todo.length });
+    const out = await cleanSounds(todo, (done, total) => setCleaning({ done, total }));
+    setCleanAudio((cur) => ({ ...cur, ...out }));
+    setCleaning(null);
+    return out;
+  }, [usedClips, sources]);
+  useEffect(() => { if (cleanOn) void cleanFor(); }, [cleanOn, cleanFor]);
   const tracks = useMemo(() => (edl ? tracksFor(edl, (id) => (sources[id] ? clipLabel(sources[id].position) : "Expired clip"), Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])), captionsOn) : null), [edl, sources, captionsOn]);
   const missing = useMemo(() => (edl ? edl.segments.filter((s) => !sources[s.clipId]).length : 0), [edl, sources]);
 
@@ -202,12 +250,14 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     setStyleNote(ok);
   };
   const setVolume = (i: number, v: number) => { if (!edl) return; setEdl({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: v } : x)) }); setDirty(true); };
+  const setTransition = (i: number, t: TransitionKind) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, transition: t === "cut" ? undefined : t } : x)) }); };
   const toggleMute = (i: number) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: (x.volume ?? 1) === 0 ? 1 : 0 } : x)) }); };
 
-  const save = async () => {
-    if (!edl || fixture) { setDirty(false); return; }
+  const save = async (next?: Edl) => {
+    const body = next ?? edl;
+    if (!body || fixture) { setDirty(false); return; }
     setSaving(true); setSaveErr(null);
-    const res = await fetch(`/api/studio/builds/${buildId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl }) });
+    const res = await fetch(`/api/studio/builds/${buildId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: body }) });
     const j = await res.json().catch(() => null);
     setSaving(false);
     if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setSaveErr(j?.error ?? "Couldn't save."); return; }
@@ -248,8 +298,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         if (!res.ok) { if (isPlanError(j)) setPlanError(j); setExp({ phase: "error", progress: 0, message: isPlanError(j) ? null : (j?.error ?? "Couldn't start the export."), postId: null }); return; }
         path = j.path as string;
       }
+      // The export waits for the cleaned sound, so the video sounds like the preview.
+      const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
       setExp({ phase: "rendering", progress: 0, message: null, postId: null });
-      const props = { edl, sources, captionsOn, musicUrl };
+      const props = { edl, sources, captionsOn, musicUrl, cleanAudio: cleaned };
       const { getBlob } = await renderMediaOnWeb({
         composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
         inputProps: props,
@@ -358,7 +410,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         <div className="cbb-head-actions">
           <button type="button" className="ov-btn ghost small" disabled={!past.length || busy} onClick={undo} title="Undo"><Undo2 size={13} /> Undo</button>
           <button type="button" className="ov-btn ghost small" disabled={!future.length || busy} onClick={redo} title="Redo"><Redo2 size={13} /> Redo</button>
-          {data.canEdit && <button type="button" className="ov-btn ghost small" disabled={!dirty || busy} onClick={save}>{saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} {dirty ? "Save changes" : "Saved"}</button>}
+          {data.canEdit && <button type="button" className="ov-btn ghost small" disabled={!dirty || busy} onClick={() => void save()}>{saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} {dirty ? "Save changes" : "Saved"}</button>}
         </div>
       </div>
       {saveErr && <p className="cbb-err" role="alert"><AlertTriangle size={13} aria-hidden /> {saveErr}</p>}
@@ -370,7 +422,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <Player
                 ref={player}
                 component={ClipComposition}
-                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl }}
+                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl, cleanAudio }}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={edl.width}
@@ -405,8 +457,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                     <option value="medium">Standard (smaller, faster to upload)</option>
                   </select>
                 </label>
-                <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || !data.canEdit || autoMusic?.state === "adding"} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
+                <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || !data.canEdit || autoMusic?.state === "adding" || lookState?.state === "working"} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
                 {autoMusic?.state === "adding" && <small className="ov-source"><Loader2 size={11} className="spin" /> Adding music first (about a minute).</small>}
+                {lookState?.state === "working" && <small className="ov-source"><Loader2 size={11} className="spin" /> Correcting the colour first.</small>}
+                {lookState?.state === "done" && lookState.corrected > 0 && <small className="ov-source">SOCIA corrected the colour of {lookState.corrected} clip{lookState.corrected === 1 ? "" : "s"}. Change it or switch it off in Look &amp; sound.</small>}
                 {build.postId && <Link className="ov-btn ghost small" href={`/create?post=${build.postId}`}>Open the saved draft <ArrowRight size={12} /></Link>}
               </>
             ) : exp.phase === "done" ? (
@@ -442,6 +496,19 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             {!data.manual && <button type="button" role="tab" className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>}
           </div>
 
+          {panel === "finish" && (
+            <div className="ov-card cbb-captions">
+              <div>
+                <b><Volume2 size={14} /> Reduce background noise</b>
+                <small>
+                  {cleaning ? `Cleaning the sound in this browser: ${cleaning.done} of ${cleaning.total} clips.`
+                    : cleanOn ? (Object.keys(cleanAudio).length ? "Hum, hiss and steady background noise are turned down, and the level is evened out." : "This browser couldn't clean the sound, so the clips keep their own.")
+                    : "Turns down hum, hiss and steady background noise, and evens out the level. Done in this browser; your clips aren't changed."}
+                </small>
+              </div>
+              <button type="button" className={`cbb-toggle${cleanOn ? " on" : ""}`} role="switch" aria-checked={cleanOn} aria-label="Reduce background noise" disabled={!data.canEdit || busy} onClick={() => commit({ ...edl, cleanSound: !cleanOn })}><i /></button>
+            </div>
+          )}
           {panel === "finish" && (
             <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} onCommit={(next) => { commit(next); setCompare("after"); }} />
           )}
@@ -497,7 +564,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 </label>
                 <small>Used for the call to action, and for text boxes set to Brand colour.</small>
                 <div className="cal2-seg" role="radiogroup" aria-label="Text background">
-                  {([["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"], ["none", "No box"]] as const).map(([id, label]) => (
+                  {([["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"], ["none", "No box"]] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={st.textBox === id} className={st.textBox === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setStyle({ textBox: id })}>{label}</button>
                   ))}
                 </div>
@@ -601,6 +668,13 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                         <input type="range" min={0} max={2} step={0.05} value={s.volume ?? 1} aria-label="Clip volume" disabled={!data.canEdit || busy} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setVolume(i, Number(e.target.value))} />
                         <em>{Math.round((s.volume ?? 1) * 100)}%</em>
                       </div>
+                      {i > 0 && (
+                        <label className="cbb-field cbb-trans">Comes in with
+                          <select value={s.transition ?? "cut"} disabled={!data.canEdit || busy} onChange={(e) => setTransition(i, e.target.value as TransitionKind)}>
+                            {TRANSITIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                          </select>
+                        </label>
+                      )}
                       {s.note && <small className="cbb-note">{s.note}</small>}
                     </div>
                     <div className="cbb-seg-actions">

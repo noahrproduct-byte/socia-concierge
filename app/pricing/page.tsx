@@ -60,7 +60,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           )}
           {checkout && (
             <p className="pr-fine">
-              Paid plans start with a 7-day free trial on your first subscription. A card is needed and nothing is charged until the trial ends.{" "}
+              Have a promo code from one of our videos? Enter it on the checkout page.{" "}
               Prices in USD before tax. Payments are handled by Stripe and sold through Link, which adds sales tax at checkout where it applies; charges show as LINK.COM* on your statement.
             </p>
           )}
