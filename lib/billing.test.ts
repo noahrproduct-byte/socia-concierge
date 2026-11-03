@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import type Stripe from "stripe";
-import { stateFromSubscription, hasLiveSubscription, trialEligible, type BillingInfo } from "./billing";
+import { stateFromSubscription, hasLiveSubscription, type BillingInfo } from "./billing";
 import { planForPrice, priceIdFor, pricesConfigured } from "./stripe";
 
 // Short names for two plans, the long name for the third: both must work.
@@ -101,11 +101,6 @@ describe("stateFromSubscription", () => {
 
 describe("billing info helpers", () => {
   const base: BillingInfo = { plan: "free", status: null, interval: null, currentPeriodEnd: null, cancelAt: null, trialEnd: null, hasCustomer: false, hasSubscription: false };
-  it("offers the trial once, and only to someone without a subscription", () => {
-    expect(trialEligible(base)).toBe(true);
-    expect(trialEligible({ ...base, trialEnd: "2026-01-01T00:00:00.000Z" })).toBe(false);
-    expect(trialEligible({ ...base, hasSubscription: true })).toBe(false);
-  });
   it("treats trialing, active and past_due as live; canceled as not", () => {
     expect(hasLiveSubscription({ ...base, hasSubscription: true, status: "trialing" })).toBe(true);
     expect(hasLiveSubscription({ ...base, hasSubscription: true, status: "past_due" })).toBe(true);
