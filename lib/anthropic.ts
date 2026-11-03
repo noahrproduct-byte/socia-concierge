@@ -16,9 +16,16 @@ export const RETRY_MAX_TOKENS = 32_000;
 export function retryOnMaxTokens(client: Anthropic): void {
   const messages = client.messages;
   const raw = messages.create.bind(messages);
+  // Not an async function: a streaming call must get the SDK's own reply
+  // object back untouched, because messages.stream() calls .withResponse() on
+  // it (an async wrapper turned it into a plain Promise and broke Ask SOCIA).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (messages as any).create = async (params: any, options?: any) => {
+  (messages as any).create = (params: any, options?: any) => {
     if (params?.stream) return raw(params, options);
+    return retried(params, options);
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const retried = async (params: any, options?: any) => {
     const first = await raw(params, options);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = first as any;
