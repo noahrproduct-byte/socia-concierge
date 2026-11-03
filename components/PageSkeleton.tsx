@@ -17,16 +17,25 @@ export default function PageSkeleton({ variant = "page" }: { variant?: "page" | 
           {[88, 96, 84, 80].map((w, i) => <div key={i} className="psk-b psk-tab" style={{ width: w }} />)}
         </div>
       )}
+      {variant === "dashboard" && <div className="psk-b psk-hero" />}
       {kpis > 0 && (
         <div className="psk-kpis">
           {Array.from({ length: kpis }, (_, i) => <div key={i} className="psk-b psk-kpi" />)}
         </div>
       )}
-      <div className="psk-grid">
+      {variant === "dashboard" && <div className="psk-b psk-strip" />}
+      <div className={variant === "dashboard" ? "psk-grid psk-grid--dash" : "psk-grid"}>
         <div className="psk-b psk-card tall" />
         <div className="psk-b psk-card tall" />
       </div>
-      <div className="psk-b psk-card wide" />
+      {variant === "dashboard" ? (
+        <div className="psk-grid psk-grid--duo">
+          <div className="psk-b psk-card wide" />
+          <div className="psk-b psk-card wide" />
+        </div>
+      ) : (
+        <div className="psk-b psk-card wide" />
+      )}
     </div>
   );
 }
