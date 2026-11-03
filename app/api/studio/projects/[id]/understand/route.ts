@@ -5,6 +5,7 @@ import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { getProjectRow, clipRows, updateProject, accountContext, loadProject } from "@/lib/studioClips/server";
 import { runUnderstand } from "@/lib/studioClips/job";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 // Transcription + one model call per clip + the batch call: minutes, not
@@ -54,6 +55,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ started: true, usage: usage.usage }, { status: 202 });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects/[id]/understand", e);
   }
 }

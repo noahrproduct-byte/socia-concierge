@@ -3,6 +3,7 @@ import { getEntitlements } from "@/lib/entitlements";
 import { requireFeature } from "@/lib/planGuard";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { copyClipsInto, getProjectRow } from "@/lib/studioClips/server";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -29,6 +30,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json(await copyClipsInto(ctx.client, { ownerId: ctx.ownerId, viewerId, wsId, ent, project, clipIds }));
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects/[id]/from-library", e);
   }
 }

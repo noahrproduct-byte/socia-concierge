@@ -4,6 +4,7 @@ import { requireFeature } from "@/lib/planGuard";
 import { loadItem, updateDestination, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
 import { publishDestination, publishNow } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -53,6 +54,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ item: after, uploads });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });
-    return NextResponse.json({ error: e instanceof Error ? e.message : "The retry could not start." }, { status: 500 });
+    return NextResponse.json({ error: publicMessage("posts/retry", e, "The retry could not start.") }, { status: 500 });
   }
 }

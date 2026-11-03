@@ -6,6 +6,7 @@ import { loadAdapter, persistOutcome } from "@/lib/publishing/runner";
 import type { PublishOutcome } from "@/lib/publishing/adapter";
 import { CAPABILITIES } from "@/lib/publishing/capabilities";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
+import { publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -100,6 +101,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ item: after });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });
-    return NextResponse.json({ error: e instanceof Error ? e.message : "The upload could not be confirmed." }, { status: 500 });
+    return NextResponse.json({ error: publicMessage("posts/complete", e, "The upload could not be confirmed.") }, { status: 500 });
   }
 }

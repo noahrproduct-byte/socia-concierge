@@ -6,6 +6,7 @@ import { getProjectRow, clipRows, loadBuild, buildOpportunity, accountContext } 
 import { AnalysisError } from "@/lib/studioClips/analysis";
 import { requireFeature } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
+import { errorResponse, publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -38,7 +39,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects/[id]/opportunities/[idx]", e);
   }
 }
 
@@ -62,7 +63,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    const msg = e instanceof AnalysisError ? `${e.message} Try again.` : (e as Error).message;
+    const msg = e instanceof AnalysisError ? `${e.message} Try again.` : publicMessage("studio/projects/[id]/opportunities/[idx]", e);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

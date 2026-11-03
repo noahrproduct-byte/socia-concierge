@@ -272,3 +272,45 @@ export function baselineText(p: NichePost): { post: string; median: string; mult
   const f = (n: number) => Math.round(n).toLocaleString("en-US");
   return { post: `${f(p.views)} views`, median: `${f(med)} views`, mult: `${p.multiplier.toFixed(1)}× baseline` };
 }
+
+const httpsUrl = (raw: unknown, max = 1000): string | null => {
+  if (typeof raw !== "string" || raw.length > max) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && !u.username && !u.password ? u.toString() : null;
+  } catch {
+    return null;
+  }
+};
+const text = (v: unknown, max: number): string | null => (typeof v === "string" ? v.slice(0, max) : null);
+const count = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+
+/**
+ * A post a person saves, rebuilt from the known fields only: https links, short
+ * text, real numbers. The browser sends it back from what Discover showed, so
+ * it is never stored as given. Null when the post's own link isn't usable.
+ */
+export function cleanSavedPost(raw: unknown): NichePost | null {
+  if (!raw || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const url = httpsUrl(p.url);
+  if (!url) return null;
+  return {
+    url,
+    platform: text(p.platform, 20) ?? "unknown",
+    accountName: text(p.accountName, 120),
+    accountHandle: text(p.accountHandle, 80),
+    title: text(p.title, 500),
+    thumb: httpsUrl(p.thumb, 2000),
+    views: count(p.views),
+    likes: count(p.likes),
+    comments: count(p.comments),
+    publishedAt: text(p.publishedAt, 40),
+    multiplier: count(p.multiplier),
+    relevanceScore: count(p.relevanceScore) ?? 0,
+    tags: Array.isArray(p.tags) ? p.tags.filter((t): t is string => typeof t === "string").slice(0, 12).map((t) => t.slice(0, 40)) : [],
+    format: text(p.format, 40),
+    why: text(p.why, 600),
+    dataSource: text(p.dataSource, 40) ?? "unknown",
+  };
+}

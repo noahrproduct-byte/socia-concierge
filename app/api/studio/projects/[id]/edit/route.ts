@@ -3,6 +3,7 @@ import { requireFeature } from "@/lib/planGuard";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { getProjectRow, manualBuild } from "@/lib/studioClips/server";
 import { readPresets } from "@/lib/studioClips/styleStore";
+import { errorResponse } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects/[id]/edit", e);
   }
 }

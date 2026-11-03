@@ -76,10 +76,6 @@ begin
     create policy "platform_deletions owner insert" on public.platform_deletions
       for insert with check (auth.uid() = user_id);
   end if;
-  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'platform_deletions' and policyname = 'platform_deletions owner update') then
-    create policy "platform_deletions owner update" on public.platform_deletions
-      for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-  end if;
 end $$;
 
 -- ---------------------------------------------------------------------------
@@ -88,6 +84,12 @@ end $$;
 --    a workspace its owner owns.
 -- ---------------------------------------------------------------------------
 revoke all on public.platform_deletions from anon;
+-- The ledger is written once (lib/platformDelete/service.ts) and never edited,
+-- so the browser may not change or remove a row: who deleted what, and the
+-- numbers frozen at that moment, stay as recorded. (An earlier version of this
+-- file had an owner update policy; dropping it here removes it on re-run.)
+drop policy if exists "platform_deletions owner update" on public.platform_deletions;
+revoke update, delete, truncate on public.platform_deletions from authenticated;
 drop trigger if exists socia_guard_workspace_fk on public.platform_deletions;
 create trigger socia_guard_workspace_fk before insert or update on public.platform_deletions
   for each row execute function public.socia_guard_workspace_fk();

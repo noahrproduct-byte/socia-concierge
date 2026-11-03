@@ -8,6 +8,7 @@ import { accountContext, buildFromBrief, getProjectRow, listBriefBuilds } from "
 import { breakDownReference } from "@/lib/studioClips/analysis";
 import { cleanBreakdown, cleanPrompt, referenceBrief, sanitizeReference, shotStats } from "@/lib/studioClips/reference";
 import { readPresets } from "@/lib/studioClips/styleStore";
+import { errorResponse, publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -32,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ builds: await listBriefBuilds(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, project.id) });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+    return errorResponse("studio/projects/[id]/brief", e);
   }
 }
 
@@ -70,6 +71,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     console.error("[studio/brief]", (e as Error)?.message ?? e);
     const kind = aiFailureKind(e);
-    return NextResponse.json({ error: kind === "failed" ? ((e as Error).message || "SOCIA couldn't make that cut. Try again.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });
+    return NextResponse.json({ error: kind === "failed" ? publicMessage("studio/projects/[id]/brief", e, "SOCIA couldn't make that cut. Try again.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });
   }
 }

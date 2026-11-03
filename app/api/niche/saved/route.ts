@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, type Ctx, nicheScopeId } from "@/lib/context";
-import type { NichePost } from "@/lib/nicheTrends";
+import { cleanSavedPost, type NichePost } from "@/lib/nicheTrends";
 
 export const runtime = "nodejs";
 
@@ -46,12 +46,12 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
-  const body = (await req.json().catch(() => null)) as { item?: NichePost } | null;
-  const item = body?.item;
-  if (!item?.url) return NextResponse.json({ error: "No post given." }, { status: 400 });
+  const body = (await req.json().catch(() => null)) as { item?: unknown } | null;
+  const item = cleanSavedPost(body?.item);
+  if (!item) return NextResponse.json({ error: "No post given." }, { status: 400 });
   const doc = await read(ctx.client, scopeKey(ctx));
   if (!doc.items.some((x) => x.url === item.url)) {
-    doc.items = [{ ...item, why: item.why ?? null }, ...doc.items].slice(0, MAX);
+    doc.items = [item, ...doc.items].slice(0, MAX);
     if (!(await write(ctx.client, scopeKey(ctx), doc))) return NextResponse.json({ error: "Couldn't save right now." }, { status: 500 });
   }
   return NextResponse.json(doc);

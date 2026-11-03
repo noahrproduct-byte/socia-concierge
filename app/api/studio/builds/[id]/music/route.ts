@@ -8,6 +8,7 @@ import { accountContext, loadBuildRow } from "@/lib/studioClips/server";
 import { makePlaylist } from "@/lib/music/server";
 import { musicConfigured } from "@/lib/music/elevenlabs";
 import { readPicks } from "@/lib/music/store";
+import { publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -41,6 +42,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     const kind = aiFailureKind(e);
-    return NextResponse.json({ error: kind === "failed" ? ((e as Error).message || "SOCIA couldn't put a playlist together. Try again.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });
+    return NextResponse.json({ error: kind === "failed" ? publicMessage("studio/builds/[id]/music", e, "SOCIA couldn't put a playlist together. Try again.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });
   }
 }

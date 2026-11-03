@@ -28,7 +28,14 @@ export async function GET(req: Request) {
     }
     const len = Number(upstream.headers.get("content-length") ?? 0);
     if (len > MAX_BYTES) return NextResponse.json({ error: "This video is too large to measure here." }, { status: 413 });
-    const headers = new Headers({ "content-type": upstream.headers.get("content-type") ?? "video/mp4", "cache-control": "private, no-store" });
+    // Served from SOCIA's own address, so only as media: anything else the CDN
+    // labels (text/html, say) goes out as plain bytes and can't run as a page.
+    const type = upstream.headers.get("content-type") ?? "video/mp4";
+    const headers = new Headers({
+      "content-type": /^(video|audio)\/[\w.+-]+$/i.test(type.split(";")[0].trim()) ? type : "application/octet-stream",
+      "content-security-policy": "sandbox",
+      "cache-control": "private, no-store",
+    });
     if (len) headers.set("content-length", String(len));
     return new Response(upstream.body, { status: 200, headers });
   } catch (e) {
