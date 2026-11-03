@@ -16,7 +16,8 @@ export const COMPRESS_THRESHOLD_BYTES = 40 * 1024 * 1024; // 40 MB
 
 let ffmpegPromise: Promise<FFmpegInstance | null> | null = null;
 
-async function loadFfmpeg(): Promise<FFmpegInstance | null> {
+/** The shared ffmpeg.wasm instance (also used to clean clip sound, lib/studioClips/cleanSound.ts); null when it can't load. */
+export async function loadFfmpeg(): Promise<FFmpegInstance | null> {
   if (typeof window === "undefined") return null;
   if (!ffmpegPromise) {
     ffmpegPromise = (async () => {

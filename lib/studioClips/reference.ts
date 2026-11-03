@@ -215,7 +215,12 @@ export function titleFor(prompt: string | null, ref: ReferenceBreakdown | null):
 export function opportunityFromBrief(title: string, angle: string, clips: BriefClip[], idx: number): Opportunity {
   const carded = clips.filter((c) => c.card);
   const moments: MomentRef[] = [];
-  for (const c of carded) for (const m of c.card!.moments) if (m.strength !== "weak" && m.end > m.start) moments.push({ clipId: c.id, start: m.start, end: m.end });
+  for (const c of carded) {
+    const good = c.card!.moments.filter((m) => m.strength !== "weak" && m.end > m.start);
+    // The person chose these clips for this video: one the analysis found nothing in is still offered whole.
+    if (good.length) for (const m of good) moments.push({ clipId: c.id, start: m.start, end: m.end });
+    else if (c.durationSec > 0) moments.push({ clipId: c.id, start: 0, end: c.durationSec });
+  }
   const clipIds = [...new Set(moments.map((m) => m.clipId))];
   const openerClip = carded.find((c) => c.card!.openerCandidate && c.card!.moments.some((m) => m.strength !== "weak"));
   let opener: Opportunity["opener"] = null;

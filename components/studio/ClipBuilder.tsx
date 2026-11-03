@@ -21,9 +21,10 @@ import MusicPlaylist from "./MusicPlaylist";
 import FinishPanel from "./FinishPanel";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
+import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { timeline } from "@/lib/studioClips/timeline";
 import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
-import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild } from "@/lib/studioClips/types";
+import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
 const STEP = 0.5;
@@ -124,6 +125,21 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [trackUrls, setTrackUrls] = useState<Record<string, string>>({});
   useEffect(() => { if (data?.music) setTrackUrls((u) => ({ ...data.music, ...u })); }, [data?.music]);
   const musicUrl = edl?.soundtrack ? trackUrls[edl.soundtrack.trackId] ?? null : null;
+  // Background noise reduced in this browser, per clip (lib/studioClips/cleanSound.ts); the preview and the export play it.
+  const [cleanAudio, setCleanAudio] = useState<Record<string, string>>({});
+  const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
+  const cleanOn = Boolean(edl?.cleanSound);
+  const usedClips = useMemo(() => (edl ? Array.from(new Set(edl.segments.map((s) => s.clipId))).filter((id) => sources[id]).sort() : []), [edl, sources]);
+  const cleanFor = useCallback(async () => {
+    const todo = usedClips.map((id) => ({ clipId: id, url: sources[id].url }));
+    if (!todo.length) return {};
+    setCleaning({ done: 0, total: todo.length });
+    const out = await cleanSounds(todo, (done, total) => setCleaning({ done, total }));
+    setCleanAudio((cur) => ({ ...cur, ...out }));
+    setCleaning(null);
+    return out;
+  }, [usedClips, sources]);
+  useEffect(() => { if (cleanOn) void cleanFor(); }, [cleanOn, cleanFor]);
   const tracks = useMemo(() => (edl ? tracksFor(edl, (id) => (sources[id] ? clipLabel(sources[id].position) : "Expired clip"), Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])), captionsOn) : null), [edl, sources, captionsOn]);
   const missing = useMemo(() => (edl ? edl.segments.filter((s) => !sources[s.clipId]).length : 0), [edl, sources]);
 
@@ -202,6 +218,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     setStyleNote(ok);
   };
   const setVolume = (i: number, v: number) => { if (!edl) return; setEdl({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: v } : x)) }); setDirty(true); };
+  const setTransition = (i: number, t: TransitionKind) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, transition: t === "cut" ? undefined : t } : x)) }); };
   const toggleMute = (i: number) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: (x.volume ?? 1) === 0 ? 1 : 0 } : x)) }); };
 
   const save = async () => {
@@ -248,8 +265,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         if (!res.ok) { if (isPlanError(j)) setPlanError(j); setExp({ phase: "error", progress: 0, message: isPlanError(j) ? null : (j?.error ?? "Couldn't start the export."), postId: null }); return; }
         path = j.path as string;
       }
+      // The export waits for the cleaned sound, so the video sounds like the preview.
+      const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
       setExp({ phase: "rendering", progress: 0, message: null, postId: null });
-      const props = { edl, sources, captionsOn, musicUrl };
+      const props = { edl, sources, captionsOn, musicUrl, cleanAudio: cleaned };
       const { getBlob } = await renderMediaOnWeb({
         composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
         inputProps: props,
@@ -370,7 +389,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <Player
                 ref={player}
                 component={ClipComposition}
-                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl }}
+                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl, cleanAudio }}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={edl.width}
@@ -443,6 +462,19 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
           </div>
 
           {panel === "finish" && (
+            <div className="ov-card cbb-captions">
+              <div>
+                <b><Volume2 size={14} /> Reduce background noise</b>
+                <small>
+                  {cleaning ? `Cleaning the sound in this browser: ${cleaning.done} of ${cleaning.total} clips.`
+                    : cleanOn ? (Object.keys(cleanAudio).length ? "Hum, hiss and steady background noise are turned down, and the level is evened out." : "This browser couldn't clean the sound, so the clips keep their own.")
+                    : "Turns down hum, hiss and steady background noise, and evens out the level. Done in this browser; your clips aren't changed."}
+                </small>
+              </div>
+              <button type="button" className={`cbb-toggle${cleanOn ? " on" : ""}`} role="switch" aria-checked={cleanOn} aria-label="Reduce background noise" disabled={!data.canEdit || busy} onClick={() => commit({ ...edl, cleanSound: !cleanOn })}><i /></button>
+            </div>
+          )}
+          {panel === "finish" && (
             <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} onCommit={(next) => { commit(next); setCompare("after"); }} />
           )}
 
@@ -497,7 +529,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 </label>
                 <small>Used for the call to action, and for text boxes set to Brand colour.</small>
                 <div className="cal2-seg" role="radiogroup" aria-label="Text background">
-                  {([["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"], ["none", "No box"]] as const).map(([id, label]) => (
+                  {([["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"], ["none", "No box"]] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={st.textBox === id} className={st.textBox === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setStyle({ textBox: id })}>{label}</button>
                   ))}
                 </div>
@@ -601,6 +633,13 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                         <input type="range" min={0} max={2} step={0.05} value={s.volume ?? 1} aria-label="Clip volume" disabled={!data.canEdit || busy} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setVolume(i, Number(e.target.value))} />
                         <em>{Math.round((s.volume ?? 1) * 100)}%</em>
                       </div>
+                      {i > 0 && (
+                        <label className="cbb-field cbb-trans">Comes in with
+                          <select value={s.transition ?? "cut"} disabled={!data.canEdit || busy} onChange={(e) => setTransition(i, e.target.value as TransitionKind)}>
+                            {TRANSITIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                          </select>
+                        </label>
+                      )}
                       {s.note && <small className="cbb-note">{s.note}</small>}
                     </div>
                     <div className="cbb-seg-actions">

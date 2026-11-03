@@ -2,7 +2,8 @@
 // then rendered as a plain-language edit guide. The same EDL feeds the Player
 // in Phase B, so the guide and the preview can never disagree.
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
-import { aspectOf, clipLabel, fmtClock } from "./types";
+import { aspectOf, clipLabel, fmtClock, isTransition } from "./types";
+import { overlapFrames, secToFrames } from "./timeline";
 import { finishSteps, sanitizeFinish } from "./finish";
 import { cleanVolume, sanitizeStyle } from "./style";
 
@@ -27,7 +28,7 @@ export type RawEdl = {
   /** One of ASPECTS; anything else falls back to vertical. */
   width?: number;
   height?: number;
-  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number }[];
+  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string }[];
   style?: unknown;
   text?: { at: number; end?: number; text: string; role?: string; size?: string }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
@@ -139,7 +140,16 @@ export function cleanFrame(f: { zoom?: number; x?: number; y?: number } | null |
   return out.zoom === 1 && out.x === 0.5 && out.y === 0.5 ? null : out;
 }
 
-export const edlDurationSec = (edl: Pick<Edl, "segments">): number => r2(edl.segments.reduce((a, s) => a + (s.out - s.in), 0));
+/** The cut's length: its segments end to end, less the overlap of each transition (lib/studioClips/timeline.ts). */
+export const edlDurationSec = (edl: Pick<Edl, "segments">): number => {
+  let frames = 0, prev = 0;
+  edl.segments.forEach((s, i) => {
+    const cur = Math.max(1, secToFrames(s.out - s.in));
+    frames += cur - (i ? overlapFrames(s.transition, prev, cur) : 0);
+    prev = cur;
+  });
+  return r2(frames / EDL_DEFAULTS.fps);
+};
 
 export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?: { min: number; max: number } } = {}): { edl: Edl; warnings: string[] } {
   const byId = new Map(clips.map((c) => [c.id, c]));
@@ -156,7 +166,9 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     if (outT - inT < EDL_DEFAULTS.minSegmentSec) { warnings.push(`segment ${i + 1} is too short after snapping`); return; }
     const frame = cleanFrame(s.frame);
     const volume = cleanVolume(s.volume);
-    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}) });
+    // How it comes in from the cut before: kept when it's one the renderer has; a hard cut otherwise.
+    const transition = segments.length && isTransition(s.transition) && s.transition !== "cut" ? s.transition : undefined;
+    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}), ...(transition ? { transition } : {}) });
   });
   if (segments.length) {
     segments[0].role = "opener";
@@ -227,7 +239,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     targetSec: { min: edited.targetSec.min, max: Math.max(edited.targetSec.max, Math.ceil(total)) },
     width: edited.width,
     height: edited.height,
-    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume })),
+    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition })),
     style: edited.style,
     text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, size: t.size })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
@@ -240,6 +252,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   // Measured corrections (Phase C) travel with the cut, for the clips still in it.
   const finish = sanitizeFinish(edited.finish, new Set(r.edl.segments.map((s) => s.clipId)));
   if (finish) r.edl.finish = finish;
+  if (edited.cleanSound === true) r.edl.cleanSound = true;
   return r;
 }
 
