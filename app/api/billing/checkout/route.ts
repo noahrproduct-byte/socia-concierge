@@ -70,22 +70,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ url: portal.url, portal: true });
   }
   const trial = trialEligible(billing) && existing != null && existing.data.length === 0;
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer,
-    client_reference_id: user.id,
-    line_items: [{ price, quantity: 1 }],
-    // The card is always collected; the 7-day trial applies to a first subscription only.
-    payment_method_collection: "always",
-    subscription_data: {
-      metadata: { user_id: user.id, plan },
-      ...(trial ? { trial_period_days: 7 } : {}),
-    },
-    allow_promotion_codes: true,
-    managed_payments: { enabled: true },
-    success_url: `${origin}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}#plan`,
-    cancel_url: `${origin}/pricing?billing=cancelled&plan=${plan}`,
-  });
+  let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>;
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer,
+      client_reference_id: user.id,
+      line_items: [{ price, quantity: 1 }],
+      // The card is always collected; the 7-day trial applies to a first subscription only.
+      payment_method_collection: "always",
+      subscription_data: {
+        metadata: { user_id: user.id, plan },
+        ...(trial ? { trial_period_days: 7 } : {}),
+      },
+      allow_promotion_codes: true,
+      managed_payments: { enabled: true },
+      success_url: `${origin}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}#plan`,
+      cancel_url: `${origin}/pricing?billing=cancelled&plan=${plan}`,
+    });
+  } catch (e) {
+    // Stripe's own words (no secret in them) go to the logs; the person gets a plain sentence.
+    const err = e as { type?: string; code?: string; message?: string };
+    console.error("[billing] checkout session failed:", err.type ?? "", err.code ?? "", err.message ?? e);
+    const setup = /tax code|tax_code|managed payments|terms/i.test(err.message ?? "");
+    return NextResponse.json({ error: setup ? "Checkout isn't fully set up yet. Nothing was charged; try again soon." : "Stripe couldn't start the checkout. Nothing was charged; try again." }, { status: 502 });
+  }
   if (!session.url) return NextResponse.json({ error: "Stripe did not return a checkout page. Try again." }, { status: 502 });
 
   recordEvent(supabase, user.id, "checkout_started", { plan, interval, trial });
