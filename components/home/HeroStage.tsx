@@ -115,8 +115,8 @@ function Performance() {
       <svg className="hx-chart" viewBox={`0 0 ${CW} ${CH}`} preserveAspectRatio="none">
         <defs>
           <linearGradient id="hx-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#3b82f6" stopOpacity="0.32" />
-            <stop offset="1" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0" stopColor="#2a62f5" stopOpacity="0.18" />
+            <stop offset="1" stopColor="#2a62f5" stopOpacity="0" />
           </linearGradient>
         </defs>
         <polygon points={AREA} fill="url(#hx-fill)" />

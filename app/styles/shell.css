@@ -13,9 +13,8 @@
 
 /* ---- the dock -------------------------------------------------------------------
    One object floating 20px below the top of the window, centred, as wide as
-   its contents: smoked glass (a translucent charcoal, a subtle blur, a lit top
-   edge, a hairline border and a soft lift) in both themes. The header carries
-   the dark token scope, so everything inside it reads on the glass. The blur
+   its contents: frosted glass (a translucent white, a subtle blur, a lit top
+   edge, a hairline border and a soft lift) wearing the page's tokens. The blur
    is the one recorded exception in the anti-slop standard (section 18.1);
    nothing else in the app may use it. */
 .s-headbar {

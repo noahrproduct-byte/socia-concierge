@@ -14,6 +14,30 @@ API. It's the thing that earns the first dollars while you validate demand.
   deliverable is always valid, renderable JSON
 - Plain CSS in the SOCIA brand (cobalt / ivory / Inter)
 
+## Appearance: light only (2026-11-03)
+
+Every page now renders in the light theme, whatever the device setting or a
+previously saved choice.
+
+- **Theme forced to light.** `lib/themeScript.ts` and
+  `components/ThemeProvider.tsx` always paint the light tokens, and clear any
+  old `socia-appearance` value from the browser.
+- **Appearance picker removed** from Settings, the account menu, the Settings
+  nav and the command menu (`components/AppearanceSettings.tsx` is deleted).
+- **App top bar** (`.s-headbar`) is now frosted white glass instead of
+  charcoal; its tokens (`--headbar`, `--dock-*`) live in
+  `app/styles/tokens.css`.
+- **Landing page** (`components/home/home.css`, `Home.tsx`, `HeroStage.tsx`),
+  previously built dark, now uses a light palette matched to the app's tokens:
+  the hero's product screens, the readability wash, buttons, charts, gold and
+  blue highlights were all recoloured so nothing disappears on the light canvas.
+- **Pricing page** (`app/pricing/pricing.css`, `components/MarketingChrome.tsx`)
+  re-points the old dark `.so` palette to light values and uses the light nav.
+
+The dark token values are kept in `app/styles/tokens.css` and the
+`profiles.appearance` column is untouched, so a dark mode can return later.
+The login and signup pages keep their dark decorative left panel on purpose.
+
 ## Setup
 
 1. Install dependencies:
