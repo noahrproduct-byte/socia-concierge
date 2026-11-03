@@ -19,6 +19,8 @@ const FRESH_MS = 6 * 60 * 60 * 1000;
 export type IgCompetitorPost = {
   permalink: string | null; caption: string | null; thumbnail: string | null;
   likes: number | null; comments: number | null; timestamp: string | null; mediaType: string | null;
+  /** Views as Meta reports them; null when not returned (and on rows cached before views were read). */
+  views?: number | null;
 };
 
 export type IgCompetitor = {
@@ -129,7 +131,7 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
       const stats = discoveryStats(a);
       const media: IgCompetitorPost[] = a.media.map((m) => ({
         permalink: m.permalink, caption: m.caption, thumbnail: m.thumbnailUrl ?? m.mediaUrl,
-        likes: m.likes, comments: m.comments, timestamp: m.timestamp, mediaType: m.mediaType,
+        likes: m.likes, comments: m.comments, timestamp: m.timestamp, mediaType: m.mediaType, views: m.views,
       }));
       const fetchedAt = new Date().toISOString();
       try {

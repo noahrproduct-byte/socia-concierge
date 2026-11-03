@@ -165,7 +165,7 @@ export function TrendingAccounts({
         </div>
       )}
       <small className="cx2-foot">
-        Top Reels and Shorts by what each platform publishes: views for YouTube, likes and comments for Instagram. Your own accounts are never listed.
+        Top Reels and Shorts by what each platform publishes: views for YouTube, and for Instagram views where Instagram shares them, otherwise likes and comments. Your own accounts are never listed.
       </small>
     </section>
   );
@@ -254,7 +254,7 @@ export function TrendingReels({ d }: { d: CompetitorsData }) {
         </div>
       )}
       <small className="cx2-foot">
-        Ranked against each account&apos;s own median: likes and comments on Instagram, which publishes no views for other accounts, and views on YouTube. Copy the idea, not the video: make your version with your own footage.
+        Ranked against each account&apos;s own median: views on YouTube, and on Instagram views where Instagram shares them, otherwise likes and comments. Copy the idea, not the video: make your version with your own footage.
       </small>
     </section>
   );
