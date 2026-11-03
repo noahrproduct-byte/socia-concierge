@@ -281,6 +281,8 @@ export type Edl = {
   soundtrack?: Soundtrack;
   /** When SOCIA tried adding music on its own (once per cut, whatever happened). Server-owned. */
   musicAuto?: string;
+  /** When SOCIA coloured the cut on its own (lib/studioClips/autoLook.ts), once per cut whatever happened. */
+  lookAuto?: string;
 };
 
 export type EdlBrief = { prompt: string | null; reference: string | null; referenceName: string | null };
