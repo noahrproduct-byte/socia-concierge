@@ -75,10 +75,12 @@ describe("cuts made from a brief", () => {
     expect(isBriefIdx(-1000)).toBe(false);
     expect(() => nextBriefIdx([-999])).toThrow(/limit/);
   });
-  it("offers every usable moment and names a title", () => {
+  it("offers every clip the person gave, a clip with no usable moment whole, and names a title", () => {
     const card = (strength: "strong" | "weak", opener = false): ClipCard => ({ subject: "", setting: "", action: "", people: "none", moments: [{ start: 0, end: 4, label: "", strength, why: "" }], speech: { present: false, summary: "", hookLine: null }, quality: { visual: "ok", audio: "ok", notes: [] }, tags: [], openerCandidate: opener, createdAt: "2026-01-01T00:00:00Z" } as unknown as ClipCard);
     const o = opportunityFromBrief("T", "A", [{ id: "a", position: 0, durationSec: 4, card: card("strong", true) }, { id: "b", position: 1, durationSec: 4, card: card("weak") }, { id: "c", position: 2, durationSec: 4, card: null }], -2);
-    expect(o.clipIds).toEqual(["a"]);
+    // The person chose these clips for the video: "b" (rated weak) is still offered, whole; "c" isn't understood yet.
+    expect(o.clipIds).toEqual(["a", "b"]);
+    expect(o.moments.find((m) => m.clipId === "b")).toEqual({ clipId: "b", start: 0, end: 4 });
     expect(o.opener?.clipId).toBe("a");
     expect(titleFor("Fast cuts. Then a slow reveal.", null)).toBe("Fast cuts");
     expect(titleFor(null, null)).toBe("Your video");

@@ -6,14 +6,18 @@
 
 export const FONTS = [
   { id: "inter", label: "Inter" },
-  { id: "montserrat", label: "Montserrat" },
+  // Montserrat is the free match for CapCut's default "Classic" text; TikTok Sans is TikTok's own.
+  { id: "montserrat", label: "Montserrat (CapCut Classic)" },
+  { id: "tiktok", label: "TikTok Sans" },
+  { id: "anton", label: "Anton" },
   { id: "poppins", label: "Poppins" },
   { id: "playfair", label: "Playfair Display" },
   { id: "bebas", label: "Bebas Neue" },
 ] as const;
 export type FontId = (typeof FONTS)[number]["id"];
 
-export type TextBox = "dark" | "light" | "accent" | "none";
+/** "outline": CapCut's Classic look, white text with a black outline and no box behind it. */
+export type TextBox = "outline" | "dark" | "light" | "accent" | "none";
 export type CaptionPosition = "top" | "middle" | "bottom";
 export type CaptionSize = "s" | "m" | "l";
 
@@ -27,6 +31,9 @@ export type EdlStyle = {
 
 /** What edits looked like before styles existed: Inter, dark boxes, captions low, the old CTA colour. */
 export const DEFAULT_STYLE: EdlStyle = { font: "inter", accent: "#5b4bd6", textBox: "dark", captions: { position: "bottom", size: "m", box: true, uppercase: false } };
+
+/** New cuts start in CapCut's Classic look (Noah, 2026-11-02): Montserrat, outlined, no boxes. A brand preset replaces it. */
+export const CAPCUT_STYLE: EdlStyle = { font: "montserrat", accent: "#5b4bd6", textBox: "outline", captions: { position: "bottom", size: "m", box: false, uppercase: false } };
 
 export type VideoTemplate = { id: string; name: string; style: EdlStyle; width: number; height: number };
 export type VideoPresets = { brand: { style: EdlStyle; width: number; height: number } | null; templates: VideoTemplate[] };
@@ -46,7 +53,7 @@ export function sanitizeStyle(v: unknown): EdlStyle | undefined {
   return {
     font: pick(s.font, FONTS.map((f) => f.id), DEFAULT_STYLE.font),
     accent: isHex(s.accent) ? s.accent.toLowerCase() : DEFAULT_STYLE.accent,
-    textBox: pick<TextBox>(s.textBox, ["dark", "light", "accent", "none"], DEFAULT_STYLE.textBox),
+    textBox: pick<TextBox>(s.textBox, ["outline", "dark", "light", "accent", "none"], DEFAULT_STYLE.textBox),
     captions: {
       position: pick<CaptionPosition>(c.position, ["top", "middle", "bottom"], "bottom"),
       size: pick<CaptionSize>(c.size, ["s", "m", "l"], "m"),
@@ -86,10 +93,11 @@ export function captionLayout(c: EdlStyle["captions"]): { top: string | null; bo
   return { top: null, bottom: "27%", fontSize };
 }
 
-/** Background and text colours for a text line. The call to action always uses the brand accent. */
-export function textColors(style: EdlStyle, role: "opening" | "mid" | "cta"): { bg: string | null; fg: string; shadow: string } {
-  if (role === "cta" || style.textBox === "accent") return { bg: style.accent, fg: "#ffffff", shadow: "0 2px 12px rgba(0,0,0,0.35)" };
-  if (style.textBox === "light") return { bg: "rgba(255,255,255,0.92)", fg: "#111111", shadow: "none" };
-  if (style.textBox === "none") return { bg: null, fg: "#ffffff", shadow: "0 2px 16px rgba(0,0,0,0.75)" };
-  return { bg: "rgba(0,0,0,0.46)", fg: "#ffffff", shadow: "0 2px 12px rgba(0,0,0,0.45)" };
+/** Background and text colours for a text line. The call to action uses the brand accent (as its outline in the outline style). */
+export function textColors(style: EdlStyle, role: "opening" | "mid" | "cta"): { bg: string | null; fg: string; shadow: string; stroke: string | null } {
+  if (style.textBox === "outline") return { bg: null, fg: "#ffffff", shadow: "none", stroke: role === "cta" ? style.accent : "#000000" };
+  if (role === "cta" || style.textBox === "accent") return { bg: style.accent, fg: "#ffffff", shadow: "0 2px 12px rgba(0,0,0,0.35)", stroke: null };
+  if (style.textBox === "light") return { bg: "rgba(255,255,255,0.92)", fg: "#111111", shadow: "none", stroke: null };
+  if (style.textBox === "none") return { bg: null, fg: "#ffffff", shadow: "0 2px 16px rgba(0,0,0,0.75)", stroke: null };
+  return { bg: "rgba(0,0,0,0.46)", fg: "#ffffff", shadow: "0 2px 12px rgba(0,0,0,0.45)", stroke: null };
 }

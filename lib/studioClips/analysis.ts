@@ -175,7 +175,8 @@ type CardOut = Omit<ClipCard, "model" | "createdAt" | "speech"> & { speech: { pr
 
 export async function clipCard(clip: ClipInput, acct: AccountContext): Promise<ClipCard> {
   const system = `You describe one raw video clip for a social media strategist who will later combine clips into posts. ${HONESTY}
-Moments: 1 to 5 ranges inside the clip worth using, each with a label and a strength — "strong" (would hold attention on its own), "good" (usable), "weak" (unusable: shaky, blurry, nothing happens, badly exposed). Cover the clip; a clip with nothing usable has one weak moment spanning it.
+Moments: 1 to 5 ranges inside the clip worth using, each with a label and a strength — "strong" (would hold attention on its own), "good" (usable), "weak" (unusable). Cover the clip; a clip with nothing usable has one weak moment spanning it.
+Phone footage moves, and that is how short-form video looks: a handheld walk-through, a pan along a counter, a POV shot or a camera following the action is "good" or "strong", never weak because it moves. Still frames from a moving camera look softer than the video plays, so do not call a moment blurry from motion blur in a frame. "weak" is only for footage nobody could use: the lens covered or pointed at nothing, the subject can't be made out at all, far too dark or blown out, or an accidental recording.
 speech.present is true only when the transcript contains speech. hookLine is the one spoken line that could open a post, or "" when there is none.
 openerCandidate is true only when the first three seconds would stop a scroll or a hook line is spoken early.
 quality reflects the measurements and what the frames show; notes are short and concrete.`;
@@ -266,7 +267,7 @@ const EDL_SCHEMA = {
   type: "object", additionalProperties: false,
   properties: {
     targetSec: { type: "object", additionalProperties: false, properties: { min: { type: "number" }, max: { type: "number" } }, required: ["min", "max"] },
-    segments: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, in: { type: "number" }, out: { type: "number" }, role: { type: "string", enum: ["opener", "body", "ending"] }, note: { type: "string" } }, required: ["clipId", "in", "out", "role", "note"] } },
+    segments: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, in: { type: "number" }, out: { type: "number" }, role: { type: "string", enum: ["opener", "body", "ending"] }, note: { type: "string" }, transition: { type: "string", enum: ["cut", "fade", "zoom", "whip"] } }, required: ["clipId", "in", "out", "role", "note", "transition"] } },
     text: { type: "array", items: { type: "object", additionalProperties: false, properties: { at: { type: "number" }, end: { type: "number" }, text: { type: "string" }, role: { type: "string", enum: ["opening", "mid", "cta"] } }, required: ["at", "end", "text", "role"] } },
     enhance: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, kind: { type: "string", enum: ["brighten", "darken", "warm", "cool", "contrast"] }, amount: { type: "string", enum: ["slight", "moderate"] }, why: { type: "string" } }, required: ["clipId", "kind", "amount", "why"] } },
     cta: { type: "string" }, music: { type: "string" }, caption: { type: "string" },
@@ -286,15 +287,22 @@ const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
 
 export type EdlVariant = { directive: RegenerateDirective; previous: Edl };
 
-export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant, brief?: string | null): Promise<{ raw: RawEdl; model: string }> {
+export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant, brief?: string | null, retry?: string | null): Promise<{ raw: RawEdl; model: string }> {
   const used = clips.filter((c) => (variant ? true : opp.clipIds.includes(c.id)) && c.card);
   const previous = variant
     ? `\n\nThe previous cut (${variant.previous.segments.reduce((a, s) => a + (s.out - s.in), 0).toFixed(1)}s): ${variant.previous.segments.map((s) => `${clipLabel(used.find((c) => c.id === s.clipId)?.position ?? 0)} ${s.in.toFixed(1)}–${s.out.toFixed(1)}s`).join("; ")}${variant.previous.text[0] ? `; opening line "${variant.previous.text[0].text}"` : ""}.\nChange requested: ${DIRECTIVE_TEXT[variant.directive]}`
     : "";
   const system = `You are cutting ONE short-form vertical post (1080×1920) from the clips given, as an edit decision list another editor could follow exactly. ${HONESTY}
-- segments: in order; each has a clip id and clip-relative in/out seconds that lie INSIDE that clip's usable moments; the first segment is the opener (the strongest attention-holding moment or the spoken hook); the last is the ending. 3 to 8 segments.
-- targetSec: a sensible length for this footage, typically 15–30 seconds; never longer than the footage supports.
-- text: 1 to 3 on-screen lines (opening line, optional mid-point line, optional CTA line) with output-relative at/end seconds. Short, plain, in the brand's voice.
+- segments: in order; each has a clip id and clip-relative in/out seconds inside that clip, preferring the chosen moments; the first segment is the opener (the strongest attention-holding moment or the spoken hook); the last is the ending. 3 to 10 segments.
+- Edit like a creator cutting their own Reel:
+  - Use every clip given unless one truly has nothing usable, and tell a small story in order: arriving or the setup, the work, then the payoff.
+  - Start each segment when its action starts and end it before the camera drifts onto nothing (skip the second of plain wall or closed door before the reveal).
+  - Pace to the brief: for a POV, a rush, "how busy", a day in the life or anything energetic, 6 to 10 segments of 0.8 to 2.5 seconds each; calmer posts, fewer and longer.
+  - End on the strongest, most satisfying image and let it run 2.5 to 4 seconds.
+  - Handheld movement is fine; it's how short-form looks.
+- transition: how each segment comes in from the one before (the first segment's is ignored). "zoom" (zoom blur) for a change of place or scene, "whip" (whip blur) between moving shots and pans, "fade" for calm or slow moments, "cut" on a hard beat or between two still shots. Mix them to suit the footage; don't put the same one on every cut, and leave none abrupt in a POV or energetic edit.
+- targetSec: a sensible length for this footage, typically 10–30 seconds; never longer than the footage supports, and never much shorter than it allows when the clips are good.
+- text: 1 to 3 on-screen lines (opening line, optional mid-point line, optional CTA line) with output-relative at/end seconds. Short and plain, the way a person types their own on-screen text (lowercase is fine, a "POV:" opener stays as written), in the brand's voice; never ad copy. The opening line stays up through the opener; a later line describes only what is on screen.
 - enhance: only for clips whose MEASUREMENTS say they are darker, brighter, cooler or warmer than the others, or low in contrast. These are checked against the numbers afterwards; unsupported ones are dropped.
 - cta: a closing ask that fits the goal, or "". caption: a post caption in the brand's voice (with the ask when there is one).
 - music: one sentence recommending a style, tempo range and level ("keep it low under speech"); NEVER a specific song or artist. When a measured note on what sound has worked for this account is given, the recommendation must agree with it.
@@ -310,7 +318,7 @@ Clips${variant?.directive === "different_clips" ? " (every clip in the project; 
 
 ${used.map((c) => `${cardText(c)}\n  measurements: ${factsText(c.facts)}${c.transcript?.words.length ? `\n  transcript:\n${transcriptLines(c.transcript, 900).split("\n").map((l) => `    ${l}`).join("\n")}` : ""}`).join("\n\n")}
 
-The images that follow are one frame from each clip, in the same order (${used.map((c) => clipLabel(c.position)).join(", ")}).` },
+The images that follow are one frame from each clip, in the same order (${used.map((c) => clipLabel(c.position)).join(", ")}).${retry ? `\n\n${retry}` : ""}` },
     ...used.filter((c) => c.frames.length).map((c) => ({ type: "image" as const, source: { type: "url" as const, url: (c.frames[Math.min(1, c.frames.length - 1)] ?? c.frames[0]).url } })),
   ];
   const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, brief ? 6000 : 3000, { ownerId: acct.ownerId, feature: "clip_edl" });

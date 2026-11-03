@@ -5,6 +5,7 @@
 // Used by Make and schedule to make a whole project's videos in a row.
 import { ClipComposition } from "./remotion/ClipComposition";
 import { timeline } from "@/lib/studioClips/timeline";
+import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { OUTPUT, type BuildPlayerData, type BuildSource } from "@/lib/studioClips/types";
 
 /** Why this browser can't render, or null when it can. */
@@ -24,7 +25,9 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
   const missing = edl.segments.filter((s) => !sources[s.clipId]).length;
   if (missing) throw new Error("Some of its clips have expired from storage, so it can't be made.");
   const { renderMediaOnWeb } = await import("@remotion/web-renderer");
-  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null };
+  // Background noise reduced first, as in the editor (clips that can't be cleaned keep their own sound).
+  const cleanAudio = edl.cleanSound ? await cleanSounds(Array.from(new Set(edl.segments.map((s) => s.clipId))).map((id) => ({ clipId: id, url: sources[id].url }))) : {};
+  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null, cleanAudio };
   const { getBlob } = await renderMediaOnWeb({
     composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
     inputProps: props,

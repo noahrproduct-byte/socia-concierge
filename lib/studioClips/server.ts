@@ -2,7 +2,7 @@
 // uses, clip registration under the plan's limits, and building one
 // opportunity's EDL + guide. Everything is scoped to the workspace owner and
 // the active Brand Workspace, like the rest of SOCIA.
-import type { EdlStyle } from "./style";
+import { CAPCUT_STYLE, type EdlStyle } from "./style";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getLimit, type Entitlements } from "@/lib/entitlements";
 import { getProfile } from "@/lib/profile";
@@ -12,7 +12,7 @@ import { signUrls, clipFolder, clipFolderOf, clipOwnsPath, removeFolder, storage
 import { checkClipFits, projectTotals, ownerStorageBytes, type FitResult } from "./limits";
 import { copyPaths, dedupeByFootage, MAX_COPY, nextPosition, type LibraryClip } from "./library";
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
-import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl } from "./edl";
+import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl, type RawEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
 import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS, STUDIO_BUCKET } from "./types";
@@ -375,10 +375,11 @@ export async function manualBuild(client: Supa, args: { ownerId: string; wsId: s
     targetSec: { min: 1, max: Math.ceil(ready.reduce((a, r) => a + (r.duration_s ?? 0), 0)) + 1 },
     segments: ready.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
-    ...(preset ? { width: preset.width, height: preset.height, style: preset.style } : {}),
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
   }, forEdl);
   // Captions only when the person turns them on.
   edl.captions = null;
+  edl.cleanSound = true;
   if (!edl.segments.length) throw new Error("These clips are too short to edit.");
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: MANUAL_IDX, edl, guide, caption: null, model: "manual", updated_at: now() };
@@ -406,9 +407,10 @@ export async function clipBuild(client: Supa, args: { ownerId: string; wsId: str
     targetSec: { min: 1, max: Math.ceil(dur) + 1 },
     segments: [{ clipId: clip.id, in: 0, out: dur }],
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
-    ...(preset ? { width: preset.width, height: preset.height, style: preset.style } : {}),
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
   }, [toClipForEdl(clip)]);
   edl.captions = clip.transcript?.words?.length ? { source: "transcript" } : null;
+  edl.cleanSound = true;
   if (!edl.segments.length) throw new Error("That clip is too short to post.");
   const guide = guideFromEdl(edl, [toClipForEdl(clip)]);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: null, model: "manual", updated_at: now() };
@@ -462,6 +464,9 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const forEdl = rows.map(toClipForEdl);
   const { edl } = validateEdl(raw, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
+  // A new version keeps the look the cut had.
+  edl.style = row.edl.style ?? CAPCUT_STYLE;
+  edl.cleanSound = row.edl.cleanSound ?? true;
   // A brief's cut keeps its size, its look and the brief itself.
   if (brief) { edl.brief = brief; edl.width = row.edl.width; edl.height = row.edl.height; if (row.edl.style) edl.style = row.edl.style; if (row.edl.captions) edl.captions = row.edl.captions; }
   // The music made for the cut, and the track chosen, stay with it.
@@ -628,11 +633,14 @@ export async function buildFromBrief(client: Supa, args: {
   if (!opp.clipIds.length) throw new Error("None of the clips has a usable moment to cut from.");
   const brief = { prompt, reference: reference?.brief ?? null, referenceName: reference?.name ?? null };
   const urls = await frameUrls(client, usable);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, undefined, briefText(brief));
+  const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = rows.map(toClipForEdl);
-  const { edl } = validateEdl(raw, forEdl);
+  const footageSec = usable.filter((r) => opp.clipIds.includes(r.id)).reduce((a, r) => a + (r.duration_s ?? 0), 0);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry), forEdl, footageSec);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
-  if (preset) { edl.width = preset.width; edl.height = preset.height; edl.style = preset.style; }
+  if (preset) { edl.width = preset.width; edl.height = preset.height; }
+  edl.style = preset?.style ?? CAPCUT_STYLE;
+  edl.cleanSound = true;
   if (reference) {
     edl.style = referenceStyle(reference.breakdown, edl.style);
     // Word-by-word captions only when the reference has them and the clips have real speech.
@@ -645,6 +653,25 @@ export async function buildFromBrief(client: Supa, args: {
   const { data, error } = await client.from("studio_builds").insert(row).select(BUILD_COLS).single();
   if (error) throw error;
   return rowToBuild(data as BuildRow, rows);
+}
+
+/**
+ * Pass 3 with a floor: a cut far shorter than its footage allows (the
+ * 2-second Halloween video, 2026-11-02) is made once more, told how long it
+ * should be. The longer of the two is kept.
+ */
+async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number): Promise<{ edl: Edl; model: string }> {
+  const first = await make(null);
+  let edl = validateEdl(first.raw, forEdl).edl;
+  let model = first.model;
+  const len = edlDurationSec(edl);
+  const floor = Math.min(10, footageSec * 0.5);
+  if (footageSec >= 6 && len < floor) {
+    const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
+    const second = validateEdl(again.raw, forEdl).edl;
+    if (edlDurationSec(second) > len) { edl = second; model = again.model; }
+  }
+  return { edl, model };
 }
 
 /** The browser finished rendering and uploading; the draft post exists. */
@@ -663,10 +690,13 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   const rows = await clipRows(client, project.id);
   const used = rows.filter((r) => opp.clipIds.includes(r.id));
   const urls = await frameUrls(client, used);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) });
+  const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = used.map(toClipForEdl);
-  const { edl } = validateEdl(raw, forEdl);
+  const footageSec = used.reduce((a, r) => a + (r.duration_s ?? 0), 0);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry), forEdl, footageSec);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from these clips.");
+  edl.style = edl.style ?? CAPCUT_STYLE;
+  edl.cleanSound = true;
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: edl.caption || null, model, updated_at: now() };
   if (wsId) row.workspace_id = wsId;
