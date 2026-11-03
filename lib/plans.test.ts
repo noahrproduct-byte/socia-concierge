@@ -16,9 +16,9 @@ describe("plan configuration", () => {
   it("has the four confirmed plans at the confirmed prices, in order", () => {
     expect(PLAN_ORDER).toEqual(["free", "starter", "growth", "pro"]);
     expect(PLANS.free.priceMonthly).toBe(0);
-    expect(PLANS.starter.priceMonthly).toBe(19);
-    expect(PLANS.growth.priceMonthly).toBe(49);
-    expect(PLANS.pro.priceMonthly).toBe(99);
+    expect(PLANS.starter.priceMonthly).toBe(19.99);
+    expect(PLANS.growth.priceMonthly).toBe(34.99);
+    expect(PLANS.pro.priceMonthly).toBe(49.99);
     expect(PLANS.growth.popular).toBe(true);
   });
 
@@ -30,15 +30,18 @@ describe("plan configuration", () => {
   });
 
   it("matches the confirmed AI allowances", () => {
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.ask_socia)).toEqual([10, 50, 250, 600]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_studio)).toEqual([5, 30, 150, 400]);
+    // Trimmed with the 2026-11-02 prices so full use roughly breaks even.
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.ask_socia)).toEqual([10, 50, 200, 300]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_studio)).toEqual([5, 30, 60, 60]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_generation)).toEqual([6, 120, 150, 160]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_build)).toEqual([3, 10, 20, 25]);
     // Free: one a month (Noah, 2026-10-30), plus one at onboarding that isn't counted.
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_plan)).toEqual([1, 4, 12, 40]);
     // Batches of 5 video ideas a week (Noah, 2026-11-02).
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_ideas)).toEqual([2, 5, 10, 25]);
     // Starter gets a taste of SOCIA making videos (Noah, 2026-11-02).
     expect(PLAN_ORDER.map((p) => PLANS[p].meters.video_builds)).toEqual([0, 5, 30, 100]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.music_tracks)).toEqual([0, 10, 40, 120]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.music_tracks)).toEqual([0, 10, 12, 15]);
     expect(FEATURE_MIN_PLAN.auto_build).toBe("starter");
     expect(METER_PERIOD.content_ideas).toBe("week");
     expect(METER_PERIOD.ask_socia).toBe("month");
@@ -166,7 +169,7 @@ describe("plan helpers", () => {
 
   it("formats prices, history and pricing links", () => {
     expect(formatPrice(PLANS.free)).toBe("$0");
-    expect(formatPrice(PLANS.pro)).toBe("$99");
+    expect(formatPrice(PLANS.pro)).toBe("$49.99");
     expect(formatHistory(30)).toBe("30 days");
     expect(formatHistory(90)).toBe("90 days");
     expect(formatHistory(365)).toBe("1 year");

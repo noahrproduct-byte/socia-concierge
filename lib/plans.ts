@@ -385,7 +385,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   starter: {
     id: "starter",
     name: "Starter",
-    priceMonthly: 19,
+    priceMonthly: 19.99,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
     limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_LIMITS.starter, studio_storage_gb: 10, assistant_requests_per_minute: 20, assistant_posts_per_hour: 5 },
@@ -396,11 +396,11 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   growth: {
     id: "growth",
     name: "Growth",
-    priceMonthly: 49,
+    priceMonthly: 34.99,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
     limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_LIMITS.growth, studio_storage_gb: 25, assistant_requests_per_minute: 30, assistant_posts_per_hour: 10 },
-    meters: { ask_socia: 250, content_studio: 150, content_generation: 500, account_audit: 12, content_plan: 12, content_ideas: 10, content_build: 40, video_builds: 30, music_tracks: 40, assistant_requests: 5000 },
+    meters: { ask_socia: 200, content_studio: 60, content_generation: 150, account_audit: 12, content_plan: 12, content_ideas: 10, content_build: 20, video_builds: 30, music_tracks: 12, assistant_requests: 5000 },
     features: featuresOf("growth"),
     cta: "Start Growth",
     popular: true,
@@ -408,12 +408,15 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   pro: {
     id: "pro",
     name: "Pro",
-    priceMonthly: 99,
+    priceMonthly: 49.99,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
     limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_LIMITS.pro, studio_storage_gb: 50, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20 },
-    // Deliberately higher, deliberately finite. Tune in plan_config_overrides.
-    meters: { ask_socia: 600, content_studio: 400, content_generation: 1200, account_audit: 30, content_plan: 40, content_ideas: 25, content_build: 100, video_builds: 100, music_tracks: 120, assistant_requests: 20000 },
+    // Prices set 2026-11-02 (Noah: $19.99 / $34.99 / $49.99). AI allowances
+    // were trimmed so a customer who uses all of them roughly breaks even
+    // (from estimated per-use AI costs; lib/aiUsage.ts records the real ones); Pro's extra
+    // value is brands, seats and team features. Tune in plan_config_overrides.
+    meters: { ask_socia: 300, content_studio: 60, content_generation: 160, account_audit: 30, content_plan: 40, content_ideas: 25, content_build: 25, video_builds: 100, music_tracks: 15, assistant_requests: 20000 },
     features: featuresOf("pro"),
     cta: "Start Pro",
   },
