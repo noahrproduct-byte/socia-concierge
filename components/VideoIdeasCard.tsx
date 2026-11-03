@@ -13,7 +13,7 @@ import { Button, Card, CardHeader, Checkbox, Chip, Field, Input } from "@/compon
 import PlanNotice, { UsageLine } from "./PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
-import { IDEA_STYLES, ideaText, type IdeaSet, type IdeaStyle, type VideoIdea } from "@/lib/ideas/videoIdeas";
+import { EVIDENCE_LABEL, IDEA_STYLES, TREATMENT_LABEL, ideaText, type IdeaSet, type IdeaStyle, type VideoIdea } from "@/lib/ideas/videoIdeas";
 import { handFiles } from "@/lib/studioClips/handoff";
 import { PROMPT_MAX } from "@/lib/studioClips/reference";
 
@@ -102,13 +102,13 @@ export default function VideoIdeasCard() {
             return (
               <li key={idea.id} className={isOpen ? "is-open" : ""}>
                 <button type="button" className="dash-ideas-head" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : idea.id)}>
-                  <span className="dash-ideas-title"><b>{idea.title}</b><span className="dash-ideas-meta"><Chip>{styleLabel(idea.style)}</Chip> about {idea.lengthSec} seconds · {idea.shots.length} shots</span></span>
+                  <span className="dash-ideas-title"><b>{idea.title}</b><span className="dash-ideas-meta"><Chip>{TREATMENT_LABEL[idea.treatment] ?? styleLabel(idea.style)}</Chip> about {idea.lengthSec} seconds · {idea.shots.length} shots</span></span>
                   {isOpen ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
                 </button>
                 <p className="dash-ideas-premise">{idea.premise}</p>
                 {isOpen && (
                   <div className="dash-ideas-body">
-                    {idea.themeFit && <p className="dash-ideas-fit"><b>Why it fits your theme</b> {idea.themeFit}</p>}
+                    {(idea.themeFit || idea.evidence) && <p className="dash-ideas-fit"><b>Why it fits your theme</b> {idea.evidence && <span className={`dash-ideas-evidence is-${idea.evidence}`}>{EVIDENCE_LABEL[idea.evidence]}.</span>} {idea.themeFit}</p>}
                     <div className="dash-ideas-shots" role="table" aria-label={`Shots for ${idea.title}`}>
                       <div role="row" className="dash-ideas-row dash-ideas-row-h"><span role="columnheader">When</span><span role="columnheader">On camera</span><span role="columnheader">On screen</span><span role="columnheader">Say</span></div>
                       {idea.shots.map((s, k) => (

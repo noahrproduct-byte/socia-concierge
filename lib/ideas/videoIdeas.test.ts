@@ -47,6 +47,24 @@ describe("video ideas", () => {
     expect(ideaText(i)).toContain("Sound: Its own sound, kitchen sounds.");
   });
 
+  it("keeps a treatment only when it fits the style, else the style's default", () => {
+    const [a, b, c] = cleanIdeas({ ideas: [
+      raw({ title: "A", treatment: "sketch" }),
+      raw({ title: "B", treatment: "talking" }),
+      raw({ title: "C", style: "face", treatment: "pov" }),
+    ] }, [], ids) as VideoIdea[];
+    expect(a.treatment).toBe("sketch");
+    expect(b.treatment).toBe("behind_scenes"); // talking isn't filmed in person
+    expect(c.treatment).toBe("pov");
+    expect(ideaText(a)).toContain("(Sketch, about 15 seconds)");
+  });
+
+  it("keeps an evidence label only when it is one SOCIA knows; older ideas have none", () => {
+    const [a, b] = cleanIdeas({ ideas: [raw({ title: "A", evidence: "promising" }), raw({ title: "B", evidence: "proven" })] }, [], ids) as VideoIdea[];
+    expect(a.evidence).toBe("promising");
+    expect(b.evidence).toBeNull();
+  });
+
   it("keeps a stored set's ids", () => {
     const s = sanitizeIdeaSet({ at: "2026-11-01T00:00:00Z", styles: ["in_person"], about: null, ideas: [{ ...raw(), id: "keepme" }] });
     expect(s?.ideas[0].id).toBe("keepme");
