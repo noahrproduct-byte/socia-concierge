@@ -15,6 +15,45 @@ npm run verify               # duration 30s ±0.2, no black frames at cuts
 npm run studio               # Remotion Studio to scrub the timeline
 ```
 
+## The method reel (`SociaMethod`)
+
+A 63 s, 9:16 motion-graphics reel in eight chapters (hook, Meet SOCIA, five
+steps, call to action) in the visual language of a reference creator reel:
+blur-dissolve chapter transitions, two-beat titles, element-by-element builds,
+one takeaway line per chapter. A deep narrator (ElevenLabs) tells the whole
+product: connect, see what stands out (MCP as an option), the content plan,
+Content Studio with the clip bin and the rater, scheduling that posts for you,
+and the call to action. No music, by choice. It needs no captures.
+
+```
+npm run render:method        # → out/socia-method.mp4 (1080×1920, 30fps, 63.5s, voice + effects, week-free ending)
+sh src/method/audio/master.sh out/socia-method.mp4 out/socia-method-final.mp4   # -14 LUFS, -1 dBTP
+npx remotion studio src/method/index.ts
+```
+
+Every word and number lives in `src/method/script.ts`; the components in
+`src/method/Method.tsx` and `src/method/ui.tsx` only lay them out. The numbers
+are real: they were read from SOCIA's own MCP tools for the Salvo's Pizza
+workspace (@salvoshermitage) on 2026-10-27 (30-day views and reach, top posts
+vs the account's median, the weekly Content Plan). Re-read them before
+publishing a new cut, and keep the source line under the hook cards.
+
+## The agent reel (`SociaAgent`)
+
+A 43 s, 9:16 reel in the style of Noah's second reference (the "Harvey" reel,
+~/Downloads/Video-1457.mp4): one continuous narration take (Declan Sage), captions
+that light up word by word, a persistent SOCIA dock whose badges climb, corner
+chapter tags and counters, stamps on the key beats, and a blue middle act. Copy,
+timings and data live in `src/agent/story.ts`; scenes in `src/agent/Agent.tsx`.
+The creator in it (posts, draft, rater, best-time grid, the cat avatar in
+`src/agent/avatar.png`) is an illustrative example and every panel says EXAMPLE;
+the site reads "coming soon" (`SITE` in story.ts) until it is ready.
+
+```
+npm run render:agent         # → out/socia-agent.mp4
+sh src/method/audio/master.sh out/socia-agent.mp4 out/socia-agent-final.mp4
+```
+
 ## How capture works
 
 `capture.ts` logs in, sets **Dark** in Settings (the account-level preference

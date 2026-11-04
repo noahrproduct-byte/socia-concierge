@@ -1,0 +1,50 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #reels-panel { top: 520px; }
+    .re-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+    .re-m { padding: 22px 32px; border-bottom: 1px solid var(--app-rule); border-right: 1px solid var(--app-rule); }
+    .re-m:nth-child(3n) { border-right: 0; }
+    .re-m .l { font: 600 28px/1 var(--font); color: var(--app-ink-3); }
+    .re-m .v { font: 700 46px/1.1 var(--font-display); letter-spacing: -0.03em; color: var(--app-ink); margin-top: 10px; font-variant-numeric: tabular-nums; }
+    #re-alert .name { color: var(--app-ink); }
+  </style>
+  <div id="root" data-composition-id="reels" data-width="1080" data-height="1920">
+    <div id="reels-stage" class="stage">
+      <div id="reels-step" class="step clip" data-start="0" data-duration="6">Step 07</div>
+      <div id="reels-t1" class="t1 clip" data-start="0" data-duration="6">Track every</div>
+      <div id="reels-t2" class="t2 clip" data-start="0.3" data-duration="5.7">Reel</div>
+      <div id="reels-panel" class="panel clip" data-start="0.5" data-duration="5.5">
+        <div class="panel-h"><h3>Perfection.</h3><span>Reel · Aug 18 · Instagram</span></div>
+        <div class="re-grid">
+          <div class="re-m" id="re-1"><div class="l">Views</div><div class="v">102,053</div></div>
+          <div class="re-m" id="re-2"><div class="l">Reach</div><div class="v">84,951</div></div>
+          <div class="re-m" id="re-3"><div class="l">Likes</div><div class="v">2,129</div></div>
+          <div class="re-m" id="re-4"><div class="l">Comments</div><div class="v">2</div></div>
+          <div class="re-m" id="re-5"><div class="l">Saves</div><div class="v">30</div></div>
+          <div class="re-m" id="re-6"><div class="l">Shares</div><div class="v">80</div></div>
+        </div>
+        <div class="row" id="re-alert">
+          <span class="chip warn">Alert</span>
+          <div class="grow"><div class="name">Reach down 60% vs the previous 7 days</div><div class="sub">9,600 in the last 7 days against 24,028 before · Instagram</div></div>
+        </div>
+      </div>
+      <div id="reels-take" class="take clip" data-start="2.9" data-duration="3.1">Views, reach, saves, shares. <b>Alerts when they move.</b></div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      const pop = (sel, t) => tl.fromTo(sel, { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.4)" }, t);
+      tl.fromTo("#reels-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#reels-step", 0.05); inb("#reels-t1", 0.1); inb("#reels-t2", 0.3);
+      tl.fromTo("#reels-panel", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 0.5);
+      for (let i = 1; i <= 6; i++) pop("#re-" + i, 0.8 + (i - 1) * 0.1);
+      tl.fromTo("#re-alert", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, 1.9);
+      inb("#reels-take", 2.9);
+      tl.fromTo("#reels-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 5.85);
+      window.__timelines["reels"] = tl;
+    })();
+  </script>
+</template>

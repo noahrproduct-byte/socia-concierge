@@ -1,0 +1,63 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #competitors-panel { top: 500px; }
+    .cp-strip { display: grid; grid-template-columns: 1fr 1fr; }
+    .cp-cell { padding: 20px 32px; border-bottom: 1px solid var(--app-rule); }
+    .cp-cell:nth-child(odd) { border-right: 1px solid var(--app-rule); }
+    .cp-cell .l { font: 600 28px/1 var(--font); color: var(--app-ink-3); }
+    .cp-cell .v { font: 700 30px/1.15 var(--font-display); letter-spacing: -0.01em; color: var(--app-ink); margin-top: 8px; }
+    .cp-head { display: grid; grid-template-columns: 1fr 200px 200px; padding: 18px 32px 0; font: 600 28px/1 var(--font); color: var(--app-ink-3); }
+    .cp-head span:nth-child(2) { text-align: right; color: var(--app-ink); }
+    .cp-head span:nth-child(3) { text-align: right; }
+    .cp-axes { padding: 4px 32px 6px; }
+    .cp-axis { display: grid; grid-template-columns: 1fr 200px 200px; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--app-rule); font: 600 28px/1 var(--font); color: var(--app-ink-2); }
+    .cp-axis:last-child { border-bottom: 0; }
+    .cp-axis .you { color: var(--app-ink); font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+    .cp-axis .them { color: var(--app-ink-3); text-align: right; }
+    .cp-note { padding: 18px 32px 22px; font: 500 28px/1.3 var(--font); color: var(--app-ink-2); border-top: 1px solid var(--app-rule); }
+    #competitors-take { top: 1216px; }
+  </style>
+  <div id="root" data-composition-id="competitors" data-width="1080" data-height="1920">
+    <div id="competitors-stage" class="stage">
+      <div id="competitors-step" class="step clip" data-start="0" data-duration="6.5">Step 04</div>
+      <div id="competitors-t1" class="t1 clip" data-start="0" data-duration="6.5">Track the accounts</div>
+      <div id="competitors-t2" class="t2 clip" data-start="0.3" data-duration="6.2">you're up against</div>
+      <div id="competitors-panel" class="panel clip" data-start="0.5" data-duration="6">
+        <div class="panel-h"><h3>Competitors</h3><span>Instagram, YouTube, Facebook</span></div>
+        <div class="cp-strip">
+          <div class="cp-cell" id="cp-c1"><div class="l">Competitive position</div><div class="v">You vs them</div></div>
+          <div class="cp-cell" id="cp-c2"><div class="l">Momentum</div><div class="v">Daily snapshots</div></div>
+          <div class="cp-cell" id="cp-c3"><div class="l">Biggest threat</div><div class="v">Named, with evidence</div></div>
+          <div class="cp-cell" id="cp-c4"><div class="l">Opportunity</div><div class="v">Where you could win</div></div>
+        </div>
+        <div class="cp-head" id="cp-head"><span>Market position</span><span>You</span><span>Them</span></div>
+        <div class="cp-axes">
+          <div class="cp-axis" id="cp-a1"><span>Engagement rate</span><span class="you">0.71%</span><span class="them">add one</span></div>
+          <div class="cp-axis" id="cp-a2"><span>Posting frequency</span><span class="you">9 / 30 days</span><span class="them">add one</span></div>
+          <div class="cp-axis" id="cp-a3"><span>Median interactions</span><span class="you">27</span><span class="them">add one</span></div>
+          <div class="cp-axis" id="cp-a4"><span>Audience</span><span class="you">12,125</span><span class="them">add one</span></div>
+        </div>
+        <div class="cp-note" id="cp-note">Observed numbers only. SOCIA never estimates what a platform doesn't publish.</div>
+      </div>
+      <div id="competitors-take" class="take clip" data-start="3.6" data-duration="2.9">Where you're winning, <b>and why they are</b>.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      const rise = (sel, t) => tl.fromTo(sel, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, t);
+      const pop = (sel, t) => tl.fromTo(sel, { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.4)" }, t);
+      tl.fromTo("#competitors-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#competitors-step", 0.05); inb("#competitors-t1", 0.1); inb("#competitors-t2", 0.3);
+      tl.fromTo("#competitors-panel", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 0.5);
+      pop("#cp-c1", 0.8); pop("#cp-c2", 0.9); pop("#cp-c3", 1.0); pop("#cp-c4", 1.1);
+      rise("#cp-head", 1.4); rise("#cp-a1", 1.55); rise("#cp-a2", 1.7); rise("#cp-a3", 1.85); rise("#cp-a4", 2.0);
+      inb("#cp-note", 2.4);
+      inb("#competitors-take", 3.6);
+      tl.fromTo("#competitors-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 6.35);
+      window.__timelines["competitors"] = tl;
+    })();
+  </script>
+</template>

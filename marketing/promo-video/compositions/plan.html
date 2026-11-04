@@ -1,0 +1,50 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #plan-panel { top: 520px; }
+    .pl-row { display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 18px; padding: 15px 32px; border-bottom: 1px solid var(--app-rule); }
+    .pl-row:last-child { border-bottom: 0; }
+    .pl-row .d { font: 700 28px/1 var(--font); color: var(--app-ink-3); }
+    .pl-row .c { font: 600 30px/1.2 var(--font); color: var(--app-ink); letter-spacing: -0.01em; }
+    .pl-row .h { font: 500 28px/1.3 var(--font); color: var(--app-ink-2); margin-top: 6px; }
+    .pl-row.sel { background: rgba(37, 99, 255, 0.08); }
+    .pl-row.sel .c { color: var(--app-ink); font-weight: 700; }
+    .pl-row .grow { min-width: 0; }
+    .pl-row .chip { font-size: 28px; }
+  </style>
+  <div id="root" data-composition-id="plan" data-width="1080" data-height="1920">
+    <div id="plan-stage" class="stage">
+      <div id="plan-step" class="step clip" data-start="0" data-duration="7">Step 05</div>
+      <div id="plan-t1" class="t1 clip" data-start="0" data-duration="7">Build this</div>
+      <div id="plan-t2" class="t2 clip" data-start="0.3" data-duration="6.7">week's plan</div>
+      <div id="plan-panel" class="panel clip" data-start="0.5" data-duration="6.5">
+        <div class="panel-h"><h3>This week's plan</h3><span class="chip blue" id="pl-btn">Schedule this week</span></div>
+        <div class="pl-row" id="pl-1"><span class="d">Mon</span><div class="grow"><div class="c">Catering tray build</div></div><span></span></div>
+        <div class="pl-row sel" id="pl-2"><span class="d">Tue</span><div class="grow"><div class="c">Double crust vs regular crust</div><div class="h">Hook: “Double crust or regular. You get one pick, and Hermitage is watching.”</div></div><span class="chip gold" id="pl-time">9 AM</span></div>
+        <div class="pl-row" id="pl-3"><span class="d">Wed</span><div class="grow"><div class="c">60 seconds with the pizzaiolo</div></div><span></span></div>
+        <div class="pl-row" id="pl-4"><span class="d">Thu</span><div class="grow"><div class="c">3 levels of cheese pizza</div></div><span></span></div>
+        <div class="pl-row" id="pl-5"><span class="d">Fri</span><div class="grow"><div class="c">The cheese pull hero shot</div></div><span></span></div>
+        <div class="pl-row" id="pl-6"><span class="d">Sat</span><div class="grow"><div class="c">“I'll wait.” rebuilt</div></div><span></span></div>
+        <div class="pl-row" id="pl-7"><span class="d">Sun</span><div class="grow"><div class="c">Local collab, on camera</div></div><span></span></div>
+      </div>
+      <div id="plan-take" class="take clip" data-start="4.0" data-duration="3.0">A hook, a format and the why, <b>for every day</b>.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      const rise = (sel, t) => tl.fromTo(sel, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, t);
+      tl.fromTo("#plan-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#plan-step", 0.05); inb("#plan-t1", 0.1); inb("#plan-t2", 0.3);
+      tl.fromTo("#plan-panel", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 0.5);
+      for (let i = 1; i <= 7; i++) rise("#pl-" + i, 0.9 + (i - 1) * 0.2);
+      tl.fromTo("#pl-2", { backgroundColor: "rgba(37,99,255,0)" }, { backgroundColor: "rgba(37,99,255,0.08)", duration: 0.3, ease: "power2.out", immediateRender: false }, 2.5);
+      tl.fromTo("#pl-time", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(1.4)" }, 2.7);
+      tl.fromTo("#pl-btn", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(1.4)" }, 3.2);
+      inb("#plan-take", 4.0);
+      tl.fromTo("#plan-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 6.85);
+      window.__timelines["plan"] = tl;
+    })();
+  </script>
+</template>

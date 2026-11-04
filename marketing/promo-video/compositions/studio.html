@@ -1,0 +1,60 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #studio-panel { top: 500px; }
+    .st-tray { display: flex; gap: 18px; padding: 20px 32px 4px; }
+    .st-cell { position: relative; width: 262px; height: 330px; border-radius: 14px; overflow: hidden; background: #1a1816; flex: none; }
+    .st-cell video, .st-cell img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+    .st-cell .tag { position: absolute; left: 12px; bottom: 12px; }
+    .st-cell .tag.chip { font-size: 28px; padding: 8px 12px; background: rgba(10, 10, 10, 0.82); color: var(--app-ink); border-color: rgba(255,255,255,0.18); }
+    .st-cell .tag.chip.blue { background: rgba(37, 99, 255, 0.92); color: #fff; border-color: transparent; }
+    .st-cell.live { outline: 2px solid var(--cobalt); outline-offset: -2px; }
+    #studio-take { top: 1236px; }
+  </style>
+  <div id="root" data-composition-id="studio" data-width="1080" data-height="1920">
+    <div id="studio-stage" class="stage">
+      <div id="studio-step" class="step clip" data-start="0" data-duration="7">Step 06</div>
+      <div id="studio-t1" class="t1 clip" data-start="0" data-duration="7">Turn raw clips</div>
+      <div id="studio-t2" class="t2 clip" data-start="0.3" data-duration="6.7">into posts</div>
+      <div id="studio-panel" class="panel" data-layout-allow-overflow>
+        <div class="panel-h"><h3>Build from clips</h3><span class="chip">Example footage</span></div>
+        <div class="st-tray">
+          <div class="st-cell live" id="st-c1">
+            <video id="studio-clip" class="clip" muted playsinline src="assets/footage/reel.mp4" data-start="0" data-duration="7" data-media-start="0"></video>
+            <span class="tag chip blue">Clip 1</span>
+          </div>
+          <div class="st-cell" id="st-c2"><img src="assets/footage/plate.jpg" alt="" /><span class="tag chip">Clip 2</span></div>
+          <div class="st-cell" id="st-c3"><img src="assets/footage/bite.jpg" alt="" /><span class="tag chip">Clip 3</span></div>
+        </div>
+        <div class="row" id="st-r1">
+          <div class="grow"><div class="name">3 posts found in your clips</div><div class="sub">2 not started yet · each with a hook and an edit guide</div></div>
+          <span class="chip gold">Strong post</span>
+        </div>
+        <div class="row" id="st-r2">
+          <div class="grow"><div class="name">Make this video</div><div class="sub">The first draft, cut for you. Growth and Pro.</div></div>
+          <span class="chip blue">Show me how</span>
+        </div>
+      </div>
+      <div id="studio-take" class="take clip" data-start="3.4" data-duration="3.6">Upload raw clips. <b>SOCIA finds the posts</b> in them.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      const rise = (sel, t) => tl.fromTo(sel, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, t);
+      tl.fromTo("#studio-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#studio-step", 0.05); inb("#studio-t1", 0.1); inb("#studio-t2", 0.3);
+      tl.fromTo("#studio-panel", { opacity: 0, x: 70, filter: "blur(10px)" }, { opacity: 1, x: 0, filter: "blur(0px)", duration: 0.35, ease: "power3.out" }, 0.4);
+      tl.fromTo("#st-c1", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.35, ease: "expo.out" }, 0.7);
+      tl.fromTo("#st-c2", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.35, ease: "expo.out" }, 0.8);
+      tl.fromTo("#st-c3", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.35, ease: "expo.out" }, 0.9);
+      rise("#st-r1", 1.8);
+      tl.fromTo("#st-r1 .chip", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(1.4)" }, 2.2);
+      rise("#st-r2", 2.7);
+      inb("#studio-take", 3.4);
+      tl.fromTo("#studio-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 6.85);
+      window.__timelines["studio"] = tl;
+    })();
+  </script>
+</template>

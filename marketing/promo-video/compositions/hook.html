@@ -1,0 +1,57 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #hook-line1, #hook-line2 { position: absolute; top: 300px; left: 70px; right: 70px; text-align: center; font: 800 80px/1.06 var(--font-display); letter-spacing: -0.03em; color: var(--ink); }
+    #hook-panel { top: 600px; }
+    #hook-panel .row { align-items: flex-start; }
+    #hook-panel .act { font: 700 28px/1 var(--font); color: var(--cobalt); white-space: nowrap; padding-top: 6px; }
+    #hook-panel .act.btn { padding: 16px 22px; font-size: 28px; color: #fff; border-radius: 12px; }
+  </style>
+  <div id="root" data-composition-id="hook" data-width="1080" data-height="1920">
+    <div id="hook-stage" class="stage">
+      <div id="hook-line1" class="clip" data-start="0.2" data-duration="2.4">Social media moves fast.</div>
+      <div id="hook-line2" class="clip" data-start="2.6" data-duration="2.4">Most people are still guessing.</div>
+      <div id="hook-panel" class="panel clip" data-start="0" data-duration="5">
+        <div class="panel-h"><h3>Today</h3><span>Monday, October 26</span></div>
+        <div class="row" id="hook-r1">
+          <span class="chip bad">Urgent</span>
+          <div class="grow">
+            <div class="name">A post didn't publish</div>
+            <div class="sub">“From dough ball to pepperoni pie, start to finish” was due yesterday at 7:39 PM.</div>
+          </div>
+          <span class="act btn primary">Review</span>
+        </div>
+        <div class="row" id="hook-r2">
+          <span class="chip">To do</span>
+          <div class="grow">
+            <div class="name">Nothing is set to publish in the next 3 days</div>
+            <div class="sub">Your next strong window is Tuesday between 9 AM and 12 PM.</div>
+          </div>
+          <span class="act">Create a post</span>
+        </div>
+        <div class="row" id="hook-r3">
+          <span class="chip gold">Chance</span>
+          <div class="grow">
+            <div class="name">2 videos ready to make in Content Studio</div>
+            <div class="sub">SOCIA found 3 posts in your clips and 2 aren't started yet. Next up: “From dough to box”.</div>
+          </div>
+          <span class="act">Open project</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#hook-panel", { scale: 0.78, opacity: 1 }, { scale: 1, duration: 0.6, ease: "expo.out" }, 0);
+      tl.fromTo("#hook-r1", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, 0.05);
+      tl.fromTo("#hook-r2", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, 0.12);
+      tl.fromTo("#hook-r3", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, 0.19);
+      tl.fromTo("#hook-line1", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power4.out" }, 0.2);
+      tl.fromTo("#hook-line1", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.13, ease: "power3.in", immediateRender: false }, 2.45);
+      tl.fromTo("#hook-line2", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power4.out" }, 2.6);
+      tl.fromTo("#hook-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 4.85);
+      window.__timelines["hook"] = tl;
+    })();
+  </script>
+</template>

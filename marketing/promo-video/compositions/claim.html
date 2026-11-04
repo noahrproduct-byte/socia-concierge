@@ -1,0 +1,23 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #claim-l1 { position: absolute; top: 760px; left: 40px; right: 40px; text-align: center; font: 800 116px/1 var(--font-display); letter-spacing: -0.04em; color: var(--ink); }
+    #claim-l2 { position: absolute; top: 900px; left: 40px; right: 40px; text-align: center; font: 800 116px/1 var(--font-display); letter-spacing: -0.04em; color: var(--gold); }
+  </style>
+  <div id="root" data-composition-id="claim" data-width="1080" data-height="1920">
+    <div id="claim-stage" class="stage">
+      <div id="claim-l1" class="clip" data-start="0" data-duration="4">Stop guessing.</div>
+      <div id="claim-l2" class="clip" data-start="0.7" data-duration="3.3">Start knowing.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#claim-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      tl.fromTo("#claim-l1", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.22, ease: "power4.out" }, 0.1);
+      tl.fromTo("#claim-l2", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.22, ease: "power4.out" }, 0.7);
+      tl.fromTo("#claim-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 3.85);
+      window.__timelines["claim"] = tl;
+    })();
+  </script>
+</template>

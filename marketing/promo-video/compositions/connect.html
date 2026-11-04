@@ -1,0 +1,51 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #connect-panel { top: 520px; }
+  </style>
+  <div id="root" data-composition-id="connect" data-width="1080" data-height="1920">
+    <div id="connect-stage" class="stage">
+      <div id="connect-step" class="step clip" data-start="0" data-duration="6.5">Step 01</div>
+      <div id="connect-t1" class="t1 clip" data-start="0" data-duration="6.5">Connect your</div>
+      <div id="connect-t2" class="t2 clip" data-start="0.3" data-duration="6.2">accounts</div>
+      <div id="connect-panel" class="panel clip" data-start="0.5" data-duration="6">
+        <div class="panel-h"><h3>Connected accounts</h3><span>Salvo's Pizza</span></div>
+        <div class="row" id="connect-r1">
+          <svg class="pm brand instagram" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></g></svg>
+          <div class="grow"><div class="name">@salvoshermitage</div><div class="sub">Instagram · Publishing through SOCIA available</div></div>
+          <span class="chip ok">Connected</span>
+        </div>
+        <div class="row" id="connect-r2">
+          <svg class="pm brand facebook" viewBox="0 0 24 24"><path fill="currentColor" d="M13.5 21v-7h2.3l.4-2.7h-2.7V9.6c0-.8.2-1.3 1.3-1.3h1.4V5.9c-.2 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5v1.9H8.5V14h2.3v7h2.7Z"/></svg>
+          <div class="grow"><div class="name">Salvo's Pizza of Hermitage</div><div class="sub">Facebook Page · Publishing through SOCIA available</div></div>
+          <span class="chip ok">Connected</span>
+        </div>
+        <div class="row" id="connect-r3">
+          <svg class="pm brand youtube" viewBox="0 0 24 24"><path fill="currentColor" d="M12 6c-3 0-6 .2-6 .2-.7.1-1.3.7-1.4 1.4C4.4 8.5 4.3 10 4.3 12s.1 3.5.3 4.4c.1.7.7 1.3 1.4 1.4 0 0 3 .2 6 .2s6-.2 6-.2c.7-.1 1.3-.7 1.4-1.4.2-.9.3-2.4.3-4.4s-.1-3.5-.3-4.4a1.9 1.9 0 0 0-1.4-1.4S15 6 12 6Zm-1.5 3.3 4 2.7-4 2.7V9.3Z"/></svg>
+          <div class="grow"><div class="name">Salvo's Pizza</div><div class="sub">YouTube · Uploads stay private until Google's audit</div></div>
+          <span class="chip ok">Connected</span>
+        </div>
+        <div class="row" id="connect-r4">
+          <svg class="pm tiktok" viewBox="0 0 24 24"><path fill="currentColor" d="M16.5 3c.3 2 1.6 3.6 3.5 3.9v2.6c-1.3 0-2.5-.4-3.5-1v5.9a5.5 5.5 0 1 1-5.5-5.5c.3 0 .6 0 .9.1v2.7a2.8 2.8 0 1 0 2 2.7V3h2.6Z"/></svg>
+          <div class="grow"><div class="name">TikTok</div><div class="sub">Not connected in this workspace</div></div>
+          <span class="chip">Connect</span>
+        </div>
+      </div>
+      <div id="connect-take" class="take clip" data-start="3.4" data-duration="3.1">One account per platform, <b>per brand</b>.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      const rise = (sel, t) => tl.fromTo(sel, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, t);
+      tl.fromTo("#connect-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#connect-step", 0.05); inb("#connect-t1", 0.1); inb("#connect-t2", 0.3);
+      tl.fromTo("#connect-panel", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 0.5);
+      rise("#connect-r1", 0.9); rise("#connect-r2", 1.25); rise("#connect-r3", 1.6); rise("#connect-r4", 1.95);
+      inb("#connect-take", 3.4);
+      tl.fromTo("#connect-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 6.35);
+      window.__timelines["connect"] = tl;
+    })();
+  </script>
+</template>

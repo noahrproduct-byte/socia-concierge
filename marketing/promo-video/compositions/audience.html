@@ -1,0 +1,58 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #audience-panel { top: 500px; }
+    .au-block { padding: 22px 32px; border-bottom: 1px solid var(--app-rule); }
+    .au-block:last-child { border-bottom: 0; }
+    .au-block .l { font: 600 28px/1 var(--font); color: var(--app-ink-3); }
+    .au-block .v { font: 700 40px/1.15 var(--font-display); letter-spacing: -0.02em; color: var(--app-ink); margin-top: 12px; }
+    .au-block .s { font: 500 28px/1.35 var(--font); color: var(--app-ink-2); margin-top: 8px; }
+    .au-bar { position: relative; height: 18px; border-radius: 9px; background: var(--app-raised); margin-top: 14px; overflow: hidden; }
+    .au-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 96%; border-radius: 9px; background: var(--cobalt); transform-origin: left center; }
+    .au-legend { display: flex; gap: 28px; margin-top: 12px; font: 600 28px/1 var(--font); color: var(--app-ink-2); }
+    .au-legend b { color: var(--app-ink); font-weight: 700; }
+  </style>
+  <div id="root" data-composition-id="audience" data-width="1080" data-height="1920">
+    <div id="audience-stage" class="stage">
+      <div id="audience-step" class="step clip" data-start="0" data-duration="6.5">Step 03</div>
+      <div id="audience-t1" class="t1 clip" data-start="0" data-duration="6.5">Know your audience</div>
+      <div id="audience-t2" class="t2 clip" data-start="0.3" data-duration="6.2">and niche</div>
+      <div id="audience-panel" class="panel clip" data-start="0.5" data-duration="6">
+        <div class="panel-h"><h3>Audience</h3><span>Instagram · last 50 posts</span></div>
+        <div class="au-block" id="au-b1">
+          <div class="l">Formats compared</div>
+          <div class="v">Reels carry this account</div>
+          <div class="au-bar"><i id="au-fill"></i></div>
+          <div class="au-legend"><span><b>48</b> of 50 are Reels</span><span><b>2</b> Carousels</span></div>
+        </div>
+        <div class="au-block" id="au-b2">
+          <div class="l">Best times to post</div>
+          <div class="v">Tuesday, 9 AM to 12 PM</div>
+          <div class="s">389% above your typical post · based on 4 posts · high confidence</div>
+        </div>
+        <div class="au-block" id="au-b3">
+          <div class="l">Audience demographics</div>
+          <div class="s">Age, gender and top cities, as Instagram reports them for professional accounts.</div>
+        </div>
+      </div>
+      <div id="audience-take" class="take clip" data-start="3.6" data-duration="2.9">What your audience responds to, <b>from your own posts</b>.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      const rise = (sel, t) => tl.fromTo(sel, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, t);
+      tl.fromTo("#audience-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#audience-step", 0.05); inb("#audience-t1", 0.1); inb("#audience-t2", 0.3);
+      tl.fromTo("#audience-panel", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 0.5);
+      rise("#au-b1", 0.9);
+      tl.fromTo("#au-fill", { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power3.out" }, 1.1);
+      rise("#au-b2", 1.8);
+      rise("#au-b3", 2.5);
+      inb("#audience-take", 3.6);
+      tl.fromTo("#audience-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 6.35);
+      window.__timelines["audience"] = tl;
+    })();
+  </script>
+</template>

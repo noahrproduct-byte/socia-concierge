@@ -1,0 +1,24 @@
+{
+  "enabledPlugins": {
+    "telegram@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(ffmpeg:*)",
+      "Bash(ffprobe:*)",
+      "Bash(yt-dlp:*)",
+      "Bash(whisper-cli:*)",
+      "Bash(npm run render:*)",
+      "Bash(npx remotion:*)",
+      "Bash(npx tsc:*)",
+      "Bash(sh src/method/audio/master.sh:*)",
+      "Bash(mkdir:*)",
+      "Bash(ls:*)",
+      "Read(//Users/noah/.claude/channels/telegram/inbox/**)",
+      "Read(//Users/noah/my-project/demo-video/**)",
+      "Edit(//Users/noah/my-project/demo-video/src/**)",
+      "Write(//Users/noah/my-project/demo-video/src/**)",
+      "Edit(//Users/noah/my-project/demo-video/package.json)"
+    ]
+  }
+}
