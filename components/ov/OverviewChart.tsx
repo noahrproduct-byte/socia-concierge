@@ -155,7 +155,8 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
                 </g>
               )}
               {b.value != null && !isFollowers && outliers.has(i) && labelOk(i) && (
-                <text x={x(i)} y={padT - 8} textAnchor="middle" className="ov-brk-label">{fmtNum(b.value)} · breakout</text>
+                // Near an edge the label hangs inward, so "breakout" isn't cut off on a narrow chart.
+                <text x={x(i)} y={padT - 8} textAnchor={x(i) > W - padR - 60 ? "end" : x(i) < padL + 60 ? "start" : "middle"} className="ov-brk-label">{fmtNum(b.value)} · breakout</text>
               )}
               {b.value != null && isFollowers && on && <circle cx={x(i)} cy={y(v)} r={5} className="ov-dot" />}
             </g>
