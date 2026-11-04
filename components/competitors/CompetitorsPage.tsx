@@ -33,6 +33,7 @@ import NicheDrawer from "./NicheDrawer";
 import EvidenceDrawer, { type Evidence } from "./EvidenceDrawer";
 import AddCompetitor from "./AddCompetitor";
 import { TrendingAccounts, TrendingReels } from "./TrendingNiche";
+import { TrendingAudio } from "./TrendingAudio";
 import { fmtN } from "./shared";
 
 const fmtC = (unit: "count" | "pct" | "perWeek", v: number) => (unit === "pct" ? fmtRate(v) : unit === "perWeek" ? v.toFixed(1) : fmtN(v));
@@ -265,6 +266,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
 
       <TrendingAccounts d={d} rows={d.platform === "all" ? d.rows : d.rows.filter((r) => r.platform === d.platform)} onSelect={setSelectedId} onTrack={track} tracking={tracking} />
       <TrendingReels d={d} />
+      <TrendingAudio audio={d.audio} />
       <WinningFormats d={d} />
 
       {roster.length ? (

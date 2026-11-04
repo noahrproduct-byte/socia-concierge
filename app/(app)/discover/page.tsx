@@ -20,6 +20,7 @@ import { goalKeywords } from "@/lib/gaps";
 import { engagementRateOf, interactionsTotal } from "@/lib/engagement";
 import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
+import { trendingAudio, type TrendingAudio } from "@/lib/igAudio";
 import { getEntitlements, clampDays, maxHistoryDays, getLimit, canUseFeature, upgradeFor } from "@/lib/entitlements";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
 import { listTracked } from "@/lib/trackedCompetitors";
@@ -95,6 +96,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // Everything below that only needs the scope starts now and is awaited where
   // it is used. Each resolves to "nothing" on a missing table or a failed read.
   const formatsP = readFormatsDoc(ctx).then((r) => r.doc).catch(() => null);
+  // Instagram's trending audio (lib/igAudio.ts), on the same plan gate as niche trends.
+  const audioP: Promise<TrendingAudio | null> = canUseFeature(ent, "niche_intelligence")
+    ? trendingAudio(ctx.client, ctx.ownerId).then(({ detail: _detail, ...a }) => a as TrendingAudio).catch(() => ({ status: "unavailable" as const, reason: "Trending audio isn't available right now." }))
+    : Promise.resolve(null);
   // added_by and pick_reason exist once competitor-autopick.sql has run; before
   // that the plain read keeps the roster.
   const trackedP: Promise<Tracked[]> = listTracked<Tracked>(ctx.client, ctx.ownerId, "platform, handle, added_at, added_by, pick_reason", { byAdded: true, workspaceId: cwid })
@@ -422,6 +427,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     // As many trending accounts as the plan tracks (Starter 5), at most 10.
     trendingLimit: Math.max(1, Math.min(10, getLimit(ent, "competitors"))),
     trendingReels,
+    audio: await audioP,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
     nicheUpgrade: upgradeFor(ent, "niche_intelligence"),
     formats: { doc: formatsDoc, stale: Boolean(lastRun) && (!formatsDoc || formatsDoc.runAt !== lastRun) },

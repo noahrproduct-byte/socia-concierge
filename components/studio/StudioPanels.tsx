@@ -317,8 +317,8 @@ export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; 
       <section className="st-block">
         <h3>Trending audio</h3>
         <div className="ov-empty small">
-          <b>Not available</b>
-          <p>SOCIA has no licensed source for current trending audio on Instagram or TikTok, so it will not guess a track or invent a ranking. Use the direction above when you browse each platform&apos;s own audio library.</p>
+          <b>On Discover</b>
+          <p>Discover lists the trending music and original sounds Instagram makes available to apps, in Instagram&apos;s order. TikTok shares no trending audio, so SOCIA won&apos;t guess one. Use the direction above when you pick a sound.</p>
         </div>
       </section>
     </div>

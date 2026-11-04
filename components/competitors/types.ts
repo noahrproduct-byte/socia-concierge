@@ -3,6 +3,7 @@
 // lib/competitorRollup Cell states) or an explicit reason for its absence.
 
 import type { FormatsDoc } from "@/lib/nicheFormats";
+import type { TrendingAudio } from "@/lib/igAudio";
 import type { LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
@@ -56,6 +57,8 @@ export type CompetitorsData = {
   trendingLimit: number;
   /** Recent Reels and Shorts in the niche, ranked against each account's own median. */
   trendingReels: TrendingReel[];
+  /** Instagram's trending audio (lib/igAudio.ts); null when the plan doesn't include niche trends. */
+  audio: TrendingAudio | null;
   /** Niche intelligence is on the owner's plan. */
   nicheAccess: boolean;
   /** The plan that unlocks it, when it is not on this one. */

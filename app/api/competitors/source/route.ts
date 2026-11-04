@@ -5,6 +5,7 @@ import { FB_GRAPH_V } from "@/lib/facebook";
 import { igConnection } from "@/lib/igCompetitorData";
 import { businessDiscovery } from "@/lib/igBusinessDiscovery";
 import { researchConfigured, researchConnection } from "@/lib/igResearch";
+import { trendingAudio, resetAudioMemo } from "@/lib/igAudio";
 import { connectionWorkspaceId } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
@@ -68,5 +69,11 @@ export async function GET() {
     testLookup: probe ? (probe.ok ? { ok: true, followers: probe.account.followers, recentViews: probe.account.media.map((m) => m.views) } : { ok: false, reason: probe.reason, meta: probe.detail ?? null }) : null,
     pages,
     research: { configured: researchConfigured(), found: Boolean(await researchConnection()) },
+    // A fresh trending-audio read (cache skipped), with Meta's words on failure.
+    audio: await (async () => {
+      resetAudioMemo();
+      const a = await trendingAudio(ctx.client, ctx.ownerId);
+      return a.status === "ok" ? { ok: true, music: a.music.length, sounds: a.sounds.length, first: a.music[0]?.title ?? a.sounds[0]?.title ?? null } : { ok: false, reason: a.reason, meta: a.detail ?? null };
+    })(),
   });
 }
