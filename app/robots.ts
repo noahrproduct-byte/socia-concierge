@@ -27,6 +27,9 @@ export default function robots(): MetadataRoute.Robots {
           "/niche",
           "/plan",
           "/scorer",
+          "/contacts",
+          // Brands' sign-up pages: shared by link, not for search.
+          "/l/",
         ],
       },
     ],

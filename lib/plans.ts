@@ -120,6 +120,7 @@ export type FeatureKey =
   | "performance_change_alerts"
   | "weekly_summary"
   | "team"
+  | "contacts"
   // Growth
   | "auto_build"
   | "cross_platform_analytics"
@@ -152,6 +153,7 @@ export type FeatureKey =
 export type FeatureStatus = "available" | "coming_soon" | "policy";
 
 export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
+  contacts: "available",
   scheduling: "available",
   breakout_alerts: "available",
   monthly_summary: "available",
@@ -192,6 +194,7 @@ export const FEATURE_STATUS: Record<FeatureKey, FeatureStatus> = {
 
 /** Human labels for feature keys, shared by pricing, Settings and limit notices. */
 export const FEATURE_LABEL: Record<FeatureKey, string> = {
+  contacts: "Contacts from your comments, and a sign-up page",
   scheduling: "Scheduling and publishing",
   breakout_alerts: "Breakout alerts",
   monthly_summary: "Monthly performance summary",
@@ -325,6 +328,8 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   weekly_summary: "starter",
   team: "starter",
   ai_assistant_publishing: "starter",
+  // Who comments on your posts, with tags and notes, plus a sign-up page for emails (lib/contacts).
+  contacts: "starter",
   // Starter gets a taste of SOCIA making videos (a few a month, see meters);
   // Growth and Pro get more.
   auto_build: "starter",

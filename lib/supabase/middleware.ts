@@ -62,6 +62,7 @@ export async function updateSession(request: NextRequest) {
     "/reports",
     "/settings",
     "/comments",
+    "/contacts",
     "/create",
     "/roundup",
   ];

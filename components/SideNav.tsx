@@ -25,6 +25,7 @@ import {
   PenLine,
   Radar,
   Settings,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { DOCK, HELP, NAV, NAV_GROUPS, activeNavKey, dockKeyFor } from "@/lib/nav";
@@ -40,6 +41,7 @@ const ICONS: Record<string, LucideIcon> = {
   calendar: CalendarDays,
   studio: Clapperboard,
   comments: MessageSquare,
+  contacts: Users,
   settings: Settings,
 };
 

@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
 import { dropPlatformHistory } from "./platformSnapshots";
+import { dropCommenters } from "./contacts/server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -34,6 +35,8 @@ export async function deleteMetaUserData(supabase: Supa, platformUserId: string,
   removed.instagram_connections = await count(supabase.from("instagram_connections").delete({ count: "exact" }).eq("ig_user_id", id));
   removed.account_snapshots = await count(supabase.from("account_snapshots").delete({ count: "exact" }).eq("ig_user_id", id));
   removed.platform_snapshots = await dropPlatformHistory(supabase, null, "instagram", [id]);
+  // People who commented on that account's posts, as SOCIA recorded them (lib/contacts).
+  removed.contacts = await dropCommenters(supabase, id, null).catch(() => 0);
 
   // Facebook-scoped id: the Page connection captured with that user id.
   // The column may not exist on older schemas; a failed filter counts as 0.
