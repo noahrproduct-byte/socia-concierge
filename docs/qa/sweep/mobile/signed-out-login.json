@@ -1,0 +1,14 @@
+{
+  "plan": "signed-out",
+  "screen": "login",
+  "url": "http://localhost:3006/login",
+  "project": "mobile",
+  "title": "Log in | SOCIA",
+  "findings": [],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-login-mobile.png"
+}

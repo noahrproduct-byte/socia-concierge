@@ -1,0 +1,14 @@
+{
+  "plan": "signed-out",
+  "screen": "data-deletion",
+  "url": "http://localhost:3006/data-deletion",
+  "project": "desktop",
+  "title": "Data Deletion | SOCIA",
+  "findings": [],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-data-deletion-desktop.png"
+}

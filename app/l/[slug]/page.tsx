@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const page = await publicSignupPage(slug);
-  return { title: page ? page.title : "Sign up", robots: { index: false, follow: false } };
+  return { title: page ? page.title : "Page not found | SOCIA", robots: { index: false, follow: false } };
 }
 
 export default async function SignupPagePublic({ params }: { params: Promise<{ slug: string }> }) {

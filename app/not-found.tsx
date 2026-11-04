@@ -5,6 +5,7 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <main className="nf-page">
+      <title>Page not found | SOCIA</title>
       <style>{`
         .nf-page { min-height: 100vh; display: grid; place-items: center; background: #0b1220; color: #eef1f8;
           font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; padding: 24px; text-align: center; }

@@ -1,0 +1,42 @@
+{
+  "plan": "signed-out",
+  "screen": "not-found",
+  "url": "http://localhost:3006/this-page-does-not-exist",
+  "project": "mobile",
+  "title": "Page not found | SOCIA",
+  "findings": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [
+    {
+      "url": "http://localhost:3006/this-page-does-not-exist",
+      "status": 404,
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3006/this-page-does-not-exist?_rsc=ZlVNIU56yXTYRRGN",
+      "status": 404,
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3006/this-page-does-not-exist",
+      "status": 404,
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3006/this-page-does-not-exist?_rsc=ZlVNIU56yXTYRRGN",
+      "status": 404,
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3006/this-page-does-not-exist",
+      "status": 404,
+      "method": "GET"
+    }
+  ],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-not-found-mobile.png"
+}

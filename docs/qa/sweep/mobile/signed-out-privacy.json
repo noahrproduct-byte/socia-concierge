@@ -1,0 +1,14 @@
+{
+  "plan": "signed-out",
+  "screen": "privacy",
+  "url": "http://localhost:3006/privacy",
+  "project": "mobile",
+  "title": "Privacy Policy | SOCIA",
+  "findings": [],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-privacy-mobile.png"
+}

@@ -1,0 +1,14 @@
+{
+  "plan": "signed-out",
+  "screen": "terms",
+  "url": "http://localhost:3006/terms",
+  "project": "desktop",
+  "title": "Terms of Service | SOCIA",
+  "findings": [],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-terms-desktop.png"
+}

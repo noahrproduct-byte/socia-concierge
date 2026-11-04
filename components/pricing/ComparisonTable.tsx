@@ -35,6 +35,8 @@ export default function ComparisonTable() {
     });
 
   return (
+    <>
+      <p className="pr-scroll-hint">Swipe sideways to compare every plan.</p>
     <div className="pr-table-wrap">
       <table className="pr-table">
         <thead>
@@ -86,5 +88,6 @@ export default function ComparisonTable() {
         })}
       </table>
     </div>
+    </>
   );
 }

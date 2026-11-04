@@ -1,0 +1,22 @@
+{
+  "plan": "signed-out",
+  "screen": "link-page-missing",
+  "url": "http://localhost:3006/l/no-such-link",
+  "project": "desktop",
+  "title": "Page not found | SOCIA",
+  "findings": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [
+    {
+      "url": "http://localhost:3006/l/no-such-link",
+      "status": 404,
+      "method": "GET"
+    }
+  ],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-link-page-missing-desktop.png"
+}

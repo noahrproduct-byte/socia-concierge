@@ -1,0 +1,19 @@
+{
+  "plan": "signed-out",
+  "screen": "pricing",
+  "url": "http://localhost:3006/pricing",
+  "project": "mobile",
+  "title": "Pricing | SOCIA",
+  "findings": [
+    {
+      "kind": "layout",
+      "detail": "elements wider than the viewport: table.pr-table (right edge 657px); thead (right edge 657px); tr (right edge 657px); th (right edge 424px); span.pr-th-name (right edge 412px)"
+    }
+  ],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-pricing-mobile.png"
+}
