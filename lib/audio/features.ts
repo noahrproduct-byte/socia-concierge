@@ -94,6 +94,40 @@ export function estimateTempo(rms: Float32Array, hopMs = HOP_MS): { bpm: number 
   return { bpm: Math.round(bpm), confidence: Number(confidence.toFixed(2)) };
 }
 
+/**
+ * Where the beats fall: for a known tempo, the offset (0 to one period) at
+ * which the onset strength summed over every beat is largest, as seconds
+ * from the start. The cut's boundaries are moved onto this grid
+ * (lib/studioClips/beats.ts).
+ */
+export function estimateBeatOffset(rms: Float32Array, bpm: number, hopMs = HOP_MS): number {
+  const n = rms.length;
+  const period = (60000 / bpm) / hopMs;
+  if (!(period > 1) || n < period * 2) return 0;
+  const onset = new Float32Array(n);
+  let prev = rms[0];
+  for (let i = 1; i < n; i++) { const cur = 0.5 * rms[i] + 0.5 * prev; onset[i] = Math.max(0, cur - prev); prev = cur; }
+  let best = 0, bestV = -Infinity;
+  const steps = Math.max(1, Math.round(period));
+  for (let p = 0; p < steps; p++) {
+    let s = 0, k = 0;
+    for (let t = p; t < n; t += period, k++) s += onset[Math.round(t)] ?? 0;
+    const v = k ? s / k : 0;
+    if (v > bestV) { bestV = v; best = p; }
+  }
+  return Number(((best * hopMs) / 1000).toFixed(3));
+}
+
+export type Beat = { bpm: number; offsetSec: number; confidence: number };
+
+/** The beat grid of a track, or null when no steady beat was found. */
+export function beatOf(pcm: Float32Array, rate: number): Beat | null {
+  const { rms } = frameLevels(pcm, rate);
+  const tempo = estimateTempo(rms);
+  if (!tempo.bpm) return null;
+  return { bpm: tempo.bpm, offsetSec: estimateBeatOffset(rms, tempo.bpm), confidence: tempo.confidence };
+}
+
 /** In-place iterative radix-2 FFT on interleaved real/imag arrays. */
 function fft(re: Float64Array, im: Float64Array): void {
   const n = re.length;

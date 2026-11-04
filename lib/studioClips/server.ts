@@ -14,6 +14,7 @@ import { copyPaths, dedupeByFootage, MAX_COPY, nextPosition, type LibraryClip } 
 import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis";
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl, type RawEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
+import { applyPacing } from "./pacing";
 import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
@@ -472,7 +473,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const urls = await frameUrls(client, ordered);
   const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, brief ? briefText(brief) : null);
   const forEdl = rows.map(toClipForEdl);
-  const { edl } = validateEdl(raw, forEdl);
+  const edl = paced(validateEdl(raw, forEdl).edl, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
   // A new version keeps the look the cut had.
   edl.style = row.edl.style ?? CAPCUT_STYLE;
@@ -671,19 +672,30 @@ export async function buildFromBrief(client: Supa, args: {
 }
 
 /**
+ * SOCIA's cut, paced (lib/studioClips/pacing.ts): cuts start on the action,
+ * none drags, the ending lands, every line is readable. One note says how
+ * many moved; the person's own edits are never paced this way.
+ */
+function paced(edl: Edl, forEdl: ClipForEdl[]): Edl {
+  const { edl: out, changes } = applyPacing(edl, forEdl);
+  if (changes.length) out.notes = [...out.notes, `SOCIA paced the cut: ${changes.length} change${changes.length === 1 ? "" : "s"} so cuts start on the action, nothing drags and every line can be read.`];
+  return out;
+}
+
+/**
  * Pass 3 with a floor: a cut far shorter than its footage allows (the
  * 2-second Halloween video, 2026-11-02) is made once more, told how long it
  * should be. The longer of the two is kept.
  */
 async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number): Promise<{ edl: Edl; model: string }> {
   const first = await make(null);
-  let edl = validateEdl(first.raw, forEdl).edl;
+  let edl = paced(validateEdl(first.raw, forEdl).edl, forEdl);
   let model = first.model;
   const len = edlDurationSec(edl);
   const floor = Math.min(10, footageSec * 0.5);
   if (footageSec >= 6 && len < floor) {
     const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
-    const second = validateEdl(again.raw, forEdl).edl;
+    const second = paced(validateEdl(again.raw, forEdl).edl, forEdl);
     if (edlDurationSec(second) > len) { edl = second; model = again.model; }
   }
   return { edl, model };

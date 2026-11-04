@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { analyzeAudio, estimateTempo, frameLevels, spectralFlatness } from "./features";
+import { analyzeAudio, beatOf, estimateBeatOffset, estimateTempo, frameLevels, spectralFlatness } from "./features";
 
 const RATE = 16000;
 
@@ -78,5 +78,20 @@ describe("measured audio features", () => {
     const hiss = analyzeAudio(noise(8), RATE);
     expect(hiss.musicLikely).toBe(false);
     expect(hiss.durationSec).toBe(8);
+  });
+});
+
+describe("where the beats fall", () => {
+  it("finds the offset of the first beat on a click track", () => {
+    const rate = 16000, bpm = 120, offset = 0.2;
+    const pcm = new Float32Array(rate * 6);
+    for (let t = offset; t < 6; t += 60 / bpm) {
+      const at = Math.round(t * rate);
+      for (let i = 0; i < 400 && at + i < pcm.length; i++) pcm[at + i] = 0.8 * Math.sin(i / 3) * (1 - i / 400);
+    }
+    const beat = beatOf(pcm, rate);
+    expect(beat?.bpm).toBe(120);
+    expect(Math.abs((beat?.offsetSec ?? 0) - offset) < 0.03 || Math.abs((beat?.offsetSec ?? 0) - offset - 0.5) < 0.03).toBe(true);
+    expect(estimateBeatOffset(new Float32Array(10), 120)).toBe(0);
   });
 });

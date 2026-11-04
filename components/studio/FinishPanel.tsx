@@ -19,16 +19,18 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 const warmWord = (w: number) => (w < -0.02 ? "cool" : w > 0.12 ? "warm" : "neutral");
 
 export default function FinishPanel({
-  edl, sources, canEdit, busy, onCommit,
+  edl, sources, canEdit, busy, onCommit, initialMeasures,
 }: {
   edl: Edl;
   sources: Record<string, BuildSource>;
   canEdit: boolean;
   busy: boolean;
   onCommit: (next: Edl) => void;
+  /** What the automatic colour pass measured when the cut opened, so the tab needn't measure again. */
+  initialMeasures?: Record<string, ClipMeasure> | null;
 }) {
-  const [measures, setMeasures] = useState<Record<string, ClipMeasure> | null>(null);
-  const [phase, setPhase] = useState<"idle" | "measuring" | "ready" | "error">("idle");
+  const [measures, setMeasures] = useState<Record<string, ClipMeasure> | null>(initialMeasures ?? null);
+  const [phase, setPhase] = useState<"idle" | "measuring" | "ready" | "error">(initialMeasures ? "ready" : "idle");
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [solving, setSolving] = useState<Look | null>(null);
   const [error, setError] = useState<string | null>(null);

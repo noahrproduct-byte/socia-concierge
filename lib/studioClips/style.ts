@@ -93,11 +93,3 @@ export function captionLayout(c: EdlStyle["captions"]): { top: string | null; bo
   return { top: null, bottom: "27%", fontSize };
 }
 
-/** Background and text colours for a text line. The call to action uses the brand accent (as its outline in the outline style). */
-export function textColors(style: EdlStyle, role: "opening" | "mid" | "cta"): { bg: string | null; fg: string; shadow: string; stroke: string | null } {
-  if (style.textBox === "outline") return { bg: null, fg: "#ffffff", shadow: "none", stroke: role === "cta" ? style.accent : "#000000" };
-  if (role === "cta" || style.textBox === "accent") return { bg: style.accent, fg: "#ffffff", shadow: "0 2px 12px rgba(0,0,0,0.35)", stroke: null };
-  if (style.textBox === "light") return { bg: "rgba(255,255,255,0.92)", fg: "#111111", shadow: "none", stroke: null };
-  if (style.textBox === "none") return { bg: null, fg: "#ffffff", shadow: "0 2px 16px rgba(0,0,0,0.75)", stroke: null };
-  return { bg: "rgba(0,0,0,0.46)", fg: "#ffffff", shadow: "0 2px 12px rgba(0,0,0,0.45)", stroke: null };
-}

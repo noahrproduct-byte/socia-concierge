@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
+import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Lock, AlertTriangle, Check, X } from "lucide-react";
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { AnalyzePanel, ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
@@ -69,7 +69,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [auto, setAuto] = useState<{ text: string; timed: string } | null>(null);
   const [listenNote, setListenNote] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("analyze");
-  const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: goalDefault, cover: null, audioChosen: false });
+  const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: goalDefault, cover: null });
   const [seek, setSeek] = useState<SeekRequest>(null);
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
   const [drag, setDrag] = useState(false);
@@ -192,10 +192,17 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         el = null;
         await new Promise((r) => setTimeout(r, 50));
       }
-      const fr = src.kind === "video" ? await extractFrames(src.file ?? src.url, (d, t) => setProgress({ done: d, total: t }), el) : await imageFrames(src.files.length ? src.files : src.images);
-      setFrames(fr);
-      if (src.kind !== "video") { await analyze(src, fr, { audio: null, auto: null }); return; }
-      const heard = await listen(src);
+      if (src.kind !== "video") {
+        const fr = await imageFrames(src.files.length ? src.files : src.images);
+        setFrames(fr);
+        await analyze(src, fr, { audio: null, auto: null });
+        return;
+      }
+      // The frames and the sound are read at the same time: neither waits for the other.
+      const [fr, heard] = await Promise.all([
+        extractFrames(src.file ?? src.url, (d, t) => setProgress({ done: d, total: t }), el).then((f) => { setFrames(f); return f; }),
+        listen(src),
+      ]);
       await analyze(src, fr, heard);
     } catch (e) {
       const m = e instanceof Error ? e.message : "unsupported";
@@ -408,7 +415,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
             <div className="ov-card st-progress" aria-live="polite">
               <b>{phase === "extracting" ? "Reading the file" : phase === "listening" || phase === "transcribing" ? "Listening to the video" : "Analyzing"}</b>
               <ul>
-                <li className={phase === "extracting" ? "on" : "done"}><i />{phase === "extracting" ? `Extracting frames ${progress.done}/${progress.total}` : `Extracted ${frames?.frames.length ?? progress.total} frames`}</li>
+                <li className={frames ? "done" : "on"}><i />{frames ? `Extracted ${frames.frames.length} frames` : `Extracting frames ${progress.done}/${progress.total}`}</li>
                 {source.kind === "video" && <li className={phase === "listening" ? "on" : phase === "extracting" ? "" : "done"}><i />Measuring the sound on this device</li>}
                 {source.kind === "video" && <li className={phase === "transcribing" ? "on" : phase === "analyzing" && auto ? "done" : ""}><i />Transcribing speech{phase === "analyzing" && !auto ? " (skipped)" : ""}</li>}
                 <li className={phase === "analyzing" ? "on" : ""}><i />Analyzing hook, pacing, clarity and CTA</li>
@@ -451,7 +458,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                       <button type="button" className="ov-btn primary small" onClick={() => { handFiles("audio", [source.file!]); router.push("/studio?mode=audio"); }}>Add music</button>
                     </div>
                   )}
-                  <AudioPanel a={analysis} w={w} setAudio={(b) => setW((c) => ({ ...c, audioChosen: b }))} />
+                  <AudioPanel a={analysis} />
                 </>
               )}
               {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} />}
@@ -469,7 +476,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         </div>
       )}
       {toast && <div className="cal2-toast" role="status"><Check size={13} /> {toast}</div>}
-      <div className="st-privacy"><Sparkles size={11} /> Frames are read on your device. SOCIA scores what it can see and never predicts views.</div>
+      <div className="st-privacy"><Lock size={11} /> Frames are read on your device. SOCIA scores what it can see and never predicts views.</div>
     </div>
   );
 }

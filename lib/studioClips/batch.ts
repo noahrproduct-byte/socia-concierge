@@ -7,7 +7,21 @@
 // where there is a choice. Pure, zone-explicit, tested.
 import { BLOCK_STARTS, DOW_LONG, MIN_POSTS, buildWindows, relText, type TimedPost } from "@/lib/postingTimes";
 import { betweenPhrase, MINUTES_INTO_BLOCK, zonedParts, zonedToUtc } from "@/lib/publishing/timing";
-import { similar, type CalendarPost, type PlanOpportunity } from "./distribute";
+
+export type PlanOpportunity = { idx: number; title: string; strength: "strong" | "possible"; clipIds: string[]; tags: string[] };
+/** Something already on the calendar (any status except cancelled/failed). */
+export type CalendarPost = { id: string; at: string; label: string };
+
+const norm = (s: string) => s.trim().toLowerCase();
+
+/** Same footage, or mostly the same subject. */
+export function similar(a: PlanOpportunity, b: PlanOpportunity): boolean {
+  if (a.clipIds.some((c) => b.clipIds.includes(c))) return true;
+  const ta = new Set(a.tags.map(norm)), tb = new Set(b.tags.map(norm));
+  if (!ta.size || !tb.size) return false;
+  const inter = [...ta].filter((t) => tb.has(t)).length;
+  return inter / (ta.size + tb.size - inter) >= 0.5;
+}
 
 export type BatchItem = { key: string; title: string; strength: "strong" | "possible" | "clip"; clipIds: string[]; tags: string[] };
 export type BatchSlot = {

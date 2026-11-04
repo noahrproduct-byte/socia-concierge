@@ -31,7 +31,7 @@ export type RawEdl = {
   height?: number;
   segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string }[];
   style?: unknown;
-  text?: { at: number; end?: number; text: string; role?: string; size?: string; presetId?: string; slot?: string }[];
+  text?: { at: number; end?: number; text: string; role?: string; presetId?: string; slot?: string }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
   cta?: string | null;
   music?: string | null;

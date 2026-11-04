@@ -8,8 +8,10 @@
 import { ENHANCE_TARGET, gradeClip } from "./grade";
 import { withFinish } from "./finish";
 import type { BuildSource, ClipGrade, Edl } from "./types";
+import type { ClipMeasure } from "./measure";
 
 type Measured = Record<string, { pixels: Uint8Array | null }>;
+export type AutoLookResult = { edl: Edl; corrected: number; /** what was measured, so the Look & sound tab needn't measure again */ measures: Record<string, ClipMeasure> | null };
 
 /** Whether SOCIA should still colour this cut on its own. */
 export const wantsAutoLook = (edl: Edl | null | undefined): boolean => Boolean(edl && edl.segments.length && !edl.finish && !edl.lookAuto);
@@ -29,13 +31,13 @@ export function lookFromMeasures(edl: Edl, measures: Measured, now: Date = new D
 }
 
 /** Measure in the browser, then colour. A cut that can't be measured comes back stamped and otherwise unchanged. */
-export async function autoLook(edl: Edl, sources: Record<string, BuildSource>, signal?: AbortSignal): Promise<{ edl: Edl; corrected: number }> {
+export async function autoLook(edl: Edl, sources: Record<string, BuildSource>, signal?: AbortSignal, onProgress?: (done: number, total: number) => void): Promise<AutoLookResult> {
   try {
     const { measureCut } = await import("./measure");
-    const measures = await measureCut(edl, sources, () => {}, signal);
-    return lookFromMeasures(edl, measures);
+    const measures = await measureCut(edl, sources, (done, total) => onProgress?.(done, total), signal);
+    return { ...lookFromMeasures(edl, measures), measures };
   } catch (e) {
     if ((e as Error)?.name === "AbortError") throw e;
-    return { edl: { ...edl, lookAuto: new Date().toISOString() }, corrected: 0 };
+    return { edl: { ...edl, lookAuto: new Date().toISOString() }, corrected: 0, measures: null };
   }
 }

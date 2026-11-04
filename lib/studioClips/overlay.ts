@@ -54,11 +54,6 @@ export function humanText(raw: string): string | null {
   return t;
 }
 
-/** Bigger for a few words, smaller for a full line. */
-export const sizeFor = (text: string): NonNullable<EdlText["size"]> => {
-  const n = [...text].length;
-  return n <= 16 ? "l" : n <= 32 ? "m" : "s";
-};
 
 /**
  * The preset SOCIA puts a line in: the one for its role (an opening line is a

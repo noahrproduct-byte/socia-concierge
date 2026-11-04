@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cutAt, dropIndex, dropMarker, fmtTenths, moveSpan, reorder, resizeSpan, rulerTicks, snapTo, tracksFor, trimCut, MIN_CUT_SEC, MIN_TEXT_SEC } from "./tracks";
+import { dropIndex, dropMarker, fmtTenths, moveSpan, reorder, resizeSpan, rulerTicks, snapTo, tracksFor, trimCut, MIN_CUT_SEC, MIN_TEXT_SEC } from "./tracks";
 import type { Edl } from "./types";
 
 const edl: Edl = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 1, max: 10 }, segments: [{ id: "s1", clipId: "a", in: 1, out: 4, role: "opener", note: "" }, { id: "s2", clipId: "b", in: 0, out: 2.5, role: "body", note: "" }], text: [{ id: "t1", at: 0.5, end: 3, text: "Hook", role: "opening" }], captions: { source: "transcript" }, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [] };
@@ -50,8 +50,6 @@ describe("editing cuts on the timeline", () => {
     expect(dropIndex(v, 4.5, 0)).toBe(1);
     expect(dropMarker(v, 0, 2)).toBe(9);
     expect(dropMarker(v, 2, 0)).toBe(0);
-    expect(cutAt(v, 4)).toBe(1);
-    expect(cutAt(v, 20)).toBe(2);
   });
   it("snaps to a nearby boundary and labels time in tenths", () => {
     expect(snapTo(2.95, [0, 3, 5], 0.1)).toBe(3);

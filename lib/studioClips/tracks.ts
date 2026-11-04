@@ -105,11 +105,6 @@ export function snapTo(t: number, targets: number[], tol: number): number {
   return r2(best);
 }
 
-/** The cut under output second `sec` (the last one at or past the end). */
-export function cutAt(video: TrackItem[], sec: number): number {
-  const i = video.findIndex((v) => sec >= v.start && sec < v.end);
-  return i < 0 ? video.length - 1 : i;
-}
 
 /** "0:03.2" style time for the timeline's readout. */
 export function fmtTenths(sec: number): string {

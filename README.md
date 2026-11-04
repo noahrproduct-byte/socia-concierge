@@ -12,7 +12,7 @@ Live at [sociaos.com](https://sociaos.com).
 | Content Plan | `/plan` | Overview, account audit, competitor insights, growth strategy and a Monday to Sunday plan with hooks and scripts |
 | Calendar | `/plan/calendar` | Drafts, ideas and scheduled posts; drag to move, approve, delete |
 | Create post | `/create` | One post to several platforms, captions, collaborators, Trial Reels |
-| Content Studio | `/studio` | Upload clips; SOCIA understands them, suggests posts, cuts a first draft and you finish it in the editor (timeline, transitions, captions, music, noise reduction). Videos render in the browser |
+| Content Studio | `/studio` | Rate a finished video, build posts from raw clips, edit, add music. See [Content Studio](#content-studio) below |
 | Discover | `/discover` | Competitors (picked by SOCIA or added by you), trending accounts and Reels in the niche |
 | Analytics | `/analytics` | Per platform and across brands, from daily snapshots |
 | Comments | `/comments` | Inbox with AI reply drafts you approve |
@@ -22,6 +22,17 @@ Live at [sociaos.com](https://sociaos.com).
 Also: **Ask SOCIA**, an assistant on every page that answers from the account's data and can put posts or ideas on the calendar after you confirm; and an **MCP server** (`/mcp`, OAuth at `/oauth/*`) so Claude, ChatGPT and other AI apps can read a brand's data and, when the owner allows it, create posts.
 
 **Plans:** Free, Starter ($19.99), Growth ($34.99) and Pro ($49.99) a month. Each plan includes everything below it. Limits and features live in `lib/plans.ts`.
+
+## Content Studio
+
+`/studio` has four parts, chosen by `?mode=`: Rate (the default), Build (`clips`), the Video editor (`edit`) and Audio (`audio`); Plan a post (`guide`) opens from a planned post.
+
+- **Rate** reads a finished video on the device (ten frames, the sound measured and transcribed) and one model call returns a creative readiness score with nine category scores, each with its evidence and fix, the method one click away. The ring fills once; it never predicts views. Improve is a guided walkthrough of the fixes SOCIA can make, each opening the editor with the fix queued.
+- **Build** takes raw clips, measures them on the device, understands them (one card per clip, cached by fingerprint) and finds the posts the footage supports. Every understood clip gets a score with one sentence (a clear hook, good light, a steady picture, clean sound; anything not measured is left out), and every post says why it was picked. Posts are ordered the same way every time: strong first, then the most usable footage. Make and schedule makes every video in the browser and schedules them after you check the list.
+- **The Video editor** previews the cut with Remotion and renders it in the browser. The Cut tab is one inspector for the selected cut (start and end at the playhead, a transition picker with a picture of each join, sound, swap for another clip's best moment, remove) over the order of cuts; the timeline trims by dragging edges, moves cuts by dragging (the others slide aside) and times text lines. Text is six locked presets inside the safe zone; captions come from the transcript, word by word. Look and sound measures the clips and offers Auto enhance, Match clips and audio cleanup; music is a playlist made from the account's taste. The pacing ring says how the cut reads against the rules in `lib/studioClips/pacing.ts`.
+- **Timing rules.** SOCIA's cuts are paced after validation: every cut starts on the action and stops when the sound stops, no cut drags (5 s without speech, 10 s with), the opener and the ending have room to land, every text line stays up long enough to read. With a track in the cut, its tempo and first beat are measured in the browser and every cut boundary is moved onto the nearest beat (Snap cuts to the beat repeats it). `lib/studioClips/pacing.test.ts` and `beats.test.ts` keep these from drifting.
+- **Plans and billing.** Understand counts one footage analysis; SOCIA's cut counts one AI-made video the first time it is opened (`lib/studioClips/cutMeter.ts`); music tracks count each; the person's own edit counts nothing. `studio_builds` is server only.
+- **Checking it without an account.** `/dev/studio-lab?screen=…` (development only) renders every Studio screen from fixtures with the Studio API answered in the tab; `docs/design/screenshots/studio/` holds before and after screenshots at 1280 and 375 wide, and `docs/studio-audit.md` is the audit the overhaul started from.
 
 ## Stack
 

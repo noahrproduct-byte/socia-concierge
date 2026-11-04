@@ -9,15 +9,18 @@ import AudioInsights from "./AudioPanel";
 import type { QuickAudio } from "@/lib/audio/quick";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Clock, CalendarPlus, ArrowRight, Info, Send } from "lucide-react";
+import { ChevronDown, Check, Copy, RefreshCw, Clock, CalendarPlus, CalendarDays, ArrowRight, Info, Send } from "lucide-react";
 import { CATEGORY_INFO, GOALS, fmtT, checklist, versionDiff, type StudioAnalysis, type ApplyField, type GoalId, type ChecklistItem } from "@/lib/studio";
 import type { PlanError } from "@/lib/planErrors";
 import PlanNotice from "../PlanNotice";
 import ImproveWalkthrough, { type FixOptions, type ImproveWalkthroughProps } from "./ImproveWalkthrough";
 import { momentsFrom, momentsSummary, type Moment } from "@/lib/studioFixes";
 import type { EdlText } from "@/lib/studioClips/types";
+import { Bar, CountUp, Reveal, Ring } from "@/components/dashboard/motion";
+import "@/app/(app)/dashboard/dashboard.css";
+import "@/app/(app)/studio/studio.css";
 
-export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; /** The lines Improve proposes for the video, as preset layers (lib/textPresets.ts): drawn over the player at their moments. */ layers: EdlText[]; platform: string | null; goal: GoalId | null; cover: number | null; audioChosen: boolean };
+export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; /** The lines Improve proposes for the video, as preset layers (lib/textPresets.ts): drawn over the player at their moments. */ layers: EdlText[]; platform: string | null; goal: GoalId | null; cover: number | null };
 export type ImproveOption = { label: string; text: string; steps: string[] };
 export type Improve = (task: "hooks" | "caption" | "cta" | "onscreen" | "variations", params?: { mode?: string; exclude?: string[] }) => Promise<ImproveOption[]>;
 
@@ -50,15 +53,13 @@ function CopyBtn({ text }: { text: string }) {
   return <button type="button" className="ov-btn ghost small" aria-label="Copy" onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200); } catch { /* no clipboard */ } }}>{ok ? <Check size={12} /> : <Copy size={12} />}</button>;
 }
 
+/** The creative readiness ring: fills once from empty, counts up once; the markup always carries the final number. */
 export function ScoreRing({ score }: { score: number }) {
-  const r = 46, c = 2 * Math.PI * r;
   return (
-    <svg viewBox="0 0 110 110" className="st-ring" role="img" aria-label={`Creative readiness ${score} out of 100`}>
-      <circle cx="55" cy="55" r={r} className="st-ring-track" />
-      <circle cx="55" cy="55" r={r} className="st-ring-fill" strokeDasharray={c} strokeDashoffset={c * (1 - score / 100)} transform="rotate(-90 55 55)" />
-      <text x="55" y="52" textAnchor="middle" className="st-ring-num">{score}</text>
-      <text x="55" y="70" textAnchor="middle" className="st-ring-den">/ 100</text>
-    </svg>
+    <Ring share={score / 100} size={110} stroke={9} tone={score >= 80 ? "good" : score >= 60 ? "ok" : "low"} label={`Creative readiness ${score} out of 100`}>
+      <b><CountUp value={score} /></b>
+      <small>of 100</small>
+    </Ring>
   );
 }
 
@@ -67,7 +68,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
   const [openCat, setOpenCat] = useState<string | null>(null);
   return (
     <div className="st-panel">
-      <section className="st-block">
+      <Reveal as="section" className="st-block">
         <div className="st-score">
           <ScoreRing score={a.score.overall} />
           <div className="st-score-meta">
@@ -93,7 +94,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
             <li key={c.id} className={`st-cat ${CAT_TONE(c.score)}${openCat === c.id ? " on" : ""}`}>
               <button type="button" className="st-cat-row" onClick={() => setOpenCat(openCat === c.id ? null : c.id)} aria-expanded={openCat === c.id}>
                 <span className="st-cat-label">{CATEGORY_INFO[c.id].label}</span>
-                <span className="st-cat-track"><i style={{ width: `${c.score ?? 0}%` }} /></span>
+                <Bar share={(c.score ?? 0) / 100} tone={c.score == null ? "muted" : "data"} className="st-cat-track" />
                 <b>{c.score == null ? "n/a" : c.score}</b>
                 <ChevronDown size={13} className="st-cat-chev" />
               </button>
@@ -107,7 +108,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
             </li>
           ))}
         </ul>
-      </section>
+      </Reveal>
 
       {a.planFit && (
         <section className="st-block">
@@ -290,7 +291,7 @@ function MeasuredSound({ m }: { m: QuickAudio }) {
   );
 }
 
-export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; setAudio: (b: boolean) => void }) {
+export function AudioPanel({ a }: { a: StudioAnalysis }) {
   const Dir = ({ d, title }: { d: StudioAnalysis["audio"]["direction"]; title: string }) => (
     <div className="st-audio-dir">
       <small>{title}</small>
@@ -311,16 +312,9 @@ export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; 
             <Dir d={a.audio.alternative} title="Alternative" />
           </div>
         ) : <div className="ov-empty small">Audio direction applies to video. For a still post, the caption carries the tone.</div>}
-        <label className="st-check"><input type="checkbox" checked={w.audioChosen} onChange={(e) => setAudio(e.target.checked)} /> I&apos;ve picked a track for this piece</label>
       </section>
       {a.kind === "video" && <AudioInsights canEdit={false} current={null} onUse={() => null} />}
-      <section className="st-block">
-        <h3>Trending audio</h3>
-        <div className="ov-empty small">
-          <b>On Discover</b>
-          <p>Discover lists the trending music and original sounds Instagram makes available to apps, in Instagram&apos;s order. TikTok shares no trending audio, so SOCIA won&apos;t guess one. Use the direction above when you pick a sound.</p>
-        </div>
-      </section>
+      <p className="ov-source">Instagram&apos;s trending audio is listed on <Link href="/discover">Discover</Link>, in Instagram&apos;s order; TikTok shares none.</p>
     </div>
   );
 }
@@ -337,7 +331,7 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
   const [err, setErr] = useState<PanelErr | null>(null);
   const [handing, setHanding] = useState(false);
   const publish = async () => { setHanding(true); try { await onPublish(); } finally { setHanding(false); } };
-  const items: ChecklistItem[] = checklist(a, { caption: w.caption, platform: w.platform, hook: w.hook, cta: w.cta, cover: w.cover != null, audio: w.audioChosen });
+  const items: ChecklistItem[] = checklist(a, { caption: w.caption, platform: w.platform, hook: w.hook, cta: w.cta, cover: w.cover != null });
   const done = items.filter((i) => i.done).length;
   return (
     <div className="st-panel">
@@ -358,7 +352,7 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
           {items.map((i) => <li key={i.id} className={i.done ? "done" : ""}><i>{i.done ? <Check size={11} /> : null}</i><span><b>{i.label}</b><small>{i.hint}</small></span></li>)}
         </ul>
         <div className="st-row-actions">
-          <Link href={`/plan?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><Sparkles size={12} /> Add to Content Plan</Link>
+          <Link href={`/plan?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><CalendarDays size={12} /> Add to Content Plan</Link>
           <button type="button" className="ov-btn ghost small" disabled={saving || handing || Boolean(savedId)} onClick={() => void onSaveDraft()}><CalendarPlus size={12} /> {saving && !handing ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
           <button type="button" className="btn-primary sm" disabled={saving || handing} onClick={publish}><Send size={12} /> {handing ? "Opening Create Post…" : "Publish or schedule"}</button>
           {savedId && <Link href="/plan/calendar" className="ov-btn ghost small">Open Calendar <ArrowRight size={12} /></Link>}

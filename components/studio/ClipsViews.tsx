@@ -5,6 +5,9 @@
 // progress, the Content Yield, one opportunity's edit guide, and the project
 // list. No fetching here — ClipsStudio owns the flow and hands these data.
 import Link from "next/link";
+import "@/app/(app)/studio/studio.css";
+import "@/app/(app)/dashboard/dashboard.css";
+import { Bar, Reveal, Ring } from "@/components/dashboard/motion";
 import { FileVideo, AlertTriangle, Check, Clock, Trash2, ChevronLeft, Copy, ArrowRight, Scissors, Type, SunMedium, Volume2, Captions, Music, Timer, Flag, Loader2, FolderOpen, Clapperboard } from "lucide-react";
 import type { ReactNode } from "react";
 import type { GuideStep, Opportunity, StudioBuild, StudioClip, UnderstandProgress, YieldResult } from "@/lib/studioClips/types";
@@ -12,6 +15,7 @@ import type { StudioOutcome } from "@/lib/studioClips/learn";
 import { ResultChip } from "./LearnCard";
 import { clipLabel, fmtClock } from "@/lib/studioClips/types";
 import { evidenceLine, yieldHeadline } from "@/lib/studioClips/yield";
+import { clipScore, whyPost, ORDER_LINE } from "@/lib/studioClips/rank";
 import type { ProjectSummary } from "@/lib/studioClips/server";
 
 export type LocalPhase = "reading" | "registering" | "analyzing" | "uploading" | "done" | "error" | "duplicate";
@@ -43,8 +47,9 @@ export function ClipGrid({ clips, onRemove, busy }: { clips: LocalClip[]; onRemo
           facts?.visual?.brightness === "dark" ? "dark" : facts?.visual?.brightness === "bright" ? "bright" : null,
           facts?.audio?.level === "quiet" ? "quiet audio" : facts?.audio?.level === "silent" ? "no sound" : facts?.audio?.hasAudio === false ? "no audio track" : null,
         ].filter(Boolean) as string[];
+        const rating = c.clip?.card ? clipScore({ id: c.clip.id, position: pos, durationSec: c.durationSec ?? 0, card: c.clip.card, facts: facts ?? null }) : null;
         return (
-          <li key={c.key} className={`cb-clip ${c.phase}`}>
+          <Reveal as="li" key={c.key} index={Math.min(clips.indexOf(c), 11)} className={`cb-clip ${c.phase}`}>
             <div className="cb-clip-thumb">
               {c.thumb ? <img src={c.thumb} alt="" /> : <span className="cb-clip-ph"><FileVideo size={18} /></span>}
               {c.durationSec != null && <small className="cb-clip-dur">{fmtClock(c.durationSec)}</small>}
@@ -56,7 +61,15 @@ export function ClipGrid({ clips, onRemove, busy }: { clips: LocalClip[]; onRemo
               <b>{clipLabel(pos)}</b>
               <small title={c.name}>{c.name}</small>
               {c.phase === "done" ? (
-                <span className="cb-clip-state ok"><Check size={11} /> {c.reused ? "Analysis reused" : c.clip?.card ? "Understood" : "Ready"}{flags.length ? ` · ${flags.join(", ")}` : ""}</span>
+                <>
+                  <span className="cb-clip-state ok"><Check size={11} /> {c.reused ? "Analysis reused" : c.clip?.card ? "Understood" : "Ready"}{flags.length ? ` · ${flags.join(", ")}` : ""}</span>
+                  {rating && rating.score != null && (
+                    <div className="sd-ring-row sd-clip-rating" title={rating.parts.map((p) => `${p.label}: ${p.value == null ? "not measured" : p.note}`).join("; ")}>
+                      <Ring share={rating.score / 100} size={40} stroke={5} tone={rating.score >= 80 ? "good" : rating.score >= 60 ? "ok" : "low"} label={`Clip score ${rating.score} of 100, ${rating.label.toLowerCase()}: ${rating.reason}`}><b>{rating.score}</b></Ring>
+                      <small className="sd-clip-why"><b>{rating.label}.</b> {rating.reason}</small>
+                    </div>
+                  )}
+                </>
               ) : c.phase === "error" ? (
                 <span className="cb-clip-state bad"><AlertTriangle size={11} /> {c.error ?? "Failed"}</span>
               ) : c.phase === "duplicate" ? (
@@ -68,7 +81,7 @@ export function ClipGrid({ clips, onRemove, busy }: { clips: LocalClip[]; onRemo
             {(c.phase === "done" || c.phase === "error" || c.phase === "duplicate") && (
               <button type="button" className="cb-clip-x" aria-label={`Remove ${clipLabel(pos)}`} disabled={busy} onClick={() => onRemove(c)}><Trash2 size={13} /></button>
             )}
-          </li>
+          </Reveal>
         );
       })}
     </ul>
@@ -109,6 +122,9 @@ export function UnderstandCard({ progress, clipCount }: { progress: UnderstandPr
           return <li key={s.id} className={state}><i />{s.label}{detail}</li>;
         })}
       </ul>
+      {progress && progress.total > 0 && progress.stage === "understanding" && (
+        <div className="sd-progress" aria-hidden><Bar share={Math.min(1, progress.done / progress.total)} /></div>
+      )}
       <p className="ov-source">
         {progress?.noTranscription ? "No transcription service is configured, so clips are understood from their frames and measured sound only. " : ""}
         Each clip is understood once and remembered; adding clips later only costs the new ones. Usually one to three minutes.
@@ -121,21 +137,22 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
   const byId = new Map(clips.map((c) => [c.id, c]));
   return (
     <div className="cb-yield">
-      <div className="ov-card cb-hero">
+      <Reveal className="ov-card cb-hero">
         <h2>{yieldHeadline(y)}</h2>
         {y.summary && <p>{y.summary}</p>}
         <div className="cb-hero-meta">
           <span>{fmtMinutes(y.footageSec)} of footage</span>
           <span>{y.rejected.length ? `${y.rejected.length} idea${y.rejected.length === 1 ? "" : "s"} didn't have enough distinct footage` : "Every idea had enough footage"}</span>
+          <span>{ORDER_LINE}</span>
           <button type="button" className="ov-btn ghost small" onClick={onAddMore}>Add more clips</button>
         </div>
         {stale && <p className="cb-stale"><AlertTriangle size={12} /> Footage changed since these results — understand it again to refresh them.</p>}
-      </div>
+      </Reveal>
 
       {y.opportunities.length > 0 && (
         <ul className="cb-opps">
-          {y.opportunities.map((o) => (
-            <li key={o.idx} className={`ov-card cb-opp ${o.strength}`}>
+          {y.opportunities.map((o, i) => (
+            <Reveal as="li" key={o.idx} index={1 + Math.min(i, 8)} className={`ov-card cb-opp sd-lift ${o.strength}`}>
               <div className="cb-opp-head">
                 <span className={`cb-badge ${o.strength}`}>{o.strength === "strong" ? "Strong post" : "Possible post"}</span>
                 {builds.includes(o.idx) && <span className="cb-badge built"><Check size={11} /> Guide ready</span>}
@@ -143,6 +160,7 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
               </div>
               <h3>{o.title}</h3>
               <p className="cb-opp-angle">{o.angle}</p>
+              <p className="sd-why">{whyPost(o)}</p>
               <p className="cb-evidence">{evidenceLine(o).split(" · ").map((part, i) => <span key={i}>{part}</span>)}</p>
               <ul className="cb-opp-clips">
                 {o.clipIds.slice(0, 6).map((id) => {
@@ -152,17 +170,17 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
                 {o.clipIds.length > 6 && <li className="cb-more">+{o.clipIds.length - 6}</li>}
               </ul>
               <button type="button" className="ov-btn primary small" onClick={() => onOpen(o)}>{builds.includes(o.idx) ? "Open the edit guide" : "Show me how to make it"} <ArrowRight size={13} /></button>
-            </li>
+            </Reveal>
           ))}
         </ul>
       )}
 
       {y.rejected.length > 0 && (
-        <div className="ov-card cb-rejected">
+        <Reveal index={2 + Math.min(y.opportunities.length, 8)} className="ov-card cb-rejected">
           <h3>Didn&apos;t make the cut</h3>
           <ul>{y.rejected.map((r, i) => <li key={i}><b>{r.title}</b><span>{r.reason}</span></li>)}</ul>
           <p className="ov-source">An idea is shown only when its clips add up to enough distinct, usable footage. These didn&apos;t — more clips of the same moment would change that.</p>
-        </div>
+        </Reveal>
       )}
     </div>
   );
@@ -180,10 +198,11 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
   return (
     <div className="cb-opp-view">
       <button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> All posts</button>
-      <div className="ov-card cb-opp-detail">
+      <Reveal className="ov-card cb-opp-detail">
         <div className="cb-opp-head"><span className={`cb-badge ${o.strength}`}>{o.strength === "strong" ? "Strong post" : "Possible post"}</span></div>
         <h2>{o.title}</h2>
         <p className="cb-opp-angle">{o.angle}</p>
+        <p className="sd-why">{whyPost(o)}</p>
         <p className="cb-evidence">{evidenceLine(o).split(" · ").map((part, i) => <span key={i}>{part}</span>)}</p>
         <ul className="cb-moments">
           {o.moments.map((m, i) => {
@@ -207,9 +226,9 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
             <p className="cb-locked"><Clapperboard size={13} /> <b>Make this video</b>: SOCIA cuts the first draft for you to edit. Included from Starter. <Link href="/pricing">See plans</Link></p>
           ) : null
         )}
-      </div>
+      </Reveal>
 
-      <div className="ov-card cb-guide">
+      <Reveal index={1} className="ov-card cb-guide">
         <div className="st-block-head">
           <h3><Scissors size={14} /> How to make it</h3>
           {build && <button type="button" className="ov-btn ghost small" onClick={() => navigator.clipboard?.writeText(guideText)}><Copy size={12} /> Copy steps</button>}
@@ -250,7 +269,7 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
             <p className="ov-source">Times are inside each clip. Cuts avoid the middle of words when a transcript exists. Picture and sound fixes are listed only where the measurements support them. Music is a recommendation — SOCIA never adds a track.</p>
           </>
         )}
-      </div>
+      </Reveal>
     </div>
   );
 }

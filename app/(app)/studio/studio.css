@@ -1,0 +1,438 @@
+/* Studio (components/studio/*): the editor's cut inspector and list, the
+   transition thumbnails, the pacing and clip rings, the post cards and the
+   empty states. Tokens only; every class starts with sd-. Entrance motion is
+   in framer-motion (components/dashboard/motion.tsx); the hover lift lives in
+   studio-motion.css. */
+
+/* ---- the editor's Cut tab: one cut at a time, then the order ----------------- */
+.sd-cut {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.sd-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.sd-inspector-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.sd-ph {
+  display: block;
+  background: var(--surface-hover);
+  flex: none;
+}
+.sd-inspector-head img,
+.sd-inspector-head .sd-ph {
+  width: 52px;
+  height: 66px;
+  border-radius: var(--r-card);
+  object-fit: cover;
+  display: block;
+}
+.sd-inspector-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sd-inspector-head b {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+.sd-inspector-head b small {
+  margin-left: var(--sp-1);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-regular);
+}
+.sd-times {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sd-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.sd-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+.sd-field {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  color: var(--ink-2);
+}
+.sd-field select {
+  width: 100%;
+  min-height: var(--control-h-sm);
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  padding: 0 var(--sp-2);
+}
+.sd-vol {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.sd-vol em {
+  font-style: normal;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.sd-iconbtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.sd-iconbtn:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+.sd-iconbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sd-iconbtn.is-danger:not(:disabled):hover {
+  color: var(--negative-ink);
+  border-color: var(--negative);
+}
+.sd-note {
+  color: var(--accent-ink);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* transitions as four small pictures */
+.sd-trans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.sd-trans button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  cursor: pointer;
+}
+.sd-trans button[aria-checked="true"] {
+  color: var(--ink);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.sd-trans button:disabled {
+  cursor: default;
+  color: var(--ink-disabled);
+}
+.sd-trans button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sd-tthumb {
+  position: relative;
+  display: block;
+  width: 54px;
+  height: 34px;
+  border-radius: var(--r-chip);
+  overflow: hidden;
+  background: var(--surface-hover);
+}
+.sd-tthumb i {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.sd-tthumb .is-a {
+  background: var(--chart-series-2);
+}
+.sd-tthumb .is-b {
+  background: var(--accent);
+}
+/* a hard cut shows both panes side by side; the others settle on pane B after their join */
+.sd-tthumb.is-cut .is-b {
+  left: 50%;
+}
+
+/* the order */
+.sd-cutlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.sd-cutlist li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.sd-cutlist li.is-on {
+  border-color: var(--accent-line);
+  background: var(--accent-subtle);
+}
+.sd-cutlist li.is-missing {
+  border-color: var(--warning);
+}
+.sd-cutlist-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.sd-cutlist-btn img,
+.sd-cutlist-btn .sd-ph {
+  width: 30px;
+  height: 38px;
+  border-radius: var(--r-chip);
+  object-fit: cover;
+  flex: none;
+}
+.sd-cutlist-btn > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sd-cutlist-btn b {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+}
+.sd-cutlist-btn small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sd-cutlist-move {
+  display: flex;
+  gap: var(--sp-1);
+  padding-right: var(--sp-2);
+}
+.sd-cutlist-move button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.sd-cutlist-move button:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+.sd-pace-line {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+@media (max-width: 640px) {
+  .sd-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- what the raters say ------------------------------------------------------ */
+.sd-why {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-clip-why {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  white-space: normal;
+}
+.sd-clip-why b {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+
+/* ---- empty screens: a drawing, one sentence, one action --------------------- */
+.sd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-8) var(--sp-4);
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-panel);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-empty.is-compact {
+  padding: var(--sp-4);
+  gap: var(--sp-1);
+}
+.sd-empty b {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.sd-empty.is-compact b {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-empty p {
+  margin: 0;
+  max-width: 44ch;
+}
+.sd-empty-art {
+  width: 120px;
+  height: 80px;
+  color: var(--accent);
+}
+.sd-empty.is-compact .sd-empty-art {
+  width: 72px;
+  height: 48px;
+}
+
+/* ---- rings and bars inside Studio ------------------------------------------- */
+.sd-ring-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.sd-ring-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sd-ring-row small {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-parts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  color: var(--ink-2);
+}
+.sd-parts li {
+  display: flex;
+  gap: var(--sp-2);
+}
+.sd-parts li b {
+  min-width: 8rem;
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.sd-parts li.is-off b {
+  color: var(--warning-ink);
+}
+.sd-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.sd-progress .dash-bar {
+  width: 100%;
+}
+
+/* the finish: a check that scales in once, and the draft's link */
+.sd-done {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+}
+.sd-done-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-pill);
+  background: var(--positive-bg);
+  color: var(--positive-ink);
+  flex: none;
+}
+.sd-done-mark svg {
+  width: 24px;
+  height: 24px;
+}
+.sd-done b {
+  display: block;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-done small {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+/* small rings carry a smaller figure */
+.sd-pace .dash-ring-body b {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+}
+.sd-clip-rating .dash-ring-body b {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-pace .dash-details {
+  margin-top: var(--sp-1);
+}

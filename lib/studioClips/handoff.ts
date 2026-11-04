@@ -29,4 +29,3 @@ export function takeHandoff(to: string): { files: File[]; data: HandoffData } {
   return { files: p.files, data: p.data };
 }
 
-export const takeFiles = (to: string): File[] => takeHandoff(to).files;

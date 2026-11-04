@@ -44,6 +44,8 @@ export type TextLayersPanelProps = {
   playhead?: () => number | null;
   /** A line was opened for editing: the preview may jump to it. */
   onOpen?: (layer: EdlText) => void;
+  /** The line to show open (the one selected on the timeline); the panel's own clicks still open and close rows. */
+  openId?: string | null;
   title?: string;
 };
 
@@ -67,9 +69,10 @@ function PresetPicker({ onPick, onClose, current }: { onPick: (id: TextPresetId)
   );
 }
 
-export default function TextLayersPanel({ layers, onChange, durationSec, frame, canEdit = true, busy = false, playhead, onOpen, title = "Text on the video" }: TextLayersPanelProps) {
+export default function TextLayersPanel({ layers, onChange, durationSec, frame, canEdit = true, busy = false, playhead, onOpen, openId, title = "Text on the video" }: TextLayersPanelProps) {
   const [picking, setPicking] = useState<"new" | string | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(openId ?? null);
+  useEffect(() => { if (openId) setOpen(openId); }, [openId]);
   const [fontsReady, setFontsReady] = useState(0);
   const locked = !canEdit || busy;
   const dur = Math.max(0.5, durationSec);

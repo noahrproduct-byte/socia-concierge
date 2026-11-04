@@ -3,6 +3,7 @@
 // on where each cut, text line and caption falls. Pure.
 import type { Edl, EdlSegment, TranscriptWord, TransitionKind } from "./types";
 import { OUTPUT } from "./types";
+import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
 
 export const FPS = OUTPUT.fps;
 export const secToFrames = (s: number): number => Math.max(0, Math.round(s * FPS));
@@ -81,8 +82,9 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
   return out.sort((a, b) => a.startMs - b.startMs);
 }
 
-/** Short fades at each segment's edges so cuts never click; 0..1 by frame within the segment. */
-export function edgeEnvelope(frameInSegment: number, durationFrames: number, fadeFrames = Math.round(FPS * 0.15)): number {
+/** Two frames of fade at each segment's edge, so a cut never clicks and a word never ducks; 0..1 by frame within the segment. */
+export const EDGE_FADE_FRAMES = 2;
+export function edgeEnvelope(frameInSegment: number, durationFrames: number, fadeFrames = EDGE_FADE_FRAMES): number {
   const fade = Math.max(1, Math.min(fadeFrames, Math.floor(durationFrames / 2)));
   const inRamp = Math.min(1, (frameInSegment + 1) / fade);
   const outRamp = Math.min(1, (durationFrames - frameInSegment) / fade);
@@ -107,4 +109,31 @@ export function videoBox(srcW: number | null, srcH: number | null, outW: number,
   const x = Math.min(1, Math.max(0, frame?.x ?? 0.5)), y = Math.min(1, Math.max(0, frame?.y ?? 0.5));
   const pct = (n: number) => `${Math.round(n * 100) / 100}%`;
   return { position: "absolute", width: pct(w), height: pct(h), left: pct(-(w - 100) * x), top: pct(-(h - 100) * y) };
+}
+
+/** Captions page every ~1.2 s, like the short-form captions people are used to. */
+export const CAPTION_PAGE_MS = 1200;
+
+export type CaptionPageSpan = { page: TikTokPage; from: number; durationInFrames: number };
+
+/**
+ * The caption pages on the frame timeline. A page runs from its first word
+ * to the end of its last word (never cut off at the page length: a word that
+ * starts late in the page still finishes), and never past the next page.
+ */
+export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, fps: number = FPS, pageMs: number = CAPTION_PAGE_MS): CaptionPageSpan[] {
+  if (!edl.captions) return [];
+  const captions = captionsForEdl(edl, words);
+  if (!captions.length) return [];
+  const { pages } = createTikTokStyleCaptions({ captions, combineTokensWithinMilliseconds: pageMs });
+  const total = timeline(edl).durationFrames;
+  const out: CaptionPageSpan[] = [];
+  pages.forEach((page, i) => {
+    const from = Math.round((page.startMs / 1000) * fps);
+    const lastMs = Math.max(page.startMs + pageMs, ...page.tokens.map((t) => t.toMs));
+    const next = pages[i + 1];
+    const end = Math.min(next ? Math.round((next.startMs / 1000) * fps) : total, Math.round((lastMs / 1000) * fps), total);
+    if (end - from > 0) out.push({ page, from, durationInFrames: end - from });
+  });
+  return out;
 }

@@ -25,9 +25,9 @@ import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { DEFAULT_STYLE, captionLayout, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
-import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
+import type { TikTokPage } from "@remotion/captions";
 import type { BuildSource, Edl, EdlText } from "@/lib/studioClips/types";
-import { timeline, captionsForEdl, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
+import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
 import type { TransitionKind } from "@/lib/studioClips/types";
 import { gainAtDb } from "@/lib/studioClips/sound";
@@ -62,9 +62,6 @@ export type ClipCompositionProps = {
 
 /** The soundtrack fades in over 0.2 s and out over the last 0.8 s, so it never starts or stops abruptly. */
 const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
-
-/** Captions page every ~1.2 s, like short-form captions people are used to. */
-const CAPTION_PAGE_MS = 1200;
 
 /** Heavier type for the outline look: a thin weight disappears inside its outline. */
 const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === "bebas" ? 400 : 800);
@@ -184,11 +181,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
     return Object.fromEntries(Object.entries(finish.grades).map(([id, g]) => [id, [colorCorrection(g.params)]]));
   }, [finish]);
-  const pages = useMemo(() => {
-    if (!captionsOn || !edl.captions) return [] as TikTokPage[];
-    const captions = captionsForEdl(edl, words);
-    return captions.length ? createTikTokStyleCaptions({ captions, combineTokensWithinMilliseconds: CAPTION_PAGE_MS }).pages : [];
-  }, [edl, words, captionsOn]);
+  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps) : []), [edl, words, captionsOn, fps]);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily }}>
@@ -239,17 +232,11 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           <TextLayer line={t} width={width} height={height} />
         </Sequence>
       ))}
-      {pages.map((page, i) => {
-        const start = Math.round((page.startMs / 1000) * fps);
-        const next = pages[i + 1];
-        const end = Math.min(next ? Math.round((next.startMs / 1000) * fps) : tl.durationFrames, start + Math.round((CAPTION_PAGE_MS / 1000) * fps));
-        if (end - start <= 0) return null;
-        return (
-          <Sequence key={`c${i}`} from={start} durationInFrames={end - start} name="captions">
-            <CaptionPage page={page} style={style} fontFamily={fontFamily} />
-          </Sequence>
-        );
-      })}
+      {pages.map((p, i) => (
+        <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} />
+        </Sequence>
+      ))}
       {safeZoneGuide && <SafeZoneLayer width={width} height={height} />}
     </AbsoluteFill>
   );

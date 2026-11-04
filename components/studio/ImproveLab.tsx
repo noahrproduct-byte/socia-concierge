@@ -32,7 +32,7 @@ export default function ImproveLab() {
   const [frames, setFrames] = useState<Frames | null>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [t, setT] = useState(0);
-  const [w, setW] = useState<Working>({ hook: ANALYSIS.hooks.current ?? "", cta: ANALYSIS.cta.current ?? "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: null, cover: null, audioChosen: false });
+  const [w, setW] = useState<Working>({ hook: ANALYSIS.hooks.current ?? "", cta: ANALYSIS.cta.current ?? "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: null, cover: null });
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => { const q = new URLSearchParams(window.location.search).get("video"); if (q) setUrl(q); }, []);
   useEffect(() => {

@@ -240,8 +240,6 @@ export type EdlText = {
   presetId?: TextPresetId;
   /** Top, middle or bottom of the safe zone when the person moved it; absent = the preset's own slot. */
   slot?: TextSlot;
-  /** @deprecated Pre-preset size hint; ignored by the renderer, kept so old cuts still parse. */
-  size?: "s" | "m" | "l";
 };
 
 export type EdlEnhance = {
