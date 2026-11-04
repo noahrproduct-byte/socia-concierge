@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePlanItem, platformName, sanitizePlanItems } from "./planItems";
+import { normalizePlanItem, platformName, sanitizePlanItems, withItemIds } from "./planItems";
 import { buildUserPrompt, SYSTEM } from "./prompt";
 import { deliverableSchema } from "./schema";
 
@@ -40,5 +40,33 @@ describe("older plans", () => {
   it("still build a prompt and render without the new fields", () => {
     expect(normalizePlanItem(base).title).toBeUndefined();
     expect(buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "a", goal: "", niche: "b", platform: "instagram" } as never)).toMatch(/# My account/);
+  });
+});
+
+describe("who makes each post, and its id", () => {
+  it("asks the model who makes every post, and tells it how to choose", () => {
+    const items = (deliverableSchema.properties.weeklyPlan as { items: { required: string[]; properties: Record<string, { enum?: string[] }> } }).items;
+    expect(items.required).toContain("maker");
+    expect(items.properties.maker.enum).toEqual(["you", "claude"]);
+    expect(SYSTEM).toMatch(/My Claude makes them/);
+    expect(SYSTEM).toMatch(/no filming and no footage of the person/);
+  });
+
+  it("keeps a known maker and drops anything else", () => {
+    expect(normalizePlanItem({ ...base, maker: "claude" }).maker).toBe("claude");
+    expect(normalizePlanItem({ ...base, maker: "robot" as never }).maker).toBeUndefined();
+  });
+
+  it("gives every post an id, keeps the ones it has, and never repeats one", () => {
+    let n = 0;
+    const next = () => `00000000-0000-4000-8000-00000000000${++n}`;
+    const kept = "aaaaaaaa-0000-4000-8000-000000000001";
+    const out = withItemIds([{ ...base, id: kept }, { ...base }, { ...base, id: kept }, { ...base, id: "bad id!" }], next);
+    expect(out.map((i) => i.id)).toEqual([kept, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"]);
+  });
+
+  it("an edit sent back by the browser keeps each post's id and maker", () => {
+    const [it] = sanitizePlanItems([{ ...base, id: "aaaaaaaa-0000-4000-8000-000000000001", maker: "claude" }]);
+    expect(it).toMatchObject({ id: "aaaaaaaa-0000-4000-8000-000000000001", maker: "claude" });
   });
 });

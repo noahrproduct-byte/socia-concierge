@@ -100,3 +100,17 @@ describe("goalProgress", () => {
     expect(goalProgress(goal(), 2100, NOW)).toMatchObject({ reached: true, remaining: 0 });
   });
 });
+
+describe("who makes the videos", () => {
+  it("keeps the choice and the kinds of video Claude may make, and drops unknown ones", () => {
+    const g = normalizeGrowth({ resources: { video_maker: "claude", claude_styles: ["animated", "voiceover", "deepfake"] } });
+    expect(g.resources).toEqual({ video_maker: "claude", claude_styles: ["animated", "voiceover"] });
+    expect(normalizeGrowth({ resources: { video_maker: "robot" } }).resources).toBeUndefined();
+  });
+
+  it("reaches the plan writer as plain lines", () => {
+    const lines = growthLines({ resources: { video_maker: "mix", claude_styles: ["kinetic_text"] } });
+    expect(lines).toContain("Who makes the videos: A mix");
+    expect(lines).toContain("Videos their Claude may make: Animated text");
+  });
+});

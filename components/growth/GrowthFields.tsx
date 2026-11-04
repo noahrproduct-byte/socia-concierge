@@ -7,7 +7,7 @@
 import type { ReactNode } from "react";
 import { Field, Input, Textarea } from "@/components/system";
 import {
-  ACCOUNT_TYPES, CUSTOMER_ACTIONS, EDITING, EQUIPMENT, HOURS, MAKERS, MONETIZATION, ON_CAMERA, REACH_SCOPES,
+  ACCOUNT_TYPES, CUSTOMER_ACTIONS, EDITING, EQUIPMENT, HOURS, MAKERS, VIDEO_MAKERS, CLAUDE_STYLES, MONETIZATION, ON_CAMERA, REACH_SCOPES,
   usesBusinessBlock, type GrowthProfile,
 } from "@/lib/growth";
 import "./growth.css";
@@ -136,6 +136,10 @@ export function ResourcesFields({ value, onChange }: Props) {
       <Choices label="What do you film with?" options={EQUIPMENT} multi columns={4} value={r.equipment} onChange={(ids) => onChange(set(value, "resources", { equipment: ids as never }))} />
       <Choices label="Editing" options={EDITING} columns={3} value={r.editing} onChange={(id) => onChange(set(value, "resources", { editing: id as never }))} />
       <Choices label="Who makes the content?" options={MAKERS} value={r.makers} onChange={(id) => onChange(set(value, "resources", { makers: id as never }))} />
+      <Choices label="Who makes your videos?" options={VIDEO_MAKERS} columns={3} value={r.video_maker} onChange={(id) => onChange(set(value, "resources", { video_maker: id as never }))} />
+      {(r.video_maker === "claude" || r.video_maker === "mix") && (
+        <Choices label="Videos your Claude can make" options={CLAUDE_STYLES} multi columns={2} value={r.claude_styles} onChange={(ids) => onChange(set(value, "resources", { claude_styles: ids as never }))} />
+      )}
     </>
   );
 }

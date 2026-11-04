@@ -5,7 +5,10 @@
 
 /** What an assistant may be granted. */
 export const SCOPE_READ = "socia:read";
-/** Never granted: kept so a client that still asks for it isn't refused (it gets read, and publishing if the person ticks it). */
+/**
+ * Hand in videos for the person to review (Claude makes the week, lib/claudeWeek). Never granted from
+ * an app's request: only the person's switch in Settings adds it. A client that asks for it gets read.
+ */
 export const SCOPE_DRAFTS = "socia:drafts";
 /** Create, schedule and publish posts. Granted only when the person ticks it on SOCIA's consent screen or in Settings. */
 export const SCOPE_PUBLISH = "socia:publish";
@@ -17,13 +20,13 @@ export const GRANTABLE_SCOPES: readonly string[] = [SCOPE_READ];
  * switching publishing on or off in Settings takes effect at once without the
  * app having to connect again.
  */
-export const CONNECTION_SCOPES: readonly string[] = [SCOPE_PUBLISH];
+export const CONNECTION_SCOPES: readonly string[] = [SCOPE_PUBLISH, SCOPE_DRAFTS];
 /** OpenID scopes some clients add by default; SOCIA isn't an OpenID provider, so they are ignored, not refused. */
 export const IGNORED_SCOPES = ["openid", "email", "profile", "offline_access"];
 
 export const SCOPE_LABEL: Record<string, string> = {
   [SCOPE_READ]: "Read your analytics, posts, plans and recommendations",
-  [SCOPE_DRAFTS]: "Create and edit drafts",
+  [SCOPE_DRAFTS]: "Hand in videos for you to review",
   [SCOPE_PUBLISH]: "Create, schedule and publish posts to your connected accounts",
 };
 
