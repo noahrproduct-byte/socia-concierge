@@ -5,6 +5,7 @@
 // the count at the end of the period, with the net change in the tooltip.
 // The axis starts where tracking started; nothing earlier is drawn.
 
+import { useChartWidth } from "./useChartWidth";
 import { useEffect, useMemo, useState } from "react";
 import { bucketFollowers, type FollowerPoint, type FollowerGranularity, type FollowerBucket } from "@/lib/followers";
 import { fmtNum } from "@/lib/overview";
@@ -18,6 +19,7 @@ const title = (b: FollowerBucket, g: FollowerGranularity) =>
 export default function FollowerChart({ points, granularity = "day", height = 200, today, compact = false }: { points: FollowerPoint[]; granularity?: FollowerGranularity; height?: number; today?: string; compact?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [box, boxW] = useChartWidth<HTMLDivElement>();
   useEffect(() => { setMounted(false); const t = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(t); }, [granularity, points.length]);
   const buckets = useMemo(() => bucketFollowers(points, granularity, today ?? new Date().toISOString().slice(0, 10)), [points, granularity, today]);
   const n = buckets.length;
@@ -29,7 +31,7 @@ export default function FollowerChart({ points, granularity = "day", height = 20
       </div>
     );
   }
-  const W = 1000, H = height, padL = 52, padR = 14, padT = 16, padB = 26;
+  const W = boxW, H = height, padL = 52, padR = 14, padT = 16, padB = 26;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const vals = buckets.map((b) => b.followers);
   const lo = Math.min(...vals), hi = Math.max(...vals);
@@ -40,12 +42,12 @@ export default function FollowerChart({ points, granularity = "day", height = 20
   const line = buckets.map((b, i) => `${x(i)},${y(b.followers)}`).join(" ");
   const area = `${x(0)},${padT + plotH} ${line} ${x(n - 1)},${padT + plotH}`;
   const ticks = 3;
-  const labelEvery = Math.max(1, Math.ceil(n / (compact ? 5 : 8)));
+  const labelEvery = Math.max(1, Math.ceil(n / Math.min(compact ? 5 : 8, Math.max(2, Math.floor((W - padL - padR) / 60)))));
   const h = hover != null ? buckets[hover] : null;
   const first = buckets[0];
 
   return (
-    <div className="ov-chart fc" data-metric="followers">
+    <div ref={box} className="ov-chart fc" data-metric="followers">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`Followers from ${fmtNum(first.followers)} on ${md(first.end)} to ${fmtNum(buckets[n - 1].followers)} on ${md(buckets[n - 1].end)}`} className="ov-chart-svg">
         <defs>
           <linearGradient id="fc-fill" x1="0" y1="0" x2="0" y2="1">

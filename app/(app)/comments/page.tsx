@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { MessageSquare, ArrowRight } from "lucide-react";
 import { getViewer } from "@/lib/supabase/server";
-import { resolveContext } from "@/lib/context";
+import { resolveContext, can } from "@/lib/context";
 import PageHeader from "@/components/PageHeader";
 import CommentsInbox from "@/components/CommentsInbox";
+import { readAutoSetting } from "@/lib/commentAuto";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { minPlanWithFeature, pricingHref, PLANS } from "@/lib/plans";
 import { listCommentDrafts } from "@/lib/commentDrafts";
@@ -27,11 +28,11 @@ export default async function CommentsPage() {
     const plan = minPlanWithFeature("comment_replies");
     return (
       <>
-        <PageHeader title="Comments" sub="SOCIA drafts a reply to every new comment. You approve each one before it's sent." />
+        <PageHeader title="Comments" sub="SOCIA drafts a reply to every new comment, for you to approve or to answer simple ones on its own." />
         <div className="cm-gate">
           <span className="cm-gate-ico" aria-hidden><MessageSquare size={22} /></span>
           <h2>AI comment replies are on {PLANS[plan].name}</h2>
-          <p>Every new comment on your Facebook and Instagram posts gets a suggested reply in your brand&apos;s voice. You approve, edit or skip each one from a single inbox — nothing is ever sent automatically.</p>
+          <p>Every new comment on your Facebook and Instagram posts gets a suggested reply in your brand&apos;s voice. You approve, edit or skip each one from a single inbox, or let SOCIA answer the simple ones (praise, thanks, emoji) on its own.</p>
           <Link href={pricingHref(plan)} className="cm-cta">Upgrade to {PLANS[plan].name} <ArrowRight size={15} /></Link>
         </div>
       </>
@@ -45,11 +46,12 @@ export default async function CommentsPage() {
     getIgSnapshot(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null).catch(() => null),
   ]);
   const connected = { facebook: fb?.status === "connected", instagram: Boolean(ig && ig.followers_count != null) };
+  const auto = await readAutoSetting(ctx.client, ctx.ownerId, wsId).catch(() => null);
 
   return (
     <>
-      <PageHeader title="Comments" sub="SOCIA drafts a reply to every new comment. You approve each one before it's sent." />
-      <CommentsInbox initial={drafts} connected={connected} />
+      <PageHeader title="Comments" sub={auto?.enabled ? "SOCIA answers simple comments on its own and drafts a reply to the rest for you to approve." : "SOCIA drafts a reply to every new comment. You approve each one before it's sent."} />
+      <CommentsInbox initial={drafts} connected={connected} auto={auto ? { enabled: auto.enabled } : null} canChangeAuto={can(ctx, "publish")} />
     </>
   );
 }

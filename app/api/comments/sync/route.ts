@@ -6,12 +6,14 @@ import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { syncCommentDrafts, listCommentDrafts } from "@/lib/commentDrafts";
 import { brandVoiceFrom } from "@/lib/commentBrand";
 import { perUserLimit } from "@/lib/rateLimit";
+import { readAutoSetting } from "@/lib/commentAuto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Read new comments on the workspace's posts and draft replies for them.
-// Growth and up; nothing is sent here — drafts wait for approval in the inbox.
+// Growth and up; nothing is sent here. Drafts wait for approval in the inbox,
+// or, with automatic replies on, the short friendly ones for the next job run.
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -28,7 +30,9 @@ export async function POST() {
   if (limited) return limited;
 
   const wsId = ctx.workspace?.id ?? null;
-  const result = await syncCommentDrafts(ctx.client, ctx.ownerId, wsId, brandVoiceFrom(profile, ctx.workspace?.name ?? null));
+  // With automatic replies on, drafts are also judged for sending on their own (the job sends them).
+  const auto = await readAutoSetting(ctx.client, ctx.ownerId, wsId).catch(() => null);
+  const result = await syncCommentDrafts(ctx.client, ctx.ownerId, wsId, brandVoiceFrom(profile, ctx.workspace?.name ?? null), { classify: Boolean(auto?.enabled) });
   const drafts = await listCommentDrafts(ctx.client, ctx.ownerId, wsId);
   return NextResponse.json({ ...result, drafts });
 }

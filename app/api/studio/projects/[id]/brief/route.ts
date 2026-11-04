@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AI_UNAVAILABLE_COPY, aiFailureKind } from "@/lib/aiStatus";
-import { requireFeature } from "@/lib/planGuard";
+import { requireFeature, requireUsage } from "@/lib/planGuard";
+import { markCutCounted } from "@/lib/studioClips/cutMeter";
 import { perUserLimit } from "@/lib/rateLimit";
 import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
@@ -49,6 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const reference = body?.reference != null ? sanitizeReference(body.reference) : null;
   if (body?.reference != null && !reference) return NextResponse.json({ error: "SOCIA couldn't read that reference video. Try an MP4 under 3 minutes." }, { status: 400 });
   if (!prompt && !reference) return NextResponse.json({ error: "Write what you want, or add a reference video." }, { status: 400 });
+  let release: (() => Promise<void>) | null = null;
   try {
     const { denied } = await requireFeature(ctx.client, ctx.ownerId, "auto_build");
     if (denied) return denied;
@@ -56,19 +58,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (limited) return limited;
     const project = await getProjectRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!project) return NextResponse.json({ error: "That project does not exist." }, { status: 404 });
+    // A video from a brief is made by AI on the spot, so it counts one AI-made
+    // video now (given back if it fails), not only when the cut is opened.
+    const u = await requireUsage(ctx.client, ctx.ownerId, "video_builds", { feature: "auto_build" });
+    if (u.denied) return u.denied;
+    release = u.release;
     const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
     let ref: { name: string; breakdown: NonNullable<ReturnType<typeof cleanBreakdown>>; brief: string } | null = null;
     if (reference) {
       const { raw } = await breakDownReference(reference, acct);
       const breakdown = cleanBreakdown(raw, reference.durationSec);
-      if (!breakdown) return NextResponse.json({ error: "SOCIA couldn't break that reference down. Try a clearer or shorter video." }, { status: 422 });
+      if (!breakdown) {
+        await release?.();
+        return NextResponse.json({ error: "SOCIA couldn't break that reference down. Try a clearer or shorter video." }, { status: 422 });
+      }
       ref = { name: reference.name, breakdown, brief: referenceBrief(breakdown, reference.durationSec, shotStats(reference)) };
     }
     const preset = (await readPresets(ctx).catch(() => null))?.brand ?? null;
     const build = await buildFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, acct, prompt, reference: ref, preset });
-    // The editor opens the cut by id, which is where it counts (lib/studioClips/cutMeter.ts).
+    release = null;
+    // Already counted: opening it in the editor doesn't count it again (lib/studioClips/cutMeter.ts).
+    await markCutCounted(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, build.id);
     return NextResponse.json({ build: guideOnly(build), breakdown: ref?.breakdown ?? null });
   } catch (e) {
+    await release?.();
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     console.error("[studio/brief]", (e as Error)?.message ?? e);
     const kind = aiFailureKind(e);

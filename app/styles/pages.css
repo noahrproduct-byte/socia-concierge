@@ -194,3 +194,72 @@
 /* ---- Plan: the Content Plan | Calendar switch (components/PlanTabs.tsx) ------------- */
 .plan-tabs { margin-bottom: var(--sp-4); }
 .plan-tabs > a { display: inline-flex; align-items: center; text-decoration: none; }
+
+/* ---- Phones and touch screens --------------------------------------------------------
+   Every control a thumb can reach is at least 40px tall; text links and small icons keep
+   their look and get a larger invisible tap area; nothing a person needs to read drops
+   below the meta size; and a line that matters wraps instead of being cut with "…". */
+@media (pointer: coarse) {
+  /* Scoped to the shell so it outranks the page rules above (.ov-btn.small and the like). */
+  .s-shell .s-content :is(.s-btn--sm, .ov-btn, .ov-btn.small, .ov-seg > a, .ov-seg > button, .cal2-seg > button, .s-seg > a, .s-seg > button, .cx-refresh, .ov-chip, .lb-sel select, .cx-trend-body) {
+    min-height: calc(var(--control-h) + var(--sp-2));
+  }
+  .s-shell .s-content :is(.cal2-nav, .ws-mgr-btn, .cx-arrow) {
+    min-width: calc(var(--control-h) + var(--sp-2));
+    min-height: calc(var(--control-h) + var(--sp-2));
+  }
+  .s-brand,
+  .ov-link,
+  .pa-pcard-link,
+  .cx3-name,
+  .cx-ncard-save,
+  .cal2-acts > button,
+  .cp3-viewmore,
+  .cbb-toggle {
+    position: relative;
+  }
+  .s-brand::before,
+  .ov-link::before,
+  .pa-pcard-link::before,
+  .cx3-name::before,
+  .cx-ncard-save::before,
+  .cal2-acts > button::before,
+  .cp3-viewmore::before,
+  .cbb-toggle::before {
+    content: "";
+    position: absolute;
+    inset: calc(var(--sp-2) * -1);
+  }
+  .s-shell input[type="checkbox"],
+  .s-shell input[type="radio"] {
+    width: var(--sp-5);
+    height: var(--sp-5);
+  }
+}
+
+@media (max-width: 600px) {
+  /* Small labels: at least the meta size on a phone. */
+  .cx2-rank,
+  .cx2-chip-id small,
+  .cal2-dow,
+  .cal2-time,
+  .cal2-chip,
+  .cal2-result,
+  .cpl-auto,
+  .cpl-count,
+  .ws-mgr-badge,
+  .ov-chip,
+  .ov-card-mult,
+  .pr-popular,
+  .pr-cat-count {
+    font-size: var(--fs-meta) !important;
+    line-height: var(--lh-meta);
+  }
+  /* Discover's verdicts wrap rather than end in "…" ("Post more short-…"). */
+  .cx2-intel-name {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    text-wrap: balance;
+  }
+}

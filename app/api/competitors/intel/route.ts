@@ -23,7 +23,7 @@ import {
 import { autoPickCompetitors, type Pick } from "@/lib/competitorAutoPick";
 
 /** Fresh research runs one account may start per hour. */
-const INTEL_RUNS_PER_HOUR = 6;
+const INTEL_RUNS_PER_HOUR = 2;
 
 
 export const runtime = "nodejs";
@@ -156,16 +156,19 @@ export async function GET(req: Request) {
   const ageMs = cached?.ranAt ? Date.now() - new Date(cached.ranAt).getTime() : Infinity;
   let refresh = false;
   let nextRefreshAt: string | null = null;
-  if (wantsRefresh && cached?.ranAt) {
-    // The owner's plan decides, whoever pressed the button.
-    const ent = await getEntitlements(ctx.client, ctx.ownerId);
-    if (canUseFeature(ent, "niche_intelligence")) {
-      if (ageMs >= REFRESH_COOLDOWN_MS) refresh = true;
-      else nextRefreshAt = new Date(new Date(cached.ranAt).getTime() + REFRESH_COOLDOWN_MS).toISOString();
-    }
+  // The owner's plan decides, whoever opened the page or pressed the button.
+  const research = canUseFeature(await getEntitlements(ctx.client, ctx.ownerId), "niche_intelligence");
+  if (wantsRefresh && cached?.ranAt && research) {
+    if (ageMs >= REFRESH_COOLDOWN_MS) refresh = true;
+    else nextRefreshAt = new Date(new Date(cached.ranAt).getTime() + REFRESH_COOLDOWN_MS).toISOString();
   }
   if (!refresh && cached && ageMs < FRESH_MS) {
     return NextResponse.json({ ...cached, profileGaps, nextRefreshAt });
+  }
+  // Each run spends web-search AI and shared YouTube quota: without niche
+  // intelligence (Free), a brand gets its first run and then keeps it.
+  if (!research && cached?.ranAt) {
+    return NextResponse.json({ ...cached, profileGaps, nextRefreshAt: null });
   }
 
   if (!niche) {
@@ -436,16 +439,22 @@ Output ONLY this JSON, no other text:
       if (wsId) { pruneAcc = pruneAcc.eq("workspace_id", wsId); pruneCon = pruneCon.eq("workspace_id", wsId); }
       await pruneAcc;
       await pruneCon;
-      await ctx.client.from("discovery_runs").upsert(
-        {
-          user_id: ctx.ownerId, ...wsCol, ran_at: ranAt, accounts_found: accounts.length,
-          content_found: content.length, sources,
-        },
-        { onConflict: runConflict },
-      );
     } catch {
       /* tables may not exist yet — the response below still serves */
     }
+  }
+  // The run is recorded even when it found nothing: the next visit reuses it
+  // for six hours instead of paying for another run straight away.
+  try {
+    await ctx.client.from("discovery_runs").upsert(
+      {
+        user_id: ctx.ownerId, ...wsCol, ran_at: ranAt, accounts_found: accounts.length,
+        content_found: content.length, sources,
+      },
+      { onConflict: runConflict },
+    );
+  } catch {
+    /* tables may not exist yet */
   }
 
   // ---- SOCIA picks competitors into empty roster slots -------------------

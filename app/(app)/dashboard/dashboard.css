@@ -1113,6 +1113,11 @@ button.dash-stat {
     font-size: var(--fs-figure);
     line-height: var(--lh-figure);
   }
+  /* The caption wraps instead of being cut ("10 posts · of reached accounts"). */
+  .dash-stat-foot small {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   /* Three to a row on a phone: the figure and its comparison stay, the spark goes. */
   .dash-spark {
     display: none;

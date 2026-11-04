@@ -36,8 +36,10 @@ export default function PrivacyPage() {
           profile, follower counts, your posts and their metrics and insights,
           and the comments on your posts. This includes collab posts you joined
           as a collaborator, with the posting account&apos;s username and the
-          post&apos;s totals. We publish only posts you schedule and reply to a
-          comment only when you approve the reply.
+          post&apos;s totals. We publish only posts you schedule, and reply to a
+          comment only when you approve the reply or, if you turn on automatic
+          replies for a brand, with a short reply to simple comments like praise
+          or thanks.
         </li>
         <li>
           <b>Facebook Pages</b>: when you connect a Facebook Page, Meta gives us
@@ -50,7 +52,7 @@ export default function PrivacyPage() {
           <code>business_management</code>),
           we read the Page&apos;s details, posts, engagement, insights and
           comments, look up other public Instagram business accounts for
-          competitor research, and list Instagram&apos;s trending audio. We publish and reply only when you do. We keep your Facebook user token next to the Page token
+          competitor research, and list Instagram&apos;s trending audio. We publish and reply only when you do, or when you turn on automatic replies to simple comments. We keep your Facebook user token next to the Page token
           because Meta lets an Instagram post be deleted, and its trending audio
           be listed, only with it; we use it, and <code>instagram_manage_contents</code>,
           only to delete a post from the Instagram account linked to your Page
@@ -141,7 +143,7 @@ export default function PrivacyPage() {
       <h2>How we use it</h2>
       <ul>
         <li>To analyze your accounts and generate scores, plans, captions, reply suggestions, alerts and summaries.</li>
-        <li>To publish what you schedule, at the time you schedule it, and to reply to comments when you approve a reply.</li>
+        <li>To publish what you schedule, at the time you schedule it, and to reply to comments when you approve a reply or have turned on automatic replies.</li>
         <li>To delete a post from Instagram, Facebook or YouTube when you ask SOCIA to, and to keep a record of that deletion with the last numbers SOCIA measured for the post.</li>
         <li>To run teams, workspaces, approvals and billing.</li>
         <li>To operate, secure, debug and improve the product, and to prevent abuse.</li>
@@ -158,7 +160,7 @@ export default function PrivacyPage() {
       </p>
       <ul>
         <li><b>Supabase</b>: database, sign-in and file storage.</li>
-        <li><b>Vercel</b>: hosting and server logs.</li>
+        <li><b>Vercel</b>: hosting, server logs, and Vercel Web Analytics, which counts page views and visitors (the page, the referring site, country, device and browser type) without cookies and without identifying you.</li>
         <li>
           <b>Anthropic (Claude)</b>: SOCIA&apos;s analysis and writing. The
           material a feature needs (for example your posts and their metrics,
@@ -254,8 +256,8 @@ export default function PrivacyPage() {
         <li>
           <b>Least privilege</b>: we request read-only permissions wherever a
           feature allows it, and use a write permission only for an action you
-          explicitly take, such as publishing a post you scheduled or sending a
-          reply you approved.
+          explicitly take, such as publishing a post you scheduled, sending a
+          reply you approved, or the automatic replies you turned on.
         </li>
       </ul>
 
@@ -328,8 +330,8 @@ export default function PrivacyPage() {
         <li>
           SOCIA uses cookies only to keep you signed in and to complete a
           connection with a platform, and your browser&apos;s storage for
-          display preferences. There are no advertising or third-party analytics
-          cookies.
+          display preferences. There are no advertising or analytics cookies:
+          the page-view counts from Vercel Web Analytics don&apos;t use cookies.
         </li>
       </ul>
 

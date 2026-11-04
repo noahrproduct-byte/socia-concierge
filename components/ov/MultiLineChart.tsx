@@ -6,6 +6,7 @@
 // that actually have a series for the chosen metric get a line; the rest are
 // reported honestly in the footnote. A null day is a gap, never a zero.
 
+import { useChartWidth } from "./useChartWidth";
 import { useMemo, useState } from "react";
 import { bucketize, bucketLabel, bucketTitle, fmtNum, type Granularity, type SeriesPoint } from "@/lib/overview";
 
@@ -35,6 +36,7 @@ export default function MultiLineChart({
   today?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const [box, boxW] = useChartWidth<HTMLDivElement>();
 
   const series = useMemo(
     () => lines.map((l) => ({ ...l, buckets: bucketize(l.points, granularity, l.mode, today) })),
@@ -42,7 +44,7 @@ export default function MultiLineChart({
   );
   const withData = series.filter((s) => s.buckets.some((b) => b.value != null));
 
-  const W = 1000, H = height, padL = 46, padR = 12, padT = 22, padB = 28;
+  const W = boxW, H = height, padL = 46, padR = 12, padT = 22, padB = 28;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const n = Math.max(0, ...withData.map((s) => s.buckets.length));
   const axis = (withData.reduce((a, s) => (s.buckets.length > a.length ? s.buckets : a), withData[0]?.buckets ?? []) ?? []);
@@ -53,7 +55,7 @@ export default function MultiLineChart({
   const slot = n ? plotW / n : plotW;
   const x = (i: number) => padL + i * slot + slot / 2;
   const ticks = 4;
-  const labelEvery = Math.max(1, Math.ceil(n / (granularity === "day" ? 10 : 12)));
+  const labelEvery = Math.max(1, Math.ceil(n / Math.min(granularity === "day" ? 10 : 12, Math.max(2, Math.floor((W - padL - padR) / 56)))));
 
   const valAt = (bkts: typeof axis, i: number) => (i < bkts.length ? bkts[i].value : null);
 
@@ -66,7 +68,7 @@ export default function MultiLineChart({
   }
 
   return (
-    <div className="ov-chart">
+    <div ref={box} className="ov-chart">
       <div className="mlc-legend">
         {series.map((s) => (
           <span key={s.id} className={`mlc-leg${s.buckets.some((b) => b.value != null) ? "" : " off"}`}>

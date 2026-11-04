@@ -14,7 +14,7 @@ async function invariants(db: Db): Promise<string[]> {
   const bad: string[] = [];
   const q = async <T>(sql: string) => (await db.query<T>(sql)).rows;
 
-  for (const t of ["instagram_connections", "facebook_connections", "youtube_connections", "tiktok_connections", "facebook_pending_tokens", "competitor_dismissals", "studio_builds"]) {
+  for (const t of ["instagram_connections", "facebook_connections", "youtube_connections", "tiktok_connections", "facebook_pending_tokens", "competitor_dismissals", "studio_builds", "ai_spend"]) {
     const [r] = await q<{ a: boolean; n: boolean }>(`select has_table_privilege('authenticated', 'public.${t}', 'select') as a, has_table_privilege('anon', 'public.${t}', 'select') as n`);
     if (r.a || r.n) bad.push(`${t} readable by the browser`);
   }

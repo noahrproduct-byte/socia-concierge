@@ -290,6 +290,12 @@ export type PlanConfig = {
   name: string;
   /** USD per month. 0 for Free. Plans are billed monthly only. */
   priceMonthly: number;
+  /**
+   * The most this plan's AI may cost SOCIA in a calendar month (Claude, transcription, music), in USD.
+   * Past it, AI features pause until the 1st (lib/aiSpend.ts). About two thirds of what the plan
+   * brings in after Stripe's fees, so a customer who maxes out every allowance still leaves a margin.
+   */
+  aiSpendCapUsd: number;
   /** The one-line story: what this plan is for. */
   tagline: string;
   /** "Best for" line. */
@@ -380,6 +386,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "free",
     name: "Free",
     priceMonthly: 0,
+    aiSpendCapUsd: 2,
     tagline: "Understand one brand.",
     audience: "People trying SOCIA and managing one brand.",
     limits: { workspaces: 1, competitors: 2, team_members: 1, analytics_history_days: 30, ...STUDIO_LIMITS.free, studio_storage_gb: 5, assistant_requests_per_minute: 10, assistant_posts_per_hour: 0 },
@@ -391,6 +398,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "starter",
     name: "Starter",
     priceMonthly: 19.99,
+    aiSpendCapUsd: 12,
     tagline: "Run up to two brands with SOCIA.",
     audience: "Creators and small businesses managing one or two brands.",
     limits: { workspaces: 2, competitors: 5, team_members: 2, analytics_history_days: 90, ...STUDIO_LIMITS.starter, studio_storage_gb: 10, assistant_requests_per_minute: 20, assistant_posts_per_hour: 5 },
@@ -402,6 +410,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "growth",
     name: "Growth",
     priceMonthly: 34.99,
+    aiSpendCapUsd: 22,
     tagline: "Grow multiple brands across every platform.",
     audience: "Growing creators and businesses managing multiple brands and social platforms.",
     limits: { workspaces: 5, competitors: 15, team_members: 5, analytics_history_days: 365, ...STUDIO_LIMITS.growth, studio_storage_gb: 25, assistant_requests_per_minute: 30, assistant_posts_per_hour: 10 },
@@ -414,6 +423,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: "pro",
     name: "Pro",
     priceMonthly: 49.99,
+    aiSpendCapUsd: 32,
     tagline: "Manage brands, clients, and teams at scale.",
     audience: "Agencies, teams, multi-location businesses, and people managing many brands or clients.",
     limits: { workspaces: 15, competitors: 30, team_members: 10, analytics_history_days: HISTORY_ALL_RETAINED, ...STUDIO_LIMITS.pro, studio_storage_gb: 50, assistant_requests_per_minute: 60, assistant_posts_per_hour: 20 },

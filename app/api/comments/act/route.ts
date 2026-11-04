@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   // redraft
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx));
   // Each redraft is an AI call with no allowance of its own: an hourly ceiling per account.
-  const limited = await perUserLimit(ctx.ownerId, "comment_redraft", 60, "new reply suggestions");
+  const limited = await perUserLimit(ctx.ownerId, "comment_redraft", 20, "new reply suggestions");
   if (limited) return limited;
   const r = await redraftComment(ctx.client, ctx.ownerId, body.id, brandVoiceFrom(profile, ctx.workspace?.name ?? null), wsId);
   return NextResponse.json({ ok: Boolean(r && (r.text || r.skip)), draft: r?.text ?? null, skip: r?.skip ?? false });
