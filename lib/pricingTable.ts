@@ -11,6 +11,7 @@ import {
   formatHistory,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
 } from "./plans";
+import { MONTHLY_CREDITS } from "./credits/config";
 
 export type Cell =
   | { kind: "yes" }
@@ -133,6 +134,9 @@ export const COMPARISON: ComparisonCategory[] = [
       { label: "AI-made videos", cells: meterCell("video_builds") },
       { label: "Music tracks", note: "Made for your videos from your brand's taste.", cells: meterCell("music_tracks") },
       { label: "Account audits", cells: meterCell("account_audit") },
+      feature("ai_clipper", "Paste a YouTube link or upload a video; SOCIA returns vertical clips with captions, a title, a score and a caption. Only clip videos you own or have rights to."),
+      feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images on a curated set of models."),
+      { label: "AI credits per month", note: "Spent by the Clipper and AI Studio; every action shows its price first. Top-up packs available.", cells: perPlan((p) => (MONTHLY_CREDITS[p.id] > 0 ? text(MONTHLY_CREDITS[p.id].toLocaleString("en-US")) : NO)) },
     ],
   },
   {

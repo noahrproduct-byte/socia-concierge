@@ -4,7 +4,7 @@
 //
 // Environment (Vercel; test-mode values first, live values when launching):
 //   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-//   STRIPE_PRICE_STARTER, STRIPE_PRICE_GROWTH, STRIPE_PRICE_PRO   (the monthly
+//   STRIPE_PRICE_STARTER, STRIPE_PRICE_GROWTH, STRIPE_PRICE_PRO, STRIPE_PRICE_SCALE (the monthly
 //   Price id, or the Product id — the monthly price is then looked up; the
 //   longer STRIPE_PRICE_<PLAN>_MONTHLY names are accepted too; Growth is also
 //   read from STRIPE_PRICE_GRWOTH, the spelling it has in Vercel)
@@ -29,9 +29,10 @@ const PRICE_ENV: Record<PaidPlan, Record<BillingInterval, string[]>> = {
   starter: { month: ["STRIPE_PRICE_STARTER", "STRIPE_PRICE_STARTER_MONTHLY"], year: ["STRIPE_PRICE_STARTER_ANNUAL"] },
   growth: { month: ["STRIPE_PRICE_GROWTH", "STRIPE_PRICE_GROWTH_MONTHLY", "STRIPE_PRICE_GRWOTH"], year: ["STRIPE_PRICE_GROWTH_ANNUAL"] },
   pro: { month: ["STRIPE_PRICE_PRO", "STRIPE_PRICE_PRO_MONTHLY"], year: ["STRIPE_PRICE_PRO_ANNUAL"] },
+  scale: { month: ["STRIPE_PRICE_SCALE", "STRIPE_PRICE_SCALE_MONTHLY"], year: ["STRIPE_PRICE_SCALE_ANNUAL"] },
 };
 
-export const isPaidPlan = (p: string): p is PaidPlan => p === "starter" || p === "growth" || p === "pro";
+export const isPaidPlan = (p: string): p is PaidPlan => p === "starter" || p === "growth" || p === "pro" || p === "scale";
 export const isBillingInterval = (i: string): i is BillingInterval => i === "month" || i === "year";
 
 /** The configured id for a plan and interval: a Price (price_…) or, as pasted

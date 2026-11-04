@@ -13,8 +13,9 @@ const LIMITS = Object.keys(LIMIT_LABEL) as LimitKey[];
 const METERS = Object.keys(METER_LABEL) as MeterKey[];
 
 describe("plan configuration", () => {
-  it("has the four confirmed plans at the confirmed prices, in order", () => {
-    expect(PLAN_ORDER).toEqual(["free", "starter", "growth", "pro"]);
+  it("has the five confirmed plans at the confirmed prices, in order", () => {
+    expect(PLAN_ORDER).toEqual(["free", "starter", "growth", "pro", "scale"]);
+    expect(PLANS.scale.priceMonthly).toBe(80);
     expect(PLANS.free.priceMonthly).toBe(0);
     expect(PLANS.starter.priceMonthly).toBe(19.99);
     expect(PLANS.growth.priceMonthly).toBe(34.99);
@@ -23,34 +24,34 @@ describe("plan configuration", () => {
   });
 
   it("matches the confirmed hard limits (2026-09-25)", () => {
-    expect(PLAN_ORDER.map((p) => PLANS[p].limits.workspaces)).toEqual([1, 2, 5, 15]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].limits.competitors)).toEqual([2, 5, 15, 30]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].limits.team_members)).toEqual([1, 2, 5, 10]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].limits.analytics_history_days)).toEqual([30, 90, 365, HISTORY_ALL_RETAINED]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.workspaces)).toEqual([1, 2, 5, 15, 15]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.competitors)).toEqual([2, 5, 15, 30, 30]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.team_members)).toEqual([1, 2, 5, 10, 10]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.analytics_history_days)).toEqual([30, 90, 365, HISTORY_ALL_RETAINED, HISTORY_ALL_RETAINED]);
   });
 
   it("matches the confirmed AI allowances", () => {
     // Trimmed with the 2026-11-02 prices so full use roughly breaks even.
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.ask_socia)).toEqual([10, 50, 200, 300]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_studio)).toEqual([5, 30, 60, 60]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_generation)).toEqual([6, 120, 150, 160]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_build)).toEqual([3, 10, 20, 25]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.ask_socia)).toEqual([10, 50, 200, 300, 300]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_studio)).toEqual([5, 30, 60, 60, 60]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_generation)).toEqual([6, 120, 150, 160, 160]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_build)).toEqual([3, 10, 20, 25, 25]);
     // Free: one a month (Noah, 2026-10-30), plus one at onboarding that isn't counted.
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_plan)).toEqual([1, 4, 12, 40]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_plan)).toEqual([1, 4, 12, 40, 40]);
     // Batches of 5 video ideas a week (Noah, 2026-11-02).
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_ideas)).toEqual([2, 5, 10, 25]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.content_ideas)).toEqual([2, 5, 10, 25, 25]);
     // Starter gets a taste of SOCIA making videos (Noah, 2026-11-02).
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.video_builds)).toEqual([0, 5, 30, 100]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].meters.music_tracks)).toEqual([0, 10, 12, 15]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.video_builds)).toEqual([0, 5, 30, 100, 100]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].meters.music_tracks)).toEqual([0, 10, 12, 15, 15]);
     expect(FEATURE_MIN_PLAN.auto_build).toBe("starter");
     expect(METER_PERIOD.content_ideas).toBe("week");
     expect(METER_PERIOD.ask_socia).toBe("month");
   });
 
   it("scales Build from clips per project with the plan", () => {
-    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_clips_per_project)).toEqual([10, 20, 40, 60]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_footage_minutes)).toEqual([5, 10, 20, 30]);
-    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_upload_mb)).toEqual([250, 500, 1000, 2000]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_clips_per_project)).toEqual([10, 20, 40, 60, 60]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_footage_minutes)).toEqual([5, 10, 20, 30, 30]);
+    expect(PLAN_ORDER.map((p) => PLANS[p].limits.studio_upload_mb)).toEqual([250, 500, 1000, 2000, 2000]);
   });
 
   it("caps workspaces, never platforms: every workspace holds one account per platform", () => {
@@ -101,7 +102,7 @@ describe("plan configuration", () => {
     // Everything marked available must be a thing the app really gates or renders today.
     const available = FEATURES.filter((k) => FEATURE_STATUS[k] === "available");
     expect(available.sort()).toEqual([
-      "ai_assistant_publishing", "ai_assistants", "approval_workflow", "auto_build", "breakout_alerts", "build_from_clips", "client_reports", "comment_replies", "competitor_alerts", "contacts", "content_plan", "cross_brand_analytics", "cross_platform_alerts", "cross_platform_analytics",
+      "ai_assistant_publishing", "ai_assistants", "ai_clipper", "ai_studio", "approval_workflow", "auto_build", "breakout_alerts", "build_from_clips", "client_reports", "comment_replies", "competitor_alerts", "contacts", "content_plan", "cross_brand_analytics", "cross_platform_alerts", "cross_platform_analytics",
       "custom_date_ranges", "daily_recommendations", "deeper_insights", "growth_analysis", "monthly_summary", "niche_intelligence",
       "opportunity_alerts", "performance_change_alerts", "period_comparison", "platform_reports",
       "posting_time_analysis", "report_exports", "repurposing", "scheduling", "team", "trend_alerts", "weekly_summary",
@@ -161,10 +162,11 @@ describe("plan helpers", () => {
     expect(minPlanWithMeter("ask_socia", 600)).toBeNull();
   });
 
-  it("steps up one plan at a time and stops at pro", () => {
+  it("steps up one plan at a time and stops at scale", () => {
     expect(nextPlan("free")).toBe("starter");
     expect(nextPlan("growth")).toBe("pro");
-    expect(nextPlan("pro")).toBeNull();
+    expect(nextPlan("pro")).toBe("scale");
+    expect(nextPlan("scale")).toBeNull();
   });
 
   it("formats prices, history and pricing links", () => {

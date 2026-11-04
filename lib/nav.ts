@@ -28,6 +28,8 @@ export const NAV: NavEntry[] = [
   // The multi-platform composer.
   { href: "/create", label: "Create post", key: "create", group: "create" },
   { href: "/studio", label: "Content Studio", key: "studio", group: "create" },
+  { href: "/clipper", label: "AI Clipper", key: "clipper", group: "create" },
+  { href: "/ai-studio", label: "AI Studio", key: "ai-studio", group: "create" },
   // AI comment replies (Growth+): drafts a reply to every new comment for approval.
   { href: "/comments", label: "Comments", key: "comments", group: "manage" },
   // Contacts (Starter+): commenters and sign-ups, with tags, notes and a sign-up page.

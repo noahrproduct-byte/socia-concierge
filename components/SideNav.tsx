@@ -27,8 +27,10 @@ import {
   Newspaper,
   PenLine,
   Radar,
+  Scissors,
   Settings,
   Users,
+  Film,
   type LucideIcon,
 } from "lucide-react";
 import { DOCK, HELP, NAV, NAV_GROUPS, activeNavKey, dockKeyFor } from "@/lib/nav";
@@ -43,6 +45,8 @@ const ICONS: Record<string, LucideIcon> = {
   create: PenLine,
   calendar: CalendarDays,
   studio: Clapperboard,
+  clipper: Scissors,
+  "ai-studio": Film,
   comments: MessageSquare,
   contacts: Users,
   settings: Settings,

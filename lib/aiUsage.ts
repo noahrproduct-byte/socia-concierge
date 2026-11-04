@@ -11,7 +11,8 @@ export type AiFeature =
   | "ask" | "rate" | "caption" | "studio_analyze" | "studio_improve"
   | "niche_analyze" | "niche_opportunity" | "niche_formats" | "growth_strategy" | "content_guide" | "account_audit" | "niche_describe"
   | "competitor_research" | "content_plan" | "comment_reply"
-  | "clip_card" | "clip_batch" | "clip_edl" | "transcribe" | "music_playlist" | "video_ideas";
+  | "clip_card" | "clip_batch" | "clip_edl" | "transcribe" | "music_playlist" | "video_ideas"
+  | "clipper_captions" | "studio_ideas";
 
 type Usage = {
   input_tokens?: number; output_tokens?: number;

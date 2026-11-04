@@ -54,6 +54,7 @@ export const MIGRATIONS = [
   "claude-week.sql",
   "comment-auto.sql",
   "ai-spend.sql",
+  "ai-studio.sql",
 ];
 
 const SUPABASE_STANDIN = `
