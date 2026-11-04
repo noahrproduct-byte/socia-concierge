@@ -6,7 +6,7 @@
 // bounds what comes in, turns the breakdown into the brief the editor follows,
 // and maps its text style onto the cut. Pure and tested.
 import { FONTS, sanitizeStyle, DEFAULT_STYLE, type EdlStyle, type FontId } from "./style";
-import type { ClipCard, Edl, EdlBrief, MomentRef, Opportunity } from "./types";
+import type { ClipCard, ClipMoment, Edl, EdlBrief, EdlSegment, MomentRef, Opportunity } from "./types";
 
 export const PROMPT_MAX = 2000;
 export const REF_MAX_SEC = 180;
@@ -216,10 +216,13 @@ export function opportunityFromBrief(title: string, angle: string, clips: BriefC
   const carded = clips.filter((c) => c.card);
   const moments: MomentRef[] = [];
   for (const c of carded) {
-    const good = c.card!.moments.filter((m) => m.strength !== "weak" && m.end > m.start);
-    // The person chose these clips for this video: one the analysis found nothing in is still offered whole.
-    if (good.length) for (const m of good) moments.push({ clipId: c.id, start: m.start, end: m.end });
-    else if (c.durationSec > 0) moments.push({ clipId: c.id, start: 0, end: c.durationSec });
+    const usable = c.card!.moments.filter((m) => m.strength !== "weak" && m.end > m.start);
+    // A brief is about the person's own footage: every clip they gave is in
+    // play. A clip whose moments were all marked weak (a handheld pan, a POV
+    // walk) still offers its best one; a clip with no moments at all, the whole clip.
+    const best = usable.length ? null : bestMoment(c.card!.moments);
+    const offer = usable.length ? usable : best ? [best] : c.durationSec > 0 ? [{ start: 0, end: c.durationSec }] : [];
+    for (const m of offer) moments.push({ clipId: c.id, start: m.start, end: m.end });
   }
   const clipIds = [...new Set(moments.map((m) => m.clipId))];
   const openerClip = carded.find((c) => c.card!.openerCandidate && c.card!.moments.some((m) => m.strength !== "weak"));
@@ -234,6 +237,63 @@ export function opportunityFromBrief(title: string, angle: string, clips: BriefC
     evidence: { clips: clipIds.length, usableSec: Math.round(usableSec * 10) / 10, distinctMoments: moments.length, hasOpener: Boolean(opener), hasSpeech: carded.some((c) => c.card!.speech.present) },
     strength: usableSec >= 15 && moments.length >= 3 ? "strong" : "possible",
   };
+}
+
+// ---- the length and coverage a brief build must reach ----------------------
+
+/** A brief build's length unless the brief says otherwise: short-form, 10 to 20 seconds. */
+export const BRIEF_LENGTH = { min: 10, max: 20 } as const;
+/** The shortest cut SOCIA keeps from a brief: 10 seconds, or most of the footage when there is less. */
+export const briefFloorSec = (footageSec: number): number => Math.min(BRIEF_LENGTH.min, Math.round(footageSec * 0.6 * 10) / 10);
+/** A clip added to fill a brief cut runs this long (seconds): a quick beat, not a held shot. */
+export const FILL_SEC = { min: 1.2, max: 2.5 } as const;
+const MIN_CUT = 0.8;
+const RANK: Record<ClipMoment["strength"], number> = { strong: 3, good: 2, weak: 1 };
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** A clip's best moment: the strongest, then the longest. */
+export function bestMoment(moments: ClipMoment[]): ClipMoment | null {
+  const ok = moments.filter((m) => m.end > m.start);
+  return ok.sort((a, b) => RANK[b.strength] - RANK[a.strength] || (b.end - b.start) - (a.end - a.start))[0] ?? null;
+}
+
+export type FillClip = { id: string; position: number; durationSec: number; moments: ClipMoment[] };
+
+/**
+ * After the model's cut is validated: every clip the person gave is used, and
+ * the cut reaches `minSec`. A clip the cut left out gets its best moment
+ * (FILL_SEC long, from the middle of the moment) just before the ending shot;
+ * then, while still short, each cut runs on into its clip. Nothing is
+ * invented: every added second is real footage. Returns which clips were added.
+ */
+export function fillCut(segments: EdlSegment[], clips: FillClip[], minSec: number): { segments: EdlSegment[]; added: string[] } {
+  const byId = new Map(clips.map((c) => [c.id, c]));
+  const used = new Set(segments.map((s) => s.clipId));
+  const out = segments.map((s) => ({ ...s }));
+  const added: string[] = [];
+  for (const c of [...clips].sort((a, b) => a.position - b.position)) {
+    if (used.has(c.id) || c.durationSec < MIN_CUT) continue;
+    const m = bestMoment(c.moments) ?? { start: 0, end: c.durationSec };
+    const span = Math.max(0, Math.min(m.end, c.durationSec) - m.start);
+    const len = Math.min(c.durationSec, Math.max(FILL_SEC.min, Math.min(FILL_SEC.max, span)));
+    const start = Math.max(0, Math.min(c.durationSec - len, m.start + Math.max(0, (span - len) / 2)));
+    const seg: EdlSegment = { id: "", clipId: c.id, in: r2(start), out: r2(start + len), role: "body", note: "Added so every clip you gave is in the cut." };
+    if (out.length >= 2) out.splice(out.length - 1, 0, seg); else out.push(seg);
+    used.add(c.id);
+    added.push(c.id);
+  }
+  let total = out.reduce((a, s) => a + (s.out - s.in), 0);
+  for (const s of out) {
+    if (total >= minSec) break;
+    const clip = byId.get(s.clipId);
+    if (!clip) continue;
+    const room = Math.max(0, Math.min(clip.durationSec, s.out + FILL_SEC.max) - s.out);
+    const more = Math.min(room, minSec - total);
+    s.out = r2(s.out + more);
+    total += more;
+  }
+  out.forEach((s, i) => { s.id = `s${i + 1}`; s.role = i === 0 ? "opener" : out.length >= 3 && i === out.length - 1 ? "ending" : "body"; });
+  return { segments: out, added };
 }
 
 /** Brief builds take -2, -3, …, down to BRIEF_IDX_MIN (-1 is the person's own edit; -1000 and below are single clips). */
