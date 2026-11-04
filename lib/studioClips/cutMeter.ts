@@ -57,3 +57,12 @@ export async function handOverCut(client: Supa, ownerId: string, wsId: string | 
   if (error) throw error;
   return { ok: true, usage: u.usage, tracked: true };
 }
+
+/** Mark a cut as counted when its unit was taken up front (a video from a brief). Best effort: before the migration there is nothing to mark. */
+export async function markCutCounted(client: Supa, ownerId: string, wsId: string | null, buildId: string): Promise<void> {
+  const { error } = await scopeToWorkspace(
+    client.from("studio_builds").update({ cut_counted_at: new Date().toISOString() }).eq("id", buildId).eq("user_id", ownerId).is("cut_counted_at", null),
+    wsId,
+  );
+  if (error && !missingColumn(error)) console.error("[cut-meter] couldn't mark a counted cut:", error.message);
+}

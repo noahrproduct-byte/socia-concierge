@@ -19,6 +19,10 @@ import type { FeatureKey, MeterKey } from "./plans";
 import type { PlanError } from "./planErrors";
 import { getEntitlements, checkFeature, consumeUsage, releaseUsage, type Entitlements, type UsageSnapshot } from "./entitlements";
 import { trackEvent, type ProductEventName } from "./events";
+import { aiBudgetDenied } from "./aiSpend";
+
+/** Allowances whose use costs SOCIA AI money: they also stop at the plan's monthly AI ceiling. */
+const AI_METERS = new Set<MeterKey>(["ask_socia", "content_studio", "content_generation", "account_audit", "content_plan", "content_ideas", "content_build", "music_tracks"]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -93,6 +97,11 @@ export async function requireUsage(
       recordEvent(supabase, userId, "feature_locked", { feature: opts.feature, plan: ent.plan });
       return { ent, usage: null, denied: deny(check.error), release: noop };
     }
+  }
+  // An AI allowance: the account's month must also be under its plan's AI ceiling (lib/aiSpend.ts).
+  if (AI_METERS.has(meter)) {
+    const over = await aiBudgetDenied(userId, ent);
+    if (over) return { ent, usage: null, denied: over, release: noop };
   }
   const r = await consumeUsage(supabase, ent, meter);
   if (r.unavailable) {

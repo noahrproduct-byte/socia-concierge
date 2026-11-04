@@ -4,7 +4,7 @@
 // privately beside the project's clips. Server only.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { anthropic, modelFor, effortFor } from "@/lib/anthropic";
-import { recordAiUsage } from "@/lib/aiUsage";
+import { recordAiUsage, recordMusic } from "@/lib/aiUsage";
 import { ownAudio } from "@/lib/audio/server";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { clipRows, loadBuildRow } from "@/lib/studioClips/server";
@@ -106,6 +106,8 @@ export async function makeTrack(client: Supa, args: { ownerId: string; wsId: str
   const underSpeech = rows.some((r) => used.has(r.id) && (r.transcript?.words?.length ?? 0) > 0);
   const { prompt, lengthMs } = trackPrompt(track, edlDurationSec(row.edl) + 1, underSpeech);
   const bytes = await composeTrack({ prompt, lengthMs, signal: AbortSignal.timeout(170_000) });
+  // Billed by length: counted toward the owner's monthly AI ceiling.
+  recordMusic(args.ownerId, lengthMs / 1000);
   const { error } = await st.upload(path, new Blob([bytes], { type: "audio/mpeg" }), { contentType: "audio/mpeg", upsert: true });
   if (error) throw error;
   return { path, made: true };

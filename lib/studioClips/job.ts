@@ -4,6 +4,7 @@
 // honest progress the page polls. Runs inside the request's after() budget.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getTranscriptionProvider, type TranscriptionJob, type TranscriptionProvider } from "@/lib/transcribe";
+import { recordTranscription } from "@/lib/aiUsage";
 import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import { clipOwnsPath, signUrls } from "./storage";
 import { clipCard, batchGroups, AnalysisError, type AccountContext } from "./analysis";
@@ -103,7 +104,11 @@ async function transcribeClips(client: Supa, provider: TranscriptionProvider, ro
   for (const r of rows) {
     const url = urls[r.audio_path!];
     if (!url) continue;
-    try { jobs.set(r.id, await provider.submit(url)); }
+    try {
+      jobs.set(r.id, await provider.submit(url));
+      // Billed by audio length: counted toward the owner's monthly AI ceiling.
+      recordTranscription(r.user_id, "studio_clip", r.duration_s ?? 0);
+    }
     catch (e) { console.error(`[studio] transcription submit failed for ${r.id}:`, (e as Error)?.message ?? e); }
   }
   await onProgress(jobs.size, "transcribing");

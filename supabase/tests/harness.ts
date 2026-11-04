@@ -53,6 +53,7 @@ export const MIGRATIONS = [
   "studio-cut-meter.sql",
   "claude-week.sql",
   "comment-auto.sql",
+  "ai-spend.sql",
 ];
 
 const SUPABASE_STANDIN = `
