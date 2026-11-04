@@ -77,7 +77,13 @@ export const FB_IG_DELETE_SCOPE = "instagram_manage_contents";
 //                            numbers). Without it the lookup fails with a
 //                            permission error even though the Page is linked.
 export const FB_IG_INSIGHTS_SCOPE = "instagram_manage_insights";
-export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "pages_manage_engagement", "read_insights", "instagram_basic", FB_IG_INSIGHTS_SCOPE, FB_IG_DELETE_SCOPE, "business_management"].join(",");
+//   instagram_content_publish -> Meta's Instagram Audio API (lib/igAudio.ts)
+//                            needs it with instagram_basic, on a Facebook USER
+//                            token, to list trending audio on Discover. SOCIA
+//                            does not publish to Instagram with it (publishing
+//                            uses the Instagram Login connection).
+export const FB_IG_AUDIO_SCOPE = "instagram_content_publish";
+export const FB_SCOPES = ["pages_show_list", "pages_read_engagement", "pages_read_user_content", "pages_manage_posts", "pages_manage_engagement", "read_insights", "instagram_basic", FB_IG_INSIGHTS_SCOPE, FB_IG_AUDIO_SCOPE, FB_IG_DELETE_SCOPE, "business_management"].join(",");
 
 export function fbAppId() {
   return process.env.FACEBOOK_APP_ID;

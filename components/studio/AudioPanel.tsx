@@ -108,7 +108,7 @@ export default function AudioPanel({ canEdit, current, onUse, fixture }: { canEd
         </div>
         <p className="ov-source">
           {insights.coverage.total} video posts · {insights.coverage.library} used library music (Instagram hides those files, so only the fact is known) · {insights.coverage.measured} measured · {insights.coverage.pending} waiting{insights.coverage.failed ? ` · ${insights.coverage.failed} couldn't be measured` : ""}.
-          {" "}Posts are compared with each account&apos;s own median. SOCIA can&apos;t name tracks or see trending audio — the platforms don&apos;t expose them.
+          {" "}Posts are compared with each account&apos;s own median. SOCIA can&apos;t name the track in a post; Instagram&apos;s trending audio is listed on Discover.
         </p>
       </div>
 
