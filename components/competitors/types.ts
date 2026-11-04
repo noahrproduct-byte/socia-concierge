@@ -7,6 +7,7 @@ import type { TrendingAudio } from "@/lib/igAudio";
 import type { LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
+import type { TrendingReel, TrendSignals } from "@/lib/trendSignals";
 
 export type Tracked = {
   platform: string; handle: string; added_at: string;
@@ -57,6 +58,8 @@ export type CompetitorsData = {
   trendingLimit: number;
   /** Recent Reels and Shorts in the niche, ranked against each account's own median. */
   trendingReels: TrendingReel[];
+  /** Hook structures, topics and strong opening lines across every recent niche Reel (lib/trendSignals.ts). */
+  trends: TrendSignals;
   /** Instagram's trending audio (lib/igAudio.ts); null when the plan doesn't include niche trends. */
   audio: TrendingAudio | null;
   /** Niche intelligence is on the owner's plan. */
@@ -69,22 +72,4 @@ export type CompetitorsData = {
   formats: { doc: FormatsDoc | null; stale: boolean };
 };
 
-/** One recent Reel or Short from an account in the niche. Every number is what the platform published. */
-export type TrendingReel = {
-  url: string;
-  platform: string;
-  accountName: string;
-  accountHandle: string | null;
-  accountAvatar: string | null;
-  title: string | null;
-  thumb: string | null;
-  publishedAt: string | null;
-  views: number | null;
-  likes: number | null;
-  comments: number | null;
-  /** Against the account's own median for the same measure; null when no baseline exists. */
-  multiplier: number | null;
-  /** The measure the multiplier compares. */
-  basis: "views" | "likes and comments";
-  format: string;
-};
+export type { TrendingReel } from "@/lib/trendSignals";

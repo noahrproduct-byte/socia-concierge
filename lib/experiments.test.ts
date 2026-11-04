@@ -58,7 +58,7 @@ describe("experiments carry ids from the strategy to the plan's test posts", () 
   });
 
   it("tells the plan writer to tag test posts and to follow each experiment's next step", () => {
-    const prompt = buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "a", goal: "", niche: "b", platform: "instagram" } as never, { strategy: s }, { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: "", decisionsBlock: "", experimentsBlock: "- [x] something", used: {} as never });
+    const prompt = buildUserPrompt({ competitors: "", recentPosts: "", audienceWindows: "", brandVoice: "", clientHandle: "a", goal: "", niche: "b", platform: "instagram" } as never, { strategy: s }, { postsBlock: "", competitorsBlock: "", outcomesBlock: "", formatsBlock: "", decisionsBlock: "", experimentsBlock: "- [x] something", trendsBlock: "", used: {} as never });
     expect(prompt).toMatch(/carries that experiment's id in its experiment field/);
     expect(prompt).toMatch(/# How the strategy's experiments are going/);
   });

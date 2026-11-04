@@ -16,6 +16,8 @@ import { experimentResults } from "./experimentsLoad";
 import { experimentsEvidence } from "./experiments";
 import type { GrowthStrategy } from "./strategy";
 import type { Deliverable } from "./schema";
+import { loadTrendSignals } from "./trendSignalsLoad";
+import { trendsEvidence } from "./trendSignals";
 
 export type Evidence = {
   postsBlock: string;
@@ -28,6 +30,8 @@ export type Evidence = {
   decisionsBlock: string;
   /** How the strategy's experiments are going: their test posts' results and verdicts. */
   experimentsBlock: string;
+  /** Hook structures, topics and opening lines leading in the niche's recent Reels (lib/trendSignals.ts). */
+  trendsBlock: string;
   used: EvidenceUsed;
 };
 
@@ -238,7 +242,7 @@ type Supa = any;
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
-export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null } = {}): Promise<Evidence> {
+export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null } = {}): Promise<Evidence> {
   const media = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
 
@@ -267,6 +271,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     winning = (data ?? []) as WinningRow[];
   } catch { /* none */ }
 
+  // The niche's trends read live alongside the stored rows; null off the plan feature or on a slow platform.
+  const trendsP = loadTrendSignals(supabase, userId, workspaceId ?? null, { location: opts.location ?? null }).catch(() => null);
   const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
   let recentPlans: PlanRow[] = [];
   try {
@@ -276,6 +282,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   } catch { /* none */ }
 
   const postsBlock = ownPostsBlock(media, followers);
+  const trends = await trendsP;
+  const trendsBlock_ = trendsEvidence(trends);
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning);
   const outcomesBlock_ = outcomesBlock(opts.outcomes ?? []);
   const outcomeItems = (opts.outcomes ?? []).filter((o) => o.summary.onCalendar > 0).slice(0, 2).reduce((n, o) => n + o.items.length, 0);
@@ -291,6 +299,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     formatsBlock: formatsEvidence(formats),
     decisionsBlock: decisionsBlock(recentPlans),
     experimentsBlock: experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, opts.strategy).catch(() => [])),
+    trendsBlock: trendsBlock_,
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,
@@ -298,6 +307,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
       winning: competitorsBlock_ ? Math.min(winning.length, 12) : 0,
       windows: false,
       followers,
+      trends: trendsBlock_ && trends ? trends.reelsRead : 0,
     },
   };
 }

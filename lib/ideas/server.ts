@@ -1,6 +1,6 @@
 // Writing video ideas from what SOCIA holds about the brand: its own posts and
 // their real results, what it said yes and no to in past plans, the formats
-// leading in its niche, and its saved brand voice. Server only.
+// and trends leading in its niche, and its saved brand voice. Server only.
 import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { brandContext } from "@/lib/prompt";
@@ -15,6 +15,7 @@ const SYSTEM = `You are SOCIA's creative director for one small business or crea
 Rules you never break:
 - Every idea follows the account's own theme: the subjects, setting, people, tone and formats that show up in its posts. "themeFit" names the specific posts or patterns from the evidence it follows (a post's opening words and its result against the account's median). When the evidence is thin, say so plainly and follow the niche and brand voice instead. Never invent a result.
 - "evidence" is how much the account's own results back the idea, and "themeFit" must not claim more: "strong" only when similar posts did clearly better than the account's median (about one and a half times or more) consistently: two or more did, and most similar posts did, so the pattern is the reason. "promising" when one similar post did better, when the margin is small (18 against a median of 16 is promising, not strong), or when results are mixed (some similar posts well above the median and others at or below it). It is never promising unless at least one similar post beat the median. "untested" when nothing similar has been posted, or when every similar post did at or below the median (a post that did worse than usual is no support, so say plainly that the idea tries a better version of it). Judge by the post or pattern the idea is built on, not by a line or ending it borrows from another post.
+- Niche trends (hook structures, topics and opening lines from other accounts' recent Reels) show what is working for others right now. Lean on the ones that lead: open with a leading hook structure, or take a leading topic, made in this account's own theme. Those opening lines are other people's words, so learn the structure and never reuse the wording. When an idea uses a trend, say which in "themeFit" with its basis (for example "POV opening: median 2.1x across 5 niche Reels"). A niche trend never raises "evidence", which is only about this account's own results.
 - The treatment follows the concept, never a default. A relatable situation or a joke is acted out, so the viewer sees the moment instead of hearing it described: "sketch" (people play the scene) or "pov" (the camera is the viewer's eyes). A how-to is a "demo" with close-ups. News, an opinion or a story only the person can tell is "talking" to the camera. The work, the place and the people is "behind_scenes". Animation style is always "animation". Face to camera allows talking, sketch or pov; in person allows sketch, pov, demo or behind_scenes.
 - The first shot is the hook: within the first two seconds it shows the conflict, the surprise or the result, or says the line that makes the point. Never open with a setup that explains what is coming ("every gym has one", "let's talk about", "here's why"). For a sketch or pov, open mid-moment and let the on-screen text name the situation in a few words.
 - Length follows the treatment: a sketch, pov or joke 12 to 20 seconds; talking 15 to 35; a demo up to 45.
@@ -38,13 +39,13 @@ export async function writeIdeas(ctx: Ctx, args: { styles: IdeaStyle[]; about: s
   const wsId = ctx.workspace?.id ?? null;
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const snap = await getIgSnapshot(ctx.client, ctx.ownerId, wsId).catch(() => null);
-  const evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id).catch(() => null), { strategy: profile?.brand_detail?.strategy ?? null }).catch(() => null);
+  const evidence = await loadEvidence(ctx.client, ctx.ownerId, snap, await competitorScopeId(ctx.client, ctx.workspace?.id).catch(() => null), { strategy: profile?.brand_detail?.strategy ?? null, location: profile?.brand_detail?.location ?? null }).catch(() => null);
   const styles = args.styles.length ? args.styles : IDEA_STYLES.map((s) => s.id);
   const brand = [
     `Account: ${profile?.niche ?? "niche not set"}${profile?.brand_detail?.location ? `, ${profile.brand_detail.location}` : ""}${profile?.goals ? `; goal: ${profile.goals}` : ""}.`,
     brandContext(profile?.brand_detail) || "",
   ].filter(Boolean).join("\n");
-  const ev = evidence ? [evidence.postsBlock, evidence.formatsBlock, evidence.decisionsBlock, evidence.outcomesBlock].filter(Boolean).join("\n\n") : "";
+  const ev = evidence ? [evidence.postsBlock, evidence.formatsBlock, evidence.trendsBlock ? `Trending in the niche now:\n${evidence.trendsBlock}` : "", evidence.decisionsBlock, evidence.outcomesBlock].filter(Boolean).join("\n\n") : "";
   const task = `Write ${IDEA_COUNT} video ideas in these styles, spread across them: ${styles.map((s) => STYLE_NOTE[s]).join("; ")}.${args.about ? `\nThe person wants them to be about: ${args.about}` : ""}`;
 
   const res = await anthropic.messages.create({
