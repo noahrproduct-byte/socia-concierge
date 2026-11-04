@@ -16,6 +16,7 @@ import {
   Lock,
   Bot,
   Target,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ const GROUPS: Group[] = [
     label: "Workspace",
     items: [
       { id: "brand", label: "Profile & Brand", Icon: UserRound },
+      { id: "place", label: "Your place", Icon: MapPin },
       { id: "growth", label: "Growth Profile", Icon: Target },
       { id: "workspaces", label: "Brand Workspaces", Icon: Briefcase },
       { id: "team", label: "Team", Icon: Users },

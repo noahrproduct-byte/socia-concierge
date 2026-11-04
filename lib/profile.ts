@@ -1,5 +1,6 @@
 import type { GrowthProfile } from "./growth";
 import type { GrowthStrategy } from "./strategy";
+import type { Place } from "./place";
 import { timedFn } from "@/lib/timing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -15,6 +16,8 @@ export type BrandDetail = {
   timezone?: string;
   website?: string;
   location?: string;
+  /** What SOCIA saw in photos of the place (lib/place.ts), written by /api/brand/place only. */
+  place?: Place;
   description?: string;
   voice?: string; // Professional | Casual | Bold | Funny | Educational
   avoid?: string; // words/topics the AI must avoid

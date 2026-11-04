@@ -56,7 +56,8 @@ import { listGoals } from "@/lib/growthStore";
 import { recordStartingPoints } from "@/lib/briefingLoad";
 import type { GoalPlatform } from "@/lib/growth";
 import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
-import { Briefcase } from "lucide-react";
+import { Briefcase, MapPin } from "lucide-react";
+import PlaceScan from "@/components/PlaceScan";
 import { offlineReason } from "@/lib/platformStatus";
 import { isAdminEmail } from "@/lib/admin";
 
@@ -383,6 +384,16 @@ export default async function SettingsPage({
                 <span className="st2-card-note">Powers every recommendation the AI makes</span>
               </div>
               <BrandSettings email={user.email ?? ""} goalsManaged={growthGoals.tableReady} />
+            </section>
+
+            {/* 1a: Your place: photos SOCIA turns into filming directions */}
+            <section className="st2-card" id="place">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><MapPin size={15} /></span>
+                <h3>Your place</h3>
+                <span className="st2-card-note">So every script says where to film</span>
+              </div>
+              <PlaceScan />
             </section>
 
             {/* 1a: Growth Profile */}

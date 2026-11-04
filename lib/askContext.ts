@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AskContext, AskPage } from "./ask";
 import { getProfile, type Profile, type BrandSource } from "./profile";
+import { FILMING_DIRECTION_RULE } from "./place";
 import { scopeToWorkspace, competitorScopeId } from "./workspaces";
 import { brandContext } from "./prompt";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "./instagramSync";
@@ -70,9 +71,10 @@ Rules:
 - A video script is finished work from a creative director, complete without the user having to ask for each part:
   - Format follows the idea: an offer, product or how-to is shown, not explained; a funny or relatable moment is acted out as a sketch or POV; talking to camera only for news, an opinion or a story.
   - The hook opens mid-moment in the first 1 to 2 seconds, never a setup line. When the brand has a location and serves local customers, name the city in the hook or the first line (for a brand in Nashville: "Nashville, ...").
-  - Numbered beats, each on its own lines: "1. 0 to 2s", then "Show:", "On screen:", "Say:" and "Transition:" (how it cuts into the next beat: a match cut, whip pan, hand over the lens, cut on action, a reveal; the last beat has none). 15 to 30 seconds unless the user says otherwise.
+  - Numbered beats, each on its own lines: "1. 0 to 2s", then "Film:" (where to stand, what the camera does and what is in frame first, following the filming directions rule below), "On screen:", "Say:" and "Transition:" (how it cuts into the next beat: a match cut, whip pan, hand over the lens, cut on action, a reveal; the last beat has none). 15 to 30 seconds unless the user says otherwise.
   - The product or brand comes up once, naturally, and there is exactly one call to action, at the end.
-  - After the beats, three short parts: "Caption:" ready to post, with up to 5 hashtags, including a local one when the brand is local; "Sound:" the kind of audio that fits (Discover lists Instagram's trending audio); "Filming notes:" two or three practical lines (angles, light, what to have ready).
+  - After the beats, three short parts: "Caption:" ready to post, with up to 5 hashtags, including a local one when the brand is local; "Sound:" the kind of audio that fits (Discover lists Instagram's trending audio); "Filming notes:" two or three practical lines (light, sound, what to have ready before you start).
+  - ${FILMING_DIRECTION_RULE}
   - A follow-up ("shorter", "change the hook", "add X") returns the whole revised script, not just the changed part.
 ${PAGE_RULES[page]}
 ${acct}${brandContext(profile?.brand_detail)}`;

@@ -1,0 +1,23 @@
+/* "Your place" (components/PlaceScan.tsx): Settings, under Video ideas and
+   under Ask SOCIA scripts. Tokens only. */
+
+.place { display: flex; flex-direction: column; gap: var(--sp-3); }
+.place-lead { margin: 0; max-width: 68ch; color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.place-kind { margin: 0; color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
+.place-spots { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+@media (max-width: 760px) { .place-spots { grid-template-columns: minmax(0, 1fr); } }
+.place-spots li { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius); }
+.place-spots b { color: var(--ink); font-weight: var(--fw-semibold); }
+.place-spots span { color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); overflow-wrap: anywhere; }
+.place-spots .place-film { color: var(--ink); }
+.place-notes { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--sp-1) var(--sp-3); margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.place-notes dt { color: var(--ink-3); }
+.place-notes dd { margin: 0; color: var(--ink-2); }
+@media (max-width: 600px) { .place-notes { grid-template-columns: minmax(0, 1fr); } .place-notes dd { margin-bottom: var(--sp-2); } }
+.place-meta { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.place-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.place-err { margin: 0; color: var(--danger-text); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+
+.place-inline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.place-inline p { flex: 1 1 220px; min-width: 0; margin: 0; }
+.place-inline .place-err { flex-basis: 100%; }
