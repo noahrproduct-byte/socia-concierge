@@ -37,7 +37,8 @@ describe("every token-table query names its owner", () => {
     "lib/platformSnapshots.ts", // daily snapshot job, every Page
     "lib/snapshotJob.ts", // daily Instagram snapshot job
     "lib/tiktokSync.ts", // daily TikTok refresh, every connection
-    "lib/igSyncJob.ts", // 30-minute Instagram refresh, every connection
+    "lib/igSyncJob.ts", // 30-minute Instagram, Facebook and TikTok refresh, every connection
+    "lib/commentAuto.ts", // 30-minute comment inbox refresh, every connected brand
     "lib/metaDeletion.ts", // Meta's signed deletion callback, by app-scoped id
   ]);
   const files: string[] = [];

@@ -1,5 +1,5 @@
--- Keep every connected Instagram account's posts and numbers about 30 minutes
--- fresh (lib/igSyncJob.ts). pg_cron calls /api/sync/instagram every 10
+-- Keep every connected Instagram account, Facebook Page and TikTok account
+-- about 30 minutes fresh (lib/igSyncJob.ts). pg_cron calls /api/sync/instagram every 10
 -- minutes; each run refreshes only the accounts last synced more than 30
 -- minutes ago, oldest first. Vercel's Hobby cron can only run daily, so the
 -- schedule lives here, like the publisher's.

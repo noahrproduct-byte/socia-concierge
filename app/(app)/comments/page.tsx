@@ -32,7 +32,7 @@ export default async function CommentsPage() {
         <div className="cm-gate">
           <span className="cm-gate-ico" aria-hidden><MessageSquare size={22} /></span>
           <h2>AI comment replies are on {PLANS[plan].name}</h2>
-          <p>Every new comment on your Facebook and Instagram posts gets a suggested reply in your brand&apos;s voice. You approve, edit or skip each one from a single inbox, or let SOCIA answer the simple ones (praise, thanks, emoji) on its own.</p>
+          <p>Every new comment on your Facebook and Instagram posts gets a suggested reply in your brand&apos;s voice. You approve, edit or skip each one from a single inbox, or let SOCIA answer praise and questions on its own, keeping complaints for you.</p>
           <Link href={pricingHref(plan)} className="cm-cta">Upgrade to {PLANS[plan].name} <ArrowRight size={15} /></Link>
         </div>
       </>
@@ -50,7 +50,7 @@ export default async function CommentsPage() {
 
   return (
     <>
-      <PageHeader title="Comments" sub={auto?.enabled ? "SOCIA answers simple comments on its own and drafts a reply to the rest for you to approve." : "SOCIA drafts a reply to every new comment. You approve each one before it's sent."} />
+      <PageHeader title="Comments" sub={auto?.enabled ? "SOCIA answers praise and questions on its own and drafts a reply to complaints and anything sensitive for you to approve." : "SOCIA drafts a reply to every new comment. You approve each one before it's sent."} />
       <CommentsInbox initial={drafts} connected={connected} auto={auto ? { enabled: auto.enabled } : null} canChangeAuto={can(ctx, "publish")} />
     </>
   );

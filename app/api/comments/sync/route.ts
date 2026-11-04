@@ -13,7 +13,7 @@ export const maxDuration = 60;
 
 // Read new comments on the workspace's posts and draft replies for them.
 // Growth and up; nothing is sent here. Drafts wait for approval in the inbox,
-// or, with automatic replies on, the short friendly ones for the next job run.
+// or, with automatic replies on, the ones it can answer on its own for the next job run.
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

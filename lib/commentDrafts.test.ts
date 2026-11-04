@@ -21,7 +21,7 @@ vi.mock("./comments", () => ({
   replyToComment: async () => ({ ok: true, replyId: "r1" }),
 }));
 
-const { syncCommentDrafts, readDraft } = await import("./commentDrafts");
+const { syncCommentDrafts, readDraft, AUTO_REPLY_MAX } = await import("./commentDrafts");
 
 type Res = { data?: unknown; error: { message: string } | null };
 function db(opts: { read: Res; upsert: Res }) {
@@ -96,9 +96,15 @@ describe("judging which replies can go out on their own (automatic replies)", ()
     expect(readDraft("NO_REPLY", true)).toEqual({ text: null, skip: true, auto: false });
   });
 
+  it("lets a short answer to a question go out on its own", () => {
+    const answer = "We're open 8am to 6pm every day at 12 Main Street, Nashville. Come say hi, and send us a DM if you want to book a table for a bigger group.";
+    expect(answer.length).toBeLessThanOrEqual(AUTO_REPLY_MAX);
+    expect(readDraft(`AUTO: ${answer}`, true)).toMatchObject({ text: answer, auto: true });
+  });
+
   it("sends nothing on its own that is unlabelled, long or more than one line", () => {
     expect(readDraft("Thank you so much!", true).auto).toBe(false);
-    expect(readDraft(`AUTO: ${"so good ".repeat(20)}`, true).auto).toBe(false);
+    expect(readDraft(`AUTO: ${"so good ".repeat(30)}`, true).auto).toBe(false);
     expect(readDraft("AUTO: Thanks!\nCome back soon.", true).auto).toBe(false);
   });
 
