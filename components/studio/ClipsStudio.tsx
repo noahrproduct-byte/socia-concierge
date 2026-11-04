@@ -30,6 +30,7 @@ import type { HandoffFix } from "@/lib/studioClips/handoff";
 import { fileLabel } from "@/lib/publishing/postLabel";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
+import StudioEmpty from "./StudioEmpty";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
@@ -490,7 +491,11 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
               {readyClips.length > 0 && <span className="cbp-muted">{readyClips.length} clip{readyClips.length === 1 ? "" : "s"} · {fmtMinutes(footageSec)}{uploading ? " · adding more" : ""}</span>}
             </div>
             {locals.length > 0 && <ClipGrid clips={locals} onRemove={(c) => void removeClip(c)} busy={uploading || view === "understanding"} />}
-            {view === "understanding" && project ? <UnderstandCard progress={project.progress} clipCount={readyClips.length} /> : dropZone(locals.length > 0)}
+            {view === "understanding" && project ? <UnderstandCard progress={project.progress} clipCount={readyClips.length} /> : locals.length > 0 ? dropZone(true) : (
+              <StudioEmpty art="video" title="Add your first clips" compact action={<button type="button" className="ov-btn primary small" onClick={() => input.current?.click()}><Upload size={13} /> Add clips</button>}>
+                One video or many clips, MP4 or MOV. Then write what you want, add a video to copy, or edit them yourself.
+              </StudioEmpty>
+            )}
           </section>
           <BriefPanel
             projectId={project && readyClips.length ? project.id : null}
@@ -513,7 +518,11 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
 
       {view === "start" && !migration && audio && (
         <div className="st-grid empty">
-          <div className="st-preview">{dropZone(false)}</div>
+          <div className="st-preview">
+            <StudioEmpty art="music" title="Add music to a video" action={<button type="button" className="ov-btn primary" onClick={() => input.current?.click()}><Upload size={14} /> Upload a video</button>}>
+              Drop a finished video, MP4 or MOV. SOCIA listens to it, makes a track for it from your taste and puts it in; you can hear the others and pick one instead.
+            </StudioEmpty>
+          </div>
           <div className="st-work">
             <div className="ov-card st-intro">
               <h2>What happens</h2>
@@ -530,7 +539,11 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
 
       {view === "start" && !migration && !editing && !audio && (
         <div className="st-grid empty">
-          <div className="st-preview">{dropZone(false)}</div>
+          <div className="st-preview">
+            <StudioEmpty art="clips" title="Add your first clips" action={<button type="button" className="ov-btn primary" onClick={() => input.current?.click()}><Upload size={14} /> Add clips</button>}>
+              Drop the raw footage from your phone here, MP4 or MOV. Each clip is measured on your device and kept privately until you delete it.{limits ? ` Up to ${limits.clipsPerProject} clips, ${limits.footageMinutes} minutes and ${limits.uploadMb} MB per project.` : ""}
+            </StudioEmpty>
+          </div>
           <div className="st-work">
             <div className="ov-card st-intro">
               <h2>What happens</h2>

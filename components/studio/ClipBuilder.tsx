@@ -35,15 +35,57 @@ import type { Beat } from "@/lib/audio/features";
 import { pacingReport } from "@/lib/studioClips/pacing";
 import { bestMomentFor } from "@/lib/studioClips/rank";
 import "@/app/(app)/studio/studio.css";
+import "@/app/(app)/studio/studio-motion.css";
+import "@/app/(app)/dashboard/dashboard.css";
+import { motion } from "framer-motion";
+import { Bar, Details, Reveal, Ring, useMotionOk } from "@/components/dashboard/motion";
 import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
 const r2 = (n: number) => Number(n.toFixed(2));
 
-/** Two panes, A then B, drawn the way the transition joins them: a hard cut, a fade, a zoom or a whip. */
-function TransitionThumb({ kind }: { kind: TransitionKind }) {
-  return <span className={`sd-tthumb is-${kind}`} aria-hidden><i className="is-a" /><i className="is-b" /></span>;
+/**
+ * Two panes, A then B, joined the way the transition joins two cuts: a hard
+ * cut, a fade, a zoom or a whip. The join plays once (0.5 s) when the option
+ * is pointed at, focused or chosen, then rests on its finished state; with
+ * reduced motion it only shows the finished state.
+ */
+const THUMB_FROM: Record<TransitionKind, { opacity: number; scale: number; x: string }> = {
+  cut: { opacity: 0, scale: 1, x: "0%" }, fade: { opacity: 0, scale: 1, x: "0%" }, zoom: { opacity: 0, scale: 1.6, x: "0%" }, whip: { opacity: 1, scale: 1, x: "100%" },
+};
+function TransitionThumb({ kind, play }: { kind: TransitionKind; play: number }) {
+  const ok = useMotionOk();
+  const t = kind === "cut" ? { duration: 0 } : { duration: 0.5, ease: [0.23, 1, 0.32, 1] as [number, number, number, number] };
+  return (
+    <span className={`sd-tthumb is-${kind}`} aria-hidden>
+      <motion.i className="is-a" key={`a${play}`} initial={{ x: "0%" }} animate={{ x: kind === "whip" ? "-100%" : "0%" }} transition={ok ? t : { duration: 0 }} />
+      <motion.i className="is-b" key={`b${play}`} initial={ok ? THUMB_FROM[kind] : { opacity: 1, scale: 1, x: "0%" }} animate={{ opacity: 1, scale: 1, x: "0%" }} transition={ok ? (kind === "cut" ? { duration: 0, delay: 0.25 } : t) : { duration: 0 }} />
+    </span>
+  );
+}
+
+/** One transition option: the thumbnail plays when pointed at, focused or picked. */
+function TransitionOption({ kind, label, on, disabled, onPick }: { kind: TransitionKind; label: string; on: boolean; disabled: boolean; onPick: () => void }) {
+  const [play, setPlay] = useState(0);
+  const bump = () => setPlay((n) => n + 1);
+  return (
+    <button type="button" role="radio" aria-checked={on} disabled={disabled} onClick={() => { bump(); onPick(); }} onPointerEnter={bump} onFocus={bump}>
+      <TransitionThumb kind={kind} play={play} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+/** The finish: a check that scales in once, then holds. With reduced motion it is simply there. */
+function Finished({ message }: { message: string }) {
+  const ok = useMotionOk();
+  return (
+    <div className="sd-done" role="status">
+      <motion.span className="sd-done-mark" initial={ok ? { scale: 0.4, opacity: 0 } : false} animate={{ scale: 1, opacity: 1 }} transition={ok ? { duration: 0.45, ease: [0.23, 1, 0.32, 1] } : { duration: 0 }}><Check aria-hidden /></motion.span>
+      <span><b>Your video is made.</b><small>{message}</small></span>
+    </div>
+  );
 }
 
 type ExportPhase = "idle" | "checking" | "rendering" | "uploading" | "saving" | "done" | "error";
@@ -481,7 +523,20 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             <div className="cbb-player-meta">
               <b>{title}</b>
               <span>{tl.durationSec.toFixed(1)}s, {edl.segments.length} cut{edl.segments.length === 1 ? "" : "s"}, {edl.width}×{edl.height}</span>
-              {pace && <small className="sd-pace-line">{pace.line}</small>}
+              {pace && pace.parts.length > 0 && (
+                <div className="sd-ring-row sd-pace">
+                  <Ring share={pace.score / 100} size={56} stroke={6} tone={pace.score >= 80 ? "good" : pace.score >= 60 ? "ok" : "low"} label={`Pacing ${pace.score} of 100: ${pace.line}`}><b>{pace.score}</b></Ring>
+                  <div>
+                    <small className="sd-pace-line">{pace.line}</small>
+                    <Details label="How this is scored">
+                      <ul className="sd-parts">
+                        {pace.parts.map((p) => <li key={p.id} className={p.ok ? "" : "is-off"}><b>{p.label}</b><span>{p.detail}</span></li>)}
+                      </ul>
+                      <p className="ov-source">The share of these rules the cut meets: start on the action, 1 to 4 s cuts on average, no cut over 5 s without speech (10 s with), 1.5 s to land the ending, each line up long enough to read{beat ? ", and cuts on the track's beat" : ""}.</p>
+                    </Details>
+                  </div>
+                </div>
+              )}
               {edl.finish && (
                 <div className="cal2-seg cbf-compare" role="radiogroup" aria-label="Compare corrections">
                   <button type="button" role="radio" aria-checked={compare === "before"} className={compare === "before" ? "on" : ""} onClick={() => setCompare("before")}>Before</button>
@@ -512,7 +567,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </>
             ) : exp.phase === "done" ? (
               <>
-                <p className="cbb-ok"><Check size={13} /> {exp.message ?? "Rendered and saved as a draft."}</p>
+                <Finished message={exp.message ?? "Rendered and saved as a draft in your Calendar."} />
                 {exp.postId && <Link className="ov-btn primary small" href={`/create?post=${exp.postId}`}>Review in Create Post <ArrowRight size={12} /></Link>}
                 <button type="button" className="ov-btn ghost small" onClick={() => setExp({ phase: "idle", progress: 0, message: null, postId: null })}>Make another version</button>
               </>
@@ -524,7 +579,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                   <li className={exp.phase === "uploading" ? "on" : exp.phase === "saving" ? "done" : ""}><i />Uploading {exp.phase === "uploading" ? `${Math.round(exp.progress * 100)}%` : ""}</li>
                   <li className={exp.phase === "saving" ? "on" : ""}><i />Saving the draft</li>
                 </ul>
-                <span className="cbb-bar"><i style={{ width: `${Math.round(exp.progress * 100)}%` }} /></span>
+                <div className="sd-progress" aria-hidden><Bar share={exp.phase === "saving" ? 1 : exp.progress} /></div>
                 <button type="button" className="ov-btn ghost small" onClick={() => abort.current?.abort()}>Cancel</button>
                 <p className="ov-source">Keep this tab open while it renders.</p>
               </>
@@ -692,7 +747,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             return (
               <div className="sd-cut">
                 {cur && (
-                  <section className="ov-card sd-inspector" aria-label={`Cut ${k + 1}`}>
+                  <Reveal key={cur.id} as="section" className="ov-card sd-inspector" aria-label={`Cut ${k + 1}`}>
                     <div className="sd-inspector-head">
                       {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
                       {src?.thumb ? <img src={src.thumb} alt="" /> : <span className="sd-ph" />}
@@ -714,10 +769,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                         <span>Comes in with</span>
                         <div className="sd-trans" role="radiogroup" aria-label="Transition">
                           {TRANSITIONS.map((t) => (
-                            <button key={t.id} type="button" role="radio" aria-checked={(cur.transition ?? "cut") === t.id} disabled={locked} onClick={() => setTransition(k, t.id)}>
-                              <TransitionThumb kind={t.id} />
-                              <span>{t.label}</span>
-                            </button>
+                            <TransitionOption key={t.id} kind={t.id} label={t.label} on={(cur.transition ?? "cut") === t.id} disabled={locked} onPick={() => setTransition(k, t.id)} />
                           ))}
                         </div>
                       </div>
@@ -740,7 +792,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                       </label>
                     )}
                     {hereNote && <small className="sd-note" role="status">{hereNote}</small>}
-                  </section>
+                  </Reveal>
                 )}
                 <ol className="sd-cutlist" aria-label="Cuts in order">
                   {edl.segments.map((s2, i) => {

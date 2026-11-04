@@ -16,6 +16,9 @@ import PlanNotice from "../PlanNotice";
 import ImproveWalkthrough, { type FixOptions, type ImproveWalkthroughProps } from "./ImproveWalkthrough";
 import { momentsFrom, momentsSummary, type Moment } from "@/lib/studioFixes";
 import type { EdlText } from "@/lib/studioClips/types";
+import { Bar, CountUp, Reveal, Ring } from "@/components/dashboard/motion";
+import "@/app/(app)/dashboard/dashboard.css";
+import "@/app/(app)/studio/studio.css";
 
 export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; /** The lines Improve proposes for the video, as preset layers (lib/textPresets.ts): drawn over the player at their moments. */ layers: EdlText[]; platform: string | null; goal: GoalId | null; cover: number | null };
 export type ImproveOption = { label: string; text: string; steps: string[] };
@@ -50,15 +53,13 @@ function CopyBtn({ text }: { text: string }) {
   return <button type="button" className="ov-btn ghost small" aria-label="Copy" onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200); } catch { /* no clipboard */ } }}>{ok ? <Check size={12} /> : <Copy size={12} />}</button>;
 }
 
+/** The creative readiness ring: fills once from empty, counts up once; the markup always carries the final number. */
 export function ScoreRing({ score }: { score: number }) {
-  const r = 46, c = 2 * Math.PI * r;
   return (
-    <svg viewBox="0 0 110 110" className="st-ring" role="img" aria-label={`Creative readiness ${score} out of 100`}>
-      <circle cx="55" cy="55" r={r} className="st-ring-track" />
-      <circle cx="55" cy="55" r={r} className="st-ring-fill" strokeDasharray={c} strokeDashoffset={c * (1 - score / 100)} transform="rotate(-90 55 55)" />
-      <text x="55" y="52" textAnchor="middle" className="st-ring-num">{score}</text>
-      <text x="55" y="70" textAnchor="middle" className="st-ring-den">/ 100</text>
-    </svg>
+    <Ring share={score / 100} size={110} stroke={9} tone={score >= 80 ? "good" : score >= 60 ? "ok" : "low"} label={`Creative readiness ${score} out of 100`}>
+      <b><CountUp value={score} /></b>
+      <small>of 100</small>
+    </Ring>
   );
 }
 
@@ -67,7 +68,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
   const [openCat, setOpenCat] = useState<string | null>(null);
   return (
     <div className="st-panel">
-      <section className="st-block">
+      <Reveal as="section" className="st-block">
         <div className="st-score">
           <ScoreRing score={a.score.overall} />
           <div className="st-score-meta">
@@ -93,7 +94,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
             <li key={c.id} className={`st-cat ${CAT_TONE(c.score)}${openCat === c.id ? " on" : ""}`}>
               <button type="button" className="st-cat-row" onClick={() => setOpenCat(openCat === c.id ? null : c.id)} aria-expanded={openCat === c.id}>
                 <span className="st-cat-label">{CATEGORY_INFO[c.id].label}</span>
-                <span className="st-cat-track"><i style={{ width: `${c.score ?? 0}%` }} /></span>
+                <Bar share={(c.score ?? 0) / 100} tone={c.score == null ? "muted" : "data"} className="st-cat-track" />
                 <b>{c.score == null ? "n/a" : c.score}</b>
                 <ChevronDown size={13} className="st-cat-chev" />
               </button>
@@ -107,7 +108,7 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
             </li>
           ))}
         </ul>
-      </section>
+      </Reveal>
 
       {a.planFit && (
         <section className="st-block">

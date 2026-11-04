@@ -12,6 +12,7 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { fmtClock } from "@/lib/studioClips/types";
 import { fileLabel } from "@/lib/publishing/postLabel";
 import type { LibraryClip } from "@/lib/studioClips/library";
+import StudioEmpty from "./StudioEmpty";
 
 export default function ClipLibrary({ onOpenCut, allowPost = true, onUse, useLabel = "Make a new video" }: {
   /** a clip opened as its own post: the cut to edit and schedule */
@@ -66,7 +67,7 @@ export default function ClipLibrary({ onOpenCut, allowPost = true, onUse, useLab
       {clips == null ? (
         <p className="ov-source"><Loader2 size={12} className="spin" /> Loading your clips</p>
       ) : !clips.length ? (
-        <p className="ov-source">Every clip you upload to Content Studio stays here until you delete it, ready to post again or use in a new video.</p>
+        <StudioEmpty art="clips" title="No clips yet" compact>Every clip you upload to Content Studio stays here until you delete it, ready to post again or use in a new video.</StudioEmpty>
       ) : (
         <>
           <p className="ov-source">Kept until you delete them. Post one again on its own, or pick a few and make a new video from them.</p>

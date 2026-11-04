@@ -26,6 +26,9 @@ import { batchOrder, MAX_PER_DAY, scheduleBatch, tomorrowIn, type BatchItem, typ
 import { clipLabel, type BuildPlayerData, type StudioBuild, type StudioProject } from "@/lib/studioClips/types";
 import { renderBlocker, renderBuild, spokenText } from "./renderBuild";
 import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
+import { Bar } from "@/components/dashboard/motion";
+import "@/app/(app)/dashboard/dashboard.css";
+import "@/app/(app)/studio/studio.css";
 
 type BuildInfo = { idx: number; id: string; renderPath: string | null; postId: string | null; postStatus: string | null };
 type BatchData = {
@@ -433,7 +436,12 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
 
       {phase !== "setup" && (
         <>
-          {phase === "making" && <p className="cbp-muted"><Loader2 size={12} className="spin" /> Making {made.filter((m) => m.step === "ready").length + 1} of {made.length}. Keep this tab open.</p>}
+          {phase === "making" && (
+            <div className="sd-progress">
+              <p className="cbp-muted"><Loader2 size={12} className="spin" /> Making {Math.min(made.length, made.filter((m) => m.step === "ready" || m.step === "failed" || m.step === "skipped").length + 1)} of {made.length}. Keep this tab open.</p>
+              <Bar share={made.length ? made.reduce((a, m) => a + (m.step === "ready" || m.step === "failed" || m.step === "skipped" ? 1 : ["render", "upload"].includes(m.step) ? 0.3 + m.progress * 0.6 : m.step === "waiting" ? 0 : 0.2), 0) / made.length : 0} />
+            </div>
+          )}
           {(phase === "review" || phase === "scheduling" || phase === "done") && timing && <p className="cbp-muted">{timing}</p>}
           {phase === "review" && (
             <div className="cba-row">

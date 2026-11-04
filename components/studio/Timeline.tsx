@@ -14,7 +14,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import type { PlayerRef } from "@remotion/player";
 import { Pause, Play, Redo2, Scissors, Trash2, Undo2, ZoomIn, ZoomOut } from "lucide-react";
-import { dropIndex, dropMarker, fmtTenths, moveSpan, resizeSpan, rulerTicks, snapTo, type Tracks } from "@/lib/studioClips/tracks";
+import { dropIndex, dropMarker, fmtTenths, moveSpan, reorder, resizeSpan, rulerTicks, snapTo, type Tracks } from "@/lib/studioClips/tracks";
+import "@/app/(app)/studio/studio-motion.css";
 
 export type TimelineSelection = { kind: "cut" | "text"; index: number } | null;
 
@@ -241,6 +242,15 @@ export default function Timeline({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
   const isSel = (kind: "cut" | "text", i: number) => selected?.kind === kind && selected.index === i;
+  // While a cut is dragged, where every other cut would start once it is dropped: they slide there.
+  const shifted = (() => {
+    if (!ghost) return null;
+    const order = reorder(tracks.video, ghost.index, ghost.to);
+    const starts = new Map<number, number>();
+    let t = 0;
+    for (const v of order) { starts.set(v.index, t); t += v.end - v.start; }
+    return starts;
+  })();
 
   return (
     <div className="cbb-tl-wrap">
@@ -286,8 +296,8 @@ export default function Timeline({
               {tracks.video.map((v) => (
                 <span
                   key={v.index}
-                  className={`cbb-tl-clip${v.index % 2 ? " alt" : ""}${isSel("cut", v.index) ? " on" : ""}${ghost?.index === v.index ? " lifted" : ""}`}
-                  style={{ left: pct(v.start), width: width(v.start, v.end), transform: ghost?.index === v.index ? `translateX(${ghost.dx}px)` : undefined }}
+                  className={`cbb-tl-clip${v.index % 2 ? " alt" : ""}${isSel("cut", v.index) ? " on" : ""}${ghost?.index === v.index ? " lifted" : ""}${shifted ? " is-shifting" : ""}`}
+                  style={{ left: pct(shifted && ghost?.index !== v.index ? shifted.get(v.index) ?? v.start : v.start), width: width(v.start, v.end), transform: ghost?.index === v.index ? `translateX(${ghost.dx}px)` : undefined }}
                   title={`${v.label}, ${v.start.toFixed(1)}s to ${v.end.toFixed(1)}s. Drag the edges to trim, drag the middle to move.`}
                   onPointerDown={(e) => startCut(e, v.index)}
                 >

@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { Film, Loader2 } from "lucide-react";
 import type { VideoKind, VideoSummary } from "@/lib/studioClips/videos";
+import StudioEmpty from "./StudioEmpty";
 
 const KIND: Record<VideoKind, string> = {
   idea: "Made from an idea in your clips",
@@ -20,7 +21,7 @@ export default function VideoList({ videos, onOpen }: { videos: VideoSummary[] |
       {videos == null ? (
         <p className="ov-source"><Loader2 size={12} className="spin" /> Loading your videos</p>
       ) : !videos.length ? (
-        <p className="ov-source">No videos yet. Upload one here, or drop your raw clips in <Link href="/studio?mode=clips">Build</Link> and SOCIA makes them.</p>
+        <StudioEmpty art="video" title="No videos yet" compact action={<Link className="ov-btn ghost small" href="/studio?mode=clips">Build from your clips</Link>}>Every video you make here or in Build appears in this list.</StudioEmpty>
       ) : (
         <ul>
           {videos.map((v) => (

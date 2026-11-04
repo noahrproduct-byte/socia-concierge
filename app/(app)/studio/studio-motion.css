@@ -1,0 +1,38 @@
+/* Studio's hover and timeline motion (components/studio/*), kept out of
+   lib/designBudget.test.ts on purpose like the Overview's dashboard-motion.css:
+   a slight lift on the cards that open something, the playhead gliding
+   between frames, and cuts sliding aside while one is dragged. Entrances,
+   rings, bars and the finish are framer-motion (components/dashboard/motion.tsx).
+   Tokens only; real pointers only; nothing moves when motion is reduced. */
+@media (hover: hover) and (pointer: fine) {
+  .sd-lift {
+    transition: transform var(--t-panel) var(--ease-out), box-shadow var(--t-panel) var(--ease-out), border-color var(--t-panel) var(--ease-out);
+  }
+  .sd-lift:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-line);
+    box-shadow: 0 0 0 1px var(--accent-line), 0 10px 28px rgba(var(--accent-rgb), 0.14);
+  }
+}
+
+/* The playhead glides the 33 ms between two frames instead of stepping. */
+.cbb-tl-head {
+  transition: left 40ms linear;
+}
+/* While a cut is dragged, the others slide aside to show where it will land. */
+.cbb-tl-clip.is-shifting {
+  transition: left var(--t-panel) var(--ease-out);
+}
+.cbb-tl-clip.lifted {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sd-lift,
+  .sd-lift:hover,
+  .cbb-tl-head,
+  .cbb-tl-clip.is-shifting {
+    transition: none;
+    transform: none;
+  }
+}
