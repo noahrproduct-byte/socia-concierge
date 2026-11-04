@@ -1,0 +1,27 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #reveal-mark { position: absolute; top: 620px; left: 420px; width: 240px; height: 240px; }
+    #reveal-mark img { width: 240px; height: 240px; }
+    #reveal-word { position: absolute; top: 900px; left: 0; right: 0; text-align: center; font: 800 176px/1 var(--font-display); letter-spacing: -0.04em; color: var(--ink); }
+    #reveal-line { position: absolute; top: 1110px; left: 60px; right: 60px; text-align: center; font: 600 56px/1.2 var(--font-display); letter-spacing: -0.02em; color: var(--ink-2); }
+  </style>
+  <div id="root" data-composition-id="reveal" data-width="1080" data-height="1920">
+    <div id="reveal-stage" class="stage">
+      <div id="reveal-mark" class="clip" data-start="0" data-duration="4"><img class="mark" src="assets/socia-mark.png" alt="SOCIA" /></div>
+      <div id="reveal-word" class="clip" data-start="0.45" data-duration="3.55">SOCIA</div>
+      <div id="reveal-line" class="clip" data-start="1.1" data-duration="2.9">Know what to do next.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#reveal-mark img", { scale: 0.86, opacity: 0, filter: "blur(10px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, 0);
+      tl.fromTo("#reveal-word", { clipPath: "inset(0 100% 0 0)", opacity: 1 }, { clipPath: "inset(0 0% 0 0)", duration: 0.45, ease: "power3.out" }, 0.45);
+      tl.fromTo("#reveal-line", { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power4.out" }, 1.1);
+      tl.fromTo("#reveal-line", { color: "rgba(242,239,233,0.66)" }, { color: "#f2efe9", duration: 0.5, ease: "power2.out", immediateRender: false }, 1.4);
+      tl.fromTo("#reveal-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 3.85);
+      window.__timelines["reveal"] = tl;
+    })();
+  </script>
+</template>

@@ -1,0 +1,38 @@
+# Reference reel → SOCIA: scene-by-scene breakdown
+
+> 2026-10-27, second cut. Noah widened the brief: a deeper narrator, more story, no music, the outliers shown by SOCIA itself (MCP only as an option), and new beats for Content Studio (clip bin + rater), scheduling that posts for you, and the analytics. The reel is now eight chapters and 103 s; the table below still records the reference's six scenes and how each SOCIA scene was derived. The two new chapters reuse the reference's own patterns: "Meet SOCIA" is a title + five stacked cards (the spoke card style); "Make it in Content Studio" is two list panels (the top-posts panel style). Every on-screen beat lands on the narrator's word (whisper word timings, see `sound.ts`).
+>
+> Chapter clock (s): hook 0–6.4 · meet 6.4–17 · step 01 17–35 · step 02 35–47.4 · step 03 47.4–62.8 · step 04 (Studio) 62.8–80 · step 05 (schedule + double down) 80–93.2 · cta 93.2–103.
+
+Reference: `~/Downloads/Video-52759.mp4`, 720×1280, 30 fps, 53.99 s, continuous music bed. Measured at 2 fps across the whole film and at 30 fps across every seam. The SOCIA recreation is rendered at 1080×1920 (same 9:16, 1.5× the reference pixels) with Remotion, which seeks frame by frame, so every timing below is reproduced exactly.
+
+## Global frame (every scene)
+
+| Element | Reference | SOCIA | Implementation |
+|---|---|---|---|
+| Ground | warm near-black, faint square grid (~50 px), warm radial glow bottom-centre, light grain | same ground and grid; the radial glow and the accent take SOCIA blue instead of orange | `Scene` in `ui.tsx` |
+| Header strip | mono caps, left "# 0 → 31K WITH CLAUDE", right "01 / 06" | left "# KNOW WHAT TO POST · WITH SOCIA", right "01 / 06" | same positions (y 142 → 213) |
+| Footer | mono caps "JAYANT" / "@JAYANTCREATES.AI" at y 1062 | "SOCIA" / "SOCIAOS.COM" | same positions |
+| Type | heavy grotesk for titles, mono caps labels, brush script asides | Inter Tight 800, JetBrains Mono, Caveat | `@remotion/google-fonts` |
+| Accent | saturated orange with outer glow on big words, chips, outlines | SOCIA cobalt `#2563ff` (the app's `--accent`) with the same glow | one token swap |
+| Seams | blur-dissolve: the incoming frame arrives gaussian-blurred and sharpens over 5 frames | identical | `Scene` wrapper |
+| Titles | two beats: white line lands, accent line lands 9 frames later | identical | `Title` |
+
+## Scenes
+
+| # | Ref time | Reference layout | Reference animation | Transition out | SOCIA content | Assets | Approach |
+|---|---|---|---|---|---|---|---|
+| 1 | 0.0–4.9 | Icon row (Claude ✳ ---- Instagram) at y≈175; "HOW TO GO FROM" / "0 → 31K" / "FOLLOWERS WITH ✳ CLAUDE" at y 240–430; script line at 495; two profile cards (DAY 0, TODAY) with avatar and two stat pills at y≈735, arrow between | counter holds 0 for 10 frames then eases out to 31K by 2.0 s; DAY 0 card fades/slides in at 0.5 s, arrow + TODAY card at 1.0 s, TODAY's follower pill counts in sync; script line fades in at 3.0 s | blur-dissolve at 4.9 s | icon row (SOCIA mark ---- Instagram); "HOW TO GO FROM" / "11.8K → 49.8K" / "MONTHLY VIEWS WITH ◉ SOCIA"; "without guessing what to post..."; cards LAST MONTH (11,813 views · 59,357 reach) → THIS MONTH (49,798 views · 76,855 reach), @salvoshermitage; a one-line source under the cards | mark PNG, Instagram glyph | `Hook` in `Method.tsx`; feature covered: account analysis |
+| 2 | 4.9–17.2 | "STEP 01" chip; "BUILD YOUR" / "AI BRAIN"; icon row (Ootto ---- Claude "once") at y≈455; hub circle "AI BRAIN" at (360, 707) r≈57; five cards: niche TL, offer TR, audience BL, voice BR, story bottom; caption at y≈370 (bottom of band) | hub pops in at 10.0 s; dashed connectors draw from hub to each card, card fades in at its end: 12.3, 13.3, 14.0, 14.3, 15.5 s; caption at 16.0 s | blur-dissolve at 17.2 s | "STEP 01"; "CONNECT YOUR" / "ACCOUNTS"; icon row (Instagram ---- SOCIA "once"); hub "SOCIA"; five spokes = the five intelligence features: account analysis, niche intelligence, audience insights, competitor analysis, reels tracking; caption "SOCIA reads all 5 before it tells you what to post." | mark PNG | `Context`; features: 1, 2, 3, 4, 5 |
+| 3 | 17.2–25.3 | "STEP 02"; "CONNECT CLAUDE TO" / "OOTTO"; body copy; panel "MY WATCH LIST" with chip "TOP REEL PER CREATOR"; four rows (avatar, handle, views, grey "--" chip) | empty panel present from 17.5 s; body at 19.0; rows stagger every 0.17 s from 19.4; all four chips flip to orange multipliers at 22.3; caption at 24.0 | blur-dissolve at 25.3 | "STEP 02"; "CONNECT SOCIA" / "TO CLAUDE"; body "Claude reads your workspace through SOCIA's MCP tools and ranks every post against your own median."; panel "MY TOP POSTS · 90 DAYS", chip "VIA MCP · get_top_posts"; rows: Perfection. 102K 84.6x, Feeding a crowd 12.9K 3.4x, Square pie 29.4K 2.3x, Pizza. Pasta. 2.7K 1.5x; caption "Study the 2x+ posts. They are proven ideas." | none | `Outliers`; features: MCP connector, reels tracking |
+| 4 | 25.3–36.9 | "STEP 03"; script "This is where the magic happens."; "BUILD YOUR" / "OUTLIER MATRIX"; body; 5×6 grid with dim row/column labels; caption with a counter | script at 26.8; body 30.3; row labels brighten 31.0, column labels 32.0; cells fill in reading order 34.0→35.5 while the caption counts; three cells pop bright at 36.0 | blur-dissolve at 36.9 | "STEP 03"; same script line; "BUILD YOUR" / "CONTENT PLAN"; body "SOCIA turns your outliers into a week of posts. Each cell is one decision made for you."; 7×5 grid: Mon–Sun real concepts × Hook, Format, Why, When, Confidence; caption "7 posts × 5 answers = N decisions backed by your data"; winners: Tue×When, Fri×Format, Sat×Confidence | none | `Plan`; feature: content plan maker |
+| 5 | 36.9–47.3 | "STEP 04"; "POST 2X A DAY, THEN" / "DOUBLE DOWN"; strip "DAYS 1-15 · Test 30 reels" (2×15 squares); chip "OOTTO RANKS ALL 30"; strip "DAYS 16-30 · Only the winners" dimmed; caption | strip 1 fills left→right 38.0–39.5, drops back dim at 40.5; chip at 41.0; two winners light at 43.0; strip 2 outlines and fills 44.0–45.0; caption at 46.3 | blur-dissolve at 47.3 | "STEP 04"; "ASK SOCIA, THEN" / "DOUBLE DOWN"; strip "WEEK 1 · Post all 7, scheduled by SOCIA" (7 squares); chip "ASK SOCIA · WHAT WORKED?"; strip "WEEK 2 · Only what worked"; caption "Each winner remade in Content Studio with a new hook." | none | `Loop`; features: Ask SOCIA, scheduling and publishing, Content Studio |
+| 6 | 47.3–54.0 | circular live clip of the creator with orange ring at y≈330; "Comment"; big accent word "MATRIX" in quotes; body line | circle lands at 47.3; "Comment" with it; the word pops at 48.0; body at 49.0; holds | end | the SOCIA mark in the ring; "Comment"; "EARLY ACCESS"; "& I will send you the link to try SOCIA before everyone else." | mark PNG | `Cta` |
+
+## Conflicts and limits, decided before building
+
+- The reference shows diagrams, not product screenshots, so a faithful recreation cannot carry screenshots. Every diagram carries SOCIA's real data and the app's own labels instead (MCP tools, Salvo's Pizza workspace, 2026-10-27).
+- Scene 6's live footage of the creator has no SOCIA equivalent that is real; the mark takes the ring.
+- The hook's "with SOCIA" line mirrors the reference's "with Claude" and attributes the views jump to the product; the jump is real but the account's plan was not posted, so the attribution is the reference's claim shape, not evidence. Flagged in the delivery note.
+- Music: a bed was generated once (ElevenLabs Music) and then removed at Noah's request; the mix is voice + effects.
+- The rater panel's six scores are an illustrative example and are labelled EXAMPLE on screen; the category names and what each analyses are the app's (`lib/studio.ts`).

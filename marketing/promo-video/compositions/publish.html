@@ -1,0 +1,64 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #publish-panel { top: 520px; }
+    .pb-days { display: grid; grid-template-columns: repeat(7, 1fr); padding: 20px 24px 10px; gap: 8px; }
+    .pb-day { text-align: center; padding: 12px 0; border-radius: 12px; font: 600 28px/1.2 var(--font); color: var(--app-ink-3); }
+    .pb-day b { display: block; font: 700 30px/1.1 var(--font-display); color: var(--app-ink); margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .pb-day.sel { background: var(--cobalt); color: #fff; }
+    .pb-day.sel b { color: #fff; }
+    .pb-card { margin: 10px 32px 28px; background: var(--app-raised); border: 1px solid var(--app-rule); border-left: 5px solid var(--cobalt); border-radius: 14px; padding: 22px 24px; }
+    .pb-card .t { font: 700 28px/1.2 var(--font); color: var(--app-ink-2); }
+    .pb-card .c { font: 600 30px/1.3 var(--font); color: var(--app-ink); margin-top: 10px; letter-spacing: -0.01em; }
+    .pb-card .dest { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    .pb-card .dest .chip { display: inline-flex; align-items: center; gap: 8px; }
+    .pb-card .dest svg { width: 30px; height: 30px; }
+  </style>
+  <div id="root" data-composition-id="publish" data-width="1080" data-height="1920">
+    <div id="publish-stage" class="stage">
+      <div id="publish-step" class="step clip" data-start="0" data-duration="6">Step 09</div>
+      <div id="publish-t1" class="t1 clip" data-start="0" data-duration="6">Schedule</div>
+      <div id="publish-t2" class="t2 clip" data-start="0.3" data-duration="5.7">and publish</div>
+      <div id="publish-panel" class="panel clip" data-start="0.5" data-duration="5.5">
+        <div class="panel-h"><h3>Calendar</h3><span>Week of Oct 26</span></div>
+        <div class="pb-days" id="pb-days">
+          <div class="pb-day">Mon<b>26</b></div>
+          <div class="pb-day sel" id="pb-tue">Tue<b>27</b></div>
+          <div class="pb-day">Wed<b>28</b></div>
+          <div class="pb-day">Thu<b>29</b></div>
+          <div class="pb-day">Fri<b>30</b></div>
+          <div class="pb-day">Sat<b>31</b></div>
+          <div class="pb-day">Sun<b>1</b></div>
+        </div>
+        <div class="pb-card" id="pb-card">
+          <div class="t">Tuesday · 9:15 AM · your best window</div>
+          <div class="c">Double crust or regular. You get one pick, and Hermitage is watching.</div>
+          <div class="dest">
+            <span class="chip ok" id="pb-d1"><svg viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></g></svg>Instagram · Scheduled</span>
+            <span class="chip ok" id="pb-d2"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M13.5 21v-7h2.3l.4-2.7h-2.7V9.6c0-.8.2-1.3 1.3-1.3h1.4V5.9c-.2 0-1.1-.1-2-.1-2 0-3.4 1.2-3.4 3.5v1.9H8.5V14h2.3v7h2.7Z"/></svg>Facebook · Scheduled</span>
+            <span class="chip" id="pb-d3"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 6c-3 0-6 .2-6 .2-.7.1-1.3.7-1.4 1.4C4.4 8.5 4.3 10 4.3 12s.1 3.5.3 4.4c.1.7.7 1.3 1.4 1.4 0 0 3 .2 6 .2s6-.2 6-.2c.7-.1 1.3-.7 1.4-1.4.2-.9.3-2.4.3-4.4s-.1-3.5-.3-4.4a1.9 1.9 0 0 0-1.4-1.4S15 6 12 6Zm-1.5 3.3 4 2.7-4 2.7V9.3Z"/></svg>YouTube · Draft</span>
+          </div>
+        </div>
+      </div>
+      <div id="publish-take" class="take clip" data-start="3.4" data-duration="2.6">Published by SOCIA <b>at the time you chose</b>.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      tl.fromTo("#publish-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#publish-step", 0.05); inb("#publish-t1", 0.1); inb("#publish-t2", 0.3);
+      tl.fromTo("#publish-panel", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 0.5);
+      tl.fromTo("#pb-days", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 0.8);
+      tl.fromTo("#pb-tue", { backgroundColor: "rgba(37,99,255,0)" }, { backgroundColor: "rgba(37,99,255,1)", duration: 0.3, ease: "power2.out" }, 1.1);
+      tl.fromTo("#pb-card", { opacity: 0, y: 24, scale: 0.97 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "expo.out" }, 1.3);
+      tl.fromTo("#pb-d1", { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(1.4)" }, 2.0);
+      tl.fromTo("#pb-d2", { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(1.4)" }, 2.15);
+      tl.fromTo("#pb-d3", { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(1.4)" }, 2.3);
+      inb("#publish-take", 3.4);
+      tl.fromTo("#publish-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 5.85);
+      window.__timelines["publish"] = tl;
+    })();
+  </script>
+</template>

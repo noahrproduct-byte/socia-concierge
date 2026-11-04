@@ -34,8 +34,22 @@ phone-agent/
 # demo video (captures, renders, secrets)
 /demo-video/captures/
 /demo-video/out/
+/demo-video/refs/
 /demo-video/node_modules/
 /demo-video/.env
 
 # Self-hosted ffmpeg.wasm core (copied from @ffmpeg/core on install)
 /public/ffmpeg/
+
+# promo video (HyperFrames renders and artifacts)
+/marketing/promo-video/renders/
+/marketing/promo-video/.hyperframes/
+/marketing/promo-video/node_modules/
+
+# Rater training media (local only)
+docs/rater/samples/*
+!docs/rater/samples/.gitkeep
+
+# Reel bot runtime files (local only)
+demo-video/reel-bot/keep-on.log
+demo-video/reel-bot/.daily-*

@@ -1,0 +1,58 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; }
+    #analytics-panel { top: 520px; }
+    .an-kpis { display: grid; grid-template-columns: 1fr 1fr; }
+    .an-kpi { padding: 22px 32px; border-bottom: 1px solid var(--app-rule); }
+    .an-kpi:nth-child(odd) { border-right: 1px solid var(--app-rule); }
+    .an-kpi .l { font: 600 28px/1 var(--font); color: var(--app-ink-3); }
+    .an-kpi .v { font: 700 60px/1.1 var(--font-display); letter-spacing: -0.03em; color: var(--app-ink); margin-top: 10px; font-variant-numeric: tabular-nums; }
+    .an-kpi .d { font: 600 28px/1.3 var(--font); color: var(--app-ink-2); margin-top: 8px; }
+    .an-kpi .d.up { color: var(--ok); }
+    .an-kpi .d.dn { color: var(--app-ink-3); }
+  </style>
+  <div id="root" data-composition-id="analytics" data-width="1080" data-height="1920">
+    <div id="analytics-stage" class="stage">
+      <div id="analytics-step" class="step clip" data-start="0" data-duration="6.5">Step 02</div>
+      <div id="analytics-t1" class="t1 clip" data-start="0" data-duration="6.5">See what</div>
+      <div id="analytics-t2" class="t2 clip" data-start="0.3" data-duration="6.2">actually worked</div>
+      <div id="analytics-panel" class="panel clip" data-start="0.5" data-duration="6">
+        <div class="panel-h"><h3>Instagram · Last 30 days</h3><span>@salvoshermitage</span></div>
+        <div class="an-kpis">
+          <div class="an-kpi" id="an-k1"><div class="l">Total Views</div><div class="v" id="an-views">11,813</div><div class="d up">+322% vs previous 30 days</div></div>
+          <div class="an-kpi" id="an-k2"><div class="l">Reach</div><div class="v" id="an-reach">59,357</div><div class="d up">+29% vs previous 30 days</div></div>
+          <div class="an-kpi" id="an-k3"><div class="l">Followers</div><div class="v">12,125</div><div class="d dn">−0.3% vs previous 30 days</div></div>
+          <div class="an-kpi" id="an-k4"><div class="l">Total Posts</div><div class="v">9</div><div class="d">published in the period</div></div>
+        </div>
+        <div class="row" id="an-top">
+          <div class="avatar">P</div>
+          <div class="grow"><div class="name">Perfection.</div><div class="sub">Reel · Aug 18 · 102K views</div></div>
+          <span class="chip gold">84.6x your median</span>
+        </div>
+      </div>
+      <div id="analytics-take" class="take clip" data-start="3.6" data-duration="2.9">Every post ranked against <b>your own median</b>.</div>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const tl = gsap.timeline({ paused: true });
+      const inb = (sel, t, d = 0.2) => tl.fromTo(sel, { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: d, ease: "power4.out" }, t);
+      const pop = (sel, t) => tl.fromTo(sel, { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.4)" }, t);
+      const count = (sel, from, to, t) => {
+        const el = document.querySelector(sel); const o = { v: from };
+        tl.fromTo(o, { v: from }, { v: to, duration: 1.2, ease: "power2.out", onUpdate() { el.textContent = Math.round(o.v).toLocaleString("en-US"); } }, t);
+      };
+      tl.fromTo("#analytics-stage", { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.17, ease: "power4.out" }, 0);
+      inb("#analytics-step", 0.05); inb("#analytics-t1", 0.1); inb("#analytics-t2", 0.3);
+      tl.fromTo("#analytics-panel", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "expo.out" }, 0.5);
+      pop("#an-k1", 0.8); pop("#an-k2", 0.9); pop("#an-k3", 1.0); pop("#an-k4", 1.1);
+      count("#an-views", 11813, 49798, 0.9);
+      count("#an-reach", 59357, 76855, 1.0);
+      tl.fromTo("#an-top", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, 2.5);
+      tl.fromTo("#an-top .chip", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.25, ease: "back.out(1.4)" }, 2.9);
+      inb("#analytics-take", 3.6);
+      tl.fromTo("#analytics-stage", { opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(8px)", duration: 0.15, ease: "power3.in", immediateRender: false }, 6.35);
+      window.__timelines["analytics"] = tl;
+    })();
+  </script>
+</template>

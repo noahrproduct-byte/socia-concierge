@@ -5,11 +5,16 @@ import { FPS, TOTAL_FRAMES } from "./timeline";
 import { Reel } from "./reel/Laptop";
 import { ScreenDemo, SCREEN_FRAMES } from "./reel/ScreenDemo";
 import { JoinUs, JOIN_US_FRAMES } from "./reel/JoinUs";
+import { Method } from "./method/Method";
+import { FPS as METHOD_FPS, TOTAL_FRAMES as METHOD_FRAMES, W as METHOD_W, H as METHOD_H } from "./method/script";
 
 const Wide: React.FC = () => <ScreenDemo w={1920} h={1080} />;
 
 export const RemotionRoot: React.FC = () => (
   <>
+    {/* 54s "the method" reel: six chapters, all copy and data in src/method/script.ts */}
+    <Composition id="SociaMethod" component={Method} durationInFrames={METHOD_FRAMES} fps={METHOD_FPS} width={METHOD_W} height={METHOD_H} />
+
     {/* laptop-in-a-dark-room reel (matches the reference cut) */}
     <Composition
       id="SociaDemoVertical"

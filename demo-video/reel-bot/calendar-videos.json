@@ -1,0 +1,126 @@
+{
+  "workspace_id": "76cbbf46-2622-4864-9515-650d2974edd3",
+  "posts": [
+    {
+      "post_id": "1c2774a6-edbd-4787-98d4-f68514e74b1f",
+      "calendar_time": "2026-11-01T18:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1101-best-time-final.mp4",
+      "caption": "When should you post? I asked my own data. SOCIA lined up all 9 of my Reels by day and time, and every one landed in a different slot. So it told me straight: no window stands out yet. It won't invent one. Every post makes the answer sharper. SOCIA, coming soon.",
+      "status": "draft with video in SOCIA (its time had passed); Noah picks a time",
+      "socia_post_id": "215e9726-4d3e-4173-9922-00c9477a4a52"
+    },
+    {
+      "post_id": "20e41998-813b-4c22-84ca-14a8da24c899",
+      "calendar_time": "2026-11-02T12:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1102-flop-tutorial-final.mp4",
+      "caption": "I asked Claude why my last Reel got 9 likes when the one before got 40. It pulled my real numbers through SOCIA and found 3 things in under a minute. The surprise: per person who saw it, the flop got more likes. Comment FLOP and I'll tell you what to ask Claude about yours. SOCIA is coming soon.",
+      "status": "published 2026-11-02 21:47 CST on Noah's \"post for today\" (Instagram only)",
+      "socia_post_id": "3d390a03-edb8-40fa-8dfe-3001b8671885",
+      "published_post_id": "9fcbd8fa-32cd-449a-918c-457e4cfa494a"
+    },
+    {
+      "post_id": "3aba9153-2c78-4e84-a67e-13d25126c3b7",
+      "calendar_time": "2026-11-02T19:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1102-drop-handle-final.mp4",
+      "caption": "Drop your handle below. I'll run it through SOCIA and reply with the one post you should make next. I'll reply to every handle this week. SOCIA is coming soon.",
+      "status": "draft with video in SOCIA (its time had passed); Noah picks a time",
+      "socia_post_id": "67cf0db1-bb76-4b02-bb3b-d84d280e18bd"
+    },
+    {
+      "post_id": "0651ab47-810c-47b4-b600-22ea908c2be5",
+      "calendar_time": "2026-11-03T11:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1103-first-thing-final.mp4",
+      "caption": "The first thing Claude noticed when I connected it to my Instagram: 5 of my 9 Reels open with the same line. The first one got 75 interactions. The repeats got 27, 10, 9 and 21. Not one came close. New rule: a named tool, a clear outcome, a time limit. SOCIA is coming soon. Follow to see what happens next.",
+      "status": "scheduled",
+      "socia_post_id": "a17768c7-7d37-4043-9b81-64e2bfce6036"
+    },
+    {
+      "post_id": "7206d80e-86eb-469f-9111-594292ee049f",
+      "calendar_time": "2026-11-04T11:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1104-saves-final.mp4",
+      "caption": "This Reel got 41 saves, more than its likes. I asked Claude what made it different. Its answer: the hook names a tool, a result and a time limit. And it was honest: one post can't prove it, so I'm testing it again. Which of your Reels got more saves than likes? Tell me in the comments. SOCIA, coming soon.",
+      "status": "scheduled",
+      "socia_post_id": "b2a9fc85-a8a9-4f84-9669-08c488d51529"
+    },
+    {
+      "post_id": "0506ed76-fcbb-4f94-9212-5eb645f6a9d8",
+      "calendar_time": "2026-11-04T18:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1104-week-plan-final.mp4",
+      "caption": "My whole content week, planned from my own Instagram data. SOCIA read my last 9 Reels and gave the account a 34 out of 100. The fix: one formula, one post a day, and a question you can answer in the comments. Every post lands as a draft, nothing goes out until I approve it. SOCIA is coming soon. Which day would you post first?",
+      "status": "scheduled",
+      "socia_post_id": "235b56a5-bc07-4b22-8815-b88496a57071"
+    },
+    {
+      "post_id": "3774554d-8cb0-4b17-90e1-5f89bde46758",
+      "calendar_time": "2026-11-04T19:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1104-plan-prompt-final.mp4",
+      "caption": "Next week's content plan from your own Instagram data. Paste this into Claude with SOCIA connected:\n\nUse SOCIA to read my Instagram from the last 30 days. Then plan next week: 5 posts, at most one a day. For each post, give me the day, the hook, the format, and which of my own posts it builds on, with that post's real numbers. Only use numbers SOCIA returns, and tell me what it can't measure.\n\nWorks best with SOCIA connected. SOCIA is coming soon. Save this for Sunday night.",
+      "status": "scheduled",
+      "socia_post_id": "40d94d83-c248-4a14-9abb-d77f65642e53"
+    },
+    {
+      "post_id": "771f0b24-8c45-4158-a556-23c55522cea8",
+      "calendar_time": "2026-11-05T11:00:00-06:00",
+      "file": null,
+      "caption": null,
+      "status": "no video: needs a real follower who commented a handle and agreed to be shown"
+    },
+    {
+      "post_id": "e18c3f2f-150f-4920-b308-37c2ba06f986",
+      "calendar_time": "2026-11-05T18:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1105-flop-surprise-final.mp4",
+      "caption": "I asked Claude why my last Reel flopped. I thought it was the hook. It wasn't: per person who saw it, the flop got more likes than my breakout. It just reached far fewer people, and I'd posted it about 3 hours after the breakout, the same evening. New rule: one Reel a day. SOCIA is coming soon.",
+      "status": "scheduled",
+      "socia_post_id": "332a916b-cff4-439a-b53f-ef245eb4a0c0"
+    },
+    {
+      "post_id": "f9ca9b9f-1b1d-4ee0-8a95-d4e6ad0849d4",
+      "calendar_time": "2026-11-06T11:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1106-three-hooks-final.mp4",
+      "caption": "Same idea, three hooks. Which one would stop your scroll? Vote 1, 2 or 3 in the comments. SOCIA's plan for our account bets on hook 1: a named tool, a specific outcome, a time box. That's a bet, not a result yet.",
+      "status": "scheduled",
+      "socia_post_id": "8cbfdbc6-f61b-4176-adcf-ce3c912dc013"
+    },
+    {
+      "post_id": "4fbe6f02-cb98-4a01-91c4-54644de51b49",
+      "calendar_time": "2026-11-06T18:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1106-caption-rewrite-final.mp4",
+      "caption": "Paste in a weak caption, get a sharper one out. Before: a real caption from our account. After: Claude's rewrite using SOCIA's data. Which one would you read to the end? Tell me below.",
+      "status": "scheduled",
+      "socia_post_id": "b5f4a1ce-9fce-4c6c-bd68-e2716df828e9"
+    },
+    {
+      "post_id": "0202022f-686d-469e-98b2-5b788f7390c7",
+      "calendar_time": "2026-11-07T11:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1107-competitors-final.mp4",
+      "caption": "Want to see what's working for accounts like yours? SOCIA's Discover page ranks recent Reels in your niche against each account's own usual. One pattern worth testing: show the result in the first second. Every account in this video is an example. SOCIA is coming soon.",
+      "status": "scheduled",
+      "socia_post_id": "62372ca9-6cd6-4ba9-a51e-5c0c558191af"
+    },
+    {
+      "post_id": "8a607b2d-18fb-44e7-b237-f1504f36c204",
+      "calendar_time": "2026-11-07T18:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1107-why-built-final.mp4",
+      "caption": "Why I built an AI strategist instead of hiring one. Every week, the same question: what do I post? SOCIA reads your posts in one place, finds the ones that beat your own average, and plans your week as drafts. Nothing posts until you approve it. And when it doesn't know, it says so. SOCIA, coming soon.",
+      "status": "scheduled",
+      "socia_post_id": "a096d943-728c-43d4-8698-31e9d94fbb1a"
+    },
+    {
+      "post_id": "3a1cdf9f-8eba-4f51-86b4-95764c57215a",
+      "calendar_time": "2026-11-08T11:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1108-calendar-final.mp4",
+      "caption": "My content calendar before SOCIA, and after. Before: a blank week and a sticky note. After: 14 posts this week, each with a day, a time and a hook. Every one is still a draft, because nothing posts until I approve it. SOCIA is coming soon. What does your calendar look like this week?",
+      "status": "scheduled",
+      "socia_post_id": "aa33e7ad-7be8-4dbc-a560-69443d33b264"
+    },
+    {
+      "post_id": "7ad07ad3-a73f-4fa3-8dd7-c423e17039e7",
+      "calendar_time": "2026-11-08T18:00:00-06:00",
+      "file": "/Users/noah/my-project/demo-video/out/cal-1108-likes-saves-final.mp4",
+      "caption": "Likes feel good. Saves tell you what people want to keep. My best Reel got 40 likes and 41 saves. My Oct 27 Reel got 27 shares and only 5 saves. One got kept, the other got passed on. Track saves and shares on every post. Which one do you check first? SOCIA, coming soon.",
+      "status": "scheduled",
+      "socia_post_id": "43eef346-16b4-4955-89ab-84ed01dce0a4"
+    }
+  ],
+  "note": "2026-11-02: Noah had the week scheduled straight into SOCIA. Entries with status other than \"ready\" are done: never send or post them again. Some original empty drafts (post_id) are still on the calendar because they couldn't be withdrawn; ignore them."
+}
