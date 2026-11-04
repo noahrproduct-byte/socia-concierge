@@ -99,7 +99,7 @@
     "app/styles/shell.css": 1
   },
   "gradient": {
-    "app/globals.css": 120,
+    "app/globals.css": 119,
     "components/composer/rail/rail.css": 1,
     "components/pageSkeleton.css": 1
   },

@@ -61,6 +61,9 @@ import { firstLineOf } from "@/lib/publishing/postLabel";
 import "./calendar-destinations.css";
 import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
 
+/** Phone width: the Calendar shows the week only. Matches the CSS that hides the Week/Month switch. */
+const PHONE_QUERY = "(max-width: 760px)";
+
 export type { CalPost };
 
 /** What the calendar needs of a post_destinations row. */
@@ -336,6 +339,15 @@ export default function CalendarBoard({
   useEffect(() => setNow(new Date()), []);
 
   const [view, setView] = useState<"week" | "month">("week");
+  // Phones get the week only: a month grid leaves about 33px per day there
+  // (redesign brief). The switch is hidden by CSS at the same width.
+  useEffect(() => {
+    const mq = window.matchMedia(PHONE_QUERY);
+    const sync = () => { if (mq.matches) setView("week"); };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
 
@@ -826,13 +838,12 @@ function Toolbar({
         )}
       </div>
       <div className="cal2-tb-right">
-        <div className="cal2-seg" role="tablist">
+        <div className="cal2-seg cal2-viewswitch" role="group" aria-label="Calendar view">
           {(["week", "month"] as const).map((v) => (
             <button
               key={v}
               type="button"
-              role="tab"
-              aria-selected={view === v}
+              aria-pressed={view === v}
               className={view === v ? "on" : ""}
               onClick={() => setView(v)}
             >

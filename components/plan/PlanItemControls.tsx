@@ -50,7 +50,7 @@ export function ItemActions({ item, canApprove, approveHint, busy, onApprove, on
   }
   return (
     <div className="pi-actions">
-      <Button size="sm" variant="primary" onClick={onApprove} busy={busy} disabled={!canApprove} title={approveHint ?? undefined}><Check size={13} aria-hidden /> Approve</Button>
+      <Button size="sm" onClick={onApprove} busy={busy} disabled={!canApprove} title={approveHint ?? undefined}><Check size={13} aria-hidden /> Approve</Button>
       <Button size="sm" onClick={onEdit}><Pencil size={13} aria-hidden /> Edit</Button>
       <Button size="sm" variant="ghost" onClick={onReject}><X size={13} aria-hidden /> Turn down</Button>
       {approveHint && <span className="pi-hint">{approveHint}</span>}
