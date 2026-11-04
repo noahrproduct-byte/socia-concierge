@@ -1,8 +1,11 @@
 "use client";
 
 // Create Post: the client page. Owns the draft through useComposer, lays out
-// the left column (destinations, media, content, settings) and hands the right
-// rail its props. Desktop is two columns, tablet one, phone a five-step flow.
+// the left column (media, content, destinations, settings: what you post, then
+// where, as the redesign brief orders it) and hands the right rail its props.
+// Desktop is two columns, tablet one, phone a five-step flow. Media can come
+// first because the file picker accepts what any platform takes until
+// destinations are chosen; readiness reports a mismatch after.
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
@@ -25,7 +28,7 @@ import TikTokSettingsForm from "./settings/TikTokSettingsForm";
 import UnavailablePlatform from "./settings/UnavailablePlatform";
 import "./composer.css";
 
-const STEPS = ["Destinations", "Media", "Content", "Settings", "Schedule"] as const;
+const STEPS = ["Media", "Content", "Post to", "Settings", "Schedule"] as const;
 const MOBILE_QUERY = "(max-width: 719px)";
 
 function useMobile(): boolean {
@@ -42,9 +45,9 @@ function useMobile(): boolean {
 
 /** Which step a readiness field lives on (phone flow). */
 function stepForField(field: string): number {
-  if (field === "destinations") return 0;
-  if (field === "media") return 1;
-  if (field === "caption" || field === "description") return 2;
+  if (field === "media") return 0;
+  if (field === "caption" || field === "description") return 1;
+  if (field === "destinations") return 2;
   if (field === "scheduledAt") return 4;
   return 3;
 }
@@ -75,9 +78,9 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
   // is active. The head shows a check instead of a number and the active card
   // gets a restrained accent. Deterministic; nothing here scrolls the user.
   const sectionDone = [
-    enabled.length > 0,
     draft.media.length > 0 && draft.media.every((m) => m.url),
     draft.masterCaption.trim().length > 0,
+    enabled.length > 0,
     enabled.length > 0 && enabled.every((d) => readinessFor(draft, d, accounts).level !== "blocked"),
   ];
   const activeSection = sectionDone.findIndex((d) => !d);
@@ -123,9 +126,9 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
 
   const header = (
     <div className="cp-head">
-      <div className="cal2-seg" role="tablist" aria-label="Composer mode">
-        <button type="button" role="tab" aria-selected={quick} className={quick ? "on" : ""} onClick={() => dispatch({ type: "set_mode", mode: "quick" })}>Quick post</button>
-        <button type="button" role="tab" aria-selected={!quick} className={!quick ? "on" : ""} onClick={() => dispatch({ type: "set_mode", mode: "advanced" })}>Advanced</button>
+      <div className="cal2-seg" role="group" aria-label="Composer mode">
+        <button type="button" aria-pressed={quick} className={quick ? "on" : ""} onClick={() => dispatch({ type: "set_mode", mode: "quick" })}>Quick post</button>
+        <button type="button" aria-pressed={!quick} className={!quick ? "on" : ""} onClick={() => dispatch({ type: "set_mode", mode: "advanced" })}>Advanced</button>
       </div>
       <div className="cp-head-right">
         {c.saveState.status === "error" && c.saveState.message && <span className="cp-error-inline">{c.saveState.message}</span>}
@@ -206,7 +209,7 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
         : activeDest.platform === "tiktok" ? <TikTokSettingsForm dest={activeDest} draft={draft} dispatch={dispatch} fileFor={c.fileFor} />
         : <UnavailablePlatform platform={activeDest.platform} />
       ) : enabled.length === 0 ? (
-        <p className="cp-muted">Choose where to post in step 1; each platform&apos;s settings appear here.</p>
+        <p className="cp-muted">Choose where to post above; each platform&apos;s settings appear here.</p>
       ) : (
         <ul className="cp-settings-list">
           {enabled.map((d) => (
@@ -257,9 +260,9 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
         {approvalBanner}
         {tracking ? status : (
           <>
-            {sectionDestinations(null)}
             {sectionMedia(null)}
             {sectionContent(null)}
+            {sectionDestinations(null)}
             <div className="cp-command cp-inline-rail">
               {planLine}
               <SchedulingPanel {...rail} />
@@ -294,9 +297,9 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
                 </li>
               ))}
             </ol>
-            {step === 0 && sectionDestinations(1)}
-            {step === 1 && sectionMedia(2)}
-            {step === 2 && sectionContent(3)}
+            {step === 0 && sectionMedia(1)}
+            {step === 1 && sectionContent(2)}
+            {step === 2 && sectionDestinations(3)}
             {step === 3 && sectionSettings(4)}
             {step === 4 && <div className="cp-rail">{railFull}</div>}
             <div className="cp-step-nav">
@@ -317,9 +320,9 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
       {approvalBanner}
       <div className="cp-grid">
         <div className="cp-main">
-          {sectionDestinations(1, secState(0))}
-          {sectionMedia(2, secState(1))}
-          {sectionContent(3, secState(2))}
+          {sectionMedia(1, secState(0))}
+          {sectionContent(2, secState(1))}
+          {sectionDestinations(3, secState(2))}
           {sectionSettings(4, secState(3))}
         </div>
         <aside className="cp-rail">{railFull}</aside>
