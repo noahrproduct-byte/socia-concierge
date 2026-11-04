@@ -160,7 +160,7 @@ export default function PrivacyPage() {
       </p>
       <ul>
         <li><b>Supabase</b>: database, sign-in and file storage.</li>
-        <li><b>Vercel</b>: hosting and server logs.</li>
+        <li><b>Vercel</b>: hosting, server logs, and Vercel Web Analytics, which counts page views and visitors (the page, the referring site, country, device and browser type) without cookies and without identifying you.</li>
         <li>
           <b>Anthropic (Claude)</b>: SOCIA&apos;s analysis and writing. The
           material a feature needs (for example your posts and their metrics,
@@ -330,8 +330,8 @@ export default function PrivacyPage() {
         <li>
           SOCIA uses cookies only to keep you signed in and to complete a
           connection with a platform, and your browser&apos;s storage for
-          display preferences. There are no advertising or third-party analytics
-          cookies.
+          display preferences. There are no advertising or analytics cookies:
+          the page-view counts from Vercel Web Analytics don&apos;t use cookies.
         </li>
       </ul>
 
