@@ -48,9 +48,27 @@ const clip = (s: unknown, n: number): string | undefined => {
   return t || undefined;
 };
 
+/** "claude" when the person's own Claude makes the video (Growth Profile: who makes the videos); "you" otherwise. */
+export const isMaker = (v: unknown): v is "you" | "claude" => v === "you" || v === "claude";
+
+/** A plan post's own id: the link between the plan and the video made for it. Server-assigned, never from the model. */
+export const isItemId = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9-]{8,64}$/.test(v);
+
+/** Every post with an id, keeping the ones it has: a plan's posts can be matched to their videos even after edits reorder them. */
+export function withItemIds<T extends object>(items: T[], newId: () => string = () => crypto.randomUUID()): (T & { id: string })[] {
+  const seen = new Set<string>();
+  return items.map((it) => {
+    const had = (it as { id?: unknown }).id;
+    const id = isItemId(had) && !seen.has(had) ? had : newId();
+    seen.add(id);
+    return { ...it, id };
+  });
+}
+
 export function normalizePlanItem(p: PlanItem): PlanItem {
   return {
     ...p,
+    maker: isMaker(p.maker) ? p.maker : undefined,
     title: clip(p.title, 80),
     purpose: clip(p.purpose, 200),
     audience: clip(p.audience, 160),
@@ -71,9 +89,9 @@ export function sanitizePlanItems(items: unknown[]): PlanItem[] {
     const r = raw as Record<string, unknown>;
     const core = Object.fromEntries(Object.entries(CORE).map(([k, n]) => [k, typeof r[k] === "string" ? (r[k] as string).slice(0, n) : ""])) as Pick<PlanItem, "day" | "concept" | "hook" | "format" | "rationale" | "evidence" | "predictedPerformance">;
     if (!core.day || !core.concept) return [];
-    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, experiment: r.experiment as string });
+    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, experiment: r.experiment as string, maker: r.maker as PlanItem["maker"] });
     const decision = cleanDecision(r.decision);
     const guide = sanitizeGuide(r.guide, new Date());
-    return [{ ...item, ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];
+    return [{ ...item, ...(isItemId(r.id) ? { id: r.id } : {}), ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];
   });
 }

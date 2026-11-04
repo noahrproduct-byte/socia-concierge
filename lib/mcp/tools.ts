@@ -21,7 +21,8 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import type { Ctx } from "../context";
 import type { Entitlements } from "../entitlements";
 import type { Principal } from "../oauth/server";
-import { appOrigin, SCOPE_PUBLISH, SCOPE_READ } from "../oauth/config";
+import { appOrigin, SCOPE_DRAFTS, SCOPE_PUBLISH, SCOPE_READ } from "../oauth/config";
+import { startVideoUpload, submitVideo, videosToMake, VIDEO_TYPES, MAX_VIDEO_BYTES } from "../claudeWeek/server";
 import { audit, rateHit, serviceOrNull } from "../oauth/runtime";
 import { checkFeature, getLimit } from "../entitlements";
 import { ApiFailure, apiContext, guardRequest, listGranted } from "../api/context";
@@ -37,6 +38,7 @@ export const SERVER_INSTRUCTIONS = [
   "Every number comes from SOCIA's stored platform data and the same calculations SOCIA's own dashboard uses. A null value means the platform doesn't provide it or SOCIA doesn't have it yet; never present it as zero.",
   "If several Brand Workspaces are shared, call list_workspaces and ask which one, or pass workspace_id.",
   "Posting: if the person turned on publishing for this app, create_post publishes to Instagram and Facebook right away or at a set time, or saves a draft on any platform; cancel_post withdraws a post that hasn't gone out. Only post what the person asked for, with the caption and media they approved in this conversation, because create_post publishes without another confirmation. If posting isn't turned on, the tools say how to turn it on.",
+  "Making the week's videos: when the person wants their Claude to make the Content Plan's videos, get_videos_to_make lists them with their briefs. Make each one entirely on the computer (no filming, no footage of the person), then hand it in with start_video_upload and submit_video. Handed-in videos wait for the person's review in SOCIA and are scheduled only when they approve them.",
   "Nothing can be edited after publishing through these tools, and settings can't be changed. A live post can be deleted from the post in SOCIA (Delete from the platform) or in the platform's own app.",
 ].join(" ");
 
@@ -84,6 +86,8 @@ export function findSecret(value: unknown, path = "$"): string | null {
  * writes. The plan's own per-minute limit (guardRequest) still applies after.
  */
 const CONNECTION_CALLS_PER_MINUTE = 120;
+/** Upload links and hand-ins per connection per hour: a week of up to 21 videos, with retries. */
+const VIDEO_CALLS_PER_HOUR = 120;
 const overConnectionLimit = async (connectionId: string) => (await rateHit(`mcp-any:${connectionId}`, 60, CONNECTION_CALLS_PER_MINUTE)) === "limited";
 
 const fail = (message: string): Result => ({ content: [{ type: "text", text: message }], isError: true });
@@ -134,6 +138,8 @@ async function runPosting(
   workspace: string | undefined | null,
   countsAsPost: boolean,
   write: (ctx: Ctx, ent: Entitlements, deadline: number) => Promise<Record<string, unknown>>,
+  /** "review": handing in videos for the person to review (Claude makes the week); "Can publish" also allows it. */
+  need: "publish" | "review" = "publish",
 ): Promise<Result> {
   const started = Date.now();
   const p = principalOf(c);
@@ -141,7 +147,10 @@ async function runPosting(
   if (!p || !svc) return fail("SOCIA couldn't confirm this connection. Reconnect SOCIA in the app.");
 if (await overConnectionLimit(p.connectionId)) return fail(`Too many requests from ${p.clientName ?? "this app"}. Wait a minute and try again.`);
   if (!p.scopes.includes(SCOPE_READ)) return fail("This connection doesn't have permission to use SOCIA data.");
-  if (!p.scopes.includes(SCOPE_PUBLISH)) {
+  if (need === "review" && !p.scopes.includes(SCOPE_DRAFTS) && !p.scopes.includes(SCOPE_PUBLISH)) {
+    return fail(`Handing in videos isn't turned on for ${p.clientName ?? "this app"}. The person can turn on "Can add videos for review" for it in SOCIA → Settings → AI Assistants (${appOrigin()}/settings#ai-assistants), then ask again.`);
+  }
+  if (need === "publish" && !p.scopes.includes(SCOPE_PUBLISH)) {
     return fail(`Posting isn't turned on for ${p.clientName ?? "this app"}. The person can turn on "Can publish posts" for it in SOCIA → Settings → AI Assistants (${appOrigin()}/settings#ai-assistants), then ask again.`);
   }
   let wsId: string | null = null;
@@ -151,6 +160,9 @@ if (await overConnectionLimit(p.connectionId)) return fail(`Too many requests fr
     const g = await guardRequest(svc, p, ctx.ownerId);
     const feature = checkFeature(g.ent, "ai_assistant_publishing");
     if (!feature.ok) throw new ApiFailure("forbidden", `Posting from AI assistants is included in SOCIA's paid plans; this workspace is on ${g.ent.plan}. Upgrade at ${appOrigin()}/pricing.`);
+    if (need === "review" && (await rateHit(`mcp-video:${p.connectionId}`, 3600, VIDEO_CALLS_PER_HOUR)) === "limited") {
+      throw new ApiFailure("limited", "Too many uploads from this app in the last hour. Wait a while and try again.");
+    }
     if (countsAsPost) {
       const perHour = getLimit(g.ent, "assistant_posts_per_hour");
       const rate = perHour > 0 ? await rateHit(`mcp-post:${p.connectionId}`, 3600, perHour) : "limited";
@@ -329,4 +341,39 @@ if (await overConnectionLimit(p.connectionId)) return fail(`Too many requests fr
     inputSchema: z.object({ workspace_id: workspaceId, post_id: z.string().uuid().describe("The SOCIA post id.") }),
     annotations: WITHDRAW,
   }, async (a, c) => runPosting(c as ToolCtx, "cancel_post", a.workspace_id, false, (ctx) => cancelPost(ctx, a.post_id)));
+
+  // Claude makes the week: the person's own Claude makes the weekly plan's videos on their computer
+  // and hands them in for review (lib/claudeWeek). Nothing here schedules or posts.
+  server.registerTool("get_videos_to_make", {
+    title: "Get this week's videos to make",
+    description: "The posts in this week's Content Plan that the person wants their Claude to make, each with the brief (concept, hook, direction, format, size, platform), the brand's voice, font and colour, when it will go out, and its status: to_make, waiting_for_review, changes_requested (with the person's note) or approved. Make the ones that are to_make or changes_requested, then hand each in with start_video_upload and submit_video. Never film or use footage of the person; these videos are made entirely on the computer.",
+    inputSchema: z.object({ workspace_id: workspaceId }),
+    annotations: READ_ONLY,
+  }, async (a, c) => run(c as ToolCtx, "get_videos_to_make", a.workspace_id, (ctx, ent) => videosToMake(ctx, ent)));
+
+  server.registerTool("start_video_upload", {
+    title: "Start uploading a finished video",
+    description: `A one-time upload link for one finished video of this week's plan, valid for two hours. Upload the file with an HTTP PUT to upload_url (Content-Type set to the mime), then call submit_video with the returned path. MP4, MOV or WebM, at most ${MAX_VIDEO_BYTES / (1024 * 1024)} MB.`,
+    inputSchema: z.object({
+      workspace_id: workspaceId,
+      item_id: z.string().max(64).describe("The post's item_id from get_videos_to_make."),
+      mime: z.enum(Object.keys(VIDEO_TYPES) as [string, ...string[]]).describe("The file's type."),
+      size_bytes: z.number().int().positive().describe("The file's size in bytes."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, async (a, c) => runPosting(c as ToolCtx, "start_video_upload", a.workspace_id, false, (ctx) => startVideoUpload(ctx, serviceOrNull()!, a), "review"));
+
+  server.registerTool("submit_video", {
+    title: "Hand in a finished video for review",
+    description: "Hands in an uploaded video for one post of this week's plan, with its caption. SOCIA keeps it as a draft at the post's planned time for the person to review; it is scheduled only when they approve it, and nothing is posted before. Handing in again for the same post replaces the earlier video.",
+    inputSchema: z.object({
+      workspace_id: workspaceId,
+      item_id: z.string().max(64).describe("The post's item_id from get_videos_to_make."),
+      path: z.string().max(512).describe("The path start_video_upload returned."),
+      caption: z.string().max(5000).describe("The caption to post with, in the brand's voice (Instagram allows 2,200 characters)."),
+      title: z.string().max(100).optional().describe("YouTube posts: the video title."),
+      account_id: z.string().max(100).optional().describe("Only when the workspace has several accounts on the post's platform: which one, from list_connected_accounts."),
+    }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, async (a, c) => runPosting(c as ToolCtx, "submit_video", a.workspace_id, false, (ctx, ent) => submitVideo(ctx, serviceOrNull()!, ent, a), "review"));
 }

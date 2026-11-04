@@ -45,6 +45,10 @@ export type Deliverable = {
     successMetric?: string;
     /** The running experiment this post tests (its id in the Growth Strategy), when it tests one. */
     experiment?: string;
+    /** Who makes the video: the person ("you") or their own Claude ("claude", lib/claudeWeek). Older plans lack it: "you". */
+    maker?: "you" | "claude";
+    /** The post's own id, assigned by SOCIA when the plan is saved (lib/planItems.ts withItemIds). Not part of the model's schema. */
+    id?: string;
     /** "own" when the person added the idea themselves; SOCIA's otherwise. Not part of the model's schema. */
     source?: "socia" | "own";
     /** The person's call on the idea, and why when they turned it down. Not part of the model's schema. */
@@ -134,8 +138,10 @@ export const deliverableSchema = {
           production: { type: "string" },
           successMetric: { type: "string" },
           experiment: { type: "string" },
+          maker: { type: "string", enum: ["you", "claude"] },
         },
         required: [
+          "maker",
           "day",
           "concept",
           "hook",

@@ -80,6 +80,21 @@ export const MAKERS = [
   { id: "team", label: "A team or helper" },
 ] as const;
 
+/** Who makes the videos: the weekly plan marks each post for the person or for their own Claude (lib/claudeWeek). */
+export const VIDEO_MAKERS = [
+  { id: "me", label: "I film them" },
+  { id: "claude", label: "My Claude makes them" },
+  { id: "mix", label: "A mix" },
+] as const;
+
+/** Kinds of video the person's Claude may make: nothing that needs filming. */
+export const CLAUDE_STYLES = [
+  { id: "animated", label: "Animated graphics" },
+  { id: "kinetic_text", label: "Animated text" },
+  { id: "voiceover", label: "Faceless, with a voiceover" },
+  { id: "slideshow", label: "Photo slideshow" },
+] as const;
+
 /** The one main goal asked at onboarding (the brief's five), each tied to a measurable goal metric. */
 export const MAIN_GOALS = [
   { id: "views", label: "Increase views", metric: "views_30d" },
@@ -108,6 +123,8 @@ export type GrowthProfile = {
     equipment?: (typeof EQUIPMENT)[number]["id"][];
     editing?: (typeof EDITING)[number]["id"];
     makers?: (typeof MAKERS)[number]["id"];
+    video_maker?: (typeof VIDEO_MAKERS)[number]["id"];
+    claude_styles?: (typeof CLAUDE_STYLES)[number]["id"][];
   };
 };
 
@@ -158,6 +175,8 @@ export function normalizeGrowth(input: unknown): GrowthProfile {
         equipment: manyOf(r.equipment, EQUIPMENT),
         editing: oneOf(r.editing, EDITING),
         makers: oneOf(r.makers, MAKERS),
+        video_maker: oneOf(r.video_maker, VIDEO_MAKERS),
+        claude_styles: manyOf(r.claude_styles, CLAUDE_STYLES),
       }),
     }) ?? {}
   );
@@ -200,6 +219,8 @@ export function growthLines(g: GrowthProfile | null | undefined): string[] {
     g.resources?.equipment?.length ? `Equipment: ${g.resources.equipment.map((e) => labelOf(EQUIPMENT, e)).join(", ")}` : null,
     g.resources?.editing ? `Editing: ${labelOf(EDITING, g.resources.editing)}` : null,
     g.resources?.makers ? `Who makes the content: ${labelOf(MAKERS, g.resources.makers)}` : null,
+    g.resources?.video_maker ? `Who makes the videos: ${labelOf(VIDEO_MAKERS, g.resources.video_maker)}` : null,
+    g.resources?.claude_styles?.length ? `Videos their Claude may make: ${g.resources.claude_styles.map((s) => labelOf(CLAUDE_STYLES, s)).join(", ")}` : null,
   ];
   return lines.filter((l): l is string => Boolean(l));
 }
