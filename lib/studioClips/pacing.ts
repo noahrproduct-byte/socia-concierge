@@ -35,8 +35,10 @@ export const PACING = {
   leadInSec: 0.4,
   /** how much silence a cut keeps after its last sound */
   tailSec: 0.15,
-  /** a cut this far from a beat (seconds) is moved onto it */
-  beatToleranceSec: 0.25,
+  /** a cut this close to a beat (seconds, three frames) counts as on it */
+  beatToleranceSec: 0.1,
+  /** the most a cut is trimmed or lengthened to reach a beat */
+  beatMoveSec: 0.3,
   /** a good Reel averages this long a cut */
   averageCutSec: [1, 4] as const,
 } as const;
@@ -167,8 +169,9 @@ export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number
   }
   if (beat && beat.bpm > 0 && tl.segments.length > 1) {
     const period = 60 / beat.bpm;
+    const tol = Math.min(PACING.beatToleranceSec, period / 4);
     const bounds = tl.segments.slice(1).map((s) => s.startSec + s.overlapIn / 2 / edl.fps);
-    const on = bounds.filter((b) => { const k = Math.round((b - beat.offsetSec) / period); return Math.abs(b - (beat.offsetSec + k * period)) <= PACING.beatToleranceSec; }).length;
+    const on = bounds.filter((b) => { const k = Math.round((b - beat.offsetSec) / period); return Math.abs(b - (beat.offsetSec + k * period)) <= tol; }).length;
     parts.push({ id: "beat", label: "On the beat", ok: on === bounds.length, detail: `${on} of ${bounds.length} cuts land on the music's beat (${Math.round(beat.bpm)} BPM).` });
   }
   const met = parts.filter((p) => p.ok).length;

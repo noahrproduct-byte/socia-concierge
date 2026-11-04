@@ -5,6 +5,7 @@
 // progress, the Content Yield, one opportunity's edit guide, and the project
 // list. No fetching here — ClipsStudio owns the flow and hands these data.
 import Link from "next/link";
+import "@/app/(app)/studio/studio.css";
 import { FileVideo, AlertTriangle, Check, Clock, Trash2, ChevronLeft, Copy, ArrowRight, Scissors, Type, SunMedium, Volume2, Captions, Music, Timer, Flag, Loader2, FolderOpen, Clapperboard } from "lucide-react";
 import type { ReactNode } from "react";
 import type { GuideStep, Opportunity, StudioBuild, StudioClip, UnderstandProgress, YieldResult } from "@/lib/studioClips/types";
@@ -12,6 +13,7 @@ import type { StudioOutcome } from "@/lib/studioClips/learn";
 import { ResultChip } from "./LearnCard";
 import { clipLabel, fmtClock } from "@/lib/studioClips/types";
 import { evidenceLine, yieldHeadline } from "@/lib/studioClips/yield";
+import { clipScore, whyPost, ORDER_LINE } from "@/lib/studioClips/rank";
 import type { ProjectSummary } from "@/lib/studioClips/server";
 
 export type LocalPhase = "reading" | "registering" | "analyzing" | "uploading" | "done" | "error" | "duplicate";
@@ -56,7 +58,10 @@ export function ClipGrid({ clips, onRemove, busy }: { clips: LocalClip[]; onRemo
               <b>{clipLabel(pos)}</b>
               <small title={c.name}>{c.name}</small>
               {c.phase === "done" ? (
-                <span className="cb-clip-state ok"><Check size={11} /> {c.reused ? "Analysis reused" : c.clip?.card ? "Understood" : "Ready"}{flags.length ? ` · ${flags.join(", ")}` : ""}</span>
+                <>
+                  <span className="cb-clip-state ok"><Check size={11} /> {c.reused ? "Analysis reused" : c.clip?.card ? "Understood" : "Ready"}{flags.length ? ` · ${flags.join(", ")}` : ""}</span>
+                  {c.clip?.card && (() => { const r = clipScore({ id: c.clip!.id, position: pos, durationSec: c.durationSec ?? 0, card: c.clip!.card, facts: facts ?? null }); return r.score == null ? null : <small className="sd-clip-why" title={r.parts.map((p) => `${p.label}: ${p.note}`).join("; ")}><b>{r.label}, {r.score}</b> {r.reason}</small>; })()}
+                </>
               ) : c.phase === "error" ? (
                 <span className="cb-clip-state bad"><AlertTriangle size={11} /> {c.error ?? "Failed"}</span>
               ) : c.phase === "duplicate" ? (
@@ -127,6 +132,7 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
         <div className="cb-hero-meta">
           <span>{fmtMinutes(y.footageSec)} of footage</span>
           <span>{y.rejected.length ? `${y.rejected.length} idea${y.rejected.length === 1 ? "" : "s"} didn't have enough distinct footage` : "Every idea had enough footage"}</span>
+          <span>{ORDER_LINE}</span>
           <button type="button" className="ov-btn ghost small" onClick={onAddMore}>Add more clips</button>
         </div>
         {stale && <p className="cb-stale"><AlertTriangle size={12} /> Footage changed since these results — understand it again to refresh them.</p>}
@@ -143,6 +149,7 @@ export function YieldView({ y, clips, builds, onOpen, onAddMore, stale, outcomes
               </div>
               <h3>{o.title}</h3>
               <p className="cb-opp-angle">{o.angle}</p>
+              <p className="sd-why">{whyPost(o)}</p>
               <p className="cb-evidence">{evidenceLine(o).split(" · ").map((part, i) => <span key={i}>{part}</span>)}</p>
               <ul className="cb-opp-clips">
                 {o.clipIds.slice(0, 6).map((id) => {
@@ -184,6 +191,7 @@ export function OpportunityView({ o, build, clips, loading, error, onBack, onRet
         <div className="cb-opp-head"><span className={`cb-badge ${o.strength}`}>{o.strength === "strong" ? "Strong post" : "Possible post"}</span></div>
         <h2>{o.title}</h2>
         <p className="cb-opp-angle">{o.angle}</p>
+        <p className="sd-why">{whyPost(o)}</p>
         <p className="cb-evidence">{evidenceLine(o).split(" · ").map((part, i) => <span key={i}>{part}</span>)}</p>
         <ul className="cb-moments">
           {o.moments.map((m, i) => {

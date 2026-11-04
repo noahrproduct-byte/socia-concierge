@@ -9,7 +9,7 @@ import AudioInsights from "./AudioPanel";
 import type { QuickAudio } from "@/lib/audio/quick";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Clock, CalendarPlus, ArrowRight, Info, Send } from "lucide-react";
+import { ChevronDown, Check, Copy, RefreshCw, Clock, CalendarPlus, CalendarDays, ArrowRight, Info, Send } from "lucide-react";
 import { CATEGORY_INFO, GOALS, fmtT, checklist, versionDiff, type StudioAnalysis, type ApplyField, type GoalId, type ChecklistItem } from "@/lib/studio";
 import type { PlanError } from "@/lib/planErrors";
 import PlanNotice from "../PlanNotice";
@@ -351,7 +351,7 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
           {items.map((i) => <li key={i.id} className={i.done ? "done" : ""}><i>{i.done ? <Check size={11} /> : null}</i><span><b>{i.label}</b><small>{i.hint}</small></span></li>)}
         </ul>
         <div className="st-row-actions">
-          <Link href={`/plan?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><Sparkles size={12} /> Add to Content Plan</Link>
+          <Link href={`/plan?note=${encodeURIComponent(planNote)}`} className="ov-btn ghost small"><CalendarDays size={12} /> Add to Content Plan</Link>
           <button type="button" className="ov-btn ghost small" disabled={saving || handing || Boolean(savedId)} onClick={() => void onSaveDraft()}><CalendarPlus size={12} /> {saving && !handing ? "Saving…" : savedId ? "Saved as draft" : "Save draft to Calendar"}</button>
           <button type="button" className="btn-primary sm" disabled={saving || handing} onClick={publish}><Send size={12} /> {handing ? "Opening Create Post…" : "Publish or schedule"}</button>
           {savedId && <Link href="/plan/calendar" className="ov-btn ghost small">Open Calendar <ArrowRight size={12} /></Link>}

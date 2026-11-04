@@ -1,0 +1,314 @@
+/* Studio (components/studio/*): the editor's cut inspector and list, the
+   transition thumbnails, the pacing and clip rings, the post cards and the
+   empty states. Tokens only; every class starts with sd-. Entrance motion is
+   in framer-motion (components/dashboard/motion.tsx); the hover lift lives in
+   studio-motion.css. */
+
+/* ---- the editor's Cut tab: one cut at a time, then the order ----------------- */
+.sd-cut {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.sd-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.sd-inspector-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.sd-ph {
+  display: block;
+  background: var(--surface-hover);
+  flex: none;
+}
+.sd-inspector-head img,
+.sd-inspector-head .sd-ph {
+  width: 52px;
+  height: 66px;
+  border-radius: var(--r-card);
+  object-fit: cover;
+  display: block;
+}
+.sd-inspector-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sd-inspector-head b {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+.sd-inspector-head b small {
+  margin-left: var(--sp-1);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-regular);
+}
+.sd-times {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sd-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.sd-hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+.sd-field {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  color: var(--ink-2);
+}
+.sd-field select {
+  width: 100%;
+  min-height: var(--control-h-sm);
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  padding: 0 var(--sp-2);
+}
+.sd-vol {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.sd-vol em {
+  font-style: normal;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.sd-iconbtn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.sd-iconbtn:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+.sd-iconbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sd-iconbtn.is-danger:not(:disabled):hover {
+  color: var(--negative-ink);
+  border-color: var(--negative);
+}
+.sd-note {
+  color: var(--accent-ink);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* transitions as four small pictures */
+.sd-trans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.sd-trans button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  cursor: pointer;
+}
+.sd-trans button[aria-checked="true"] {
+  color: var(--ink);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.sd-trans button:disabled {
+  cursor: default;
+  color: var(--ink-disabled);
+}
+.sd-trans button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sd-tthumb {
+  position: relative;
+  display: block;
+  width: 54px;
+  height: 34px;
+  border-radius: var(--r-chip);
+  overflow: hidden;
+  background: var(--surface-hover);
+}
+.sd-tthumb i {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.sd-tthumb .is-a {
+  background: var(--chart-series-2);
+}
+.sd-tthumb .is-b {
+  background: var(--accent);
+}
+/* the still each thumbnail rests at: the moment the join is half done */
+.sd-tthumb.is-cut .is-b {
+  left: 50%;
+}
+.sd-tthumb.is-fade .is-b {
+  opacity: 0.55;
+}
+.sd-tthumb.is-zoom .is-b {
+  transform: scale(1.25);
+  opacity: 0.65;
+}
+.sd-tthumb.is-whip .is-a {
+  transform: translateX(-35%);
+}
+.sd-tthumb.is-whip .is-b {
+  transform: translateX(45%);
+}
+
+/* the order */
+.sd-cutlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.sd-cutlist li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.sd-cutlist li.is-on {
+  border-color: var(--accent-line);
+  background: var(--accent-subtle);
+}
+.sd-cutlist li.is-missing {
+  border-color: var(--warning);
+}
+.sd-cutlist-btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.sd-cutlist-btn img,
+.sd-cutlist-btn .sd-ph {
+  width: 30px;
+  height: 38px;
+  border-radius: var(--r-chip);
+  object-fit: cover;
+  flex: none;
+}
+.sd-cutlist-btn > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sd-cutlist-btn b {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+}
+.sd-cutlist-btn small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sd-cutlist-move {
+  display: flex;
+  gap: var(--sp-1);
+  padding-right: var(--sp-2);
+}
+.sd-cutlist-move button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.sd-cutlist-move button:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+.sd-pace-line {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+@media (max-width: 640px) {
+  .sd-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- what the raters say ------------------------------------------------------ */
+.sd-why {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-clip-why {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  white-space: normal;
+}
+.sd-clip-why b {
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}

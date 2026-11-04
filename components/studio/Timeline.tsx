@@ -45,7 +45,7 @@ const SNAP_PX = 8;
 export default function Timeline({
   tracks, fps, player, canEdit, selected, onSelect,
   onTextStart, onTextLive, onCutStart, onCutTrimLive, onCutMove,
-  onSplit, onDelete, onUndo, onRedo, canUndo, canRedo, note,
+  onSplit, onDelete, onUndo, onRedo, canUndo, canRedo, note, onTime,
 }: {
   tracks: Tracks;
   fps: number;
@@ -53,6 +53,8 @@ export default function Timeline({
   canEdit: boolean;
   selected: TimelineSelection;
   onSelect: (s: TimelineSelection) => void;
+  /** The playhead in output seconds, ten times a second while playing. */
+  onTime?: (sec: number) => void;
   /** Called once when a text drag or key change begins (pushes one undo step). */
   onTextStart: () => void;
   /** The line's new times while it moves. */
@@ -75,6 +77,10 @@ export default function Timeline({
   const scroller = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(0);
+  // The playhead moves on every frame straight on the element; React state (the readout and snapping) follows at 10 Hz.
+  const head = useRef<HTMLSpanElement>(null);
+  const nowRef = useRef(0);
+  const lastTick = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [ghost, setGhost] = useState<{ index: number; dx: number; to: number } | null>(null);
@@ -99,7 +105,10 @@ export default function Timeline({
     if (!p) return;
     const onFrame = (e: { detail: { frame: number } }) => {
       const t = e.detail.frame / fps;
-      setNow(t);
+      nowRef.current = t;
+      if (head.current) head.current.style.left = `${(Math.min(Math.max(t, 0), d) / d) * 100}%`;
+      const at = performance.now();
+      if (at - lastTick.current >= 100 || !p.isPlaying()) { lastTick.current = at; setNow(t); onTime?.(t); }
       // Zoomed in and playing: keep the playhead in view.
       const sc = scroller.current, ar = area.current;
       if (!sc || !ar || sc.scrollWidth <= sc.clientWidth) return;
@@ -118,6 +127,7 @@ export default function Timeline({
       p.removeEventListener("pause", onPause);
       p.removeEventListener("ended", onPause);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player, fps, d]);
 
   const secAt = (clientX: number) => {
@@ -127,7 +137,10 @@ export default function Timeline({
   const seek = (clientX: number) => {
     const t = secAt(clientX);
     player.current?.seekTo(Math.min(Math.round(t * fps), Math.max(0, Math.round(d * fps) - 1)));
+    nowRef.current = t;
+    if (head.current) head.current.style.left = pct(t);
     setNow(t);
+    onTime?.(t);
   };
 
   // ---- pointer -----------------------------------------------------------
@@ -313,7 +326,7 @@ export default function Timeline({
                 {tracks.captions.map((c, i) => <span key={i} className="cbb-tl-cap" style={{ left: pct(c.start), width: width(c.start, c.end) }} />)}
               </div>
             )}
-            <span className="cbb-tl-head" style={{ left: pct(now) }} aria-hidden />
+            <span className="cbb-tl-head" ref={head} style={{ left: pct(now) }} aria-hidden />
           </div>
         </div>
       </div>

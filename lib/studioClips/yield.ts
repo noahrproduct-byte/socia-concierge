@@ -131,8 +131,10 @@ export function validateYield(groups: ProposedGroup[], clips: ClipForYield[], no
     });
   }
 
-  // Strong first, then in the model's order; indices are assigned after sorting.
-  const ordered = [...accepted.filter((o) => o.strength === "strong"), ...accepted.filter((o) => o.strength === "possible")].map((o, i) => ({ ...o, idx: i }));
+  // Strong first, then the most usable footage, then the most moments, then the title: the same
+  // clips always give the same order (lib/studioClips/rank.ts ORDER_LINE). Indices follow the order.
+  const rank = (o: Opportunity) => (o.strength === "strong" ? 0 : 1);
+  const ordered = [...accepted].sort((a, b) => rank(a) - rank(b) || b.evidence.usableSec - a.evidence.usableSec || b.evidence.distinctMoments - a.evidence.distinctMoments || a.title.localeCompare(b.title)).map((o, i) => ({ ...o, idx: i }));
   return {
     opportunities: ordered,
     rejected,

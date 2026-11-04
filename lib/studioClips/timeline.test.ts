@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { timeline, captionsForEdl, edgeEnvelope, dbToGain, FPS } from "./timeline";
+import { timeline, captionsForEdl, captionPages, edgeEnvelope, dbToGain, EDGE_FADE_FRAMES, FPS } from "./timeline";
 import type { Edl } from "./types";
 
 const edl: Edl = {
@@ -35,12 +35,39 @@ describe("timeline", () => {
     expect(captionsForEdl(edl, { a: null, b: [] })).toEqual([]);
   });
 
-  it("fades edges without ever exceeding unity", () => {
-    expect(edgeEnvelope(0, 120)).toBeLessThan(0.5);
+  it("fades only two frames at each edge, so a word at a cut never ducks", () => {
+    expect(EDGE_FADE_FRAMES).toBe(2);
+    expect(edgeEnvelope(0, 120)).toBe(0.5);
+    expect(edgeEnvelope(2, 120)).toBe(1);
     expect(edgeEnvelope(60, 120)).toBe(1);
-    expect(edgeEnvelope(119, 120)).toBeLessThan(0.5);
+    expect(edgeEnvelope(117, 120)).toBe(1);
+    expect(edgeEnvelope(119, 120)).toBe(0.5);
     expect(edgeEnvelope(0, 2)).toBeGreaterThan(0);
     expect(dbToGain(6)).toBeCloseTo(1.995, 2);
     expect(dbToGain(0)).toBe(1);
+  });
+});
+
+describe("caption pages", () => {
+  const spoken: Edl = { ...edl, segments: [{ id: "s1", clipId: "a", in: 0, out: 6, role: "opener", note: "" }] };
+  const words = { a: [
+    { text: "Wait", startMs: 200, endMs: 500, confidence: 1 },
+    { text: "for", startMs: 550, endMs: 700, confidence: 1 },
+    // starts inside the first page's 1.2 s but ends after it: the page must hold until it ends
+    { text: "everything", startMs: 1100, endMs: 1900, confidence: 1 },
+    { text: "now", startMs: 3000, endMs: 3400, confidence: 1 },
+  ] };
+  it("holds a page until its last word has ended, and never past the next page", () => {
+    const pages = captionPages(spoken, words, 30);
+    expect(pages.length).toBe(2);
+    expect(pages[0].from).toBe(6);
+    expect(pages[0].from + pages[0].durationInFrames).toBe(Math.round(1.9 * 30));
+    expect(pages[1].from).toBe(90);
+  });
+  it("gives a short page the usual length, and nothing without words or captions", () => {
+    const pages = captionPages(spoken, { a: [{ text: "Hi", startMs: 100, endMs: 300, confidence: 1 }] }, 30);
+    expect(pages[0].durationInFrames).toBe(Math.round(1.2 * 30));
+    expect(captionPages({ ...spoken, captions: null }, words, 30)).toEqual([]);
+    expect(captionPages(spoken, { a: [] }, 30)).toEqual([]);
   });
 });

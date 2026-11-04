@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Upload, Sparkles, AlertTriangle, Loader2, RefreshCw, Layers, FolderOpen, Scissors } from "lucide-react";
+import { Upload, ScanSearch, Lock, AlertTriangle, Loader2, RefreshCw, Layers, FolderOpen, Scissors } from "lucide-react";
 import PageHeader from "../PageHeader";
 import PlanNotice, { UsageLine } from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
@@ -568,7 +568,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
               )}
               {view === "collect" && !editing && (
                 <button type="button" className="ov-btn primary" disabled={!canUnderstand} onClick={() => void understand()}>
-                  {starting ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />} {project.yield ? "Understand again" : "Understand this footage"}
+                  {starting ? <Loader2 size={14} className="spin" /> : <ScanSearch size={14} />} {project.yield ? "Understand again" : "Understand this footage"}
                 </button>
               )}
             </div>
@@ -609,7 +609,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
         <ClipBuilder buildId={build.id} title={openOpp.title} onBack={() => { setBuilding(false); void openOpportunity(openOpp); }} />
       )}
 
-      <div className="st-privacy"><Sparkles size={11} /> Clips are measured on your device and stored privately. SOCIA counts a post only when the footage supports it.</div>
+      <div className="st-privacy"><Lock size={11} /> Clips are measured on your device and stored privately. SOCIA counts a post only when the footage supports it.</div>
     </div>
   );
 }

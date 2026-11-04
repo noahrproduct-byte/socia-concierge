@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Player, type PlayerRef } from "@remotion/player";
-import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, Scissors, SkipBack, SkipForward, Palette, Volume2, VolumeX } from "lucide-react";
+import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
@@ -27,12 +27,24 @@ import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
 import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { timeline } from "@/lib/studioClips/timeline";
 import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
+import type { ClipMeasure } from "@/lib/studioClips/measure";
+import { alignToBeats } from "@/lib/studioClips/beats";
+import { beatOfTrack } from "@/lib/studioClips/beatClient";
+import { clipsForEdl } from "@/lib/studioClips/clientClips";
+import type { Beat } from "@/lib/audio/features";
+import { pacingReport } from "@/lib/studioClips/pacing";
+import { bestMomentFor } from "@/lib/studioClips/rank";
+import "@/app/(app)/studio/studio.css";
 import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
-const STEP = 0.5;
 const r2 = (n: number) => Number(n.toFixed(2));
+
+/** Two panes, A then B, drawn the way the transition joins them: a hard cut, a fade, a zoom or a whip. */
+function TransitionThumb({ kind }: { kind: TransitionKind }) {
+  return <span className={`sd-tthumb is-${kind}`} aria-hidden><i className="is-a" /><i className="is-b" /></span>;
+}
 
 type ExportPhase = "idle" | "checking" | "rendering" | "uploading" | "saving" | "done" | "error";
 type ExportState = { phase: ExportPhase; progress: number; message: string | null; postId: string | null };
@@ -63,6 +75,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [tplName, setTplName] = useState("");
   const [styleNote, setStyleNote] = useState<string | null>(null);
   const [quality, setQuality] = useState<"high" | "medium">("high");
+  // A short message from the last action that couldn't be done, or what the beat snap did.
+  const [hereNote, setHereNote] = useState<string | null>(null);
   // Before/After for the measured corrections; the export always uses After.
   const [compare, setCompare] = useState<"before" | "after">("after");
   // The text safe zone over the preview (a check for us; never in the export).
@@ -116,7 +130,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
 
   // Once the cut is loaded: colour it on its own, once per cut (lib/studioClips/autoLook.ts).
   // It goes in as one edit, so Undo takes it back and Look can change it or switch it off.
-  const [lookState, setLookState] = useState<{ state: "working" | "done"; corrected: number } | null>(null);
+  const [lookState, setLookState] = useState<{ state: "working" | "done"; corrected: number; done: number; total: number } | null>(null);
+  // What the colour pass measured: the Look & sound tab starts from it instead of measuring again.
+  const [measures, setMeasures] = useState<Record<string, ClipMeasure> | null>(null);
   const lookTried = useRef(false);
   const edlRef = useRef<Edl | null>(null);
   const dirtyRef = useRef(false);
@@ -127,12 +143,13 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     lookTried.current = true;
     if (!wantsAutoLook(edl)) return;
     const ctrl = new AbortController();
-    setLookState({ state: "working", corrected: 0 });
+    setLookState({ state: "working", corrected: 0, done: 0, total: sourceCount });
     (async () => {
-      const out = await autoLook(edl, sources, ctrl.signal).catch(() => null);
+      const out = await autoLook(edl, sources, ctrl.signal, (done, total) => setLookState({ state: "working", corrected: 0, done, total })).catch(() => null);
       if (!out || ctrl.signal.aborted) return;
       const cur = edlRef.current;
-      setLookState({ state: "done", corrected: out.corrected });
+      if (out.measures) setMeasures(out.measures);
+      setLookState({ state: "done", corrected: out.corrected, done: sourceCount, total: sourceCount });
       // The person set a look in the meantime: theirs stays.
       if (!cur || cur.finish || cur.lookAuto) return;
       const next: Edl = { ...cur, ...(out.edl.finish ? { finish: out.edl.finish } : {}), lookAuto: out.edl.lookAuto };
@@ -162,6 +179,37 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [trackUrls, setTrackUrls] = useState<Record<string, string>>({});
   useEffect(() => { if (data?.music) setTrackUrls((u) => ({ ...data.music, ...u })); }, [data?.music]);
   const musicUrl = edl?.soundtrack ? trackUrls[edl.soundtrack.trackId] ?? null : null;
+  // The track's beat, measured here from the track itself; the tempo it was made at when that fails.
+  const [beat, setBeat] = useState<(Beat & { trackId: string }) | null>(null);
+  const trackBpm = edl?.soundtrack ? edl.playlist?.tracks.find((t) => t.id === edl.soundtrack!.trackId)?.bpm ?? null : null;
+  useEffect(() => {
+    const id = edl?.soundtrack?.trackId;
+    if (!id || !musicUrl) { setBeat(null); return; }
+    let alive = true;
+    beatOfTrack(musicUrl).then((b) => {
+      if (!alive) return;
+      if (b) setBeat({ ...b, trackId: id });
+      else if (trackBpm) setBeat({ bpm: trackBpm, offsetSec: 0, confidence: 0, trackId: id });
+      else setBeat(null);
+    });
+    return () => { alive = false; };
+  }, [edl?.soundtrack?.trackId, musicUrl, trackBpm]);
+  const pace = useMemo(() => (edl ? pacingReport(edl, clipsForEdl(sources), beat) : null), [edl, sources, beat]);
+  const snapToBeat = useCallback((b: Beat, note = true) => {
+    const cur = edlRef.current;
+    if (!cur || cur.segments.length < 2) return;
+    const r = alignToBeats(cur, clipsForEdl(sources), b);
+    if (r.moved) commit(r.edl);
+    if (note) setHereNote(r.moved ? `${r.moved} of ${r.total} cut${r.total === 1 ? "" : "s"} moved onto the beat (${Math.round(b.bpm)} BPM).` : `Every cut already lands on the beat (${Math.round(b.bpm)} BPM).`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sources]);
+  // Once per track chosen in this session: the cuts land on its beat (one undo step).
+  const snappedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!beat || !data?.canEdit || snappedFor.current === beat.trackId) return;
+    snappedFor.current = beat.trackId;
+    snapToBeat(beat);
+  }, [beat, data?.canEdit, snapToBeat]);
   // Background noise reduced in this browser, per clip (lib/studioClips/cleanSound.ts); the preview and the export play it.
   const [cleanAudio, setCleanAudio] = useState<Record<string, string>>({});
   const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
@@ -189,19 +237,12 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const redo = () => setFuture((f) => { const next = f[0]; if (!next || !edl) return f; setPast((p) => [...p, edl]); setEdl(next); setDirty(true); return f.slice(1); });
 
   const move = (i: number, dir: -1 | 1) => { if (!edl) return; const j = i + dir; if (j < 0 || j >= edl.segments.length) return; const segs = [...edl.segments]; [segs[i], segs[j]] = [segs[j], segs[i]]; commit({ ...edl, segments: segs }); };
-  const trim = (i: number, edge: "in" | "out", delta: number) => {
-    if (!edl) return;
-    const s = edl.segments[i]; const src = sources[s.clipId]; const dur = src?.durationSec ?? s.out;
-    let { in: a, out: b } = s;
-    if (edge === "in") a = Math.max(0, Math.min(a + delta, b - MIN_SEG)); else b = Math.min(dur, Math.max(b + delta, a + MIN_SEG));
-    commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, in: r2(a), out: r2(b) } : x)) });
-  };
   const remove = (i: number) => { if (!edl || edl.segments.length <= 1) return; commit({ ...edl, segments: edl.segments.filter((_, k) => k !== i) }); };
   const replace = (i: number, clipId: string) => {
     if (!edl) return; const src = sources[clipId]; if (!src) return;
-    const m = src.moments.find((x) => x.strength !== "weak");
-    const a = m ? m.start : 0, b = m ? Math.min(m.end, m.start + 6) : Math.min(src.durationSec, 4);
-    commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, clipId, in: r2(a), out: r2(Math.max(b, a + MIN_SEG)), note: "" } : x)) });
+    const m = bestMomentFor(src);
+    commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, clipId, in: r2(m.start), out: r2(Math.max(m.end, m.start + MIN_SEG)), note: "" } : x)) });
+    setHereNote(`Swapped in ${m.why}`);
   };
   const removeText = (i: number) => { if (!edl) return; commit({ ...edl, text: edl.text.filter((_, k) => k !== i) }); };
   const toggleCaptions = () => { if (!edl) return; commit({ ...edl, captions: edl.captions ? null : { source: "transcript" } }); };
@@ -215,7 +256,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     const seg = tl.segments[k];
     return { sec, i: k, clipT: r2(seg.in + Math.max(0, sec - seg.startSec)) };
   };
-  const [hereNote, setHereNote] = useState<string | null>(null);
   const startHere = () => { const p = at(); if (!edl || !p) return; const s = edl.segments[p.i]; if (s.out - p.clipT < MIN_SEG) return setHereNote(`Too close to the end of that cut; a cut needs ${MIN_SEG}s.`); setHereNote(null); commit({ ...edl, segments: edl.segments.map((x, k) => (k === p.i ? { ...x, in: p.clipT } : x)) }); };
   const endHere = () => { const p = at(); if (!edl || !p) return; const s = edl.segments[p.i]; if (p.clipT - s.in < MIN_SEG) return setHereNote(`Too close to the start of that cut; a cut needs ${MIN_SEG}s.`); setHereNote(null); commit({ ...edl, segments: edl.segments.map((x, k) => (k === p.i ? { ...x, out: p.clipT } : x)) }); };
   const splitHere = () => {
@@ -345,6 +385,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   // What's selected on the timeline (Delete removes it). Trims are applied live
   // from the cut as it was when the drag began, as one undo step.
   const [sel, setSel] = useState<TimelineSelection>(null);
+  // The playhead in output seconds (from the timeline, ten times a second): the Cut tab follows it when nothing is selected.
+  const [playSec, setPlaySec] = useState(0);
+  const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text") setPanel("text"); else if (next?.kind === "cut") setPanel("cut"); };
   const trimBase = useRef<Edl | null>(null);
   const cutStart = () => { trimBase.current = edl; beginLive(); };
   const cutTrimLive = (i: number, edge: "in" | "out", delta: number) => {
@@ -410,9 +453,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       <div className="cbb-head">
         <button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> {data.manual ? "Back to your clips" : "Back to the guide"}</button>
         <div className="cbb-head-actions">
-          <button type="button" className="ov-btn ghost small" disabled={!past.length || busy} onClick={undo} title="Undo"><Undo2 size={13} /> Undo</button>
-          <button type="button" className="ov-btn ghost small" disabled={!future.length || busy} onClick={redo} title="Redo"><Redo2 size={13} /> Redo</button>
           {data.canEdit && <button type="button" className="ov-btn ghost small" disabled={!dirty || busy} onClick={() => void save()}>{saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} {dirty ? "Save changes" : "Saved"}</button>}
+          {data.canEdit && (exp.phase === "idle" || exp.phase === "error" || exp.phase === "done") && (
+            <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || lookState?.state === "working"} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
+          )}
         </div>
       </div>
       {saveErr && <p className="cbb-err" role="alert"><AlertTriangle size={13} aria-hidden /> {saveErr}</p>}
@@ -437,6 +481,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             <div className="cbb-player-meta">
               <b>{title}</b>
               <span>{tl.durationSec.toFixed(1)}s, {edl.segments.length} cut{edl.segments.length === 1 ? "" : "s"}, {edl.width}×{edl.height}</span>
+              {pace && <small className="sd-pace-line">{pace.line}</small>}
               {edl.finish && (
                 <div className="cal2-seg cbf-compare" role="radiogroup" aria-label="Compare corrections">
                   <button type="button" role="radio" aria-checked={compare === "before"} className={compare === "before" ? "on" : ""} onClick={() => setCompare("before")}>Before</button>
@@ -460,9 +505,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                     <option value="medium">Standard (smaller, faster to upload)</option>
                   </select>
                 </label>
-                <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || !data.canEdit || autoMusic?.state === "adding" || lookState?.state === "working"} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
-                {autoMusic?.state === "adding" && <small className="ov-source"><Loader2 size={11} className="spin" /> Adding music first (about a minute).</small>}
-                {lookState?.state === "working" && <small className="ov-source"><Loader2 size={11} className="spin" /> Correcting the colour first.</small>}
+                {autoMusic?.state === "adding" && <small className="ov-source"><Loader2 size={11} className="spin" /> SOCIA is still making a track for this cut. Make the video now and it has no music, or wait for the Music tab.</small>}
+                {lookState?.state === "working" && <small className="ov-source"><Loader2 size={11} className="spin" /> Measuring the colour of clip {Math.min(lookState.done + 1, lookState.total)} of {lookState.total} first.</small>}
                 {lookState?.state === "done" && lookState.corrected > 0 && <small className="ov-source">SOCIA corrected the colour of {lookState.corrected} clip{lookState.corrected === 1 ? "" : "s"}. Change it or switch it off in Look &amp; sound.</small>}
                 {build.postId && <Link className="ov-btn ghost small" href={`/create?post=${build.postId}`}>Open the saved draft <ArrowRight size={12} /></Link>}
               </>
@@ -513,7 +557,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             </div>
           )}
           {panel === "finish" && (
-            <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} onCommit={(next) => { commit(next); setCompare("after"); }} />
+            <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} initialMeasures={measures} onCommit={(next) => { commit(next); setCompare("after"); }} />
           )}
 
           {panel === "audio" && (
@@ -540,16 +584,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 onLevels={(musicVolume, originalVolume) => { setEdl((e) => (e?.soundtrack ? { ...e, soundtrack: { ...e.soundtrack, musicVolume, originalVolume } } : e)); setDirty(true); }}
               />
               <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
-            </div>
-          )}
-
-          {panel === "cut" && (
-            <div className="cbb-here" role="group" aria-label="At the playhead">
-              <span>At the playhead:</span>
-              <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={startHere}><SkipBack size={12} /> Start here</button>
-              <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={endHere}><SkipForward size={12} /> End here</button>
-              <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={splitHere}><Scissors size={12} /> Split here</button>
-              {hereNote && <small className="cbb-err" role="status">{hereNote}</small>}
             </div>
           )}
 
@@ -650,48 +684,86 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             </div>
           )}
 
-          {panel === "cut" && (
-            <ol className="cbb-segs">
-              {edl.segments.map((s, i) => {
-                const src = sources[s.clipId];
-                return (
-                  <li key={s.id} className={`cbb-seg${src ? "" : " missing"}`}>
-                    {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
-                    {src?.thumb ? <img src={src.thumb} alt="" /> : <span className="cb-clip-ph small" />}
-                    <div className="cbb-seg-main">
-                      <b>{src ? clipLabel(src.position) : "Expired clip"} <small>{s.role === "opener" ? "opener" : s.role === "ending" ? "ending" : `cut ${i + 1}`}</small></b>
-                      <div className="cbb-trim">
-                        <span className="cbb-trim-grp" title="Start inside the clip"><button type="button" aria-label="Start earlier" disabled={!data.canEdit || busy} onClick={() => trim(i, "in", -STEP)}><Minus size={11} /></button><em>{fmtClock(s.in)}</em><button type="button" aria-label="Start later" disabled={!data.canEdit || busy} onClick={() => trim(i, "in", STEP)}><Plus size={11} /></button></span>
-                        <span className="cbb-trim-sep">→</span>
-                        <span className="cbb-trim-grp" title="End inside the clip"><button type="button" aria-label="End earlier" disabled={!data.canEdit || busy} onClick={() => trim(i, "out", -STEP)}><Minus size={11} /></button><em>{fmtClock(s.out)}</em><button type="button" aria-label="End later" disabled={!data.canEdit || busy} onClick={() => trim(i, "out", STEP)}><Plus size={11} /></button></span>
-                        <small>{(s.out - s.in).toFixed(1)}s</small>
+          {panel === "cut" && (() => {
+            const k = sel?.kind === "cut" && edl.segments[sel.index] ? sel.index : Math.max(0, Math.min(edl.segments.length - 1, tl.segments.findIndex((x) => playSec >= x.startSec && playSec < x.startSec + x.durationFrames / OUTPUT.fps)));
+            const cur = edl.segments[k];
+            const src = cur ? sources[cur.clipId] : undefined;
+            const locked = !data.canEdit || busy;
+            return (
+              <div className="sd-cut">
+                {cur && (
+                  <section className="ov-card sd-inspector" aria-label={`Cut ${k + 1}`}>
+                    <div className="sd-inspector-head">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
+                      {src?.thumb ? <img src={src.thumb} alt="" /> : <span className="sd-ph" />}
+                      <div>
+                        <b>{src ? clipLabel(src.position) : "Expired clip"} <small>{cur.role === "opener" ? "opener" : cur.role === "ending" ? "ending" : `cut ${k + 1} of ${edl.segments.length}`}</small></b>
+                        <span className="sd-times">{fmtClock(cur.in)} to {fmtClock(cur.out)} in the clip, {(cur.out - cur.in).toFixed(1)}s</span>
+                        {cur.note && <small className="cbb-note">{cur.note}</small>}
                       </div>
-                      <div className="cbb-vol">
-                        <button type="button" className="cbb-icon" aria-label={(s.volume ?? 1) === 0 ? "Unmute this clip" : "Mute this clip"} disabled={!data.canEdit || busy} onClick={() => toggleMute(i)}>{(s.volume ?? 1) === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
-                        <input type="range" min={0} max={2} step={0.05} value={s.volume ?? 1} aria-label="Clip volume" disabled={!data.canEdit || busy} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setVolume(i, Number(e.target.value))} />
-                        <em>{Math.round((s.volume ?? 1) * 100)}%</em>
+                      <button type="button" className="sd-iconbtn is-danger" aria-label="Remove this cut" disabled={locked || edl.segments.length <= 1} onClick={() => { remove(k); setSel(null); }}><Trash2 size={13} /></button>
+                    </div>
+                    <div className="sd-row" role="group" aria-label="At the playhead">
+                      <button type="button" className="ov-btn ghost small" disabled={locked} onClick={startHere}><SkipBack size={12} /> Start here</button>
+                      <button type="button" className="ov-btn ghost small" disabled={locked} onClick={endHere}><SkipForward size={12} /> End here</button>
+                      {beat && <button type="button" className="ov-btn ghost small" disabled={locked} onClick={() => snapToBeat(beat)} title={`Move every cut onto the nearest beat of the track (${Math.round(beat.bpm)} BPM)`}><Music size={12} /> Snap cuts to the beat</button>}
+                      <small className="sd-hint">Drag a cut&apos;s edges on the timeline to trim it; drag its middle to move it.</small>
+                    </div>
+                    {k > 0 && (
+                      <div className="sd-field">
+                        <span>Comes in with</span>
+                        <div className="sd-trans" role="radiogroup" aria-label="Transition">
+                          {TRANSITIONS.map((t) => (
+                            <button key={t.id} type="button" role="radio" aria-checked={(cur.transition ?? "cut") === t.id} disabled={locked} onClick={() => setTransition(k, t.id)}>
+                              <TransitionThumb kind={t.id} />
+                              <span>{t.label}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      {i > 0 && (
-                        <label className="cbb-field cbb-trans">Comes in with
-                          <select value={s.transition ?? "cut"} disabled={!data.canEdit || busy} onChange={(e) => setTransition(i, e.target.value as TransitionKind)}>
-                            {TRANSITIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                          </select>
-                        </label>
-                      )}
-                      {s.note && <small className="cbb-note">{s.note}</small>}
+                    )}
+                    <div className="sd-field">
+                      <span>Sound</span>
+                      <div className="sd-vol">
+                        <button type="button" className="sd-iconbtn" aria-label={(cur.volume ?? 1) === 0 ? "Unmute this clip" : "Mute this clip"} disabled={locked} onClick={() => toggleMute(k)}>{(cur.volume ?? 1) === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
+                        <input type="range" min={0} max={2} step={0.05} value={cur.volume ?? 1} aria-label="Clip volume" disabled={locked} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setVolume(k, Number(e.target.value))} />
+                        <em>{Math.round((cur.volume ?? 1) * 100)}%</em>
+                      </div>
                     </div>
-                    <div className="cbb-seg-actions">
-                      <button type="button" aria-label="Move up" disabled={!data.canEdit || busy || i === 0} onClick={() => move(i, -1)}><ArrowUp size={13} /></button>
-                      <button type="button" aria-label="Move down" disabled={!data.canEdit || busy || i === edl.segments.length - 1} onClick={() => move(i, 1)}><ArrowDown size={13} /></button>
-                      <label className="cbb-replace" title="Replace with another clip"><Replace size={13} /><select aria-label="Replace clip" disabled={!data.canEdit || busy} value="" onChange={(e) => { if (e.target.value) replace(i, e.target.value); }}><option value="">Replace…</option>{data.sources.filter((x) => x.clipId !== s.clipId).map((x) => <option key={x.clipId} value={x.clipId}>{clipLabel(x.position)} · {fmtClock(x.durationSec)}</option>)}</select></label>
-                      <button type="button" aria-label="Remove cut" className="danger" disabled={!data.canEdit || busy || edl.segments.length <= 1} onClick={() => remove(i)}><Trash2 size={13} /></button>
-                    </div>
-                  </li>
-                );
-              })}
-              <li className="cbb-hint"><Sparkles size={12} /> Cuts snap to pauses and word boundaries when you save. Levels are balanced from measured loudness{edl.audio.length ? ` (${edl.audio.map((a) => `${clipLabel(sources[a.clipId]?.position ?? 0)} ${a.gainDb > 0 ? "+" : ""}${a.gainDb} dB`).join(", ")})` : ""}.</li>
-            </ol>
-          )}
+                    {data.sources.length > 1 && (
+                      <label className="sd-field">
+                        <span>Swap for</span>
+                        <select aria-label="Swap this cut for another clip" disabled={locked} value="" onChange={(e) => { if (e.target.value) replace(k, e.target.value); }}>
+                          <option value="">Another clip&apos;s best moment</option>
+                          {data.sources.filter((x) => x.clipId !== cur.clipId).map((x) => <option key={x.clipId} value={x.clipId}>{clipLabel(x.position)} · {fmtClock(x.durationSec)}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    {hereNote && <small className="sd-note" role="status">{hereNote}</small>}
+                  </section>
+                )}
+                <ol className="sd-cutlist" aria-label="Cuts in order">
+                  {edl.segments.map((s2, i) => {
+                    const src2 = sources[s2.clipId];
+                    return (
+                      <li key={s2.id} className={`${i === k ? "is-on" : ""}${src2 ? "" : " is-missing"}`}>
+                        <button type="button" className="sd-cutlist-btn" onClick={() => { setSel({ kind: "cut", index: i }); const p = player.current; const seg = tl.segments[i]; if (p && seg) { p.pause(); p.seekTo(seg.startFrame + 1); } }} aria-current={i === k ? "true" : undefined}>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
+                          {src2?.thumb ? <img src={src2.thumb} alt="" /> : <span className="sd-ph" />}
+                          <span><b>{src2 ? clipLabel(src2.position) : "Expired clip"}</b><small>{(s2.out - s2.in).toFixed(1)}s{i > 0 && s2.transition ? ` · ${TRANSITIONS.find((t) => t.id === s2.transition)?.label.toLowerCase()}` : ""}</small></span>
+                        </button>
+                        <span className="sd-cutlist-move">
+                          <button type="button" aria-label={`Move cut ${i + 1} earlier`} disabled={locked || i === 0} onClick={() => { move(i, -1); setSel({ kind: "cut", index: i - 1 }); }}><ArrowUp size={12} /></button>
+                          <button type="button" aria-label={`Move cut ${i + 1} later`} disabled={locked || i === edl.segments.length - 1} onClick={() => { move(i, 1); setSel({ kind: "cut", index: i + 1 }); }}><ArrowDown size={12} /></button>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="cbb-hint"><Info size={12} /> Cuts snap to pauses and word boundaries when you save. Levels are balanced from measured loudness{edl.audio.length ? ` (${edl.audio.map((a) => `${clipLabel(sources[a.clipId]?.position ?? 0)} ${a.gainDb > 0 ? "+" : ""}${a.gainDb} dB`).join(", ")})` : ""}.</p>
+              </div>
+            );
+          })()}
 
           {panel === "text" && (
             <div className="cbb-text">
@@ -710,13 +782,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 canEdit={data.canEdit}
                 busy={busy}
                 playhead={() => at()?.sec ?? null}
+                openId={sel?.kind === "text" ? edl.text[sel.index]?.id ?? null : null}
                 onOpen={(l) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, Math.round(l.at * OUTPUT.fps) + 1)); } }}
               />
-              {!data.manual && (
-                <div className="st-row-actions">
-                  <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || Boolean(regen)} onClick={() => regenerate("different_hook")}>{regen === "different_hook" ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />} Different hook</button>
-                </div>
-              )}
               <div className="ov-card cbb-caption-copy">
                 <b>Caption for the post</b>
                 <textarea rows={4} value={edl.caption} disabled={!data.canEdit || busy} onChange={(e) => commit({ ...edl, caption: e.target.value.slice(0, 2200) })} />
@@ -729,7 +797,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <p>A new first cut of the same post with one change. The current cut stays in Undo.</p>
               <ul>
                 {REGENERATE_OPTIONS.map((o) => (
-                  <li key={o.id}><button type="button" disabled={!data.canEdit || busy} onClick={() => regenerate(o.id)}>{regen === o.id ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}<span><b>{o.label}</b><small>{o.hint}</small></span></button></li>
+                  <li key={o.id}><button type="button" disabled={!data.canEdit || busy} onClick={() => regenerate(o.id)}>{regen === o.id ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}<span><b>{o.label}</b><small>{o.hint}</small></span></button></li>
                 ))}
               </ul>
               {regenErr && <p className="cbb-err"><AlertTriangle size={12} /> {regenErr}</p>}
@@ -746,7 +814,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             player={player}
             canEdit={data.canEdit && !busy}
             selected={sel}
-            onSelect={setSel}
+            onSelect={select}
+            onTime={setPlaySec}
             onTextStart={beginLive}
             onTextLive={(i, at, end) => { setEdl((cur) => (cur ? { ...cur, text: cur.text.map((t, k) => (k === i ? { ...t, at, end } : t)) } : cur)); setDirty(true); }}
             onCutStart={cutStart}
