@@ -9,6 +9,11 @@
   "consoleWarnings": [],
   "pageErrors": [],
   "failedRequests": [],
-  "slowRequests": [],
+  "slowRequests": [
+    {
+      "url": "http://localhost:3006/signup",
+      "ms": 14422
+    }
+  ],
   "screenshot": "docs/qa/screenshots/signed-out-signup-mobile.png"
 }

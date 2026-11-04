@@ -114,3 +114,16 @@ test("QA-05 a missing sign-up link is a 404 that says so", async ({ page }) => {
   expect(res?.status()).toBe(404);
   await expect(page).toHaveTitle("Page not found | SOCIA");
 });
+
+test("QA-06 the 404 page wears the site's look and keeps its title", async ({ page }) => {
+  await page.goto("/this-page-does-not-exist", { waitUntil: "load" });
+  // No navy screen, no gradient buttons: the page ground and the system buttons.
+  const bg = await page.locator(".nf-page").evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(bg).not.toBe("rgb(11, 18, 32)");
+  const gradients = await page.evaluate(() => [...document.querySelectorAll("a, .nf-page *")].filter((el) => getComputedStyle(el).backgroundImage.includes("gradient")).length);
+  expect(gradients, "no gradient buttons").toBe(0);
+  await expect(page.locator("a.s-btn--primary")).toHaveText("Go to Dashboard");
+  // The title must survive hydration: an inline <title> used to lose to the site default.
+  await page.waitForTimeout(1500);
+  await expect(page).toHaveTitle("Page not found | SOCIA");
+});

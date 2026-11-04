@@ -17,6 +17,11 @@
       "method": "GET"
     }
   ],
-  "slowRequests": [],
+  "slowRequests": [
+    {
+      "url": "http://localhost:3006/l/no-such-link",
+      "ms": 2775
+    }
+  ],
   "screenshot": "docs/qa/screenshots/signed-out-link-page-missing-desktop.png"
 }

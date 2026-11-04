@@ -35,6 +35,16 @@
       "url": "http://localhost:3006/this-page-does-not-exist",
       "status": 404,
       "method": "GET"
+    },
+    {
+      "url": "http://localhost:3006/this-page-does-not-exist?_rsc=ZlVNIU56yXTYRRGN",
+      "status": 404,
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:3006/this-page-does-not-exist",
+      "status": 404,
+      "method": "GET"
     }
   ],
   "slowRequests": [],
