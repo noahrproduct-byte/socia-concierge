@@ -45,6 +45,13 @@ vi.mock("../api/context", async (orig) => {
     listGranted: async () => [{ id: "ws-1", name: "Salvo's", yourRole: "owner", isDefault: true }],
   };
 });
+vi.mock("../claudeWeek/server", () => ({
+  MAX_VIDEO_BYTES: 200 * 1024 * 1024,
+  VIDEO_TYPES: { "video/mp4": "mp4" },
+  videosToMake: async () => { calls.push({ tool: "get_videos_to_make", workspace: null }); return { videos: [] }; },
+  startVideoUpload: async (_ctx: unknown, _svc: unknown, input: unknown) => { writes.push({ tool: "start_video_upload", input }); return { path: "p", upload_url: "https://x" }; },
+  submitVideo: async (_ctx: unknown, _svc: unknown, _ent: unknown, input: unknown) => { writes.push({ tool: "submit_video", input }); return { result: "waiting_for_review" }; },
+}));
 vi.mock("../api/read", () => {
   const stub = (tool: string) => async () => { calls.push({ tool, workspace: null }); return { result: tool, value: null, note: "unavailable" }; };
   return {
@@ -64,6 +71,7 @@ const TOKENS: Record<string, ReturnType<typeof principal>> = {
   two: principal({ workspaceIds: ["ws-1", "ws-2"] }),
   limited: principal({ connectionId: "over-limit" }),
   poster: principal({ scopes: ["socia:read", "socia:publish"] }),
+  reviewer: principal({ scopes: ["socia:read", "socia:drafts"] }),
   freePoster: principal({ connectionId: "free-plan", scopes: ["socia:read", "socia:publish"] }),
 };
 
@@ -90,8 +98,10 @@ beforeEach(() => { calls.length = 0; audits.length = 0; writes.length = 0; rate 
 
 const READ_TOOLS = [
   "compare_platforms", "get_account_analytics", "get_content_plan", "get_performance_insights", "get_posting_recommendations",
-  "get_scheduled_posts", "get_today", "get_top_posts", "list_connected_accounts", "list_media", "list_workspaces",
+  "get_scheduled_posts", "get_today", "get_top_posts", "get_videos_to_make", "list_connected_accounts", "list_media", "list_workspaces",
 ];
+/** Claude makes the week: they write a draft for review, never anything public. */
+const HAND_IN_TOOLS = ["start_video_upload", "submit_video"];
 const POST = { caption: "Fresh out of the oven", media: [{ media_id: "m1" }], platforms: [{ platform: "instagram" }], when: "now" };
 
 describe("the MCP endpoint", () => {
@@ -102,13 +112,14 @@ describe("the MCP endpoint", () => {
   });
 
   for (const mode of ["legacy", "auto"] as const) {
-    it(`lists the read-only tools and the two posting tools, marked as such (${mode} protocol)`, async () => {
+    it(`lists the read-only tools, the two posting tools and the two hand-in tools, marked as such (${mode} protocol)`, async () => {
       const client = await connect("good", mode);
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual([...READ_TOOLS, "cancel_post", "create_post"].sort());
+      expect(tools.map((t) => t.name).sort()).toEqual([...READ_TOOLS, ...HAND_IN_TOOLS, "cancel_post", "create_post"].sort());
       for (const t of tools) {
         const posting = t.name === "create_post" || t.name === "cancel_post";
-        expect(t.annotations?.readOnlyHint).toBe(!posting);
+        const handIn = HAND_IN_TOOLS.includes(t.name);
+        expect(t.annotations?.readOnlyHint).toBe(!posting && !handIn);
         expect(t.annotations?.destructiveHint).toBe(posting);
         expect((t.description ?? "").length).toBeGreaterThan(60);
       }
@@ -205,6 +216,25 @@ describe("the MCP endpoint", () => {
     expect(c.isError).toBeFalsy();
     expect(writes).toEqual([{ tool: "cancel_post", input: "00000000-0000-4000-8000-000000000001" }]);
     await capped.close();
+  });
+
+  it("hands in videos only when the person turned it on, and never with read access alone", async () => {
+    const VIDEO = { item_id: "cccccccc-0000-4000-8000-000000000003", path: "p", caption: "c" };
+    const reader = await connect("good", "auto");
+    const a = await reader.callTool({ name: "submit_video", arguments: VIDEO });
+    expect(a.isError).toBe(true);
+    expect(JSON.stringify(a.content)).toContain("Can add videos for review");
+    const b = await reader.callTool({ name: "get_videos_to_make", arguments: {} });
+    expect(b.isError).toBeFalsy();
+    await reader.close();
+    expect(writes).toEqual([]);
+    for (const token of ["reviewer", "poster"]) {
+      const client = await connect(token, "auto");
+      const r = await client.callTool({ name: "submit_video", arguments: VIDEO });
+      expect(r.isError).toBeFalsy();
+      await client.close();
+    }
+    expect(writes.map((w) => w.tool)).toEqual(["submit_video", "submit_video"]);
   });
 
   it("lists media with only read access", async () => {

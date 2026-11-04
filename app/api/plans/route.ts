@@ -1,5 +1,5 @@
 import { loadPlanOutcomes } from "@/lib/planOutcomesLoad";
-import { sanitizePlanItems } from "@/lib/planItems";
+import { sanitizePlanItems, withItemIds } from "@/lib/planItems";
 import { summaryOf, type PlanOutcomeSummary } from "@/lib/planOutcomes";
 import type { Deliverable } from "@/lib/schema";
 import { NextResponse } from "next/server";
@@ -71,7 +71,7 @@ export async function PATCH(req: Request) {
     ctx.workspace?.id,
   ).maybeSingle();
   if (readErr || !cur) return NextResponse.json({ error: "Plan not found." }, { status: 404 });
-  const weeklyPlan = sanitizePlanItems(body.weeklyPlan);
+  const weeklyPlan = withItemIds(sanitizePlanItems(body.weeklyPlan));
   if (!weeklyPlan.length) return NextResponse.json({ error: "The plan needs at least one day with a concept." }, { status: 400 });
   const data = { ...(cur.data as Record<string, unknown>), weeklyPlan };
   const { data: rows, error } = await scopeToWorkspace(

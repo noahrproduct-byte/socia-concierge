@@ -2,7 +2,7 @@
 // by the Content Plan page (a person clicks "Generate") and the Monday job
 // (SOCIA generates the coming week by itself). Usage metering and permission
 // checks happen in the callers; this only produces and stores the plan.
-import { normalizePlanItem } from "./planItems";
+import { normalizePlanItem, withItemIds } from "./planItems";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { anthropic, MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
@@ -67,7 +67,7 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   if (!text) throw new PlanGenerationError("empty", "Empty response from the model. Try again.");
   const data = parsePlanJson(text) as Deliverable | null;
   if (!data) throw new PlanGenerationError("parse", "Could not parse the model's response. Try again.");
-  data.weeklyPlan = (data.weeklyPlan ?? []).map(normalizePlanItem);
+  data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map(normalizePlanItem));
   // Record what the plan was built from, so the report and history can say so.
   if (evidence) data.evidenceUsed = evidence.used;
   return data;
