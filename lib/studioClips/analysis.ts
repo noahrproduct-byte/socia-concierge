@@ -287,6 +287,19 @@ const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
 
 export type EdlVariant = { directive: RegenerateDirective; previous: Edl };
 
+/**
+ * How a cut from the person's own brief is made, on top of the general rules.
+ * Learned from a 2-second, one-clip "POV: you walk into work on Halloween"
+ * cut made from three clips (2026-11-02): use all of the footage, cut at a
+ * short-form pace, and carry the idea in a few text beats.
+ */
+export const BRIEF_CUT_RULES = `How to cut from this brief:
+- Use EVERY clip listed at least once, each at its best moment, unless the brief says to leave one out. Handheld movement, panning and walking point-of-view shots are normal phone footage; never drop a clip for that.
+- Length: 10 to 20 seconds unless the brief gives a length (set targetSec to match). Never shorter than the footage allows.
+- Pace: for a POV, busy, rush, behind-the-scenes or day-in-the-life brief, cut every 1 to 2.5 seconds so it feels fast, and let the last shot run 2 to 3 seconds. Otherwise 1.5 to 4 seconds a cut. 4 to 10 segments.
+- Order tells the story: start where the brief starts (walking in, the first moment), build through the busiest moments, and end on the payoff (the finished thing, the fullest shot).
+- Text: 2 to 4 short beats. The first states the brief's hook in the person's own words (keep "POV: …" when they wrote it) and is on screen from 0 for about 2 seconds; later beats name what is on screen, in a few words, sentence case. No numbers or claims the clips don't show.`;
+
 export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant, brief?: string | null, retry?: string | null): Promise<{ raw: RawEdl; model: string }> {
   const used = clips.filter((c) => (variant ? true : opp.clipIds.includes(c.id)) && c.card);
   const previous = variant
@@ -310,7 +323,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   const content: Content = [
     { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}
 
-${brief ? `The brief for this video. Follow it closely: its length, order, pace, on-screen lines and ending win over the general rules below, except the honesty rules. Where it asks for footage the clips don't have, say so in notes and use the nearest real moment.\n"""\n${brief.trim()}\n"""\n\n` : ""}The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
+${brief ? `${BRIEF_CUT_RULES}\n\n` : ""}${brief ? `The brief for this video. Follow it closely: its length, order, pace, on-screen lines and ending win over the general rules below, except the honesty rules. Where it asks for footage the clips don't have, say so in notes and use the nearest real moment.\n"""\n${brief.trim()}\n"""\n\n` : ""}The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.
 ${opp.opener ? `Opener candidate: ${clipLabel(used.find((c) => c.id === opp.opener!.clipId)?.position ?? 0)} ${opp.opener.start.toFixed(1)}–${opp.opener.end.toFixed(1)}s (${opp.opener.why}).` : "No opener was identified; choose the strongest available moment."}${previous}
 

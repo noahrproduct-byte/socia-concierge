@@ -158,11 +158,6 @@ export function hasLiveSubscription(b: BillingInfo): boolean {
   return b.hasSubscription && b.status != null && !ENDED.has(b.status);
 }
 
-/** Someone who has never had a subscription or a trial may start the 7-day trial. */
-export function trialEligible(b: BillingInfo): boolean {
-  return !b.hasSubscription && !b.trialEnd;
-}
-
 /**
  * After Checkout returns: read the session and apply its subscription at once,
  * so the plan shows without waiting for the webhook. The webhook applies the

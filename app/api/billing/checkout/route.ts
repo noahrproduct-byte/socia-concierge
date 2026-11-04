@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe, isBillingInterval, isPaidPlan, resolvePriceId } from "@/lib/stripe";
-import { hasLiveSubscription, readBillingInfo, saveCustomerId, trialEligible } from "@/lib/billing";
+import { hasLiveSubscription, readBillingInfo, saveCustomerId } from "@/lib/billing";
 import { PLANS, checkoutAvailable } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
 
@@ -62,14 +62,12 @@ export async function POST(req: Request) {
   }
 
   // Stripe is the truth, not the profile (a webhook may not have arrived yet):
-  // a second checkout while one subscription is live goes to the Portal, and
-  // only a customer who never had a subscription gets the trial.
+  // a second checkout while one subscription is live goes to the Portal.
   const existing = await stripe.subscriptions.list({ customer, status: "all", limit: 10 }).catch(() => null);
   if (existing?.data.some((x) => ["active", "trialing", "past_due"].includes(x.status))) {
     const portal = await stripe.billingPortal.sessions.create({ customer, return_url: `${origin}/settings#plan` });
     return NextResponse.json({ url: portal.url, portal: true });
   }
-  const trial = trialEligible(billing) && existing != null && existing.data.length === 0;
   let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>;
   try {
     session = await stripe.checkout.sessions.create({
@@ -77,11 +75,12 @@ export async function POST(req: Request) {
       customer,
       client_reference_id: user.id,
       line_items: [{ price, quantity: 1 }],
-      // The card is always collected; the 7-day trial applies to a first subscription only.
+      // No free trial (Noah, 2026-11-03): the full price, unless the person
+      // enters a promotion code from SOCIA's videos at checkout. Codes, their
+      // discount and their end date are set in the Stripe Dashboard.
       payment_method_collection: "always",
       subscription_data: {
         metadata: { user_id: user.id, plan },
-        ...(trial ? { trial_period_days: 7 } : {}),
       },
       allow_promotion_codes: true,
       managed_payments: { enabled: true },
@@ -97,6 +96,6 @@ export async function POST(req: Request) {
   }
   if (!session.url) return NextResponse.json({ error: "Stripe did not return a checkout page. Try again." }, { status: 502 });
 
-  recordEvent(supabase, user.id, "checkout_started", { plan, interval, trial });
+  recordEvent(supabase, user.id, "checkout_started", { plan, interval });
   return NextResponse.json({ url: session.url });
 }

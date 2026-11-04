@@ -2,8 +2,9 @@ import Link from "next/link";
 import { BarChart3, CalendarDays, Layers } from "lucide-react";
 import BrandMark from "./BrandMark";
 
-// The split-screen wrapper shared by every auth page: the dark showcase on
-// the left (Noah's reference, 2026-11-01), the form on the right. Each line
+// The split-screen wrapper shared by every auth page: the showcase on the
+// left (Noah's reference, 2026-11-01, light since 2026-11-03), the form on
+// the right. Each line
 // on the left names something SOCIA really does.
 export default function AuthShell({ children }: { children: React.ReactNode }) {
   return (

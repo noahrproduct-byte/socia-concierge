@@ -419,10 +419,11 @@ section.block > h3 {
   }
 }
 
-/* ---------- auth pages: dark showcase left, warm form right ----------
-   Noah's reference (2026-11-01). The left panel is the same deep navy in both
-   themes; the right panel follows the theme tokens. Black actions, as in the
-   rest of the app. */
+/* ---------- auth pages: light showcase left, warm form right ----------
+   Noah's reference (2026-11-01), made light on 2026-11-03 when the site went
+   light only: a white showcase with the same sweeping arc, drawn in hairline
+   grey and a touch of accent, beside the form on the ground. Black actions,
+   as in the rest of the app. */
 .auth-shell {
   min-height: 100vh;
   display: grid;
@@ -434,11 +435,12 @@ section.block > h3 {
 .auth-brand {
   position: relative;
   overflow: hidden;
-  color: #f2f3f7;
-  background: #07080c;
+  color: var(--ink);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
 }
 /* the sweeping arc: the lower-right edge of one very large circle, its inside a
-   touch lighter than the night outside it (geometry fitted to the reference) */
+   touch warmer than the white outside it (geometry fitted to the reference) */
 .auth-brand::before {
   content: "";
   position: absolute;
@@ -447,8 +449,8 @@ section.block > h3 {
   left: -2840px;
   top: -3244px;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, #121521 0%, #10131d 92%, #161a28 99.6%, #1d2232 100%);
-  box-shadow: 0 0 0 1px rgba(196, 208, 255, 0.14), 0 0 90px rgba(110, 130, 210, 0.10);
+  background: radial-gradient(circle at 50% 50%, #fbfaf8 0%, #f7f6f3 92%, #f2f1ed 99.6%, #ecebe7 100%);
+  box-shadow: 0 0 0 1px rgba(23, 25, 29, 0.08), 0 0 90px rgba(42, 98, 245, 0.05);
   pointer-events: none;
 }
 /* the light catching that edge, brightest where it leaves the panel */
@@ -461,11 +463,11 @@ section.block > h3 {
   top: -3244px;
   border-radius: 50%;
   border: 2px solid transparent;
-  background: conic-gradient(from 0deg, transparent 0deg 124deg, rgba(170, 186, 255, 0.25) 130deg, rgba(255, 255, 255, 0.95) 136deg, rgba(220, 228, 255, 0.6) 139deg, rgba(150, 168, 240, 0.18) 147deg, transparent 158deg 360deg) border-box;
+  background: conic-gradient(from 0deg, transparent 0deg 124deg, rgba(42, 98, 245, 0.12) 130deg, rgba(42, 98, 245, 0.55) 136deg, rgba(42, 98, 245, 0.3) 139deg, rgba(42, 98, 245, 0.08) 147deg, transparent 158deg 360deg) border-box;
   -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) padding-box exclude, linear-gradient(#000 0 0);
-  filter: drop-shadow(0 0 8px rgba(200, 212, 255, 0.6));
+  filter: drop-shadow(0 0 6px rgba(42, 98, 245, 0.25));
   pointer-events: none;
 }
 .auth-brand-inner {
@@ -482,7 +484,7 @@ section.block > h3 {
   align-items: center;
   gap: 16px;
   text-decoration: none;
-  color: #f2f3f7;
+  color: var(--ink);
   width: fit-content;
 }
 .brand-logo .brandmark { border-radius: 10px; }
@@ -500,13 +502,13 @@ section.block > h3 {
   font-weight: 500;
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: rgba(242, 243, 247, 0.82);
+  color: var(--ink-2);
 }
 .brand-eyebrow::after {
   content: "";
   width: 118px;
   height: 1px;
-  background: rgba(242, 243, 247, 0.35);
+  background: var(--border-strong);
 }
 .brand-head {
   margin: 72px 0 0;
@@ -514,19 +516,19 @@ section.block > h3 {
   line-height: 1.08;
   letter-spacing: -0.02em;
   font-weight: 400;
-  color: #f7f8fb;
+  color: var(--ink);
 }
 .brand-head em {
   display: block;
   font-style: italic;
   font-weight: 300;
-  color: rgba(247, 248, 251, 0.86);
+  color: var(--ink-2);
 }
 .brand-sub {
   margin: 34px 0 0;
   font-size: clamp(16px, 1.45vw, 20px);
   line-height: 1.6;
-  color: rgba(226, 229, 238, 0.72);
+  color: var(--ink-2);
   max-width: 34em;
 }
 .brand-features {
@@ -548,21 +550,21 @@ section.block > h3 {
   width: 66px;
   height: 66px;
   border-radius: 14px;
-  background: #1a1d26;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: #f2f3f7;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--ink);
 }
 .brand-features b {
   display: block;
   font-size: clamp(16px, 1.45vw, 20px);
   font-weight: 500;
-  color: #f7f8fb;
+  color: var(--ink);
   margin-bottom: 4px;
 }
 .brand-features small {
   display: block;
   font-size: clamp(14px, 1.15vw, 16px);
-  color: rgba(226, 229, 238, 0.68);
+  color: var(--ink-3);
 }
 
 /* right: the form */

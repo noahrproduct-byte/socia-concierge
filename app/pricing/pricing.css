@@ -1,8 +1,36 @@
 /* /pricing: only what the landing's .so classes cannot do. Every class here is
    prefixed .pr-. Colour comes from the .so tokens; headings use Geist through
-   --font-display, everything else stays in the body font. */
+   --font-display, everything else stays in the body font.
 
-.pr-page { min-height: 100vh; display: flex; flex-direction: column; }
+   Light only since 2026-11-03: the .so palette (built dark for the old
+   landing) is re-pointed to light values for this page here, and the few .so
+   rules that set white text directly are overridden below. */
+
+.pr-page {
+  --so-ink: #f7f6f3;
+  --so-surface: #ffffff;
+  --so-text: #17191d;
+  --so-dim: #5f646c;
+  --so-dimmer: #6b7078;
+  --so-faint: #a6a9ae;
+  --so-line: rgba(23, 25, 29, 0.1);
+  --so-blue: #2a62f5;
+  --so-blue-bright: #2a62f5;
+  --so-cyan: #2458e6;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+.pr-page .so-h2,
+.pr-page .so-footer-statement { color: var(--so-text); }
+.pr-page .so-btn-ghost { border-color: var(--so-line); color: var(--so-text); }
+.pr-page .so-btn-ghost:hover { background: rgba(23, 25, 29, 0.04); }
+.pr-page .so-btn-blue { box-shadow: 0 6px 18px rgba(42, 98, 245, 0.2); }
+.pr-page .so-btn-blue:hover { box-shadow: 0 8px 22px rgba(42, 98, 245, 0.28); }
+.pr-page .so-footer-grid a:hover,
+.pr-page .so-footer-grid button:hover { color: var(--so-text); }
+.pr-page .so-mobile-menu { background: var(--so-surface); box-shadow: 0 12px 32px rgba(23, 25, 29, 0.12); }
+.pr-page .so-mobile-menu button,
+.pr-page .so-mobile-menu > a:not(.so-btn) { color: var(--so-text); }
+.pr-page .so-mobile-menu button:hover { background: rgba(23, 25, 29, 0.04); }
 .pr-main { flex: 1; position: relative; z-index: 2; padding: 124px 24px 0; }
 
 /* nav links are real links here, not scroll buttons */
@@ -52,20 +80,20 @@
   padding: 24px 22px 26px;
   border-radius: 18px;
   border: 1px solid var(--so-line);
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--so-surface);
   scroll-margin-top: 96px;
 }
-.pr-card.popular { border-color: rgba(76, 134, 255, 0.45); background: rgba(37, 99, 255, 0.06); }
+.pr-card.popular { border-color: rgba(42, 98, 245, 0.45); background: #f4f7ff; }
 .pr-card.highlight { border-color: var(--so-blue-bright); }
 .pr-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
-.pr-card-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: #fff; }
+.pr-card-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--so-text); }
 .pr-popular {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--so-cyan);
-  border: 1px solid rgba(145, 181, 255, 0.35);
+  border: 1px solid rgba(42, 98, 245, 0.35);
   border-radius: 999px;
   padding: 3px 8px;
   white-space: nowrap;
@@ -77,7 +105,7 @@
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
-  color: #fff;
+  color: var(--so-text);
   font-variant-numeric: tabular-nums;
 }
 .pr-price-per { font-size: 13px; color: var(--so-dimmer); }
@@ -95,7 +123,7 @@
   font-size: 13.5px;
   font-weight: 600;
 }
-.pr-cta-current { border: 1px dashed rgba(255, 255, 255, 0.28); color: var(--so-text); }
+.pr-cta-current { border: 1px dashed rgba(23, 25, 29, 0.28); color: var(--so-text); }
 .pr-cta-muted { color: var(--so-dimmer); }
 .pr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
 .pr-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; line-height: 1.45; color: var(--so-text); }
@@ -111,7 +139,7 @@
   text-transform: uppercase;
   line-height: 1;
   color: var(--so-dimmer);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(23, 25, 29, 0.16);
   border-radius: 999px;
   padding: 3px 7px;
   white-space: nowrap;
@@ -123,31 +151,31 @@
 .pr-note { margin: 22px auto 0; text-align: center; font-size: 13.5px; color: var(--so-dim); max-width: 560px; }
 .pr-fine { margin: 14px auto 0; text-align: center; font-size: 12px; line-height: 1.5; color: var(--so-dim); max-width: 520px; opacity: 0.85; }
 .pr-note a, .pr-custom a { color: var(--so-cyan); text-decoration: underline; text-underline-offset: 3px; }
-.pr-note a:hover, .pr-custom a:hover { color: #fff; }
+.pr-note a:hover, .pr-custom a:hover { color: var(--so-text); }
 
 /* sections */
 .pr-compare { margin-top: 80px; }
-.pr-section-title { font-size: clamp(20px, 2.4vw, 26px); color: #fff; margin-bottom: 6px; }
+.pr-section-title { font-size: clamp(20px, 2.4vw, 26px); color: var(--so-text); margin-bottom: 6px; }
 .pr-section-lead { font-size: 14px; color: var(--so-dim); margin-bottom: 22px; }
-.pr-custom { margin-top: 64px; padding: 26px 28px; border: 1px solid var(--so-line); border-radius: 18px; }
+.pr-custom { margin-top: 64px; padding: 26px 28px; border: 1px solid var(--so-line); border-radius: 18px; background: var(--so-surface); }
 .pr-custom p { font-size: 14.5px; line-height: 1.6; color: var(--so-dim); max-width: 560px; }
 
 /* comparison table */
 /* Contained scroll so the plan header (and the category header under it) can
    stick while the long table scrolls inside the card. */
-.pr-table-wrap { border: 1px solid var(--so-line); border-radius: 18px; overflow: auto; max-height: 74vh; }
+.pr-table-wrap { border: 1px solid var(--so-line); border-radius: 18px; overflow: auto; max-height: 74vh; background: var(--so-surface); }
 .pr-table { width: 100%; border-collapse: collapse; font-size: 13.5px; color: var(--so-text); }
 .pr-table th, .pr-table td { padding: 11px 14px; border-bottom: 1px solid var(--so-line); text-align: left; vertical-align: top; }
-.pr-table thead th { background: #0b1017; padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 6; }
+.pr-table thead th { background: var(--so-surface); padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 6; }
 .pr-table thead th, .pr-table td { text-align: center; }
 .pr-table thead th.pr-th-feature { text-align: left; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--so-dimmer); font-weight: 700; }
-.pr-th-name { display: block; font-size: 14px; font-weight: 600; color: #fff; }
+.pr-th-name { display: block; font-size: 14px; font-weight: 600; color: var(--so-text); }
 .pr-th-price { display: block; font-size: 12px; color: var(--so-dimmer); margin-top: 2px; font-variant-numeric: tabular-nums; }
-.pr-table thead th.popular, .pr-table td.popular { background: rgba(37, 99, 255, 0.06); }
+.pr-table thead th.popular, .pr-table td.popular { background: #f4f7ff; }
 .pr-table tbody th[scope="row"] { font-weight: 500; color: var(--so-text); min-width: 200px; }
 .pr-table th[scope="row"] { text-align: left; }
 .pr-table .pr-cat th {
-  background: #0b1017;
+  background: var(--so-surface);
   padding: 0;
   text-align: left;
   position: sticky;
@@ -164,9 +192,9 @@
 .pr-cat-btn:hover { color: var(--so-text); }
 .pr-cat-chev { transition: transform 180ms var(--ease, ease); flex-shrink: 0; }
 .pr-table tbody.collapsed .pr-cat-chev { transform: rotate(-90deg); }
-.pr-cat-count { margin-left: auto; font-size: 10px; letter-spacing: 0; color: var(--so-dimmer); background: rgba(255,255,255,0.05); border-radius: 999px; padding: 1px 7px; }
-.pr-table tbody tr:not(.pr-cat):hover th[scope="row"], .pr-table tbody tr:not(.pr-cat):hover td { background: rgba(255, 255, 255, 0.02); }
-.pr-table tbody tr:not(.pr-cat):hover td.popular { background: rgba(37, 99, 255, 0.09); }
+.pr-cat-count { margin-left: auto; font-size: 10px; letter-spacing: 0; color: var(--so-dimmer); background: rgba(23, 25, 29, 0.05); border-radius: 999px; padding: 1px 7px; }
+.pr-table tbody tr:not(.pr-cat):hover th[scope="row"], .pr-table tbody tr:not(.pr-cat):hover td { background: rgba(23, 25, 29, 0.025); }
+.pr-table tbody tr:not(.pr-cat):hover td.popular { background: #ecf1ff; }
 .pr-table tbody:last-child tr:last-child th, .pr-table tbody:last-child tr:last-child td { border-bottom: none; }
 
 .pr-row-label { display: inline-flex; align-items: center; gap: 6px; }
@@ -175,7 +203,7 @@
 .pr-tip-bubble {
   position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%) translateY(4px);
   width: max-content; max-width: 240px; padding: 8px 10px; border-radius: 8px;
-  background: #0a0e17; border: 1px solid var(--so-line); box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  background: var(--so-surface); border: 1px solid var(--so-line); box-shadow: 0 8px 24px rgba(23, 25, 29, 0.12);
   font-size: 11.5px; font-weight: 400; line-height: 1.4; letter-spacing: 0; text-transform: none; color: var(--so-text);
   opacity: 0; pointer-events: none; transition: opacity 140ms ease, transform 140ms ease; z-index: 10;
 }
@@ -201,9 +229,9 @@
   /* sideways scroll inside the wrapper with the feature column pinned; the page itself never scrolls horizontally */
   .pr-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .pr-table { min-width: 640px; }
-  .pr-table th:first-child, .pr-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--so-ink); }
-  .pr-table thead th.pr-th-feature { background: #0a0e17; }
-  .pr-table .pr-cat th { position: sticky; left: 0; background: #0a0e17; }
+  .pr-table th:first-child, .pr-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--so-surface); }
+  .pr-table thead th.pr-th-feature { background: var(--so-surface); }
+  .pr-table .pr-cat th { position: sticky; left: 0; background: var(--so-surface); }
   .pr-table tbody th[scope="row"] { min-width: 170px; max-width: 200px; }
 }
 @media (max-width: 640px) {
@@ -215,4 +243,4 @@
 
 /* Checkout button states (components/pricing/PlanCta.tsx) */
 .pr-cta button:disabled { opacity: 0.7; cursor: progress; }
-.pr-cta-err { display: block; margin-top: 8px; font-size: 12.5px; color: #fca5a5; }
+.pr-cta-err { display: block; margin-top: 8px; font-size: 12.5px; color: #b91c1c; }

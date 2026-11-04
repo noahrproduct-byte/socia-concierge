@@ -16,6 +16,14 @@ import { researchConnection } from "@/lib/igResearch";
 
 const FRESH_MS = 6 * 60 * 60 * 1000;
 
+/** Rows cached before views were read carry no views key on their posts:
+ *  read those again rather than show likes for up to six more hours. A fresh
+ *  read always writes the key (a number, or null when Meta returned none). */
+export function hasViewsField(media: unknown): boolean {
+  if (!Array.isArray(media) || media.length === 0) return true;
+  return media.every((m) => m && typeof m === "object" && "views" in m);
+}
+
 export type IgCompetitorPost = {
   permalink: string | null; caption: string | null; thumbnail: string | null;
   likes: number | null; comments: number | null; timestamp: string | null; mediaType: string | null;
@@ -100,7 +108,7 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
     try {
       const { data } = await supabase.from("ig_competitor_snapshots").select("*").eq("user_id", userId).in("handle", wanted);
       for (const r of data ?? []) {
-        if (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS) {
+        if (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media)) {
           cached.set(r.handle, {
             handle: r.handle, found: true, displayName: r.display_name, biography: r.biography, profilePicture: r.profile_picture,
             followers: r.followers, mediaCount: r.media_count,

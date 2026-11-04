@@ -1,13 +1,20 @@
-// The Overview's intelligence sections (lib/intel/overview.ts): the growth
-// briefing, what is working, the next three actions, goal progress and
-// recent learning. Each line shows where it came from; nothing here is a
-// sample, and an empty section says what it is waiting for.
+"use client";
 
+// The Overview's intelligence pieces (lib/intel/overview.ts), drawn to be
+// read at a glance: three action chips that open to their reasoning, format
+// bars, slim goal bars, the briefing's sourced lines and the week's learning.
+// Nothing here is a sample; an empty piece says what it is waiting for.
+
+import { useId, useState } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { Card, CardHeader, CardSource, Empty, ButtonLink } from "@/components/system";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, ChevronDown, Plug, Target } from "lucide-react";
+import { Empty, ButtonLink } from "@/components/system";
 import { GOAL_PLATFORM_NAME } from "@/lib/growth";
 import type { GrowthBriefing, LearningLine, NextAction, WorkRow } from "@/lib/intel/overview";
+import { Bar, useMotionOk } from "./motion";
+
+const DASH = String.fromCharCode(0x2014);
 
 export type GoalRow = {
   id: string;
@@ -36,12 +43,11 @@ export type IntelData = {
   storeReady: boolean;
 };
 
-/** A. The briefing: a few sourced sentences, then what's missing. */
-export function GrowthBriefingBand({ b }: { b: GrowthBriefing }) {
+/** The briefing's sourced lines, behind the hero's Details. */
+export function BriefingLines({ b }: { b: GrowthBriefing }) {
   if (!b.lines.length && !b.missing.length) return null;
   return (
-    <section className="dash-brief" aria-labelledby="dash-brief-title">
-      <h2 id="dash-brief-title">Briefing</h2>
+    <div className="dash-brief">
       <ul className="dash-brief-lines">
         {b.lines.map((l, i) => (
           <li key={i}>
@@ -51,133 +57,152 @@ export function GrowthBriefingBand({ b }: { b: GrowthBriefing }) {
         ))}
       </ul>
       {b.missing.length > 0 && <p className="dash-brief-missing">{b.missing.join(" ")}</p>}
-    </section>
+    </div>
   );
 }
 
-/** D. Your next three actions. */
-export function NextActionsCard({ actions }: { actions: NextAction[] }) {
+/** One action as a chip: icon and verb phrase; opens to the reason, the evidence and what it will show. */
+function ActionChip({ a, n }: { a: NextAction; n: number }) {
+  const ok = useMotionOk();
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  const Icon = a.from === "setup" ? Plug : Target;
   return (
-    <Card className="dash-actions">
-      <CardHeader title="Your next three actions" />
-      {actions.length ? (
-        <ol className="dash-action-list">
-          {actions.map((a, i) => (
-            <li key={i}>
-              <div className="dash-action-body">
-                <b>{a.title}</b>
-                <p>{a.reason}</p>
-                {a.evidence && <p className="dash-action-ev"><span>Evidence</span> {a.evidence}</p>}
-                {a.learning && <p className="dash-action-ev"><span>What it will show</span> {a.learning}</p>}
-              </div>
-              <Link href={a.href} className="dash-action-go" aria-label={`Open: ${a.title}`}>
-                <ArrowRight aria-hidden />
-              </Link>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <Empty>
-          <b>Nothing to act on yet.</b> Actions appear once SOCIA has findings from your posts or something is missing from your setup.
-        </Empty>
-      )}
-      <CardSource>From SOCIA&apos;s findings on your own posts, then gaps in your setup. Findings first, by how sure SOCIA is.</CardSource>
-    </Card>
+    <li className={`dash-chip${open ? " is-open" : ""}`}>
+      <button type="button" className="dash-chip-btn" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)}>
+        <span className="dash-chip-n" aria-hidden>{n}</span>
+        <Icon aria-hidden />
+        <span className="dash-chip-title">{a.title}</span>
+        <ChevronDown aria-hidden className={`dash-chip-chev${open ? " is-open" : ""}`} />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div id={id} key="p" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={ok ? { duration: 0.25, ease: [0.23, 1, 0.32, 1] } : { duration: 0 }} style={{ overflow: "hidden" }}>
+            <div className="dash-chip-body">
+              <p>{a.reason}</p>
+              {a.evidence && <p className="dash-chip-ev"><span>Evidence</span> {a.evidence}</p>}
+              {a.learning && <p className="dash-chip-ev"><span>What it will show</span> {a.learning}</p>}
+              <Link href={a.href} className="s-link dash-chip-go">Open <ArrowRight aria-hidden /></Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </li>
   );
 }
 
-/** C. What is working: formats against the account's own median, plus recurring themes (named, not yet measured). */
-export function WhatsWorkingCard({ works, themes, postsRead }: { works: WorkRow[]; themes: IntelData["themes"]; postsRead: number }) {
+/** The next three actions as chips. */
+export function ActionChips({ actions }: { actions: NextAction[] }) {
+  if (!actions.length) {
+    return (
+      <Empty>
+        <b>Nothing to act on yet.</b> Actions appear once SOCIA has findings from your posts.
+      </Empty>
+    );
+  }
+  return (
+    <ol className="dash-chips">
+      {actions.slice(0, 3).map((a, i) => <ActionChip key={`${a.href}-${i}`} a={a} n={i + 1} />)}
+    </ol>
+  );
+}
+
+/** Formats against the account's own median, as bars. */
+export function WorksBars({ works }: { works: WorkRow[] }) {
   const max = Math.max(1, ...works.map((w) => w.multiple));
+  if (!works.length) {
+    return (
+      <Empty>
+        <b>Not enough to compare yet.</b> A format needs 3 posts, the account 6.
+      </Empty>
+    );
+  }
   return (
-    <Card className="dash-works">
-      <CardHeader title="What's working" />
-      {works.length ? (
-        <ul className="dash-works-list">
-          {works.slice(0, 5).map((w) => (
-            <li key={`${w.platform}-${w.format}`}>
-              <span className="dash-works-name">
-                <b>{w.format}s</b>
-                <small>{GOAL_PLATFORM_NAME[w.platform]}, {w.posts} posts</small>
-              </span>
-              <span className="dash-bar" aria-hidden>
-                <i style={{ width: `${Math.round((w.multiple / max) * 100)}%` }} className={w.multiple >= 1 ? "dash-works-up" : undefined} />
-              </span>
-              <b className="dash-works-num">{w.multiple}x</b>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty>
-          <b>Not enough to compare yet.</b> A format needs 3 posts, and the account 6 with numbers, before SOCIA compares them.
-        </Empty>
-      )}
+    <ul className="dash-bars" aria-label="Formats against your median">
+      {works.slice(0, 4).map((w) => (
+        <li key={`${w.platform}-${w.format}`} role="img" aria-label={`${w.format}s on ${GOAL_PLATFORM_NAME[w.platform]}: ${w.multiple} times your median, ${w.posts} posts`}>
+          <span className="dash-bars-name"><b>{w.format}s</b><small>{GOAL_PLATFORM_NAME[w.platform]}</small></span>
+          <Bar share={w.multiple / max} tone={w.multiple >= 1 ? "data" : "muted"} />
+          <b className="dash-bars-num">{w.multiple}x</b>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** What the works bars rest on, for the card's Details. */
+export function WorksNotes({ works, themes, postsRead }: { works: WorkRow[]; themes: IntelData["themes"]; postsRead: number }) {
+  return (
+    <>
       {themes.length > 0 && (
-        <p className="dash-works-themes">
+        <p className="dash-note">
           <span>Recurring themes</span> {themes.map((t) => `${t.name} (${t.posts})`).join(", ")}. Named from your captions, not yet measured.
         </p>
       )}
-      <CardSource>Median {works[0]?.metric ?? "result"} per post for each format, against the account&apos;s own median, from the {postsRead} most recent posts SOCIA read.</CardSource>
-    </Card>
+      <p className="dash-note">Median {works[0]?.metric ?? "result"} per post for each format, against the account&apos;s own median, from the {postsRead} most recent posts SOCIA read.</p>
+    </>
   );
 }
 
-/** G. Goal progress. */
-export function GoalProgressCard({ goals, ready }: { goals: GoalRow[]; ready: boolean }) {
+/** Each goal as one line and one bar. */
+export function GoalBars({ goals, ready }: { goals: GoalRow[]; ready: boolean }) {
+  if (!goals.length) {
+    return (
+      <Empty action={ready ? <ButtonLink href="/settings#growth" size="sm">Set a goal</ButtonLink> : undefined}>
+        <b>No measurable goal yet.</b> {ready ? "Set one and SOCIA tracks it." : "Goals need SOCIA's database update first."}
+      </Empty>
+    );
+  }
   return (
-    <Card>
-      <CardHeader title="Goal progress" actions={<Link href="/settings#growth" className="s-link">Goals</Link>} />
-      {goals.length ? (
-        <ul className="dash-goal-rows">
-          {goals.map((g) => (
-            <li key={g.id}>
-              <div className="dash-goal-top">
-                <b>{g.label}</b>
-                {g.primary && <small>Main goal</small>}
-              </div>
-              <div className="dash-goal-figs">
-                <span><b>{g.current ?? "\u2014"}</b> now</span>
-                <span>target {g.target}{g.due ? ` by ${g.due}` : ""}</span>
-              </div>
-              {g.share != null && (
-                <span className="dash-goal-track" role="img" aria-label={`${Math.round(Math.min(1, Math.max(0, g.share)) * 100)}% of the way from the starting point`}>
-                  <i style={{ width: `${Math.round(Math.min(1, Math.max(0, g.share)) * 100)}%` }} />
-                </span>
-              )}
-              <small className="dash-goal-note">
-                {g.reached ? "Target reached." : g.note ?? [g.start ? `Started at ${g.start}` : null, g.remaining ? `${g.remaining} to go` : null, g.daysLeft != null && g.daysLeft >= 0 ? `${g.daysLeft} days left` : null].filter(Boolean).join(", ")}
-              </small>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty action={ready ? <ButtonLink href="/settings#growth" size="sm">Set a goal</ButtonLink> : undefined}>
-          <b>No measurable goal yet.</b> {ready ? "Set one with a target and SOCIA tracks it from where you start." : "Goals can be saved once SOCIA's database update for goals has run."}
-        </Empty>
-      )}
-    </Card>
+    <ul className="dash-goals">
+      {goals.map((g) => {
+        const pct = g.share != null ? Math.round(Math.min(1, Math.max(0, g.share)) * 100) : null;
+        return (
+          <li key={g.id} role="img" aria-label={`${g.label}: ${g.current ?? "not measured"} of ${g.target}${pct != null ? `, ${pct}% of the way` : ""}${g.reached ? ", reached" : ""}`}>
+            <span className="dash-goal-line">
+              <b>{g.label}</b>
+              <span>{g.current ?? DASH} <small>of {g.target}</small></span>
+            </span>
+            {pct != null ? <Bar share={pct / 100} tone={g.reached ? "data" : "you"} /> : <small className="dash-goal-note">{g.note ?? "Not measured yet"}</small>}
+            {g.reached && <small className="dash-goal-note">Target reached</small>}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
-/** H. Recent learning. */
-export function RecentLearningCard({ lines, storeReady }: { lines: LearningLine[]; storeReady: boolean }) {
+/** The goals' dates and distances, for the card's Details. */
+export function GoalNotes({ goals }: { goals: GoalRow[] }) {
   return (
-    <Card>
-      <CardHeader title="Recent learning" period="Last 7 days" />
-      {lines.length ? (
-        <ul className="dash-learn">
-          {lines.map((l, i) => (
-            <li key={i} className={`dash-learn-${l.kind}`}>
-              <span>{l.text}</span>
-              {l.when && <small>{new Date(l.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</small>}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Empty>
-          <b>Nothing new this week.</b> {storeReady ? "SOCIA lists what it learned here as posts go out and findings change." : "Findings appear once SOCIA's database update for insights has run."}
-        </Empty>
-      )}
-    </Card>
+    <ul className="dash-notes">
+      {goals.map((g) => (
+        <li key={g.id}>
+          <b>{g.label}</b>{g.primary ? " (main goal)" : ""}.{" "}
+          {g.reached ? "Target reached." : g.note ?? [g.start ? `Started at ${g.start}` : null, g.remaining ? `${g.remaining} to go` : null, g.due ? `due ${g.due}` : null, g.daysLeft != null && g.daysLeft >= 0 ? `${g.daysLeft} days left` : null].filter(Boolean).join(", ") + "."}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** What changed in the last 7 days. */
+export function LearningLines({ lines, storeReady }: { lines: LearningLine[]; storeReady: boolean }) {
+  if (!lines.length) {
+    return (
+      <Empty>
+        <b>Nothing new this week.</b> {storeReady ? "SOCIA lists what it learned here as posts go out." : "Findings appear once SOCIA's database update has run."}
+      </Empty>
+    );
+  }
+  return (
+    <ul className="dash-learn">
+      {lines.map((l, i) => (
+        <li key={i} className={`is-${l.kind}`}>
+          <span>{l.text}</span>
+          {l.when && <small>{new Date(l.when).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</small>}
+        </li>
+      ))}
+    </ul>
   );
 }

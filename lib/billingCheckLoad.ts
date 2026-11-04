@@ -4,7 +4,7 @@
 import type Stripe from "stripe";
 import { getStripe, priceIdFor, isProductId, resolvePriceId, type PaidPlan } from "./stripe";
 import { checkoutAvailable } from "./plans";
-import type { BillingFacts, PriceFacts } from "./billingCheck";
+import type { BillingFacts, PriceFacts, PromoFacts } from "./billingCheck";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 300);
 
@@ -40,10 +40,11 @@ export async function loadBillingFacts(appUrl: string): Promise<BillingFacts> {
     appUrl, prices: [], webhooks: null, portal: null, errors: [],
   };
   if (!stripe) return base;
-  const [prices, hooks, portal] = await Promise.all([
+  const [prices, hooks, portal, promos] = await Promise.all([
     Promise.all((["starter", "growth", "pro"] as const).map((p) => priceFacts(stripe, p))),
     stripe.webhookEndpoints.list({ limit: 50 }).then((r) => r.data.map((w) => ({ url: w.url, status: w.status, events: w.enabled_events })), (e) => { base.errors.push(`Webhook endpoints: ${msg(e)}`); return null; }),
-    stripe.billingPortal.configurations.list({ active: true, limit: 20 }).then((r) => {
+    // The product list is left out of the response unless asked for.
+    stripe.billingPortal.configurations.list({ active: true, limit: 20, expand: ["data.features.subscription_update.products"] }).then((r) => {
       const c = r.data.find((x) => x.is_default) ?? null;
       if (!c) return null;
       const f = c.features;
@@ -55,6 +56,17 @@ export async function loadBillingFacts(appUrl: string): Promise<BillingFacts> {
         cardUpdate: f.payment_method_update.enabled,
       };
     }, (e) => { base.errors.push(`Customer Portal: ${msg(e)}`); return null; }),
+    stripe.promotionCodes.list({ active: true, limit: 20, expand: ["data.promotion.coupon"] }).then((r) => r.data.map((pc): PromoFacts => {
+      const c = pc.promotion?.coupon && typeof pc.promotion.coupon === "object" ? pc.promotion.coupon : null;
+      return {
+        code: pc.code, percentOff: c?.percent_off ?? null, amountOff: c?.amount_off ?? null,
+        duration: c?.duration ?? "unknown", durationMonths: c?.duration_in_months ?? null,
+        expiresAt: pc.expires_at ?? c?.redeem_by ?? null,
+        maxRedemptions: pc.max_redemptions ?? c?.max_redemptions ?? null,
+        timesRedeemed: pc.times_redeemed, firstTimeOnly: Boolean(pc.restrictions?.first_time_transaction),
+        couponValid: c?.valid ?? false, appliesTo: c?.applies_to?.products ?? [],
+      };
+    }), () => null),
   ]);
-  return { ...base, prices, webhooks: hooks, portal };
+  return { ...base, prices, webhooks: hooks, portal, promos };
 }

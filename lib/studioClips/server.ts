@@ -15,9 +15,9 @@ import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis"
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl, type RawEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
 import { studioLearnedLine } from "./learnLoad";
-import { MAX_REGENERATIONS, STUDIO_BUCKET } from "./types";
+import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
-import { briefText, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
+import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
 import { videoKind, videoTitle, type VideoSummary } from "./videos";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
@@ -649,6 +649,10 @@ export async function buildFromBrief(client: Supa, args: {
   const footageSec = usable.filter((r) => opp.clipIds.includes(r.id)).reduce((a, r) => a + (r.duration_s ?? 0), 0);
   const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry), forEdl, footageSec);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
+  // Every clip the person gave is in the cut, and the cut is long enough to be a post.
+  const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec));
+  if (filled.added.length) edl.notes.push(`SOCIA added ${filled.added.map((id) => clipLabel(rows.find((r) => r.id === id)?.position ?? 0)).join(", ")} so every clip you gave is in the cut.`);
+  edl.segments = filled.segments;
   if (preset) { edl.width = preset.width; edl.height = preset.height; }
   edl.style = preset?.style ?? CAPCUT_STYLE;
   edl.cleanSound = true;
