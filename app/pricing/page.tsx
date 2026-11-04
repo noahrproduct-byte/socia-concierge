@@ -46,7 +46,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
       <main className="pr-main">
         <header className="so-wrap center pr-head">
           <span className="so-label">Plans</span>
-          <h2 className="so-h2">Know what to do next.</h2>
+          <h1 className="so-h2">Know what to do next.</h1>
           <p className="so-lead">
             Start free with one brand, then choose the plan that matches how many brands you run and how much you want SOCIA to do each month.
           </p>

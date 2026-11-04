@@ -1,0 +1,23 @@
+{
+  "plan": "signed-out",
+  "screen": "landing",
+  "url": "http://localhost:3006/",
+  "project": "mobile",
+  "title": "SOCIA: know what to post next",
+  "findings": [
+    {
+      "kind": "layout",
+      "detail": "elements wider than the viewport: div.hx-slot (right edge 496px); section.hx (right edge 496px); header.hx-head (right edge 483px); span.hx-chip (right edge 440px); div.hx-comp (right edge 483px)"
+    },
+    {
+      "kind": "link",
+      "detail": "/pricing answers 500"
+    }
+  ],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-landing-mobile.png"
+}

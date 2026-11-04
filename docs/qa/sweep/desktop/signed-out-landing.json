@@ -1,0 +1,19 @@
+{
+  "plan": "signed-out",
+  "screen": "landing",
+  "url": "http://localhost:3006/",
+  "project": "desktop",
+  "title": "SOCIA: know what to post next",
+  "findings": [
+    {
+      "kind": "layout",
+      "detail": "elements wider than the viewport: div.hx-slot (right edge 1324px); section.hx (right edge 1324px); header.hx-head (right edge 1352px); span.hx-chip (right edge 1314px); div.hx-strip (right edge 1352px)"
+    }
+  ],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-landing-desktop.png"
+}

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   // Default for any page without its own title — user-facing, never the
   // internal codename (it was leaking into tab titles on auth pages).
-  title: "SOCIA — Your AI Social Strategist",
+  title: "SOCIA: Your AI Social Strategist",
   description: TAGLINE,
   applicationName: "SOCIA",
   // Let unfurlers (Slack, iMessage, X, LinkedIn) show a real card. The image
@@ -27,12 +27,12 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "SOCIA",
     url: SITE_URL,
-    title: "SOCIA — Your AI Social Strategist",
+    title: "SOCIA: Your AI Social Strategist",
     description: TAGLINE,
   },
   twitter: {
     card: "summary_large_image",
-    title: "SOCIA — Your AI Social Strategist",
+    title: "SOCIA: Your AI Social Strategist",
     description: TAGLINE,
   },
   robots: { index: true, follow: true },

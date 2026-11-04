@@ -225,8 +225,10 @@
 @media (max-width: 860px) {
   .pr-main { padding-top: 104px; }
 }
+.pr-scroll-hint { display: none; margin: 0 0 10px; font-size: 13px; color: var(--so-dimmer); }
 @media (max-width: 760px) {
   /* sideways scroll inside the wrapper with the feature column pinned; the page itself never scrolls horizontally */
+  .pr-scroll-hint { display: block; }
   .pr-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .pr-table { min-width: 640px; }
   .pr-table th:first-child, .pr-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--so-surface); }

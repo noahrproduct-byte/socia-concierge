@@ -109,7 +109,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
           <div className="hm-wrap hm-hero-copy">
             <span className="hm-cine-eyebrow">Your social media. Finally understood.</span>
             <h1 id="hm-h1" className="hm-h1 hm-cine-h1">
-              <span>Know what</span>
+              <span>Know what</span>{" "}
               <span className="is-gold">to post next.</span>
             </h1>
             <p className="hm-lead">

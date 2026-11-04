@@ -1,0 +1,19 @@
+{
+  "plan": "signed-out",
+  "screen": "pricing-buttons",
+  "url": "http://localhost:3006/pricing",
+  "project": "desktop",
+  "title": "Pricing | SOCIA",
+  "findings": [
+    {
+      "kind": "info",
+      "detail": "plan actions seen: Get started free | WORKSPACES & PLATFORMS\n2 | ANALYTICS\n11 | SOCIA INTELLIGENCE\n5 | CONTENT CREATION\n11 | COMPETITORS & TRENDS\n4 | PUBLISHING\n2 | ALERTS\n6 | REPORTS\n7 | TEAM\n3 | SUPPORT\n3"
+    }
+  ],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-pricing-buttons-desktop.png"
+}

@@ -1,0 +1,14 @@
+{
+  "plan": "signed-out",
+  "screen": "pricing",
+  "url": "http://localhost:3006/pricing",
+  "project": "desktop",
+  "title": "Pricing | SOCIA",
+  "findings": [],
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "failedRequests": [],
+  "slowRequests": [],
+  "screenshot": "docs/qa/screenshots/signed-out-pricing-desktop.png"
+}

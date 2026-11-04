@@ -6,7 +6,7 @@ import { ImageResponse } from "next/og";
 // so every element with more than one child is display:flex on purpose.
 
 export const runtime = "edge";
-export const alt = "SOCIA — Your AI Social Strategist";
+export const alt = "SOCIA: Your AI Social Strategist";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
