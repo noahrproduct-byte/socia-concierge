@@ -58,7 +58,11 @@ export type IgSnapshot = {
   insights_ok: boolean | null;
 };
 
-const STALE_MS = 6 * 60 * 60 * 1000; // re-sync after 6 hours
+/** How old an account's data may get. Pages refresh it on view once it is
+ *  older, and the background job (lib/igSyncJob.ts) keeps every account within
+ *  it whether or not anyone opens SOCIA. */
+export const SYNC_EVERY_MS = 30 * 60 * 1000;
+const STALE_MS = SYNC_EVERY_MS;
 
 /** Record today's exact follower total (one row per day) so follower history
  *  is real observations, never reconstructed.
