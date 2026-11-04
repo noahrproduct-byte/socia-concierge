@@ -2,8 +2,10 @@
 
 // The AI comment-replies inbox. Every item shows the real comment on the left
 // and SOCIA's suggested reply on the right, editable. Nothing is sent until the
-// person clicks "Approve & send"; the platform's own response decides whether
-// it becomes "sent" or "failed". History (sent/skipped) stays below for context.
+// person clicks "Approve & send", unless the brand turned on automatic replies:
+// then the short friendly ones go out on their own (lib/commentAuto.ts) and the
+// rest still wait here. The platform's own response decides whether a reply
+// becomes "sent" or "failed". History (sent/skipped) stays below for context.
 
 import { useState } from "react";
 import { Check, X, RefreshCw, Sparkles, Send, Loader2, AlertCircle } from "lucide-react";
@@ -18,8 +20,17 @@ type SyncInfo = { scanned: number; newComments: number; drafted: number; capped:
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
 
-export default function CommentsInbox({ initial, connected }: { initial: CommentDraft[]; connected: { facebook: boolean; instagram: boolean } }) {
+export default function CommentsInbox({ initial, connected, auto: initialAuto, canChangeAuto }: {
+  initial: CommentDraft[];
+  connected: { facebook: boolean; instagram: boolean };
+  /** Automatic replies for this brand; null before the database supports them (the switch isn't shown). */
+  auto: { enabled: boolean } | null;
+  canChangeAuto: boolean;
+}) {
   const [items, setItems] = useState<CommentDraft[]>(initial);
+  const [auto, setAuto] = useState(initialAuto);
+  const [autoBusy, setAutoBusy] = useState(false);
+  const [autoErr, setAutoErr] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<Record<string, "send" | "skip" | "redraft">>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -71,6 +82,20 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
     }
   }
 
+  async function toggleAuto(enabled: boolean) {
+    setAutoBusy(true); setAutoErr(null);
+    try {
+      const res = await fetch("/api/comments/auto", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error || "Couldn't change it.");
+      setAuto({ enabled: Boolean(j.setting?.enabled) });
+    } catch (e) {
+      setAutoErr(e instanceof Error ? e.message : "Couldn't change it.");
+    } finally {
+      setAutoBusy(false);
+    }
+  }
+
   const noPlatforms = !connected.facebook && !connected.instagram;
 
   return (
@@ -84,6 +109,18 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
           {syncing ? <Loader2 size={14} className="cp-spin" /> : <RefreshCw size={14} />} {syncing ? "Checking…" : "Check for new comments"}
         </button>
       </div>
+      {auto && (
+        <div className="cm-auto">
+          <button type="button" className={`cbb-toggle${auto.enabled ? " on" : ""}`} role="switch" aria-checked={auto.enabled} aria-label="Reply to simple comments automatically" disabled={autoBusy || !canChangeAuto} onClick={() => void toggleAuto(!auto.enabled)}><i /></button>
+          <span>
+            <b>Reply to simple comments automatically</b>
+            <small>{auto.enabled
+              ? "On. Praise, thanks and emoji get a short, friendly reply within about 30 minutes. Questions, complaints and anything sensitive still wait here for you."
+              : canChangeAuto ? "Off. Turn it on and SOCIA answers praise, thanks and emoji on its own with one short sentence, from now on. Everything else still waits for you." : "Off. The owner or an Admin can turn it on."}</small>
+          </span>
+        </div>
+      )}
+      {autoErr && <p className="cm-err" role="alert"><AlertCircle size={13} /> {autoErr}</p>}
       {syncErr && <p className="cm-err" role="alert"><AlertCircle size={13} /> {syncErr}</p>}
       {syncInfo?.problems.map((p, i) => (
         <p key={`${p.platform}-${i}`} className="cm-err" role="alert">
@@ -135,7 +172,7 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
       )}
 
       {!open.length && !noPlatforms && (
-        <div className="ov-empty"><b>No new comments to reply to</b><p>Click &ldquo;Check for new comments&rdquo; and SOCIA will draft a reply for each new comment on your recent posts. You approve every one before it&apos;s sent.</p></div>
+        <div className="ov-empty"><b>No new comments to reply to</b><p>Click &ldquo;Check for new comments&rdquo; and SOCIA will draft a reply for each new comment on your recent posts. {auto?.enabled ? "Simple ones are answered automatically; you approve the rest." : "You approve every one before it's sent."}</p></div>
       )}
 
       {history.length > 0 && (
@@ -149,7 +186,7 @@ export default function CommentsInbox({ initial, connected }: { initial: Comment
                     <span className={`cm-plat ${d.platform}`}>{platformMark(d.platform, "currentColor", 12)} {d.platform === "facebook" ? "Facebook" : "Instagram"}</span>
                     <b>{d.author ?? "Someone"}</b>
                     <span>{when(d.comment_created_at)}</span>
-                    <span className={`cm-status ${d.status}`}>{d.status === "sent" ? "Replied" : "Skipped"}</span>
+                    <span className={`cm-status ${d.status}`}>{d.status === "sent" ? (d.sent_automatically ? "Replied automatically" : "Replied") : "Skipped"}</span>
                   </div>
                   <p className="cm-text">{d.comment_text}</p>
                   {d.status === "sent" && d.draft && <p className="cm-ok"><Check size={13} /> {d.draft}</p>}

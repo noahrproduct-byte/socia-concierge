@@ -3,6 +3,10 @@
 .cm-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .cm-bar-meta { font-size: 13px; color: var(--text-secondary); }
 .cm-bar-meta b { color: var(--text-primary); }
+.cm-auto { display: flex; align-items: flex-start; gap: 12px; margin-top: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.cm-auto > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cm-auto b { font-size: 13.5px; color: var(--text-primary); }
+.cm-auto small { font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
 .cm-sync { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 10px; cursor: pointer; }
 .cm-sync:hover:not(:disabled) { border-color: var(--border-strong); }
 .cm-sync:disabled { opacity: 0.6; cursor: progress; }

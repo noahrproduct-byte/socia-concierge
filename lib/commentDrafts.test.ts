@@ -88,3 +88,36 @@ describe("comments not worth replying to", () => {
     expect(upserts[1]).toMatchObject({ comment_id: "c2", error: null });
   });
 });
+
+describe("judging which replies can go out on their own (automatic replies)", () => {
+  it("reads AUTO and REVIEW, and keeps the prefix out of the reply", () => {
+    expect(readDraft("AUTO: Thank you, Mia!", true)).toEqual({ text: "Thank you, Mia!", skip: false, auto: true });
+    expect(readDraft("REVIEW: We're open 10 to 4 on Sundays.", true)).toEqual({ text: "We're open 10 to 4 on Sundays.", skip: false, auto: false });
+    expect(readDraft("NO_REPLY", true)).toEqual({ text: null, skip: true, auto: false });
+  });
+
+  it("sends nothing on its own that is unlabelled, long or more than one line", () => {
+    expect(readDraft("Thank you so much!", true).auto).toBe(false);
+    expect(readDraft(`AUTO: ${"so good ".repeat(20)}`, true).auto).toBe(false);
+    expect(readDraft("AUTO: Thanks!\nCome back soon.", true).auto).toBe(false);
+  });
+
+  it("leaves drafting for review exactly as it was when the brand doesn't reply automatically", () => {
+    expect(readDraft("Thanks, Mia!")).toEqual({ text: "Thanks, Mia!", skip: false });
+  });
+
+  it("asks the drafter to judge, and saves its judgement, only for brands that reply automatically", async () => {
+    create.mockResolvedValueOnce({ model: "m", content: [{ type: "text", text: "AUTO: Thank you!" }], usage: { input_tokens: 1, output_tokens: 1 } } as never);
+    const on = db({ read: { data: [], error: null }, upsert: { error: null } });
+    await syncCommentDrafts(on.client, "owner-1", null, brand, { classify: true });
+    const sys = (create.mock.calls[0] as unknown as [{ system: string }])[0].system;
+    expect(sys).toMatch(/Start your output with AUTO: or REVIEW:/);
+    expect(on.upserts[0]).toMatchObject({ auto_ok: true, draft: "Thank you!" });
+
+    create.mockClear();
+    const off = db({ read: { data: [], error: null }, upsert: { error: null } });
+    await syncCommentDrafts(off.client, "owner-1", null, brand);
+    expect((create.mock.calls[0] as unknown as [{ system: string }])[0].system).not.toMatch(/AUTO:/);
+    expect(off.upserts[0]).not.toHaveProperty("auto_ok");
+  });
+});

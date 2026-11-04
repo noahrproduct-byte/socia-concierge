@@ -52,6 +52,7 @@ export const MIGRATIONS = [
   "competitor-autopick.sql",
   "studio-cut-meter.sql",
   "claude-week.sql",
+  "comment-auto.sql",
 ];
 
 const SUPABASE_STANDIN = `
