@@ -110,3 +110,21 @@ export function contactsCsv(rows: Contact[]): string {
   ].map(csvCell).join(","));
   return [head.join(","), ...lines].join("\r\n") + "\r\n";
 }
+
+const countOf = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * What an update did, then any posts it couldn't read. Every post failing is
+ * the whole story; one or two failing (often posts deleted from Instagram) is
+ * a note after the result, never instead of it.
+ */
+export function syncSummary(r: { added: number; comments: number; problem: string | null; postsChecked?: number; postsFailed?: number }): string {
+  const failed = r.postsFailed ?? 0, checked = r.postsChecked ?? 0;
+  if (r.problem && checked > 0 && failed >= checked) return r.problem;
+  const done = r.added || r.comments
+    ? `${countOf(r.added, "new contact")}, ${countOf(r.comments, "new comment")} recorded.`
+    : "No new comments since the last update.";
+  if (!failed || !r.problem) return r.problem && !checked ? r.problem : done;
+  const gone = /does not exist|cannot be loaded/i.test(r.problem);
+  return `${done} ${failed} of ${checked} posts couldn't be read${gone ? ", most likely because they were deleted from Instagram" : `: ${r.problem}`}.`;
+}

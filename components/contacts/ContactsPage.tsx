@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Download, ExternalLink, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { Button, ButtonLink, Card, CardHeader, Chip, ConfirmDialog, Drawer, Empty, Field, Input, Select, Switch, TableWrap, Textarea } from "@/components/system";
-import { cleanTag, type Contact, type ContactEvent, type ContactRule, type SignupPage } from "@/lib/contacts/contacts";
+import { cleanTag, syncSummary, type Contact, type ContactEvent, type ContactRule, type SignupPage } from "@/lib/contacts/contacts";
 
 type Initial = { contacts: Contact[]; rules: ContactRule[]; page: SignupPage | null; migration: boolean };
 
@@ -43,13 +43,11 @@ export default function ContactsPage({ initial, igConnected, brand }: { initial:
 
   const sync = async () => {
     setSyncing(true); setSyncNote(null);
-    const r = await send<{ added: number; updated: number; comments: number; problem: string | null; contacts: Contact[] }>("/api/contacts", "POST");
+    const r = await send<{ added: number; updated: number; comments: number; problem: string | null; postsChecked?: number; postsFailed?: number; contacts: Contact[] }>("/api/contacts", "POST");
     setSyncing(false);
     if (!r.ok) { setSyncNote(r.error); return; }
     setContacts(r.data.contacts);
-    setSyncNote(r.data.problem ?? (r.data.added || r.data.comments
-      ? `${plural(r.data.added, "new contact")}, ${plural(r.data.comments, "new comment")} recorded.`
-      : "No new comments since the last update."));
+    setSyncNote(syncSummary(r.data));
   };
 
   const replace = (c: Contact) => setContacts((all) => all.map((x) => (x.id === c.id ? { ...c, sources: x.sources } : x)));
