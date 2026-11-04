@@ -1,9 +1,11 @@
 "use client";
 
-// The Overview, read in five seconds (Noah's brief, 2026-11-03): one hero
-// with the content score and today's one sentence, four stat cards, the
-// week as a strip, the chart, your best posts, you against competitors, three
-// action chips, goals, the platforms. Every number arrives computed on the
+// The Overview, read in five seconds (Noah's brief, 2026-11-03; reordered by
+// the redesign brief the same day): one hero with the content score and
+// today's one sentence, the week as a strip, three numbers, the chart and your
+// best posts. Everything else (what's working, next actions, competitors,
+// goals, audience, platforms, video ideas, reposts, learning) waits behind
+// "More from your account", closed until the person opens it. Every number arrives computed on the
 // server from the account's own rows (lib/overview, lib/intel, lib/dailyRecs,
 // lib/contentScore); this file only lays it out. Longer reading sits behind
 // each card's Details. One component for every state: nothing connected,
@@ -13,7 +15,7 @@ import "@/app/(app)/dashboard/dashboard.css";
 import "@/app/(app)/dashboard/dashboard-motion.css";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, ArrowDownRight, CalendarDays, CheckCircle2, CircleDot, Eye, FileText, Film, Heart, Image as ImageIcon, Images, Plus, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ArrowDownRight, CalendarDays, CheckCircle2, ChevronDown, CircleDot, Eye, FileText, Film, Heart, Image as ImageIcon, Images, Plus, Users } from "lucide-react";
 import OverviewChart from "@/components/ov/OverviewChart";
 import ContentDrawer from "@/components/ov/ContentDrawer";
 import { InsightList } from "@/components/ov/Insights";
@@ -86,6 +88,32 @@ const KPI_METRIC: Partial<Record<Kpi["id"], Metric>> = { views: "views", engagem
 const KPI_ICON: Record<string, typeof Eye> = { views: Eye, engagement_rate: Heart, followers: Users, posts: FileText, reach: Eye };
 const KIND_ICON = { reel: Film, photo: ImageIcon, carousel: Images, story: CircleDot, post: FileText } as const;
 const STATUS_WORD = { posted: "Posted", scheduled: "Scheduled", planned: "Planned", draft: "Draft", failed: "Failed" } as const;
+/** The stat row shows three numbers: the three that drive the chart. */
+const STAT_COUNT = 3;
+/** Remembers on this device whether "More from your account" was left open. */
+const MORE_KEY = "socia-dash-more";
+
+/** Whether "More from your account" is open: closed by default, remembered per device. */
+function useMoreOpen(): [boolean, () => void] {
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(MORE_KEY) === "1") setMore(true);
+    } catch {
+      /* storage blocked: stays closed */
+    }
+  }, []);
+  const toggle = () =>
+    setMore((v) => {
+      try {
+        localStorage.setItem(MORE_KEY, v ? "0" : "1");
+      } catch {
+        /* storage blocked: still toggles */
+      }
+      return !v;
+    });
+  return [more, toggle];
+}
 
 /** The browser's clock, after mount, so server (UTC) and client never disagree on "today". */
 function useClock() {
@@ -159,6 +187,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
   const [metric, setMetric] = useState<Metric>(d.series?.views.provenance === "unavailable" ? "engagement" : "views");
   const [compMetric, setCompMetric] = useState<CompetitorMetric>("engagement");
   const [open, setOpen] = useState<PostCard | null>(null);
+  const [more, toggleMore] = useMoreOpen();
   // The chart draws in once; a metric switch shows the new series at once.
   const [chartStill, setChartStill] = useState(true);
   useEffect(() => { if (motionOk) setChartStill(false); }, [motionOk]);
@@ -266,11 +295,9 @@ export default function Dashboard({ d }: { d: DashboardData }) {
               <DateRangeSelector maxDays={d.maxDays} />
             </Mounted>
           )}
-          {nothingConnected ? (
-            <ButtonLink href="/settings#accounts" variant="primary">Connect a platform</ButtonLink>
-          ) : (
-            <ButtonLink href="/create" variant="primary"><Plus /> Create post</ButtonLink>
-          )}
+          {/* One primary action per screen: the hero's. Nothing connected, the hero
+              already says "Connect a platform", so the header adds nothing. */}
+          {!nothingConnected && <ButtonLink href="/create"><Plus /> Create post</ButtonLink>}
           <span className="dash-updated"><UpdatedAgo at={d.updatedAt ?? null} /></span>
         </div>
       </header>
@@ -327,40 +354,6 @@ export default function Dashboard({ d }: { d: DashboardData }) {
           </Details>
         </div>
       </section>
-      </Reveal>
-
-      {/* ---- stat cards -------------------------------------------------------------- */}
-      <Reveal index={next()} className="dash-stats">
-        {d.kpis
-          ? d.kpis.map((k) => {
-              const m = KPI_METRIC[k.id];
-              const selectable = Boolean(m && d.series && d.series[m].provenance !== "unavailable");
-              const Icon = KPI_ICON[k.id] ?? Eye;
-              const spark = k.status === "ok" ? sparkFor(k.id) : null;
-              const body = (
-                <>
-                  <span className="dash-stat-label"><Icon aria-hidden /> {k.label}</span>
-                  <span className="dash-stat-row">
-                    <b className="dash-stat-value">{k.status === "unavailable" || k.raw == null ? (k.status === "unavailable" ? DASH : k.value) : <CountUp value={k.raw} format={kpiFormat(k)} />}</b>
-                    {spark && <Spark values={spark.values} kind={spark.kind} />}
-                  </span>
-                  <span className="dash-stat-foot">
-                    {k.deltaText && k.status === "ok" ? (
-                      <span className={`dash-stat-delta${k.positive === false ? " is-bad" : k.positive ? " is-good" : ""}`}>
-                        {k.positive === false ? <ArrowDownRight aria-hidden /> : k.positive ? <ArrowUpRight aria-hidden /> : null}
-                        {k.deltaText}
-                      </span>
-                    ) : <small>{k.note}</small>}
-                  </span>
-                </>
-              );
-              return selectable ? (
-                <button key={k.id} type="button" className={`dash-stat dash-lift${metric === m ? " is-on" : ""}`} aria-pressed={metric === m} onClick={() => pickMetric(m as Metric)}>{body}</button>
-              ) : (
-                <div key={k.id} className="dash-stat dash-lift">{body}</div>
-              );
-            })
-          : summaryTiles(connected)}
       </Reveal>
 
       {/* ---- this week ------------------------------------------------------------ */}
@@ -425,6 +418,40 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </Card>
       </Reveal>
 
+      {/* ---- stat cards -------------------------------------------------------------- */}
+      <Reveal index={next()} className="dash-stats">
+        {d.kpis
+          ? d.kpis.slice(0, STAT_COUNT).map((k) => {
+              const m = KPI_METRIC[k.id];
+              const selectable = Boolean(m && d.series && d.series[m].provenance !== "unavailable");
+              const Icon = KPI_ICON[k.id] ?? Eye;
+              const spark = k.status === "ok" ? sparkFor(k.id) : null;
+              const body = (
+                <>
+                  <span className="dash-stat-label"><Icon aria-hidden /> {k.label}</span>
+                  <span className="dash-stat-row">
+                    <b className="dash-stat-value">{k.status === "unavailable" || k.raw == null ? (k.status === "unavailable" ? DASH : k.value) : <CountUp value={k.raw} format={kpiFormat(k)} />}</b>
+                    {spark && <Spark values={spark.values} kind={spark.kind} />}
+                  </span>
+                  <span className="dash-stat-foot">
+                    {k.deltaText && k.status === "ok" ? (
+                      <span className={`dash-stat-delta${k.positive === false ? " is-bad" : k.positive ? " is-good" : ""}`}>
+                        {k.positive === false ? <ArrowDownRight aria-hidden /> : k.positive ? <ArrowUpRight aria-hidden /> : null}
+                        {k.deltaText}
+                      </span>
+                    ) : <small>{k.note}</small>}
+                  </span>
+                </>
+              );
+              return selectable ? (
+                <button key={k.id} type="button" className={`dash-stat dash-lift${metric === m ? " is-on" : ""}`} aria-pressed={metric === m} onClick={() => pickMetric(m as Metric)}>{body}</button>
+              ) : (
+                <div key={k.id} className="dash-stat dash-lift">{body}</div>
+              );
+            })
+          : summaryTiles(connected)}
+      </Reveal>
+
       {/* ---- chart beside the best posts ------------------------------------------------ */}
       <Reveal index={next()} className={`dash-main${d.live ? "" : " is-single"}`}>
         {series && d.series ? (
@@ -481,179 +508,193 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         )}
       </Reveal>
 
-      {/* ---- you against competitors, and what's working ------------------------------ */}
-      <Reveal index={next()} className="dash-duo">
-        <Card className="dash-lift">
-          <CardHeader title="Competitors" actions={<Link href="/discover" className="s-link">All</Link>} />
-          {comp == null ? (
-            <Empty>
-              <b>Competitors couldn&apos;t be read right now.</b> Open Discover to see them.
-            </Empty>
-          ) : compRows.length > 1 ? (
-            <>
-              <SegmentedControl
-                className="dash-seg"
-                label="Measure"
-                value={compMetric}
-                onChange={setCompMetric}
-                options={COMPETITOR_METRICS.map((m) => ({ value: m.id, label: m.id === "engagement" ? "Per post" : "Followers" }))}
-              />
-              <ul className="dash-bars dash-comp" aria-label={`You against competitors, ${COMPETITOR_METRICS.find((m) => m.id === compMetric)!.label.toLowerCase()}`}>
-                {compRows.map((r) => (
-                  <li key={r.handle} className={r.you ? "is-you" : undefined} role="img" aria-label={`${r.name}: ${fmtNum(Math.round(r.value))}`}>
-                    <span className="dash-bars-name dash-comp-who">
-                      {r.avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.avatar} alt="" width={20} height={20} referrerPolicy="no-referrer" />
-                      ) : (
-                        <i aria-hidden>{r.name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}</i>
-                      )}
-                      <b>{r.name}</b>
-                    </span>
-                    <Bar share={r.value / compMax} tone={r.you ? "you" : "data"} />
-                    <b className="dash-bars-num">{fmtNum(Math.round(r.value))}</b>
-                  </li>
-                ))}
-              </ul>
-              <Details label="Details" openLabel="Less"><p className="dash-note">{compSource}</p></Details>
-            </>
-          ) : (
-            <Empty action={<ButtonLink href="/discover" size="sm">Open Competitors</ButtonLink>}>
-              <b>{comp.tracked ? "No public numbers read yet." : "No competitors tracked yet."}</b> {comp.tracked ? "Open Competitors to read their latest posts." : "Track accounts in your niche to compare them here."}
-            </Empty>
-          )}
-        </Card>
+      {/* ---- more from your account: closed until opened -------------------------------- */}
+      <section className="dash-more" aria-labelledby="dash-more-title">
+        <button type="button" className="dash-more-toggle" aria-expanded={more} aria-controls="dash-more-body" onClick={toggleMore}>
+          <span className="dash-more-text">
+            <b id="dash-more-title">More from your account</b>
+            <small>What&apos;s working, next actions, competitors, goals, audience, platforms and ideas</small>
+          </span>
+          <ChevronDown aria-hidden />
+        </button>
+        {more && (
+          <div id="dash-more-body" className="dash-stack dash-more-body">
+            {/* ---- you against competitors, and what's working ------------------------------ */}
+            <Reveal index={next()} className="dash-duo">
+              <Card className="dash-lift">
+                <CardHeader title="Competitors" actions={<Link href="/discover" className="s-link">All</Link>} />
+                {comp == null ? (
+                  <Empty>
+                    <b>Competitors couldn&apos;t be read right now.</b> Open Discover to see them.
+                  </Empty>
+                ) : compRows.length > 1 ? (
+                  <>
+                    <SegmentedControl
+                      className="dash-seg"
+                      label="Measure"
+                      value={compMetric}
+                      onChange={setCompMetric}
+                      options={COMPETITOR_METRICS.map((m) => ({ value: m.id, label: m.id === "engagement" ? "Per post" : "Followers" }))}
+                    />
+                    <ul className="dash-bars dash-comp" aria-label={`You against competitors, ${COMPETITOR_METRICS.find((m) => m.id === compMetric)!.label.toLowerCase()}`}>
+                      {compRows.map((r) => (
+                        <li key={r.handle} className={r.you ? "is-you" : undefined} role="img" aria-label={`${r.name}: ${fmtNum(Math.round(r.value))}`}>
+                          <span className="dash-bars-name dash-comp-who">
+                            {r.avatar ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={r.avatar} alt="" width={20} height={20} referrerPolicy="no-referrer" />
+                            ) : (
+                              <i aria-hidden>{r.name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}</i>
+                            )}
+                            <b>{r.name}</b>
+                          </span>
+                          <Bar share={r.value / compMax} tone={r.you ? "you" : "data"} />
+                          <b className="dash-bars-num">{fmtNum(Math.round(r.value))}</b>
+                        </li>
+                      ))}
+                    </ul>
+                    <Details label="Details" openLabel="Less"><p className="dash-note">{compSource}</p></Details>
+                  </>
+                ) : (
+                  <Empty action={<ButtonLink href="/discover" size="sm">Open Competitors</ButtonLink>}>
+                    <b>{comp.tracked ? "No public numbers read yet." : "No competitors tracked yet."}</b> {comp.tracked ? "Open Competitors to read their latest posts." : "Track accounts in your niche to compare them here."}
+                  </Empty>
+                )}
+              </Card>
 
-        <Card className="dash-lift">
-          <CardHeader title="What's working" />
-          <WorksBars works={d.intel.works} />
-          {d.intel.works.length > 0 && (
-            <Details label="Details" openLabel="Less"><WorksNotes works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} /></Details>
-          )}
-        </Card>
-      </Reveal>
+              <Card className="dash-lift">
+                <CardHeader title="What's working" />
+                <WorksBars works={d.intel.works} />
+                {d.intel.works.length > 0 && (
+                  <Details label="Details" openLabel="Less"><WorksNotes works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} /></Details>
+                )}
+              </Card>
+            </Reveal>
 
-      {/* ---- next actions as chips ------------------------------------------------------ */}
-      <Reveal index={next()}>
-        <Card className="dash-lift">
-          <CardHeader title="Next actions" period="From your own posts" />
-          <ActionChips actions={d.intel.actions} />
-        </Card>
-      </Reveal>
+            {/* ---- next actions as chips ------------------------------------------------------ */}
+            <Reveal index={next()}>
+              <Card className="dash-lift">
+                <CardHeader title="Next actions" period="From your own posts" />
+                <ActionChips actions={d.intel.actions} />
+              </Card>
+            </Reveal>
 
-      {/* ---- goals and audience ---------------------------------------------------------- */}
-      <Reveal index={next()} className="dash-duo">
-        <Card className="dash-lift">
-          <CardHeader title="Goals" actions={<Link href="/settings#growth" className="s-link">Edit</Link>} />
-          <GoalBars goals={d.intel.goals} ready={d.intel.goalsReady} />
-          {d.intel.goals.length > 0 && <Details label="Details" openLabel="Less"><GoalNotes goals={d.intel.goals} /></Details>}
-        </Card>
+            {/* ---- goals and audience ---------------------------------------------------------- */}
+            <Reveal index={next()} className="dash-duo">
+              <Card className="dash-lift">
+                <CardHeader title="Goals" actions={<Link href="/settings#growth" className="s-link">Edit</Link>} />
+                <GoalBars goals={d.intel.goals} ready={d.intel.goalsReady} />
+                {d.intel.goals.length > 0 && <Details label="Details" openLabel="Less"><GoalNotes goals={d.intel.goals} /></Details>}
+              </Card>
 
-        <Card className="dash-lift">
-          <CardHeader title="Audience" actions={<Link href="/analytics#audience" className="s-link">All</Link>} />
-          {timing || formats.length ? (
-            <div className="dash-aud">
-              {timing && <p className="dash-line"><b>{timing.title}</b></p>}
-              {formats.length > 0 && (
-                <ul className="dash-bars" aria-label="Formats that land">
-                  {formats.map((f) => (
-                    <li key={f.format} role="img" aria-label={`${f.format}: ${f.m.toFixed(1)} times your median post, ${f.n} posts`}>
-                      <span className="dash-bars-name"><b>{f.format}</b></span>
-                      <Bar share={f.m / maxFormat} />
-                      <b className="dash-bars-num">{f.m.toFixed(1)}x</b>
+              <Card className="dash-lift">
+                <CardHeader title="Audience" actions={<Link href="/analytics#audience" className="s-link">All</Link>} />
+                {timing || formats.length ? (
+                  <div className="dash-aud">
+                    {timing && <p className="dash-line"><b>{timing.title}</b></p>}
+                    {formats.length > 0 && (
+                      <ul className="dash-bars" aria-label="Formats that land">
+                        {formats.map((f) => (
+                          <li key={f.format} role="img" aria-label={`${f.format}: ${f.m.toFixed(1)} times your median post, ${f.n} posts`}>
+                            <span className="dash-bars-name"><b>{f.format}</b></span>
+                            <Bar share={f.m / maxFormat} />
+                            <b className="dash-bars-num">{f.m.toFixed(1)}x</b>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <Details label="Details" openLabel="Less">
+                      {timing && <p className="dash-note">{timing.body}</p>}
+                      {formats.length > 0 && <p className="dash-note">Median interactions per post by format, against your median post. Formats with two or more posts.</p>}
+                    </Details>
+                  </div>
+                ) : (
+                  <Empty>
+                    <b>Not enough posts yet.</b> Patterns appear after a few dated posts.
+                  </Empty>
+                )}
+              </Card>
+            </Reveal>
+
+            {/* ---- platforms -------------------------------------------------------------- */}
+            <Reveal index={next()}>
+              <Card className="dash-lift">
+                <CardHeader title="Platforms" period={d.rangeLabel} />
+                <ul className="dash-plats">
+                  {[...d.summaries].sort((a, b) => Number(b.connected) - Number(a.connected)).map((s) => (
+                    <li key={s.platform} className={s.connected ? "is-on" : undefined}>
+                      <PlatformMark platform={s.platform as Platform} brand={s.connected} />
+                      <span className="dash-plat-body">
+                        <b>{s.label}</b>
+                        {s.connected ? (
+                          <small>{s.audience != null ? `${fmtNum(s.audience)} ${s.audienceLabel || "audience"}` : "Connected"}</small>
+                        ) : (
+                          <ButtonLink href={s.platform === "instagram" ? d.connectHref : "/settings#accounts"} size="sm">Connect</ButtonLink>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>
+                <Details label="All numbers" openLabel="Less">
+                  <TableWrap>
+                    <table className="s-table s-table--stack">
+                      <thead>
+                        <tr><th>Platform</th><th className="num">Posted</th><th className="num">Audience</th><th className="num">Views</th><th className="num">Engagement</th><th className="act" /></tr>
+                      </thead>
+                      <tbody>
+                        {d.summaries.map((s) => (
+                          <tr key={s.platform}>
+                            <td className="id"><b>{s.label}</b><span className="sub">{s.connected ? "Connected" : "Not connected"}</span></td>
+                            <td className="num key" data-label="Posted">{s.connected ? s.contentPublished != null ? fmtNum(s.contentPublished) : <Unavailable reason="Not reported for this period" compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
+                            <td className="num" data-label="Audience">{s.connected ? s.audience != null ? fmtNum(s.audience) : <Unavailable reason="Not reported" compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
+                            <td className="num" data-label="Views">{s.connected ? s.views != null ? fmtNum(s.views) : <Unavailable reason={s.viewsNote ?? "Not reported by the platform"} compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
+                            <td className="num" data-label="Engagement">{s.connected ? s.engagement != null ? fmtNum(s.engagement) : <Unavailable reason="Not reported for this period" compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
+                            <td className="act">{s.connected ? <Link href={`/analytics?platform=${s.platform}`} className="s-link">Analytics</Link> : null}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableWrap>
+                  <p className="dash-note">Each platform reports its own metrics. A dash means the platform did not report that number for this period, not zero.</p>
+                </Details>
+              </Card>
+            </Reveal>
+
+            {/* ---- more: ideas, reposting, learning -------------------------------------------- */}
+            <Reveal index={next()} className="dash-trio">
+              {!nothingConnected && (
+                <Card className="dash-lift">
+                  <CardHeader title="Video ideas" />
+                  <p className="dash-line">Ideas in the theme of your own posts, with a shot plan.</p>
+                  <Details label="Open" openLabel="Close"><div className="dash-nested"><VideoIdeasCard /></div></Details>
+                </Card>
               )}
-              <Details label="Details" openLabel="Less">
-                {timing && <p className="dash-note">{timing.body}</p>}
-                {formats.length > 0 && <p className="dash-note">Median interactions per post by format, against your median post. Formats with two or more posts.</p>}
-              </Details>
-            </div>
-          ) : (
-            <Empty>
-              <b>Not enough posts yet.</b> Patterns appear after a few dated posts.
-            </Empty>
-          )}
-        </Card>
-      </Reveal>
-
-      {/* ---- platforms -------------------------------------------------------------- */}
-      <Reveal index={next()}>
-        <Card className="dash-lift">
-          <CardHeader title="Platforms" period={d.rangeLabel} />
-          <ul className="dash-plats">
-            {[...d.summaries].sort((a, b) => Number(b.connected) - Number(a.connected)).map((s) => (
-              <li key={s.platform} className={s.connected ? "is-on" : undefined}>
-                <PlatformMark platform={s.platform as Platform} brand={s.connected} />
-                <span className="dash-plat-body">
-                  <b>{s.label}</b>
-                  {s.connected ? (
-                    <small>{s.audience != null ? `${fmtNum(s.audience)} ${s.audienceLabel || "audience"}` : "Connected"}</small>
-                  ) : (
-                    <ButtonLink href={s.platform === "instagram" ? d.connectHref : "/settings#accounts"} size="sm">Connect</ButtonLink>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <Details label="All numbers" openLabel="Less">
-            <TableWrap>
-              <table className="s-table s-table--stack">
-                <thead>
-                  <tr><th>Platform</th><th className="num">Posted</th><th className="num">Audience</th><th className="num">Views</th><th className="num">Engagement</th><th className="act" /></tr>
-                </thead>
-                <tbody>
-                  {d.summaries.map((s) => (
-                    <tr key={s.platform}>
-                      <td className="id"><b>{s.label}</b><span className="sub">{s.connected ? "Connected" : "Not connected"}</span></td>
-                      <td className="num key" data-label="Posted">{s.connected ? s.contentPublished != null ? fmtNum(s.contentPublished) : <Unavailable reason="Not reported for this period" compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
-                      <td className="num" data-label="Audience">{s.connected ? s.audience != null ? fmtNum(s.audience) : <Unavailable reason="Not reported" compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
-                      <td className="num" data-label="Views">{s.connected ? s.views != null ? fmtNum(s.views) : <Unavailable reason={s.viewsNote ?? "Not reported by the platform"} compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
-                      <td className="num" data-label="Engagement">{s.connected ? s.engagement != null ? fmtNum(s.engagement) : <Unavailable reason="Not reported for this period" compact /> : <Unavailable reason={`Connect ${s.label}`} compact />}</td>
-                      <td className="act">{s.connected ? <Link href={`/analytics?platform=${s.platform}`} className="s-link">Analytics</Link> : null}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableWrap>
-            <p className="dash-note">Each platform reports its own metrics. A dash means the platform did not report that number for this period, not zero.</p>
-          </Details>
-        </Card>
-      </Reveal>
-
-      {/* ---- more: ideas, reposting, learning -------------------------------------------- */}
-      <Reveal index={next()} className="dash-trio">
-        {!nothingConnected && (
-          <Card className="dash-lift">
-            <CardHeader title="Video ideas" />
-            <p className="dash-line">Ideas in the theme of your own posts, with a shot plan.</p>
-            <Details label="Open" openLabel="Close"><div className="dash-nested"><VideoIdeasCard /></div></Details>
-          </Card>
+              {d.repurpose.length > 0 && (
+                <Card className="dash-lift">
+                  <CardHeader title="Worth posting again" />
+                  <ul className="dash-thumbs" aria-label="Posts worth reposting">
+                    {d.repurpose.slice(0, 4).map((c) => (
+                      <li key={c.key} title={c.title}>
+                        {c.thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={c.thumb} alt={c.title} width={56} height={56} loading="lazy" />
+                        ) : (
+                          <span className="dash-thumb-ph" aria-label={c.title}>{c.kind === "video" ? <Film aria-hidden /> : <ImageIcon aria-hidden />}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <Details label="Open" openLabel="Close"><div className="dash-nested"><RepurposeCard candidates={d.repurpose} /></div></Details>
+                </Card>
+              )}
+              <Card className="dash-lift">
+                <CardHeader title="This week's learning" period="Last 7 days" />
+                <LearningLines lines={d.intel.learning} storeReady={d.intel.storeReady} />
+              </Card>
+            </Reveal>
+          </div>
         )}
-        {d.repurpose.length > 0 && (
-          <Card className="dash-lift">
-            <CardHeader title="Worth posting again" />
-            <ul className="dash-thumbs" aria-label="Posts worth reposting">
-              {d.repurpose.slice(0, 4).map((c) => (
-                <li key={c.key} title={c.title}>
-                  {c.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.thumb} alt={c.title} width={56} height={56} loading="lazy" />
-                  ) : (
-                    <span className="dash-thumb-ph" aria-label={c.title}>{c.kind === "video" ? <Film aria-hidden /> : <ImageIcon aria-hidden />}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <Details label="Open" openLabel="Close"><div className="dash-nested"><RepurposeCard candidates={d.repurpose} /></div></Details>
-          </Card>
-        )}
-        <Card className="dash-lift">
-          <CardHeader title="This week's learning" period="Last 7 days" />
-          <LearningLines lines={d.intel.learning} storeReady={d.intel.storeReady} />
-        </Card>
-      </Reveal>
+      </section>
 
       <ContentDrawer post={open} baseline={d.baseline} medianViews={d.medianViews} onClose={() => setOpen(null)} />
     </div>
@@ -663,7 +704,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 /** Without live Instagram the stat cards show each connected platform's own headline numbers, never a blend. */
 function summaryTiles(connected: PlatformSummary[]) {
   if (!connected.length) {
-    return ["Views", "Engagement", "Audience", "Posts"].map((label) => (
+    return ["Views", "Engagement", "Audience"].map((label) => (
       <div key={label} className="dash-stat">
         <span className="dash-stat-label">{label}</span>
         <span className="dash-stat-row"><b className="dash-stat-value is-na">{DASH}</b></span>
@@ -673,8 +714,8 @@ function summaryTiles(connected: PlatformSummary[]) {
   }
   const tiles: { key: string; label: string; value: number | null; note: string }[] = [];
   for (const s of connected) {
-    if (tiles.length < 4) tiles.push({ key: `${s.platform}-aud`, label: `${s.label} ${s.audienceLabel || "audience"}`, value: s.audience, note: s.audience != null ? "Current" : "Not reported" });
-    if (tiles.length < 4)
+    if (tiles.length < STAT_COUNT) tiles.push({ key: `${s.platform}-aud`, label: `${s.label} ${s.audienceLabel || "audience"}`, value: s.audience, note: s.audience != null ? "Current" : "Not reported" });
+    if (tiles.length < STAT_COUNT)
       tiles.push(
         s.views != null
           ? { key: `${s.platform}-views`, label: `${s.label} views`, value: s.views, note: s.viewsNote ?? "In this range" }

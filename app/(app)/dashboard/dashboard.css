@@ -241,7 +241,7 @@
 /* ---- stat cards: icon, figure, trend, one label ------------------------------------ */
 .dash-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-3);
 }
 .dash-stat {
@@ -1085,9 +1085,6 @@ button.dash-stat {
   .dash-chips {
     grid-template-columns: minmax(0, 1fr);
   }
-  .dash-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 @media (max-width: 640px) {
   .dash-stack {
@@ -1116,7 +1113,7 @@ button.dash-stat {
     font-size: var(--fs-figure);
     line-height: var(--lh-figure);
   }
-  /* Two to a row on a phone: the figure and its comparison stay, the spark goes. */
+  /* Three to a row on a phone: the figure and its comparison stay, the spark goes. */
   .dash-spark {
     display: none;
   }
@@ -1161,5 +1158,66 @@ button.dash-stat {
   .dash-day-add {
     width: var(--control-h-lg);
     height: var(--control-h-lg);
+  }
+}
+
+/* ---- more from your account: everything past the first screen, closed until opened ----
+   One quiet row with a hairline above it; the cards inside keep their own layout. */
+.dash-more {
+  border-top: 1px solid var(--border);
+}
+.dash-more-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-4) 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dash-more-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dash-more-text b {
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.dash-more-text small {
+  color: var(--ink-3);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.dash-more-toggle svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  color: var(--ink-3);
+  transition: transform var(--t-panel) var(--ease-out);
+}
+.dash-more-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .dash-more-toggle:hover svg {
+    color: var(--ink);
+  }
+}
+.dash-more-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-control);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-more-toggle svg {
+    transition: none;
   }
 }
