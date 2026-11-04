@@ -69,7 +69,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [auto, setAuto] = useState<{ text: string; timed: string } | null>(null);
   const [listenNote, setListenNote] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("analyze");
-  const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: goalDefault, cover: null, audioChosen: false });
+  const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: goalDefault, cover: null });
   const [seek, setSeek] = useState<SeekRequest>(null);
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
   const [drag, setDrag] = useState(false);
@@ -451,7 +451,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                       <button type="button" className="ov-btn primary small" onClick={() => { handFiles("audio", [source.file!]); router.push("/studio?mode=audio"); }}>Add music</button>
                     </div>
                   )}
-                  <AudioPanel a={analysis} w={w} setAudio={(b) => setW((c) => ({ ...c, audioChosen: b }))} />
+                  <AudioPanel a={analysis} />
                 </>
               )}
               {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} />}

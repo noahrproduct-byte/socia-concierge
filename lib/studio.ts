@@ -103,7 +103,7 @@ export const studioSchema = {
 
 export type ChecklistItem = { id: string; label: string; done: boolean; hint: string };
 
-export function checklist(a: StudioAnalysis | null, w: { caption: string; platform: string | null; hook: string; cta: string; cover: boolean; audio: boolean }): ChecklistItem[] {
+export function checklist(a: StudioAnalysis | null, w: { caption: string; platform: string | null; hook: string; cta: string; cover: boolean }): ChecklistItem[] {
   const hookScore = a?.categories.find((c) => c.id === "hook")?.score ?? null;
   const early = a?.observed.subjectAppearsAt != null ? a.observed.subjectAppearsAt <= 1.5 : null;
   return [
@@ -113,7 +113,6 @@ export function checklist(a: StudioAnalysis | null, w: { caption: string; platfo
     { id: "cta", label: "CTA included", done: Boolean(w.cta) || a?.observed.ctaDetected === true || /\?|order|book|dm|tag|comment|save|share|link/i.test(w.caption), hint: w.cta ? `Using: “${w.cta.slice(0, 50)}”` : "Pick one in Improve" },
     { id: "platform", label: "Platform selected", done: Boolean(w.platform), hint: w.platform ?? "Choose in Prepare" },
     { id: "cover", label: "Cover image chosen", done: w.cover, hint: w.cover ? "Frame chosen" : "Pick a frame from the strip" },
-    { id: "audio", label: "Audio selected", done: w.audio, hint: w.audio ? "Marked as chosen" : "Tick when you've picked a track" },
   ];
 }
 
@@ -130,7 +129,6 @@ export function analysisSummary(a: StudioAnalysis): string {
 }
 
 export const fmtT = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-export const fmtT1 = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
 
 export type VersionDelta = { label: string; delta: number }[];
 export function versionDiff(prev: StudioAnalysis, cur: StudioAnalysis): VersionDelta {

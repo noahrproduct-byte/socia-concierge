@@ -4,7 +4,7 @@
 // the model's arithmetic. Pure, zone-explicit, tested.
 import type { TimedPost } from "@/lib/postingTimes";
 import { zonedParts, zonedToUtc, formatClock } from "@/lib/publishing/timing";
-import type { CalendarPost } from "@/lib/studioClips/distribute";
+import type { CalendarPost } from "@/lib/studioClips/batch";
 import { scheduleBatch, tomorrowIn, LEAD_MIN } from "@/lib/studioClips/batch";
 
 export type RescheduleRule = {

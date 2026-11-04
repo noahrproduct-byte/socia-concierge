@@ -5,7 +5,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { fileLabel, postLabel, type LabelSource } from "@/lib/publishing/postLabel";
-import type { CalendarPost } from "@/lib/studioClips/distribute";
+import type { CalendarPost } from "@/lib/studioClips/batch";
 
 export type Schedulable = {
   /** the [S#] number shown to the model */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { humanText, overlayStyle, placeOverlays, sizeFor } from "./overlay";
+import { humanText, overlayStyle, placeOverlays } from "./overlay";
 import { DEFAULT_STYLE } from "./style";
 
 describe("on-screen text that reads like a person typed it", () => {
@@ -23,11 +23,6 @@ describe("on-screen text that reads like a person typed it", () => {
     expect(humanText("x".repeat(61))).toBeNull();
   });
 
-  it("sizes by length", () => {
-    expect(sizeFor("so good")).toBe("l");
-    expect(sizeFor("we made 200 of these today")).toBe("m");
-    expect(sizeFor("this is the part nobody tells you about dough")).toBe("s");
-  });
 });
 
 describe("where the text goes", () => {

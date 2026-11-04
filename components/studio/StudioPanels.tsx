@@ -17,7 +17,7 @@ import ImproveWalkthrough, { type FixOptions, type ImproveWalkthroughProps } fro
 import { momentsFrom, momentsSummary, type Moment } from "@/lib/studioFixes";
 import type { EdlText } from "@/lib/studioClips/types";
 
-export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; /** The lines Improve proposes for the video, as preset layers (lib/textPresets.ts): drawn over the player at their moments. */ layers: EdlText[]; platform: string | null; goal: GoalId | null; cover: number | null; audioChosen: boolean };
+export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; /** The lines Improve proposes for the video, as preset layers (lib/textPresets.ts): drawn over the player at their moments. */ layers: EdlText[]; platform: string | null; goal: GoalId | null; cover: number | null };
 export type ImproveOption = { label: string; text: string; steps: string[] };
 export type Improve = (task: "hooks" | "caption" | "cta" | "onscreen" | "variations", params?: { mode?: string; exclude?: string[] }) => Promise<ImproveOption[]>;
 
@@ -290,7 +290,7 @@ function MeasuredSound({ m }: { m: QuickAudio }) {
   );
 }
 
-export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; setAudio: (b: boolean) => void }) {
+export function AudioPanel({ a }: { a: StudioAnalysis }) {
   const Dir = ({ d, title }: { d: StudioAnalysis["audio"]["direction"]; title: string }) => (
     <div className="st-audio-dir">
       <small>{title}</small>
@@ -311,16 +311,9 @@ export function AudioPanel({ a, w, setAudio }: { a: StudioAnalysis; w: Working; 
             <Dir d={a.audio.alternative} title="Alternative" />
           </div>
         ) : <div className="ov-empty small">Audio direction applies to video. For a still post, the caption carries the tone.</div>}
-        <label className="st-check"><input type="checkbox" checked={w.audioChosen} onChange={(e) => setAudio(e.target.checked)} /> I&apos;ve picked a track for this piece</label>
       </section>
       {a.kind === "video" && <AudioInsights canEdit={false} current={null} onUse={() => null} />}
-      <section className="st-block">
-        <h3>Trending audio</h3>
-        <div className="ov-empty small">
-          <b>On Discover</b>
-          <p>Discover lists the trending music and original sounds Instagram makes available to apps, in Instagram&apos;s order. TikTok shares no trending audio, so SOCIA won&apos;t guess one. Use the direction above when you pick a sound.</p>
-        </div>
-      </section>
+      <p className="ov-source">Instagram&apos;s trending audio is listed on <Link href="/discover">Discover</Link>, in Instagram&apos;s order; TikTok shares none.</p>
     </div>
   );
 }
@@ -337,7 +330,7 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
   const [err, setErr] = useState<PanelErr | null>(null);
   const [handing, setHanding] = useState(false);
   const publish = async () => { setHanding(true); try { await onPublish(); } finally { setHanding(false); } };
-  const items: ChecklistItem[] = checklist(a, { caption: w.caption, platform: w.platform, hook: w.hook, cta: w.cta, cover: w.cover != null, audio: w.audioChosen });
+  const items: ChecklistItem[] = checklist(a, { caption: w.caption, platform: w.platform, hook: w.hook, cta: w.cta, cover: w.cover != null });
   const done = items.filter((i) => i.done).length;
   return (
     <div className="st-panel">

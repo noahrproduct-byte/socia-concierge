@@ -9,7 +9,7 @@ import type { TimedPost } from "@/lib/postingTimes";
 import { loadPickerAccountsDetailed } from "@/lib/publishing/db";
 import { studioRequest, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { getProjectRow } from "@/lib/studioClips/server";
-import type { CalendarPost } from "@/lib/studioClips/distribute";
+import type { CalendarPost } from "@/lib/studioClips/batch";
 import { BATCH_HORIZON_DAYS } from "@/lib/studioClips/batch";
 import { errorResponse } from "@/lib/dbError";
 

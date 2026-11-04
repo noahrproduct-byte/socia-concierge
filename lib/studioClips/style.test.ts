@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_STYLE, captionLayout, cleanVolume, sanitizePresets, sanitizeStyle, textColors } from "./style";
+import { DEFAULT_STYLE, captionLayout, cleanVolume, sanitizePresets, sanitizeStyle } from "./style";
 import { revalidateEdl, validateEdl, type ClipForEdl } from "./edl";
 import { aspectOf } from "./types";
 
@@ -29,11 +29,6 @@ describe("style is bounded", () => {
 });
 
 describe("what the style draws", () => {
-  it("always puts the call to action on the brand colour", () => {
-    expect(textColors({ ...DEFAULT_STYLE, accent: "#112233", textBox: "light" }, "cta").bg).toBe("#112233");
-    expect(textColors({ ...DEFAULT_STYLE, textBox: "light" }, "mid")).toMatchObject({ fg: "#111111" });
-    expect(textColors({ ...DEFAULT_STYLE, textBox: "none" }, "opening").bg).toBeNull();
-  });
   it("places captions where chosen", () => {
     expect(captionLayout({ position: "top", size: "s", box: true, uppercase: false })).toEqual({ top: "12%", bottom: null, fontSize: 44 });
     expect(captionLayout(DEFAULT_STYLE.captions)).toEqual({ top: null, bottom: "27%", fontSize: 54 });
