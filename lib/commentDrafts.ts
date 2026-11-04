@@ -5,7 +5,9 @@
 //   send   : a person approved (and maybe edited) a draft → post it → `sent`
 //   skip   : a person chose not to reply → `skipped`
 //
-// Nothing is ever sent without a person approving it. Drafting is capped per
+// Nothing is sent without a person approving it, except the short friendly
+// replies of a brand that turned on automatic replies (lib/commentAuto.ts).
+// Drafting is capped per
 // sync so AI cost stays bounded; comments beyond the cap simply wait for the
 // next sync. Server only (uses the Anthropic SDK).
 
@@ -37,6 +39,10 @@ export type CommentDraft = {
   error: string | null;
   created_at: string;
   updated_at: string;
+  /** Automatic replies (lib/commentAuto.ts): the drafter judged a short friendly reply enough. Absent before comment-auto.sql. */
+  auto_ok?: boolean | null;
+  /** The reply went out without a person. */
+  sent_automatically?: boolean | null;
 };
 
 export type BrandVoice = {
@@ -52,18 +58,32 @@ const POSTS_PER_PLATFORM = 10;
 
 /** One reply suggestion, in the brand's voice. Short, human, specific to the
  *  comment; never promotional spam, never a promise the brand can't keep. */
-/** A suggested reply, or the suggestion not to reply at all. */
-export type Drafted = { text: string | null; skip: boolean };
+/** A suggested reply, or the suggestion not to reply at all. `auto` (only when
+ *  classifying, for automatic replies): a short friendly reply is all it needs. */
+export type Drafted = { text: string | null; skip: boolean; auto?: boolean };
+
+/** The longest reply SOCIA sends without a person: one short sentence. */
+export const AUTO_REPLY_MAX = 120;
 
 /** Read the model's output. Pure. NO_REPLY anywhere means "don't reply", so a
- *  note meant for the brand can never end up as the reply text. */
-export function readDraft(raw: string): Drafted {
-  if (/\bNO_REPLY\b/.test(raw)) return { text: null, skip: true };
-  const text = raw.trim().replace(/^["“]|["”]$/g, "");
-  return { text: text || null, skip: false };
+ *  note meant for the brand can never end up as the reply text. When
+ *  classifying, the reply starts with AUTO: or REVIEW:; anything else, or an
+ *  AUTO reply that isn't short, is for a person to review. */
+export function readDraft(raw: string, classify = false): Drafted {
+  if (/\bNO_REPLY\b/.test(raw)) return { text: null, skip: true, ...(classify ? { auto: false } : {}) };
+  let body = raw.trim();
+  let auto = false;
+  if (classify) {
+    const m = /^(AUTO|REVIEW)\s*:\s*/i.exec(body);
+    auto = Boolean(m && m[1].toUpperCase() === "AUTO");
+    if (m) body = body.slice(m[0].length);
+  }
+  const text = body.trim().replace(/^["“]|["”]$/g, "").trim();
+  if (!classify) return { text: text || null, skip: false };
+  return { text: text || null, skip: false, auto: auto && Boolean(text) && text.length <= AUTO_REPLY_MAX && !/\n/.test(text) };
 }
 
-export async function draftReply(input: { comment: SocialComment; brand: BrandVoice; ownerId?: string | null }): Promise<Drafted> {
+export async function draftReply(input: { comment: SocialComment; brand: BrandVoice; ownerId?: string | null; classify?: boolean }): Promise<Drafted> {
   const { comment, brand } = input;
   const who = brand.name ? `the brand "${brand.name}"` : "a small business";
   const niche = brand.niche ? ` in the ${brand.niche} space` : "";
@@ -77,7 +97,7 @@ Rules:
 - No hashtags, no links, no emoji spam (at most one emoji, only if it fits), no "Thanks for your comment!" boilerplate, nothing that reads as automated.
 - Match the commenter's language. If the comment is hostile or sensitive, keep it calm, brief and de-escalating.
 - If the comment is spam, a bot, a scam, or promotes something unrelated to the post, don't write a reply or advice: output exactly NO_REPLY.
-- Output only the reply text, or exactly NO_REPLY. Never address the brand or explain your choice: whatever you output is posted publicly as the reply.`;
+- Output only the reply text, or exactly NO_REPLY. Never address the brand or explain your choice: whatever you output is posted publicly as the reply.${input.classify ? AUTO_RULES : ""}`;
   const user = `Platform: ${comment.platform}
 Post caption: ${comment.postCaption ? comment.postCaption.slice(0, 500) : "(none)"}
 Commenter: ${comment.author ?? "someone"}
@@ -95,11 +115,19 @@ Comment: ${comment.text.slice(0, 600)}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
     recordAiUsage(input.ownerId, "comment_reply", res);
-    return readDraft(res.content.map((b) => ("text" in b ? b.text : "")).join(""));
+    return readDraft(res.content.map((b) => ("text" in b ? b.text : "")).join(""), input.classify);
   } catch {
     return { text: null, skip: false };
   }
 }
+
+/** Added when the brand replies automatically (lib/commentAuto.ts): the drafter says whether the reply can go out without a person. */
+const AUTO_RULES = `
+
+This brand replies to simple comments automatically. Start your output with AUTO: or REVIEW:, then the reply.
+- AUTO: only when a short, friendly reply is all the comment needs: praise, thanks, an emoji or reaction, tagging a friend, a simple "love this". The reply is one short sentence, under 100 characters, warm and plain. No questions back, no offers, no facts.
+- REVIEW: anything a person should check: a question (prices, opening hours, availability, orders, bookings, how-to), a complaint or criticism, anything negative, sensitive, personal or legal, or when you are unsure.
+- Spam stays exactly NO_REPLY, with no prefix.`;
 
 /** A platform whose comments could not (all) be read, or SOCIA itself ("socia")
  *  when drafts can't be saved: the inbox says so instead of "all caught up". */
@@ -115,6 +143,7 @@ export async function syncCommentDrafts(
   ownerId: string,
   workspaceId: string | null,
   brand: BrandVoice,
+  opts: { classify?: boolean } = {},
 ): Promise<SyncResult> {
   const [fb, ig] = await Promise.all([
     getFbSnapshot(supabase, ownerId, workspaceId ?? undefined).catch(() => null),
@@ -170,8 +199,10 @@ export async function syncCommentDrafts(
 
   let drafted = 0;
   for (const c of toDraft) {
-    const d = await draftReply({ comment: c, brand, ownerId });
+    const d = await draftReply({ comment: c, brand, ownerId, classify: opts.classify });
     const row = {
+      // Only when the brand replies automatically: comment-auto.sql added the column.
+      ...(opts.classify ? { auto_ok: Boolean(d.auto) } : {}),
       user_id: ownerId,
       workspace_id: workspaceId,
       platform: c.platform,

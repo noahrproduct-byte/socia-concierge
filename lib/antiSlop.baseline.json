@@ -29,7 +29,6 @@
   },
   "em-dash": {
     "app/(app)/analytics/page.tsx": 1,
-    "app/(app)/comments/page.tsx": 1,
     "app/(app)/reports/page.tsx": 1,
     "app/(app)/roundup/page.tsx": 5,
     "app/(app)/settings/page.tsx": 2,
