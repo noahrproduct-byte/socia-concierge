@@ -1,0 +1,61 @@
+/* Contacts (components/contacts/ContactsPage.tsx) and the public sign-up page
+   (app/l/[slug]). Built on the system primitives; tokens only. */
+
+.ct { display: flex; flex-direction: column; gap: var(--sp-4); }
+.ct-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.ct-search { flex: 1 1 220px; min-width: 0; }
+.ct-meta { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.ct-note { color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.ct-none { color: var(--ink-3); }
+.ct-sub { display: block; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.ct-err { margin: 0; color: var(--danger-text); font-size: var(--fs-meta); }
+
+.ct-table tbody tr { cursor: pointer; }
+.ct-table tbody tr:hover td { background: var(--surface-muted); }
+.ct-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.ct-tags { display: inline-flex; flex-wrap: wrap; gap: var(--sp-1); }
+
+.ct-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
+@media (max-width: 900px) { .ct-grid { grid-template-columns: minmax(0, 1fr); } }
+.ct-help { margin: 0 0 var(--sp-3); color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.ct-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+.ct-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.ct-rules li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--sp-2); align-items: center; }
+
+.ct-form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.ct-switches { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink-2); font-size: var(--fs-body); }
+.ct-linkrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.ct-linkrow code { min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-size: var(--fs-meta); }
+.ct-link { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--ink-2); font-size: var(--fs-meta); }
+
+.ct-drawer { display: flex; flex-direction: column; gap: var(--sp-4); }
+.ct-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); margin: 0; }
+.ct-facts dt { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.ct-facts dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+.ct-facts a { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--ink); }
+.ct-tag-edit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.ct-tag { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.ct-tag button { display: inline-grid; place-items: center; padding: 0; border: 0; background: none; color: var(--ink-3); cursor: pointer; }
+.ct-tag-input { flex: 1 1 140px; min-width: 0; }
+.ct-h3 { margin: 0; font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--fw-semibold); }
+.ct-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); color: var(--ink-2); font-size: var(--fs-body); }
+.ct-history li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-3); }
+.ct-when { color: var(--ink-3); font-size: var(--fs-meta); white-space: nowrap; }
+
+.ct-gate { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sp-3); padding: var(--sp-12) var(--sp-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-panel); }
+.ct-gate-ico { display: grid; place-items: center; width: 46px; height: 46px; border-radius: var(--r-control); background: var(--surface-muted); color: var(--ink); }
+.ct-gate h2 { margin: 0; font-size: var(--fs-section); font-weight: var(--fw-semibold); color: var(--ink); }
+.ct-gate p { margin: 0; max-width: 520px; color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+
+/* ---- the public sign-up page ---------------------------------------------- */
+.su { min-height: 100dvh; display: grid; place-items: center; padding: var(--sp-8) var(--sp-4); background: var(--ground); color: var(--ink); }
+.su-card { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-8) var(--sp-6); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-panel); }
+.su-brand { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); }
+.su h1 { margin: 0; font-size: var(--fs-title); line-height: var(--lh-title); font-weight: var(--fw-semibold); text-wrap: balance; }
+.su-intro { margin: 0; color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.su form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.su-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.su-done { margin: 0; color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
+.su-fine { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.su-fine a { color: inherit; }

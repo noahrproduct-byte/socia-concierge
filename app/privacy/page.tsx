@@ -97,6 +97,16 @@ export default function PrivacyPage() {
           approve it.
         </li>
         <li>
+          <b>Contacts</b>: if you use Contacts, SOCIA records the Instagram
+          username of each person who comments on your own posts, how often
+          they comment, the first words of each comment and when, plus the tags
+          and notes you add. Nobody is messaged. If you publish a sign-up page,
+          people who choose to fill it in give their email (and, if you ask,
+          their Instagram name) and agree to hear from you; we store that, and
+          when they agreed. Only you and your workspace&apos;s admins see your
+          contacts.
+        </li>
+        <li>
           <b>Content you create or upload</b>: captions, drafts, notes, and the
           images and videos you schedule. In Content Studio, a video you
           analyze is read in your browser, which sends sampled frames for
@@ -263,6 +273,12 @@ export default function PrivacyPage() {
           analyze or caption is deleted as soon as the transcript is back.
         </li>
         <li>Media you schedule, until you delete the post.</li>
+        <li>
+          Contacts, until you delete them. Contacts that came from Instagram
+          comments are deleted when you disconnect that Instagram account;
+          people who signed up on your page stay until you delete them or they
+          ask you or us to remove them.
+        </li>
         <li>
           The record of a post you deleted from a platform through SOCIA (when,
           by whom, its link, the start of its caption and its last measured

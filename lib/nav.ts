@@ -30,6 +30,8 @@ export const NAV: NavEntry[] = [
   { href: "/studio", label: "Content Studio", key: "studio", group: "create" },
   // AI comment replies (Growth+): drafts a reply to every new comment for approval.
   { href: "/comments", label: "Comments", key: "comments", group: "manage" },
+  // Contacts (Starter+): commenters and sign-ups, with tags, notes and a sign-up page.
+  { href: "/contacts", label: "Contacts", key: "contacts", group: "manage" },
   { href: "/settings", label: "Settings", key: "settings", group: "manage" },
 ];
 
