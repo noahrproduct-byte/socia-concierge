@@ -20,6 +20,9 @@ vi.mock("../api/write", () => ({
     return [{ input: inputs[0], account: { platform: "instagram", accountId: "ig-1" } }];
   },
 }));
+const alerts = vi.hoisted(() => ({ record: vi.fn(async () => undefined) }));
+vi.mock("../alerts", () => ({ recordAlerts: alerts.record }));
+vi.mock("../team", () => ({ listMembers: vi.fn(async () => []) }));
 vi.mock("../api/sources", () => ({ loadSources: vi.fn(async () => ({ ig: null })) }));
 vi.mock("../studioClips/styleStore", () => ({ readPresets: vi.fn(async () => ({ brand: { style: { font: "montserrat", accent: "#5b4bd6" } } })) }));
 vi.mock("../intel/understandLoad", () => ({ currentDetail: vi.fn(async () => ({ voice: "Bold", growth: { resources: { claude_styles: ["animated"] } } })) }));
@@ -144,6 +147,8 @@ describe("submitVideo", () => {
     expect((db.saveItem.mock.calls[0] as unknown[])[3]).toBe("draft");
     expect(updates.find((u) => u.table === "scheduled_posts")?.values).toEqual({ plan_item_id: CLAUDE_ITEM, review_status: "waiting", review_note: null });
     expect(db.cancelPost).toHaveBeenCalledWith(expect.anything(), "old");
+    // One bell notice per plan for the owner: their Claude handed in videos to review.
+    expect(alerts.record).toHaveBeenCalledWith(expect.anything(), { userId: OWNER, workspaceId: null }, [expect.objectContaining({ fingerprint: `claude-week:${PLAN}:${OWNER}`, recipientId: OWNER, entityRef: "/plan/calendar" })]);
   });
 
   it("refuses a path outside the post's folder, a missing upload and a file that isn't a video", async () => {

@@ -35,6 +35,8 @@ import { appOrigin } from "../oauth/config";
 import { loadSources } from "../api/sources";
 import { MEDIA_BUCKET } from "../api/media";
 import { cancelPost, pickAccounts, settingsFor } from "../api/write";
+import { recordAlerts } from "../alerts";
+import { listMembers } from "../team";
 import { approvalTime, plannedTime, type DayWindow } from "./schedule";
 
 type Supa = SupabaseClient;
@@ -267,6 +269,7 @@ export async function submitVideo(ctx: Ctx, svc: Supa, ent: Entitlements, input:
   }
   // The earlier video for this post is replaced: it never went out (only approved ones are scheduled).
   for (const p of earlier) await cancelPost(ctx, p.id).catch(() => undefined);
+  await notifyHandIn(svc, ctx, plan.id);
   return {
     item_id: item.id,
     post_id: saved.id,
@@ -277,6 +280,59 @@ export async function submitVideo(ctx: Ctx, svc: Supa, ent: Entitlements, input:
     note: "Saved for the person to review. It is scheduled only when they approve it in SOCIA; nothing was posted.",
     open_in_socia: appLink("/plan/calendar"),
   };
+}
+
+/** One bell notice per plan for the owner and the workspace's Admins: their Claude handed in videos to review. */
+async function notifyHandIn(svc: Supa, ctx: Ctx, planId: string): Promise<void> {
+  try {
+    const wsId = ctx.workspace?.id ?? null;
+    const admins = wsId ? (await listMembers(svc, wsId).catch(() => [])).filter((m) => m.role === "admin").map((m) => m.userId) : [];
+    const recipients = Array.from(new Set([ctx.ownerId, ...admins]));
+    await recordAlerts(svc, { userId: ctx.ownerId, workspaceId: wsId }, recipients.map((rid) => ({
+      type: "approval" as const, platform: "", severity: "info" as const, fingerprint: `claude-week:${planId}:${rid}`,
+      title: "Your Claude handed in this week's videos",
+      body: "They're waiting for your review on the Calendar. Approving schedules each one at its planned time; nothing posts before.",
+      evidence: {}, entityRef: "/plan/calendar", recipientId: rid,
+    })));
+  } catch (e) {
+    console.error("[claude-week] notify", (e as Error)?.message ?? e);
+  }
+}
+
+export type ReviewItem = {
+  postId: string; title: string; day: string | null; caption: string; videoUrl: string | null;
+  goesOutAt: string | null; platforms: Platform[]; manual: boolean;
+};
+
+/** Videos Claude handed in that wait for review in this workspace, soonest first. Empty before the migration. */
+export async function listForReview(ctx: Ctx): Promise<ReviewItem[]> {
+  const { data, error } = await scopeToWorkspace(
+    ctx.client.from("scheduled_posts").select("id, caption, media, scheduled_at, plan_id, plan_item_id, plan_day").eq("user_id", ctx.ownerId).eq("review_status", "waiting").neq("status", "cancelled"),
+    ctx.workspace?.id ?? null,
+  ).order("scheduled_at", { ascending: true }).limit(21);
+  if (error || !data?.length) return [];
+  const rows = data as { id: string; caption: string | null; media: MediaItem[] | null; scheduled_at: string | null; plan_id: string | null; plan_item_id: string | null; plan_day: string | null }[];
+  const planIds = [...new Set(rows.map((r) => r.plan_id).filter((x): x is string => Boolean(x)))];
+  const [plans, dests] = await Promise.all([
+    planIds.length ? scopeToWorkspace(ctx.client.from("plans").select("id, data").eq("user_id", ctx.ownerId).in("id", planIds), ctx.workspace?.id ?? null) : Promise.resolve({ data: [] }),
+    ctx.client.from("post_destinations").select("post_id, platform, status").eq("user_id", ctx.ownerId).in("post_id", rows.map((r) => r.id)),
+  ]);
+  const items = new Map<string, PlanItem>();
+  for (const p of (plans.data ?? []) as PlanRow[]) for (const it of p.data.weeklyPlan ?? []) if (it.id) items.set(`${p.id}:${it.id}`, it);
+  const platforms = new Map<string, Platform[]>();
+  for (const d of (dests.data ?? []) as { post_id: string; platform: Platform; status: string }[]) {
+    if (d.status === "cancelled") continue;
+    platforms.set(d.post_id, [...(platforms.get(d.post_id) ?? []), d.platform]);
+  }
+  return rows.map((r) => {
+    const it = r.plan_id && r.plan_item_id ? items.get(`${r.plan_id}:${r.plan_item_id}`) : undefined;
+    const ps = platforms.get(r.id) ?? [];
+    return {
+      postId: r.id, title: it?.title || it?.hook || r.plan_day || "Video", day: it?.day ?? r.plan_day, caption: r.caption ?? "",
+      videoUrl: (r.media ?? []).find((m) => m.kind === "video")?.url ?? null, goesOutAt: r.scheduled_at, platforms: ps,
+      manual: ps.some((p) => !SCHEDULABLE.includes(p)),
+    };
+  });
 }
 
 export type ReviewResult = { post_id: string; ok: boolean; status?: "approved" | "rejected"; scheduled_for?: string; error?: string; issues?: Record<string, Issue[]>; open?: string };

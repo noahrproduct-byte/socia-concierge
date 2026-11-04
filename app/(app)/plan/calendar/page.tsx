@@ -10,6 +10,8 @@ import { PUBLISH_SCOPE } from "@/lib/igPublish";
 import { serviceConfigured, createServiceClient } from "@/lib/supabase/service";
 import { approvalItems, approvalRole, approvalsEnabled } from "@/lib/approvals";
 import CalendarApprovals from "@/components/CalendarApprovals";
+import ClaudeWeekReview from "@/components/ClaudeWeekReview";
+import { listForReview } from "@/lib/claudeWeek/server";
 import { getEntitlements, checkFeature } from "@/lib/entitlements";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
@@ -151,15 +153,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     return { ...r, ...(ds ? { destinations: ds } : {}), result, label: postLabel(r.caption, labelSources.get(r.id)) };
   });
 
+  // Videos the person's Claude made for the weekly plan, waiting for review (lib/claudeWeek).
+  const handedIn = await listForReview(ctx).catch(() => []);
   const board = (
-    <CalendarBoard
-      posts={posts}
-      igUsername={igUsername}
-      connected={connected}
-      scheduled={scheduled}
-      userId={user.id}
-      publish={publish}
-    />
+    <>
+      {handedIn.length > 0 && <ClaudeWeekReview items={handedIn} canApprove={roleOk} />}
+      <CalendarBoard
+        posts={posts}
+        igUsername={igUsername}
+        connected={connected}
+        scheduled={scheduled}
+        userId={user.id}
+        publish={publish}
+      />
+    </>
   );
 
   // Approvals (Pro): the owner and Admins get "Needs approval", Members "My submissions".
