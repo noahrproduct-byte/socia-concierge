@@ -2,6 +2,7 @@
 // then rendered as a plain-language edit guide. The same EDL feeds the Player
 // in Phase B, so the guide and the preview can never disagree.
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
+import { MAX_TEXT_LAYERS, TEXT_PRESETS, clampChars, isTextPresetId, isTextSlot, presetForRole } from "@/lib/textPresets";
 import { aspectOf, clipLabel, fmtClock, isTransition } from "./types";
 import { overlapFrames, secToFrames } from "./timeline";
 import { finishSteps, sanitizeFinish } from "./finish";
@@ -30,7 +31,7 @@ export type RawEdl = {
   height?: number;
   segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string }[];
   style?: unknown;
-  text?: { at: number; end?: number; text: string; role?: string; size?: string }[];
+  text?: { at: number; end?: number; text: string; role?: string; size?: string; presetId?: string; slot?: string }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
   cta?: string | null;
   music?: string | null;
@@ -190,15 +191,20 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
   const notes = [...(raw.notes ?? []).map((n) => n.trim()).filter(Boolean)];
   if (total < target.min) notes.push(`This cut runs ${total}s, under the recommended ${target.min}s. Add another moment or let a clip breathe longer.`);
 
-  // Text layers inside the output.
+  // Text layers inside the output: at most MAX_TEXT_LAYERS, each on a known
+  // preset (an old role-only line gets the preset for its role), its words cut
+  // to the preset's limit, its slot kept only when it differs from the preset's.
   const ROLES = new Set(["opening", "mid", "cta"]);
   const text: EdlText[] = (raw.text ?? [])
-    .filter((t) => t.text?.trim())
+    .filter((t) => typeof t.text === "string" && t.text.trim())
+    .slice(0, MAX_TEXT_LAYERS)
     .map((t, i) => {
       const at = r2(clamp(t.at ?? 0, 0, Math.max(0, total - 0.5)));
       const end = r2(clamp(t.end ?? at + 2.5, at + 0.5, total || at + 2.5));
-      const size = t.size === "s" || t.size === "l" ? t.size : undefined;
-      return { id: `t${i + 1}`, at, end, text: t.text.trim(), role: (ROLES.has(t.role ?? "") ? t.role : at < 1 ? "opening" : "mid") as EdlText["role"], ...(size ? { size } : {}) };
+      const role = (ROLES.has(t.role ?? "") ? t.role : at < 1 ? "opening" : "mid") as EdlText["role"];
+      const preset = isTextPresetId(t.presetId) ? TEXT_PRESETS[t.presetId] : presetForRole(role);
+      const slot = isTextSlot(t.slot) && t.slot !== preset.slot ? t.slot : undefined;
+      return { id: `t${i + 1}`, at, end, text: clampChars(t.text.trim(), preset.maxChars), role, presetId: preset.id, ...(slot ? { slot } : {}) };
     });
 
   const inCut = clips.filter((c) => segments.some((s) => s.clipId === c.id));
@@ -241,7 +247,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     height: edited.height,
     segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition })),
     style: edited.style,
-    text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, size: t.size })),
+    text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, presetId: t.presetId, slot: t.slot })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
     cta: edited.cta, music: edited.music, caption: edited.caption,
     notes: edited.notes.filter((n) => !/^This cut runs/.test(n)),

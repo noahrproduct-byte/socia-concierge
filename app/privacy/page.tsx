@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 3, 2026</p>
+      <p className="legal-date">Last updated: November 4, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -46,13 +46,16 @@ export default function PrivacyPage() {
           <code>pages_read_user_content</code>, <code>pages_manage_posts</code>,{" "}
           <code>pages_manage_engagement</code>, <code>read_insights</code>,{" "}
           <code>instagram_basic</code>, <code>instagram_manage_insights</code>,{" "}
-          <code>instagram_manage_contents</code>, <code>business_management</code>),
+          <code>instagram_content_publish</code>, <code>instagram_manage_contents</code>,{" "}
+          <code>business_management</code>),
           we read the Page&apos;s details, posts, engagement, insights and
-          comments, and look up other public Instagram business accounts for
-          competitor research. We publish and reply only when you do. We keep your Facebook user token next to the Page token
-          because Meta lets an Instagram post be deleted only with it; we use
-          it, and <code>instagram_manage_contents</code>, only to delete a post
-          from the Instagram account linked to your Page when you ask SOCIA to.
+          comments, look up other public Instagram business accounts for
+          competitor research, and list Instagram&apos;s trending audio. We publish and reply only when you do. We keep your Facebook user token next to the Page token
+          because Meta lets an Instagram post be deleted, and its trending audio
+          be listed, only with it; we use it, and <code>instagram_manage_contents</code>,
+          only to delete a post from the Instagram account linked to your Page
+          when you ask SOCIA to, and with <code>instagram_content_publish</code> only
+          to read the trending audio list.
         </li>
         <li>
           <b>YouTube</b>: when you connect your channel, Google gives us OAuth
@@ -92,6 +95,16 @@ export default function PrivacyPage() {
           commenter&apos;s name or username, the comment and the post&apos;s
           caption, alongside the reply SOCIA suggests. Nothing is sent until you
           approve it.
+        </li>
+        <li>
+          <b>Contacts</b>: if you use Contacts, SOCIA records the Instagram
+          username of each person who comments on your own posts, how often
+          they comment, the first words of each comment and when, plus the tags
+          and notes you add. Nobody is messaged. If you publish a sign-up page,
+          people who choose to fill it in give their email (and, if you ask,
+          their Instagram name) and agree to hear from you; we store that, and
+          when they agreed. Only you and your workspace&apos;s admins see your
+          contacts.
         </li>
         <li>
           <b>Content you create or upload</b>: captions, drafts, notes, and the
@@ -260,6 +273,12 @@ export default function PrivacyPage() {
           analyze or caption is deleted as soon as the transcript is back.
         </li>
         <li>Media you schedule, until you delete the post.</li>
+        <li>
+          Contacts, until you delete them. Contacts that came from Instagram
+          comments are deleted when you disconnect that Instagram account;
+          people who signed up on your page stay until you delete them or they
+          ask you or us to remove them.
+        </li>
         <li>
           The record of a post you deleted from a platform through SOCIA (when,
           by whom, its link, the start of its caption and its last measured

@@ -5,7 +5,7 @@
 // sampled frames as a strip (one can be chosen as the cover). Images render
 // in the same frame without the video chrome.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Play, Pause, Volume2, VolumeX, SkipBack, SkipForward } from "lucide-react";
 import { fmtT, type Marker, type Segment, type StudioKind } from "@/lib/studio";
 
@@ -13,11 +13,15 @@ export type SeekRequest = { t: number; n: number } | null;
 
 const RATING_CLS: Record<Segment["rating"], string> = { weak: "weak", needs: "needs", good: "good", strong: "strong" };
 
-export default function StudioPlayer({ url, kind, images, thumbs, markers, segments, seek, onTime, onDuration, cover, onCover, activeMarker, videoRef }: {
+export default function StudioPlayer({ url, kind, images, thumbs, markers, segments, seek, onTime, onDuration, cover, onCover, activeMarker, videoRef, overlay, onSize }: {
   url: string | null; kind: StudioKind; images: string[]; thumbs: { src: string; t: number }[]; markers: Marker[]; segments: Segment[];
   seek: SeekRequest; onTime: (t: number) => void; onDuration: (d: number) => void; cover: number | null; onCover: (i: number | null) => void; activeMarker: number | null;
   /** The parent samples frames from this same element. */
   videoRef?: React.MutableRefObject<HTMLVideoElement | null>;
+  /** Drawn over the picture, sized to the video's own frame (not the letterbox): text layers, guides. */
+  overlay?: (info: { t: number; width: number; height: number }) => ReactNode;
+  /** The video's own pixel size, once known. */
+  onSize?: (width: number, height: number) => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   useEffect(() => { if (videoRef) videoRef.current = video.current; });
@@ -27,6 +31,25 @@ export default function StudioPlayer({ url, kind, images, thumbs, markers, segme
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(0);
   const [slide, setSlide] = useState(0);
+  // The video's pixel size and the box it is drawn in (object-fit: contain), so an overlay matches the picture exactly.
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  useEffect(() => {
+    const el = stage.current;
+    if (!el || !size || !overlay) return;
+    const fit = () => {
+      const W = el.clientWidth, H = el.clientHeight;
+      if (!W || !H) return;
+      const k = Math.min(W / size.w, H / size.h);
+      const w = size.w * k, h = size.h * k;
+      setBox({ left: (W - w) / 2, top: (H - h) / 2, width: w, height: h });
+    };
+    fit();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [size, overlay]);
 
   useEffect(() => { if (seek && video.current) { video.current.currentTime = Math.max(0, Math.min(seek.t, dur || seek.t)); setT(video.current.currentTime); } }, [seek, dur]);
   useEffect(() => { setPlaying(false); setT(0); setDur(0); setSlide(0); }, [url]);
@@ -54,11 +77,15 @@ export default function StudioPlayer({ url, kind, images, thumbs, markers, segme
   const pct = dur ? (t / dur) * 100 : 0;
   return (
     <div className="stp">
-      <div className="stp-stage" onClick={toggle} role="presentation">
+      <div className="stp-stage" ref={stage} onClick={toggle} role="presentation">
         <video ref={video} src={url} playsInline muted={muted} preload="auto" crossOrigin={url.startsWith("blob:") ? undefined : "anonymous"}
           onTimeUpdate={(e) => { setT(e.currentTarget.currentTime); onTime(e.currentTarget.currentTime); }}
-          onLoadedMetadata={(e) => { setDur(e.currentTarget.duration); onDuration(e.currentTarget.duration); }}
+          onSeeked={(e) => { setT(e.currentTarget.currentTime); onTime(e.currentTarget.currentTime); }}
+          onLoadedMetadata={(e) => { const v = e.currentTarget; setDur(v.duration); onDuration(v.duration); if (v.videoWidth && v.videoHeight) { setSize({ w: v.videoWidth, h: v.videoHeight }); onSize?.(v.videoWidth, v.videoHeight); } }}
           onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)} />
+        {overlay && size && box && (
+          <div className="stp-overlay" style={box} aria-hidden>{overlay({ t, width: size.w, height: size.h })}</div>
+        )}
         {!playing && <span className="stp-bigplay" aria-hidden><Play size={22} fill="currentColor" /></span>}
         {markers.map((m, i) => (
           <span key={i} className={`stp-caption-marker${activeMarker === i ? " on" : ""}`} hidden={Math.abs(t - m.t) > 0.75}>{m.label}</span>

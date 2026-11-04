@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dropCommenters } from "@/lib/contacts/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
@@ -62,6 +63,8 @@ export async function POST(req: Request) {
   const dropSnapshots = async () => {
     for (const id of gone) {
       await db.from("account_snapshots").delete().eq("user_id", ownerId).eq("ig_user_id", id).then(() => null, () => null);
+      // The commenters this account's posts produced (lib/contacts); sign-ups stay.
+      await dropCommenters(db, id, ownerId).catch(() => 0);
     }
   };
   const finish = async () => {

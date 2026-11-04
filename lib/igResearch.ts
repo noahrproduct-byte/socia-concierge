@@ -48,25 +48,32 @@ export async function researchConnection(): Promise<ResearchConnection | null> {
   if (memo && Date.now() - memo.at < TTL_MS) return memo.value;
 
   let value: ResearchConnection | null = null;
-  const svc = createServiceClient();
-  if (svc) {
-    try {
-      let q = svc.from("facebook_connections").select("user_id, ig_business_id, ig_business_username, access_token, connection_status");
-      if (userId) q = q.eq("user_id", userId);
-      if (username) q = q.ilike("ig_business_username", username);
-      const { data } = await q.limit(20);
-      const row = ((data ?? []) as Row[]).find(
-        (r) =>
-          r.connection_status === "connected" && r.ig_business_id && r.access_token &&
-          (!username || (r.ig_business_username ?? "").toLowerCase() === username),
-      );
-      if (row) value = { igUserId: row.ig_business_id!, pageToken: row.access_token! };
-    } catch {
-      /* treated as not configured */
-    }
-  }
+  const row = (await researchRows()).find((r) => r.connection_status === "connected" && r.ig_business_id && r.access_token);
+  if (row) value = { igUserId: row.ig_business_id!, pageToken: row.access_token! };
   memo = { at: Date.now(), value };
   return value;
+}
+
+/**
+ * The research account's Facebook connection rows (several when its owner
+ * connected the Page in more than one workspace), with any extra columns a
+ * caller needs; [] when it is not configured. Server only.
+ */
+export async function researchRows<T extends Row = Row>(extraCols = ""): Promise<T[]> {
+  const { userId, username } = settings();
+  if (!userId && !username) return [];
+  const svc = createServiceClient();
+  if (!svc) return [];
+  try {
+    // Narrowed to the research account below: by its SOCIA user_id, its Instagram username, or both.
+    let q = svc.from("facebook_connections").select(`user_id, ig_business_id, ig_business_username, access_token, connection_status${extraCols ? `, ${extraCols}` : ""}`);
+    if (userId) q = q.eq("user_id", userId);
+    if (username) q = q.ilike("ig_business_username", username);
+    const { data } = await q.limit(20);
+    return ((data ?? []) as unknown as T[]).filter((r) => !username || (r.ig_business_username ?? "").toLowerCase() === username);
+  } catch {
+    return [];
+  }
 }
 
 /** Test seam. */
