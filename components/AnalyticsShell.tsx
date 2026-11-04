@@ -5,12 +5,13 @@
 // server as nodes; the All-Platforms panel is rendered here so its per-platform
 // "View analytics →" buttons can switch tabs immediately. The URL's ?platform=
 // is kept in sync with history.replaceState — shareable, no server round-trip.
-// Above the platform tabs, a view switch: Performance (the platform panels),
-// Content intelligence and Diagnostics (brand-wide, from SOCIA's findings),
-// kept in ?view= the same way.
+// One row of platform tabs, then everything on one scrolling page (redesign
+// brief, 2026-11-03): the platform's own panel, then Content intelligence and
+// Diagnostics (brand-wide, from SOCIA's findings) as sections under it. They
+// used to sit behind a second switch above the tabs; an old ?view=content or
+// ?view=diagnostics link now scrolls to its section.
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { SegmentedControl } from "@/components/system";
 import PlatformTabs, { type PlatformTab } from "./PlatformTabs";
 import AllPlatformsAnalytics from "./AllPlatformsAnalytics";
 import type { OverlayLine } from "./ov/MultiLineChart";
@@ -36,15 +37,10 @@ export default function AnalyticsShell({
   initialView?: string;
 }) {
   const [active, setActive] = useState(initial);
-  const [view, setView] = useState<View>(views && isView(initialView) ? initialView : "performance");
 
   const select = useCallback((id: string) => {
     setActive(id);
     setParam("platform", id);
-  }, []);
-  const pickView = useCallback((v: View) => {
-    setView(v);
-    setParam("view", v === "performance" ? null : v);
   }, []);
 
   // Links like /analytics#content name a section of the Instagram panel
@@ -58,47 +54,42 @@ export default function AnalyticsShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // An old ?view= link (from before the views became sections) lands on its section.
+  useEffect(() => {
+    if (!views || (initialView !== "content" && initialView !== "diagnostics")) return;
+    document.getElementById(`pa-${initialView}`)?.scrollIntoView({ block: "start" });
+    setParam("view", null);
+    // Only on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <>
-      {views && (
-        <SegmentedControl
-          className="pa-views"
-          label="Analytics view"
-          role="tablist"
-          panelId={() => "pa-view-panel"}
-          value={view}
-          onChange={pickView}
-          options={VIEWS.map((v) => ({ value: v.id, label: v.label }))}
-        />
-      )}
-      <div id="pa-view-panel" role={views ? "tabpanel" : undefined}>
-        <div hidden={view !== "performance"}>
-          <PlatformTabs tabs={tabs} active={active} onSelect={select} />
-          <div className="pa-panel" key={active}>
-            {active === "all" && allData ? (
-              <AllPlatformsAnalytics data={allData} overlay={overlay} today={today} onOpen={select} />
-            ) : (
-              panels[active] ?? null
-            )}
-          </div>
-        </div>
-        {/* Kept mounted while hidden, so a dismissed finding stays dismissed when switching back. */}
-        {views && <div className="pa-panel" hidden={view !== "content"}>{views.content}</div>}
-        {views && <div className="pa-panel" hidden={view !== "diagnostics"}>{views.diagnostics}</div>}
+      <PlatformTabs tabs={tabs} active={active} onSelect={select} />
+      <div className="pa-panel" key={active}>
+        {active === "all" && allData ? (
+          <AllPlatformsAnalytics data={allData} overlay={overlay} today={today} onOpen={select} />
+        ) : (
+          panels[active] ?? null
+        )}
       </div>
+      {views && (
+        <>
+          <section className="pa-section" id="pa-content" aria-labelledby="pa-content-title">
+            <h2 className="s-section-title" id="pa-content-title">Content intelligence</h2>
+            {views.content}
+          </section>
+          <section className="pa-section" id="pa-diagnostics" aria-labelledby="pa-diagnostics-title">
+            <h2 className="s-section-title" id="pa-diagnostics-title">Diagnostics</h2>
+            {views.diagnostics}
+          </section>
+        </>
+      )}
     </>
   );
 }
 
 const INSTAGRAM_SECTIONS = new Set(["overview", "content", "audience", "times", "growth", "posts"]);
-
-const VIEWS = [
-  { id: "performance", label: "Performance" },
-  { id: "content", label: "Content intelligence" },
-  { id: "diagnostics", label: "Diagnostics" },
-] as const;
-type View = (typeof VIEWS)[number]["id"];
-const isView = (v: string): v is View => VIEWS.some((x) => x.id === v);
 
 function setParam(key: string, value: string | null) {
   try {
