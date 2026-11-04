@@ -8,6 +8,7 @@ import { writePlatformSnapshot } from "./platformSnapshots";
 
 export type TikTokSyncRun = { platform: "tiktok"; day: string; accounts: number; synced: number; skipped: number; errors: number };
 
+/** Default for the daily job; the 30-minute job (lib/igSyncJob.ts) passes its own. */
 const SYNC_EVERY_MS = 20 * 60 * 60 * 1000;
 
 /**
@@ -17,7 +18,7 @@ const SYNC_EVERY_MS = 20 * 60 * 60 * 1000;
  * The follower count also goes into platform_snapshots as that day's point, so
  * a real follower trend starts accumulating. Best effort throughout.
  */
-export async function runTikTokDailySync(supabase: SupabaseClient, now = new Date(), budgetMs = 8000): Promise<TikTokSyncRun> {
+export async function runTikTokDailySync(supabase: SupabaseClient, now = new Date(), budgetMs = 8000, everyMs = SYNC_EVERY_MS): Promise<TikTokSyncRun> {
   const day = now.toISOString().slice(0, 10);
   const deadline = Date.now() + budgetMs;
   const run: TikTokSyncRun = { platform: "tiktok", day, accounts: 0, synced: 0, skipped: 0, errors: 0 };
@@ -37,7 +38,7 @@ export async function runTikTokDailySync(supabase: SupabaseClient, now = new Dat
   run.accounts = usable.length;
   for (const r of usable) {
     if (Date.now() > deadline) break;
-    if (r.last_synced_at && now.getTime() - new Date(r.last_synced_at).getTime() < SYNC_EVERY_MS) { run.skipped++; continue; }
+    if (r.last_synced_at && now.getTime() - new Date(r.last_synced_at).getTime() < everyMs) { run.skipped++; continue; }
     const res = await syncTikTok(supabase, r.user_id, r.workspace_id ?? null).catch(() => null);
     if (!res || (!res.profile && !res.videos)) { run.errors++; continue; }
     run.synced++;

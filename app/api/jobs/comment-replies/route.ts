@@ -10,7 +10,7 @@ export const maxDuration = 300;
 
 // Automatic comment replies (supabase/comment-auto-cron.sql, every 30 minutes):
 // for the brands that turned them on, read new comments, draft replies and send
-// the short friendly ones (lib/commentAuto.ts). ?sync=1 waits for the result.
+// praise and answerable questions (lib/commentAuto.ts). ?sync=1 waits for the result.
 async function run(req: Request) {
   if (!isCronRequest(req)) return NextResponse.json({ error: "Not authorized." }, { status: 401 });
   const svc = createServiceClient();

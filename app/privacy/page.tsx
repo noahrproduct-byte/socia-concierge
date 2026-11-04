@@ -38,8 +38,9 @@ export default function PrivacyPage() {
           as a collaborator, with the posting account&apos;s username and the
           post&apos;s totals. We publish only posts you schedule, and reply to a
           comment only when you approve the reply or, if you turn on automatic
-          replies for a brand, with a short reply to simple comments like praise
-          or thanks.
+          replies for a brand, with a short reply to praise and to questions,
+          answered only from the brand profile you entered or with an
+          invitation to send a direct message.
         </li>
         <li>
           <b>Facebook Pages</b>: when you connect a Facebook Page, Meta gives us
@@ -52,7 +53,7 @@ export default function PrivacyPage() {
           <code>business_management</code>),
           we read the Page&apos;s details, posts, engagement, insights and
           comments, look up other public Instagram business accounts for
-          competitor research, and list Instagram&apos;s trending audio. We publish and reply only when you do, or when you turn on automatic replies to simple comments. We keep your Facebook user token next to the Page token
+          competitor research, and list Instagram&apos;s trending audio. We publish and reply only when you do, or when you turn on automatic replies. We keep your Facebook user token next to the Page token
           because Meta lets an Instagram post be deleted, and its trending audio
           be listed, only with it; we use it, and <code>instagram_manage_contents</code>,
           only to delete a post from the Instagram account linked to your Page

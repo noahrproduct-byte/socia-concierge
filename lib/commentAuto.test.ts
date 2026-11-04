@@ -1,3 +1,4 @@
+import { AUTO_REPLY_MAX } from "./commentDrafts";
 import { describe, expect, it } from "vitest";
 import { pickAutoSends } from "./commentAuto";
 import type { CommentDraft } from "./commentDrafts";
@@ -23,7 +24,7 @@ describe("pickAutoSends: which replies go out without a person", () => {
       draft({ id: "skipped", status: "skipped" }),
       draft({ id: "auto-sent", sent_automatically: true }),
       draft({ id: "empty", draft: "  " }),
-      draft({ id: "long", draft: "x".repeat(121) }),
+      draft({ id: "long", draft: "x".repeat(AUTO_REPLY_MAX + 1) }),
       draft({ id: "lines", draft: "Thanks!\nSee you" }),
     ], on, now)).toEqual([]);
   });

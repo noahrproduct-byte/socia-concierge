@@ -3,7 +3,7 @@
 // The AI comment-replies inbox. Every item shows the real comment on the left
 // and SOCIA's suggested reply on the right, editable. Nothing is sent until the
 // person clicks "Approve & send", unless the brand turned on automatic replies:
-// then the short friendly ones go out on their own (lib/commentAuto.ts) and the
+// then praise and answerable questions go out on their own (lib/commentAuto.ts) and the
 // rest still wait here. The platform's own response decides whether a reply
 // becomes "sent" or "failed". History (sent/skipped) stays below for context.
 
@@ -111,12 +111,12 @@ export default function CommentsInbox({ initial, connected, auto: initialAuto, c
       </div>
       {auto && (
         <div className="cm-auto">
-          <button type="button" className={`cbb-toggle${auto.enabled ? " on" : ""}`} role="switch" aria-checked={auto.enabled} aria-label="Reply to simple comments automatically" disabled={autoBusy || !canChangeAuto} onClick={() => void toggleAuto(!auto.enabled)}><i /></button>
+          <button type="button" className={`cbb-toggle${auto.enabled ? " on" : ""}`} role="switch" aria-checked={auto.enabled} aria-label="Reply to comments automatically" disabled={autoBusy || !canChangeAuto} onClick={() => void toggleAuto(!auto.enabled)}><i /></button>
           <span>
-            <b>Reply to simple comments automatically</b>
+            <b>Reply to comments automatically</b>
             <small>{auto.enabled
-              ? "On. Praise, thanks and emoji get a short, friendly reply within about 30 minutes. Questions, complaints and anything sensitive still wait here for you."
-              : canChangeAuto ? "Off. Turn it on and SOCIA answers praise, thanks and emoji on its own with one short sentence, from now on. Everything else still waits for you." : "Off. The owner or an Admin can turn it on."}</small>
+              ? "On. Praise and questions get a short reply within about 30 minutes, answered only from your brand profile, or with an invitation to DM. Complaints and anything sensitive still wait here for you."
+              : canChangeAuto ? "Off. Turn it on and SOCIA answers praise and questions on its own from now on, using only your brand profile. Complaints and anything sensitive still wait for you." : "Off. The owner or an Admin can turn it on."}</small>
           </span>
         </div>
       )}
