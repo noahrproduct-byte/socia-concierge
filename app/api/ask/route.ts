@@ -21,6 +21,9 @@ import { isMissingColumnError } from "@/lib/workspaces";
 
 export const runtime = "nodejs";
 
+/** An answer as a chat turn: its text, plus what it wrote, so a follow-up ("make it shorter") can see it. */
+const withDraft = (a: { text: string; draft?: { title: string; body: string } | null }) => (a.draft ? `${a.text}\n\n${a.draft.title}:\n${a.draft.body}` : a.text);
+
 /** The provider's own reason, in the server log only: the reply keeps the
  *  plain sentence, but "couldn't be reached" alone can't be diagnosed. */
 function logAskFailure(where: string, kind: string, err: unknown) {
@@ -141,7 +144,8 @@ export async function POST(req: Request) {
   const model = modelFor("ask");
   const params = {
     model,
-    max_tokens: 2000,
+    // Room for a full script or caption in "draft" as well as the answer.
+    max_tokens: 4000,
     system: `${ev.system}\n${SCHEDULE_RULES}`,
     output_config: { format: { type: "json_schema", schema: askAnswerSchema }, ...effortFor(model, "medium") },
     messages: convo,
@@ -235,6 +239,9 @@ export async function POST(req: Request) {
       actions: (raw.actions ?? []).map((a) => ({ label: a.label, href: hrefFor(a.type, a.note ?? "", post) })).filter((a): a is { label: string; href: string } => Boolean(a.href) && Boolean(a.label)).slice(0, 3),
       proposals,
       post: post ? { id: post.id, title: post.title, thumb: post.thumb, stat: post.views != null ? `${post.views.toLocaleString("en-US")} views` : `${post.engagements.toLocaleString("en-US")} interactions`, permalink: post.permalink } : null,
+      draft: raw.draft && raw.draft.kind !== "none" && raw.draft.body?.trim()
+        ? { kind: raw.draft.kind, title: clean(raw.draft.title).slice(0, 80) || "Draft", body: raw.draft.body.replace(/\s*—\s*/g, ", ").replace(/\r/g, "").trim().slice(0, 4000) }
+        : null,
     };
 
     // Keep a record in the workspace's history (best-effort), so nothing the
@@ -244,7 +251,7 @@ export async function POST(req: Request) {
       // A chat is the person's own: saved under the viewer with their own
       // session, never in the workspace owner's history (a guest's questions
       // used to land there, readable by the owner and across brands).
-      const convRow = { user_id: ctx.viewerId, title, messages: [...messages, { role: "assistant", content: answer.text }] };
+      const convRow = { user_id: ctx.viewerId, title, messages: [...messages, { role: "assistant", content: withDraft(answer) }] };
       const saved = ctx.workspace && ctx.isOwner
         ? await supabase.from("conversations").insert({ ...convRow, workspace_id: ctx.workspace.id })
         : await supabase.from("conversations").insert(convRow);

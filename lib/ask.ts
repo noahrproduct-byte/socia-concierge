@@ -84,7 +84,12 @@ export type AskAnswer = {
   actions: AskAction[];
   proposals: AskProposal[];
   post: AskPost | null;
+  /** Something the person asked SOCIA to write (a script, caption, hooks, a reply), in full. */
+  draft?: AskDraft | null;
 };
+
+export type AskDraftKind = "script" | "caption" | "hooks" | "reply" | "other";
+export type AskDraft = { kind: AskDraftKind; title: string; body: string };
 
 export type AskMessage = {
   role: "user" | "assistant"; content: string; answer?: AskAnswer;
@@ -150,6 +155,8 @@ export type ModelAnswer = {
     label: string;
     options: string[];
   }[];
+  /** kind "none" when nothing was asked to be written */
+  draft: { kind: AskDraftKind | "none"; title: string; body: string };
   postId: string;
   /** Scheduling: what the person asked for, in their own terms. The server works out the times. */
   schedule: {
@@ -213,6 +220,16 @@ export const askAnswerSchema = {
       },
     },
     postId: { type: "string" },
+    draft: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        kind: { type: "string", enum: ["none", "script", "caption", "hooks", "reply", "other"] },
+        title: { type: "string" },
+        body: { type: "string" },
+      },
+      required: ["kind", "title", "body"],
+    },
     schedule: {
       type: "object",
       additionalProperties: false,
@@ -241,5 +258,5 @@ export const askAnswerSchema = {
       required: ["want", "posts", "startLocal", "spacingMinutes", "perDay", "times", "days", "videos", "trialReel", "trialShare", "collaborators", "ideas"],
     },
   },
-  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "schedule"],
+  required: ["text", "observed", "derived", "interpretation", "recommendation", "actions", "proposals", "postId", "draft", "schedule"],
 } as const;

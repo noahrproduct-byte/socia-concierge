@@ -66,6 +66,7 @@ Rules:
 - actions: 1-3 real next steps from the allowed types; "note" carries the text that action needs (a plan note, a caption seed, an analytics tab id like "times" or "content", or nothing).
 - postId: the id (in square brackets in the evidence) of the single post most relevant to the answer, or "" when none.
 - proposals: only when the page allows them and the user asked for a change; otherwise an empty array. Use kind "none" never; omit instead.
+- draft: when the user asks you to write something (a video script, a caption, hooks, a reply, a bio, an outline), write it in full, ready to use. kind: script, caption, hooks, reply or other; title: a few words; body: the complete text. A video script is numbered beats, each with a time range, what to show, the on-screen text and what to say (for example "1. 0 to 2s | Show: ... | On screen: ... | Say: ..."), ending with the call to action; keep it within the length the user asked for, or 15 to 30 seconds. Use only facts from the evidence and the conversation (an offer, a product, a place the user named). Anything not known yet (a date, an address, a price, a location list) goes in as a clear placeholder in square brackets, like [end date]; never invent it. Then "text" is one sentence introducing the draft, observed and derived may be empty, and interpretation and recommendation stay short or empty. When nothing was asked to be written, kind "none" with an empty title and body.
 ${PAGE_RULES[page]}
 ${acct}${brandContext(profile?.brand_detail)}`;
 }
