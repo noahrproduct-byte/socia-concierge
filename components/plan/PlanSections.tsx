@@ -15,12 +15,14 @@ import type { Deliverable } from "@/lib/schema";
 import type { GrowthStrategy } from "@/lib/strategy";
 import { weekdayIndex } from "@/lib/scheduling";
 
+// The week comes first: the Content Plan answers "what do I post this
+// week?" (redesign brief, 2026-11-03); the reasoning behind it follows.
 export const PLAN_SECTIONS = [
-  { id: "overview", num: "01", label: "Overview" },
-  { id: "audit", num: "02", label: "Account audit" },
-  { id: "competitors", num: "03", label: "Competitor insights" },
-  { id: "strategy", num: "04", label: "Growth strategy" },
-  { id: "week", num: "05", label: "Weekly plan" },
+  { id: "week", label: "Weekly plan" },
+  { id: "overview", label: "Overview" },
+  { id: "audit", label: "Account audit" },
+  { id: "competitors", label: "Competitor insights" },
+  { id: "strategy", label: "Growth strategy" },
 ] as const;
 export type PlanSectionId = (typeof PLAN_SECTIONS)[number]["id"];
 

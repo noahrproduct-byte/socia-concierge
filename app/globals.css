@@ -7655,7 +7655,6 @@ a.hub-card:hover {
 
 /* the report's five sections (components/plan/PlanSections.tsx) */
 .cpl-tabs { margin-top: var(--sp-4); }
-.cpl-tab-num { margin-right: var(--sp-2); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .cpl-panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--r-chip); }
 .cpl-sec-lead { margin-top: var(--sp-4); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-secondary); max-width: 68ch; }
 .cpl-sec-empty { margin-top: var(--sp-4); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-secondary); }
@@ -7792,6 +7791,8 @@ a.hub-card:hover {
 .cal2-seg { display: flex; background: var(--surface-muted); border-radius: 10px; padding: 3px; }
 .cal2-seg button { border: none; background: none; font-size: 12.5px; font-weight: 650; color: var(--slate); border-radius: 8px; padding: 5px 14px; cursor: pointer; transition: background 0.18s, color 0.18s, box-shadow 0.18s; }
 .cal2-seg button.on { background: var(--surface); color: var(--charcoal); box-shadow: 0 1px 3px rgba(var(--shadow-rgb), 0.1); }
+/* Phones: week only (CalendarBoard PHONE_QUERY), so the switch goes. */
+@media (max-width: 760px) { .cal2-viewswitch { display: none; } }
 .cal2-select {
   appearance: none; border: 1px solid var(--line); border-radius: 9px; background: var(--surface);
   font-size: 12.5px; font-weight: 600; color: var(--charcoal); padding: 6px 26px 6px 11px;
@@ -9139,20 +9140,11 @@ button.cal2-mevent { width: 100%; text-align: left; border: none; border-left: 2
 .cpl-evidence b { font-weight: 650; font-size: 11px; color: var(--text-primary); background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; white-space: nowrap; }
 .cpl-tag.time { display: inline-flex; align-items: center; gap: 4px; background: rgba(var(--success-rgb), 0.14); color: var(--success-text); text-transform: none; letter-spacing: 0; }
 .cpl-ractions { gap: 10px; flex-wrap: wrap; }
-.cpl-schedule {
-  display: inline-flex; align-items: center; gap: 7px; font-family: inherit;
-  background: linear-gradient(135deg, var(--primary), var(--primary-bright)); color: var(--text-primary); border: none;
-  border-radius: 10px; padding: 10px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
-  box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.25);
-  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s, opacity 0.15s;
-}
-.cpl-schedule:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(var(--primary-rgb), 0.32); }
-.cpl-schedule:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
-.cpl-sched-msg { margin-top: 10px; text-align: right; font-size: 12.5px; line-height: 1.5; color: var(--danger-text); }
+.cpl-sched-msg { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: var(--danger-text); }
 .cpl-sched-msg.ok { color: var(--success-text); }
 .cpl-sched-msg a { display: inline-flex; align-items: center; gap: 4px; color: var(--primary-text); font-weight: 650; text-decoration: none; }
 .cpl-sched-msg a:hover { text-decoration: underline; }
-@media print { .cpl-schedule, .cpl-sched-msg { display: none; } }
+@media print { .cpl-approve-week, .cpl-approve-note, .cpl-sched-msg { display: none; } }
 
 /* ============================================================
    Theme runtime — shell surfaces, switch transition, pickers
@@ -9929,8 +9921,10 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .ask-footage-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.4; color: var(--text-secondary); cursor: pointer; }
 .ask-footage-opt input { margin-top: 2px; }
 
-.cpl-rsec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-.cpl-rsec-head h3 { margin: 0; }
+.cpl-rsec-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.cpl-rsec-head h3 { margin: 0 auto 0 0; }
+/* The week's one primary action, with what it does written under it (no tooltip). */
+.cpl-approve-note { margin: 0 0 var(--sp-3); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
 .cpl-improve { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; border: 1px solid var(--border); background: var(--surface); color: var(--primary-text); font-family: inherit; font-size: 11px; font-weight: 650; border-radius: 7px; padding: 3px 8px; cursor: pointer; }
 .cpl-improve:hover { border-color: rgba(var(--primary-rgb), 0.5); background: var(--primary-subtle); }
 .cpl-post.applied { box-shadow: 0 0 0 2px rgba(var(--success-rgb), 0.5); transition: box-shadow 0.25s; }

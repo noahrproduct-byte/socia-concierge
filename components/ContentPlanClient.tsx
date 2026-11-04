@@ -558,7 +558,7 @@ function OutcomeTags({ o }: { o: ItemOutcome | null }) {
 }
 
 function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; strategy: GrowthStrategy | null; goal: string | null; onUpdate: (d: Deliverable) => void }) {
-  const [section, setSection] = useState<PlanSectionId>("overview");
+  const [section, setSection] = useState<PlanSectionId>("week");
   // Times are SOCIA's, from the audience data, never the model's guess. The
   // same rule the Calendar uses, so the two never disagree.
   const aud = useMemo(() => buildAudience(posts), [posts]);
@@ -685,7 +685,14 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
     planError: null,
   });
 
-  async function scheduleWeek() {
+  // Days still waiting for a decision: not turned down, not approved, not already on the Calendar.
+  const pendingDays = (data.weeklyPlan ?? []).filter((d, i) => !d.decision && !onCalendar(i)).length;
+  const anyApproved = (data.weeklyPlan ?? []).some((d) => d.decision?.status === "approved");
+
+  // Approve week: every day not turned down goes on the Calendar as a draft
+  // (the same drafts "Schedule this week" made), and each day it placed is
+  // recorded as approved on the plan, as one-by-one approval does.
+  async function approveWeek() {
     setSched({ busy: true, ok: false, msg: null, planError: null });
     try {
       const now = new Date();
@@ -711,6 +718,9 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
       const n = (j.posts ?? []).length;
       const already = Number(j.skipped ?? 0);
       setOutcomeTick((t) => t + 1);
+      const placed = new Set(usable.map((d) => d.plan_day));
+      const decided = (data.weeklyPlan ?? []).map((it) => (it.decision || !placed.has(it.day) ? it : { ...it, decision: { status: "approved" as const, at: now.toISOString() } }));
+      if (planId && await persist(decided, "")) setSaveNote(null);
       const wk = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
       const notes = [
         skipped.length ? `${skipped.join(", ")} skipped: not a weekday` : null,
@@ -765,7 +775,6 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
         <TabList className="cpl-tabs" aria-label="Plan sections">
           {PLAN_SECTIONS.map((t) => (
             <Tab key={t.id} value={t.id}>
-              <span className="cpl-tab-num" aria-hidden>{t.num}</span>
               {t.label}
             </Tab>
           ))}
@@ -789,7 +798,44 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
           <div className="cpl-rsec-head">
             <h3>Monday to Sunday</h3>
             <button type="button" className="ov-btn ghost small" onClick={() => setAsk({ q: null, day: null })}><Sparkles size={12} /> Ask SOCIA about this plan</button>
+            <Button
+              variant="primary"
+              size="sm"
+              className="cpl-approve-week"
+              onClick={approveWeek}
+              busy={sched.busy}
+              disabled={sched.busy || sched.ok || pendingDays === 0}
+            >
+              <CalendarDays size={14} aria-hidden /> {sched.ok || (pendingDays === 0 && anyApproved) ? "Week approved" : pendingDays === 0 ? "Nothing to approve" : "Approve week"}
+            </Button>
           </div>
+          <p className="cpl-approve-note">
+            {pendingDays === 0
+              ? "Every day is decided. Approved days are on the Calendar as drafts."
+              : canSchedule
+                ? `Approving puts ${pendingDays === 1 ? "the 1 waiting day" : `all ${pendingDays} waiting days`} on the Calendar as drafts at your audience's hour. Nothing publishes until you add media and schedule it.`
+                : `Approving saves ${pendingDays === 1 ? "the 1 waiting day" : `all ${pendingDays} waiting days`} to the Calendar as drafts. Publishing needs ${PLANS[minPlanWithFeature("scheduling")].name}.`}
+          </p>
+          {sched.planError && <PlanNotice error={sched.planError} compact />}
+          {sched.msg && (
+            <p className={`cpl-sched-msg${sched.ok ? " ok" : ""}`}>
+              {sched.msg}
+              {sched.ok && !canSchedule && (
+                <>
+                  {" "}
+                  Scheduling is available on <Link href={pricingHref(minPlanWithFeature("scheduling"))}>{PLANS[minPlanWithFeature("scheduling")].name}</Link>.
+                </>
+              )}
+              {sched.ok && (
+                <>
+                  {" "}
+                  <Link href="/plan/calendar">
+                    Open Calendar <ArrowRight size={12} />
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
           {saveNote && <p className="cpl-sched-msg ok">{saveNote}</p>}
           {outcome && outcome.summary.onCalendar > 0 && (
             <div className="cpl-outcome" role="status">
@@ -902,39 +948,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
         <button className="cpl-export" onClick={() => window.print()} type="button">
           <FileDown size={14} /> Export as PDF
         </button>
-        {data.weeklyPlan?.length > 0 && (
-          <button
-            className="cpl-schedule"
-            onClick={scheduleWeek}
-            disabled={sched.busy || sched.ok}
-            type="button"
-            title={canSchedule ? "Creates a calendar draft for each day of the plan at your audience's hour" : `Saves a calendar draft for each day of the plan; publishing needs ${PLANS[minPlanWithFeature("scheduling")].name}`}
-          >
-            <CalendarDays size={14} />{" "}
-            {sched.busy ? "Adding to Calendar…" : sched.ok ? "Added to Calendar" : canSchedule ? "Schedule this week" : "Save week as drafts"}
-          </button>
-        )}
       </div>
-      {sched.planError && <PlanNotice error={sched.planError} compact />}
-      {sched.msg && (
-        <p className={`cpl-sched-msg${sched.ok ? " ok" : ""}`}>
-          {sched.msg}
-          {sched.ok && !canSchedule && (
-            <>
-              {" "}
-              Scheduling is available on <Link href={pricingHref(minPlanWithFeature("scheduling"))}>{PLANS[minPlanWithFeature("scheduling")].name}</Link>.
-            </>
-          )}
-          {sched.ok && (
-            <>
-              {" "}
-              <Link href="/plan/calendar">
-                Open Calendar <ArrowRight size={12} />
-              </Link>
-            </>
-          )}
-        </p>
-      )}
     </div>
   );
 }
