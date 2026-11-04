@@ -16,8 +16,9 @@ import { useRouter } from "next/navigation";
 import { Briefcase, Check, ChevronDown, Loader2, Plus, Settings2 } from "lucide-react";
 import { Menu, MenuContent, MenuGroup, MenuItem, MenuSeparator, MenuTrigger, PlatformMark, StatusPill, type Platform } from "@/components/system";
 import { fetchWorkspaces, markSwitching, requestSwitch, type WorkspaceRow, type WorkspacesData } from "@/lib/workspaceSwitching";
+import { OFFLINE_LABEL } from "@/lib/platformStatus";
 
-export type ShellAccount = { platform: Platform; label: string; connected: boolean; href: string };
+export type ShellAccount = { platform: Platform; label: string; connected: boolean; href: string; offline?: boolean };
 
 // `bar` is the copy in the floating headbar: the active workspace's name, one
 // click from switching on every page. It renders nothing when workspaces are
@@ -115,7 +116,7 @@ export default function WorkspaceSwitcher({ initial, accounts, bar = false }: { 
         )}
         <MenuGroup label="Connected accounts">
           {accounts.map((a) => (
-            <MenuItem key={a.platform} href={a.href} end={a.connected ? <StatusPill tone="positive" dot>Connected</StatusPill> : <span className="s-link">Connect</span>}>
+            <MenuItem key={a.platform} href={a.href} end={a.connected ? <StatusPill tone="positive" dot>Connected</StatusPill> : a.offline ? <StatusPill tone="neutral">{OFFLINE_LABEL}</StatusPill> : <span className="s-link">Connect</span>}>
               <PlatformMark platform={a.platform} brand={a.connected} />
               <span>{a.label}</span>
             </MenuItem>

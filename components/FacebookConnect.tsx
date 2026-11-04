@@ -10,6 +10,7 @@ import { ArrowRight, Loader2, RefreshCw, MessageCircle, Share2, ThumbsUp } from 
 import type { FbPost } from "@/lib/facebookSync";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
+import { OFFLINE_LABEL } from "@/lib/platformStatus";
 
 const FB_LOGO = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" aria-hidden>
@@ -45,6 +46,7 @@ export default function FacebookConnect({
   pendingPages,
   posts = [],
   paused = false,
+  offline = null,
 }: {
   /** OAuth outcome from ?fb= (connected/denied/nopages/noperm/error/notconfigured/choose/limit). */
   status?: string;
@@ -60,6 +62,8 @@ export default function FacebookConnect({
   posts?: FbPost[];
   /** The Page exists but is paused by a plan downgrade (not read, not counted). */
   paused?: boolean;
+  /** Why new Facebook connections aren't open (lib/platformStatus.ts); no Connect then. A connected Page keeps working. */
+  offline?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -149,7 +153,11 @@ export default function FacebookConnect({
           ) : choosing ? (
             <small className="st2-ig-off">Choose which Page to connect below.</small>
           ) : (
-            <small className="st2-ig-off">Not connected — connect a Facebook Page you manage.</small>
+            offline ? (
+              <small className="st2-ig-off">{OFFLINE_LABEL}. {offline}</small>
+            ) : (
+              <small className="st2-ig-off">Not connected — connect a Facebook Page you manage.</small>
+            )
           )}
         </div>
         <div className="st2-ig-actions">
@@ -181,7 +189,7 @@ export default function FacebookConnect({
             <a className="st2-connect" href="/api/auth/facebook/start">
               Reconnect <ArrowRight size={13} />
             </a>
-          ) : !choosing ? (
+          ) : !choosing && !offline ? (
             <a className="st2-connect" href="/api/auth/facebook/start">
               Connect <ArrowRight size={13} />
             </a>
