@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { trackEvent } from "./events";
+import { addSpend, claudeMicros, musicMicros, transcriptionMicros } from "./aiSpend";
 
 // What each AI call actually cost, from the response's own usage numbers, so
 // plan allowances can be set from real data instead of estimates. One
@@ -34,24 +35,34 @@ export function usageProps(feature: AiFeature, res: unknown): Record<string, unk
   };
 }
 
-function write(ownerId: string | null | undefined, props: Record<string, unknown>): void {
+function write(ownerId: string | null | undefined, props: Record<string, unknown>, micros = 0): void {
   if (!ownerId) return;
+  // The cost also goes into the owner's month (lib/aiSpend.ts), which every
+  // later AI action checks against the plan's ceiling.
   try {
-    after(() => trackEvent(null, ownerId, "ai_usage", props));
+    after(() => Promise.all([trackEvent(null, ownerId, "ai_usage", props), addSpend(ownerId, micros)]));
   } catch {
     // Outside a request scope (jobs, tests): fire and forget.
     void trackEvent(null, ownerId, "ai_usage", props);
+    void addSpend(ownerId, micros);
   }
 }
 
 /** Record one Claude response's token usage for the owner who pays for it. */
 export function recordAiUsage(ownerId: string | null | undefined, feature: AiFeature, res: unknown): void {
   const props = usageProps(feature, res);
-  if (props) write(ownerId, props);
+  const r = res as { model?: string; usage?: Parameters<typeof claudeMicros>[1] } | null;
+  if (props) write(ownerId, props, claudeMicros(r?.model, r?.usage));
 }
 
 /** Record seconds of audio sent for transcription (billed by audio length). */
 export function recordTranscription(ownerId: string | null | undefined, purpose: string, seconds: number): void {
   if (!(seconds > 0)) return;
-  write(ownerId, { feature: "transcribe", purpose, provider: "assemblyai", audio_seconds: Math.round(seconds) });
+  write(ownerId, { feature: "transcribe", purpose, provider: "assemblyai", audio_seconds: Math.round(seconds) }, transcriptionMicros(seconds));
+}
+
+/** Record seconds of music generated (ElevenLabs, billed by length). */
+export function recordMusic(ownerId: string | null | undefined, seconds: number): void {
+  if (!(seconds > 0)) return;
+  write(ownerId, { feature: "music_track", provider: "elevenlabs", audio_seconds: Math.round(seconds) }, musicMicros(seconds));
 }

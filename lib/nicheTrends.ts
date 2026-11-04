@@ -314,3 +314,6 @@ export function cleanSavedPost(raw: unknown): NichePost | null {
     dataSource: text(p.dataSource, 40) ?? "unknown",
   };
 }
+
+/** Fresh niche readings (post analyses and opportunities) per account per hour: each is an AI call. */
+export const NICHE_PER_HOUR = 15;

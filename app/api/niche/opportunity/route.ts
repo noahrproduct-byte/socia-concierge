@@ -8,6 +8,7 @@ import { brandContext } from "@/lib/prompt";
 import { requireFeature } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace, nicheScopeId } from "@/lib/context";
 import { perUserLimit } from "@/lib/rateLimit";
+import { NICHE_PER_HOUR } from "@/lib/nicheTrends";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
   const g = await requireFeature(ctx.client, ctx.ownerId, "niche_intelligence");
   if (g.denied) return g.denied;
   // Each new post or pattern is a fresh AI call (the cache is keyed on it): an hourly ceiling per account.
-  const limited = await perUserLimit(ctx.ownerId, "niche", 60, "niche analyses");
+  const limited = await perUserLimit(ctx.ownerId, "niche", NICHE_PER_HOUR, "niche analyses");
   if (limited) return limited;
 
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);

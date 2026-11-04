@@ -99,7 +99,7 @@ function toChannel(it: ChannelItem): YtChannel {
 }
 
 /** Resolve "@handle", a channel URL, or a raw channel id to a channel. */
-export async function resolveChannel(input: string): Promise<YtChannel | null> {
+export async function resolveChannel(input: string, opts: { search?: boolean } = {}): Promise<YtChannel | null> {
   const raw = input.trim();
   let handle = raw.replace(/^@/, "");
   let channelId: string | null = null;
@@ -122,7 +122,11 @@ export async function resolveChannel(input: string): Promise<YtChannel | null> {
   const byHandle = await ytFetch<{ items?: ChannelItem[] }>("channels", { part: parts, forHandle: handle });
   if (byHandle?.items?.[0]) return toChannel(byHandle.items[0]);
 
-  // Fall back to search when the handle doesn't resolve directly.
+  // A name that isn't a handle could be found with search, but a search costs
+  // 100 units of SOCIA's shared daily YouTube quota (a channel read costs 1).
+  // Only when the caller asks for it, never on page loads or daily jobs, or one
+  // made-up handle would spend that on every visit.
+  if (!opts.search) return null;
   const found = await ytFetch<{ items?: { id?: { channelId?: string } }[] }>("search", {
     part: "snippet", type: "channel", maxResults: "1", q: handle,
   });

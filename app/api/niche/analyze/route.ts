@@ -10,6 +10,7 @@ import type { NichePost } from "@/lib/nicheTrends";
 import { requireFeature } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace, nicheScopeId } from "@/lib/context";
 import { perUserLimit } from "@/lib/rateLimit";
+import { NICHE_PER_HOUR } from "@/lib/nicheTrends";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -92,13 +93,8 @@ export async function POST(req: Request) {
     }
   } catch { /* no cache */ }
 
-  // Video length is public and cheap to read; it is observed data, not a reading.
-  let durationSec: number | null = null;
-  const vid = post.platform === "youtube" ? youtubeVideoId(post.url) : null;
-  if (vid && ytConfigured()) durationSec = await videoDurationSec(vid).catch(() => null);
-
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ durationSec, analysis: null, error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key", cached: false } satisfies AnalyzeResponse, { status: 503 });
+    return NextResponse.json({ durationSec: null, analysis: null, error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key", cached: false } satisfies AnalyzeResponse, { status: 503 });
   }
 
   // Fresh readings are part of Niche intelligence on the workspace owner's
@@ -107,8 +103,15 @@ export async function POST(req: Request) {
   const g = await requireFeature(ctx.client, ctx.ownerId, "niche_intelligence");
   if (g.denied) return g.denied;
   // Each new post or pattern is a fresh AI call (the cache is keyed on it): an hourly ceiling per account.
-  const limited = await perUserLimit(ctx.ownerId, "niche", 60, "niche analyses");
+  const limited = await perUserLimit(ctx.ownerId, "niche", NICHE_PER_HOUR, "niche analyses");
   if (limited) return limited;
+
+  // Video length is public and cheap to read; it is observed data, not a
+  // reading. Read only after the plan and the limit: each read spends SOCIA's
+  // shared YouTube quota.
+  let durationSec: number | null = null;
+  const vid = post.platform === "youtube" ? youtubeVideoId(post.url) : null;
+  if (vid && ytConfigured()) durationSec = await videoDurationSec(vid).catch(() => null);
 
   const profile = await getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null);
   const observed = [

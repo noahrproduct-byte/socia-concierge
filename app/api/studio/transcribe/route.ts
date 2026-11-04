@@ -40,9 +40,12 @@ export async function POST(req: Request) {
   // The transcript only feeds an analysis or a caption: with that allowance
   // used up, don't pay to transcribe (the next step says why it stopped).
   const ctx = await resolveContext(supabase, user.id);
+  // Usage that can't be read is treated as used up: transcription is billed per minute.
   const usage = await getUsage(ctx.client, await getEntitlements(ctx.client, ctx.ownerId)).catch(() => null);
-  if (usage?.[purpose === "caption" ? "content_generation" : "content_studio"]?.remaining === 0) return skip("limit");
-  if (await perUserLimit(user.id, "transcribe", 30, "transcriptions")) return skip("rate_limited");
+  const left = usage?.[purpose === "caption" ? "content_generation" : "content_studio"]?.remaining;
+  if (usage == null || left == null || left === 0) return skip("limit");
+  // Counted on the account that pays (the owner), so a team's members share one ceiling, and its monthly AI ceiling applies.
+  if (await perUserLimit(ctx.ownerId, "transcribe", 10, "transcriptions")) return skip("rate_limited");
 
   const slash = path.lastIndexOf("/");
   const listed = await storage.list(path.slice(0, slash), { search: path.slice(slash + 1), limit: 1 }).catch(() => null);
