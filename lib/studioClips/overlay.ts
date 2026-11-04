@@ -4,12 +4,13 @@
 //    tool: short, sentence case, no stacked emojis or hashtags, no dashes or
 //    marketing phrases; a line that can't be made to read that way is dropped,
 //    never shown;
-//  - the look is the plain one people use: a clean sans, white on a dark box
-//    (or dark on a white box over dark footage), the size from the length of
-//    the line, nothing glowing or gradient. A brand's own saved look wins.
+//  - the look is one of the locked text presets (lib/textPresets.ts), picked
+//    from the line's role, so it always sits inside the safe zone; the
+//    brand's saved style still sets the captions' look.
 // Pure.
 import type { EdlText } from "./types";
 import { DEFAULT_STYLE, type EdlStyle } from "./style";
+import { TEXT_PRESETS, charCount, presetForRole, type TextPreset } from "@/lib/textPresets";
 
 export const MAX_OVERLAY_CHARS = 60;
 export const MAX_OVERLAYS = 4;
@@ -59,6 +60,16 @@ export const sizeFor = (text: string): NonNullable<EdlText["size"]> => {
   return n <= 16 ? "l" : n <= 32 ? "m" : "s";
 };
 
+/**
+ * The preset SOCIA puts a line in: the one for its role (an opening line is a
+ * Hook Title, an ask a Callout Box, the rest a Caption Bar), or the roomier
+ * Caption Bar when the words don't fit that preset's limit.
+ */
+export function presetForLine(role: EdlText["role"], text: string): TextPreset {
+  const p = presetForRole(role);
+  return charCount(text) <= p.maxChars ? p : TEXT_PRESETS.caption_bar;
+}
+
 export type OverlayLine = { text: string; t?: number | null; role?: EdlText["role"] | null };
 
 /**
@@ -79,7 +90,8 @@ export function placeOverlays(lines: OverlayLine[], durationSec: number): EdlTex
   const end = durationSec - 0.2;
   if (durationSec < 4 || clean.length === 1) {
     const one = clean[0];
-    return [{ id: "t1", at: 0.2, end: r2(Math.min(end, Math.max(2.5, durationSec < 4 ? end : 3.2))), text: one.text, role: one.role === "cta" ? "cta" : "opening", size: sizeFor(one.text) }];
+    const role = one.role === "cta" ? "cta" : "opening";
+    return [{ id: "t1", at: 0.2, end: r2(Math.min(end, Math.max(2.5, durationSec < 4 ? end : 3.2))), text: one.text, role, presetId: presetForLine(role, one.text).id }];
   }
   const opening = clean.find((l) => l.role === "opening") ?? clean[0];
   const rest = clean.filter((l) => l !== opening);
@@ -88,7 +100,7 @@ export function placeOverlays(lines: OverlayLine[], durationSec: number): EdlTex
 
   const out: EdlText[] = [];
   const openEnd = Math.min(3.2, durationSec * 0.3);
-  out.push({ id: "t1", at: 0.2, end: r2(openEnd), text: opening.text, role: "opening", size: sizeFor(opening.text) });
+  out.push({ id: "t1", at: 0.2, end: r2(openEnd), text: opening.text, role: "opening", presetId: presetForLine("opening", opening.text).id });
   const closeAt = closing ? Math.max(openEnd + 0.3, durationSec - 3) : end;
   // The middle lines: 2.5 s each, where SOCIA saw the moment if that fits, otherwise evenly.
   const room = { from: openEnd + 0.3, to: closeAt - 0.3 };
@@ -99,10 +111,10 @@ export function placeOverlays(lines: OverlayLine[], durationSec: number): EdlTex
     const at = Math.max(cursor, want);
     const stop = Math.min(at + 2.5, room.to);
     if (stop - at < 1.5) return;
-    out.push({ id: `t${out.length + 1}`, at: r2(at), end: r2(stop), text: m.text, role: "mid", size: sizeFor(m.text) });
+    out.push({ id: `t${out.length + 1}`, at: r2(at), end: r2(stop), text: m.text, role: "mid", presetId: presetForLine("mid", m.text).id });
     cursor = stop + 0.3;
   });
-  if (closing && end - closeAt >= 1.5) out.push({ id: `t${out.length + 1}`, at: r2(closeAt), end: r2(end), text: closing.text, role: closing.role === "cta" ? "cta" : "mid", size: sizeFor(closing.text) });
+  if (closing && end - closeAt >= 1.5) { const role = closing.role === "cta" ? "cta" : "mid"; out.push({ id: `t${out.length + 1}`, at: r2(closeAt), end: r2(end), text: closing.text, role, presetId: presetForLine(role, closing.text).id }); }
   return out;
 }
 

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Sparkles, AlertTriangle, Check, Type, X } from "lucide-react";
+import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Sparkles, AlertTriangle, Check, X } from "lucide-react";
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { AnalyzePanel, ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
@@ -25,7 +25,13 @@ import { describeQuickAudio, quickAudioFrom, timedTranscript, type QuickAudio } 
 import { saveStudioHandoff } from "@/lib/studioHandoff";
 import type { AskProposal } from "@/lib/ask";
 import { handFiles } from "@/lib/studioClips/handoff";
-import { humanText, type OverlayLine } from "@/lib/studioClips/overlay";
+import { presetForLine } from "@/lib/studioClips/overlay";
+import type { EdlText } from "@/lib/studioClips/types";
+import { MAX_TEXT_LAYERS } from "@/lib/textPresets";
+import { CAPABILITY, type Moment } from "@/lib/studioFixes";
+import { newTextLayer, roleForTiming } from "./TextLayersPanel";
+import type { FixOptions } from "./ImproveWalkthrough";
+import { TextOverlayPreview, useSafeZoneGuide } from "./TextOverlay";
 import { forgetRated, rememberRated, updateRatedCaption } from "@/lib/assistant/rated";
 import { transcriptSkippedNote } from "@/lib/transcribe/limits";
 
@@ -63,7 +69,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [auto, setAuto] = useState<{ text: string; timed: string } | null>(null);
   const [listenNote, setListenNote] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("analyze");
-  const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], platform: "Instagram Reels", goal: goalDefault, cover: null, audioChosen: false });
+  const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: goalDefault, cover: null, audioChosen: false });
   const [seek, setSeek] = useState<SeekRequest>(null);
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
   const [drag, setDrag] = useState(false);
@@ -77,15 +83,28 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const input = useRef<HTMLInputElement>(null);
   const seekN = useRef(0);
   const playerVideo = useRef<HTMLVideoElement | null>(null);
+  // The player's time and the video's own pixel size, for the text layers drawn over it.
+  const [playT, setPlayT] = useState(0);
+  const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
+  const [guide, setGuide, guideAvailable] = useSafeZoneGuide();
 
   const doSeek = useCallback((t: number) => { seekN.current += 1; setSeek({ t, n: seekN.current }); }, []);
   const notify = (s: string) => { setToast(s); setTimeout(() => setToast(null), 1800); };
   useEffect(() => () => { if (source?.file) URL.revokeObjectURL(source.url); source?.images.forEach((u) => u.startsWith("blob:") && URL.revokeObjectURL(u)); }, [source]);
 
   const apply = useCallback((field: ApplyField, value: string) => {
-    setW((cur) => field === "onscreen" ? { ...cur, onscreen: cur.onscreen.includes(value) ? cur.onscreen : [...cur.onscreen, value] } : { ...cur, [field]: value });
-    notify(field === "hook" ? "Hook in use" : field === "cta" ? "CTA in use" : field === "caption" ? "Caption updated" : "Added to on-screen text");
-  }, []);
+    setW((cur) => {
+      if (field !== "onscreen") return { ...cur, [field]: value };
+      if (cur.onscreen.includes(value)) return cur;
+      // On a video the line also goes on the picture, as a preset line where SOCIA saw it.
+      const hint = analysis?.onScreenText.find((o) => o.text === value);
+      const dur = frames?.duration ?? 0;
+      const room = analysis?.kind === "video" && dur > 0 && cur.layers.length < MAX_TEXT_LAYERS;
+      const layer = room ? newTextLayer(presetForLine(hint?.role ?? "mid", value).id, dur, hint ? hint.t : null, value) : null;
+      return { ...cur, onscreen: [...cur.onscreen, value], layers: layer ? [...cur.layers, layer] : cur.layers };
+    });
+    notify(field === "hook" ? "Hook in use" : field === "cta" ? "CTA in use" : field === "caption" ? "Caption updated" : analysis?.kind === "video" ? "Added to the video" : "Added to on-screen text");
+  }, [analysis, frames]);
 
   // ---- analysis ---------------------------------------------------------
   const analyze = useCallback(async (src: Source, fr: Frames, opts?: { transcript?: string; caption?: string; goal?: GoalId | null; platform?: string | null; audio?: QuickAudio | null; auto?: { text: string; timed: string } | null }) => {
@@ -161,7 +180,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     setSource(src); setAnalysis(null); setVersions([]); setFrames(null); setErr(null); setSavedId(null); setActiveMarker(null);
     setAudioFacts(null); setListenNote(null);
     if (auto) { setAuto(null); setTranscript((t) => (t.trim() === auto.text.trim() ? "" : t)); }
-    setW((cur) => ({ ...cur, hook: "", cta: "", onscreen: [], cover: null }));
+    setW((cur) => ({ ...cur, hook: "", cta: "", onscreen: [], layers: [], cover: null }));
+    setVideoSize(null); setPlayT(0);
     setPhase("extracting"); setProgress({ done: 0, total: 10 });
     try {
       // Sample from the player once React has mounted it for this source.
@@ -289,12 +309,24 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     return `From Content Studio: ${source?.name ?? "draft"} has a creative readiness of ${analysis.score.overall}/100. ${f ? `Top fix: ${f.title} (${f.suggestion}).` : ""}${w.hook ? ` Hook: "${w.hook}".` : ""}`.slice(0, 380);
   }, [analysis, source, w.hook]);
   const summaryForAsk = analysis ? analysisSummary(analysis) : null;
-  // Text SOCIA can put on the video itself: the lines the person applied (and their ask), otherwise
-  // the analysis's own on-screen suggestions, each only if it reads like a person wrote it.
-  const overlayLines: OverlayLine[] = w.onscreen.length
-    ? [...w.onscreen.map((text, i) => ({ text, role: i === 0 ? ("opening" as const) : ("mid" as const) })), ...(w.cta ? [{ text: w.cta, role: "cta" as const }] : [])]
-    : (analysis?.onScreenText ?? []).map((o) => ({ text: o.text, t: o.t, role: o.role }));
-  const overlayPreview = overlayLines.map((l) => humanText(l.text)).filter((x): x is string => Boolean(x)).slice(0, 4);
+  // Improve → a fix in the Video editor: the file goes over with the proposed lines and what to apply, and the editor opens on that tab.
+  const onFix = useCallback((m: Moment, o: FixOptions) => {
+    if (!source?.file) return;
+    const dur = frames?.duration ?? 0;
+    const layers: EdlText[] = w.layers.map((l) => (l.id === m.id && o.presetId ? { ...l, presetId: o.presetId } : l)).filter((l) => l.text.trim());
+    const panel = CAPABILITY[m.capability].panel ?? "text";
+    handFiles("edit", [source.file], { layers, fix: { panel, cleanSound: m.capability === "noise" || undefined, cuts: o.cuts?.length ? o.cuts : undefined } });
+    void dur;
+    router.push("/studio?mode=edit");
+  }, [source, frames, w.layers, router]);
+  const onProposed = useCallback((lines: { id: string; presetId: EdlText["presetId"]; text: string; at: number; end: number }[]) => {
+    const dur = frames?.duration ?? 0;
+    setW((c) => {
+      const next: EdlText[] = lines.slice(0, MAX_TEXT_LAYERS).map((l) => ({ id: l.id, at: l.at, end: l.end, text: l.text, role: roleForTiming(l.at, l.end, dur), presetId: l.presetId }));
+      const same = c.layers.length === next.length && c.layers.every((x, i) => x.id === next[i].id && x.presetId === next[i].presetId && x.text === next[i].text && x.at === next[i].at && x.end === next[i].end);
+      return same ? c : { ...c, layers: next };
+    });
+  }, [frames]);
   const busy = phase === "extracting" || phase === "listening" || phase === "transcribing" || phase === "analyzing" || phase === "loading";
 
   return (
@@ -339,7 +371,10 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 <span className="st-file">{source.kind === "video" ? <FileVideo size={14} /> : <ImageIcon size={14} />} {source.name}{frames?.duration ? ` · ${Math.round(frames.duration)}s` : ""}</span>
                 <button type="button" className="ov-btn ghost small" disabled={busy} onClick={() => input.current?.click()}>Replace</button>
               </div>
-              <StudioPlayer url={source.url} kind={source.kind} images={source.images} thumbs={frames?.thumbs ?? []} markers={analysis?.markers ?? []} segments={analysis?.segments ?? []} seek={seek} onTime={() => null} onDuration={() => null} cover={w.cover} onCover={(i) => setW((c) => ({ ...c, cover: i }))} activeMarker={activeMarker} videoRef={playerVideo} />
+              <StudioPlayer url={source.url} kind={source.kind} images={source.images} thumbs={frames?.thumbs ?? []} markers={analysis?.markers ?? []} segments={analysis?.segments ?? []} seek={seek} onTime={setPlayT} onDuration={() => null} cover={w.cover} onCover={(i) => setW((c) => ({ ...c, cover: i }))} activeMarker={activeMarker} videoRef={playerVideo}
+                onSize={(width, height) => setVideoSize({ width, height })}
+                overlay={source.kind === "video" && (w.layers.length > 0 || guide) ? ({ t, width, height }) => <TextOverlayPreview layers={w.layers} t={t} width={width} height={height} guide={guide} /> : undefined} />
+              {guideAvailable && source.kind === "video" && <label className="cbb-guide"><input type="checkbox" checked={guide} onChange={(e) => setGuide(e.target.checked)} /> Show the text safe zone</label>}
             </div>
           )}
           <div className="ov-card st-context">
@@ -406,7 +441,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 <span className="st-tabs-ask"><AskSociaButton className="ov-btn ghost small" label="Ask SOCIA about this content" context={{ page: "studio", studio: { kind: source.kind, durationSec: frames?.duration ?? null, goal: w.goal, transcript: transcript || null, caption: w.caption || null, summary: summaryForAsk } }} contextLabel={source.name} onProposal={onProposal} /></span>
               </div>
               {tab === "analyze" && <AnalyzePanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} onCompare={() => window.location.assign("/analytics#content")} />}
-              {tab === "improve" && <ImprovePanel a={analysis} w={w} apply={apply} seek={doSeek} improve={improve} firstFrame={frames?.thumbs[0]?.src ?? null} />}
+              {tab === "improve" && <ImprovePanel a={analysis} w={w} seek={doSeek} playT={playT} thumbs={frames?.thumbs ?? []} durationSec={frames?.duration ?? 0} frame={videoSize} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onProposed={onProposed} />}
               {tab === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
               {tab === "audio" && (
                 <>
@@ -425,16 +460,6 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
           {source && !analysis && phase === "done" && <div className="ov-empty">No analysis yet.</div>}
         </div>
       </div>
-      {analysis && source?.kind === "video" && source.file && overlayPreview.length > 0 && (
-        <div className="ov-card cb-manual st-puttext">
-          <div>
-            <b><Type size={14} /> Put the text on the video</b>
-            <small>SOCIA adds {overlayPreview.length === 1 ? "this line" : `these ${overlayPreview.length} lines`} where they fit, in a plain style (your brand look if you saved one) sized to the words, then opens it in the Video editor to change anything.</small>
-            <ul>{overlayPreview.map((l) => <li key={l}>“{l}”</li>)}</ul>
-          </div>
-          <button type="button" className="ov-btn primary small" onClick={() => { handFiles("edit", [source.file!], { overlays: overlayLines }); router.push("/studio?mode=edit"); }}>Put it on the video</button>
-        </div>
-      )}
       {(w.hook || w.cta || w.onscreen.length > 0) && source && (
         <div className="st-inuse ov-card">
           <small>In use for this piece</small>

@@ -2,18 +2,22 @@
 
 // The improvement workspace beside the preview: Analyze / Improve / Caption /
 // Audio / Prepare. Every panel renders what the analysis actually contains
-// and says plainly when something could not be assessed.
+// and says plainly when something could not be assessed. Improve is a guided
+// walkthrough of the fixes SOCIA can make (components/studio/ImproveWalkthrough.tsx).
 
 import AudioInsights from "./AudioPanel";
 import type { QuickAudio } from "@/lib/audio/quick";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Scissors, Clock, CalendarPlus, ArrowRight, Info, Send } from "lucide-react";
-import { CATEGORY_INFO, GOALS, fmtT, fmtT1, checklist, versionDiff, type StudioAnalysis, type ApplyField, type GoalId, type ChecklistItem } from "@/lib/studio";
+import { ChevronDown, Check, Copy, Sparkles, RefreshCw, Clock, CalendarPlus, ArrowRight, Info, Send } from "lucide-react";
+import { CATEGORY_INFO, GOALS, fmtT, checklist, versionDiff, type StudioAnalysis, type ApplyField, type GoalId, type ChecklistItem } from "@/lib/studio";
 import type { PlanError } from "@/lib/planErrors";
 import PlanNotice from "../PlanNotice";
+import ImproveWalkthrough, { type FixOptions, type ImproveWalkthroughProps } from "./ImproveWalkthrough";
+import { momentsFrom, momentsSummary, type Moment } from "@/lib/studioFixes";
+import type { EdlText } from "@/lib/studioClips/types";
 
-export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; platform: string | null; goal: GoalId | null; cover: number | null; audioChosen: boolean };
+export type Working = { hook: string; cta: string; caption: string; onscreen: string[]; /** The lines Improve proposes for the video, as preset layers (lib/textPresets.ts): drawn over the player at their moments. */ layers: EdlText[]; platform: string | null; goal: GoalId | null; cover: number | null; audioChosen: boolean };
 export type ImproveOption = { label: string; text: string; steps: string[] };
 export type Improve = (task: "hooks" | "caption" | "cta" | "onscreen" | "variations", params?: { mode?: string; exclude?: string[] }) => Promise<ImproveOption[]>;
 
@@ -204,95 +208,28 @@ export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: S
   );
 }
 
-export function ImprovePanel({ a, w, apply, seek, improve, firstFrame }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; seek: (t: number) => void; improve: Improve; firstFrame: string | null }) {
-  const [hooks, setHooks] = useState<{ label: string; text: string }[]>(a.hooks.options.map((h) => ({ label: h.style, text: h.text })));
-  const [saved, setSaved] = useState<string[]>([]);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [ctas, setCtas] = useState(a.cta.options);
-  const [err, setErr] = useState<PanelErr | null>(null);
-  const more = async () => { setBusy("hooks"); setErr(null); try { const o = await improve("hooks", { exclude: hooks.map((h) => h.text) }); setHooks((cur) => [...cur, ...o]); } catch (e) { setErr(toErr(e, "Couldn't generate more.")); } finally { setBusy(null); } };
-  const moreCta = async () => { setBusy("cta"); setErr(null); try { const o = await improve("cta"); setCtas((cur) => [...cur, ...o.map((x) => x.text)]); } catch (e) { setErr(toErr(e, "Couldn't generate more.")); } finally { setBusy(null); } };
-  return (
-    <div className="st-panel">
-      <section className="st-block">
-        <div className="st-block-head"><h3>Hook Lab</h3><span className="ov-range-label">First 1–3 seconds</span></div>
-        <div className="st-hooklab">
-          {firstFrame && (
-            <div className="st-firstframe">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={firstFrame} alt="First frame" />
-              <small>Current first frame</small>
-            </div>
-          )}
-          <div className="st-hook-cur">
-            <small>Current hook</small>
-            <b>{w.hook || a.hooks.current || "No opening line detected"}</b>
-            {a.hooks.current && w.hook && w.hook !== a.hooks.current && <em>was: “{a.hooks.current}”</em>}
-          </div>
-        </div>
-        <ul className="st-options">
-          {hooks.map((h, i) => (
-            <li key={i}>
-              <span className="st-opt-style">{h.label}</span>
-              <span className="st-opt-text">{h.text}</span>
-              <span className="st-opt-actions">
-                <button type="button" className={`ov-btn ${w.hook === h.text ? "ghost" : "primary"} small`} onClick={() => apply("hook", h.text)}>{w.hook === h.text ? <><Check size={12} /> In use</> : "Use"}</button>
-                <button type="button" className="ov-btn ghost small" onClick={() => setSaved((s) => (s.includes(h.text) ? s : [...s, h.text]))}>{saved.includes(h.text) ? "Saved" : "Save"}</button>
-              </span>
-            </li>
-          ))}
-        </ul>
-        <div className="st-row-actions">
-          <button type="button" className="ov-btn ghost small" disabled={busy === "hooks"} onClick={more}><RefreshCw size={12} className={busy === "hooks" ? "spin" : undefined} /> Generate more</button>
-          {saved.length > 0 && <span className="ov-source">{saved.length} saved for later (copy them from Prepare).</span>}
-        </div>
-      </section>
-
-      <section className="st-block">
-        <h3>On-screen text</h3>
-        {a.onScreenText.length ? (
-          <ul className="st-ost">
-            {a.onScreenText.map((o, i) => (
-              <li key={i}>
-                {a.kind === "video" ? <button type="button" className="st-ost-t" onClick={() => seek(o.t)}>{fmtT(o.t)}</button> : <span className="st-ost-t">{o.role}</span>}
-                <span className="st-ost-text">“{o.text}”<small>{o.role}</small></span>
-                <span className="st-opt-actions"><CopyBtn text={o.text} /><button type="button" className={`ov-btn ${w.onscreen.includes(o.text) ? "ghost" : "primary"} small`} onClick={() => apply("onscreen", o.text)}>{w.onscreen.includes(o.text) ? <><Check size={12} /> Added</> : "Apply"}</button></span>
-              </li>
-            ))}
-          </ul>
-        ) : <div className="ov-empty small">No on-screen text suggestions for this piece.</div>}
-      </section>
-
-      <section className="st-block">
-        <h3>Ending / CTA</h3>
-        <p className="ov-source">{a.cta.current ? `Current ask: “${a.cta.current}”` : a.observed.ctaDetected === false ? "No clear next action was detected at the end." : "SOCIA could not tell whether the ending asks for anything."}</p>
-        <ul className="st-options">
-          {ctas.map((c, i) => (
-            <li key={i}><span className="st-opt-text">{c}</span><span className="st-opt-actions"><button type="button" className={`ov-btn ${w.cta === c ? "ghost" : "primary"} small`} onClick={() => apply("cta", c)}>{w.cta === c ? <><Check size={12} /> In use</> : "Use CTA"}</button><CopyBtn text={c} /></span></li>
-          ))}
-        </ul>
-        <div className="st-row-actions"><button type="button" className="ov-btn ghost small" disabled={busy === "cta"} onClick={moreCta}><RefreshCw size={12} className={busy === "cta" ? "spin" : undefined} /> Generate more</button></div>
-      </section>
-
-      {a.kind === "video" && (
+export function ImprovePanel({ a, w, seek, playT, thumbs, durationSec, frame, canHandoff, onFix, onCaption, onProposed }: {
+  a: StudioAnalysis; w: Working; seek: (t: number) => void; playT: number; thumbs: { src: string; t: number }[]; durationSec: number;
+  frame: { width: number; height: number } | null; canHandoff: boolean; onFix: (m: Moment, o: FixOptions) => void; onCaption: () => void;
+  onProposed?: ImproveWalkthroughProps["onProposed"];
+}) {
+  const moments = useMemo(() => momentsFrom({ analysis: a, durationSec, hook: w.hook, cta: w.cta }), [a, durationSec, w.hook, w.cta]);
+  if (a.kind !== "video") {
+    return (
+      <div className="st-panel">
         <section className="st-block">
-          <div className="st-block-head"><h3><Scissors size={14} /> Suggested cuts</h3>{a.cuts && <span className="ov-range-label">Current {a.cuts.currentSec}s → Suggested {a.cuts.suggestedSec}s</span>}</div>
-          {a.cuts ? (
-            <>
-              <ul className="st-cuts">
-                {a.cuts.edits.map((c, i) => (
-                  <li key={i}><button type="button" onClick={() => seek(c.start)}><em className={`ov-chip ${c.type === "remove" ? "danger" : "warning"}`}>{c.type.toUpperCase()}</em><b>{fmtT1(c.start)}–{fmtT1(c.end)}</b><span>{c.reason}</span></button></li>
-                ))}
-              </ul>
-              {a.cuts.note && <p className="ov-source">{a.cuts.note}</p>}
-              <p className="ov-source">SOCIA does not edit the file. Apply these in your editor, then re-upload the new version to compare scores.</p>
-            </>
-          ) : <div className="ov-empty small">Nothing worth cutting was found in the sampled frames.</div>}
+          <h3>What to change</h3>
+          <ol className="st-fixes">
+            {a.topFixes.map((f, i) => (
+              <li key={i} className="st-fix"><span className="st-fix-num">{String(i + 1).padStart(2, "0")}</span><div className="st-fix-body"><b>{f.title}</b><p className="st-fix-obs">{f.observed}</p><p className="st-fix-sug"><em>Suggested:</em> {f.suggestion}</p></div></li>
+            ))}
+          </ol>
+          <p className="ov-source">For a still post the caption carries the change: write it in the Caption tab.</p>
         </section>
-      )}
-      <ErrLine err={err} />
-    </div>
-  );
+      </div>
+    );
+  }
+  return <ImproveWalkthrough moments={moments} summary={momentsSummary(moments)} thumbs={thumbs} durationSec={durationSec} playT={playT} seek={seek} frame={frame} canHandoff={canHandoff} onFix={onFix} onCaption={onCaption} onProposed={onProposed} />;
 }
 
 const CAPTION_MODES = ["Shorter", "More conversational", "More local", "More playful", "More professional", "More creator-style", "More direct", "Stronger CTA"];

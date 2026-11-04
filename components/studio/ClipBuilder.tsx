@@ -4,13 +4,14 @@
 // (Make This Video, Starter and up) and the person's own edit of their clips
 // (Editor V1, every plan; no AI regenerate). Previewed by Remotion from the
 // EDL: reorder, trim (by step or at the playhead), split, replace, delete,
-// aspect ratio and reframe, text lines, captions on/off, undo/redo. The video is rendered HERE
+// aspect ratio and reframe, text lines as presets (components/studio/TextLayersPanel.tsx),
+// captions on/off, undo/redo. The video is rendered HERE
 // in the browser (WebCodecs) and saved as a DRAFT post — nothing is scheduled
 // or published without the person doing it in Create Post.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Player, type PlayerRef } from "@remotion/player";
-import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Type, Music, Crop, Scissors, SkipBack, SkipForward, Palette, Volume2, VolumeX } from "lucide-react";
+import { ChevronLeft, Undo2, Redo2, Save, ArrowUp, ArrowDown, Trash2, Plus, Minus, Replace, Captions, Sparkles, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, Scissors, SkipBack, SkipForward, Palette, Volume2, VolumeX } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
@@ -19,13 +20,15 @@ import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
 import MusicPlaylist from "./MusicPlaylist";
 import FinishPanel from "./FinishPanel";
+import TextLayersPanel from "./TextLayersPanel";
+import { useSafeZoneGuide } from "./TextOverlay";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
 import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { timeline } from "@/lib/studioClips/timeline";
 import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
 import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
-import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type EdlText, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
+import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
 const STEP = 0.5;
@@ -36,8 +39,8 @@ type ExportState = { phase: ExportPhase; progress: number; message: string | nul
 
 export default function ClipBuilder({ buildId, title, onBack, fixture, initialPanel }: {
   buildId: string; title: string; onBack: () => void; fixture?: BuildPlayerData;
-  /** the tab to open on (the Audio tab opens on Music) */
-  initialPanel?: "audio" | "text";
+  /** the tab to open on (the Audio tab opens on Music; a fix from Rate opens on its own tab) */
+  initialPanel?: "cut" | "text" | "finish" | "audio";
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [data, setData] = useState<BuildPlayerData | null>(fixture ?? null);
@@ -62,6 +65,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [quality, setQuality] = useState<"high" | "medium">("high");
   // Before/After for the measured corrections; the export always uses After.
   const [compare, setCompare] = useState<"before" | "after">("after");
+  // The text safe zone over the preview (a check for us; never in the export).
+  const [guide, setGuide, guideAvailable] = useSafeZoneGuide();
   const player = useRef<PlayerRef>(null);
   const abort = useRef<AbortController | null>(null);
 
@@ -198,9 +203,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     const a = m ? m.start : 0, b = m ? Math.min(m.end, m.start + 6) : Math.min(src.durationSec, 4);
     commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, clipId, in: r2(a), out: r2(Math.max(b, a + MIN_SEG)), note: "" } : x)) });
   };
-  const setText = (i: number, patch: Partial<EdlText>) => { if (!edl) return; commit({ ...edl, text: edl.text.map((t, k) => (k === i ? { ...t, ...patch } : t)) }); };
   const removeText = (i: number) => { if (!edl) return; commit({ ...edl, text: edl.text.filter((_, k) => k !== i) }); };
-  const addText = () => { if (!edl || !tl) return; const at = Math.min(Math.max(0, tl.durationSec - 4), Math.round(tl.durationSec / 2)); commit({ ...edl, text: [...edl.text, { id: `t${Date.now()}`, at, end: Math.min(tl.durationSec, at + 3), text: "New line", role: "mid" }] }); };
   const toggleCaptions = () => { if (!edl) return; commit({ ...edl, captions: edl.captions ? null : { source: "transcript" } }); };
 
   // At the playhead: which cut it is in, and where that is inside the clip.
@@ -222,7 +225,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     const a = { ...s, out: p.clipT }, b = { ...s, id: `s${Date.now()}`, in: p.clipT, role: "body" as const };
     commit({ ...edl, segments: [...edl.segments.slice(0, p.i), a, b, ...edl.segments.slice(p.i + 1)] });
   };
-  const lineHere = () => { const p = at(); if (!edl || !tl) return; const t0 = r2(Math.min(Math.max(0, (p?.sec ?? 0)), Math.max(0, tl.durationSec - 0.5))); commit({ ...edl, text: [...edl.text, { id: `t${Date.now()}`, at: t0, end: r2(Math.min(tl.durationSec, t0 + 3)), text: "New line", role: t0 < 1 ? "opening" : "mid" }] }); };
 
   // Reframe: a drag is one undo step (history pushed when it starts), applied live while it moves.
   const beginLive = () => { if (edl) { setPast((p) => [...p.slice(-49), edl]); setFuture([]); } };
@@ -422,7 +424,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <Player
                 ref={player}
                 component={ClipComposition}
-                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl, cleanAudio }}
+                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl, cleanAudio, safeZoneGuide: guide }}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={edl.width}
@@ -441,6 +443,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                   <button type="button" role="radio" aria-checked={compare === "after"} className={compare === "after" ? "on" : ""} onClick={() => setCompare("after")}>After</button>
                 </div>
               )}
+              {guideAvailable && <label className="cbb-guide"><input type="checkbox" checked={guide} onChange={(e) => setGuide(e.target.checked)} /> Show the text safe zone</label>}
               {missing > 0 && <span className="cb-stale"><AlertTriangle size={12} /> {missing} cut{missing === 1 ? "" : "s"} point{missing === 1 ? "s" : ""} at footage that expired — replace or remove {missing === 1 ? "it" : "them"}.</span>}
             </div>
           </div>
@@ -699,23 +702,21 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 </div>
                 <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!anySpeech || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
               </div>
-              <ul className="cbb-lines">
-                {edl.text.map((t, i) => (
-                  <li key={t.id} className="ov-card">
-                    <div className="cbb-line-head">
-                      <select value={t.role} disabled={!data.canEdit || busy} onChange={(e) => setText(i, { role: e.target.value as EdlText["role"] })}><option value="opening">Opening line</option><option value="mid">Mid-point</option><option value="cta">Call to action</option></select>
-                      <span className="cbb-trim"><span className="cbb-trim-grp"><button type="button" aria-label="Earlier" disabled={!data.canEdit || busy} onClick={() => setText(i, { at: r2(Math.max(0, t.at - STEP)), end: r2(Math.max(t.end - STEP, Math.max(0, t.at - STEP) + 0.5)) })}><Minus size={11} /></button><em>{fmtClock(t.at)}–{fmtClock(t.end)}</em><button type="button" aria-label="Later" disabled={!data.canEdit || busy} onClick={() => setText(i, { at: r2(Math.min(tl.durationSec - 0.5, t.at + STEP)), end: r2(Math.min(tl.durationSec, t.end + STEP)) })}><Plus size={11} /></button></span></span>
-                      <button type="button" className="cbb-icon danger" aria-label="Remove line" disabled={!data.canEdit || busy} onClick={() => removeText(i)}><Trash2 size={13} /></button>
-                    </div>
-                    <textarea rows={2} value={t.text} disabled={!data.canEdit || busy} onChange={(e) => setText(i, { text: e.target.value.slice(0, 120) })} />
-                  </li>
-                ))}
-              </ul>
-              <div className="st-row-actions">
-                <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || edl.text.length >= 4} onClick={addText}><Type size={12} /> Add a line</button>
-                <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy} onClick={lineHere}><Type size={12} /> Add a line at the playhead</button>
-                {!data.manual && <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || Boolean(regen)} onClick={() => regenerate("different_hook")}>{regen === "different_hook" ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />} Different hook</button>}
-              </div>
+              <TextLayersPanel
+                layers={edl.text}
+                onChange={(text) => commit({ ...edl, text })}
+                durationSec={tl.durationSec}
+                frame={{ width: edl.width, height: edl.height }}
+                canEdit={data.canEdit}
+                busy={busy}
+                playhead={() => at()?.sec ?? null}
+                onOpen={(l) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, Math.round(l.at * OUTPUT.fps) + 1)); } }}
+              />
+              {!data.manual && (
+                <div className="st-row-actions">
+                  <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || Boolean(regen)} onClick={() => regenerate("different_hook")}>{regen === "different_hook" ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />} Different hook</button>
+                </div>
+              )}
               <div className="ov-card cbb-caption-copy">
                 <b>Caption for the post</b>
                 <textarea rows={4} value={edl.caption} disabled={!data.canEdit || busy} onChange={(e) => commit({ ...edl, caption: e.target.value.slice(0, 2200) })} />

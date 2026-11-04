@@ -1,0 +1,166 @@
+import { describe, expect, it } from "vitest";
+import { ASPECTS } from "./studioClips/types";
+import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapParagraph, type Measure } from "./textRender";
+import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, defaultTiming, frameScale, presetForRole, presetOf, safeZoneFor, type TextPresetId, type TextSlot } from "./textPresets";
+
+/** A fake canvas: every character is 0.55 em wide (emoji 1 em), whatever the face. */
+const measure: Measure = (text, font) => {
+  const px = Number(/(\d+(?:\.\d+)?)px/.exec(font)?.[1] ?? 16);
+  return Array.from(text).reduce((a, ch) => a + (/\p{Extended_Pictographic}/u.test(ch) ? px : px * 0.55), 0);
+};
+
+const inside = (box: { x: number; y: number; width: number; height: number }, zone: { x: number; y: number; width: number; height: number }) =>
+  box.x >= zone.x && box.y >= zone.y && box.x + box.width <= zone.x + zone.width + 0.01 && box.y + box.height <= zone.y + zone.height + 0.01;
+
+const lay = (presetId: TextPresetId, text: string, w = 1080, h = 1920, slot?: TextSlot) => layoutTextLayer({ preset: TEXT_PRESETS[presetId], text, slot, width: w, height: h, measure });
+
+describe("the safe zone", () => {
+  it("is the brief's zone at the reference size", () => {
+    expect(safeZoneFor(1080, 1920)).toEqual({ x: 60, y: 250, width: 880, height: 1190 });
+  });
+  it("scales with the frame", () => {
+    expect(safeZoneFor(1080, 1080)).toEqual({ x: 60, y: 141, width: 880, height: 669 });
+    expect(safeZoneFor(540, 960)).toEqual({ x: 30, y: 125, width: 440, height: 595 });
+    expect(frameScale(1080, 1920)).toBe(1);
+    expect(frameScale(1920, 1080)).toBe(1);
+    expect(frameScale(540, 960)).toBe(0.5);
+  });
+});
+
+describe("presets", () => {
+  it("are the six from the brief, each with a size range, limits and a default time", () => {
+    expect(TEXT_PRESET_IDS).toEqual(["hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"]);
+    for (const id of TEXT_PRESET_IDS) {
+      const p = TEXT_PRESETS[id];
+      expect(p.size.min).toBeLessThanOrEqual(p.size.max);
+      expect(p.maxLines).toBeGreaterThan(0);
+      expect(p.maxChars).toBeGreaterThan(0);
+      expect(p.time.end).toBeGreaterThan(p.time.start);
+      expect(["fade", "pop"]).toContain(p.animation);
+    }
+    expect(TEXT_PRESETS.hook_title.slot).toBe("top");
+    expect(TEXT_PRESETS.caption_bar.slot).toBe("bottom");
+    expect(TEXT_PRESETS.callout_box.slot).toBe("middle");
+    expect(TEXT_PRESETS.lower_third.align).toBe("left");
+  });
+  it("map old roles to the closest look", () => {
+    expect(presetForRole("opening").id).toBe("hook_title");
+    expect(presetForRole("cta").id).toBe("callout_box");
+    expect(presetForRole("mid").id).toBe("caption_bar");
+    expect(presetOf({ presetId: "big_stat", role: "mid" }).id).toBe("big_stat");
+    expect(presetOf({ presetId: "nope", role: "cta" }).id).toBe("callout_box");
+    expect(presetOf({}).id).toBe("caption_bar");
+  });
+  it("count characters as people do and clamp at one", () => {
+    expect(charCount("héllo 🔥")).toBe(7);
+    expect(clampChars("abcdef", 3)).toBe("abc");
+    expect(clampChars("ab 🔥🔥", 4)).toBe("ab 🔥");
+  });
+  it("default timing fits the video", () => {
+    expect(defaultTiming(TEXT_PRESETS.hook_title, 20)).toEqual({ at: 0, end: 3 });
+    expect(defaultTiming(TEXT_PRESETS.caption_bar, 2)).toEqual({ at: 0, end: 2 });
+    expect(defaultTiming(TEXT_PRESETS.callout_box, 20, 7.25)).toEqual({ at: 7.25, end: 10.25 });
+    expect(defaultTiming(TEXT_PRESETS.callout_box, 8, 7.9)).toEqual({ at: 7.5, end: 8 });
+  });
+});
+
+describe("wrapping", () => {
+  it("keeps explicit line breaks and collapses other whitespace", () => {
+    expect(normalizeText("  a   b \n\n c  ")).toEqual(["a b", "", "c"]);
+    expect(normalizeText("\n\n")).toEqual([]);
+  });
+  it("wraps at words and never past the width", () => {
+    const font = "700 40px Inter";
+    const lines = wrapParagraph("we start the dough at five every morning", 300, font, measure);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const l of lines) expect(l.width).toBeLessThanOrEqual(300);
+    expect(lines.map((l) => l.text).join(" ")).toBe("we start the dough at five every morning");
+  });
+  it("breaks a word wider than the line at characters", () => {
+    const lines = wrapParagraph("supercalifragilistic", 100, "700 40px Inter", measure);
+    for (const l of lines) expect(l.width).toBeLessThanOrEqual(100);
+    expect(lines.map((l) => l.text).join("")).toBe("supercalifragilistic");
+  });
+});
+
+describe("layout inside the safe zone", () => {
+  const SIZES = ASPECTS.map((a) => [a.width, a.height] as const);
+  it("puts every preset's sample inside the zone on every aspect, in every slot", () => {
+    for (const [w, h] of SIZES) {
+      const zone = safeZoneFor(w, h);
+      for (const id of TEXT_PRESET_IDS) {
+        for (const slot of ["top", "middle", "bottom"] as const) {
+          const l = lay(id, TEXT_PRESETS[id].sample, w, h, slot);
+          expect(l.fits, `${id} ${w}x${h} ${slot}`).toBe(true);
+          expect(inside(l.box, zone), `${id} ${w}x${h} ${slot}`).toBe(true);
+          for (const line of l.lines) expect(line.width).toBeLessThanOrEqual(l.box.width);
+        }
+      }
+    }
+  });
+  it("holds the longest allowed line of each preset at its smallest size", () => {
+    for (const [w, h] of SIZES) {
+      for (const id of TEXT_PRESET_IDS) {
+        const p = TEXT_PRESETS[id];
+        const words = p.lead ? `12\n${"word ".repeat(10).trim()}` : "word ".repeat(Math.ceil(p.maxChars / 5)).trim().slice(0, p.maxChars).trim();
+        const l = lay(id, words, w, h);
+        expect(l.fits, `${id} ${w}x${h}: ${l.reason}`).toBe(true);
+        expect(inside(l.box, safeZoneFor(w, h))).toBe(true);
+      }
+    }
+  });
+  it("uses the largest size that fits and shrinks for longer lines", () => {
+    const short = lay("hook_title", "Wait");
+    const long = lay("hook_title", "Supercalifragilistic");
+    expect(short.fontSize).toBe(84);
+    expect(long.fontSize).toBeLessThan(short.fontSize);
+    expect(long.fontSize).toBeGreaterThanOrEqual(56);
+  });
+  it("says no when a line can't fit even at the smallest size", () => {
+    const l = lay("hook_title", "x".repeat(200));
+    expect(l.fits).toBe(false);
+    expect(l.reason).toBe("too_long");
+    expect(fitMessage(TEXT_PRESETS.hook_title, l)).toMatch(/Too long for Hook Title/);
+    expect(fitMessage(TEXT_PRESETS.hook_title, lay("hook_title", "fine"))).toBeNull();
+    expect(lay("hook_title", "   ").reason).toBe("empty");
+  });
+  it("slots are top, middle and bottom of the zone", () => {
+    const zone = safeZoneFor(1080, 1920);
+    const top = lay("callout_box", "Hi", 1080, 1920, "top"), mid = lay("callout_box", "Hi", 1080, 1920, "middle"), bot = lay("callout_box", "Hi", 1080, 1920, "bottom");
+    expect(top.box.y).toBe(zone.y);
+    expect(bot.box.y + bot.box.height).toBe(zone.y + zone.height);
+    expect(mid.box.y).toBeGreaterThan(top.box.y);
+    expect(mid.box.y).toBeLessThan(bot.box.y);
+  });
+  it("a caption bar spans the zone; a label sits at its left", () => {
+    const bar = lay("caption_bar", "Open at 7");
+    expect(bar.box.width).toBe(880);
+    expect(bar.box.x).toBe(60);
+    const label = lay("lower_third", "Downtown");
+    expect(label.box.x).toBe(60);
+    expect(label.box.width).toBeLessThan(880);
+    expect(label.lines[0].text).toBe("DOWNTOWN");
+  });
+  it("big stat: the number leads, the subline follows", () => {
+    const l = lay("big_stat", "200+\nburgers every Friday");
+    expect(l.fits).toBe(true);
+    expect(l.lines[0].text).toBe("200+");
+    expect(l.lines[0].fontSize).toBeGreaterThan(l.lines[1].fontSize);
+    expect(lay("big_stat", "1,000,000,000,000,000,000,000").fits).toBe(false);
+  });
+  it("emoji and Arabic lay out like any other text", () => {
+    const e = lay("subtitle", "so good 🔥🔥🔥 come see");
+    expect(e.fits).toBe(true);
+    const ar = lay("caption_bar", "نفتح كل يوم من السابعة صباحا");
+    expect(ar.fits).toBe(true);
+    expect(ar.rtl).toBe(true);
+    expect(isRtl("hello")).toBe(false);
+  });
+  it("lays out the same way relative to the frame at any resolution", () => {
+    const a = lay("callout_box", "Only 20 made a day", 1080, 1920);
+    const b = lay("callout_box", "Only 20 made a day", 540, 960);
+    expect(b.box.x * 2).toBeCloseTo(a.box.x, -1);
+    expect(b.box.y * 2).toBeCloseTo(a.box.y, -1);
+    expect(b.fontSize * 2).toBeCloseTo(a.fontSize, 0);
+  });
+});

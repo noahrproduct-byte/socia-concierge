@@ -16,7 +16,7 @@ import type { UsageSnapshot } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { fingerprintFile, probeClip, ingestClip } from "@/lib/studioClips/ingest";
-import { STUDIO_BUCKET, type BuildPlayerData, type Opportunity, type StudioBuild, type StudioClip, type StudioProject } from "@/lib/studioClips/types";
+import { STUDIO_BUCKET, type BuildPlayerData, type Opportunity, type StudioBuild, type StudioClip, type StudioProject, type EdlText } from "@/lib/studioClips/types";
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import { ClipGrid, UnderstandCard, YieldView, OpportunityView, ProjectList, fmtMinutes, type LocalClip } from "./ClipsViews";
 import BatchPanel from "./BatchPanel";
@@ -24,7 +24,9 @@ import BriefPanel from "./BriefPanel";
 import VideoList from "./VideoList";
 import ClipLibrary from "./ClipLibrary";
 import { takeHandoff } from "@/lib/studioClips/handoff";
-import { overlayStyle, placeOverlays, type OverlayLine } from "@/lib/studioClips/overlay";
+import { overlayStyle } from "@/lib/studioClips/overlay";
+import { applyCuts } from "@/lib/studioFixes";
+import type { HandoffFix } from "@/lib/studioClips/handoff";
 import { fileLabel } from "@/lib/publishing/postLabel";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
@@ -79,14 +81,15 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   // The person's own edit of these clips (Editor V1, every plan, no AI).
   const [manual, setManual] = useState<StudioBuild | null>(null);
   // A cut made from a prompt or a reference video, open in the editor.
-  const [custom, setCustom] = useState<{ id: string; title: string; panel?: "text" | "audio" } | null>(null);
+  const [custom, setCustom] = useState<{ id: string; title: string; panel?: "cut" | "text" | "finish" | "audio" } | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
   const [building, setBuilding] = useState(false);
   const [busyIds, setBusyIds] = useState(0);
   const [autoStart, setAutoStart] = useState(false);
   const [autoAudio, setAutoAudio] = useState(false);
-  // Rate → "Put the text on the video": the lines to put on the clip once it's in.
-  const overlaysRef = useRef<OverlayLine[] | null>(null);
+  // Rate → Improve: the text layers and the fix to apply to the clip once it's in.
+  const overlaysRef = useRef<EdlText[] | null>(null);
+  const fixRef = useRef<HandoffFix | null>(null);
   const [autoText, setAutoText] = useState(false);
   // A video idea from the Dashboard: its plan starts the prompt.
   const [startPrompt, setStartPrompt] = useState<string | null>(null);
@@ -273,7 +276,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     const handed = takeHandoff(audio ? "audio" : "edit");
     if (editing && handed.data.prompt) setStartPrompt(handed.data.prompt);
     if (!handed.files.length) return;
-    if (editing) overlaysRef.current = handed.data.overlays?.length ? handed.data.overlays : null;
+    if (editing) { overlaysRef.current = handed.data.layers?.length ? handed.data.layers : null; fixRef.current = handed.data.fix ?? null; }
     void onFiles(handed.files);
     // Once, on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -389,12 +392,13 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     })();
   }, [autoAudio, busyIds, manualBusy, project, openManual]);
 
-  // The lines from Rate go on the clip in the plain creator look (lib/studioClips/overlay.ts), then it opens on Text.
+  // What Rate asked for goes on the clip (preset lines, noise reduction, cuts; the server re-validates), then it opens on that tab.
   useEffect(() => {
     if (!autoText || busyIds > 0 || manualBusy || !project) return;
     setAutoText(false);
     const lines = overlaysRef.current ?? [];
-    overlaysRef.current = null;
+    const fix = fixRef.current;
+    overlaysRef.current = null; fixRef.current = null;
     const clip = project.clips.filter((c) => c.status === "ready" || c.status === "uploaded").slice(-1)[0];
     if (!clip) return;
     void (async () => {
@@ -408,18 +412,13 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
         const pres = await fetch(`/api/studio/builds/${id}`).catch(() => null);
         const pj = pres?.ok ? ((await pres.json().catch(() => null)) as BuildPlayerData | null) : null;
         const edl = pj?.build.edl;
-        if (edl) {
-          const dur = edl.segments.reduce((a, s) => a + Math.max(0, s.out - s.in), 0);
-          const text = placeOverlays(lines, dur);
-          if (text.length) {
-            const style = overlayStyle({ preset: pj?.presets?.brand?.style ?? null, brightness: clip.facts?.visual?.brightness ?? null });
-            const saved = await fetch(`/api/studio/builds/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: { ...edl, text, style } }) }).catch(() => null);
-            if (!saved?.ok) setNotice("The video is open, but SOCIA couldn't put the text on it. Add it in Text & captions.");
-          } else if (lines.length) {
-            setNotice("None of those lines read naturally enough to put on the video. Write your own in Text & captions.");
-          }
+        if (edl && (lines.length || fix)) {
+          const style = overlayStyle({ preset: pj?.presets?.brand?.style ?? null, brightness: clip.facts?.visual?.brightness ?? null });
+          const next = { ...edl, style, ...(lines.length ? { text: lines } : {}), ...(fix?.cleanSound ? { cleanSound: true } : {}), ...(fix?.cuts?.length ? { segments: applyCuts(edl.segments, fix.cuts) } : {}) };
+          const saved = await fetch(`/api/studio/builds/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: next }) }).catch(() => null);
+          if (!saved?.ok) setNotice("The video is open, but SOCIA couldn't apply the fix to it. Do it in the editor's tabs.");
         }
-        setCustom({ id, title, panel: "text" });
+        setCustom({ id, title, panel: fix?.panel ?? "text" });
       } finally {
         setManualBusy(false);
       }

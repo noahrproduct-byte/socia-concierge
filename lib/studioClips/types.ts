@@ -4,6 +4,7 @@
 import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";
 
 import type { EdlStyle, VideoPresets } from "./style";
+import type { TextPresetId, TextSlot } from "@/lib/textPresets";
 import type { Playlist, Soundtrack } from "@/lib/music/taste";
 
 export type { Transcript, TranscriptWord };
@@ -221,13 +222,25 @@ export const ASPECTS = [
 ] as const;
 export const aspectOf = (w: number, h: number) => ASPECTS.find((a) => a.width === w && a.height === h) ?? ASPECTS[0];
 
+/**
+ * One line of text on the video. The look comes from a locked preset
+ * (lib/textPresets.ts): font, size range, colours, box and where it sits in
+ * the safe zone; a person only writes the words, picks the preset, and may
+ * move it between the zone's three slots. No position, scale or rotation is
+ * stored. `at` is the line's start in output seconds.
+ */
 export type EdlText = {
   id: string;
   at: number;
   end: number;
   text: string;
+  /** What the line is for (SOCIA's guide and learning read it); the look is the preset's. */
   role: "opening" | "mid" | "cta";
-  /** Type size against the role's own (lib/studioClips/overlay.ts picks it from the line's length). Absent = medium. */
+  /** The preset it renders with. Absent on cuts made before presets (Nov 2026): the role picks one (presetForRole). */
+  presetId?: TextPresetId;
+  /** Top, middle or bottom of the safe zone when the person moved it; absent = the preset's own slot. */
+  slot?: TextSlot;
+  /** @deprecated Pre-preset size hint; ignored by the renderer, kept so old cuts still parse. */
   size?: "s" | "m" | "l";
 };
 
