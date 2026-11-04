@@ -288,11 +288,8 @@ export default function AnalyticsV3({ d }: { d: AnalyticsData }) {
 
   return (
     <div className="av">
-      <header className="dv-head">
-        <div>
-          <h1>Analytics</h1>
-          <p>See what happened, understand why, and find what your strategy is missing.</p>
-        </div>
+      {/* The page's own header (app/(app)/analytics/page.tsx) carries the title; this row is the controls. */}
+      <header className="dv-head av-controls">
         <div className="dv-head-actions">
           <Mounted fallback={<span className="ov-ctl-ph" aria-hidden />}>
             <AccountSwitcher />

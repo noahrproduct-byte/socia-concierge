@@ -6,6 +6,7 @@
 // the scale to the typical range, and explains every bucket in a tooltip.
 // Clicking a bucket hands it to the parent for the detail drawer.
 
+import { useChartWidth } from "./useChartWidth";
 import { useEffect, useMemo, useState } from "react";
 import { bucketize, bucketLabel, bucketTitle, detectOutliers, fmtNum, type Series, type Granularity, type Bucket, type Baseline, type PostCard } from "@/lib/overview";
 
@@ -40,6 +41,7 @@ export function driverOf(ids: string[], postById?: Record<string, PostCard>): Po
 export default function OverviewChart({ series, granularity = "day", showPrevious = true, height = 240, compact = false, fitScale, baseline = null, postById, onPick, today, still = false }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [mounted, setMounted] = useState(still);
+  const [box, boxW] = useChartWidth<HTMLDivElement>();
   useEffect(() => {
     if (still) return;
     setMounted(false);
@@ -59,7 +61,7 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
   const base = granularity === "day" ? baseline : null;
 
   const n = cur.length;
-  const W = 1000, H = height;
+  const W = boxW, H = height;
   const padL = 46, padR = 12, padT = 22, padB = 28;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const max = useMemo(() => {
@@ -83,7 +85,8 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
   const barW = Math.max(3, Math.min(30, slot * 0.6));
   const x = (i: number) => padL + i * slot + slot / 2;
   const ticks = 4;
-  const labelEvery = Math.max(1, Math.ceil(n / (compact ? 7 : granularity === "day" ? 10 : 12)));
+  // As many date labels as fit at about 56px each, and never more than the design's count.
+  const labelEvery = Math.max(1, Math.ceil(n / Math.min(compact ? 7 : granularity === "day" ? 10 : 12, Math.max(2, Math.floor(plotW / 56)))));
   const empty = series.provenance === "unavailable" || !cur.some((b) => b.value != null);
   // Breakout labels: neighbouring spikes would overprint, so only the tallest
   // one within a label's width gets the text (the tooltip still says breakout).
@@ -108,7 +111,7 @@ export default function OverviewChart({ series, granularity = "day", showPreviou
   const unit = series.label.toLowerCase();
 
   return (
-    <div className={`ov-chart${empty ? " empty" : ""}`} data-metric={series.metric}>
+    <div ref={box} className={`ov-chart${empty ? " empty" : ""}`} data-metric={series.metric}>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={`${series.label} by ${GRAN_WORD[granularity]}`} className="ov-chart-svg">
         {Array.from({ length: ticks + 1 }, (_, t) => {
           const v = min + ((max - min) / ticks) * t;
