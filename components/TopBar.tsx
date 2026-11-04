@@ -1,11 +1,11 @@
 "use client";
 
-// The floating dock: the brand, six direct section links and All sections,
+// The floating dock: the brand, the five daily destinations and More,
 // then search (the command menu), Ask SOCIA, the bell and the account, in one
 // frosted-glass object centred above the page that stays put while pages
 // change beneath it. It wears the page's tokens, like its portalled popups.
-// On phones the links move into the All sections panel, opened by the menu
-// button.
+// On phones the five move to the bottom tab bar (TabBar, rendered by the
+// shell) and More is the menu button here.
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -16,7 +16,7 @@ import { AskHost } from "@/components/AskSocia";
 import { AlertsBell, type AlertItem } from "@/components/AlertsBell";
 import { CommandMenu, type SearchItem } from "@/components/CommandMenu";
 import MobileSheet from "@/components/MobileSheet";
-import { HeadNav } from "@/components/SideNav";
+import { HeadNav, TabBar } from "@/components/SideNav";
 import { IconButton } from "@/components/system";
 import { activeNavLabel } from "@/lib/nav";
 import type { Activity } from "@/lib/overview";
@@ -62,29 +62,32 @@ export default function TopBar({
   }, []);
 
   return (
-    <header className="s-headbar">
-      <Link href="/dashboard" className="s-brand" aria-label="SOCIA, go to the dashboard">
-        <BrandMark size={24} />
-        <span>SOCIA</span>
-      </Link>
-      <span className="s-headbar-title">{title}</span>
-      <HeadNav onAll={() => setMenu(true)} allOpen={menu} />
-      <div className="s-headbar-tools">
-        {workspace}
-        <button type="button" className="s-search" onClick={() => setCmd(true)} aria-haspopup="dialog" aria-expanded={cmd} aria-label="Search pages, posts and actions" title={`Search (${mod}K)`}>
-          <Search aria-hidden />
-        </button>
-        <AskHost workspaceId={workspaceId} />
-        <AlertsBell alerts={alerts} unread={unread} activity={activity} />
-        <div className="s-headbar-account">{account}</div>
-        <IconButton label="Menu" className="s-headbar-menu" onClick={() => setMenu(true)} aria-haspopup="dialog" aria-expanded={menu}>
-          <MenuIcon />
-        </IconButton>
-      </div>
-      <CommandMenu open={cmd} onOpenChange={setCmd} index={index} />
-      <MobileSheet open={menu} onOpenChange={setMenu}>
-        {sheet}
-      </MobileSheet>
-    </header>
+    <>
+      <header className="s-headbar">
+        <Link href="/dashboard" className="s-brand" aria-label="SOCIA, go to the dashboard">
+          <BrandMark size={24} />
+          <span>SOCIA</span>
+        </Link>
+        <span className="s-headbar-title">{title}</span>
+        <HeadNav onAll={() => setMenu(true)} allOpen={menu} />
+        <div className="s-headbar-tools">
+          {workspace}
+          <button type="button" className="s-search" onClick={() => setCmd(true)} aria-haspopup="dialog" aria-expanded={cmd} aria-label="Search pages, posts and actions" title={`Search (${mod}K)`}>
+            <Search aria-hidden />
+          </button>
+          <AskHost workspaceId={workspaceId} />
+          <AlertsBell alerts={alerts} unread={unread} activity={activity} />
+          <div className="s-headbar-account">{account}</div>
+          <IconButton label="More sections" className="s-headbar-menu" onClick={() => setMenu(true)} aria-haspopup="dialog" aria-expanded={menu}>
+            <MenuIcon />
+          </IconButton>
+        </div>
+        <CommandMenu open={cmd} onOpenChange={setCmd} index={index} />
+        <MobileSheet open={menu} onOpenChange={setMenu}>
+          {sheet}
+        </MobileSheet>
+      </header>
+      <TabBar />
+    </>
   );
 }

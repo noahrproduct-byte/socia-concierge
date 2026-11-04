@@ -42,8 +42,8 @@ describe("activeNavGroup and navIndex", () => {
 });
 
 describe("DOCK", () => {
-  it("links Overview, Analytics, Discover, Plan and Studio directly, each a real section, once", () => {
-    expect(DOCK.map((d) => d.label)).toEqual(["Overview", "Analytics", "Discover", "Plan", "Studio"]);
+  it("links the five daily destinations directly, each a real section, once", () => {
+    expect(DOCK.map((d) => d.label)).toEqual(["Home", "Plan", "Create", "Analytics", "Inbox"]);
     expect(new Set(DOCK.map((d) => d.key)).size).toBe(DOCK.length);
     for (const d of DOCK) expect(NAV.some((n) => n.key === d.key)).toBe(true);
     for (const k of DOCK.flatMap((d) => d.also ?? [])) expect(NAV.some((n) => n.key === k)).toBe(true);
@@ -55,6 +55,7 @@ describe("DOCK", () => {
     expect(dockKeyFor(activeNavKey("/plan"))).toBe("plan");
     expect(dockKeyFor(activeNavKey("/plan/calendar"))).toBe("plan");
     expect(activeNavLabel("/plan/calendar")).toBe("Calendar");
-    expect(dockKeyFor(activeNavKey("/comments"))).toBeNull();
+    expect(dockKeyFor(activeNavKey("/comments"))).toBe("comments");
+    expect(dockKeyFor(activeNavKey("/discover"))).toBeNull();
   });
 });

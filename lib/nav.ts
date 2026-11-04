@@ -36,18 +36,19 @@ export const NAV: NavEntry[] = [
 ];
 
 /**
- * The dock: the destinations the floating headbar links to directly, by their
- * short names (Overview | Analytics | Discover | Plan | Studio, with Ask SOCIA
- * beside them in the headbar). No menus open from it (Noah, 2026-10-28);
- * every other section is one click away in the All sections panel and the
- * command menu. `also` lists sections that light up the same dock item.
+ * The dock: the five daily destinations, linked directly from the floating
+ * headbar on desktop and from the bottom tab bar on phones (redesign brief,
+ * 2026-11-03): Home, Plan, Create, Analytics and Inbox. Discover, Studio,
+ * Reports, the weekly roundup and Settings sit one click deeper, in the More
+ * panel and the command menu. `also` lists sections that light up the same
+ * dock item.
  */
 export const DOCK: { key: string; label: string; also?: string[] }[] = [
-  { key: "dashboard", label: "Overview" },
-  { key: "analytics", label: "Analytics" },
-  { key: "discover", label: "Discover" },
+  { key: "dashboard", label: "Home" },
   { key: "plan", label: "Plan", also: ["calendar"] },
-  { key: "studio", label: "Studio" },
+  { key: "create", label: "Create" },
+  { key: "analytics", label: "Analytics" },
+  { key: "comments", label: "Inbox" },
 ];
 
 /** The dock item a section lights up ("calendar" → "plan"), or null when it isn't on the dock. */

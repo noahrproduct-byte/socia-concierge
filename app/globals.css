@@ -9873,6 +9873,8 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .ask-bubble:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .ask-bubble { transition: none; } .ask-bubble:hover { transform: none; } }
 @media print { .ask-bubble { display: none; } }
+/* Phones: above the bottom tab bar (.s-tabbar in app/styles/shell.css), not on its Inbox tab. */
+@media (max-width: 900px) { .ask-bubble { bottom: calc(var(--control-h-lg) + var(--sp-3) + 16px + env(safe-area-inset-bottom, 0px)); } }
 .ask-new { margin-left: auto; }
 /* Ask SOCIA's schedule proposal (components/ask/ScheduleProposal.tsx) */
 .ask-sched > small { display: flex; align-items: center; gap: 5px; }
