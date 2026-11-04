@@ -11410,6 +11410,14 @@ p.cbm-muted { display: block; }
 .ca-foot { margin-top: 10px; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
 @media (max-width: 560px) { .ca-row { flex-wrap: wrap; } .ca-when input[type="datetime-local"] { min-width: 0; width: 100%; } }
 
+/* Calendar: videos the person's Claude handed in for review (ClaudeWeekReview.tsx) */
+.cwr { margin-bottom: 16px; }
+.cwr-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.cwr-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.cwr-head p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-secondary); }
+.cwr-video { width: 108px; aspect-ratio: 9 / 16; flex-shrink: 0; border-radius: 10px; object-fit: cover; background: var(--panel-dark); }
+@media (max-width: 560px) { .cwr-video { width: 100%; max-width: 220px; } .cwr .ca-body { flex-basis: 100%; } }
+
 /* Competitors: trending accounts and trending Reels in the niche (TrendingNiche.tsx) */
 .cx3 { padding: 18px 20px; margin-top: 16px; }
 .cx3-empty { margin: 4px 0 0; font-size: 13px; color: var(--text-secondary); }

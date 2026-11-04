@@ -10,13 +10,17 @@ import { useEffect, useState } from "react";
 import { Bot, Check, Copy, Loader2, Unplug } from "lucide-react";
 import { ASSISTANT_CLIENTS } from "@/lib/mcp/clients";
 
-type Connection = { id: string; app: string; permissions: string[]; canPublish: boolean; workspaces: string[]; connectedAt: string; lastUsedAt: string | null };
+type Connection = { id: string; app: string; permissions: string[]; canPublish: boolean; canHandIn: boolean; workspaces: string[]; connectedAt: string; lastUsedAt: string | null };
+
+/** What to ask Claude each week (Claude makes the week, lib/claudeWeek). Works with the SOCIA skill installed, and without it. */
+const WEEKLY_PROMPT = "Make my SOCIA videos for this week: call get_videos_to_make, make every video that is to_make or changes_requested exactly as its brief says (made on the computer, no filming), check each one, then hand it in with start_video_upload and submit_video. Tell me what you handed in.";
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Not used yet");
 
 export default function AiAssistants({ mcpUrl }: { mcpUrl: string }) {
   const [state, setState] = useState<{ ready: boolean; connections: Connection[] } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string>("claude");
@@ -35,6 +39,19 @@ export default function AiAssistants({ mcpUrl }: { mcpUrl: string }) {
     const r = await fetch(`/api/integrations/ai?id=${encodeURIComponent(c.id)}`, { method: "DELETE" }).catch(() => null);
     setBusy(null);
     if (!r?.ok) { setError("SOCIA couldn't disconnect it. Try again."); return; }
+    await load();
+  };
+
+  const copyPrompt = async () => {
+    try { await navigator.clipboard.writeText(WEEKLY_PROMPT); setPromptCopied(true); setTimeout(() => setPromptCopied(false), 1600); } catch { /* clipboard blocked */ }
+  };
+
+  const setHandIn = async (c: Connection, review: boolean) => {
+    setBusy(c.id);
+    setError(null);
+    const r = await fetch("/api/integrations/ai", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: c.id, review }) }).catch(() => null);
+    setBusy(null);
+    if (!r?.ok) { setError("SOCIA couldn't change it. Try again."); return; }
     await load();
   };
 
@@ -95,6 +112,10 @@ export default function AiAssistants({ mcpUrl }: { mcpUrl: string }) {
                   <button type="button" className={`cbb-toggle${c.canPublish ? " on" : ""}`} role="switch" aria-checked={c.canPublish} aria-label={`Let ${c.app} publish posts`} disabled={busy === c.id} onClick={() => void setPublish(c, !c.canPublish)}><i /></button>
                   <span>Can publish posts<small>{c.canPublish ? "Creates, schedules and publishes when you ask it to. Paid plans only." : "Read only."}</small></span>
                 </span>
+                <span className="ai-s-pub">
+                  <button type="button" className={`cbb-toggle${c.canHandIn ? " on" : ""}`} role="switch" aria-checked={c.canHandIn} aria-label={`Let ${c.app} add videos for your review`} disabled={busy === c.id || c.canPublish} onClick={() => void setHandIn(c, !c.canHandIn)}><i /></button>
+                  <span>Can add videos for review<small>{c.canPublish ? "Included with publishing." : c.canHandIn ? "Hands in this week's videos; nothing posts until you approve them. Paid plans only." : "Off."}</small></span>
+                </span>
               </span>
               <button type="button" className="btn-secondary sm" disabled={busy === c.id} onClick={() => void disconnect(c)}>
                 {busy === c.id ? <Loader2 size={13} className="cp-spin" /> : <Unplug size={13} />} Disconnect
@@ -104,6 +125,21 @@ export default function AiAssistants({ mcpUrl }: { mcpUrl: string }) {
         </ul>
       )}
       {error && <p className="ai-s-err" role="alert">{error}</p>}
+
+      <div className="ai-s-label">Let Claude make your week</div>
+      <div className="ai-s-steps">
+        <p className="ai-s-muted">When your Growth Profile says your Claude makes your videos, each week&apos;s plan marks the posts for it. Claude makes them on your computer, hands them in, and you approve them on the Calendar. Nothing posts until you do.</p>
+        <ol>
+          <li>Use Claude Code, or the Claude app with code tools on: making a video needs a computer, so Claude on the web can&apos;t do it.</li>
+          <li>Connect SOCIA above, then turn on <b>Can add videos for review</b> for it.</li>
+          <li>Optional, for better videos: download the <a href="/claude/socia-week/SKILL.md" download>SOCIA week skill</a> and put it in a folder named <code>socia-week</code> inside <code>~/.claude/skills</code>.</li>
+          <li>Ask Claude the message below, or schedule it to run every Monday morning (in Claude Code, ask it to schedule the message weekly).</li>
+        </ol>
+        <div className="ai-s-urlrow">
+          <code>{WEEKLY_PROMPT}</code>
+          <button type="button" className="btn-secondary sm" onClick={() => void copyPrompt()}>{promptCopied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}</button>
+        </div>
+      </div>
 
       <div className="ai-s-dev">
         <b>Developer API</b>
