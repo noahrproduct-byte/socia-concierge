@@ -122,6 +122,12 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     parts.push(`You may build planned posts on these formats, adapted to this account and never copied. When a post uses one, name the format and its basis in that post's evidence field (for example "Uses the one-take build format: median 2.1x across 4 niche examples").`);
   }
 
+  if (evidence?.trendsBlock) {
+    parts.push(`\n# Trending in this niche now`);
+    parts.push(evidence.trendsBlock);
+    parts.push(`Use what leads: build some planned posts on a leading hook structure or topic, adapted to this account's own subjects, place and voice. Write each hook fresh; the opening lines above are other people's words, so learn their structure and never reuse their wording. When a post uses a trend, name it and its basis in that post's evidence field (for example "POV opening: median 2.1x across 5 niche Reels from 3 accounts"). Never present another account's result as a prediction for this one, and ignore a group that doesn't lead.`);
+  }
+
   if (evidence?.outcomesBlock) {
     parts.push(`\n# What happened to the last plan`);
     parts.push(evidence.outcomesBlock);

@@ -199,6 +199,8 @@ export type EvidenceUsed = {
   followers: number | null;
   /** Planned posts from earlier plans whose outcome (posted / skipped / result vs median) the strategist was shown. Absent on plans made before outcomes existed. */
   outcomes?: number;
+  /** Recent Reels from the niche the trends (hooks, topics, opening lines) were read from. Absent on plans made before trends existed. */
+  trends?: number;
 };
 
 // A plan saved to the database (one row in the `plans` table).

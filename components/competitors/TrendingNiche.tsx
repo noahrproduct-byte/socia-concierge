@@ -55,7 +55,7 @@ function metricLine(x: { views: number | null; likes: number | null; comments: n
   return [x.likes != null ? `${fmtN(x.likes)} likes` : null, x.comments != null ? `${fmtN(x.comments)} comments` : null].filter(Boolean).join(", ");
 }
 
-function Locked({ what, upgrade }: { what: string; upgrade: string | null }) {
+export function Locked({ what, upgrade }: { what: string; upgrade: string | null }) {
   return (
     <section className="ov-card cx2-card cx3-locked">
       <Lock size={15} aria-hidden />

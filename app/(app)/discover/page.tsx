@@ -4,15 +4,15 @@ import { getViewer } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
 import { igConfigured } from "@/lib/instagram";
 import CompetitorsPage from "@/components/competitors/CompetitorsPage";
-import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, TrendingReel, YouSeriesPoint } from "@/components/competitors/types";
+import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, YouSeriesPoint } from "@/components/competitors/types";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
-import { channelStats, ytConfigured, ytFormat, type YtStats } from "@/lib/youtube";
+import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
 import { buildQueries, discoveryProfileFrom, nameKey } from "@/lib/discovery";
 import { readFormatsDoc } from "@/lib/nicheFormatsLoad";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import { competitorHistoryEnabled, competitorMomentum, type CompetitorPoint } from "@/lib/competitorHistory";
 import { competitorScopeId } from "@/lib/workspaces";
-import { withBaseline, type CompetitorRow, type CompPost, type PostsGate } from "@/lib/competitorIntel";
+import { type CompetitorRow, type PostsGate } from "@/lib/competitorIntel";
 import { igCompetitorRows, type IgCompetitor } from "@/lib/igCompetitorData";
 import { locationTokens, tagsFor } from "@/lib/competitorPatterns";
 import { tagGroup } from "@/lib/discovery";
@@ -21,6 +21,8 @@ import { engagementRateOf, interactionsTotal } from "@/lib/engagement";
 import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 import { trendingAudio, type TrendingAudio } from "@/lib/igAudio";
+import { rankTrendingReels, trendSignals } from "@/lib/trendSignals";
+import { igPosts, ytPosts } from "@/lib/trendSignalsLoad";
 import { getEntitlements, clampDays, maxHistoryDays, getLimit, canUseFeature, upgradeFor } from "@/lib/entitlements";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
 import { listTracked } from "@/lib/trackedCompetitors";
@@ -45,23 +47,6 @@ type Suggested = {
 const CLASS_ORDER: Record<string, number> = {
   local_competitor: 0, direct_competitor: 1, emerging_creator: 2, content_inspiration: 3, niche_leader: 4, adjacent_competitor: 5,
 };
-
-const IG_FORMAT: Record<string, string> = { VIDEO: "Reel", IMAGE: "Photo", CAROUSEL_ALBUM: "Carousel" };
-
-function ytPosts(s: YtStats): CompPost[] {
-  return withBaseline((s.recent ?? []).map((v) => ({
-    url: v.url, title: v.title || null, thumb: v.thumb, views: v.views, likes: v.likes, comments: v.comments,
-    publishedAt: v.publishedAt || null, format: ytFormat(v.durationSec), durationSec: v.durationSec, multiplier: null,
-  })));
-}
-
-function igPosts(c: IgCompetitor): CompPost[] {
-  return (c.media ?? []).map((m) => ({
-    url: m.permalink ?? "", title: m.caption ? m.caption.split("\n")[0].slice(0, 140) : null, thumb: m.thumbnail,
-    views: m.views ?? null, likes: m.likes, comments: m.comments, publishedAt: m.timestamp,
-    format: m.mediaType ? IG_FORMAT[m.mediaType] ?? null : null, durationSec: null, multiplier: null,
-  })).filter((p) => p.url);
-}
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ range?: string; platform?: string; niche_range?: string }> }) {
   const { supabase, user } = await getViewer();
@@ -375,48 +360,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
   // ---- trending Reels in the niche ----------------------------------------
   // Short-form posts from the accounts on this page (Business Discovery for
-  // Instagram, the Data API for YouTube) plus Reels and Shorts discovery found.
-  // "Trending" is relative to the account's OWN median, the only fair
-  // comparison: views for YouTube, and for Instagram views when Business
-  // Discovery returned them for at least three posts, otherwise likes and
-  // comments. Nothing is estimated; a post without a baseline says so.
-  const SHORT = new Set(["Reel", "Short"]);
-  const reelCutoff = now.getTime() - 60 * 86400000;
-  const recent = (iso: string | null) => !iso || new Date(iso).getTime() >= reelCutoff;
-  const reels = new Map<string, TrendingReel>();
-  for (const r of rows) {
-    const shorts = r.posts.filter((p) => p.format && SHORT.has(p.format) && p.url);
-    const inter = (p: { likes: number | null; comments: number | null }) => (p.likes != null || p.comments != null ? (p.likes ?? 0) + (p.comments ?? 0) : null);
-    const base = r.platform === "instagram" ? median(r.posts.map(inter).filter((v): v is number => v != null)) : null;
-    // Instagram views, when Meta returned them for enough of this account's posts.
-    const igViews = r.platform === "instagram" ? r.posts.map((p) => p.views).filter((v): v is number => v != null) : [];
-    const viewBase = igViews.length >= 3 ? median(igViews) : null;
-    for (const p of shorts) {
-      if (!recent(p.publishedAt)) continue;
-      const i = inter(p);
-      const byViews = r.platform === "instagram" && viewBase != null && viewBase > 0 && p.views != null;
-      const multiplier = r.platform === "instagram"
-        ? (byViews ? p.views! / viewBase! : base && base > 0 && i != null && r.posts.length >= 3 ? i / base : null)
-        : p.multiplier;
-      reels.set(p.url, {
-        url: p.url, platform: r.platform, accountName: r.name, accountHandle: r.handle, accountAvatar: r.avatar,
-        title: p.title, thumb: p.thumb, publishedAt: p.publishedAt, views: p.views, likes: p.likes, comments: p.comments,
-        multiplier, basis: r.platform === "instagram" && !byViews ? "likes and comments" : "views", format: p.format!,
-      });
-    }
-  }
-  for (const c of content) {
-    if (!c.format || !SHORT.has(c.format) || reels.has(c.url) || !recent(c.publishedAt)) continue;
-    reels.set(c.url, {
-      url: c.url, platform: c.platform, accountName: c.accountName ?? c.accountHandle ?? "An account in your niche",
-      accountHandle: c.accountHandle, accountAvatar: null, title: c.title, thumb: c.thumb, publishedAt: c.publishedAt,
-      views: c.views, likes: c.likes, comments: c.comments, multiplier: c.multiplier,
-      basis: c.views != null ? "views" : "likes and comments", format: c.format,
-    });
-  }
-  const trendingReels = [...reels.values()]
-    .sort((a, b) => (b.multiplier ?? -1) - (a.multiplier ?? -1) || ((b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0)))
-    .slice(0, 12);
+  // Instagram, the Data API for YouTube) plus Reels and Shorts discovery found,
+  // ranked against each account's OWN median (lib/trendSignals.ts), then the
+  // hook structures, topics and opening lines the ones that beat it share.
+  const allReels = rankTrendingReels(rows.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })), content, now);
+  const trendingReels = allReels.slice(0, 12);
+  const trends = trendSignals(allReels, { loc });
 
   const data: CompetitorsData = {
     connected: Boolean(snap), igConnectHref: igConfigured() ? "/api/auth/instagram/start" : "/settings#accounts",
@@ -427,6 +376,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     // As many trending accounts as the plan tracks (Starter 5), at most 10.
     trendingLimit: Math.max(1, Math.min(10, getLimit(ent, "competitors"))),
     trendingReels,
+    trends,
     audio: await audioP,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
     nicheUpgrade: upgradeFor(ent, "niche_intelligence"),
