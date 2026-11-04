@@ -9,10 +9,11 @@ Severity: **Critical** (data loss, money, security, cannot use the product), **H
 | Phase | State |
 | --- | --- |
 | 1. Signed-out sweep (desktop and phone) | Done: 12 public screens, protected-page redirects, form validation |
-| 1. Signed-in sweep per plan (Free, Starter, Growth, Pro) | **Blocked on a test backend** (see "Blocked") |
+| 1. Signed-in sweep, Pro, read only on production (owner's own account) | Done 2026-11-04: 13 sections at 1280 and 375 wide |
+| 1. Signed-in sweep per plan (Free, Starter, Growth) | **Blocked**: needs a test backend or test accounts on those plans (see "Blocked") |
 | 1. Production runtime errors from Vercel | **Blocked**: the connected Vercel account is not on the SOCIA team |
 | 2. Fixes with a test each | Done for the signed-out findings (QA-01 to QA-05, each with a Playwright check in `e2e/public.spec.ts`) |
-| 3. Rerun, tests, build, push | Pending |
+| 3. Rerun, tests, build, push | Done 2026-11-04: merged with main, unit tests, Playwright signed-out run (both widths), build |
 
 ## How the sweep runs
 
@@ -41,9 +42,19 @@ Checked and fine signed out: every protected path (/dashboard, /studio, /plan, /
 - Full-page screenshots of the landing page are blank at the top: the hero is a scroll-driven stage and Playwright's full-page capture resizes the viewport. A viewport capture shows the hero correctly. Landing screenshots are therefore taken at viewport size.
 - The landing page's example app screens (`.hx-*`) measure wider than the viewport because they are transformed "world pixels" inside a clipped stage; the page itself never scrolls sideways.
 
-### Signed in, per plan
+### Signed in: Pro, read only, on production
 
-Pending the test backend.
+Finished after Umar's handover (he ran out of credits). The owner's own Pro account, read only: each section opened in a frame at 1280 and 375 wide and checked for a non-200 response, failed requests (4xx/5xx), uncaught errors and rejected promises, placeholder text (`undefined`, `NaN`, `[object Object]`), and sideways scrolling. Nothing was clicked, saved, scheduled, published or asked of the AI.
+
+Sections: Dashboard, Analytics, Discover, Content Plan, Calendar, Content Studio (clips, brief and audio modes), Create post, Comments, Contacts, Settings, Weekly roundup, Reports.
+
+| ID | Severity | Screen | What | Steps |
+| --- | --- | --- | --- | --- |
+| QA-08 | Low | Dashboard (both widths) | The tab title was "Dashboard · SOCIA", the only page with a middle dot; every other page reads "<Page> \| SOCIA". | Open /dashboard, look at the tab title. |
+
+Everything else: 200 on every section at both widths, no failed request, no uncaught error or rejected promise, no placeholder text, no sideways scrolling. `/footage` answers 404, but nothing in the app links to it (that feature was never merged), so it is not a finding.
+
+Layout and touch on phones was covered separately the same night (PRs #184 and #186: charts drawn at their real width, 40 px touch targets, 12 px minimum labels, the floating Ask SOCIA bubble hidden at 900 px and below, Analytics' doubled title).
 
 ### Plan gating, from the code
 
@@ -62,23 +73,25 @@ Read while the backend was unavailable; to be confirmed in the browser.
 | QA-03 | Login, Signup, Forgot password and Reset password get their own tab titles through a `layout.tsx` each (the pages are client components); the 404 page carries `Page not found \| SOCIA`; the site-wide default title uses a colon instead of an em dash ("SOCIA: Your AI Social Strategist", also in the share-card title and image alt), and the anti-slop baseline was lowered for the two files. | "QA-03 auth and 404 pages have their own tab titles" |
 | QA-04 | One line above the comparison table, shown only under 760 px: "Swipe sideways to compare every plan." No change to the table. | "QA-04 pricing table says it scrolls on a phone" (also checks the page itself never scrolls sideways) |
 | QA-05 | A missing sign-up link's 404 is titled "Page not found \| SOCIA". | "QA-05 a missing sign-up link is a 404 that says so" |
+| QA-06 | The 404 page uses the site's look: the page ground and ink from the design tokens, the system buttons and the brand mark, no navy screen or gradients. Its title moved from an inline `<title>` (which lost to the site default once the page loaded) to `metadata`. | "QA-06 the 404 page wears the site's look and keeps its title" |
+| QA-08 | The Dashboard's tab title is "Dashboard \| SOCIA". | Read only from production; not reachable signed out. |
 
 ## Still open
 
-None from the signed-out sweep. The signed-in sweep has not run (see "Blocked").
+None. The Pro pass found one Low (QA-08, fixed); Free, Starter and Growth have not been swept signed in (see "Blocked").
 
-## Needs decision
+## Decided
 
-| ID | Severity | What | Why it is not just fixed |
-| --- | --- | --- | --- |
-| QA-06 | Low | The 404 page (`app/not-found.tsx`) is a dark navy screen with gradient buttons, unlike every other page (light theme, no gradients per `docs/design/anti-slop-standard.md`). | Restyling it to the light theme is a design change, which this sweep was told not to make. |
-| QA-07 | Low | The default tab and share-card title now reads "SOCIA: Your AI Social Strategist" (was an em dash). | The punctuation follows the repo's copy rule, but the title itself is brand copy; say if a different wording is wanted. |
+| ID | Decision |
+| --- | --- |
+| QA-06 | Fixed (see above): the anti-slop standard is a release gate, and the navy, gradient 404 broke it. |
+| QA-07 | Kept: "SOCIA: Your AI Social Strategist". The colon follows the repo's copy rule (no em dashes in user-facing text); the wording itself is unchanged. |
 
 ## Blocked
 
-1. **Test backend.** No test Supabase project is reachable from this machine: the connected Supabase account's spare project (`eczhzmuiufokmtdgjqlx`, inactive) could not be restored under the current permissions, there is no Docker or Homebrew for a local `supabase start`, and the production project must not be used. The signed-in sweep, the four plan accounts, onboarding, Studio flows, scheduling, Ask SOCIA, Settings, billing and limits all wait on this.
-2. **Stripe test mode.** No `STRIPE_*` keys are available locally. Checkout, promotion codes, upgrades, downgrades, the Customer Portal and the webhook cannot be exercised until test-mode keys are in `.env.local`.
-3. **AI features.** No `ANTHROPIC_API_KEY` locally: Ask SOCIA, ideas, the Studio raters and captions will show their "unavailable" states, which is itself tested, but not their working paths.
+1. **Test backend, for the other plans.** The Pro pass ran read only on production with the owner's own account. Free, Starter and Growth still need either a test Supabase project (restore `eczhzmuiufokmtdgjqlx`, run `supabase start` with Docker, or put a test project's URL and keys in `.env.local`) or test accounts on those plans for `e2e/app.spec.ts` (`QA_FREE_EMAIL` / `QA_FREE_PASSWORD` and the Starter and Growth pairs). Flows that write (onboarding, Studio builds, scheduling, Ask SOCIA questions, billing changes, limits and meters) were deliberately not exercised on production.
+2. **Stripe test mode.** No `STRIPE_*` keys are available locally. Live checkout was tested end to end by Noah on 2026-11-03 (a test account bought Starter; checkout and both webhook calls answered 200), and `/api/admin/billing-check` reports ready in live mode. Promotion codes (SOCIA50, SOCIAFREE), upgrades, downgrades and the Customer Portal still need a test-mode run.
+3. **AI features.** No `ANTHROPIC_API_KEY` locally: Ask SOCIA, ideas, the Studio raters and captions show their "unavailable" states locally. On production the video ideas writer was run for real on 2026-11-03 (two BetaTwin batches).
 4. **Production runtime errors.** The Vercel MCP account connected to this session has no teams, so Noah's project logs cannot be read from here.
 
 ## Numbers
@@ -88,4 +101,4 @@ None from the signed-out sweep. The signed-in sweep has not run (see "Blocked").
 | Critical | 0 | 0 | 0 |
 | High | 0 | 0 | 0 |
 | Medium | 0 | 0 | 0 |
-| Low | 0 | 5 | 2 |
+| Low | 0 | 7 | 0 |

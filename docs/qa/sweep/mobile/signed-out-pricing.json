@@ -8,6 +8,10 @@
     {
       "kind": "layout",
       "detail": "elements wider than the viewport: table.pr-table (right edge 657px); thead (right edge 657px); tr (right edge 657px); th (right edge 424px); span.pr-th-name (right edge 412px)"
+    },
+    {
+      "kind": "link",
+      "detail": "/ answers 500"
     }
   ],
   "consoleErrors": [],

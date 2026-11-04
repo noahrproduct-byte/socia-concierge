@@ -45,7 +45,7 @@ import { engagementRateOf } from "@/lib/engagement";
 import { goalPostsPerWeek } from "@/lib/metrics";
 import { GOAL_PLATFORM_NAME, formatGoalValue, goalMetric, goalProgress, type GoalPlatform } from "@/lib/growth";
 
-export const metadata = { title: "Dashboard · SOCIA" };
+export const metadata = { title: "Dashboard | SOCIA" };
 
 // The dashboard answers: what should I do today, and how am I doing across
 // EVERY connected platform, not just Instagram. Every figure is computed from
