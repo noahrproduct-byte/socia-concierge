@@ -137,14 +137,20 @@
   outline: 2px solid var(--accent);
   outline-offset: 0;
 }
-.s-hnav-all {
-  width: var(--control-h);
-  padding: 0;
+.s-hnav-more {
+  gap: var(--sp-1);
   margin-left: var(--sp-1);
 }
-.s-hnav-all svg {
+.s-hnav-more svg {
   width: 16px;
   height: 16px;
+}
+
+/* ---- the phone tab bar: the dock's five, pinned to the foot of the screen ------
+   Hidden on desktop, where the dock links them. The current tab is ink with a
+   short blue rule above it, the dock's own marker turned upright. */
+.s-tabbar {
+  display: none;
 }
 .s-hnav-indicator {
   position: absolute;
@@ -811,8 +817,60 @@ html[data-ws-switching]::after {
   }
 }
 
-/* ---- tablets and phones: the links move into the All sections panel -------------- */
+/* ---- tablets and phones: the five move to the tab bar, More is the menu button --- */
 @media (max-width: 900px) {
+  .s-shell {
+    padding-bottom: calc(var(--control-h-lg) + var(--sp-3) + env(safe-area-inset-bottom));
+  }
+  .s-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    height: calc(var(--control-h-lg) + var(--sp-3) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .s-tab {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    color: var(--ink-3);
+    font-size: var(--fs-meta);
+    line-height: var(--lh-meta);
+    font-weight: var(--fw-medium);
+    text-decoration: none;
+    transition: color var(--t-press) var(--ease-out);
+  }
+  .s-tab svg {
+    width: 20px;
+    height: 20px;
+  }
+  .s-tab[data-current] {
+    color: var(--ink);
+  }
+  .s-tab[data-current]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 30%;
+    right: 30%;
+    height: 2px;
+    border-radius: var(--r-pill);
+    background: var(--chart-series);
+  }
+  .s-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
   .s-headbar {
     top: var(--sp-3);
     width: auto;

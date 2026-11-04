@@ -1,12 +1,13 @@
 "use client";
 
-// The section links. HeadNav is the floating dock's navigation: six
-// destinations linked directly (no menus), a selection surface that glides
-// to the current one and takes its width, and an All sections button that
+// The section links. HeadNav is the floating dock's navigation: the five
+// daily destinations linked directly (no menus), a selection surface that
+// glides to the current one and takes its width, and a More button that
 // opens the panel with everything else. When the current page is not on the
-// dock, the surface rests on that button instead. SideNav is the full list,
-// grouped, for that panel. The shell lives in a layout that stays mounted
-// across navigations, so what is current is derived from the URL here.
+// dock, the surface rests on More instead. TabBar is the same five on phones,
+// pinned to the bottom of the screen. SideNav is the full list, grouped, for
+// the More panel. The shell lives in a layout that stays mounted across
+// navigations, so what is current is derived from the URL here.
 
 import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -17,6 +18,8 @@ import {
   Clapperboard,
   ClipboardList,
   FileBarChart,
+  House,
+  Inbox,
   LayoutDashboard,
   LayoutGrid,
   LifeBuoy,
@@ -43,15 +46,24 @@ const ICONS: Record<string, LucideIcon> = {
   settings: Settings,
 };
 
+/** The dock's icons, for the phone tab bar: by dock key, in the dock's words. */
+const DOCK_ICONS: Record<string, LucideIcon> = {
+  dashboard: House,
+  plan: ClipboardList,
+  create: PenLine,
+  analytics: BarChart3,
+  comments: Inbox,
+};
+
 const ALL = "all";
 
-/** The dock's navigation: direct links, one gliding selection surface, and the All sections button. */
+/** The dock's navigation: direct links, one gliding selection surface, and the More button. */
 export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolean }) {
   const pathname = usePathname();
   const activeKey = activeNavKey(pathname);
   const dockKey = dockKeyFor(activeKey);
   const onDock = dockKey != null;
-  // Off the dock (Comments, Settings...), the surface marks All sections.
+  // Off the dock (Discover, Studio, Settings...), the surface marks More.
   const target = onDock ? dockKey : activeKey ? ALL : null;
   const root = useRef<HTMLElement>(null);
   const items = useRef<Record<string, HTMLElement | null>>({});
@@ -108,18 +120,18 @@ export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolea
         <li>
           <button
             type="button"
-            className="s-hnav-link s-hnav-all"
+            className="s-hnav-link s-hnav-more"
             ref={(el) => {
               items.current[ALL] = el;
             }}
             onClick={onAll}
             aria-haspopup="dialog"
             aria-expanded={allOpen}
-            aria-label={onDock ? "All sections" : `All sections, current: ${NAV.find((n) => n.key === activeKey)?.label ?? "none"}`}
-            title="All sections"
+            aria-label={onDock ? "More sections" : `More sections, current: ${NAV.find((n) => n.key === activeKey)?.label ?? "none"}`}
             data-current={(!onDock && activeKey != null) || undefined}
           >
             <LayoutGrid aria-hidden />
+            <span>More</span>
           </button>
         </li>
       </ul>
@@ -127,7 +139,35 @@ export function HeadNav({ onAll, allOpen }: { onAll: () => void; allOpen: boolea
   );
 }
 
-/** The same sections for the phone sheet, one group after another. */
+/** The five daily destinations on phones: a tab bar pinned to the bottom of the screen. */
+export function TabBar() {
+  const pathname = usePathname();
+  const activeKey = activeNavKey(pathname);
+  const dockKey = dockKeyFor(activeKey);
+  return (
+    <nav className="s-tabbar" aria-label="Main">
+      {DOCK.map((d) => {
+        const n = NAV.find((x) => x.key === d.key)!;
+        const Icon = DOCK_ICONS[d.key] ?? ICONS[d.key];
+        const current = dockKey === d.key;
+        return (
+          <Link
+            key={d.key}
+            href={n.href}
+            className="s-tab"
+            aria-current={activeKey === d.key ? "page" : current ? "true" : undefined}
+            data-current={current || undefined}
+          >
+            <Icon aria-hidden />
+            <span>{d.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Every section for the More panel, one group after another. */
 export function SideNav({ counts }: { counts?: Partial<Record<string, number>> }) {
   const active = activeNavKey(usePathname());
   return (
