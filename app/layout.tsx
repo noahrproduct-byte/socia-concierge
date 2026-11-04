@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 import ThemeScript from "@/components/ThemeScript";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { Analytics } from "@vercel/analytics/next";
+import SiteAnalytics from "@/components/SiteAnalytics";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -54,8 +54,9 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
-        {/* Vercel Web Analytics: page views and visitors, cookieless, served from SOCIA's own address. */}
-        <Analytics />
+        {/* Vercel Web Analytics: page views and visitors, cookieless, served from SOCIA's own address.
+            Browsers opened once with ?dont-count-me are left out (components/SiteAnalytics.tsx). */}
+        <SiteAnalytics />
       </body>
     </html>
   );
