@@ -1,6 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
+import { OFFLINE_LABEL } from "@/lib/platformStatus";
 
 // The platforms SOCIA really connects, each through its own OAuth flow. There
 // is no "register" toggle: a platform is either connected (read from the
@@ -65,6 +66,8 @@ export type ConnectState = {
   href: string | null;
   /** The connected account's name or handle, or null when not connected. */
   connectedAs: string | null;
+  /** Why this platform can't be connected right now (lib/platformStatus.ts); no Connect button then. */
+  offline?: string | null;
 };
 
 export default function ConnectAccounts({ states }: { states: ConnectState[] }) {
@@ -81,14 +84,16 @@ export default function ConnectAccounts({ states }: { states: ConnectState[] }) 
               <small className={`conn-status${st.connectedAs ? " on" : ""}`}>
                 {st.connectedAs
                   ? `Connected as ${st.connectedAs}`
-                  : st.href
-                    ? "Not connected"
-                    : "Not available on this site yet"}
+                  : st.offline
+                    ? `${OFFLINE_LABEL}. ${st.offline}`
+                    : st.href
+                      ? "Not connected"
+                      : "Not available on this site yet"}
               </small>
             </span>
             {st.connectedAs ? (
               <Check size={16} className="conn-done" aria-label="Connected" />
-            ) : st.href ? (
+            ) : st.offline ? null : st.href ? (
               <a className="conn-btn" href={st.href}>Connect</a>
             ) : null}
           </li>

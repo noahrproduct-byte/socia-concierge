@@ -12,6 +12,7 @@ import { fmtRate, SOURCE_LABEL } from "@/lib/competitorRollup";
 import type { Comparison as Cmp } from "@/lib/similarCompetitor";
 import type { CompetitorRow, Learning, Reason } from "@/lib/competitorIntel";
 import { Avatar, PlatformMark, cellText, classLabel, fmtN, platName } from "./shared";
+import { offlineReason } from "@/lib/platformStatus";
 
 const fmtC = (unit: Cmp["unit"], v: number) => (unit === "pct" ? fmtRate(v, true) : unit === "perWeek" ? `${v.toFixed(1)}/wk` : fmtN(v));
 
@@ -48,7 +49,7 @@ export function ProfileBar({ r, similarity, igEnabled, onTrack, tracking, notice
           Momentum: collecting
         </span>
       ) : null}
-      {gated && (
+      {gated && !offlineReason("facebook") && (
         <a href="/api/auth/facebook/start" className="cx2-gate-chip" title={`${platName(r.platform)} shares competitor numbers only through a linked Facebook Page.`}>
           <Link2 size={11} /> Unlock data
         </a>

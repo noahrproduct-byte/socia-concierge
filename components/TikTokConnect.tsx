@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
+import { OFFLINE_LABEL } from "@/lib/platformStatus";
 
 const TT_LOGO = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" aria-hidden>
@@ -23,6 +24,7 @@ export default function TikTokConnect({
   avatar,
   paused = false,
   canPublishDirect = false,
+  offline = null,
 }: {
   /** OAuth outcome from ?tt= (connected/denied/noprofile/error/notconfigured/limit). */
   status?: string;
@@ -35,6 +37,8 @@ export default function TikTokConnect({
   paused?: boolean;
   /** True when the grant includes video.publish (posts go live directly); otherwise uploads land in the TikTok inbox. */
   canPublishDirect?: boolean;
+  /** Why new TikTok connections aren't open (lib/platformStatus.ts); no Connect then. */
+  offline?: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -95,6 +99,8 @@ export default function TikTokConnect({
             <small className="st2-ig-off">
               Paused by your plan{displayName ? <> ({displayName})</> : null}. Choose which accounts stay active in Plan &amp; billing.
             </small>
+          ) : offline ? (
+            <small className="st2-ig-off">{OFFLINE_LABEL}. {offline}</small>
           ) : configured ? (
             <small className="st2-ig-off">
               Not connected. Link your account to bring in your videos and stats, and schedule posts from the Studio.
@@ -112,7 +118,7 @@ export default function TikTokConnect({
             <button className="st2-btn danger" type="button" onClick={disconnect} disabled={busy}>
               {busy ? <Loader2 size={14} className="spin" /> : "Disconnect"}
             </button>
-          ) : configured ? (
+          ) : configured && !offline ? (
             <a className="st2-connect" href="/api/auth/tiktok/start">
               Connect <ArrowRight size={13} />
             </a>

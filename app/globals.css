@@ -3438,6 +3438,50 @@ a.hub-card:hover {
 .ob-reading h1 { font-size: var(--fs-display); line-height: var(--lh-display); color: var(--ink); margin: var(--sp-4) 0 var(--sp-2); }
 .ob-reading p { font-size: var(--fs-body); max-width: 46ch; margin: 0 auto; }
 
+/* The read, revealed (ReadReveal.tsx): one orchestrated moment when SOCIA
+   finishes reading a new account. A scale draws and sweeps; each tick is one
+   post read, lit as the sweep passes; the follower count rises through a mask
+   (final value from the first frame); facts land, the niche wipes in. */
+.rv { padding-top: var(--sp-2); }
+.rv-who { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-medium); color: var(--ink-2); outline: none; animation: rv-fade 500ms var(--ease-out) both; }
+.rv-hero { margin: var(--sp-2) 0 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); }
+.rv-num { display: inline-flex; font-size: clamp(64px, 13vw, 144px); line-height: 0.9; font-weight: var(--fw-semibold); letter-spacing: -0.045em; font-variant-numeric: tabular-nums; color: var(--ink); }
+.rv-digit { display: inline-block; overflow: hidden; padding-bottom: 0.04em; }
+.rv-digit > span { display: inline-block; animation: rv-rise 900ms var(--ease-out) both; animation-delay: calc(250ms + var(--i) * 45ms); }
+.rv-unit { font-size: var(--fs-body); color: var(--ink-3); animation: rv-fade 500ms var(--ease-out) 750ms both; }
+.rv-scale { position: relative; margin: var(--sp-8) 0 0; padding-top: var(--sp-3); }
+.rv-scale::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--ink); transform-origin: left; animation: rv-draw 1100ms var(--ease-move) 150ms both; }
+.rv-sweep { position: absolute; top: -8px; bottom: 22px; left: 0; width: 2px; margin-left: -1px; background: var(--accent); animation: rv-sweep 1100ms var(--ease-move) 150ms both; }
+.rv-ticks { display: flex; gap: var(--sp-4); }
+.rv-group { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; color: var(--ink); }
+.rv-group.g1 { color: var(--accent); }
+.rv-group.g2 { color: var(--ink-3); }
+.rv-group-ticks { display: flex; align-items: flex-end; justify-content: space-between; gap: 3px; height: 44px; }
+.rv-group-ticks i { flex: 0 0 3px; height: 62%; border-radius: 1px; background: currentColor; transform-origin: bottom; animation: rv-tick 420ms var(--ease-out) both; animation-delay: calc(150ms + var(--t) * 1000ms / var(--n)); }
+.rv-group-ticks i:first-child { height: 100%; }
+.rv-group-label { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: rv-fade 400ms var(--ease-out) 1150ms both; }
+.rv-facts { list-style: none; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); margin: var(--sp-6) 0 0; padding: 0; }
+.rv-facts li { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); animation: rv-up 500ms var(--ease-out) both; animation-delay: calc(1250ms + var(--i) * 110ms); }
+.rv-facts li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+.rv-niche { margin: var(--sp-8) 0 0; font-size: clamp(28px, 4.6vw, 46px); line-height: 1.08; font-weight: var(--fw-semibold); letter-spacing: -0.025em; color: var(--ink); text-wrap: balance; }
+.rv-niche span { position: relative; display: inline-block; padding-bottom: 6px; animation: rv-wipe 900ms var(--ease-move) 1550ms both; }
+.rv-niche span::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--accent); transform-origin: left; animation: rv-draw 700ms var(--ease-out) 2250ms both; }
+.rv-themes { list-style: none; display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-5) 0 0; padding: 0; }
+.rv-themes li { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); animation: rv-up 450ms var(--ease-out) both; animation-delay: calc(2000ms + var(--i) * 90ms); }
+.rv-themes b { color: var(--ink); font-weight: var(--fw-medium); }
+.rv-go { margin-top: var(--sp-8); animation: rv-fade 500ms var(--ease-out) 2300ms both; }
+@keyframes rv-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rv-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes rv-rise { from { transform: translateY(105%); } to { transform: none; } }
+@keyframes rv-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes rv-sweep { 0% { left: 0; opacity: 1; } 88% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
+@keyframes rv-tick { from { transform: scaleY(0.12); opacity: 0.2; } to { transform: none; opacity: 1; } }
+@keyframes rv-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .rv, .rv *, .rv *::before, .rv *::after { animation: none !important; }
+  .rv-sweep { display: none; }
+}
+
 /* what SOCIA read, and how sure it is */
 .ob-facts { list-style: none; margin: 0 0 var(--sp-5); padding: 0; border: 1px solid var(--border); border-radius: var(--r-panel); background: var(--surface); }
 .ob-facts li { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); padding: var(--sp-3); border-top: 1px solid var(--border); font-size: var(--fs-body); line-height: var(--lh-body); }

@@ -18,6 +18,7 @@ export function brandVoiceFrom(profile: ProfileLike, workspaceName: string | nul
   // description and the words or topics to avoid. There is no "tone" field.
   const voice = str(bd.voice);
   const avoid = str(bd.avoid);
-  const notesParts = [voice ? `Voice: ${voice}` : null, str(bd.description), str(profile?.goals), avoid ? `Never mention: ${avoid}` : null].filter((s): s is string => Boolean(s));
+  const website = str(bd.website);
+  const notesParts = [voice ? `Voice: ${voice}` : null, str(bd.description), website ? `Website: ${website}` : null, str(profile?.goals), avoid ? `Never mention: ${avoid}` : null].filter((s): s is string => Boolean(s));
   return { name, niche, location, notes: notesParts.length ? notesParts.join(" · ").slice(0, 600) : null };
 }

@@ -9,6 +9,7 @@ import { Clock, Info, Link2, PieChart } from "lucide-react";
 import type { CompetitorRow, GroupedPatterns } from "@/lib/competitorIntel";
 import { Donut, Heatmap, postingGrid } from "./viz";
 import { fmtDate, fmtN } from "./shared";
+import { OFFLINE_LABEL, offlineReason } from "@/lib/platformStatus";
 
 export function gateText(r: CompetitorRow): string {
   switch (r.postsGate) {
@@ -28,7 +29,7 @@ function Gate({ r, height = 150 }: { r: CompetitorRow; height?: number }) {
       <div className="cx2-locked-cta">
         <Link2 size={13} />
         <p>{gateText(r)}</p>
-        {r.postsGate === "connection_needed" && <a href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</a>}
+        {r.postsGate === "connection_needed" && !offlineReason("facebook") && <a href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</a>}
       </div>
     </div>
   );
@@ -48,9 +49,9 @@ export function ContentUnlock({ r }: { r: CompetitorRow }) {
         <span className="cx2-unlock-ico"><Link2 size={16} /></span>
         <div className="cx2-unlock-copy">
           <b>Unlock {r.name}&apos;s content intelligence</b>
-          <p>{gateText(r)} One connection unlocks their format mix, posting rhythm and top posts.</p>
+          <p>{gateText(r)} {r.postsGate === "connection_needed" && offlineReason("facebook") ? `Connecting Facebook unlocks their format mix, posting rhythm and top posts; it's ${OFFLINE_LABEL.toLowerCase()}.` : "One connection unlocks their format mix, posting rhythm and top posts."}</p>
         </div>
-        {r.postsGate === "connection_needed" && <a href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</a>}
+        {r.postsGate === "connection_needed" && !offlineReason("facebook") && <a href="/api/auth/facebook/start" className="ov-btn primary small">Connect Facebook</a>}
       </div>
       <div className="cx2-unlock-feats" aria-hidden>
         <span><PieChart size={12} /> Format mix</span>

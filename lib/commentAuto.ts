@@ -1,8 +1,11 @@
 // Automatic comment replies, opt-in per brand (Growth and up). Every 30
 // minutes (supabase/comment-auto-cron.sql) SOCIA reads new comments for the
 // brands that turned it on, drafts replies (lib/commentDrafts.ts, classifying
-// each one), and sends only the short friendly ones: praise, thanks, an emoji.
-// Questions, complaints and anything sensitive stay in the inbox for a person.
+// each one), and sends praise replies and answers to questions it can answer from
+// the brand profile (or an invitation to DM).
+// Complaints and anything sensitive stay in the inbox for a person. Brands
+// without automatic replies still get their new comments read and drafted on
+// every run (syncAllBrandComments), so the inbox is current when someone opens it.
 // Only comments made after the switch was turned on, from the last three days,
 // at most HOURLY_CAP replies an hour per brand. Needs supabase/comment-auto.sql.
 //
@@ -103,7 +106,52 @@ export async function autoReplyBrand(svc: Supa, ownerId: string, workspaceId: st
   return out;
 }
 
-export type AutoRun = { brands: number; ran: number; sent: number; failed: number; notEntitled: number; errors: number; outOfTime: number };
+export type AutoRun = { brands: number; ran: number; sent: number; failed: number; notEntitled: number; errors: number; outOfTime: number; inboxesSynced?: number };
+
+type BrandKey = { user_id: string; workspace_id: string | null };
+
+/** Every brand with Facebook or Instagram connected (one per workspace), for the inbox refresh. */
+async function connectedBrands(svc: Supa): Promise<BrandKey[]> {
+  const out = new Map<string, BrandKey>();
+  for (const table of ["instagram_connections", "facebook_connections"]) {
+    for (const cols of ["user_id, workspace_id, plan_suspended_at", "user_id, workspace_id", "user_id"]) {
+      const { data, error } = await svc.from(table).select(cols);
+      if (error) continue;
+      for (const r of (data ?? []) as { user_id: string; workspace_id?: string | null; plan_suspended_at?: string | null }[]) {
+        if (r.plan_suspended_at) continue;
+        const k = { user_id: r.user_id, workspace_id: r.workspace_id ?? null };
+        out.set(`${k.user_id}:${k.workspace_id ?? NONE}`, k);
+      }
+      break;
+    }
+  }
+  return [...out.values()];
+}
+
+/**
+ * Brands without automatic replies: read new comments and draft replies, so
+ * the inbox is current, without sending anything. Same plan gate and the same
+ * per-sync draft cap as opening the inbox.
+ */
+async function syncAllBrandComments(svc: Supa, skip: Set<string>, plans: Map<string, boolean>, deadline: number): Promise<number> {
+  let synced = 0;
+  for (const b of await connectedBrands(svc)) {
+    if (Date.now() > deadline) break;
+    if (skip.has(`${b.user_id}:${b.workspace_id ?? NONE}`)) continue;
+    try {
+      if (!plans.has(b.user_id)) plans.set(b.user_id, canUseFeature(await getEntitlements(svc, b.user_id), "comment_replies"));
+      if (!plans.get(b.user_id)) continue;
+      const ws = b.workspace_id ? (await workspacesByIds(svc, [b.workspace_id])).get(b.workspace_id) ?? null : null;
+      if (ws?.suspended) continue;
+      const profile = await getProfile(svc, b.user_id, ws && !ws.isDefault ? ws : null);
+      await syncCommentDrafts(svc, b.user_id, b.workspace_id, brandVoiceFrom(profile, ws?.name ?? null), { classify: true });
+      synced++;
+    } catch (e) {
+      console.error("[comment-sync]", (e as Error)?.message ?? e);
+    }
+  }
+  return synced;
+}
 
 /** Every brand with automatic replies on, within the time budget. */
 export async function runAutoReplies(svc: Supa, now = new Date(), budgetMs = 240_000): Promise<AutoRun> {
@@ -114,6 +162,7 @@ export async function runAutoReplies(svc: Supa, now = new Date(), budgetMs = 240
   const rows = (data ?? []) as { user_id: string; workspace_id: string | null; enabled_at: string | null }[];
   out.brands = rows.length;
   const plans = new Map<string, boolean>();
+  const autoBrands = new Set(rows.map((r) => `${r.user_id}:${r.workspace_id ?? NONE}`));
   for (const r of rows) {
     if (Date.now() > deadline) { out.outOfTime++; continue; }
     try {
@@ -128,5 +177,7 @@ export async function runAutoReplies(svc: Supa, now = new Date(), budgetMs = 240
       console.error("[comment-auto]", (e as Error)?.message ?? e);
     }
   }
+  // Then every other brand's inbox, with whatever time is left.
+  out.inboxesSynced = await syncAllBrandComments(svc, autoBrands, plans, deadline);
   return out;
 }

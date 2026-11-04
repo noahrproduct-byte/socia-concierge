@@ -24,6 +24,7 @@ import PlanNotice from "@/components/PlanNotice";
 import { Choices } from "./growth/GrowthFields";
 import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
+import ReadReveal from "./ReadReveal";
 
 /** A platform's ?<key>= return code from its OAuth callback, in words. */
 const RETURN_ERRORS: Record<string, string> = {
@@ -84,6 +85,8 @@ export default function OnboardingFlow({
   const [step, setStep] = useState<Step>(initial.step);
   const [understanding, setUnderstanding] = useState<Understanding | null>(g0.understanding ?? null);
   const [reading, setReading] = useState(false);
+  // The finished read, revealed once before the form (ReadReveal.tsx).
+  const [revealing, setRevealing] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [planError, setPlanError] = useState<PlanError | null>(null);
 
@@ -149,6 +152,7 @@ export default function OnboardingFlow({
       } else if (j?.understanding) {
         setUnderstanding(j.understanding);
         seedFrom(j.understanding);
+        if ((j.understanding as Understanding).facts?.length) setRevealing(true);
       }
     } catch {
       setReadError("SOCIA couldn't read your accounts just now.");
@@ -309,6 +313,8 @@ export default function OnboardingFlow({
             <h1 ref={headRef} tabIndex={-1}>Reading your accounts</h1>
             <p>SOCIA is reading your profile and recent posts on {connected.join(", ")} to work out what the account is about.</p>
           </div>
+        ) : revealing && u ? (
+          <ReadReveal understanding={u} onContinue={() => setRevealing(false)} />
         ) : (
           <div className="ob-stage" key={step}>
             {step === "connect" && (

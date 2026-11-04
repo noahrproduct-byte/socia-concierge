@@ -55,7 +55,9 @@ export type FbSnapshot = {
   };
 };
 
-const STALE_MS = 6 * 60 * 60 * 1000;
+// Same freshness as Instagram (lib/instagramSync.ts): pages refresh a Page older
+// than this, and the background job (lib/igSyncJob.ts) keeps every Page within it.
+const STALE_MS = 30 * 60 * 1000;
 const BASE = `https://graph.facebook.com/${FB_GRAPH_V}`;
 
 function caps(posts: FbPost[], followers: number | null): FbSnapshot["capabilities"] {

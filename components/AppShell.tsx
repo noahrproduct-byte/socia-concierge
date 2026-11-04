@@ -19,6 +19,7 @@ import { PLANS, nextPlan, pricingHref, type PlanId } from "@/lib/plans";
 import { buildActivity, displayTitle, type Activity } from "@/lib/overview";
 import { getAlerts, unreadAlertCount } from "@/lib/alerts";
 import type { ScheduledPost } from "@/lib/scheduling";
+import { offlineReason } from "@/lib/platformStatus";
 
 // One quiet line per step up, read from the plan config so the numbers never
 // drift from what the plan actually includes. Only built features are named.
@@ -129,9 +130,10 @@ export default async function AppShell({ children }: { children: React.ReactNode
   // platform is not configured on this deployment).
   const accounts: ShellAccount[] = [
     { platform: "instagram", label: igUsername ? `@${igUsername}` : "Instagram", connected: Boolean(igUsername), href: igUsername ? "/settings#accounts" : igConfigured() ? "/api/auth/instagram/start" : "/settings#accounts" },
-    { platform: "facebook", label: fbPageName ?? "Facebook", connected: Boolean(fbPageName), href: fbPageName ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts" },
+    // Facebook and TikTok aren't open to new connections yet (lib/platformStatus.ts): Settings says why.
+    { platform: "facebook", label: fbPageName ?? "Facebook", connected: Boolean(fbPageName), offline: !fbPageName && Boolean(offlineReason("facebook")), href: fbPageName || offlineReason("facebook") ? "/settings#accounts" : fbConfigured() ? "/api/auth/facebook/start" : "/settings#accounts" },
     { platform: "youtube", label: ytTitle ?? "YouTube", connected: Boolean(ytTitle), href: ytTitle ? "/settings#accounts" : ytAuthConfigured() ? "/api/auth/youtube/start" : "/settings#accounts" },
-    { platform: "tiktok", label: ttName ?? "TikTok", connected: Boolean(ttName), href: "/settings#accounts" },
+    { platform: "tiktok", label: ttName ?? "TikTok", connected: Boolean(ttName), offline: !ttName && Boolean(offlineReason("tiktok")), href: "/settings#accounts" },
   ];
 
   // The All sections panel: the Brand Workspace, every section, the plan and the account.

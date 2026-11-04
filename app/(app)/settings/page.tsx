@@ -57,6 +57,8 @@ import { recordStartingPoints } from "@/lib/briefingLoad";
 import type { GoalPlatform } from "@/lib/growth";
 import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
 import { Briefcase } from "lucide-react";
+import { offlineReason } from "@/lib/platformStatus";
+import { isAdminEmail } from "@/lib/admin";
 
 export const metadata = { title: "Settings | SOCIA" };
 
@@ -460,6 +462,7 @@ export default async function SettingsPage({
                 pendingPages={fbPages}
                 posts={Array.isArray(fbConn?.media) ? (fbConn!.media as FbPost[]).slice(0, 5) : []}
                 paused={pausedOn("facebook")}
+                offline={isAdminEmail(user.email) ? null : offlineReason("facebook")}
               />
               <div className="st2-divider"><span>YouTube</span></div>
               <YouTubeConnect
@@ -482,6 +485,7 @@ export default async function SettingsPage({
                 avatar={ttConn?.avatar_url ?? null}
                 paused={pausedOn("tiktok")}
                 canPublishDirect={ttDirect}
+                offline={isAdminEmail(user.email) ? null : offlineReason("tiktok")}
               />
             </section>
 

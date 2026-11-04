@@ -59,11 +59,11 @@ const POSTS_PER_PLATFORM = 10;
 /** One reply suggestion, in the brand's voice. Short, human, specific to the
  *  comment; never promotional spam, never a promise the brand can't keep. */
 /** A suggested reply, or the suggestion not to reply at all. `auto` (only when
- *  classifying, for automatic replies): a short friendly reply is all it needs. */
+ *  classifying, for automatic replies): it can go out without a person. */
 export type Drafted = { text: string | null; skip: boolean; auto?: boolean };
 
-/** The longest reply SOCIA sends without a person: one short sentence. */
-export const AUTO_REPLY_MAX = 120;
+/** The longest reply SOCIA sends without a person: one line, room for a short answer to a question. */
+export const AUTO_REPLY_MAX = 220;
 
 /** Read the model's output. Pure. NO_REPLY anywhere means "don't reply", so a
  *  note meant for the brand can never end up as the reply text. When
@@ -121,12 +121,15 @@ Comment: ${comment.text.slice(0, 600)}`;
   }
 }
 
-/** Added when the brand replies automatically (lib/commentAuto.ts): the drafter says whether the reply can go out without a person. */
+/** Added when the brand replies automatically (lib/commentAuto.ts): the drafter says whether the reply can go out without a person.
+ *  Praise and answerable questions go out; complaints and anything sensitive wait for a person. */
 const AUTO_RULES = `
 
-This brand replies to simple comments automatically. Start your output with AUTO: or REVIEW:, then the reply.
-- AUTO: only when a short, friendly reply is all the comment needs: praise, thanks, an emoji or reaction, tagging a friend, a simple "love this". The reply is one short sentence, under 100 characters, warm and plain. No questions back, no offers, no facts.
-- REVIEW: anything a person should check: a question (prices, opening hours, availability, orders, bookings, how-to), a complaint or criticism, anything negative, sensitive, personal or legal, or when you are unsure.
+This brand replies to comments automatically. Start your output with AUTO: or REVIEW:, then the reply.
+- AUTO: praise, thanks, an emoji or reaction, tagging a friend, a simple "love this": one short, warm sentence.
+- AUTO: a question, when the answer is in the facts above (the brand, its location, website and notes) or in the post caption: answer it plainly in one or two short sentences, using only those facts. When the answer isn't there, reply warmly and invite them to send a DM so the team can help. Never guess a price, time, date, stock level or promise.
+- REVIEW: a complaint or criticism, anything negative or angry, a problem with an order, a booking, a refund or a delivery, anything about health, safety, money owed, legal matters or personal details, or when you are unsure. A person answers these.
+- An AUTO reply is one line, under 220 characters, with no links, no discounts and no offers.
 - Spam stays exactly NO_REPLY, with no prefix.`;
 
 /** A platform whose comments could not (all) be read, or SOCIA itself ("socia")
