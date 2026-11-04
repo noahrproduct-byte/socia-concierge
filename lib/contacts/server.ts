@@ -70,7 +70,8 @@ export async function saveRules(client: Supa, ownerId: string, wsId: string | nu
 
 // --------------------------------------------------------------- comments ----
 
-export type SyncResult = { added: number; updated: number; comments: number; problem: string | null };
+/** problem: why some posts couldn't be read; postsFailed of postsChecked. */
+export type SyncResult = { added: number; updated: number; comments: number; problem: string | null; postsChecked?: number; postsFailed?: number };
 
 /** Record the authors of these Instagram comments as contacts, with their comments as events. */
 export async function recordCommenters(client: Supa, ownerId: string, wsId: string | null, comments: SocialComment[], rules: ContactRule[]): Promise<Omit<SyncResult, "problem">> {
@@ -148,7 +149,7 @@ export async function syncContacts(client: Supa, ownerId: string, wsId: string |
   const read = await fetchInstagramComments(client, ownerId, media, PER_POST, wsId);
   const rules = await readRules(client, ownerId, wsId);
   const r = await recordCommenters(client, ownerId, wsId, read.comments, rules);
-  return { ...r, problem: read.postsFailed > 0 ? read.problem : null };
+  return { ...r, problem: read.postsFailed > 0 ? read.problem : null, postsChecked: read.postsChecked, postsFailed: read.postsFailed };
 }
 
 // ------------------------------------------------------------ the list ----
