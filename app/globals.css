@@ -9882,6 +9882,10 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .ask-msg.assistant > p { font-size: 13px; line-height: 1.5; color: var(--text-primary); }
 .ask-answer { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .ask-text { font-size: 13.5px; line-height: 1.5; color: var(--text-primary); }
+.ask-draft { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 10px 0; background: var(--surface-muted); }
+.ask-draft-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ask-draft-head small { font-size: 12px; font-weight: 650; color: var(--text-secondary); }
+.ask-draft pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13.5px; line-height: 1.55; color: var(--text-primary); }
 .ask-answer .ov-why-block { margin: 0; }
 .ask-post { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-muted); text-decoration: none; color: var(--text-primary); }
 .ask-post img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }

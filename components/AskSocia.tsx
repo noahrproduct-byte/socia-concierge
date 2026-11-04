@@ -96,6 +96,15 @@ function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onPr
   return (
     <div className="ask-answer">
       {a.text && <p className="ask-text">{a.text}</p>}
+      {a.draft && (
+        <div className="ask-draft">
+          <div className="ask-draft-head">
+            <small>{a.draft.title}</small>
+            <button type="button" className="ov-btn ghost small" onClick={() => void copy(a.draft!.body)}>{copied === a.draft.body ? "Copied" : "Copy"}</button>
+          </div>
+          <pre>{a.draft.body}</pre>
+        </div>
+      )}
       {a.observed.length > 0 && <div className="ov-why-block"><small>Observed</small><ul>{a.observed.map((o, i) => <li key={i}>{o}</li>)}</ul></div>}
       {a.post && (
         <a className="ask-post" href={a.post.permalink ?? "#"} target={a.post.permalink ? "_blank" : undefined} rel="noreferrer">
@@ -228,7 +237,8 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
       if (!r.ok) { setPlanError(r.planError); return; }
       const a = r.answer;
       if (r.usage) setUsage(r.usage);
-      setMessages([...next, { role: "assistant", content: a.text, answer: a }]);
+      // Keep what SOCIA wrote in the chat turn, so "make it shorter" can see it.
+      setMessages([...next, { role: "assistant", content: a.draft ? `${a.text}\n\n${a.draft.title}:\n${a.draft.body}` : a.text, answer: a }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "SOCIA couldn't answer right now.");
     } finally { setBusy(false); setLive(null); }
