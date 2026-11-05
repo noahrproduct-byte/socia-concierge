@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 import { scopeToWorkspace } from "@/lib/workspaces";
+import { canUseFeature, getEntitlements } from "@/lib/entitlements";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { fetchInstagramComments, type SocialComment } from "@/lib/comments";
 import {
@@ -241,6 +242,18 @@ export async function saveSignupPage(client: Supa, ownerId: string, wsId: string
   return toPage((data ?? [])[0] as PageRow);
 }
 
+/** The most contacts one owner can hold: a sign-up page can't fill the table without end. */
+export const CONTACTS_MAX = 20000;
+
+/** A page only takes sign-ups while its owner's plan includes contacts. */
+async function ownerHasContacts(svc: Supa, ownerId: string): Promise<boolean> {
+  try {
+    return canUseFeature(await getEntitlements(svc, ownerId), "contacts");
+  } catch {
+    return false;
+  }
+}
+
 /** The public view of an active sign-up page, by address. */
 export async function publicSignupPage(slug: string): Promise<(SignupPage & { brand: string | null }) | null> {
   const s = cleanSlug(slug);
@@ -248,7 +261,7 @@ export async function publicSignupPage(slug: string): Promise<(SignupPage & { br
   if (!s || !svc) return null;
   const { data } = await svc.from("signup_pages").select(`${PAGE_COLS}, user_id, workspace_id`).eq("slug", s).eq("active", true).limit(1);
   const row = (data ?? [])[0] as PageRow | undefined;
-  if (!row) return null;
+  if (!row || !row.user_id || !(await ownerHasContacts(svc, row.user_id))) return null;
   let brand: string | null = null;
   if (row.workspace_id) {
     const { data: ws } = await svc.from("workspaces").select("name").eq("id", row.workspace_id).limit(1);
@@ -270,7 +283,7 @@ export async function submitSignup(slug: string, input: { email?: unknown; handl
   if (!s || !svc) return { ok: false, error: "This page isn't available." };
   const { data } = await svc.from("signup_pages").select("id, slug, ask_handle, tag, user_id, workspace_id").eq("slug", s).eq("active", true).limit(1);
   const page = (data ?? [])[0] as (PageRow & { user_id: string }) | undefined;
-  if (!page) return { ok: false, error: "This page isn't available." };
+  if (!page || !(await ownerHasContacts(svc, page.user_id))) return { ok: false, error: "This page isn't available." };
   const email = normalizeEmail(input.email);
   if (!email) return { ok: false, error: "Enter a valid email address." };
   if (input.consent !== true) return { ok: false, error: "Tick the box to agree before signing up." };
@@ -281,22 +294,31 @@ export async function submitSignup(slug: string, input: { email?: unknown; handl
 
   const scoped = <T,>(q: T): T => (ws ? (q as unknown as { eq: (c: string, v: string) => T }).eq("workspace_id", ws) : (q as unknown as { is: (c: string, v: null) => T }).is("workspace_id", null));
   const find = async (col: "handle" | "email", value: string) => {
-    const base = svc.from("contacts").select("id, tags").eq("user_id", owner);
+    const base = svc.from("contacts").select("id, tags, email").eq("user_id", owner);
     const { data: rows } = await scoped(col === "handle" ? base.eq("platform", "instagram").eq("handle", value) : base.is("handle", null).eq("email", value)).limit(1);
-    return ((rows ?? [])[0] as { id: string; tags: string[] | null } | undefined) ?? null;
+    return ((rows ?? [])[0] as { id: string; tags: string[] | null; email: string | null } | undefined) ?? null;
   };
-  const found = handle ? await find("handle", handle) : await find("email", email);
+  // A typed handle is unverified, so it joins the commenter contact only when
+  // that contact has no email yet, or the same one. An existing email is never
+  // replaced from this public form: a different one becomes its own contact.
+  const byHandle = handle ? await find("handle", handle) : null;
+  const joinHandle = Boolean(byHandle && (!byHandle.email || byHandle.email === email));
+  // A new handle starts its own contact, as before; a taken one falls back to the email.
+  const found = joinHandle ? byHandle : handle && !byHandle ? null : await find("email", email);
   let id: string;
   if (found) {
     id = found.id;
     await svc.from("contacts").update({ email, consent_at: now, tags: cleanTags([...(found.tags ?? []), ...tags]), last_seen: now, updated_at: now }).eq("id", id);
   } else {
+    const { count } = await svc.from("contacts").select("id", { count: "exact", head: true }).eq("user_id", owner);
+    if ((count ?? 0) >= CONTACTS_MAX) return { ok: false, error: "This page isn't taking sign-ups just now." };
+    const newHandle = byHandle ? null : handle;
     const { data: ins, error } = await svc.from("contacts").insert({
-      user_id: owner, workspace_id: ws, platform: handle ? "instagram" : null, handle, email, consent_at: now, tags, first_seen: now, last_seen: now,
+      user_id: owner, workspace_id: ws, platform: newHandle ? "instagram" : null, handle: newHandle, email, consent_at: now, tags, first_seen: now, last_seen: now,
     }).select("id").single();
     if (error) {
       // Signed up twice at the same moment: the first row stands.
-      const again = handle ? await find("handle", handle) : await find("email", email);
+      const again = newHandle ? await find("handle", newHandle) : await find("email", email);
       if (!again) return { ok: false, error: "SOCIA couldn't save that. Try again." };
       id = again.id;
     } else id = (ins as { id: string }).id;

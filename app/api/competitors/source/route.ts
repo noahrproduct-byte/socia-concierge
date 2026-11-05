@@ -7,6 +7,8 @@ import { businessDiscovery } from "@/lib/igBusinessDiscovery";
 import { researchConfigured, researchConnection } from "@/lib/igResearch";
 import { trendingAudio, resetAudioMemo } from "@/lib/igAudio";
 import { connectionWorkspaceId } from "@/lib/workspaces";
+import { perUserLimit } from "@/lib/rateLimit";
+import { isAdminEmail } from "@/lib/admin";
 
 export const runtime = "nodejs";
 
@@ -15,7 +17,9 @@ export const runtime = "nodejs";
 // account SOCIA saved for it, what Facebook says is linked right now (or the
 // error it gives), and whether SOCIA's research account (lib/igResearch.ts) is
 // found, plus one real test lookup with Meta's own error text when it fails.
-// Read only; tokens never leave the server. Owner and admins only.
+// Read only; tokens never leave the server. Owner and admins only, a few times
+// an hour: each check makes real Meta calls, possibly on SOCIA's shared
+// research account, whose quota every customer relies on.
 
 type Row = { page_id?: string | null; page_name?: string | null; ig_business_username?: string | null; ig_business_id?: string | null; access_token?: string | null; connection_status?: string | null };
 
@@ -41,6 +45,8 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
   if (!can(ctx, "manage_workspace")) return NextResponse.json({ error: forbiddenCopy("manage_workspace") }, { status: 403 });
+  const limited = await perUserLimit(ctx.ownerId, "source_probe", 6, "connection checks");
+  if (limited) return limited;
 
   // The owner sees all their Pages (any of them can ask Business Discovery,
   // like igConnection); an Admin invited to one brand sees only that brand's.
@@ -69,9 +75,10 @@ export async function GET() {
     testLookup: probe ? (probe.ok ? { ok: true, followers: probe.account.followers, recentViews: probe.account.media.map((m) => m.views) } : { ok: false, reason: probe.reason, meta: probe.detail ?? null }) : null,
     pages,
     research: { configured: researchConfigured(), found: Boolean(await researchConnection()) },
-    // A fresh trending-audio read (cache skipped), with Meta's words on failure.
+    // A trending-audio read with Meta's words on failure. Only SOCIA's admins
+    // skip the shared cache: emptying it costs every customer a fresh read.
     audio: await (async () => {
-      resetAudioMemo();
+      if (isAdminEmail(user.email)) resetAudioMemo();
       const a = await trendingAudio(ctx.client, ctx.ownerId);
       return a.status === "ok" ? { ok: true, music: a.music.length, sounds: a.sounds.length, first: a.music[0]?.title ?? a.sounds[0]?.title ?? null } : { ok: false, reason: a.reason, meta: a.detail ?? null };
     })(),
