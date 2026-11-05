@@ -14,10 +14,11 @@
 import { getEntitlements, canUseFeature } from "./entitlements";
 import { getProfile } from "./profile";
 import { brandVoiceFrom } from "./commentBrand";
-import { AUTO_REPLY_MAX, sendCommentDraft, syncCommentDrafts, type CommentDraft } from "./commentDrafts";
+import { AUTO_REPLY_MAX, autoSafe, sendCommentDraft, syncCommentDrafts, type CommentDraft } from "./commentDrafts";
 import { SUGGEST_SKIP } from "./commentDraftFlags";
 import { workspacesByIds, isMissingColumnError } from "./workspaces";
 import { rateHit } from "./oauth/runtime";
+import { aiBudgetDenied } from "./aiSpend";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -66,7 +67,7 @@ export function pickAutoSends(drafts: (CommentDraft & { auto_ok?: boolean | null
   const since = Math.max(enabledAt ? Date.parse(enabledAt) : Infinity, now.getTime() - FRESH_MS);
   return drafts
     .filter((d) => d.status === "drafted" && d.auto_ok === true && !d.sent_automatically && d.error !== SUGGEST_SKIP)
-    .filter((d) => typeof d.draft === "string" && d.draft.trim().length > 0 && d.draft.trim().length <= AUTO_REPLY_MAX && !/\n/.test(d.draft))
+    .filter((d) => typeof d.draft === "string" && d.draft.trim().length > 0 && d.draft.trim().length <= AUTO_REPLY_MAX && !/\n/.test(d.draft) && autoSafe(d.draft.trim()))
     .filter((d) => {
       const t = d.comment_created_at ? Date.parse(d.comment_created_at) : NaN;
       return Number.isFinite(t) && t >= since;
@@ -106,7 +107,18 @@ export async function autoReplyBrand(svc: Supa, ownerId: string, workspaceId: st
   return out;
 }
 
-export type AutoRun = { brands: number; ran: number; sent: number; failed: number; notEntitled: number; errors: number; outOfTime: number; inboxesSynced?: number };
+export type AutoRun = { brands: number; ran: number; sent: number; failed: number; notEntitled: number; overBudget?: number; errors: number; outOfTime: number; inboxesSynced?: number };
+
+/** Whether an owner's brands may be drafted for this run: the plan includes comment replies, and the owner is under the monthly AI ceiling (lib/aiSpend.ts), since every new comment is a model call. Read once per owner per run. */
+type Allowed = "ok" | "plan" | "budget";
+async function allowedFor(svc: Supa, ownerId: string, cache: Map<string, Allowed>): Promise<Allowed> {
+  const hit = cache.get(ownerId);
+  if (hit) return hit;
+  const ent = await getEntitlements(svc, ownerId);
+  const v: Allowed = !canUseFeature(ent, "comment_replies") ? "plan" : (await aiBudgetDenied(ownerId, ent)) ? "budget" : "ok";
+  cache.set(ownerId, v);
+  return v;
+}
 
 type BrandKey = { user_id: string; workspace_id: string | null };
 
@@ -130,17 +142,16 @@ async function connectedBrands(svc: Supa): Promise<BrandKey[]> {
 
 /**
  * Brands without automatic replies: read new comments and draft replies, so
- * the inbox is current, without sending anything. Same plan gate and the same
- * per-sync draft cap as opening the inbox.
+ * the inbox is current, without sending anything. Same plan gate, AI ceiling
+ * and per-sync draft cap as opening the inbox.
  */
-async function syncAllBrandComments(svc: Supa, skip: Set<string>, plans: Map<string, boolean>, deadline: number): Promise<number> {
+async function syncAllBrandComments(svc: Supa, skip: Set<string>, plans: Map<string, Allowed>, deadline: number): Promise<number> {
   let synced = 0;
   for (const b of await connectedBrands(svc)) {
     if (Date.now() > deadline) break;
     if (skip.has(`${b.user_id}:${b.workspace_id ?? NONE}`)) continue;
     try {
-      if (!plans.has(b.user_id)) plans.set(b.user_id, canUseFeature(await getEntitlements(svc, b.user_id), "comment_replies"));
-      if (!plans.get(b.user_id)) continue;
+      if ((await allowedFor(svc, b.user_id, plans)) !== "ok") continue;
       const ws = b.workspace_id ? (await workspacesByIds(svc, [b.workspace_id])).get(b.workspace_id) ?? null : null;
       if (ws?.suspended) continue;
       const profile = await getProfile(svc, b.user_id, ws && !ws.isDefault ? ws : null);
@@ -161,13 +172,14 @@ export async function runAutoReplies(svc: Supa, now = new Date(), budgetMs = 240
   if (error) return out;
   const rows = (data ?? []) as { user_id: string; workspace_id: string | null; enabled_at: string | null }[];
   out.brands = rows.length;
-  const plans = new Map<string, boolean>();
+  const plans = new Map<string, Allowed>();
   const autoBrands = new Set(rows.map((r) => `${r.user_id}:${r.workspace_id ?? NONE}`));
   for (const r of rows) {
     if (Date.now() > deadline) { out.outOfTime++; continue; }
     try {
-      if (!plans.has(r.user_id)) plans.set(r.user_id, canUseFeature(await getEntitlements(svc, r.user_id), "comment_replies"));
-      if (!plans.get(r.user_id)) { out.notEntitled++; continue; }
+      const allowed = await allowedFor(svc, r.user_id, plans);
+      if (allowed === "plan") { out.notEntitled++; continue; }
+      if (allowed === "budget") { out.overBudget = (out.overBudget ?? 0) + 1; continue; }
       const b = await autoReplyBrand(svc, r.user_id, r.workspace_id, r.enabled_at, now);
       out.ran++;
       out.sent += b.sent;
