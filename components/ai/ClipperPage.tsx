@@ -5,25 +5,37 @@ import { Loader2, Scissors } from "lucide-react";
 import { CLIP_LENGTHS, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipperOptions } from "@/lib/clipper/provider";
 import { clipCredits } from "@/lib/credits/config";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinutes, CreditsLine, StatusChip, MediaCard } from "./shared";
+import type { ClipRender } from "@/lib/clipper/server";
+import ClipRenderCard from "./ClipRenderCard";
 
 type Job = { id: string; status: "queued" | "processing" | "done" | "failed" | "cancelled"; source_kind: string; source_url: string; source_minutes: number; credits_reserved: number; credits_charged: number | null; error: string | null; created_at: string; options: ClipperOptions };
-type Clip = { id: string; title: string | null; score: number | null; score_reason: string | null; duration_ms: number | null; caption: string | null; hashtags: string[]; playUrl: string | null; downloadUrl: string | null; transcript: string | null };
+type Clip = { id: string; title: string | null; score: number | null; score_reason: string | null; duration_ms: number | null; caption: string | null; hashtags: string[]; playUrl: string | null; downloadUrl: string | null; transcript: string | null; render?: ClipRender | null };
 type Source = "youtube" | "upload" | "url";
 
 const fmtDur = (ms: number | null) => (ms == null ? "" : `${Math.round(ms / 1000)} s`);
 const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-export default function ClipperPage({ initialBalance, canMutate }: { initialBalance: number | null; canMutate: boolean }) {
+/**
+ * sociaReady: SOCIA's own clipper takes uploads (transcribed, picked, made in
+ * this browser). vizardReady: YouTube and direct links go to Vizard when its
+ * key is set; otherwise only uploads are offered.
+ */
+export default function ClipperPage({ initialBalance, canMutate, sociaReady, vizardReady }: { initialBalance: number | null; canMutate: boolean; sociaReady: boolean; vizardReady: boolean }) {
   const [balance, setBalance] = useState<number | null>(initialBalance);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [clipsByJob, setClipsByJob] = useState<Record<string, Clip[]>>({});
   const [open, setOpen] = useState<string | null>(null);
+  // A made clip whose crop is being changed.
+  const [recrop, setRecrop] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   // The measured price, waiting for a second press (not an error).
   const [priceNote, setPriceNote] = useState<string | null>(null);
 
-  const [source, setSource] = useState<Source>("youtube");
+  const sources: Source[] = [...(sociaReady || !vizardReady ? (["upload"] as Source[]) : []), ...(vizardReady ? (["youtube", "upload", "url"] as Source[]).filter((x) => !(sociaReady && x === "upload")) : [])];
+  const [source, setSource] = useState<Source>(sources[0]);
+  // Who clips the chosen source, for its price: SOCIA for uploads when it can, else Vizard.
+  const provider = source === "upload" && sociaReady ? "socia" : "vizard";
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   // The uploaded copy of `file`, so confirming the real price doesn't upload it twice.
@@ -33,7 +45,7 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
 
-  const price = typeof minutes === "number" && minutes > 0 ? clipCredits(minutes, opts.clipModel) : null;
+  const price = typeof minutes === "number" && minutes > 0 ? clipCredits(minutes, opts.clipModel, provider) : null;
 
   const loadJob = useCallback(async (id: string) => {
     const r = await api<{ job: Job; clips: Clip[] }>(`/api/clipper/jobs/${id}`);
@@ -103,7 +115,7 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
       <section className="ai-panel">
         <div className="ai-panel-head"><Scissors size={16} aria-hidden /><h2>New clips</h2></div>
         <div className="ai-tabs" role="tablist">
-          {(["youtube", "upload", "url"] as Source[]).map((s) => (
+          {sources.length > 1 && sources.map((s) => (
             <button key={s} type="button" role="tab" aria-selected={source === s} className={`ai-tab${source === s ? " is-on" : ""}`} onClick={() => { setSource(s); setErr(null); setPriceNote(null); setMinutes(""); }}>
               {s === "youtube" ? "YouTube link" : s === "upload" ? "Upload a file" : "Direct video link"}
             </button>
@@ -135,16 +147,16 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
             <span>Clip length</span>
             <div className="ai-chips">
               {CLIP_LENGTHS.map((l) => (
-                <button key={l.id} type="button" className={`ai-chip${opts.lengths.includes(l.id) ? " is-on" : ""}`} aria-pressed={opts.lengths.includes(l.id)} onClick={() => (l.id === "auto" ? setOpts((o) => ({ ...o, lengths: ["auto"] })) : toggleLength(l.id))}>{l.label}</button>
+                <button key={l.id} type="button" className={`ai-chip${opts.lengths.includes(l.id) ? " is-on" : ""}`} aria-pressed={opts.lengths.includes(l.id)} onClick={() => (l.id === "auto" ? setOpts((o) => ({ ...o, lengths: ["auto"] })) : toggleLength(l.id))}>{l.id === "auto" && provider === "socia" ? "Let SOCIA decide" : l.label}</button>
               ))}
             </div>
           </div>
           <label className="ai-check"><input type="checkbox" checked={opts.captions} onChange={(e) => setOpts((o) => ({ ...o, captions: e.target.checked }))} /> Captions on the clips</label>
           <label className="ai-check"><input type="checkbox" checked={opts.headline} onChange={(e) => setOpts((o) => ({ ...o, headline: e.target.checked }))} /> A headline on each clip</label>
-          <label className="ai-check"><input type="checkbox" checked={opts.clipModel === "clip_v2"} onChange={(e) => setOpts((o) => ({ ...o, clipModel: e.target.checked ? "clip_v2" : "clip_v1" }))} /> Newer clipping model (costs a quarter more)</label>
+          {provider === "vizard" && <label className="ai-check"><input type="checkbox" checked={opts.clipModel === "clip_v2"} onChange={(e) => setOpts((o) => ({ ...o, clipModel: e.target.checked ? "clip_v2" : "clip_v1" }))} /> Newer clipping model (costs a quarter more)</label>}
         </div>
         <CreditsLine balance={balance} price={price} label={price == null ? undefined : "This will use"} />
-        {price == null && <p className="ai-note">SOCIA reads the video&apos;s length and shows the price before anything is spent: {clipCredits(1, opts.clipModel)} credits a minute.</p>}
+        {price == null && <p className="ai-note">SOCIA reads the video&apos;s length and shows the price before anything is spent: {provider === "socia" ? `${clipCredits(1, opts.clipModel, "socia")} credits for a 1-minute video, ${clipCredits(10, opts.clipModel, "socia")} for 10 minutes, ${clipCredits(60, opts.clipModel, "socia")} for an hour` : `${clipCredits(1, opts.clipModel)} credits a minute`}.</p>}
         <p className="ai-rights">Only clip videos you own or have the rights to use. SOCIA does not check ownership.</p>
         {progress != null && <progress className="ai-progress" value={progress} max={1} />}
         {priceNote && <p className="ai-note" role="status">{priceNote}</p>}
@@ -159,7 +171,7 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
 
       <section className="ai-panel">
         <div className="ai-panel-head"><h2>Your jobs</h2>{loading && <Loader2 size={14} className="spin" aria-hidden />}</div>
-        {!loading && jobs.length === 0 && <p className="ai-empty">No clips yet. Paste a YouTube link above to make the first ones.</p>}
+        {!loading && jobs.length === 0 && <p className="ai-empty">No clips yet. {sources.includes("upload") ? "Upload a video" : "Paste a YouTube link"} above to make the first ones.</p>}
         <ul className="ai-jobs">
           {jobs.map((j) => (
             <li key={j.id} className={`ai-job${open === j.id ? " is-open" : ""}`}>
@@ -172,10 +184,15 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
               {j.status === "done" && j.error && <p className="ai-note">{j.error}</p>}
               {open === j.id && j.status === "done" && (
                 <div className="ai-grid">
-                  {(clipsByJob[j.id] ?? []).map((c) => (
+                  {(clipsByJob[j.id] ?? []).map((c) => c.render && (!c.playUrl || recrop === c.id) ? (
+                    <ClipRenderCard key={c.id} id={c.id} title={c.title ?? "Clip"} render={c.render} headline={j.options?.headline !== false} canMutate={canMutate}
+                      sub={`${fmtDur(c.duration_ms)}${c.score != null ? `, score ${c.score}/10` : ""}`} why={c.score_reason}
+                      onRendered={() => { setRecrop(null); void loadJob(j.id); }} onCancel={c.playUrl ? () => setRecrop(null) : undefined} />
+                  ) : (
                     <MediaCard key={c.id} kind="clip" id={c.id} title={c.title ?? "Clip"} isVideo playUrl={c.playUrl} downloadUrl={c.downloadUrl} caption={c.caption ?? ""} hashtags={c.hashtags ?? []} canMutate={canMutate}
                       sub={<>{fmtDur(c.duration_ms)}{c.score != null && <> · score {c.score}/10</>}</>}>
                       {c.score_reason && <details className="ai-why"><summary>Why this score</summary><p>{c.score_reason}</p></details>}
+                      {c.render && canMutate && <button type="button" className="ai-act is-quiet" onClick={() => setRecrop(c.id)}>Change the crop</button>}
                     </MediaCard>
                   ))}
                   {!clipsByJob[j.id] && <p className="ai-note"><Loader2 size={14} className="spin" aria-hidden /> Loading clips</p>}

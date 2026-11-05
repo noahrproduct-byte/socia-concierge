@@ -75,7 +75,7 @@ export const FAST_MODEL = process.env.ANTHROPIC_MODEL_FAST || "claude-sonnet-5-5
  * The EDL pass defaults to the fast model because its output is validated and
  * snapped deterministically afterwards (lib/studioClips/edl.ts).
  */
-export type ModelTask = "default" | "fast" | "studio_clip" | "studio_batch" | "studio_edl" | "caption" | "ask";
+export type ModelTask = "default" | "fast" | "studio_clip" | "studio_batch" | "studio_edl" | "caption" | "ask" | "clipper_pick";
 export function modelFor(task: ModelTask): string {
   switch (task) {
     case "fast": return FAST_MODEL;
@@ -84,6 +84,8 @@ export function modelFor(task: ModelTask): string {
     case "studio_edl": return process.env.ANTHROPIC_MODEL_STUDIO_EDL || FAST_MODEL;
     case "caption": return process.env.ANTHROPIC_MODEL_CAPTION || MODEL;
     case "ask": return process.env.ANTHROPIC_MODEL_ASK || FAST_MODEL;
+    // Picking the moments of a long video is the judgement the clipper is sold on.
+    case "clipper_pick": return process.env.ANTHROPIC_MODEL_CLIPPER_PICK || MODEL;
     default: return MODEL;
   }
 }

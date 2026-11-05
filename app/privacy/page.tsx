@@ -176,10 +176,11 @@ export default function PrivacyPage() {
           this data is not used to train its models.
         </li>
         <li>
-          <b>AssemblyAI</b>: speech-to-text for videos you analyze, caption or
-          build from. For a video you analyze or caption, the audio file is
-          deleted from our storage as soon as the transcript is back; for Build
-          from Clips it is kept with the clip&apos;s footage and deleted with it.
+          <b>AssemblyAI</b>: speech-to-text for videos you analyze, caption,
+          build from or clip. For a video you analyze or caption, the audio file
+          is deleted from our storage as soon as the transcript is back; for
+          Build from Clips it is kept with the clip&apos;s footage and deleted
+          with it; for the AI Clipper it is kept as described below.
         </li>
         <li>
           <b>ElevenLabs</b>: makes the original music tracks in a video&apos;s
@@ -297,6 +298,11 @@ export default function PrivacyPage() {
           AI assistant sign-in tokens expire after an hour (renewal tokens
           after 30 days) and are removed within a week of expiring; the log of
           an assistant&apos;s requests is kept for 180 days.
+        </li>
+        <li>
+          A long video you upload to the AI Clipper is kept for 14 days, so its
+          clips can be made in your browser and cropped again, then deleted. Its
+          transcript and the clips you make stay until you remove the job.
         </li>
         <li>
           Changing to a smaller plan never deletes your data: anything beyond

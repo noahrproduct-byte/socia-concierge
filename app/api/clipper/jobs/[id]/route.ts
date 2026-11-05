@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     let job = await loadClipJob(r.ctx.client, r.ctx.ownerId, id);
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     job = await refreshClipJob(job);
-    const clips = job.status === "done" ? await loadClips(r.ctx.client, r.ctx.ownerId, job.id) : [];
+    const clips = job.status === "done" ? await loadClips(r.ctx.client, r.ctx.ownerId, job.id, job) : [];
     return NextResponse.json({ job, clips });
   } catch (e) {
     return aiErrorResponse("clipper/jobs/[id]", e);

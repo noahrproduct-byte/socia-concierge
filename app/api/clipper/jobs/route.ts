@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     const job = await createClipJob(r.ctx, { source, minutes, options });
     recordEvent(r.ctx.client, r.ctx.ownerId, "ai_usage", { feature: "clipper_job", minutes: job.source_minutes, credits: job.credits_reserved });
     const balance = await creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null);
-    return NextResponse.json({ job, balance, price: clipCredits(job.source_minutes, options.clipModel) });
+    return NextResponse.json({ job, balance, price: clipCredits(job.source_minutes, options.clipModel, job.provider === "socia" ? "socia" : "vizard") });
   } catch (e) {
     if (e instanceof PriceCheckError) return NextResponse.json({ error: e.message, code: e.code, minutes: e.minutes, price: e.price }, { status: 409 });
     return aiErrorResponse("clipper/jobs", e);

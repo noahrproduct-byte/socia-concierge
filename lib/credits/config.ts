@@ -48,6 +48,18 @@ export const CLIP_SOURCE_USD_PER_MINUTE = 0.05;
 /** clip_v2 is billed by Vizard at 1.25x clip_v1. */
 export const CLIP_MODEL_FACTOR: Record<"clip_v1" | "clip_v2", number> = { clip_v1: 1, clip_v2: 1.25 };
 
+/**
+ * SOCIA's own clipper (lib/clipper/socia.ts): transcription at about $0.21 an
+ * hour (lib/aiSpend.ts) plus Claude reading the transcript, per source minute,
+ * and a fixed part per job for the pick's answer and the captions. The
+ * person's browser renders the clips, so there is no render cost. Placeholders
+ * until measured on the first real jobs, like the provider prices above.
+ */
+export const SOCIA_CLIP_USD_PER_MINUTE = 0.01;
+export const SOCIA_CLIP_USD_PER_JOB = 0.1;
+
+export type ClipProviderName = "socia" | "vizard";
+
 export type GenerationKind = "text_to_video" | "image_to_video" | "text_to_image";
 
 /**
@@ -118,8 +130,9 @@ export function modelById(id: string): GenerationModel | null {
 const toCredits = (usd: number) => Math.max(1, Math.ceil((usd * MARGIN) / CREDIT_USD));
 
 /** Credits to clip a source video of `minutes` minutes. Rounded up to the whole minute, as Vizard bills. */
-export function clipCredits(minutes: number, model: "clip_v1" | "clip_v2" = "clip_v1"): number {
+export function clipCredits(minutes: number, model: "clip_v1" | "clip_v2" = "clip_v1", provider: ClipProviderName = "vizard"): number {
   const whole = Math.max(1, Math.ceil(minutes));
+  if (provider === "socia") return toCredits(SOCIA_CLIP_USD_PER_JOB + whole * SOCIA_CLIP_USD_PER_MINUTE);
   return toCredits(whole * CLIP_SOURCE_USD_PER_MINUTE * CLIP_MODEL_FACTOR[model]);
 }
 
