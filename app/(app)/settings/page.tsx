@@ -41,7 +41,8 @@ import {
 import { limitError } from "@/lib/planErrors";
 import PlanNotice from "@/components/PlanNotice";
 import PlanBilling from "@/components/settings/PlanBilling";
-import { PLANS } from "@/lib/plans";
+import CreditsPanel from "@/components/settings/CreditsPanel";
+import { PLANS, checkoutAvailable } from "@/lib/plans";
 import { readBillingInfo, syncCheckoutSession } from "@/lib/billing";
 import WorkspacesManager, { type WorkspaceRow } from "@/components/settings/WorkspacesManager";
 import TeamManager, { type TeamMemberRow, type TeamInviteRow } from "@/components/settings/TeamManager";
@@ -622,6 +623,7 @@ export default async function SettingsPage({
                 billing={billing}
                 notice={billingNotice}
               />
+              <CreditsPanel checkout={checkoutAvailable()} />
             </section>
 
             {/* Security & session */}

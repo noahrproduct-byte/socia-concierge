@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import { PlatformMark } from "@/components/system/PlatformMark";
-import { CONTACT_EMAIL, PLANS, PLAN_ORDER, formatHistory, type PlanId } from "@/lib/plans";
+import { CONTACT_EMAIL, PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
 import HomeNav from "./HomeNav";
 import HomeFaq from "./HomeFaq";
 import HomeMotion from "./HomeMotion";
@@ -47,7 +47,7 @@ const FAQ = [
 ];
 
 const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
-  PLAN_ORDER.map((id) => {
+  SALE_ORDER.map((id) => {
     const p = PLANS[id];
     const l = p.limits;
     return [
@@ -476,8 +476,8 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 Monthly plans, no lock-in.
               </h2>
             </div>
-            <div className="hm-plans" data-reveal="children">
-              {PLAN_ORDER.map((id) => {
+            <div className="hm-plans" data-reveal="children" style={{ "--plans": SALE_ORDER.length } as React.CSSProperties}>
+              {SALE_ORDER.map((id) => {
                 const p = PLANS[id];
                 const free = p.priceMonthly === 0;
                 return (

@@ -6,10 +6,12 @@ import type { PostStatus } from "@/lib/scheduling";
 
 export const DAY_MS = 86_400_000;
 
-/** What a day on the strip holds: one icon per kind, one dot per status. */
+/** What a day on the strip holds: the post's own cover (an icon for its kind when it has no media yet), one dot per status. */
 export type WeekKind = "reel" | "photo" | "carousel" | "story" | "post";
 export type WeekStatus = "posted" | "scheduled" | "planned" | "draft" | "failed";
-export type WeekItem = { kind: WeekKind; status: WeekStatus; title: string };
+/** The post's own picture, or its video (the browser shows the opening frame). */
+export type WeekCover = { src: string; video: boolean };
+export type WeekItem = { kind: WeekKind; status: WeekStatus; title: string; cover: WeekCover | null };
 export type WeekDay = {
   /** Local calendar date, YYYY-MM-DD. */
   date: string;
@@ -22,7 +24,7 @@ export type WeekDay = {
 };
 
 /** A calendar post as the strip needs it (lib/scheduling ScheduledPost, trimmed for the browser). */
-export type CalendarItem = { id: string; at: string; status: PostStatus; mediaType: "REELS" | "IMAGE" | string; title: string };
+export type CalendarItem = { id: string; at: string; status: PostStatus; mediaType: "REELS" | "IMAGE" | string; title: string; mediaUrl?: string | null };
 /** A line of the latest Content Plan's week (lib/schema Deliverable.weeklyPlan, trimmed). */
 export type PlanDayItem = { day: string; format: string; title: string };
 
@@ -42,6 +44,15 @@ export function kindOfFormat(format: string | null | undefined): WeekKind {
 }
 
 const kindOfMedia = (mediaType: string): WeekKind => (mediaType === "REELS" ? "reel" : mediaType === "IMAGE" ? "photo" : kindOfFormat(mediaType));
+
+const VIDEO_FILE = /\.(mp4|mov|m4v|webm)(\?|#|$)/i;
+const IMAGE_FILE = /\.(jpe?g|png|webp|gif|avif)(\?|#|$)/i;
+
+/** A cover from a media file's address: the file's own type decides, else what the post says it is. */
+export function coverOf(url: string | null | undefined, video: boolean): WeekCover | null {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  return { src: url, video: VIDEO_FILE.test(url) ? true : IMAGE_FILE.test(url) ? false : video };
+}
 
 const statusOf = (s: PostStatus): WeekStatus | null => {
   if (s === "published") return "posted";
@@ -64,7 +75,7 @@ export function planWeekday(day: string): number | null {
  */
 export function buildWeek(input: {
   now: Date;
-  published: { t: string; format: string; title?: string }[];
+  published: { t: string; format: string; title?: string; cover?: WeekCover | null }[];
   calendar: CalendarItem[];
   plan: PlanDayItem[] | null;
 }): WeekDay[] {
@@ -82,7 +93,7 @@ export function buildWeek(input: {
 
   for (const p of input.published) {
     const day = byDate.get(localDate(new Date(p.t)));
-    if (day) day.items.push({ kind: kindOfFormat(p.format), status: "posted", title: p.title ?? p.format });
+    if (day) day.items.push({ kind: kindOfFormat(p.format), status: "posted", title: p.title ?? p.format, cover: p.cover ?? null });
   }
   for (const c of input.calendar) {
     const status = statusOf(c.status);
@@ -90,7 +101,7 @@ export function buildWeek(input: {
     if (!status || !day) continue;
     // A Calendar post that went out is already on its day from the platform's own list when there is one.
     if (status === "posted" && day.items.some((i) => i.status === "posted")) continue;
-    day.items.push({ kind: kindOfMedia(c.mediaType), status, title: c.title });
+    day.items.push({ kind: kindOfMedia(c.mediaType), status, title: c.title, cover: coverOf(c.mediaUrl, c.mediaType === "REELS") });
   }
   if (input.plan) {
     for (const line of input.plan) {
@@ -98,7 +109,7 @@ export function buildWeek(input: {
       if (wd == null) continue;
       const day = days.find((d) => new Date(`${d.date}T12:00:00`).getDay() === wd);
       if (!day || day.items.length) continue;
-      day.items.push({ kind: kindOfFormat(line.format), status: "planned", title: line.title });
+      day.items.push({ kind: kindOfFormat(line.format), status: "planned", title: line.title, cover: null });
     }
   }
   for (const d of days) d.items = d.items.slice(0, 3);

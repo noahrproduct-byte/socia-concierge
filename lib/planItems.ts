@@ -6,6 +6,7 @@
 import type { Deliverable, PlanDecision } from "./schema";
 import { sanitizeGuide } from "./studioGuide";
 import { isExperimentId } from "./strategy";
+import { sanitizeRef } from "./trendSignals";
 
 export type PlanItem = Deliverable["weeklyPlan"][number];
 
@@ -77,6 +78,9 @@ export function normalizePlanItem(p: PlanItem): PlanItem {
     production: clip(p.production, 300),
     successMetric: clip(p.successMetric, 160),
     experiment: isExperimentId(p.experiment) ? p.experiment : undefined,
+    // The model's cited id never reaches a saved plan; the Reel it named does, bounded.
+    reference: undefined,
+    ref: sanitizeRef(p.ref) ?? undefined,
   };
 }
 
@@ -89,7 +93,7 @@ export function sanitizePlanItems(items: unknown[]): PlanItem[] {
     const r = raw as Record<string, unknown>;
     const core = Object.fromEntries(Object.entries(CORE).map(([k, n]) => [k, typeof r[k] === "string" ? (r[k] as string).slice(0, n) : ""])) as Pick<PlanItem, "day" | "concept" | "hook" | "format" | "rationale" | "evidence" | "predictedPerformance">;
     if (!core.day || !core.concept) return [];
-    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, experiment: r.experiment as string, maker: r.maker as PlanItem["maker"] });
+    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"] });
     const decision = cleanDecision(r.decision);
     const guide = sanitizeGuide(r.guide, new Date());
     return [{ ...item, ...(isItemId(r.id) ? { id: r.id } : {}), ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];

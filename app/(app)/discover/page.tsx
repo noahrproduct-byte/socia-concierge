@@ -21,7 +21,7 @@ import { engagementRateOf, interactionsTotal } from "@/lib/engagement";
 import { median, isChartableDay, localDayStr } from "@/lib/metrics";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
 import { trendingAudio, type TrendingAudio } from "@/lib/igAudio";
-import { rankTrendingReels, trendSignals } from "@/lib/trendSignals";
+import { provenReels, rankTrendingReels } from "@/lib/trendSignals";
 import { igPosts, ytPosts } from "@/lib/trendSignalsLoad";
 import { getEntitlements, clampDays, maxHistoryDays, getLimit, canUseFeature, upgradeFor } from "@/lib/entitlements";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
@@ -361,11 +361,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   // ---- trending Reels in the niche ----------------------------------------
   // Short-form posts from the accounts on this page (Business Discovery for
   // Instagram, the Data API for YouTube) plus Reels and Shorts discovery found,
-  // ranked against each account's OWN median (lib/trendSignals.ts), then the
-  // hook structures, topics and opening lines the ones that beat it share.
+  // ranked against each account's OWN median (lib/trendSignals.ts).
   const allReels = rankTrendingReels(rows.map((r) => ({ platform: r.platform, name: r.name, handle: r.handle, avatar: r.avatar, posts: r.posts })), content, now);
-  const trendingReels = allReels.slice(0, 12);
-  const trends = trendSignals(allReels, { loc });
+  // The ones that took off first (lib/trendSignals.ts provenReels), each with what it does; with fewer than three, the best of the rest fill the list.
+  const tookOff = provenReels(allReels, { loc, max: 8 });
+  const reelsToCopy = tookOff.length >= 3 ? tookOff : provenReels(allReels, { loc, max: 6, fill: true });
+  const reelsRead = { reels: allReels.length, accounts: new Set(allReels.map((r) => `${r.platform}:${(r.accountHandle ?? r.accountName).toLowerCase()}`)).size };
 
   const data: CompetitorsData = {
     connected: Boolean(snap), igConnectHref: igConfigured() ? "/api/auth/instagram/start" : "/settings#accounts",
@@ -375,8 +376,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     goalKeywords: goalKeywords(profile?.goals ?? null), goalText: profile?.goals ?? null, location, now: now.toISOString(),
     // As many trending accounts as the plan tracks (Starter 5), at most 10.
     trendingLimit: Math.max(1, Math.min(10, getLimit(ent, "competitors"))),
-    trendingReels,
-    trends,
+    reelsToCopy,
+    reelsRead,
     audio: await audioP,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
     nicheUpgrade: upgradeFor(ent, "niche_intelligence"),

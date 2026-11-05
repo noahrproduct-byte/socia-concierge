@@ -9,7 +9,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronUp, Clapperboard, Copy, Lightbulb } from "lucide-react";
-import { Button, Card, CardHeader, Checkbox, Chip, Field, Input } from "@/components/system";
+import { Button, Card, CardHeader, Checkbox, Chip, Field, Input, ReelRefNote } from "@/components/system";
 import PlanNotice, { UsageLine } from "./PlanNotice";
 import PlaceScan from "./PlaceScan";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
@@ -112,6 +112,7 @@ export default function VideoIdeasCard() {
                 {isOpen && (
                   <div className="dash-ideas-body">
                     {(idea.themeFit || idea.evidence) && <p className="dash-ideas-fit"><b>Why it fits your theme</b> {idea.evidence && <span className={`dash-ideas-evidence is-${idea.evidence}`}>{EVIDENCE_LABEL[idea.evidence]}.</span>} {idea.themeFit}</p>}
+                    {idea.ref && <ReelRefNote r={idea.ref} />}
                     <div className="dash-ideas-shots" role="table" aria-label={`Shots for ${idea.title}`}>
                       <div role="row" className="dash-ideas-row dash-ideas-row-h"><span role="columnheader">When</span><span role="columnheader">On camera</span><span role="columnheader">On screen</span><span role="columnheader">Say</span></div>
                       {idea.shots.map((s, k) => (
@@ -141,7 +142,7 @@ export default function VideoIdeasCard() {
           })}
         </ol>
       )}
-      {loaded && set && <p className="dash-ideas-note">Written {new Date(set.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{set.about ? ` about “${set.about}”` : ""}, from your synced posts and brand settings. Generating again replaces them.</p>}
+      {loaded && set && <p className="dash-ideas-note">Written {new Date(set.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}{set.about ? ` about “${set.about}”` : ""}, from your synced posts and brand settings{set.ideas.some((i) => i.ref) ? ", and Reels that took off in your niche" : ""}. Generating again replaces them.</p>}
     </Card>
   );
 }

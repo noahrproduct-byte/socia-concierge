@@ -4,6 +4,8 @@
 // reviewing how things went, reading the market, planning, making, and
 // running the account. SOCIA AI is not a destination: it lives inside each of
 // these pages (Ask SOCIA in the headbar and in context).
+import { SCALE_ON_SALE } from "./plans";
+
 export type NavGroup = "overview" | "intelligence" | "plan" | "create" | "manage";
 export type NavEntry = { href: string; label: string; key: string; group: NavGroup };
 
@@ -28,6 +30,13 @@ export const NAV: NavEntry[] = [
   // The multi-platform composer.
   { href: "/create", label: "Create post", key: "create", group: "create" },
   { href: "/studio", label: "Content Studio", key: "studio", group: "create" },
+  // Scale's AI Clipper and AI Studio, listed once Scale is on sale (lib/plans.ts SCALE_ON_SALE).
+  ...(SCALE_ON_SALE
+    ? ([
+        { href: "/clipper", label: "AI Clipper", key: "clipper", group: "create" },
+        { href: "/ai-studio", label: "AI Studio", key: "ai-studio", group: "create" },
+      ] as NavEntry[])
+    : []),
   // AI comment replies (Growth+): drafts a reply to every new comment for approval.
   { href: "/comments", label: "Comments", key: "comments", group: "manage" },
   // Contacts (Starter+): commenters and sign-ups, with tags, notes and a sign-up page.
@@ -38,16 +47,17 @@ export const NAV: NavEntry[] = [
 /**
  * The dock: the five daily destinations, linked directly from the floating
  * headbar on desktop and from the bottom tab bar on phones (redesign brief,
- * 2026-11-03): Home, Plan, Create, Analytics and Inbox. Discover, Studio,
+ * 2026-11-03; order by Noah, 2026-11-05: how it went before what's next):
+ * Home, Analytics, Plan, Create and Inbox. Discover, Studio,
  * Reports, the weekly roundup and Settings sit one click deeper, in the More
  * panel and the command menu. `also` lists sections that light up the same
  * dock item.
  */
 export const DOCK: { key: string; label: string; also?: string[] }[] = [
   { key: "dashboard", label: "Home" },
+  { key: "analytics", label: "Analytics" },
   { key: "plan", label: "Plan", also: ["calendar"] },
   { key: "create", label: "Create" },
-  { key: "analytics", label: "Analytics" },
   { key: "comments", label: "Inbox" },
 ];
 

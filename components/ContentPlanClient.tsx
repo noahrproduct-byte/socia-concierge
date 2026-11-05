@@ -46,7 +46,7 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
-import { Button } from "@/components/system";
+import { Button, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
 import { PlanTaskRow, usePlanTasks } from "@/components/plan/PlanTasks";
 import { reasonLabel } from "@/lib/planItems";
@@ -899,6 +899,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
                   {post.rationale.trim() && (<><b>Why this:</b> {post.rationale}<br /></>)}
                   {post.evidence.trim() && (<><b>Based on:</b> {post.evidence}</>)}
                 </div>
+                {post.ref && <ReelRefNote r={post.ref} />}
                 <div className="cpl-postmeta">
                   <Link href={createHref(post)} className="ov-link" title="Open Create Post with this hook and concept as the caption">
                     <PenSquare size={11} /> Create this post

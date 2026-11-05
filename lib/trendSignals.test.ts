@@ -97,3 +97,89 @@ describe("trendsEvidence", () => {
     expect(text).not.toMatch(/—/);
   });
 });
+
+describe("proven Reels", () => {
+  const reels = [
+    reel({ url: "https://instagram.com/reel/a1", accountHandle: "a", multiplier: 6, views: 240000, title: "POV: you walk in and the pizza is ready" }),
+    reel({ url: "https://instagram.com/reel/a2", accountHandle: "a", multiplier: 3 }),
+    reel({ url: "https://instagram.com/reel/a3", accountHandle: "a", multiplier: 2 }),
+    reel({ url: "https://instagram.com/reel/b1", accountHandle: "b", accountName: "B", multiplier: 1.2 }),
+    reel({ url: "https://youtube.com/shorts/c1", platform: "youtube", accountHandle: "c", accountName: "C", multiplier: null, views: 500000, format: "Short" }),
+    reel({ url: "https://youtube.com/shorts/c2", platform: "youtube", accountHandle: "c", accountName: "C", multiplier: null, views: 900, format: "Short" }),
+  ];
+
+  it("keeps the Reels that took off, best first, two an account", async () => {
+    const { provenReels } = await import("./trendSignals");
+    const out = provenReels(reels);
+    expect(out.map((r) => [r.id, r.url.split("/").pop()])).toEqual([["R1", "a1"], ["R2", "a2"], ["R3", "c1"]]);
+    expect(out.every((r) => r.proven)).toBe(true);
+    expect(out[0].line).toBe("POV: you walk in and the pizza is ready");
+    expect(out[0].structures).toContain("POV");
+  });
+
+  it("fills a thin niche with the best of the rest, marked as not proven", async () => {
+    const { provenReels } = await import("./trendSignals");
+    const out = provenReels(reels, { fill: true, max: 5 });
+    expect(out.map((r) => r.proven)).toEqual([true, true, true, false, false]);
+    expect(out[3].url).toContain("b1");
+  });
+
+  it("maps a cited id back to the Reel's own link and numbers, and nothing else", async () => {
+    const { pickRef, provenReels, refLine } = await import("./trendSignals");
+    const list = provenReels(reels);
+    const ref = pickRef(" r1 ", list)!;
+    expect(ref).toMatchObject({ url: "https://instagram.com/reel/a1", account: "@a", views: 240000, multiplier: 6, structure: "POV" });
+    expect(refLine(ref)).toBe("@a on Instagram: 240K views, 6.0x their usual");
+    expect(pickRef("R9", list)).toBeNull();
+    expect(pickRef("", list)).toBeNull();
+    expect(pickRef("https://evil.example", list)).toBeNull();
+  });
+
+  it("reads a stored reference back only when it is one", async () => {
+    const { sanitizeRef } = await import("./trendSignals");
+    expect(sanitizeRef({ url: "javascript:alert(1)", platform: "instagram", account: "@a" })).toBeNull();
+    expect(sanitizeRef({ url: "https://instagram.com/reel/a1", platform: "instagram" })).toBeNull();
+    expect(sanitizeRef({ url: "https://instagram.com/reel/a1", platform: "instagram", account: "@a", views: -4, multiplier: "9" }))
+      .toEqual({ url: "https://instagram.com/reel/a1", platform: "instagram", account: "@a", title: null, views: null, likes: null, comments: null, multiplier: null, basis: "views", structure: null });
+  });
+
+  it("writes the evidence with ids, as other accounts' results and never a prediction", async () => {
+    const { provenEvidence, provenReels } = await import("./trendSignals");
+    const block = provenEvidence(provenReels(reels, { fill: true }));
+    expect(block).toContain("not a prediction for this one");
+    expect(block).toContain('- R1 | Instagram Reel by @a | opens: "POV: you walk in and the pizza is ready" | 240K views, 6.0x their usual | hook structure: POV');
+    expect(block).not.toContain("b1");
+    expect(block.split("\n").filter((l) => l.startsWith("- R"))).toHaveLength(3);
+    expect(provenEvidence([])).toBe("");
+  });
+});
+
+describe("viral track record", () => {
+  it("counts the Reel, the Reels that open the same way and the Reels on its topic, and says what it counted", async () => {
+    const { trackRecord, trackWord, sanitizeTrack } = await import("./trendSignals");
+    const group = (label: string, kind: "hook" | "topic", above: number, of: number, med: number, leads: boolean) =>
+      ({ label, kind, posts: of, accounts: 3, withBaseline: of, aboveBaseline: above, medianMultiplier: med, leads, examples: [] });
+    const signals = { reelsRead: 20, accounts: 5, hooks: [group("POV", "hook", 4, 5, 2.1, true)], topics: [group("Kitchen / process", "topic", 2, 4, 1.1, false)], strongLines: [] };
+    const t = trackRecord({ multiplier: 8, views: 240000, basis: "views", structures: ["POV"], topics: ["Kitchen / process"] }, signals);
+    // 40 for the Reel at 8x; hook 20*4/5 + 10 = 26; topic 20*2/4 + 0 = 10.
+    expect(t.parts.map((p) => [p.points, p.max])).toEqual([[40, 40], [26, 30], [10, 30]]);
+    expect(t.score).toBe(76);
+    expect(trackWord(t)).toBe("strong");
+    expect(t.parts[1].basis).toBe("4 of 5 niche Reels with the same hook structure (POV) beat their creator's usual, worth 16 of 20. Their median is 2.1x, at or above 1.3x, worth 10 more.");
+    expect(sanitizeTrack(JSON.parse(JSON.stringify(t)))).toEqual(t);
+  });
+
+  it("scores a part 0 and says why when too few Reels share it, and never rounds a thin sample up", async () => {
+    const { trackRecord, trackWord, sanitizeTrack } = await import("./trendSignals");
+    const empty = { reelsRead: 2, accounts: 1, hooks: [], topics: [], strongLines: [] };
+    const t = trackRecord({ multiplier: 2, views: 900, basis: "likes and comments", structures: ["POV"], topics: [] }, empty);
+    expect(t.parts.map((p) => p.points)).toEqual([13, 0, 0]);
+    expect(t.parts[1].basis).toMatch(/^Fewer than 3 niche Reels from 2 accounts share its hook structure \(POV\)/);
+    expect(t.parts[2].basis).toMatch(/found no topic it recognises/);
+    expect(trackWord(t)).toBe("one Reel only");
+    const noBase = trackRecord({ multiplier: null, views: 500000, basis: "views", structures: [], topics: [] }, empty);
+    expect(noBase.score).toBe(15);
+    expect(sanitizeTrack({ parts: [{ label: "x", points: 90, max: 40, basis: "b" }] })).toBeNull();
+    expect(sanitizeTrack("76")).toBeNull();
+  });
+});

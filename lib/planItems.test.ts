@@ -70,3 +70,19 @@ describe("who makes each post, and its id", () => {
     expect(it).toMatchObject({ id: "aaaaaaaa-0000-4000-8000-000000000001", maker: "claude" });
   });
 });
+
+describe("the Reel a plan post is built on", () => {
+  const post = { day: "Monday", concept: "c", hook: "h", format: "Reel", rationale: "", evidence: "", predictedPerformance: "" };
+  const ref = { url: "https://instagram.com/reel/a1", platform: "instagram", account: "@a", title: null, views: 240000, likes: null, comments: null, multiplier: 6, basis: "views" as const, structure: "POV" };
+
+  it("keeps a real reference, drops the model's cited id and anything that is not a reference", () => {
+    const n = normalizePlanItem({ ...post, reference: "R1", ref });
+    expect(n.ref).toEqual(ref);
+    expect(n.reference).toBeUndefined();
+    expect(normalizePlanItem({ ...post, ref: { url: "javascript:x", platform: "instagram", account: "@a" } as never }).ref).toBeUndefined();
+  });
+
+  it("survives an edit sent back by the browser", () => {
+    expect(sanitizePlanItems([{ ...post, ref }])[0].ref).toEqual(ref);
+  });
+});

@@ -68,7 +68,8 @@
 /* cards */
 .pr-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* one column per plan on sale (--plans, set by PricingCards) */
+  grid-template-columns: repeat(var(--plans, 4), minmax(0, 1fr));
   gap: 14px;
   align-items: stretch;
 }

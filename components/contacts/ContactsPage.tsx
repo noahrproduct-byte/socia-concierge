@@ -238,7 +238,10 @@ function SignupCard({ initial, brand }: { initial: SignupPage | null; brand: str
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const link = page ? `${typeof window === "undefined" ? "https://sociaos.com" : window.location.origin}/l/${page.slug}` : null;
+  // The site's own address, read after mount so the first render matches the server's.
+  const [origin, setOrigin] = useState("https://sociaos.com");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const link = page ? `${origin}/l/${page.slug}` : null;
   const save = async () => {
     setBusy(true); setNote(null);
     const r = await send<{ page: SignupPage }>("/api/contacts/page", "PUT", form);
@@ -253,12 +256,15 @@ function SignupCard({ initial, brand }: { initial: SignupPage | null; brand: str
   return (
     <Card>
       <CardHeader title="Sign-up page" actions={link && page?.active ? <a className="ct-link" href={link} target="_blank" rel="noreferrer">Open <ExternalLink size={11} aria-hidden /></a> : null} />
-      <p className="ct-help">A page SOCIA hosts for you. Put the link in your bio or a caption: people leave their email (and their Instagram name if you ask), agree to hear from you, and appear here.</p>
-      {link && (
+      <p className="ct-help">A sign-up form for your followers, on its own page that SOCIA hosts. Put its link in your bio or a caption. People who open it leave their email (and their Instagram name if you ask) and agree to hear from you, and they join your contacts list.</p>
+      {link && page?.active && (
         <div className="ct-linkrow">
           <code>{link}</code>
           <Button size="sm" variant="ghost" onClick={copy}>{copied ? <><Check size={13} aria-hidden /> Copied</> : <><Copy size={13} aria-hidden /> Copy link</>}</Button>
         </div>
+      )}
+      {link && page && !page.active && (
+        <p className="ct-off" role="status"><b>This page is switched off.</b> Its link, <code>{link}</code>, shows &ldquo;Page not found&rdquo; until you switch the page on below and save.</p>
       )}
       <div className="ct-form">
         <Field label="Address" hint="sociaos.com/l/ followed by this">
@@ -272,12 +278,13 @@ function SignupCard({ initial, brand }: { initial: SignupPage | null; brand: str
           <Switch checked={form.askHandle} onCheckedChange={(v) => setForm({ ...form, askHandle: v })} label="Ask for their Instagram name" /> <span>Ask for their Instagram name</span>
         </div>
         <div className="ct-switches">
-          <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} label="Page is live" /> <span>{form.active ? "Page is live" : "Page is switched off"}</span>
+          <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} label="Page is on" /> <span>{form.active ? "Page is on: anyone with the link can sign up" : "Page is off: the link shows \u201cPage not found\u201d"}</span>
         </div>
       </div>
       <div className="ct-actions">
         <Button size="sm" variant="primary" onClick={save} busy={busy}>{page ? "Save changes" : "Create the page"}</Button>
       </div>
+      {page && form.active !== page.active && <p className="ct-meta">Save to switch the page {form.active ? "on" : "off"}.</p>}
       {note && <p className="ct-meta" role="status">{note}</p>}
     </Card>
   );

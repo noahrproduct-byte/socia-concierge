@@ -32,8 +32,7 @@ import WinningFormats from "./WinningFormats";
 import NicheDrawer from "./NicheDrawer";
 import EvidenceDrawer, { type Evidence } from "./EvidenceDrawer";
 import AddCompetitor from "./AddCompetitor";
-import { TrendingAccounts, TrendingReels } from "./TrendingNiche";
-import { TrendingHooks } from "./TrendingHooks";
+import { ReelsToCopy, TrendingAccounts } from "./TrendingNiche";
 import { TrendingAudio } from "./TrendingAudio";
 import { fmtN } from "./shared";
 
@@ -266,8 +265,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
       <ResearchBasis d={d} />
 
       <TrendingAccounts d={d} rows={d.platform === "all" ? d.rows : d.rows.filter((r) => r.platform === d.platform)} onSelect={setSelectedId} onTrack={track} tracking={tracking} />
-      <TrendingReels d={d} />
-      <TrendingHooks d={d} />
+      <ReelsToCopy d={d} />
       <TrendingAudio audio={d.audio} />
       <WinningFormats d={d} />
 

@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
-import { PLANS, PLAN_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
+import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
+import { MONTHLY_CREDITS } from "@/lib/credits/config";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 
@@ -18,7 +19,7 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
   const workspaces = n(L.workspaces, "Brand Workspace", "Brand Workspaces");
   const askSocia = `${M.ask_socia} Ask SOCIA questions/month`;
   // Listed under "Everything in <the plan below>, plus" only when it's more than that plan's.
-  const below = PLAN_ORDER[PLAN_ORDER.indexOf(p.id) - 1];
+  const below = SALE_ORDER[SALE_ORDER.indexOf(p.id) - 1];
   const studio = below && PLANS[below].meters.content_studio >= M.content_studio ? null : `${M.content_studio} Content Studio analyses/month`;
   const competitors = n(L.competitors, "competitor", "competitors");
   // Team members are a headline only once invites exist; until then the seat
@@ -80,6 +81,19 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
         members,
         "Priority support and dedicated onboarding",
       ];
+    case "scale":
+      return [
+        "AI Clipper: long videos cut into captioned clips",
+        "AI Studio: AI-made videos and images from your ideas",
+        `${MONTHLY_CREDITS.scale.toLocaleString("en-US")} AI credits/month, top-ups available`,
+        workspaces,
+        formatHistory(L.analytics_history_days),
+        `${M.video_builds} AI-made videos and ${M.music_tracks} music tracks/month`,
+        askSocia,
+        competitors,
+        members,
+        "Priority support and dedicated onboarding",
+      ];
   }
 }
 
@@ -96,12 +110,12 @@ export default function PricingCards({
   highlight: PlanId | null;
 }) {
   return (
-    <div className="pr-grid">
-      {PLAN_ORDER.map((id) => {
+    <div className="pr-grid" style={{ "--plans": SALE_ORDER.length } as React.CSSProperties}>
+      {SALE_ORDER.map((id) => {
         const p = PLANS[id];
         const cls = ["pr-card", p.popular ? "popular" : "", highlight === id ? "highlight" : ""].filter(Boolean).join(" ");
         // Only what this plan adds over the one below, so the line stays short.
-        const below = PLAN_ORDER[PLAN_ORDER.indexOf(id) - 1];
+        const below = SALE_ORDER[SALE_ORDER.indexOf(id) - 1];
         const soon = comingSoonFor(id).filter((k) => !below || !PLANS[below].features[k]);
         return (
           <article key={id} id={`plan-${id}`} className={cls} aria-labelledby={`plan-${id}-name`}>

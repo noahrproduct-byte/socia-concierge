@@ -76,16 +76,16 @@ export function DiagnosticsView({ initial, storeReady, canManage }: { initial: S
   );
 }
 
-export function ContentIntelView({ works, themes, postsRead }: { works: WorkRow[]; themes: { name: string; posts: number; example: string }[]; postsRead: number }) {
+export function ContentIntelView({ works, gap, themes, postsRead }: { works: WorkRow[]; gap?: string; themes: { name: string; posts: number; example: string }[]; postsRead: number }) {
   const byPlatform = new Map<string, WorkRow[]>();
   for (const w of works) byPlatform.set(w.platform, [...(byPlatform.get(w.platform) ?? []), w]);
   return (
     <div className="iv">
       <div className="iv-bar">
-        <p>How each format does against your own typical post on the same platform, from the {postsRead} most recent posts SOCIA read. A format needs 3 posts, and the account 6, before it&apos;s compared.</p>
+        <p>How each format does against your own typical post on the same platform, from the {postsRead} most recent posts SOCIA read. A platform needs 6 posts, and a format 3 of them, before it&apos;s compared.</p>
       </div>
       {works.length === 0 ? (
-        <Empty><b>Not enough to compare yet.</b> Once an account has 6 posts with numbers in at least two formats, the comparison appears here.</Empty>
+        <Empty><b>No format comparison yet.</b> {gap ?? "It starts once a platform has 6 posts in two formats, 3 posts each."}</Empty>
       ) : (
         [...byPlatform.entries()].map(([platform, rows]) => (
           <section className="iv-group" key={platform}>

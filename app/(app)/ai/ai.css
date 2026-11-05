@@ -1,0 +1,104 @@
+/* AI Clipper and AI Studio (components/ai/*). Flat, token-driven, light theme;
+   the same surfaces, lines and accent as every other section. `ai-` namespace,
+   outside the design budget like the other page sheets. */
+.ai-page { display: grid; gap: 16px; }
+.ai-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 16px; }
+.ai-panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--ink); }
+.ai-panel-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.ai-note { margin: 0 0 10px; font-size: 13px; color: var(--text-muted); }
+.ai-rights { margin: 6px 0 10px; font-size: 12.5px; color: var(--text-secondary); }
+.ai-err { margin: 6px 0; font-size: 13px; color: var(--danger, #b42318); }
+.ai-empty { margin: 0; font-size: 13.5px; color: var(--text-muted); }
+
+.ai-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.ai-tab { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+.ai-tab.is-on { border-color: var(--accent-line); background: var(--accent-subtle); color: var(--accent-ink); font-weight: 600; }
+
+.ai-field { display: grid; gap: 5px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); }
+.ai-field > span { font-weight: 500; color: var(--ink); }
+.ai-field input[type="text"], .ai-field input[type="url"], .ai-field input[type="number"], .ai-field select, .ai-field textarea {
+  width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px;
+}
+.ai-field textarea { resize: vertical; min-height: 64px; }
+.ai-field input:focus-visible, .ai-field select:focus-visible, .ai-field textarea:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+.ai-field small { color: var(--text-muted); }
+.ai-field-short { max-width: 220px; }
+.ai-row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.ai-row .ai-field { margin-bottom: 0; }
+.ai-grow { flex: 1 1 260px; }
+.ai-options { display: flex; gap: 14px 22px; flex-wrap: wrap; align-items: start; margin-bottom: 4px; }
+.ai-check { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
+.ai-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ai-chip { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 12.5px; cursor: pointer; }
+.ai-chip.is-on { border-color: var(--accent-line); background: var(--accent-subtle); color: var(--accent-ink); }
+
+.ai-credits { margin: 6px 0; font-size: 13px; color: var(--text-secondary); }
+.ai-credits b { color: var(--ink); }
+.ai-credits.is-short { color: var(--danger, #b42318); }
+.ai-credits a { color: var(--accent-ink); }
+.ai-progress { width: 100%; height: 6px; margin: 6px 0; accent-color: var(--accent); }
+.ai-submit { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.ai-submit small { color: var(--text-muted); font-size: 12.5px; }
+
+.ai-jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ai-job { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+.ai-job.is-open { background: var(--surface-raised); }
+.ai-job-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; padding: 0; font: inherit; color: var(--ink); cursor: pointer; }
+div.ai-job-row { cursor: default; }
+.ai-job-src { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 500; }
+.ai-job-meta { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.ai-job-remove { margin-top: 6px; }
+.ai-status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+.ai-status.is-done { border-color: var(--accent-line); color: var(--accent-ink); background: var(--accent-subtle); }
+.ai-status.is-failed { color: var(--danger, #b42318); }
+
+.ai-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.ai-card { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); display: flex; flex-direction: column; }
+.ai-media { background: var(--surface-hover); display: grid; place-items: center; height: 360px; overflow: hidden; }
+.ai-media video, .ai-media img { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+.ai-media-none { font-size: 12.5px; color: var(--text-muted); }
+.ai-card-body { padding: 10px 12px 12px; display: grid; gap: 6px; font-size: 13px; }
+.ai-card-body b { font-size: 13.5px; color: var(--ink); }
+.ai-card-body small { color: var(--text-muted); }
+.ai-caption { margin: 0; color: var(--text-secondary); white-space: pre-wrap; }
+.ai-tags { margin: 0; color: var(--accent-ink); font-size: 12.5px; }
+.ai-why summary { cursor: pointer; font-size: 12.5px; color: var(--text-muted); }
+.ai-why p { margin: 4px 0 0; font-size: 12.5px; color: var(--text-secondary); }
+.ai-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.ai-act { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: none; }
+.ai-act:hover { background: var(--surface-hover); }
+.ai-act:disabled { opacity: 0.6; cursor: default; }
+.ai-act.is-primary { border-color: var(--accent-line); background: var(--accent-subtle); color: var(--accent-ink); }
+.ai-act.is-quiet { border-color: transparent; color: var(--text-muted); }
+
+.ai-ideas { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.ai-idea { border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: grid; gap: 6px; font-size: 13px; }
+.ai-idea.is-on { border-color: var(--accent-line); background: var(--accent-subtle); }
+.ai-idea b { font-size: 14px; color: var(--ink); }
+.ai-idea p { margin: 0; color: var(--text-secondary); }
+.ai-shot { font-size: 12.5px; color: var(--text-muted); }
+.ai-idea-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.ai-kind { font-size: 12px; color: var(--text-muted); }
+
+.ai-gate { max-width: 560px; margin: 8px 0; padding: 22px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); display: grid; gap: 8px; justify-items: start; }
+.ai-gate-ico { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent-subtle); color: var(--accent-ink); }
+.ai-gate h2 { margin: 0; font-size: 17px; }
+.ai-gate p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+.ai-gate-note { color: var(--text-muted); font-size: 12.5px; }
+
+/* Settings: credits */
+.ai-wallet { display: grid; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 13px; }
+.ai-wallet-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ai-wallet-row b { font-size: 20px; color: var(--ink); }
+.ai-wallet-row span { color: var(--text-muted); }
+.ai-packs { display: flex; gap: 8px; flex-wrap: wrap; }
+.ai-ledger { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; color: var(--text-secondary); }
+.ai-ledger li { display: flex; justify-content: space-between; gap: 10px; }
+.ai-ledger li b { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .ai-panel { padding: 14px; }
+  .ai-job-row { flex-wrap: wrap; }
+  .ai-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .ai-media { height: 300px; }
+}

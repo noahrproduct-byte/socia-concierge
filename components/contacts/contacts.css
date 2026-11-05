@@ -59,3 +59,5 @@
 .su-done { margin: 0; color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
 .su-fine { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
 .su-fine a { color: inherit; }
+.ct-off { margin: 0 0 var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-control); background: var(--warning-bg); color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); }
+.ct-off code { overflow-wrap: anywhere; font-size: var(--fs-meta); }

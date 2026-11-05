@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { Check, ChevronDown, Info } from "lucide-react";
-import { PLANS, PLAN_ORDER, formatPrice } from "@/lib/plans";
+import { PLANS, SALE_ORDER, formatPrice } from "@/lib/plans";
 import { COMPARISON, type Cell } from "@/lib/pricingTable";
 
 function CellView({ cell }: { cell: Cell }) {
@@ -42,7 +42,7 @@ export default function ComparisonTable() {
         <thead>
           <tr>
             <th scope="col" className="pr-th-feature">Feature</th>
-            {PLAN_ORDER.map((id) => (
+            {SALE_ORDER.map((id) => (
               <th key={id} scope="col" className={PLANS[id].popular ? "popular" : undefined}>
                 <span className="pr-th-name">{PLANS[id].name}</span>
                 <span className="pr-th-price">{formatPrice(PLANS[id])}/mo</span>
@@ -55,7 +55,7 @@ export default function ComparisonTable() {
           return (
             <tbody key={cat.category} className={isCollapsed ? "collapsed" : undefined}>
               <tr className="pr-cat">
-                <th scope="colgroup" colSpan={PLAN_ORDER.length + 1}>
+                <th scope="colgroup" colSpan={SALE_ORDER.length + 1}>
                   <button type="button" className="pr-cat-btn" aria-expanded={!isCollapsed} onClick={() => toggle(cat.category)}>
                     <ChevronDown size={15} className="pr-cat-chev" aria-hidden />
                     {cat.category}
@@ -76,7 +76,7 @@ export default function ComparisonTable() {
                       )}
                     </span>
                   </th>
-                  {PLAN_ORDER.map((id) => (
+                  {SALE_ORDER.map((id) => (
                     <td key={id} className={PLANS[id].popular ? "popular" : undefined}>
                       <CellView cell={row.cells[id]} />
                     </td>

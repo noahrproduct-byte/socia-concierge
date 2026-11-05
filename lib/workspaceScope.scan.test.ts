@@ -25,6 +25,7 @@ const SAFE: Record<string, [number, string]> = {
   "app/api/schedule/publish/route.ts scheduled_posts": [1, "read-back by an id already loaded with the workspace"],
   "app/api/schedule/route.ts post_destinations": [2, "by post_id after the parent post was loaded or updated with the workspace"],
   "app/api/schedule/route.ts scheduled_posts": [2, "inserts without workspace_id only when there is no workspace, or its column is missing"],
+  "app/api/media/to-scheduler/route.ts scheduled_posts": [2, "inserts without workspace_id only when there is no workspace, or its column is missing (same shape as the Studio draft route)"],
   "app/api/studio/builds/[id]/draft/route.ts scheduled_posts": [4, "the build's own post (loadBuildRow is workspace-scoped); inserts without workspace_id only with no workspace or a missing column"],
 };
 
