@@ -359,15 +359,16 @@ export function detectPlanResults(items: PlanResultItem[]): AlertCandidate[] {
 }
 
 /** "Your plan for this week is ready", once per generated plan. */
-export function planReadyAlert(plan: { id: string; headline: string; posts: number; weekLabel: string }): AlertCandidate {
+export function planReadyAlert(plan: { id: string; headline: string; posts: number; weekLabel: string; /** Drafts SOCIA put on the Calendar for it (lib/planAutoPlace.ts). */ placed?: number }): AlertCandidate {
+  const onCalendar = plan.placed ? ` ${plan.placed === plan.posts ? "They are" : `${plan.placed} of them are`} on your Calendar as drafts: add the video to each and schedule it.` : "";
   return {
     type: "plan_ready",
     platform: "socia",
     fingerprint: `plan_ready:${plan.id}`,
     severity: "info",
     title: `Your plan for the week of ${plan.weekLabel} is ready`,
-    body: `${plan.posts} posts, built from your results, goals and competitors. ${plan.headline}`.trim(),
-    evidence: { planId: plan.id, posts: plan.posts },
+    body: `${plan.posts} posts, built from your results, goals and competitors.${onCalendar} ${plan.headline}`.trim(),
+    evidence: { planId: plan.id, posts: plan.posts, ...(plan.placed ? { placed: plan.placed } : {}) },
     entityRef: "/plan",
   };
 }
