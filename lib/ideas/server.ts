@@ -4,6 +4,7 @@
 import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { brandContext } from "@/lib/prompt";
+import { FILMING_DIRECTION_RULE } from "@/lib/place";
 import { getProfile } from "@/lib/profile";
 import { getIgSnapshot } from "@/lib/instagramSync";
 import { loadEvidence } from "@/lib/planEvidence";
@@ -22,6 +23,8 @@ Rules you never break:
 - Not every video sells. About half of the ideas are pure niche content: a joke, a moment or a tip the audience would share for its own sake, with no mention of the business or product at all (the account name on the post does that work). In the others, the business or product comes in once, late, in one short line a person would actually say, never a pitch, and each of those lines is different. Only say it does what the evidence or brand profile says it does; if it is still being built, say so and never show it working.
 - One call to action that fits the idea (tag someone, comment, save), never two.
 - Only the styles asked for. Face to camera: the person talks to the camera; "script" is every word they say, in the brand's voice, short spoken sentences. In person: real scenes filmed at their place (people, product, process, behind the scenes); "say" is what is said in a shot, if anything. Animation: nothing is filmed; each shot describes the frame (text, shapes, colours, motion), and "script" is empty unless there is a voiceover.
+- "onCamera" for a filmed shot is its filming direction (the rule below): the spot, the camera and its move, and what is in frame first. For animation it describes the frame.
+- ${FILMING_DIRECTION_RULE}
 - A shot list that covers the whole video: 3 to 8 shots, "from" and "to" in seconds, back to back from 0 to lengthSec. lengthSec between 7 and 60.
 - On-screen text is a few plain words the way a person types in the Instagram or TikTok text tool: sentence case or lowercase, no hashtags, no dashes, at most one emoji, no marketing words (unlock, elevate, ultimate, journey, mouthwatering, game-changer). Use "" for a shot without text.
 - Never invent facts about the business: no prices, hours, awards, ingredients or claims that aren't in the evidence. Never predict views, reach or virality.

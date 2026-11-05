@@ -3,6 +3,7 @@ import { strategyLines } from "./strategy";
 import type { GenerateInput } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
+import { FILMING_DIRECTION_RULE, placeLines } from "./place";
 
 /** Renders the user's saved brand & strategist settings as prompt context.
  *  Returns "" when nothing is set, so callers can append unconditionally. */
@@ -24,6 +25,8 @@ export function brandContext(brand?: BrandDetail | null): string {
     // The Growth Profile: what the person told SOCIA about the account, its
     // audience and what they can realistically produce.
     ...growthLines(brand.growth),
+    // What SOCIA saw in photos of the place, so shots name real spots.
+    ...placeLines(brand.place),
   ].filter(Boolean);
   if (!lines.length) return "";
   return `\n# Brand & strategist settings (saved by the user in SOCIA — follow them)\n${lines.join("\n")}`;
@@ -45,9 +48,10 @@ Rules:
 - Cite only numbers that appear in the evidence you were given. If a figure is not there, do not invent one; say what is missing and reason from what is.
 - Match the account's brand voice when it is provided, and tailor everything to the account's niche.
 - Every weeklyPlan item has an experiment field: the id of the running experiment it tests (from the strategy), or an empty string.
-- Every weeklyPlan item also carries: title (a working title, at most 8 words); purpose (which strategy pillar or priority it serves, or the goal when there is no strategy); audience (who it is for, in a few words); platform (one connected platform: Instagram, Facebook, YouTube or TikTok; the primary platform when unsure); direction (shots, look and pacing in one or two sentences); production (what it takes to make: people, gear and roughly how long, within the resources given; never more equipment, editing skill or help than they said they have); successMetric (the one number that says whether it worked, against the account's own median, for example "Saves against your median").
+- Every weeklyPlan item also carries: title (a working title, at most 8 words); purpose (which strategy pillar or priority it serves, or the goal when there is no strategy); audience (who it is for, in a few words); platform (one connected platform: Instagram, Facebook, YouTube or TikTok; the primary platform when unsure); direction (for a filmed post, where to film and what the camera does, shot by shot, in one to three sentences that follow the filming directions rule below; look and pacing come after); production (what it takes to make: people, gear and roughly how long, within the resources given; never more equipment, editing skill or help than they said they have); successMetric (the one number that says whether it worked, against the account's own median, for example "Saves against your median").
 - Every weeklyPlan item has a maker: "claude" when the person's own Claude will make the video, "you" when the person makes it. Read "Who makes the videos" in the settings: "My Claude makes them" makes every post "claude"; "A mix" makes "claude" the posts that work without filming and "you" the rest; anything else, or no setting, makes every post "you".
-- A "claude" post is made entirely on a computer, with no filming and no footage of the person: only the kinds listed under "Videos their Claude may make" (animated graphics and animated text when none are listed). Its format is Reel, or Carousel for a photo slideshow. Its direction says, concretely, what is on screen scene by scene and the text that appears; its production says "Made by your Claude:" and the kind of video, with no gear or filming. Its evidence and rationale follow the same rules as every other post.`;
+- A "claude" post is made entirely on a computer, with no filming and no footage of the person: only the kinds listed under "Videos their Claude may make" (animated graphics and animated text when none are listed). Its format is Reel, or Carousel for a photo slideshow. Its direction says, concretely, what is on screen scene by scene and the text that appears; its production says "Made by your Claude:" and the kind of video, with no gear or filming. Its evidence and rationale follow the same rules as every other post.
+- ${FILMING_DIRECTION_RULE}`;
 
 export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null, evidence?: Evidence | null): string {
   const parts: string[] = [];

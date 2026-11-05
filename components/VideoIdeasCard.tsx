@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ChevronUp, Clapperboard, Copy, Lightbulb } from "lucide-react";
 import { Button, Card, CardHeader, Checkbox, Chip, Field, Input } from "@/components/system";
 import PlanNotice, { UsageLine } from "./PlanNotice";
+import PlaceScan from "./PlaceScan";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import { EVIDENCE_LABEL, IDEA_STYLES, TREATMENT_LABEL, ideaText, type IdeaSet, type IdeaStyle, type VideoIdea } from "@/lib/ideas/videoIdeas";
@@ -75,6 +76,8 @@ export default function VideoIdeasCard() {
     <Card className="dash-ideas">
       <CardHeader title={<><Lightbulb size={15} aria-hidden /> Video ideas</>} actions={usage ? <UsageLine meter="content_ideas" used={usage.used} limit={usage.limit} resetsOn={usage.resetsOn} /> : null} />
       <p className="dash-ideas-lead">What to film next, following the theme of your own posts: every shot, what to say, the sound and the length.</p>
+
+      {styles.some((s) => s !== "animation") && <PlaceScan variant="inline" />}
 
       <div className="dash-ideas-form">
         <fieldset className="dash-ideas-styles">
