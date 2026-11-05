@@ -27,7 +27,7 @@ import TikTokAnalytics from "@/components/TikTokAnalytics";
 import AnalyticsShell from "@/components/AnalyticsShell";
 import { DiagnosticsView, ContentIntelView } from "@/components/analytics/IntelViews";
 import { buildAccountSample } from "@/lib/intel/accountSample";
-import { whatWorks } from "@/lib/intel/overview";
+import { whatWorks, worksGap } from "@/lib/intel/overview";
 import { listInsights } from "@/lib/intel/insightStore";
 import type { TtVideo } from "@/lib/tiktokAuth";
 import UpdatedAgo from "@/components/UpdatedAgo";
@@ -390,7 +390,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   });
   const intel = await insightsP;
   const views = {
-    content: <ContentIntelView works={whatWorks(sample)} themes={profile?.brand_detail?.growth?.understanding?.themes ?? []} postsRead={sample.posts.length} />,
+    content: <ContentIntelView works={whatWorks(sample)} gap={worksGap(sample)} themes={profile?.brand_detail?.growth?.understanding?.themes ?? []} postsRead={sample.posts.length} />,
     diagnostics: <DiagnosticsView initial={intel.insights} storeReady={intel.tableReady} canManage={can(ctx, "manage_workspace")} />,
   };
 

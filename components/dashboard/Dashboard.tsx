@@ -578,7 +578,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
               <Card className="dash-lift">
                 <CardHeader title="What's working" />
-                <WorksBars works={d.intel.works} />
+                <WorksBars works={d.intel.works} gap={d.intel.worksGap} />
                 {d.intel.works.length > 0 && (
                   <Details label="Details" openLabel="Less"><WorksNotes works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} /></Details>
                 )}

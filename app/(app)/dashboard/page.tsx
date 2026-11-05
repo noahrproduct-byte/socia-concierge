@@ -37,7 +37,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
 import { buildAccountSample } from "@/lib/intel/accountSample";
-import { growthBriefing, goalLine, nextActions, recentLearning, whatWorks } from "@/lib/intel/overview";
+import { growthBriefing, goalLine, nextActions, recentLearning, whatWorks, worksGap } from "@/lib/intel/overview";
 import { listInsights } from "@/lib/intel/insightStore";
 import { listGoals } from "@/lib/growthStore";
 import { currentFor } from "@/lib/briefing";
@@ -364,6 +364,7 @@ export default async function DashboardPage({
     intel: {
       briefing,
       works,
+      worksGap: works.length ? undefined : worksGap(sample),
       themes: growth?.understanding?.themes ?? [],
       postsRead: sample.posts.length,
       actions,
