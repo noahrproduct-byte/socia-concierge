@@ -5,7 +5,7 @@
 // strongest real posts as cards. Every mark is a count over the posts SOCIA
 // actually read; the sample size stays on screen.
 
-import { Clock, Info, Link2, PieChart } from "lucide-react";
+import { Clock, Eye, Heart, Info, Link2, MessageCircle, PieChart } from "lucide-react";
 import type { CompetitorRow, GroupedPatterns } from "@/lib/competitorIntel";
 import { Donut, Heatmap, postingGrid } from "./viz";
 import { fmtDate, fmtN } from "./shared";
@@ -137,10 +137,10 @@ export function WhenTheyPost({ r }: { r: CompetitorRow | null }) {
 
 /* ---------- top content ---------- */
 
-export function TopContent({ r, onExamples }: { r: CompetitorRow | null; onExamples: (tag: string | null, title: string) => void }) {
-  if (!r || r.posts.length === 0) return null;
+export function TopContent({ r, autoPlan, onExamples }: { r: CompetitorRow | null; /** The brand's plan writes a Content Plan every Sunday and lays it on an empty Calendar week (lib/weeklyPlanJob.ts). */ autoPlan: boolean; onExamples: (tag: string | null, title: string) => void }) {
+  if (!r || !r.posts.length) return null;
   const scored = r.posts.filter((p) => (p.views ?? p.likes) != null);
-  const top = [...scored].sort((a, b) => ((b.views ?? b.likes) ?? 0) - ((a.views ?? a.likes) ?? 0)).slice(0, 3);
+  const top = [...scored].sort((a, b) => ((b.views ?? b.likes) ?? 0) - ((a.views ?? a.likes) ?? 0)).slice(0, 5);
   if (!top.length) return null;
   return (
     <section className="ov-card cx2-card cx2-top">
@@ -149,27 +149,42 @@ export function TopContent({ r, onExamples }: { r: CompetitorRow | null; onExamp
         <button type="button" className="ov-link" onClick={() => onExamples(null, `Top posts from ${r.name}`)}>All posts →</button>
       </div>
       <div className="cx2-top-grid">
-        {top.map((p, i) => (
-          <a key={p.url} href={p.url} target="_blank" rel="noreferrer" className="cx2-top-card cx2-rise" style={{ animationDelay: `${i * 90}ms` }}>
-            <span className="cx2-top-thumb">
-              {p.thumb
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={p.thumb} alt="" loading="lazy" />
-                : <i className="ph" aria-hidden />}
-              {p.format && <em>{p.format.toUpperCase()}</em>}
-              {p.multiplier != null && p.multiplier >= 1.5 && <b className="cx2-mult">{p.multiplier.toFixed(1)}×</b>}
-            </span>
-            <b className="cx2-top-title">{p.title ?? "Untitled post"}</b>
-            <span className="cx2-top-stats">
-              {p.views != null && <span>{fmtN(p.views)} views</span>}
-              {p.likes != null && <span>{fmtN(p.likes)} likes</span>}
-              {p.comments != null && <span>{fmtN(p.comments)} comments</span>}
-              {p.publishedAt && <span className="muted">{fmtDate(p.publishedAt)}</span>}
-            </span>
-          </a>
-        ))}
+        {top.map((p, i) => {
+          const tall = p.format === "Reel" || p.format === "Short";
+          const counts = [
+            p.views != null ? `${fmtN(p.views)} views` : null,
+            p.likes != null ? `${fmtN(p.likes)} likes` : null,
+            p.comments != null ? `${fmtN(p.comments)} comments` : null,
+          ].filter(Boolean);
+          return (
+            <a key={p.url} href={p.url} target="_blank" rel="noreferrer" className="cx2-top-card cx2-rise" style={{ animationDelay: `${i * 90}ms` }} aria-label={`${p.title ?? "Untitled post"}. ${counts.length ? counts.join(", ") : "No counts published"}. Opens the original.`}>
+              <span className={`cx2-top-thumb${tall ? " is-tall" : ""}`}>
+                {p.thumb
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={p.thumb} alt="" loading="lazy" />
+                  : <i className="ph" aria-hidden />}
+                {p.format && <em>{p.format}</em>}
+                {p.multiplier != null && p.multiplier >= 1.5 && <b className="cx2-mult">{p.multiplier.toFixed(1)}×</b>}
+              </span>
+              <span className="cx2-top-stats" aria-hidden>
+                {p.views != null && <span title="Views"><Eye size={13} /> {fmtN(p.views)}</span>}
+                {p.likes != null && <span title="Likes"><Heart size={13} /> {fmtN(p.likes)}</span>}
+                {p.comments != null && <span title="Comments"><MessageCircle size={13} /> {fmtN(p.comments)}</span>}
+                {!counts.length && <span className="muted">No counts published</span>}
+              </span>
+              <b className="cx2-top-title">{p.title ?? "Untitled post"}</b>
+              {p.publishedAt && <span className="cx2-top-date">{fmtDate(p.publishedAt)}</span>}
+            </a>
+          );
+        })}
       </div>
-      {r.posts.some((p) => p.multiplier != null) && <small className="cx2-foot">× is each post against the account&apos;s own median views — their baseline, not yours.</small>}
+      <small className="cx2-foot">
+        {r.tracked
+          ? `You track ${r.name}, so SOCIA reads these when it writes your next Content Plan and builds posts on the Reels that took off.`
+          : `Track ${r.name} and SOCIA reads these when it writes your next Content Plan.`}
+        {autoPlan ? " That plan is written every Sunday evening, and its posts go on your Calendar as drafts when the week is empty." : ""}
+        {r.posts.some((p) => p.multiplier != null) ? " × is each post against the account\u2019s own median views: their baseline, not yours." : ""}
+      </small>
     </section>
   );
 }

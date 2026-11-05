@@ -379,6 +379,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     trendingLimit: Math.max(1, Math.min(10, getLimit(ent, "competitors"))),
     reelsToCopy,
     reelsRead,
+    // The same rule the Sunday plan job applies (lib/weeklyPlanJob.ts): paid plans with Content Plans.
+    autoPlan: ent.plan !== "free" && canUseFeature(ent, "content_plan"),
     audio: await audioP,
     nicheAccess: canUseFeature(ent, "niche_intelligence"),
     nicheUpgrade: upgradeFor(ent, "niche_intelligence"),

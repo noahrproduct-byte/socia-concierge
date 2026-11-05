@@ -372,7 +372,7 @@ export default function CompetitorsPage({ d }: { d: CompetitorsData }) {
             </section>
           )}
 
-          <TopContent r={active} onExamples={(tag, title) => setEvidence({ kind: "examples", tag, title })} />
+          <TopContent r={active} autoPlan={d.autoPlan} onExamples={(tag, title) => setEvidence({ kind: "examples", tag, title })} />
 
           <WhyWinning reasons={reasons} r={active} connected={d.connected} onEvidence={(reason) => setEvidence({ kind: "reason", reason })} />
 

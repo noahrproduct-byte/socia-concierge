@@ -58,6 +58,8 @@ export type CompetitorsData = {
   trendingLimit: number;
   /** Recent Reels and Shorts in the niche, ranked against each account's own median. */
   reelsToCopy: ProvenReel[];
+  /** The brand's plan gets the Sunday Content Plan, laid on an empty Calendar week as drafts (lib/weeklyPlanJob.ts). */
+  autoPlan: boolean;
   /** How many recent Reels and Shorts SOCIA read for that list, and from how many accounts. */
   reelsRead: { reels: number; accounts: number };
   /** Instagram's trending audio (lib/igAudio.ts); null when the plan doesn't include niche trends. */
