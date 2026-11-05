@@ -7,7 +7,7 @@
 // sent, and the reference itself is never uploaded or kept.
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Clapperboard, Film, Loader2, Upload, X } from "lucide-react";
+import { AlertTriangle, Clapperboard, Film, Loader2, PenLine, Undo2, Upload, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
@@ -55,6 +55,9 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   const [past, setPast] = useState<Past[]>([]);
   const [drag, setDrag] = useState(false);
   const [step, setStep] = useState<string | null>(null);
+  // Improve the prompt: what it replaced (for Undo) and what it added.
+  const [improving, setImproving] = useState(false);
+  const [improved, setImproved] = useState<{ before: string; after: string; added: string[] } | null>(null);
 
   const loadPast = useCallback(async () => {
     if (!projectId) { setPast([]); return; }
@@ -101,6 +104,30 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
     }
   }, [viewerId]);
 
+  // Rewrites the prompt from what SOCIA saw in the clips. New clips are understood
+  // first, as Make the video does, so the brief can name real shots.
+  const improve = async () => {
+    if (!projectId) return;
+    setImproving(true); setError(null);
+    try {
+      if (beforeMake) {
+        const err = await beforeMake(setStep);
+        setStep(null);
+        if (err) { setError(err); return; }
+      }
+      const before = prompt;
+      const res = await fetch(`/api/studio/projects/${projectId}/brief/enhance`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: before.trim(), hasReference: Boolean(ref) }) });
+      const j = (await res.json().catch(() => null)) as { prompt?: string; added?: string[]; error?: string } | null;
+      if (!res.ok || !j?.prompt) { setError(j?.error ?? "SOCIA couldn't improve that prompt. Try again."); return; }
+      setPrompt(j.prompt);
+      setImproved({ before, after: j.prompt, added: j.added ?? [] });
+    } catch {
+      setError("Couldn't reach SOCIA. Try again.");
+    } finally {
+      setImproving(false);
+    }
+  };
+
   const make = async () => {
     if (!projectId) return;
     setBusy(true); setError(null);
@@ -122,7 +149,8 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
     }
   };
 
-  const ready = Boolean(projectId) && (prompt.trim().length >= 3 || ref) && !reading && !busy;
+  const ready = Boolean(projectId) && (prompt.trim().length >= 3 || ref) && !reading && !busy && !improving;
+  const canImprove = Boolean(projectId) && prompt.trim().length >= 3 && !busy && !improving && !reading;
   const shots = ref?.cuts ? ref.cuts.length + 1 : null;
 
   return (
@@ -139,8 +167,21 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         <>
           <label className="cba-cap">
             <span>What you want (optional with a reference)</span>
-            <textarea value={prompt} rows={3} maxLength={PROMPT_MAX} disabled={busy} placeholder="For example: 20 seconds, open on the cheese pull, three quick cuts of the oven, end on the menu board with 'Open till 10'." onChange={(e) => setPrompt(e.target.value)} />
+            <textarea value={prompt} rows={Math.min(10, Math.max(3, Math.ceil(prompt.length / 90) + 1))} maxLength={PROMPT_MAX} disabled={busy || improving} placeholder="For example: 20 seconds, open on the cheese pull, three quick cuts of the oven, end on the menu board with 'Open till 10'." onChange={(e) => setPrompt(e.target.value)} />
           </label>
+          <div className="cbr-improve">
+            <button type="button" className="ov-btn ghost small" disabled={!canImprove} onClick={() => void improve()}>
+              {improving ? <Loader2 size={13} className="spin" /> : <PenLine size={13} />} {improving ? step ?? "Improving the prompt…" : "Improve the prompt"}
+            </button>
+            {improved && improved.after === prompt ? (
+              <>
+                <button type="button" className="ov-btn ghost small" onClick={() => { setPrompt(improved.before); setImproved(null); }}><Undo2 size={13} /> Undo</button>
+                <small>{improved.added.length ? `Added ${improved.added.join(", ")}. ` : ""}Change anything before you make it.</small>
+              </>
+            ) : (
+              <small>{projectId ? "SOCIA rewrites it from what's in your clips, so the editor knows the length, the first shot, the order and the ending. It doesn't count as a video." : "Add clips first, so SOCIA can use what's in them."}</small>
+            )}
+          </div>
 
           <div className="cbr-ref">
             <span className="cbr-ref-label">Reference video (optional)</span>

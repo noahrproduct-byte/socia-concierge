@@ -11278,6 +11278,8 @@ p.cbm-muted { display: block; }
 .cbm-sugg li small { font-size: 11.5px; color: var(--text-muted); }
 /* Make a video your way (components/studio/BriefPanel.tsx) */
 .cbr-ref { display: flex; flex-direction: column; gap: 6px; }
+.cbr-improve { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.cbr-improve small { flex: 1 1 240px; min-width: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
 .cbr-ref-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
 .cbr-drop { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 12px; border: 1px dashed var(--border-strong); border-radius: 12px; background: var(--surface); font-size: 13px; color: var(--text-secondary); cursor: pointer; text-align: center; }
 .cbr-drop.drag, .cbr-drop:hover { border-color: var(--accent); color: var(--text-primary); }
