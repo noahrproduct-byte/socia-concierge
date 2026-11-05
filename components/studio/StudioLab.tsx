@@ -97,10 +97,12 @@ function Lab() {
       const root = document.querySelector(".st");
       if (!root) return;
       await dropSample(root);
-      if (screen !== "rate-improve") return;
+      // ?tab=Timeline (or Performance, Directions, Improve) opens that workspace once the analysis is back.
+      const want = screen === "rate-improve" ? "Improve" : new URLSearchParams(window.location.search).get("tab");
+      if (!want) return;
       for (let i = 0; i < 400 && alive; i++) {
         await new Promise((r) => setTimeout(r, 100));
-        const tab = Array.from(document.querySelectorAll<HTMLButtonElement>('.st-tabs button[role="tab"]')).find((b) => b.textContent?.trim() === "Improve");
+        const tab = Array.from(document.querySelectorAll<HTMLButtonElement>('.st-tabs button[role="tab"]')).find((b) => b.textContent?.trim().startsWith(want));
         if (tab) { tab.click(); return; }
       }
     })();

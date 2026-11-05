@@ -436,3 +436,679 @@
 .sd-pace .dash-details {
   margin-top: var(--sp-1);
 }
+
+/* ==== the Content Rater's workspaces (components/studio/RaterPanels.tsx) ====
+   Red marks a problem, amber an opportunity, green a strength and blue an
+   action or a suggested edit; each colour always comes with its word. */
+.sd-note {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-sub {
+  margin: var(--sp-3) 0 var(--sp-2);
+  color: var(--ink);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
+  font-weight: var(--fw-semibold);
+}
+.sd-scroll {
+  overflow-x: auto;
+}
+.sd-refs {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the sub-steps inside Improve and export ---- */
+.sd-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
+}
+.sd-steps button {
+  min-height: var(--control-h);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+.sd-steps button.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+.sd-steps button:focus-visible,
+.sd-strip button:focus-visible,
+.sd-pin:focus-visible,
+.sd-moments button:focus-visible,
+.sd-posts a:focus-visible,
+.sd-why summary:focus-visible,
+.sd-scores summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- verdict ---- */
+.sd-verdict {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-4);
+  align-items: start;
+}
+.sd-vscore {
+  display: grid;
+  justify-items: center;
+  min-width: 72px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface-raised);
+}
+.sd-vscore b {
+  color: var(--ink);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.sd-vscore small,
+.sd-vhead small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-vhead {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sd-vhead h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
+  font-weight: var(--fw-semibold);
+  text-wrap: balance;
+}
+.sd-vhead p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-fixes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+.sd-fix {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.sd-fix header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+}
+.sd-fix header b {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.sd-fix-n {
+  color: var(--ink-3);
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.sd-fix-meta {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-semibold);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.sd-fix.is-critical .sd-fix-meta {
+  color: var(--negative-ink);
+}
+.sd-fix.is-critical {
+  border-color: var(--negative);
+}
+.sd-fix.is-high .sd-fix-meta {
+  color: var(--warning-ink);
+}
+.sd-fix.is-experiment .sd-fix-meta {
+  color: var(--accent-ink);
+}
+.sd-fix dl,
+.sd-why dl,
+.sd-dir dl {
+  margin: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+.sd-fix dl > div,
+.sd-why dl > div,
+.sd-dir dl > div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+.sd-fix dt,
+.sd-dir dt {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.sd-fix dd,
+.sd-dir dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-fix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.sd-why,
+.sd-scores {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-why summary,
+.sd-scores summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--accent-ink);
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-medium);
+}
+.sd-why[open] summary,
+.sd-scores[open] summary {
+  margin-bottom: var(--sp-2);
+}
+.sd-why dl {
+  padding: var(--sp-3);
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+}
+.sd-works {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-2);
+}
+.sd-works li {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-control);
+  background: var(--positive-bg);
+  color: var(--ink);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-body);
+}
+
+/* ---- timeline ---- */
+.sd-strip {
+  display: flex;
+  gap: var(--sp-1);
+  overflow-x: auto;
+  padding-bottom: var(--sp-1);
+}
+.sd-strip button {
+  flex: 0 0 56px;
+  display: grid;
+  gap: var(--sp-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  cursor: pointer;
+}
+.sd-strip img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: var(--r-chip);
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+.sd-strip button.is-on img {
+  outline: 2px solid var(--accent);
+}
+.sd-strip small {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sd-track {
+  position: relative;
+  height: 32px;
+  margin: var(--sp-3) var(--sp-2) 0;
+}
+.sd-seg {
+  position: absolute;
+  bottom: 0;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--surface);
+}
+.sd-seg.is-strong,
+.sd-seg.is-good {
+  background: var(--positive);
+}
+.sd-seg.is-needs {
+  background: var(--warning);
+}
+.sd-seg.is-weak {
+  background: var(--negative);
+}
+.sd-pin {
+  position: absolute;
+  top: 0;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: var(--r-pill);
+  background: var(--ink-3);
+  cursor: pointer;
+}
+.sd-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  pointer-events: none;
+}
+.sd-pin.is-problem,
+.sd-legend .is-problem i,
+.sd-moments .is-problem em {
+  background: var(--negative);
+}
+.sd-pin.is-chance,
+.sd-legend .is-chance i,
+.sd-moments .is-chance em {
+  background: var(--warning);
+}
+.sd-pin.is-strong,
+.sd-legend .is-strong i,
+.sd-moments .is-strong em {
+  background: var(--positive);
+}
+.sd-pin.is-edit,
+.sd-legend .is-edit i,
+.sd-moments .is-edit em {
+  background: var(--accent);
+}
+.sd-legend {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.sd-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+}
+.sd-moments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.sd-moments li + li {
+  border-top: 1px solid var(--border);
+}
+.sd-moments button {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-2) 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sd-m-t {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+.sd-m-body {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sd-m-body b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+.sd-m-body small {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+/* The tone as a word on its own colour; the word carries it for anyone who can't tell the colours apart. */
+.sd-moments em {
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  color: var(--surface);
+  font-style: normal;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* ---- performance: the real posts a comparison rests on ---- */
+.sd-posts {
+  list-style: none;
+  margin: 0 0 var(--sp-3);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sp-2);
+}
+.sd-posts a,
+.sd-posts li > span {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-3);
+  text-decoration: none;
+}
+.sd-post-thumb {
+  position: relative;
+  display: block;
+  width: 44px;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r-chip);
+  overflow: hidden;
+  background: var(--surface-hover);
+}
+.sd-post-thumb img,
+.sd-post-thumb i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sd-post-thumb em {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 0 var(--sp-1);
+  border-radius: 0 var(--r-chip) 0 0;
+  background: var(--ink);
+  color: var(--surface);
+  font-style: normal;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-semibold);
+}
+.sd-post-body {
+  display: grid;
+  min-width: 0;
+}
+.sd-post-body b {
+  color: var(--ink);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sd-post-body small {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  overflow-wrap: anywhere;
+}
+.sd-tests {
+  list-style: none;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  display: grid;
+  gap: var(--sp-3);
+}
+.sd-tests li {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-control);
+}
+.sd-tests b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+}
+.sd-tests p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-body);
+}
+.sd-tests em {
+  font-style: normal;
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+
+/* ---- directions ---- */
+.sd-dirs {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+}
+.sd-dir {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+.sd-dir.is-first {
+  border-color: var(--accent);
+}
+.sd-dir header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+}
+.sd-dir header b {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.sd-dir header small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+}
+.sd-dir-tag {
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--accent-subtle);
+  color: var(--accent-ink);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-medium);
+}
+.sd-dir > p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-dir-open {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+}
+.sd-dir-open small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-dir-open p {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.sd-board {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+.sd-board li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+.sd-board span {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
+}
+.sd-board b {
+  display: block;
+  color: var(--ink);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-regular);
+}
+.sd-board small {
+  display: block;
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-dir dl > div {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+.sd-dir dd {
+  font-size: var(--fs-nav);
+}
+.sd-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.sd-lines li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+.sd-lines li + li {
+  border-top: 1px solid var(--border);
+}
+.sd-lines span {
+  display: grid;
+  min-width: 0;
+}
+.sd-lines b {
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+.sd-lines small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+@media (max-width: 640px) {
+  .sd-verdict {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sd-vscore {
+    justify-self: start;
+    grid-auto-flow: column;
+    align-items: baseline;
+    gap: var(--sp-2);
+  }
+  .sd-fix dl > div,
+  .sd-why dl > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .sd-moments button {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .sd-moments em {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
