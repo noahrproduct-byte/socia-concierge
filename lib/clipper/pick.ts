@@ -1,0 +1,182 @@
+// SOCIA's own clip picker, the pure half: the transcript as timed lines for
+// the model, the brief it works from (the brand, Noah's examples of good and
+// bad clips, this brand's own clip results, the niche's leading hooks and
+// topics), and the check on what comes back: every clip snapped to whole
+// words, inside the video, at a length the person asked for, not overlapping
+// another. The model only chooses ranges and words about them; the cut,
+// captions and numbers come from the transcript and SOCIA's own reads.
+
+import type { TranscriptWord } from "@/lib/transcribe/types";
+import type { ClipLength, ClipperOptions } from "./provider";
+
+/** Words as stored on the job: [text, startMs, endMs]. */
+export type StoredWord = [string, number, number];
+
+export const packWords = (words: TranscriptWord[]): StoredWord[] => words.map((w) => [w.text, Math.round(w.startMs), Math.round(w.endMs)]);
+export const unpackWords = (stored: unknown): TranscriptWord[] =>
+  Array.isArray(stored)
+    ? stored.filter((w): w is StoredWord => Array.isArray(w) && typeof w[0] === "string" && Number.isFinite(w[1]) && Number.isFinite(w[2]))
+        .map(([text, startMs, endMs]) => ({ text, startMs, endMs, confidence: null }))
+    : [];
+
+/** Seconds each length choice allows. "auto" is the short-form sweet spot. */
+export const LENGTH_SECONDS: Record<ClipLength, [number, number]> = {
+  auto: [15, 90], under30: [8, 30], "30to60": [30, 60], "60to90": [60, 90], "90to180": [90, 180],
+};
+
+export function lengthRange(lengths: ClipLength[]): { min: number; max: number } {
+  const picked = lengths.length ? lengths : (["auto"] as ClipLength[]);
+  return { min: Math.min(...picked.map((l) => LENGTH_SECONDS[l][0])), max: Math.max(...picked.map((l) => LENGTH_SECONDS[l][1])) };
+}
+
+const clock = (ms: number) => {
+  const s = Math.max(0, ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${(s - m * 60).toFixed(1).padStart(4, "0")}`;
+};
+
+export type Line = { startMs: number; endMs: number; text: string };
+
+/** The transcript as lines: broken at sentence ends, at pauses over 0.9 s, or after 28 words. */
+export function transcriptLines(words: TranscriptWord[]): Line[] {
+  const out: Line[] = [];
+  let cur: TranscriptWord[] = [];
+  const flush = () => {
+    if (cur.length) out.push({ startMs: cur[0].startMs, endMs: cur[cur.length - 1].endMs, text: cur.map((w) => w.text).join(" ") });
+    cur = [];
+  };
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (cur.length && w.startMs - cur[cur.length - 1].endMs > 900) flush();
+    cur.push(w);
+    if (/[.!?…]["')\]]?$/.test(w.text) || cur.length >= 28) flush();
+  }
+  flush();
+  return out;
+}
+
+export const formatLines = (lines: Line[]): string => lines.map((l) => `[${clock(l.startMs)}-${clock(l.endMs)}] ${l.text}`).join("\n");
+
+/** One of Noah's labelled clips (docs/clipper/examples.json). */
+export type ClipExample = { verdict: "good" | "bad"; transcript: string; seconds: number; why: string; niche?: string };
+
+export type PickBrief = {
+  brand: string;
+  lines: Line[];
+  durationMs: number;
+  options: Pick<ClipperOptions, "maxClips" | "lengths" | "lang">;
+  examples: ClipExample[];
+  /** This brand's posted clips and how each did against its own median, one line each. */
+  results: string[];
+  /** The niche's hooks and topics, from lib/trendSignals trendsEvidence. */
+  niche: string | null;
+};
+
+export const PICK_SCHEMA = {
+  type: "object", additionalProperties: false,
+  properties: {
+    clips: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false,
+        properties: {
+          start: { type: "number" }, end: { type: "number" },
+          title: { type: "string" }, hook: { type: "string" },
+          score: { type: "number" }, reason: { type: "string" },
+        },
+        required: ["start", "end", "title", "hook", "score", "reason"],
+      },
+    },
+  },
+  required: ["clips"],
+} as const;
+
+export const PICK_SYSTEM = `You pick the moments from a long video that stand alone as short vertical clips for Instagram Reels, TikTok and YouTube Shorts.
+
+A good clip:
+- Opens on its strongest line: a claim, a question, a surprise or the middle of an action. Never on a greeting, "so", "um", a setup or a reference to something said earlier.
+- Makes complete sense to someone who has seen nothing else of the video.
+- Has one idea, delivered and finished. It ends on the payoff or the last word of a thought, never mid-sentence.
+- Earns the viewer's time: a story, an opinion, a useful tip, a result, a funny or emotional moment.
+
+Rules:
+- start and end are seconds in the video, taken from the transcript's timestamps: start at the first word of a line, end at the last word of a line.
+- Keep every clip inside the length range you are given. Clips never overlap.
+- Return at most the number of clips asked for, best first. Return fewer when fewer moments are good: an empty list is better than weak clips.
+- title: a short headline in sentence case that says what the clip is about, written for the viewer.
+- hook: the clip's opening words exactly as spoken in the transcript.
+- score: 0 to 10, how well the clip meets the bar above. Judge the moment, not the topic's popularity.
+- reason: one sentence on why this moment works as a clip, quoting what is said.
+- Never invent words, numbers or claims that aren't in the transcript.
+- When you are given the brand's own clip results or Noah's examples, follow what they show works. When you are given the niche's hooks and topics, prefer moments that open the way leading hooks do, but only when the moment is genuinely good. Those are other accounts' results, not a promise.`;
+
+/** The user message: the brief, then the timed transcript. */
+export function pickMessage(b: PickBrief): string {
+  const { min, max } = lengthRange(b.options.lengths);
+  const parts = [
+    `Brand: ${b.brand || "unknown"}`,
+    `Video length: ${clock(b.durationMs)}. Language: ${b.options.lang}.`,
+    `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
+  ];
+  if (b.examples.length) {
+    parts.push(
+      "# Noah's examples of clips (his judgement of what works and what doesn't)",
+      b.examples.map((e) => `- ${e.verdict.toUpperCase()} (${Math.round(e.seconds)} s${e.niche ? `, ${e.niche}` : ""}): "${e.transcript.slice(0, 400)}"\n  Why: ${e.why}`).join("\n"),
+    );
+  }
+  if (b.results.length) parts.push("# This brand's posted clips and how they did against its own usual", b.results.map((r) => `- ${r}`).join("\n"));
+  if (b.niche) parts.push("# The brand's niche right now (other accounts' Reels)", b.niche);
+  parts.push("# Transcript", formatLines(b.lines));
+  return parts.join("\n\n");
+}
+
+export type RawPick = { start: number; end: number; title: string; hook: string; score: number; reason: string };
+export type ClipPick = { startMs: number; endMs: number; title: string; hook: string; score: number; reason: string; text: string };
+
+const clean = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, n) : "");
+
+/**
+ * The model's picks, made safe: a clip starts with the word being spoken at its
+ * start and ends with the last word that begins before its end, so no word is
+ * cut in half; at least 3 words, inside the allowed length with 15% slack, not
+ * overlapping a better clip by more than a quarter, best first.
+ */
+export function validatePicks(raw: unknown, words: TranscriptWord[], opts: Pick<PickBrief["options"], "maxClips" | "lengths">): ClipPick[] {
+  const list = (raw as { clips?: unknown })?.clips;
+  if (!Array.isArray(list) || !words.length) return [];
+  const { min, max } = lengthRange(opts.lengths);
+  const picks: ClipPick[] = [];
+  for (const r of list as Partial<RawPick>[]) {
+    const s = Number(r.start) * 1000, e = Number(r.end) * 1000;
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) continue;
+    const first = words.findIndex((w) => w.endMs > s);
+    let last = -1;
+    for (let i = words.length - 1; i >= 0; i--) if (words[i].startMs < e) { last = i; break; }
+    if (first < 0 || last < first || last - first + 1 < 3) continue;
+    const startMs = words[first].startMs, endMs = words[last].endMs;
+    const sec = (endMs - startMs) / 1000;
+    if (sec < min * 0.85 || sec > max * 1.15) continue;
+    const score = Math.max(0, Math.min(10, Math.round(Number(r.score) * 10) / 10 || 0));
+    picks.push({
+      startMs, endMs, score,
+      title: clean(r.title, 120) || "Clip", hook: clean(r.hook, 200), reason: clean(r.reason, 400),
+      text: words.slice(first, last + 1).map((w) => w.text).join(" "),
+    });
+  }
+  picks.sort((a, b) => b.score - a.score);
+  const kept: ClipPick[] = [];
+  for (const p of picks) {
+    const clash = kept.some((k) => {
+      const overlap = Math.min(k.endMs, p.endMs) - Math.max(k.startMs, p.startMs);
+      return overlap > 0.25 * Math.min(k.endMs - k.startMs, p.endMs - p.startMs);
+    });
+    if (!clash) kept.push(p);
+    if (kept.length >= opts.maxClips) break;
+  }
+  return kept;
+}
+
+/** The words inside a clip, at their times in the source video, for its captions. */
+export function clipWords(words: TranscriptWord[], startMs: number, endMs: number): TranscriptWord[] {
+  return words.filter((w) => w.startMs >= startMs - 50 && w.endMs <= endMs + 50);
+}

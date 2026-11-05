@@ -102,3 +102,14 @@ div.ai-job-row { cursor: default; }
   .ai-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   .ai-media { height: 300px; }
 }
+
+/* SOCIA's own clips before they are made (components/ai/ClipRenderCard.tsx): the
+   source with the 9:16 frame to drag over the speaker; outside the frame is dimmed. */
+.ai-crop { position: relative; background: #000; overflow: hidden; touch-action: none; user-select: none; }
+.ai-crop video { width: 100%; display: block; aspect-ratio: 16 / 9; object-fit: contain; background: #000; }
+.ai-crop-win { position: absolute; top: 0; bottom: 0; border: 2px solid var(--accent); border-radius: 4px; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55); }
+.ai-crop-win.is-movable { cursor: grab; }
+.ai-crop-win.is-movable:active { cursor: grabbing; }
+.ai-crop-win:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+.ai-crop-play { position: absolute; left: 10px; bottom: 10px; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; border: 0; background: var(--surface); color: var(--ink); cursor: pointer; }
+.ai-crop-play:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }

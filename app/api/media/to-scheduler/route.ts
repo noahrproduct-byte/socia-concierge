@@ -66,6 +66,11 @@ export async function POST(req: Request) {
     if (ins.error && ctx.workspace && isMissingColumnError(ins.error)) ins = await ctx.client.from("scheduled_posts").insert(draft).select("id").single();
     if (ins.error) return dbErrorResponse("media/to-scheduler", ins.error);
     const postId = (ins.data as { id: string }).id;
+    // The clip remembers the post it became, so SOCIA's clipper learns from how it did (lib/clipper/learn.ts).
+    if (body.kind === "clip") {
+      const link = await svc.from("clips").update({ post_id: postId }).eq("id", body.id).eq("user_id", ctx.ownerId);
+      if (link.error) console.error("[media/to-scheduler] clip not linked to its post:", link.error.message);
+    }
     return NextResponse.json({ postId, href: `/create?post=${encodeURIComponent(postId)}&from=ai` });
   } catch (e) {
     return aiErrorResponse("media/to-scheduler", e);

@@ -15,6 +15,9 @@ import { ClipperError, MAX_CLIPS, isClipLength, type ClipperOptions, type Clippe
 import { AI_BUCKET, copyUrlToBucket, mediaPath, removePaths, signedUrl } from "@/lib/aiStudio/media";
 import { brandLine, writeClipCaptions } from "@/lib/aiStudio/captions";
 import { fileSeconds, isReadableLink, youtubeSeconds, MAX_SOURCE_MINUTES } from "./sourceLength";
+import { SOCIA_PROVIDER, checkTranscription, clipRows, pickMoments, sociaClipperReady, startTranscription } from "./socia";
+import { clipWords, packWords, unpackWords } from "./pick";
+import type { TranscriptWord } from "@/lib/transcribe/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -26,16 +29,22 @@ export type ClipJobRow = {
   status: "queued" | "processing" | "done" | "failed" | "cancelled";
   credits_reserved: number; credits_charged: number | null; error: string | null;
   created_at: string; updated_at: string; last_polled_at: string | null; finished_at: string | null;
+  /** SOCIA's own clipper: transcribing, picking, picking-run (claimed), pick-retry. Null for Vizard. */
+  stage?: string | null;
 };
 export type ClipRow = {
   id: string; job_id: string; provider_clip_id: string | null; video_url: string | null; video_path: string | null; thumbnail_path: string | null;
   duration_ms: number | null; title: string | null; score: number | null; score_reason: string | null; transcript: string | null;
   caption: string | null; hashtags: string[]; created_at: string;
+  /** SOCIA's own clips: where they sit in the source, the opening words, and the 9:16 crop (0 left, 1 right). */
+  start_ms?: number | null; end_ms?: number | null; hook?: string | null; crop_x?: number | null;
 };
-export type ClipView = ClipRow & { playUrl: string | null; downloadUrl: string | null };
+/** What the browser needs to render one of SOCIA's own clips (components/ai/renderClip.ts). */
+export type ClipRender = { sourceUrl: string; startMs: number; endMs: number; cropX: number; words: TranscriptWord[]; captions: boolean };
+export type ClipView = ClipRow & { playUrl: string | null; downloadUrl: string | null; render?: ClipRender | null };
 
-const JOB_COLS = "id, user_id, workspace_id, source_kind, source_url, source_path, source_minutes, options, provider, provider_job_id, status, credits_reserved, credits_charged, error, created_at, updated_at, last_polled_at, finished_at";
-const CLIP_COLS = "id, job_id, provider_clip_id, video_url, video_path, thumbnail_path, duration_ms, title, score, score_reason, transcript, caption, hashtags, created_at";
+export const JOB_COLS = "id, user_id, workspace_id, source_kind, source_url, source_path, source_minutes, options, provider, provider_job_id, status, credits_reserved, credits_charged, error, created_at, updated_at, last_polled_at, finished_at, stage";
+const CLIP_COLS = "id, job_id, provider_clip_id, video_url, video_path, thumbnail_path, duration_ms, title, score, score_reason, transcript, caption, hashtags, created_at, start_ms, end_ms, hook, crop_x";
 
 /** Vizard allows 3 submissions a minute and 20 an hour per key; SOCIA queues past that. */
 const PROVIDER_PER_MINUTE = 3;
@@ -116,13 +125,19 @@ export type CreateClipJobInput = {
 /** Price, spend and save a job, then try to submit it at once. Throws ClipperError or CreditsError. */
 export async function createClipJob(ctx: Ctx, input: CreateClipJobInput): Promise<ClipJobRow> {
   const svc = svcOrThrow();
+  const provider = providerFor(input.source.kind);
+  if (!provider) {
+    throw new ClipperError(input.source.kind === "upload"
+      ? "The clipper is not set up yet. Try again later."
+      : "SOCIA clips uploaded files. Download the video and upload it here.", input.source.kind === "upload" ? "not_configured" : "upload_only");
+  }
   const minutes = await measureSourceMinutes(svc, input.source);
-  const credits = clipCredits(minutes, input.options.clipModel);
+  const credits = clipCredits(minutes, input.options.clipModel, provider);
   if (!input.minutes || input.minutes < minutes) throw new PriceCheckError(minutes, credits);
   const { data, error } = await svc.from("clip_jobs").insert({
     user_id: ctx.ownerId, workspace_id: ctx.workspace?.id ?? null,
     source_kind: input.source.kind, source_url: input.source.url, source_path: input.source.path ?? null,
-    source_minutes: minutes, options: input.options, provider: clipperProvider()?.name ?? "vizard",
+    source_minutes: minutes, options: input.options, provider,
     status: "queued", credits_reserved: credits,
   }).select(JOB_COLS).single();
   if (error) throw new ClipperError(error.message, "db");
@@ -136,9 +151,20 @@ export async function createClipJob(ctx: Ctx, input: CreateClipJobInput): Promis
   return (await submitClipJob(svc, job)) ?? job;
 }
 
+/**
+ * Who clips a source: SOCIA's own clipper for uploads (it renders from the
+ * file in the person's browser), Vizard for YouTube and direct links when its
+ * key is set. Null when nobody can.
+ */
+export function providerFor(kind: CreateClipJobInput["source"]["kind"]): "socia" | "vizard" | null {
+  if (kind === "upload" && sociaClipperReady()) return SOCIA_PROVIDER;
+  return clipperProvider() ? "vizard" : null;
+}
+
 /** Hand a queued job to the provider if its rate limit allows; otherwise leave it queued for the poller. */
 export async function submitClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow | null> {
   if (job.status !== "queued") return job;
+  if (job.provider === SOCIA_PROVIDER) return submitSociaJob(svc, job);
   const provider = clipperProvider();
   if (!provider) return fail(svc, job, "The clipping service is not configured.", true);
   const minute = await rateHit(`provider:${provider.name}:minute`, 60, PROVIDER_PER_MINUTE);
@@ -177,6 +203,7 @@ export async function pollClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRo
   if (job.status === "queued") return (await submitClipJob(svc, job)) ?? job;
   if (job.status !== "processing" || !job.provider_job_id) return job;
   if (Date.now() - new Date(job.created_at).getTime() > CLIP_MAX_AGE_MS) return fail(svc, job, "The clipping took too long and was stopped. Your credits are back.", true);
+  if (job.provider === SOCIA_PROVIDER) return pollSociaJob(svc, job);
   const provider = clipperProvider();
   if (!provider) return job;
   const now = new Date().toISOString();
@@ -192,6 +219,63 @@ export async function pollClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRo
   if (status.status === "processing") return job;
   if (status.status === "failed") return fail(svc, job, status.error, true);
   return finishClipJob(svc, job, status.clips);
+}
+
+// ---- SOCIA's own clipper (lib/clipper/socia.ts) ---------------------------
+
+async function submitSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
+  try {
+    const transcriptId = await startTranscription(svc, job);
+    const now = new Date().toISOString();
+    const { data } = await svc.from("clip_jobs").update({ provider_job_id: transcriptId, status: "processing", stage: "transcribing", last_polled_at: now, updated_at: now }).eq("id", job.id).select(JOB_COLS).single();
+    return (data as ClipJobRow) ?? { ...job, provider_job_id: transcriptId, status: "processing", stage: "transcribing" };
+  } catch (e) {
+    const err = e as ClipperError;
+    if (err.retryable) return job;
+    return fail(svc, job, err.message || "The video couldn't be sent for transcription.", true);
+  }
+}
+
+/** A pick that died part-way may be claimed again after this long. */
+const PICK_STALE_MS = 10 * 60_000;
+
+async function pollSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
+  const now = new Date();
+  await svc.from("clip_jobs").update({ last_polled_at: now.toISOString() }).eq("id", job.id);
+  if (job.stage === "transcribing") {
+    let t;
+    try {
+      t = await checkTranscription(job.provider_job_id!);
+    } catch {
+      return job; // the transcription service didn't answer: ask again next poll
+    }
+    if (t.status === "processing") return job;
+    if (t.status === "failed") return fail(svc, job, t.error, true);
+    const { data } = await svc.from("clip_jobs").update({ transcript: packWords(t.words), stage: "picking", updated_at: new Date().toISOString() }).eq("id", job.id).eq("stage", "transcribing").select(JOB_COLS).single();
+    if (!data) return job;
+    job = data as ClipJobRow;
+  }
+  // One poller at a time picks (each pick is a paid AI call): claim the job first.
+  const stale = new Date(now.getTime() - PICK_STALE_MS).toISOString();
+  const claim = svc.from("clip_jobs").update({ stage: "picking-run", updated_at: new Date().toISOString() }).eq("id", job.id);
+  const { data: claimed } = await (job.stage === "picking" ? claim.eq("stage", "picking") : claim.in("stage", ["picking-run", "pick-retry"]).lt("updated_at", stale)).select("transcript").maybeSingle();
+  if (!claimed) return job;
+  const words = unpackWords((claimed as { transcript: unknown }).transcript);
+  try {
+    const durationMs = words.length ? words[words.length - 1].endMs : job.source_minutes * 60_000;
+    const { picks, brand } = await pickMoments(svc, job, words, durationMs);
+    if (!picks.length) return fail(svc, job, "SOCIA found no moments in this video that stand on their own as clips. Your credits are back.", true);
+    const rows = await clipRows(job, picks, brand);
+    const { error } = await svc.from("clips").upsert(rows, { onConflict: "job_id,provider_clip_id" });
+    if (error) throw new ClipperError(`clips not saved: ${error.message}`, "db", true);
+    const done = new Date().toISOString();
+    const { data } = await svc.from("clip_jobs").update({ status: "done", stage: null, credits_charged: job.credits_reserved, finished_at: done, updated_at: done, error: null }).eq("id", job.id).select(JOB_COLS).single();
+    return (data as ClipJobRow) ?? { ...job, status: "done" };
+  } catch (e) {
+    console.error("[clipper] pick failed:", (e as Error)?.message ?? e);
+    await svc.from("clip_jobs").update({ stage: "pick-retry", updated_at: new Date().toISOString() }).eq("id", job.id);
+    return { ...job, stage: "pick-retry" };
+  }
 }
 
 /** Copy the clips in, caption them, save them, close the job. */
@@ -238,22 +322,35 @@ export async function loadClipJob(client: Supa, ownerId: string, id: string): Pr
 }
 
 /** The job's clips with play and download links (service role signs them). */
-export async function loadClips(client: Supa, ownerId: string, jobId: string): Promise<ClipView[]> {
+export async function loadClips(client: Supa, ownerId: string, jobId: string, job?: ClipJobRow | null): Promise<ClipView[]> {
   const { data, error } = await client.from("clips").select(CLIP_COLS).eq("job_id", jobId).eq("user_id", ownerId).order("score", { ascending: false, nullsFirst: false }).order("created_at");
   if (error) throw new ClipperError(error.message, "db");
   const svc = createServiceClient();
+  const rows = (data ?? []) as ClipRow[];
+  // SOCIA's own clips render in the browser from the source: one signed source link and the job's words.
+  let sourceUrl: string | null = null;
+  let words: TranscriptWord[] = [];
+  if (svc && job?.provider === SOCIA_PROVIDER && rows.some((r) => r.start_ms != null)) {
+    sourceUrl = await signedUrl(svc, job.source_path, 6 * 3600);
+    const { data: t } = await svc.from("clip_jobs").select("transcript").eq("id", job.id).eq("user_id", ownerId).maybeSingle();
+    words = unpackWords((t as { transcript?: unknown } | null)?.transcript);
+  }
   const out: ClipView[] = [];
-  for (const r of (data ?? []) as ClipRow[]) {
+  for (const r of rows) {
     const playUrl = svc ? await signedUrl(svc, r.video_path) : null;
     const downloadUrl = svc ? await signedUrl(svc, r.video_path, undefined, `${(r.title ?? "clip").replace(/[^\w-]+/g, "_").slice(0, 60)}.mp4`) : null;
-    out.push({ ...r, playUrl: playUrl ?? r.video_url, downloadUrl: downloadUrl ?? r.video_url });
+    const render: ClipRender | null = sourceUrl && r.start_ms != null && r.end_ms != null
+      ? { sourceUrl, startMs: r.start_ms, endMs: r.end_ms, cropX: Number(r.crop_x ?? 0.5), words: clipWords(words, r.start_ms, r.end_ms), captions: job?.options?.captions !== false }
+      : null;
+    out.push({ ...r, playUrl: playUrl ?? r.video_url, downloadUrl: downloadUrl ?? r.video_url, render });
   }
   return out;
 }
 
 /** Everything a signed-in owner's library shows: finished clips across jobs. */
 export async function listClipsForLibrary(client: Supa, ownerId: string, wsId: string | null, limit = 60): Promise<ClipView[]> {
-  let q = client.from("clips").select(CLIP_COLS).eq("user_id", ownerId).order("created_at", { ascending: false }).limit(limit);
+  // Only clips that exist as a file (SOCIA's own clips once rendered).
+  let q = client.from("clips").select(CLIP_COLS).eq("user_id", ownerId).not("video_path", "is", null).order("created_at", { ascending: false }).limit(limit);
   if (wsId) q = q.eq("workspace_id", wsId);
   const { data, error } = await q;
   if (error) throw new ClipperError(error.message, "db");

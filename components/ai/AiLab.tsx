@@ -10,7 +10,15 @@ import AiStudioPage from "./AiStudioPage";
 import "@/app/(app)/ai/ai.css";
 
 const SAMPLE = "/dev-sample.mp4";
+// SOCIA's own clipper: a long upload, two moments picked, one not made yet.
+const LONG = "/dev-long.mp4";
+const said = "So here is the thing nobody tells you about opening a pizza place. The dough is the whole business. If the dough is wrong nothing else matters.".split(" ");
+const words = said.map((text, i) => ({ text, startMs: 2000 + i * 420, endMs: 2000 + i * 420 + 380, confidence: null }));
+const sociaClips = [
+  { id: "s1", title: "The dough is the whole business", score: 8.6, score_reason: "Opens on a claim nobody else makes and pays it off in one line.", duration_ms: 11000, caption: "The dough is the whole business.", hashtags: ["pizza", "smallbusiness"], playUrl: null, downloadUrl: null, transcript: said.join(" "), hook: "So here is the thing nobody tells you", render: { sourceUrl: LONG, startMs: 2000, endMs: 13000, cropX: 0.5, words, captions: true } },
+];
 const clipJobs = [
+  { id: "j0", status: "done", provider: "socia", source_kind: "upload", source_url: "upload", source_minutes: 1, credits_reserved: 17, credits_charged: 17, error: null, created_at: new Date(Date.now() - 600_000).toISOString(), options: { headline: true, captions: true } },
   { id: "j1", status: "done", source_kind: "youtube", source_url: "https://www.youtube.com/watch?v=OqLfw-TzzfI", source_minutes: 12, credits_reserved: 90, credits_charged: 90, error: null, created_at: new Date(Date.now() - 3600_000).toISOString(), options: {} },
   { id: "j2", status: "processing", source_kind: "upload", source_url: "upload", source_minutes: 40, credits_reserved: 300, credits_charged: null, error: null, created_at: new Date(Date.now() - 120_000).toISOString(), options: {} },
   { id: "j3", status: "failed", source_kind: "url", source_url: "https://example.com/talk.mp4", source_minutes: 8, credits_reserved: 60, credits_charged: 0, error: "The video could not be downloaded from that link.", created_at: new Date(Date.now() - 86400_000).toISOString(), options: {} },
@@ -41,7 +49,9 @@ function mock(url: string, init?: RequestInit): Response | null {
     return json({ error: "Not enough credits for this. Buy a top-up or wait for next month's allowance.", code: "insufficient_credits", balance: 5550 }, 402);
   }
   const cj = /^\/api\/clipper\/jobs\/([^/?]+)/.exec(u);
-  if (cj) return json({ job: clipJobs.find((j) => j.id === cj[1]) ?? clipJobs[0], clips: cj[1] === "j1" ? clips : [] });
+  if (cj) return json({ job: clipJobs.find((j) => j.id === cj[1]) ?? clipJobs[0], clips: cj[1] === "j1" ? clips : cj[1] === "j0" ? sociaClips : [] });
+  // Making a clip: the upload address goes nowhere in the lab, so the made file's size is kept on window for checking.
+  if (/^\/api\/clipper\/clips\/[^/]+$/.test(u) && init?.method === "POST") return json({ path: "lab/clips/x.mp4", signedUrl: "/dev-upload-sink", token: "t" });
   if (u === "/api/studio-ai/jobs" && (!init?.method || init.method === "GET")) return json({ jobs: genJobs, balance: 5550 });
   const gj = /^\/api\/studio-ai\/jobs\/([^/?]+)/.exec(u);
   if (gj) return json({ job: genJobs.find((j) => j.id === gj[1]) ?? genJobs[0], outputs: gj[1] === "g1" ? gens : [] });
@@ -64,7 +74,7 @@ export default function AiLab() {
   return (
     <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }} data-screen={screen}>
       {screen === "clipper" ? (
-        <><PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." /><ClipperPage initialBalance={5550} canMutate /></>
+        <><PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." /><ClipperPage initialBalance={5550} canMutate sociaReady vizardReady /></>
       ) : (
         <><PageHeader title="AI Studio" sub="Ideas from your brand, made into AI videos and images." /><AiStudioPage initialBalance={5550} canMutate aiReady /></>
       )}

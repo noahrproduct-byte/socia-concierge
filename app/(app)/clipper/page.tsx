@@ -4,6 +4,8 @@ import { resolveContext, can } from "@/lib/context";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { minPlanWithFeature } from "@/lib/plans";
 import { creditBalance } from "@/lib/credits/ledger";
+import { sociaClipperReady } from "@/lib/clipper/socia";
+import { clipperProvider } from "@/lib/clipper/vizard";
 import PageHeader from "@/components/PageHeader";
 import AiGate from "@/components/ai/AiGate";
 import ClipperPage from "@/components/ai/ClipperPage";
@@ -23,7 +25,7 @@ export default async function Clipper() {
       <>
         <PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." />
         <AiGate feature="ai_clipper" plan={minPlanWithFeature("ai_clipper")} currentPlan={ent.plan}
-          what="Paste a YouTube link or upload a video. SOCIA returns vertical clips with captions, a title, a score and a caption for each, ready to schedule." />
+          what="Upload a long video. SOCIA finds the moments that stand on their own and makes them vertical clips with captions, a title, a score and a caption for each, ready to schedule." />
       </>
     );
   }
@@ -31,7 +33,7 @@ export default async function Clipper() {
   return (
     <>
       <PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." />
-      <ClipperPage initialBalance={balance} canMutate={can(ctx, "publish")} />
+      <ClipperPage initialBalance={balance} canMutate={can(ctx, "publish")} sociaReady={sociaClipperReady()} vizardReady={Boolean(clipperProvider())} />
     </>
   );
 }

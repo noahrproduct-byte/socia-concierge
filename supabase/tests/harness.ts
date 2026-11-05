@@ -58,6 +58,7 @@ export const MIGRATIONS = [
   "contacts-guard.sql",
   "ai-studio.sql",
   "team-work.sql",
+  "own-clipper.sql",
 ];
 
 const SUPABASE_STANDIN = `
