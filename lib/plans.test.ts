@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  PLANS, PLAN_ORDER, FEATURE_STATUS, FEATURE_LABEL, METER_LABEL, LIMIT_LABEL, METER_UNIT, LIMIT_UNIT, METER_PERIOD,
+  PLANS, PLAN_ORDER, SALE_ORDER, SCALE_ON_SALE, FEATURE_STATUS, FEATURE_LABEL, METER_LABEL, LIMIT_LABEL, METER_UNIT, LIMIT_UNIT, METER_PERIOD,
   HISTORY_ALL_RETAINED, PLATFORMS_PER_WORKSPACE, WORKSPACE_PLATFORMS, FEATURE_MIN_PLAN,
   normalizePlan, isAtLeast, minPlanWithFeature, minPlanWithLimit, minPlanWithMeter, nextPlan, formatPrice, formatHistory, pricingHref,
   isAllHistory,
@@ -15,7 +15,7 @@ const METERS = Object.keys(METER_LABEL) as MeterKey[];
 describe("plan configuration", () => {
   it("has the five confirmed plans at the confirmed prices, in order", () => {
     expect(PLAN_ORDER).toEqual(["free", "starter", "growth", "pro", "scale"]);
-    expect(PLANS.scale.priceMonthly).toBe(80);
+    expect(PLANS.scale.priceMonthly).toBe(79.99);
     expect(PLANS.free.priceMonthly).toBe(0);
     expect(PLANS.starter.priceMonthly).toBe(19.99);
     expect(PLANS.growth.priceMonthly).toBe(34.99);
@@ -162,10 +162,10 @@ describe("plan helpers", () => {
     expect(minPlanWithMeter("ask_socia", 600)).toBeNull();
   });
 
-  it("steps up one plan at a time and stops at scale", () => {
+  it("steps up one plan at a time and stops at the top plan on sale", () => {
     expect(nextPlan("free")).toBe("starter");
     expect(nextPlan("growth")).toBe("pro");
-    expect(nextPlan("pro")).toBe("scale");
+    expect(nextPlan("pro")).toBe(SCALE_ON_SALE ? "scale" : null);
     expect(nextPlan("scale")).toBeNull();
   });
 
@@ -184,7 +184,7 @@ describe("plan helpers", () => {
 
 describe("comparison table", () => {
   it("never marks an unbuilt feature as included", () => {
-    for (const cat of COMPARISON) for (const row of cat.rows) for (const p of PLAN_ORDER) {
+    for (const cat of COMPARISON) for (const row of cat.rows) for (const p of SALE_ORDER) {
       const cell = row.cells[p];
       if (cell.kind !== "yes") continue;
       // A "yes" must trace to a real feature or an always-on capability, never to a coming_soon key.
@@ -220,5 +220,18 @@ describe("comparison table", () => {
       "Workspaces & platforms", "Analytics", "SOCIA intelligence", "Content creation", "Competitors & trends",
       "Publishing", "Alerts", "Reports", "Team", "Support",
     ]);
+  });
+});
+
+describe("Scale before its credit prices are confirmed", () => {
+  it("is not sold or offered, but a plan set by hand still has its features", async () => {
+    const { SCALE_ON_SALE, SALE_ORDER, nextPlan, minPlanWithMeter, planIncludes } = await import("./plans");
+    const { CREDIT_PRICES_CONFIRMED } = await import("./credits/config");
+    expect(SCALE_ON_SALE).toBe(CREDIT_PRICES_CONFIRMED);
+    if (SCALE_ON_SALE) return;
+    expect(SALE_ORDER).not.toContain("scale");
+    expect(nextPlan("pro")).toBeNull();
+    expect(minPlanWithMeter("ask_socia", 1_000_000)).toBeNull();
+    expect(planIncludes("scale", "ai_clipper")).toBe(true);
   });
 });

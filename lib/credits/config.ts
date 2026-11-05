@@ -11,6 +11,15 @@
 // test (docs/ai-studio-test-plan.md). Client-safe: no server imports.
 import type { PlanId } from "@/lib/plans";
 
+/**
+ * False until the provider prices below are confirmed against the Vizard and
+ * Higgsfield consoles after the first live test (docs/ai-studio-test-plan.md).
+ * While false, Scale is not sold (no pricing card, upgrade offer or checkout)
+ * and credit top-ups are closed; an account set to Scale by hand still works,
+ * so the test can run. Set to true in the same change that enters the real prices.
+ */
+export const CREDIT_PRICES_CONFIRMED = false;
+
 /** What one credit is worth to SOCIA in US dollars. 100 credits = $1. */
 export const CREDIT_USD = 0.01;
 
@@ -23,7 +32,7 @@ export const MONTHLY_CREDITS: Record<PlanId, number> = {
   starter: 0,
   growth: 0,
   pro: 0,
-  // $80 a month: about $40 of provider cost at the margin above.
+  // $79.99 a month: about $40 of provider cost at the margin above.
   scale: 6000,
 };
 

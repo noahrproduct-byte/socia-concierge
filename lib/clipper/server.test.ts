@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cleanOptions, youtubeMinutes, YOUTUBE_RE } from "./server";
+import { cleanOptions, measureSourceMinutes, YOUTUBE_RE } from "./server";
 import { priceGeneration } from "@/lib/generation/server";
 
 describe("clipper options", () => {
@@ -13,11 +13,25 @@ describe("clipper options", () => {
     for (const u of ["https://www.youtube.com/watch?v=OqLfw-TzzfI", "https://youtu.be/OqLfw-TzzfI", "https://youtube.com/shorts/abcdefgh"]) expect(YOUTUBE_RE.test(u), u).toBe(true);
     for (const u of ["https://vimeo.com/1", "https://example.com/youtube.com/watch?v=x", "not a url"]) expect(YOUTUBE_RE.test(u), u).toBe(false);
   });
-  it("reads a video's length from the watch page, rounded up to the minute", async () => {
-    const html = `<html>... "lengthSeconds":"754" ...</html>`;
-    expect(await youtubeMinutes("https://youtu.be/x", (async () => new Response(html, { status: 200 })) as unknown as typeof fetch)).toBe(13);
-    expect(await youtubeMinutes("https://youtu.be/x", (async () => new Response("nothing", { status: 200 })) as unknown as typeof fetch)).toBeNull();
-    expect(await youtubeMinutes("https://youtu.be/x", (async () => new Response("", { status: 404 })) as unknown as typeof fetch)).toBeNull();
+});
+
+describe("pricing a clip job from the video's real length", () => {
+  const fake = (seconds: number | null, readable = true) => ({ youtube: async () => seconds, file: async () => seconds, readable: async () => readable });
+  const svc = { storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: "https://storage.example/x.mp4" }, error: null }) }) } };
+
+  it("rounds the measured length up to the minute, whatever the person typed", async () => {
+    expect(await measureSourceMinutes(svc, { kind: "upload", url: "u/clipper-sources/a.mp4", path: "u/clipper-sources/a.mp4" }, fake(754))).toBe(13);
+    expect(await measureSourceMinutes(svc, { kind: "youtube", url: "https://youtu.be/OqLfw-TzzfI" }, fake(60))).toBe(1);
+  });
+
+  it("refuses a video it can't measure instead of trusting a typed length", async () => {
+    await expect(measureSourceMinutes(svc, { kind: "youtube", url: "https://youtu.be/OqLfw-TzzfI" }, fake(null))).rejects.toMatchObject({ code: "no_length" });
+    await expect(measureSourceMinutes(svc, { kind: "url", url: "https://cdn.example.com/talk.mp4" }, fake(null))).rejects.toMatchObject({ code: "no_length" });
+  });
+
+  it("refuses links it may not read, and videos over the limit instead of pricing them at the cap", async () => {
+    await expect(measureSourceMinutes(svc, { kind: "url", url: "https://10.0.0.5/talk.mp4" }, fake(60, false))).rejects.toMatchObject({ code: "bad_link" });
+    await expect(measureSourceMinutes(svc, { kind: "upload", url: "u/clipper-sources/a.mp4", path: "u/clipper-sources/a.mp4" }, fake(601 * 60))).rejects.toMatchObject({ code: "too_long" });
   });
 });
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { aiRequest, aiErrorResponse } from "@/lib/aiStudio/auth";
 import { perUserLimit } from "@/lib/rateLimit";
 import { recordEvent } from "@/lib/planGuard";
-import { createClipJob, listClipJobs, cleanOptions, YOUTUBE_RE } from "@/lib/clipper/server";
+import { createClipJob, listClipJobs, cleanOptions, PriceCheckError, YOUTUBE_RE } from "@/lib/clipper/server";
 import { clipCredits } from "@/lib/credits/config";
 import { creditBalance } from "@/lib/credits/ledger";
 import { isOwnPath } from "@/lib/storagePaths";
@@ -13,7 +13,11 @@ export const maxDuration = 60;
 // The AI Clipper's jobs (Scale).
 //   GET  -> { jobs, balance }
 //   POST { source: { kind, url | path }, minutes?, options } -> the job
-//        Credits are spent up front (clipCredits) and refunded if it fails.
+//        SOCIA measures the video and prices it from that length. When it is
+//        longer than the `minutes` the page showed a price for, nothing is
+//        spent: 409 { code: "confirm_price", minutes, price } and the page asks
+//        again with the real price. Credits are spent up front and refunded if
+//        the job fails.
 export async function GET() {
   const r = await aiRequest("ai_clipper");
   if (!r.ok) return r.res;
@@ -24,6 +28,7 @@ export async function GET() {
     ]);
     return NextResponse.json({ jobs, balance });
   } catch (e) {
+    if (e instanceof PriceCheckError) return NextResponse.json({ error: e.message, code: e.code, minutes: e.minutes, price: e.price }, { status: 409 });
     return aiErrorResponse("clipper/jobs", e);
   }
 }
@@ -44,12 +49,10 @@ export async function POST(req: Request) {
     if (!YOUTUBE_RE.test(url)) return NextResponse.json({ error: "Paste a YouTube video link." }, { status: 400 });
     source = { kind: "youtube", url };
   } else if (kind === "upload") {
-    if (!path || !isOwnPath(path, [r.ctx.ownerId, r.viewerId]) || !/\.(mp4|mov|avi|3gp)$/i.test(path)) return NextResponse.json({ error: "Upload the video first." }, { status: 400 });
-    if (!minutes) return NextResponse.json({ error: "Tell SOCIA how long the video is, in minutes." }, { status: 400 });
+    if (!path || !isOwnPath(path, [r.ctx.ownerId, r.viewerId]) || !/\.(mp4|mov|3gp)$/i.test(path)) return NextResponse.json({ error: "Upload the video first." }, { status: 400 });
     source = { kind: "upload", url: path, path };
   } else if (kind === "url") {
-    if (!/^https:\/\/\S+\.(mp4|mov|avi|3gp)(\?\S*)?$/i.test(url)) return NextResponse.json({ error: "Paste a direct https link to an .mp4, .mov, .avi or .3gp file." }, { status: 400 });
-    if (!minutes) return NextResponse.json({ error: "Tell SOCIA how long the video is, in minutes." }, { status: 400 });
+    if (!/^https:\/\/\S+\.(mp4|mov|3gp)(\?\S*)?$/i.test(url)) return NextResponse.json({ error: "Paste a direct https link to an .mp4, .mov or .3gp file." }, { status: 400 });
     source = { kind: "url", url };
   } else return NextResponse.json({ error: "Choose a YouTube link, a direct video link or an upload." }, { status: 400 });
   try {
@@ -58,6 +61,7 @@ export async function POST(req: Request) {
     const balance = await creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null);
     return NextResponse.json({ job, balance, price: clipCredits(job.source_minutes, options.clipModel) });
   } catch (e) {
+    if (e instanceof PriceCheckError) return NextResponse.json({ error: e.message, code: e.code, minutes: e.minutes, price: e.price }, { status: 409 });
     return aiErrorResponse("clipper/jobs", e);
   }
 }

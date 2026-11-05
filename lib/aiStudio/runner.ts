@@ -3,6 +3,7 @@
 // minute and, so the page works without pg_cron, by a job's own GET when it
 // has not been looked at for a while. Service role. Server only.
 import { createServiceClient } from "@/lib/supabase/service";
+import { removePaths } from "./media";
 import { pollClipJob, CLIP_POLL_SECONDS, type ClipJobRow } from "@/lib/clipper/server";
 import { pollGenerationJob, GEN_POLL_SECONDS, type GenerationJobRow } from "@/lib/generation/server";
 
@@ -11,9 +12,9 @@ const GEN_COLS = "id, user_id, workspace_id, kind, model, prompt, input_image_pa
 
 const due = (lastPolled: string | null, seconds: number, now: number) => !lastPolled || now - new Date(lastPolled).getTime() >= seconds * 1000;
 
-export async function runOpenJobs(opts: { limit?: number; now?: Date } = {}): Promise<{ clips: number; generations: number; errors: number }> {
+export async function runOpenJobs(opts: { limit?: number; now?: Date } = {}): Promise<{ clips: number; generations: number; errors: number; removedUploads: number }> {
   const svc = createServiceClient();
-  if (!svc) return { clips: 0, generations: 0, errors: 0 };
+  if (!svc) return { clips: 0, generations: 0, errors: 0, removedUploads: 0 };
   const now = (opts.now ?? new Date()).getTime();
   const limit = opts.limit ?? 25;
   let errors = 0;
@@ -29,7 +30,18 @@ export async function runOpenJobs(opts: { limit?: number; now?: Date } = {}): Pr
     if (job.status === "processing" && !due(job.last_polled_at, GEN_POLL_SECONDS, now)) continue;
     try { await pollGenerationJob(svc, job); generations++; } catch (e) { errors++; console.error("[ai-poll] generation job", job.id, (e as Error)?.message ?? e); }
   }
-  return { clips, generations, errors };
+  const removedUploads = await removeStaleUploads(svc).catch((e) => { errors++; console.error("[ai-poll] upload cleanup", (e as Error)?.message ?? e); return 0; });
+  return { clips, generations, errors, removedUploads };
+}
+
+/** Clipper sources and start images a day old that no open job needs (supabase/ai-studio.sql). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function removeStaleUploads(svc: any): Promise<number> {
+  const { data, error } = await svc.rpc("socia_ai_media_stale_uploads", { p_limit: 100 });
+  if (error) throw new Error(error.message);
+  const names = ((data ?? []) as unknown[]).map((r) => (typeof r === "string" ? r : (r as Record<string, string>)?.socia_ai_media_stale_uploads)).filter(Boolean) as string[];
+  await removePaths(svc, names);
+  return names.length;
 }
 
 /** Poll one job now if it is open and has not been looked at recently (the page's own refresh drives progress without cron). */

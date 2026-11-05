@@ -20,10 +20,14 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
   const [open, setOpen] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // The measured price, waiting for a second press (not an error).
+  const [priceNote, setPriceNote] = useState<string | null>(null);
 
   const [source, setSource] = useState<Source>("youtube");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  // The uploaded copy of `file`, so confirming the real price doesn't upload it twice.
+  const [uploaded, setUploaded] = useState<string | null>(null);
   const [minutes, setMinutes] = useState<number | "">("");
   const [opts, setOpts] = useState<ClipperOptions>(DEFAULT_CLIPPER_OPTIONS);
   const [busy, setBusy] = useState<string | null>(null);
@@ -52,24 +56,32 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
   usePolling(jobs, loadJob, 10_000, (job) => { if (job.status === "done") setOpen(job.id); void api<{ balance: number | null }>("/api/clipper/jobs").then((r) => setBalance(r.balance)).catch(() => null); });
 
   async function submit() {
-    setErr(null);
+    setErr(null); setPriceNote(null);
     try {
       let body: Record<string, unknown>;
-      if (source === "youtube") body = { source: { kind: "youtube", url: url.trim() }, options: opts };
-      else if (source === "url") body = { source: { kind: "url", url: url.trim() }, minutes, options: opts };
+      if (source === "youtube") body = { source: { kind: "youtube", url: url.trim() }, minutes: minutes || null, options: opts };
+      else if (source === "url") body = { source: { kind: "url", url: url.trim() }, minutes: minutes || null, options: opts };
       else {
         if (!file) throw new Error("Choose a video file first.");
-        setBusy("Uploading");
-        const up = await api<{ path: string; signedUrl: string }>("/api/clipper/upload", { method: "POST", body: JSON.stringify({ contentType: file.type, bytes: file.size }) });
-        await uploadToSigned(up.signedUrl, file, setProgress);
-        setProgress(null);
-        body = { source: { kind: "upload", path: up.path }, minutes, options: opts };
+        let path = uploaded;
+        if (!path) {
+          setBusy("Uploading");
+          const up = await api<{ path: string; signedUrl: string }>("/api/clipper/upload", { method: "POST", body: JSON.stringify({ contentType: file.type, bytes: file.size }) });
+          await uploadToSigned(up.signedUrl, file, setProgress);
+          setProgress(null);
+          setUploaded(up.path);
+          path = up.path;
+        }
+        body = { source: { kind: "upload", path }, minutes, options: opts };
       }
       setBusy("Starting");
       const r = await api<{ job: Job; balance: number | null }>("/api/clipper/jobs", { method: "POST", body: JSON.stringify(body) });
       setJobs((js) => [r.job, ...js]); setBalance(r.balance);
-      setUrl(""); setFile(null); setMinutes("");
+      setUrl(""); setFile(null); setUploaded(null); setMinutes("");
     } catch (e) {
+      // SOCIA measured the video: show its real price and let the person press again.
+      const measured = (e as { code?: string; minutes?: number }).code === "confirm_price" ? (e as { minutes?: number }).minutes : undefined;
+      if (typeof measured === "number") { setMinutes(measured); setPriceNote(errorText(e)); return; }
       setErr(isCreditsShort(e) ? "Not enough credits for this video. Buy a top-up in Settings or wait for next month's allowance." : errorText(e));
     } finally { setBusy(null); setProgress(null); }
   }
@@ -84,7 +96,7 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
   }
 
   const toggleLength = (id: ClipLength) => setOpts((o) => ({ ...o, lengths: o.lengths.includes(id) ? (o.lengths.length > 1 ? o.lengths.filter((l) => l !== id) : o.lengths) : [...o.lengths.filter((l) => l !== "auto" && id !== "auto"), id] }));
-  const canSubmit = canMutate && !busy && (source === "youtube" ? url.trim().length > 10 : source === "url" ? url.trim().length > 10 && typeof minutes === "number" : Boolean(file) && typeof minutes === "number");
+  const canSubmit = canMutate && !busy && (source === "youtube" ? url.trim().length > 10 : source === "url" ? url.trim().length > 10 : Boolean(file));
 
   return (
     <div className="ai-page">
@@ -92,25 +104,25 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
         <div className="ai-panel-head"><Scissors size={16} aria-hidden /><h2>New clips</h2></div>
         <div className="ai-tabs" role="tablist">
           {(["youtube", "upload", "url"] as Source[]).map((s) => (
-            <button key={s} type="button" role="tab" aria-selected={source === s} className={`ai-tab${source === s ? " is-on" : ""}`} onClick={() => { setSource(s); setErr(null); }}>
+            <button key={s} type="button" role="tab" aria-selected={source === s} className={`ai-tab${source === s ? " is-on" : ""}`} onClick={() => { setSource(s); setErr(null); setPriceNote(null); setMinutes(""); }}>
               {s === "youtube" ? "YouTube link" : s === "upload" ? "Upload a file" : "Direct video link"}
             </button>
           ))}
         </div>
         {source !== "upload" ? (
           <label className="ai-field">
-            <span>{source === "youtube" ? "YouTube link" : "Link to an .mp4, .mov, .avi or .3gp file"}</span>
-            <input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={source === "youtube" ? "https://www.youtube.com/watch?v=..." : "https://example.com/talk.mp4"} inputMode="url" />
+            <span>{source === "youtube" ? "YouTube link" : "Link to an .mp4, .mov or .3gp file"}</span>
+            <input type="url" value={url} onChange={(e) => { setUrl(e.target.value); if (source === "youtube") setMinutes(""); }} placeholder={source === "youtube" ? "https://www.youtube.com/watch?v=..." : "https://example.com/talk.mp4"} inputMode="url" />
           </label>
         ) : (
           <label className="ai-field">
-            <span>Video file (.mp4, .mov, .avi, .3gp)</span>
-            <input type="file" accept="video/mp4,video/quicktime,video/x-msvideo,video/3gpp" onChange={async (e) => { const f = e.target.files?.[0] ?? null; setFile(f); if (f) { const m = await videoMinutes(f); if (m) setMinutes(m); } }} />
+            <span>Video file (.mp4, .mov, .3gp)</span>
+            <input type="file" accept="video/mp4,video/quicktime,video/3gpp" onChange={async (e) => { const f = e.target.files?.[0] ?? null; setFile(f); setUploaded(null); if (f) { const m = await videoMinutes(f); if (m) setMinutes(m); } }} />
           </label>
         )}
         {source !== "youtube" && (
           <label className="ai-field ai-field-short">
-            <span>Length of the video, minutes</span>
+            <span>{source === "url" ? "Length of the video, minutes (optional, SOCIA checks it)" : "Length of the video, minutes (SOCIA checks it)"}</span>
             <input type="number" min={1} max={600} value={minutes} onChange={(e) => setMinutes(e.target.value ? Math.max(1, Math.ceil(Number(e.target.value))) : "")} />
           </label>
         )}
@@ -131,10 +143,11 @@ export default function ClipperPage({ initialBalance, canMutate }: { initialBala
           <label className="ai-check"><input type="checkbox" checked={opts.headline} onChange={(e) => setOpts((o) => ({ ...o, headline: e.target.checked }))} /> A headline on each clip</label>
           <label className="ai-check"><input type="checkbox" checked={opts.clipModel === "clip_v2"} onChange={(e) => setOpts((o) => ({ ...o, clipModel: e.target.checked ? "clip_v2" : "clip_v1" }))} /> Newer clipping model (costs a quarter more)</label>
         </div>
-        <CreditsLine balance={balance} price={price} label={source === "youtube" && price == null ? undefined : "This will use"} />
-        {source === "youtube" && price == null && <p className="ai-note">The price is set from the video&apos;s length once SOCIA reads it: {clipCredits(1, opts.clipModel)} credits a minute.</p>}
+        <CreditsLine balance={balance} price={price} label={price == null ? undefined : "This will use"} />
+        {price == null && <p className="ai-note">SOCIA reads the video&apos;s length and shows the price before anything is spent: {clipCredits(1, opts.clipModel)} credits a minute.</p>}
         <p className="ai-rights">Only clip videos you own or have the rights to use. SOCIA does not check ownership.</p>
         {progress != null && <progress className="ai-progress" value={progress} max={1} />}
+        {priceNote && <p className="ai-note" role="status">{priceNote}</p>}
         {err && <p className="ai-err" role="alert">{err}</p>}
         <div className="ai-submit">
           <button type="button" className="btn-primary" onClick={submit} disabled={!canSubmit} aria-busy={Boolean(busy) || undefined}>
