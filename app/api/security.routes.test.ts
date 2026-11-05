@@ -54,6 +54,8 @@ const PUBLIC_OK = new Set([
   "/api/plans GET",
   // Browsers post CSP violation reports without cookies; it only logs (lib/cspReport.ts).
   "/api/csp-report POST",
+  // A brand's public sign-up form (lib/contacts/server.ts): anyone may sign up, within the limits checked below.
+  "/api/l/[slug] POST",
 ]);
 
 const routes: Record<string, () => Promise<unknown>> = (import.meta as unknown as { glob: (p: string[]) => Record<string, () => Promise<unknown>> }).glob(["../**/route.ts", "../../oauth/**/route.ts", "../../mcp/route.ts", "../../auth/**/route.ts", "../../.well-known/**/route.ts"]);
@@ -139,6 +141,8 @@ describe("every route without a signed-in user", () => {
     };
     for (const job of ["/api/sync/daily GET", "/api/jobs/weekly-plan GET", "/api/jobs/studio-purge GET"]) want(job, (r) => r.status === 401);
     want("/api/stripe/webhook POST", (r) => r.status === 400 || r.status === 503);
+    // No limiter in the test: the public sign-up form refuses rather than taking sign-ups unlimited.
+    want("/api/l/[slug] POST", (r) => r.status === 503);
     want("/api/meta/deauthorize POST", (r) => r.status === 400);
     want("/api/meta/data-deletion POST", (r) => r.status === 400);
     // A forged ?code= without this browser's state cookie never reaches the code exchange.

@@ -160,8 +160,10 @@ if (await overConnectionLimit(p.connectionId)) return fail(`Too many requests fr
     const g = await guardRequest(svc, p, ctx.ownerId);
     const feature = checkFeature(g.ent, "ai_assistant_publishing");
     if (!feature.ok) throw new ApiFailure("forbidden", `Posting from AI assistants is included in SOCIA's paid plans; this workspace is on ${g.ent.plan}. Upgrade at ${appOrigin()}/pricing.`);
-    if (need === "review" && (await rateHit(`mcp-video:${p.connectionId}`, 3600, VIDEO_CALLS_PER_HOUR)) === "limited") {
-      throw new ApiFailure("limited", "Too many uploads from this app in the last hour. Wait a while and try again.");
+    if (need === "review") {
+      const rate = await rateHit(`mcp-video:${p.connectionId}`, 3600, VIDEO_CALLS_PER_HOUR);
+      if (rate === "unavailable") throw new ApiFailure("unavailable", "SOCIA couldn't check this app's upload limit just now. Try again shortly.");
+      if (rate === "limited") throw new ApiFailure("limited", "Too many uploads from this app in the last hour. Wait a while and try again.");
     }
     if (countsAsPost) {
       const perHour = getLimit(g.ent, "assistant_posts_per_hour");

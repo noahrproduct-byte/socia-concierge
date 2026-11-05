@@ -10,6 +10,7 @@
 // top bar, which also catches every legacy "/chat?q=" link and answers in
 // place instead of sending the user to a separate page.
 
+import PlaceScan from "./PlaceScan";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -90,12 +91,26 @@ async function askApi(context: AskContext, messages: AskMessage[], onText?: (tex
   return { ok: true, answer: final.answer as AskAnswer, usage: (final.usage as UsageSnapshot | undefined) ?? null };
 }
 
-function AnswerView({ a, onProposal, applied, setApplied }: { a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void }) {
+function AnswerView({ a, onProposal, applied, setApplied, onPlaceScanned }: {
+  a: AskAnswer; onProposal?: ProposalHandler; applied: Record<string, string>; setApplied: (k: string, v: string) => void;
+  /** On the latest script only: photos of the place were just scanned, so rewrite it with real spots. */
+  onPlaceScanned?: () => void;
+}) {
   const [copied, setCopied] = useState<string | null>(null);
   const copy = async (s: string) => { try { await navigator.clipboard.writeText(s); setCopied(s); setTimeout(() => setCopied(null), 1200); } catch { /* no clipboard */ } };
   return (
     <div className="ask-answer">
       {a.text && <p className="ask-text">{a.text}</p>}
+      {a.draft && (
+        <div className="ask-draft">
+          <div className="ask-draft-head">
+            <small>{a.draft.title}</small>
+            <button type="button" className="ov-btn ghost small" onClick={() => void copy(a.draft!.body)}>{copied === a.draft.body ? "Copied" : "Copy"}</button>
+          </div>
+          <pre>{a.draft.body}</pre>
+          {a.draft.kind === "script" && onPlaceScanned && <PlaceScan variant="inline" onScanned={onPlaceScanned} />}
+        </div>
+      )}
       {a.observed.length > 0 && <div className="ov-why-block"><small>Observed</small><ul>{a.observed.map((o, i) => <li key={i}>{o}</li>)}</ul></div>}
       {a.post && (
         <a className="ask-post" href={a.post.permalink ?? "#"} target={a.post.permalink ? "_blank" : undefined} rel="noreferrer">
@@ -228,7 +243,8 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
       if (!r.ok) { setPlanError(r.planError); return; }
       const a = r.answer;
       if (r.usage) setUsage(r.usage);
-      setMessages([...next, { role: "assistant", content: a.text, answer: a }]);
+      // Keep what SOCIA wrote in the chat turn, so "make it shorter" can see it.
+      setMessages([...next, { role: "assistant", content: a.draft ? `${a.text}\n\n${a.draft.title}:\n${a.draft.body}` : a.text, answer: a }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "SOCIA couldn't answer right now.");
     } finally { setBusy(false); setLive(null); }
@@ -287,7 +303,7 @@ export function AskDrawer({ open, onClose, context, contextLabel, suggestions, i
           )}
           {messages.map((m, i) => m.role === "user"
             ? <div key={i} className="ask-msg user"><p>{m.content}</p></div>
-            : <div key={i} className="ask-msg assistant"><span className="ask-avatar">S</span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} /> : <p>{m.content}</p>}</div>)}
+            : <div key={i} className="ask-msg assistant"><span className="ask-avatar">S</span>{m.answer ? <AnswerView a={m.answer} onProposal={onProposal} applied={applied} setApplied={setApplied} onPlaceScanned={i === messages.length - 1 && !busy ? () => void send("Rewrite this script using the photos of my place, with every shot at a real spot.") : undefined} /> : <p>{m.content}</p>}</div>)}
           {busy && (
             <div className="ask-msg assistant" aria-live="polite">
               <span className="ask-avatar">S</span>
