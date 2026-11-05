@@ -45,6 +45,10 @@ export type Deliverable = {
     successMetric?: string;
     /** The running experiment this post tests (its id in the Growth Strategy), when it tests one. */
     experiment?: string;
+    /** The id of the niche Reel the model built this post on ("R2"), as it wrote it; replaced by `ref` when the plan is saved. */
+    reference?: string;
+    /** The niche Reel this post is built on, with the numbers SOCIA read for it (lib/trendSignals.ts ReelRef). Set by SOCIA from `reference`, never by the model. */
+    ref?: import("./trendSignals").ReelRef;
     /** Who makes the video: the person ("you") or their own Claude ("claude", lib/claudeWeek). Older plans lack it: "you". */
     maker?: "you" | "claude";
     /** The post's own id, assigned by SOCIA when the plan is saved (lib/planItems.ts withItemIds). Not part of the model's schema. */
@@ -139,9 +143,11 @@ export const deliverableSchema = {
           successMetric: { type: "string" },
           experiment: { type: "string" },
           maker: { type: "string", enum: ["you", "claude"] },
+          reference: { type: "string" },
         },
         required: [
           "maker",
+          "reference",
           "day",
           "concept",
           "hook",
@@ -201,6 +207,8 @@ export type EvidenceUsed = {
   outcomes?: number;
   /** Recent Reels from the niche the trends (hooks, topics, opening lines) were read from. Absent on plans made before trends existed. */
   trends?: number;
+  /** Planned posts built on a niche Reel that took off. Absent on plans made before references existed. */
+  references?: number;
 };
 
 // A plan saved to the database (one row in the `plans` table).

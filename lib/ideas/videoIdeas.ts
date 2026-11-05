@@ -6,6 +6,7 @@
 // bounded and cleaned, and on-screen text goes through the same "reads like a
 // person typed it" rule as text SOCIA puts on videos. Pure.
 import { humanText } from "@/lib/studioClips/overlay";
+import { pickRef, refLine, sanitizeRef, type ProvenReel, type ReelRef } from "@/lib/trendSignals";
 
 export type IdeaStyle = "face" | "in_person" | "animation";
 export const IDEA_STYLES: { id: IdeaStyle; label: string; hint: string }[] = [
@@ -61,6 +62,8 @@ export type VideoIdea = {
   caption: string;
   /** what it takes to make: people, place, props, time */
   needs: string;
+  /** the niche Reel the idea is built on, with the numbers SOCIA read for it; null when it is built on none (and on older ideas) */
+  ref?: ReelRef | null;
 };
 export type IdeaSet = { at: string; styles: IdeaStyle[]; about: string | null; ideas: VideoIdea[] };
 
@@ -91,8 +94,9 @@ export const IDEAS_SCHEMA = {
           script: { type: "string" },
           caption: { type: "string" },
           needs: { type: "string" },
+          reference: { type: "string" },
         },
-        required: ["title", "style", "treatment", "evidence", "premise", "themeFit", "lengthSec", "sound", "shots", "script", "caption", "needs"],
+        required: ["title", "style", "treatment", "evidence", "premise", "themeFit", "lengthSec", "sound", "shots", "script", "caption", "needs", "reference"],
       },
     },
   },
@@ -109,7 +113,7 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
  * order and inside the length (the last one ends at the end), on-screen text
  * a person would type or none, at most IDEA_COUNT.
  */
-export function cleanIdeas(raw: unknown, styles: IdeaStyle[], ids: () => string): VideoIdea[] {
+export function cleanIdeas(raw: unknown, styles: IdeaStyle[], ids: () => string, proven: ProvenReel[] = []): VideoIdea[] {
   const o = (raw && typeof raw === "object" ? raw : {}) as { ideas?: unknown };
   const allowed = new Set(styles.length ? styles : IDEA_STYLES.map((s) => s.id));
   const seen = new Set<string>();
@@ -145,6 +149,8 @@ export function cleanIdeas(raw: unknown, styles: IdeaStyle[], ids: () => string)
       id: ids(), title, style, treatment, evidence: isEvidence(i.evidence) ? i.evidence : null, premise, themeFit: plain(i.themeFit, 400), lengthSec, sound, shots: fitted,
       script: style === "animation" && sound.kind !== "voiceover" ? "" : plain(i.script, 1500),
       caption: plain(i.caption, 600), needs: plain(i.needs, 300),
+      // A fresh idea cites a listed Reel by id; a stored one already carries the Reel.
+      ref: pickRef(i.reference, proven) ?? sanitizeRef(i.ref),
     }];
   }).slice(0, IDEA_COUNT);
 }
@@ -163,6 +169,8 @@ export function ideaText(idea: VideoIdea): string {
     "",
     `Sound: ${SOUND[idea.sound.kind]}${idea.sound.feel ? `, ${idea.sound.feel}` : ""}.`,
     idea.needs ? `You need: ${idea.needs}` : "",
+    idea.ref ? `Built on a Reel that took off: ${refLine(idea.ref)}. ${idea.ref.url}` : "",
+    idea.ref?.track ? `Viral track record: ${idea.ref.track.score} of 100 (how Reels like it did for other accounts, not a forecast).` : "",
     idea.caption ? `Caption: ${idea.caption}` : "",
   ].filter((l, k, a) => !(l === "" && a[k - 1] === "")).join("\n").trim();
 }

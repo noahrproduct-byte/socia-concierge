@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { growthBriefing, goalLine, nextActions, recentLearning, whatWorks } from "./overview";
+import { growthBriefing, goalLine, nextActions, recentLearning, whatWorks, worksGap } from "./overview";
 import type { AccountSample, SamplePost } from "./accountSample";
 import type { StoredInsight } from "./insight";
 
@@ -24,6 +24,24 @@ describe("whatWorks", () => {
     expect(rows[0].multiple).toBeGreaterThan(1);
     expect(whatWorks(sample(posts.slice(0, 5)))).toEqual([]);
     expect(whatWorks(sample([...posts.slice(0, 3), p("Short", 1, 4), p("Short", 1, 5), p("Short", 1, 6)]))).toEqual([]);
+  });
+});
+
+describe("worksGap", () => {
+  const ig = (format: string, value: number, i: number): SamplePost => ({ ...p(format, value, i), platform: "instagram" });
+  it("says what is missing, in the account's own counts", () => {
+    expect(worksGap({ facts: [], posts: [] })).toMatch(/hasn't read any posts yet/);
+    expect(worksGap(sample([p("Short", 3, 1), p("Video", 2, 2)]))).toBe("SOCIA has read 2 posts on YouTube. Formats are compared from 6 posts, so 4 more.");
+    const reels = Array.from({ length: 8 }, (_, i) => ig("Reel", 100 + i, i));
+    expect(worksGap(sample(reels))).toBe("All 8 of your Instagram posts are Reels. This compares one format with another, so it starts after 3 carousels or photos.");
+    expect(whatWorks(sample(reels))).toEqual([]);
+    const spread = [ig("Reel", 5, 1), ig("Reel", 6, 2), ig("Photo", 3, 1), ig("Photo", 4, 2), ig("Carousel", 7, 1), ig("Carousel", 8, 2)];
+    expect(worksGap(sample(spread))).toBe("Your 6 Instagram posts are spread over 3 formats and none has 3 posts yet. A format is compared from 3 posts.");
+    expect(whatWorks(sample(spread))).toEqual([]);
+  });
+  it("names the platform closest to a comparison", () => {
+    const posts = [p("Short", 3, 1), ...Array.from({ length: 4 }, (_, i) => ig("Reel", 10, i))];
+    expect(worksGap(sample(posts))).toMatch(/^SOCIA has read 4 posts on Instagram/);
   });
 });
 

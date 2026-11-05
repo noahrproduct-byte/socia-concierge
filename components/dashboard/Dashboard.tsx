@@ -31,7 +31,7 @@ import type { Candidate } from "@/lib/repurpose";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
-import { buildWeek, compareBars, describeDay, scoreTone, COMPETITOR_METRICS, type CalendarItem, type CompetitorMetric, type Competitors, type PlanDayItem, type WeekDay } from "@/lib/overviewVisual";
+import { buildWeek, compareBars, describeDay, scoreTone, COMPETITOR_METRICS, type CalendarItem, type CompetitorMetric, type Competitors, type PlanDayItem, type WeekCover, type WeekDay } from "@/lib/overviewVisual";
 import { ActionChips, BriefingLines, GoalBars, GoalNotes, LearningLines, WorksBars, WorksNotes, type IntelData } from "./IntelSections";
 import { Bar, CountUp, Details, Reveal, Ring, useMotionOk } from "./motion";
 
@@ -66,7 +66,7 @@ export type DashboardData = {
   upcoming: Upcoming[];
   goals: string[];
   trackers: GoalTracker[];
-  timed: (CalPost & { id: string; format: string })[];
+  timed: (CalPost & { id: string; format: string; cover?: WeekCover | null })[];
   today: TodayCardProps;
   repurpose: Candidate[];
   /** The person's first name from their sign-in account; null when it carries none. */
@@ -88,6 +88,19 @@ const KPI_METRIC: Partial<Record<Kpi["id"], Metric>> = { views: "views", engagem
 const KPI_ICON: Record<string, typeof Eye> = { views: Eye, engagement_rate: Heart, followers: Users, posts: FileText, reach: Eye };
 const KIND_ICON = { reel: Film, photo: ImageIcon, carousel: Images, story: CircleDot, post: FileText } as const;
 const STATUS_WORD = { posted: "Posted", scheduled: "Scheduled", planned: "Planned", draft: "Draft", failed: "Failed" } as const;
+/** The post's own cover on the week strip: its picture, or its video's opening
+ *  frame. It sits over the kind icon, so a file that no longer loads leaves the icon. */
+function DayCover({ cover }: { cover: WeekCover }) {
+  const [gone, setGone] = useState(false);
+  if (gone) return null;
+  return cover.video ? (
+    <video className="dash-day-cover" src={`${cover.src}#t=0.1`} muted playsInline preload="metadata" tabIndex={-1} onError={() => setGone(true)} />
+  ) : (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className="dash-day-cover" src={cover.src} alt="" loading="lazy" onError={() => setGone(true)} />
+  );
+}
+
 /** The stat row shows three numbers: the three that drive the chart. */
 const STAT_COUNT = 3;
 /** Remembers on this device whether "More from your account" was left open. */
@@ -372,6 +385,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
                       return (
                         <span key={k} className={`dash-day-item is-${it.status}`} title={`${it.title}: ${STATUS_WORD[it.status]}`}>
                           <Icon />
+                          {it.cover && <DayCover cover={it.cover} />}
                           <i />
                         </span>
                       );
@@ -564,7 +578,7 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
               <Card className="dash-lift">
                 <CardHeader title="What's working" />
-                <WorksBars works={d.intel.works} />
+                <WorksBars works={d.intel.works} gap={d.intel.worksGap} />
                 {d.intel.works.length > 0 && (
                   <Details label="Details" openLabel="Less"><WorksNotes works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} /></Details>
                 )}

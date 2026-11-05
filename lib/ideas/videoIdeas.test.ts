@@ -71,3 +71,22 @@ describe("video ideas", () => {
     expect(sanitizeIdeaSet({ ideas: [] })).toBeNull();
   });
 });
+
+describe("the Reel an idea is built on", () => {
+  const base = { title: "Slice POV", style: "in_person", treatment: "pov", evidence: "untested", premise: "The camera walks in and finds the slice.", themeFit: "", lengthSec: 15, sound: { kind: "original", feel: "" }, shots: [{ from: 0, to: 15, onCamera: "Door, then counter", onScreenText: "", say: "" }], script: "", caption: "", needs: "" };
+  const proven = [{ id: "R1", proven: true, url: "https://instagram.com/reel/a1", platform: "instagram", accountName: "A", accountHandle: "a", accountAvatar: null, title: "POV: best slice", thumb: null, publishedAt: null, views: 240000, likes: 10, comments: 1, multiplier: 6, basis: "views" as const, format: "Reel", line: "POV: best slice", structures: ["POV"], topics: [] }];
+
+  it("comes from the listed Reel the model cited, never from the model's own text", () => {
+    const [idea] = cleanIdeas({ ideas: [{ ...base, reference: "R1" }] }, ["in_person"], () => "a", proven);
+    expect(idea.ref).toMatchObject({ url: "https://instagram.com/reel/a1", account: "@a", views: 240000, multiplier: 6 });
+    expect(ideaText(idea)).toContain("Built on a Reel that took off: @a on Instagram: 240K views, 6.0x their usual. https://instagram.com/reel/a1");
+    expect(cleanIdeas({ ideas: [{ ...base, reference: "R7" }] }, ["in_person"], () => "a", proven)[0].ref).toBeNull();
+    expect(cleanIdeas({ ideas: [{ ...base, reference: "" }] }, ["in_person"], () => "a", proven)[0].ref).toBeNull();
+  });
+
+  it("survives being stored and read back", () => {
+    const [idea] = cleanIdeas({ ideas: [{ ...base, reference: "R1" }] }, ["in_person"], () => "a", proven);
+    const back = sanitizeIdeaSet({ at: "2026-11-05", styles: ["in_person"], about: null, ideas: [idea] });
+    expect(back?.ideas[0].ref).toEqual(idea.ref);
+  });
+});

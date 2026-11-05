@@ -54,6 +54,44 @@ export function whatWorks(sample: AccountSample): WorkRow[] {
   return out.sort((a, b) => b.multiple - a.multiple);
 }
 
+/** The formats a platform has, for naming a second one to try; null where it has only one. */
+const OTHER_FORMATS: Partial<Record<GoalPlatform, string[]>> = {
+  instagram: ["Reel", "Carousel", "Photo"],
+  youtube: ["Short", "Video"],
+  facebook: ["Video", "Photo", "Text"],
+};
+const lower = (format: string) => (format === "Reel" || format === "Short" ? format : format.toLowerCase());
+
+/**
+ * Why whatWorks has nothing to show, from the account's own counts: said for
+ * the platform with the most posts, the one closest to a comparison.
+ */
+export function worksGap(sample: AccountSample): string {
+  const byPlatform = new Map<GoalPlatform, AccountSample["posts"]>();
+  for (const p of sample.posts) if (p.metric) byPlatform.set(p.platform, [...(byPlatform.get(p.platform) ?? []), p]);
+  const best = [...byPlatform.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+  if (!best) {
+    return sample.posts.length
+      ? `SOCIA read ${plural(sample.posts.length, "post")}, and none has numbers yet.`
+      : "SOCIA hasn't read any posts yet. Connect a platform, or publish a few posts, and this fills in.";
+  }
+  const [platform, posts] = best;
+  const name = GOAL_PLATFORM_NAME[platform];
+  const n = posts.length;
+  if (n < 6) return `SOCIA has read ${plural(n, "post")} on ${name}. Formats are compared from 6 posts, so ${6 - n} more.`;
+  const counts = new Map<string, number>();
+  for (const p of posts) counts.set(p.format, (counts.get(p.format) ?? 0) + 1);
+  if (counts.size < 2) {
+    const only = posts[0].format;
+    const others = (OTHER_FORMATS[platform] ?? []).filter((f) => f !== only);
+    if (!others.length) return `All ${n} of your ${name} posts are one format, so there is nothing to compare them with there.`;
+    return `All ${n} of your ${name} posts are ${lower(only)}s. This compares one format with another, so it starts after 3 ${others.map((f) => `${lower(f)}s`).join(" or ")}.`;
+  }
+  const all = median(posts.map((p) => p.metric!.value));
+  if (!all || all <= 0) return `Your ${n} ${name} posts report no ${posts[0].metric!.name} yet, so there is nothing to compare.`;
+  return `Your ${n} ${name} posts are spread over ${counts.size} formats and none has 3 posts yet. A format is compared from 3 posts.`;
+}
+
 // ---------------------------------------------------------------------------
 // Growth briefing
 // ---------------------------------------------------------------------------

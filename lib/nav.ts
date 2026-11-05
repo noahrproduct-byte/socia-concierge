@@ -47,16 +47,17 @@ export const NAV: NavEntry[] = [
 /**
  * The dock: the five daily destinations, linked directly from the floating
  * headbar on desktop and from the bottom tab bar on phones (redesign brief,
- * 2026-11-03): Home, Plan, Create, Analytics and Inbox. Discover, Studio,
+ * 2026-11-03; order by Noah, 2026-11-05: how it went before what's next):
+ * Home, Analytics, Plan, Create and Inbox. Discover, Studio,
  * Reports, the weekly roundup and Settings sit one click deeper, in the More
  * panel and the command menu. `also` lists sections that light up the same
  * dock item.
  */
 export const DOCK: { key: string; label: string; also?: string[] }[] = [
   { key: "dashboard", label: "Home" },
+  { key: "analytics", label: "Analytics" },
   { key: "plan", label: "Plan", also: ["calendar"] },
   { key: "create", label: "Create" },
-  { key: "analytics", label: "Analytics" },
   { key: "comments", label: "Inbox" },
 ];
 

@@ -15,7 +15,7 @@ import { isOwnAccount, ownAccounts } from "./ownAccounts";
 import { locationTokens } from "./competitorPatterns";
 import { scopeToWorkspace } from "./workspaces";
 import type { NichePost } from "./nicheTrends";
-import { rankTrendingReels, trendSignals, type TrendAccount, type TrendSignals } from "./trendSignals";
+import { provenReels, rankTrendingReels, trendSignals, type ProvenReel, type TrendAccount, type TrendSignals } from "./trendSignals";
 
 const READ_BUDGET_MS = 15000;
 const IG_FORMAT: Record<string, string> = { VIDEO: "Reel", IMAGE: "Photo", CAROUSEL_ALBUM: "Carousel" };
@@ -39,7 +39,10 @@ export function igPosts(c: IgCompetitor): CompPost[] {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
-async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date): Promise<TrendSignals | null> {
+/** What the niche read gives a plan or an idea batch: the grouped trends, and the Reels that took off, to build on. */
+export type NicheRead = { signals: TrendSignals; proven: ProvenReel[] };
+
+async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date): Promise<NicheRead | null> {
   const ent = await getEntitlements(client, ownerId);
   if (!canUseFeature(ent, "niche_intelligence")) return null;
   const mine = await ownAccounts(client, ownerId).catch(() => null);
@@ -100,11 +103,13 @@ async function read(client: Supa, ownerId: string, scopeId: string | null, locat
 
   const reels = rankTrendingReels(accounts, content, now);
   if (!reels.length) return null;
-  return trendSignals(reels, { loc: locationTokens(location) });
+  const loc = locationTokens(location);
+  // Every hook and topic group, not only the six a prompt lists, so each Reel's track record finds its own.
+  return { signals: trendSignals(reels, { loc }), proven: provenReels(reels, { loc, max: 8, signals: trendSignals(reels, { loc, max: 40 }) }) };
 }
 
 /** The niche's trends for one brand, or null when the plan lacks niche trends, nothing was found, or the read ran out of time. */
-export async function loadTrendSignals(client: Supa, ownerId: string, scopeId: string | null, opts: { location?: string | null; now?: Date } = {}): Promise<TrendSignals | null> {
+export async function loadNicheRead(client: Supa, ownerId: string, scopeId: string | null, opts: { location?: string | null; now?: Date } = {}): Promise<NicheRead | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), READ_BUDGET_MS); });
   try {

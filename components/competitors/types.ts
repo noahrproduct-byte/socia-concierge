@@ -7,7 +7,7 @@ import type { TrendingAudio } from "@/lib/igAudio";
 import type { LeaderRow } from "@/lib/competitorRollup";
 import type { CompetitorRow } from "@/lib/competitorIntel";
 import type { NichePost, OwnPost } from "@/lib/nicheTrends";
-import type { TrendingReel, TrendSignals } from "@/lib/trendSignals";
+import type { ProvenReel } from "@/lib/trendSignals";
 
 export type Tracked = {
   platform: string; handle: string; added_at: string;
@@ -57,9 +57,9 @@ export type CompetitorsData = {
   /** How many trending niche accounts the plan shows (its competitor limit, at most 10). */
   trendingLimit: number;
   /** Recent Reels and Shorts in the niche, ranked against each account's own median. */
-  trendingReels: TrendingReel[];
-  /** Hook structures, topics and strong opening lines across every recent niche Reel (lib/trendSignals.ts). */
-  trends: TrendSignals;
+  reelsToCopy: ProvenReel[];
+  /** How many recent Reels and Shorts SOCIA read for that list, and from how many accounts. */
+  reelsRead: { reels: number; accounts: number };
   /** Instagram's trending audio (lib/igAudio.ts); null when the plan doesn't include niche trends. */
   audio: TrendingAudio | null;
   /** Niche intelligence is on the owner's plan. */
@@ -72,4 +72,4 @@ export type CompetitorsData = {
   formats: { doc: FormatsDoc | null; stale: boolean };
 };
 
-export type { TrendingReel } from "@/lib/trendSignals";
+export type { ProvenReel } from "@/lib/trendSignals";

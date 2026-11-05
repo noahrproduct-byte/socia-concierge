@@ -34,6 +34,8 @@ export type GoalRow = {
 export type IntelData = {
   briefing: GrowthBriefing;
   works: WorkRow[];
+  /** Why works is empty, from the account's own counts (lib/intel/overview.ts worksGap). */
+  worksGap?: string;
   themes: { name: string; posts: number; example: string }[];
   postsRead: number;
   actions: NextAction[];
@@ -108,12 +110,12 @@ export function ActionChips({ actions }: { actions: NextAction[] }) {
 }
 
 /** Formats against the account's own median, as bars. */
-export function WorksBars({ works }: { works: WorkRow[] }) {
+export function WorksBars({ works, gap }: { works: WorkRow[]; gap?: string }) {
   const max = Math.max(1, ...works.map((w) => w.multiple));
   if (!works.length) {
     return (
       <Empty>
-        <b>Not enough to compare yet.</b> A format needs 3 posts, the account 6.
+        <b>No format comparison yet.</b> {gap ?? "It starts once a platform has 6 posts in two formats, 3 posts each."}
       </Empty>
     );
   }
