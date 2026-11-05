@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { humanText } from "@/lib/studioClips/overlay";
 import { LIMITS } from "@/lib/inputLimits";
-import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
@@ -246,7 +246,7 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
     return NextResponse.json({ analysis, usage: u.usage });
   } catch (err) {
     await u.release();
-    const kind2 = aiFailureKind(err);
+    const kind2 = aiFailure("studio/analyze", err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind2], kind: kind2 }, { status: kind2 === "rate_limited" ? 429 : 502 });
   }
 }

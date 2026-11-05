@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { humanText } from "@/lib/studioClips/overlay";
 import { LIMITS, clip, clipList } from "@/lib/inputLimits";
-import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ options, usage: u.usage });
   } catch (err) {
     await u.release();
-    const kind = aiFailureKind(err);
+    const kind = aiFailure("studio/improve", err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }
 }

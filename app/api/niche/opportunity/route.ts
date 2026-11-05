@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { LIMITS, clip, clipList } from "@/lib/inputLimits";
-import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     } catch { /* best effort */ }
     return NextResponse.json({ ...doc, cached: false });
   } catch (err) {
-    const kind = aiFailureKind(err);
+    const kind = aiFailure("niche/opportunity", err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }
 }

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { refuseCrossSite } from "@/lib/crossSite";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { perUserLimit } from "@/lib/rateLimit";
-import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { generateStrategy, readStrategy, saveStrategy } from "@/lib/strategyLoad";
 import { STRATEGY_REGEN_COOLDOWN_MS, applyEdits, type GrowthStrategy } from "@/lib/strategy";
 
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     if (!(await saveStrategy(ctx, strategy))) return NextResponse.json({ error: "Couldn't save the strategy. Try again." }, { status: 500 });
     return NextResponse.json({ strategy });
   } catch (err) {
-    const kind = aiFailureKind(err);
+    const kind = aiFailure("strategy", err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }
 }

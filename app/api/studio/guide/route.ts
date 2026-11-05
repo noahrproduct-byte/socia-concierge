@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { refuseCrossSite } from "@/lib/crossSite";
 import { resolveContext } from "@/lib/context";
 import { requireUsage } from "@/lib/planGuard";
-import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { conceptFromIdea, sanitizeGuide, type StudioConcept } from "@/lib/studioGuide";
 import { formatConcept, planConcept, saveGuideOnPlan, writeGuide } from "@/lib/studioGuideLoad";
 import { platformName } from "@/lib/planItems";
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ concept, guide, saved, usage: u.usage });
   } catch (err) {
     await u.release();
-    const kind = aiFailureKind(err);
+    const kind = aiFailure("studio/guide", err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }
 }
