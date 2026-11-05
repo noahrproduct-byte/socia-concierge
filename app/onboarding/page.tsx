@@ -12,7 +12,7 @@ import { resumeStep } from "@/lib/onboarding";
 import { scopeToWorkspace, listAccessibleWorkspaces } from "@/lib/workspaces";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import type { ConnectState } from "@/components/ConnectAccounts";
-import { offlineReason } from "@/lib/platformStatus";
+import { offlineFor } from "@/lib/platformAccess";
 import { isAdminEmail } from "@/lib/admin";
 
 export const metadata = { title: "Welcome to SOCIA" };
@@ -61,9 +61,9 @@ export default async function OnboardingPage({
   const connections: ConnectState[] = [
     { id: "Instagram", href: igConfigured() ? start("instagram") : null, connectedAs: igConn?.username ? `@${igConn.username}` : null },
     // Facebook and TikTok aren't open to new connections yet (lib/platformStatus.ts); admins still connect from Settings.
-    { id: "Facebook", href: fbConfigured() ? start("facebook") : null, connectedAs: fbName, offline: isAdminEmail(user.email) ? null : offlineReason("facebook") },
+    { id: "Facebook", href: fbConfigured() ? start("facebook") : null, connectedAs: fbName, offline: offlineFor("facebook", user.email) },
     { id: "YouTube", href: ytAuthConfigured() ? start("youtube") : null, connectedAs: name(ytRow, "handle", "title") },
-    { id: "TikTok", href: ttAuthConfigured() ? start("tiktok") : null, connectedAs: name(ttRow, "username", "display_name"), offline: isAdminEmail(user.email) ? null : offlineReason("tiktok") },
+    { id: "TikTok", href: ttAuthConfigured() ? start("tiktok") : null, connectedAs: name(ttRow, "username", "display_name"), offline: offlineFor("tiktok", user.email) },
   ];
 
   const returned = [

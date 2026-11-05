@@ -59,7 +59,7 @@ import type { GoalPlatform } from "@/lib/growth";
 import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
 import { Briefcase, MapPin } from "lucide-react";
 import PlaceScan from "@/components/PlaceScan";
-import { offlineReason } from "@/lib/platformStatus";
+import { offlineFor } from "@/lib/platformAccess";
 import { isAdminEmail } from "@/lib/admin";
 import { teamActivity, teamWorkFor, workspacePeople } from "@/lib/teamWorkServer";
 import { activityLines, type ActivityLine } from "@/lib/teamWork";
@@ -486,7 +486,7 @@ export default async function SettingsPage({
                 pendingPages={fbPages}
                 posts={Array.isArray(fbConn?.media) ? (fbConn!.media as FbPost[]).slice(0, 5) : []}
                 paused={pausedOn("facebook")}
-                offline={isAdminEmail(user.email) ? null : offlineReason("facebook")}
+                offline={offlineFor("facebook", user.email)}
               />
               <div className="st2-divider"><span>YouTube</span></div>
               <YouTubeConnect
@@ -509,7 +509,7 @@ export default async function SettingsPage({
                 avatar={ttConn?.avatar_url ?? null}
                 paused={pausedOn("tiktok")}
                 canPublishDirect={ttDirect}
-                offline={isAdminEmail(user.email) ? null : offlineReason("tiktok")}
+                offline={offlineFor("tiktok", user.email)}
               />
             </section>
 
