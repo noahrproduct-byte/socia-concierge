@@ -21,6 +21,7 @@ import DestinationPicker, { accountFor } from "./DestinationPicker";
 import MediaSection from "./MediaSection";
 import MasterContent from "./MasterContent";
 import { ApprovalBanner, ApprovalSubmit, useApproval } from "./ApprovalControls";
+import { ReadyBanner, ReadySubmit, useReady } from "./ReadyControls";
 import PlatformTabs, { GENERAL_TAB, tabsFor } from "./PlatformTabs";
 import InstagramSettingsForm from "./settings/InstagramSettingsForm";
 import YouTubeSettingsForm from "./settings/YouTubeSettingsForm";
@@ -58,9 +59,12 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
   const c = useComposer(props);
   const { draft, dispatch, submission } = c;
   const ap = useApproval(draft.postId, Boolean(approvalRole));
+  // Ready for review: a Member without approvals marks drafts; the owner and Admins see the mark.
+  const readyRole = approvalRole === "submit" ? null : props.readyRole ?? null;
+  const rd = useReady(draft.postId, Boolean(readyRole));
   // After an approver schedules or publishes, the round is closed server-side: refresh the banner.
   useEffect(() => {
-    if (submission.phase === "done" || submission.phase === "tracking") void ap.reload();
+    if (submission.phase === "done" || submission.phase === "tracking") { void ap.reload(); void rd.reload(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submission.phase]);
   const quick = draft.mode === "quick";
@@ -154,8 +158,13 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
     <p className="cp-error" role="alert">{submission.error}</p>
   );
   // A Member on a plan with approvals submits instead, so the "only owners publish" notice would mislead.
-  const planLine = !canPublish && planError && approvalRole !== "submit" && <PlanNotice error={planError} compact />;
-  const approvalBanner = <ApprovalBanner role={approvalRole} current={ap.state?.current ?? null} reload={ap.reload} />;
+  const planLine = !canPublish && planError && approvalRole !== "submit" && readyRole !== "mark" && <PlanNotice error={planError} compact />;
+  const approvalBanner = (
+    <>
+      <ApprovalBanner role={approvalRole} current={ap.state?.current ?? null} reload={ap.reload} />
+      {readyRole === "review" && <ReadyBanner ready={rd.ready} setReady={rd.setReady} postId={draft.postId} />}
+    </>
+  );
 
   if (c.loading) {
     return (
@@ -232,6 +241,11 @@ export default function ComposerPage(props: ComposerPageProps & { postId?: strin
         <ApprovalSubmit
           draft={draft} canAct={canAct} busy={busy} current={ap.state?.current?.mine ? ap.state.current : null}
           saveDraft={() => c.submit("draft")} ensurePostId={c.ensurePostId} reload={ap.reload}
+        />
+      ) : readyRole === "mark" ? ({ canAct, busy }) => (
+        <ReadySubmit
+          canAct={canAct} busy={busy} ready={rd.ready} setReady={rd.setReady}
+          saveDraft={() => c.submit("draft")} ensurePostId={c.ensurePostId}
         />
       ) : undefined}
     />

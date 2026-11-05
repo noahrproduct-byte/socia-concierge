@@ -126,7 +126,7 @@ export async function closeApproval(svc: Supa, ownerId: string, id: string, patc
 
 // ------------------------------------------------------------- notifications
 
-async function postTitle(svc: Supa, ownerId: string, postId: string): Promise<string> {
+export async function postTitle(svc: Supa, ownerId: string, postId: string): Promise<string> {
   const { data } = await svc.from("scheduled_posts").select("caption").eq("user_id", ownerId).eq("id", postId).maybeSingle();
   const t = displayTitle(((data as { caption?: string } | null)?.caption ?? "").trim());
   let title = t;

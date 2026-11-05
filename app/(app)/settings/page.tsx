@@ -61,6 +61,8 @@ import { Briefcase, MapPin } from "lucide-react";
 import PlaceScan from "@/components/PlaceScan";
 import { offlineReason } from "@/lib/platformStatus";
 import { isAdminEmail } from "@/lib/admin";
+import { teamActivity, teamWorkFor, workspacePeople } from "@/lib/teamWorkServer";
+import { activityLines, type ActivityLine } from "@/lib/teamWork";
 
 export const metadata = { title: "Settings | SOCIA" };
 
@@ -269,6 +271,7 @@ export default async function SettingsPage({
   let team: {
     workspaceName: string; role: "owner" | "admin" | "member"; members: TeamMemberRow[]; invites: TeamInviteRow[];
     seats: { used: number | null; limit: number }; canInvite: boolean; teamIncluded: boolean; planName: string;
+    activity: ActivityLine[] | null; approvalsOn: boolean;
   } | null = null;
   let teamUsed: number | null = null;
   if (tmEnabled) {
@@ -282,6 +285,13 @@ export default async function SettingsPage({
       const ownedIds = workspaceRows.map((w) => w.id);
       teamUsed = await seatsUsed(supabase, ownedIds, user.id);
       const seatUsedForOwner = ctx.isOwner ? teamUsed : null;
+      // What people did here lately, read back from the rows (lib/teamWorkServer).
+      const twSvc = await teamWorkFor(ctx).catch(() => null);
+      let activity: ActivityLine[] | null = null;
+      if (twSvc && members.length > 0) {
+        const [people, events] = await Promise.all([workspacePeople(twSvc, ctx, user.email ?? null), teamActivity(twSvc, ctx).catch(() => [])]);
+        activity = activityLines(events, new Map(people.map((p) => [p.userId, p])));
+      }
       team = {
         workspaceName: ctx.workspace.name,
         role: ctx.role,
@@ -294,6 +304,8 @@ export default async function SettingsPage({
         canInvite: can(ctx, "invite"),
         teamIncluded: canUseFeature(ownerEnt, "team"),
         planName: ownerEnt.config.name,
+        activity,
+        approvalsOn: canUseFeature(ownerEnt, "approval_workflow"),
       };
     }
   }

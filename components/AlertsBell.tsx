@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Shuffle,
   TrendingUp,
+  UserRound,
   Users,
   X,
   Zap,
@@ -39,6 +40,7 @@ const ALERT_ICON: Record<string, typeof Zap> = {
   plan_ready: FileText,
   cross_platform: Shuffle,
   approval: ClipboardCheck,
+  team: UserRound,
 };
 
 function post(body: Record<string, string>) {

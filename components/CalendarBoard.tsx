@@ -59,6 +59,8 @@ import { PLATFORM_LABEL, type ContentItem, type Destination, type Platform, type
 import { trialLine } from "@/lib/publishing/trial";
 import { firstLineOf } from "@/lib/publishing/postLabel";
 import "./calendar-destinations.css";
+import "./teamwork.css";
+import { StatusPill } from "@/components/system";
 import DeleteOnPlatform, { useDeleteInfo, type DeleteInfo } from "@/components/DeleteOnPlatform";
 
 /** Phone width: the Calendar shows the week only. Matches the CSS that hides the Week/Month switch. */
@@ -80,7 +82,22 @@ export type CalDestination = Pick<
  *  posts and keep the original modal and publish path. */
 export type CalResult = { platform: Platform; short: string; text: string; multiplier: number | null; early: boolean; measured: boolean };
 /** A scheduled post with its destinations and, once published, how it did against the account's own median. */
-export type CalItem = ScheduledPost & { destinations?: CalDestination[]; result?: CalResult | null; label?: string | null };
+export type CalItem = ScheduledPost & {
+  destinations?: CalDestination[]; result?: CalResult | null; label?: string | null;
+  /** Who made it and whether a Member marked it ready for review; only once more than one person works here. */
+  team?: { by: string | null; byFull: string | null; ready: boolean };
+};
+
+/** "By umar", and "Ready for review" on a draft a Member marked. */
+function TeamLine({ t }: { t?: CalItem["team"] }) {
+  if (!t || (!t.by && !t.ready)) return null;
+  return (
+    <span className="cal2-team">
+      {t.ready && <StatusPill tone="warning">Ready for review</StatusPill>}
+      {t.by && <span className="tw-by" title={t.byFull ? `Made by ${t.byFull}` : undefined}>By {t.by}</span>}
+    </span>
+  );
+}
 
 const isMulti = (p: CalItem): p is CalItem & { destinations: CalDestination[] } =>
   (p.destinations?.length ?? 0) > 0;
@@ -961,6 +978,7 @@ function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platf
           <DestinationChip destinations={p.destinations} />
         </span>
         {err && <span className="cal2-err">{err}</span>}
+        <TeamLine t={p.team} />
         <ResultLine r={p.result} />
       </button>
     );
@@ -976,6 +994,7 @@ function PostCard({ p, at, ghost, onOpen }: { p: CalItem; at: Date; ghost: Platf
         <StatusChip p={p} />
       </span>
       {p.status === "failed" && p.error && <span className="cal2-err">{p.error}</span>}
+      <TeamLine t={p.team} />
       <ResultLine r={p.result} />
     </button>
   );

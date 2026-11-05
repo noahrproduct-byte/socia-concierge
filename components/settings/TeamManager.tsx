@@ -9,6 +9,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users, Link2, Copy, Check, Trash2, Loader2, LogOut } from "lucide-react";
 import { PLANS, minPlanWithFeature } from "@/lib/plans";
+import { relTime } from "@/lib/overview";
+import type { ActivityLine } from "@/lib/teamWork";
+import "../teamwork.css";
 
 export type TeamMemberRow = { userId: string; role: "owner" | "admin" | "member"; email: string | null; createdAt: string | null; isYou: boolean };
 export type TeamInviteRow = { id: string; role: "admin" | "member"; email: string | null; expiresAt: string };
@@ -23,11 +26,15 @@ type Props = {
   teamIncluded: boolean;
   planName: string;
   youId: string;
+  /** What people did here in the last 30 days (lib/teamWorkServer); null when team work isn't on. */
+  activity?: ActivityLine[] | null;
+  /** The owner's plan includes approvals (Pro): Members submit instead of marking drafts ready. */
+  approvalsOn?: boolean;
 };
 
 const ROLE_LABEL = { owner: "Owner", admin: "Admin", member: "Member" } as const;
 
-export default function TeamManager({ workspaceName, role, members, invites, seats, canInvite, teamIncluded, planName, youId }: Props) {
+export default function TeamManager({ workspaceName, role, members, invites, seats, canInvite, teamIncluded, planName, youId, activity = null, approvalsOn = false }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -126,6 +133,37 @@ export default function TeamManager({ workspaceName, role, members, invites, sea
           </li>
         ))}
       </ul>
+
+      {teamIncluded && (
+        <>
+          <h4 className="tw-sub">What each role can do</h4>
+          <dl className="tm-roles">
+            <dt>Admin</dt>
+            <dd>Schedules and publishes, connects accounts, invites Members and hands out the plan&apos;s videos.</dd>
+            <dt>Member</dt>
+            <dd>Makes drafts and {approvalsOn ? "submits them for approval" : "marks them ready for review"}, films the videos handed to them and uses Ask SOCIA. Can&apos;t publish or change accounts.</dd>
+          </dl>
+        </>
+      )}
+
+      {activity && members.length > 1 && (
+        <>
+          <h4 className="tw-sub">Recent activity</h4>
+          {activity.length ? (
+            <ul className="tw-activity">
+              {activity.map((a, k) => (
+                <li key={`${a.at}-${k}`}>
+                  {a.href ? <a href={a.href}>{a.text}</a> : <span>{a.text}</span>}
+                  {/* "2h ago" and the local time differ between the server and the browser; the browser wins. */}
+                  <time dateTime={a.at} title={new Date(a.at).toLocaleString("en-US")} suppressHydrationWarning>{relTime(a.at)}</time>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="tw-empty">Nothing in the last 30 days. Posts people make, drafts marked ready and videos handed out show here.</p>
+          )}
+        </>
+      )}
 
       {canInvite && (
         <div className="tm-invite">
