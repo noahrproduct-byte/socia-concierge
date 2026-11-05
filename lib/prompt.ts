@@ -96,7 +96,7 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
 
   parts.push(`\n# Competitor / niche accounts and what's working for them`);
   if (evidence?.competitorsBlock) {
-    parts.push(`(Found and measured by SOCIA: YouTube figures come from the YouTube Data API; Instagram and Facebook accounts found by web research carry no metrics because those platforms don't publish them.)`);
+    parts.push(`(Found and measured by SOCIA: YouTube figures come from the YouTube Data API; Instagram figures are what SOCIA last read from Instagram for that account, with the date. An account with no figures has not been read: never estimate its numbers.)`);
     parts.push(evidence.competitorsBlock);
     if (input.competitors.trim()) parts.push(`\nThe user's own notes on competitors:\n${input.competitors.trim()}`);
   } else {

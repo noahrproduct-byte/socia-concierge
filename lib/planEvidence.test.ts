@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ownPostsBlock, competitorsBlock, outcomesBlock } from "./planEvidence";
+import { ownPostsBlock, competitorsBlock, igSnapLine, outcomesBlock } from "./planEvidence";
 import type { PlanOutcome, ItemOutcome } from "./planOutcomes";
 
 describe("plan evidence: own posts", () => {
@@ -69,12 +69,40 @@ describe("plan evidence: competitors", () => {
       ],
     );
     expect(b).toContain("- @rivalpizza (Rival Pizza) · Instagram · direct competitor · followers not published · Nashville, TN");
-    expect(b).not.toContain("@rivalpizza · Instagram · added by the user");
-    expect(b).toContain("- @someone · YouTube · added by the user · no public metrics available");
+    expect(b).not.toContain("@rivalpizza · Instagram · tracked by the user");
+    expect(b).toContain("- @someone · YouTube · tracked by the user · no public numbers read for this account yet");
     expect(b).toContain(
       '- "I tried 5 crusts" by Pizza Guy (YouTube, 2026-08-20) · 45,000 views, 1,200 likes · 3.4× that creator\'s median · patterns: Comparison · why it matters: Format fits the account',
     );
     expect(b).toContain("Winning content SOCIA found in this niche (1");
+  });
+});
+
+describe("plan evidence: the numbers SOCIA read from Instagram", () => {
+  const snap = {
+    handle: "rivalpizza", followers: 4310, posts_per_week: "3.5", median_engagement: "212.4", fetched_at: "2026-11-04T09:00:00Z",
+    media: [{ views: 9000 }, { views: 12000 }, { views: 30000 }, { views: null }],
+  };
+
+  it("states only what was read, with its date", () => {
+    expect(igSnapLine(snap)).toBe("4,310 followers, 3.5 posts a week, median 212 likes and comments a post (last 4), median 12,000 views (3 posts); read from Instagram 2026-11-04");
+    // Fewer than three posts with views: no median views. Nothing read: nothing said.
+    expect(igSnapLine({ ...snap, media: [{ views: 9000 }] })).not.toContain("views");
+    expect(igSnapLine({ handle: "x", followers: null, posts_per_week: null, median_engagement: null })).toBe("");
+  });
+
+  it("puts those numbers on a discovered account and on a tracked one, in place of 'not published'", () => {
+    const snaps = new Map([["rivalpizza", snap], ["doughbros", { ...snap, handle: "doughbros", followers: 900 }]]);
+    const b = competitorsBlock(
+      [{ platform: "instagram", handle: "rivalpizza", display_name: "Rival Pizza", followers: null, location: null, category: null, classification: "direct_competitor", relevance_score: 80 }],
+      [{ platform: "instagram", handle: "@DoughBros" }, { platform: "instagram", handle: "unread" }],
+      [],
+      snaps,
+    );
+    expect(b).toContain("- @rivalpizza (Rival Pizza) · Instagram · direct competitor · 4,310 followers, 3.5 posts a week");
+    expect(b).not.toContain("followers not published");
+    expect(b).toContain("- @DoughBros · Instagram · tracked by the user · 900 followers, 3.5 posts a week");
+    expect(b).toContain("- @unread · Instagram · tracked by the user · no public numbers read for this account yet");
   });
 });
 
