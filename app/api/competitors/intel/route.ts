@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getActiveConnection } from "@/lib/instagramSync";
 import { isOwnAccount, ownAccounts, type OwnAccounts } from "@/lib/ownAccounts";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
-import { aiFailureKind, MODEL, effortFor, type AiUnavailable } from "@/lib/anthropic";
+import { MODEL, effortFor, type AiUnavailable, aiFailure } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { resolveContext, can, forbiddenCopy, brandWorkspace } from "@/lib/context";
 import { competitorsScopedEnabled, ensureDefaultWorkspace } from "@/lib/workspaces";
@@ -395,7 +395,7 @@ Output ONLY this JSON, no other text:
       }
       sources.web = "ok";
     } catch (e) {
-      sources.web = aiFailureKind(e);
+      sources.web = aiFailure("competitors/intel", e);
     }
   }
 

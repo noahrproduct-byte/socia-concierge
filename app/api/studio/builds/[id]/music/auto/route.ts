@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { AI_UNAVAILABLE_COPY, aiFailureKind } from "@/lib/aiStatus";
+import { AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
+import { aiFailure } from "@/lib/anthropic";
 import { requireFeature, requireUsage } from "@/lib/planGuard";
 import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
@@ -86,7 +87,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     if (e instanceof MusicError) return NextResponse.json({ error: e.message, kind: e.kind, notConfigured: e.kind === "not_configured" }, { status: e.kind === "busy" ? 429 : e.kind === "not_configured" ? 503 : 502 });
-    const kind = aiFailureKind(e);
+    const kind = aiFailure("studio/builds/music/auto", e);
     return NextResponse.json({ error: kind === "failed" ? publicMessage("studio/builds/[id]/music/auto", e, "SOCIA couldn't add music. Pick a track in Music.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });
   }
 }

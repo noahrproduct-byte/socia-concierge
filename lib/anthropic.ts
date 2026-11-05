@@ -93,4 +93,20 @@ export function modelFor(task: ModelTask): string {
 // Availability helpers live in lib/aiStatus.ts — free of this SDK import, so
 // client components can render an AI state without bundling the SDK (its
 // constructor throws in a browser).
+import { aiFailureKind, type AiUnavailable } from "./aiStatus";
 export { aiFailureKind, AI_UNAVAILABLE_COPY, type AiUnavailable } from "./aiStatus";
+
+/**
+ * Classify a failed AI call AND log why, for routes that answer with the
+ * AI_UNAVAILABLE_COPY sentence. The sentence alone ("aren't configured",
+ * "couldn't be reached") hides the real cause; this line in the function logs
+ * says it (401 invalid key, 400 credit, 429, 529 overloaded). The provider's
+ * message never contains the key.
+ */
+export function aiFailure(route: string, err: unknown): AiUnavailable {
+  const kind = aiFailureKind(err);
+  const status = (err as { status?: unknown })?.status;
+  const message = (err instanceof Error ? err.message : String(err ?? "")).replace(/\s+/g, " ").slice(0, 300);
+  console.error(`[ai] ${route} ${kind}${typeof status === "number" ? ` status=${status}` : ""}: ${message}`);
+  return kind;
+}

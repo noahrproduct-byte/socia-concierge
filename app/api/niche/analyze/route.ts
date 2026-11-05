@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { LIMITS, clipList, clip } from "@/lib/inputLimits";
-import { anthropic, MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { anthropic, MODEL, effortFor, AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/profile";
@@ -172,7 +172,7 @@ Rules:
     } catch { /* caching is best-effort */ }
     return NextResponse.json(doc);
   } catch (err) {
-    const kind = aiFailureKind(err);
+    const kind = aiFailure("niche/analyze", err);
     return NextResponse.json({ durationSec, analysis: null, error: AI_UNAVAILABLE_COPY[kind], kind, cached: false } satisfies AnalyzeResponse, { status: kind === "rate_limited" ? 429 : 502 });
   }
 }

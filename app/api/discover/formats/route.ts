@@ -4,7 +4,7 @@ import { refuseCrossSite } from "@/lib/crossSite";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { requireFeature } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
-import { aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
+import { AI_UNAVAILABLE_COPY, aiFailure } from "@/lib/anthropic";
 import { buildFormatsDoc, loadExamples, readFormatsDoc, saveFormatsDoc } from "@/lib/nicheFormatsLoad";
 import { FORMATS_PRODUCER, formatInsights } from "@/lib/nicheFormats";
 import { storeInsights } from "@/lib/intel/insightStore";
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     await storeInsights(ctx, [FORMATS_PRODUCER], formatInsights(doc), now).catch(() => undefined);
     return NextResponse.json({ doc, cached: false });
   } catch (err) {
-    const kind = aiFailureKind(err);
+    const kind = aiFailure("discover/formats", err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
   }
 }

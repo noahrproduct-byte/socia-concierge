@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { AI_UNAVAILABLE_COPY, aiFailureKind } from "@/lib/aiStatus";
+import { AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
+import { aiFailure } from "@/lib/anthropic";
 import { requireFeature } from "@/lib/planGuard";
 import { perUserLimit } from "@/lib/rateLimit";
 import { brandWorkspace } from "@/lib/context";
@@ -43,7 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     const msg = publicMessage("studio/builds/regenerate", e, "");
     if (/regenerated .* times/.test(msg) || /not in this project/.test(msg)) return NextResponse.json({ error: msg }, { status: 409 });
-    const kind = aiFailureKind(e);
+    const kind = aiFailure("studio/builds/regenerate", e);
     return NextResponse.json({ error: kind === "failed" ? (msg || "Regenerating failed. Try again.") : AI_UNAVAILABLE_COPY[kind] }, { status: 500 });
   }
 }
