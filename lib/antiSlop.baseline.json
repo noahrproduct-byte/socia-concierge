@@ -52,7 +52,7 @@
     "components/competitors/EvidenceDrawer.tsx": 2,
     "components/competitors/IntelStrip.tsx": 3,
     "components/competitors/NicheDrawer.tsx": 4,
-    "components/competitors/PatternsRow.tsx": 3,
+    "components/competitors/PatternsRow.tsx": 2,
     "components/competitors/Roster.tsx": 4,
     "components/competitors/SelectedCompetitor.tsx": 2,
     "components/competitors/shared.tsx": 3,

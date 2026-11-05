@@ -22,6 +22,7 @@ import { getProfile, type BrandDetail } from "./profile";
 import { loadEvidence, type Evidence } from "./planEvidence";
 import { recentPlanOutcomes } from "./planOutcomesLoad";
 import { generatePlan } from "./planGenerate";
+import { placePlanOnEmptyWeek } from "./planAutoPlace";
 import { alertsEnabled, recordAlerts } from "./alerts";
 import { planReadyAlert } from "./alertDetectors";
 import type { GenerateInput } from "./schema";
@@ -178,9 +179,13 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
   if (!usage.allowed) return "no_credit";
   try {
     const { data, saved } = await generatePlan({ client: svc, ownerId, workspaceId: wsId, input: inputs.input, brand: inputs.brand, evidence: inputs.evidence });
+    // An empty week gets the plan's posts as drafts (lib/planAutoPlace.ts); a week with anything on it is left alone.
+    const placed = saved
+      ? await placePlanOnEmptyWeek(svc, { ownerId, workspaceId: wsId, planId: saved.id, items: data.weeklyPlan ?? [], igUserId: snap.ig_user_id ?? null, now, tz })
+      : 0;
     if (saved && (await alertsEnabled(svc))) {
       await recordAlerts(svc, { userId: ownerId, workspaceId: wsId }, [
-        planReadyAlert({ id: saved.id, headline: data.headline ?? "", posts: data.weeklyPlan?.length ?? 0, weekLabel: comingWeekLabel(now, tz) }),
+        planReadyAlert({ id: saved.id, headline: data.headline ?? "", posts: data.weeklyPlan?.length ?? 0, weekLabel: comingWeekLabel(now, tz), placed }),
       ]);
     }
     return "generated";
