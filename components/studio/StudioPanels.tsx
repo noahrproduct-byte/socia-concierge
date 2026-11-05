@@ -9,14 +9,13 @@ import AudioInsights from "./AudioPanel";
 import type { QuickAudio } from "@/lib/audio/quick";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Check, Copy, RefreshCw, Clock, CalendarPlus, CalendarDays, ArrowRight, Info, Send } from "lucide-react";
-import { CATEGORY_INFO, GOALS, fmtT, checklist, versionDiff, type StudioAnalysis, type ApplyField, type GoalId, type ChecklistItem } from "@/lib/studio";
+import { Check, Copy, RefreshCw, CalendarPlus, CalendarDays, ArrowRight, Info, Send } from "lucide-react";
+import { GOALS, checklist, versionDiff, type StudioAnalysis, type GoalId, type ChecklistItem } from "@/lib/studio";
 import type { PlanError } from "@/lib/planErrors";
 import PlanNotice from "../PlanNotice";
 import ImproveWalkthrough, { type FixOptions, type ImproveWalkthroughProps } from "./ImproveWalkthrough";
 import { momentsFrom, momentsSummary, type Moment } from "@/lib/studioFixes";
 import type { EdlText } from "@/lib/studioClips/types";
-import { Bar, CountUp, Reveal, Ring } from "@/components/dashboard/motion";
 import "@/app/(app)/dashboard/dashboard.css";
 import "@/app/(app)/studio/studio.css";
 
@@ -44,169 +43,10 @@ function ErrLine({ err }: { err: PanelErr | null }) {
   return err.planError ? <PlanNotice error={err.planError} compact /> : <p className="st-err">{err.message}</p>;
 }
 
-const CAT_TONE = (s: number | null) => (s == null ? "na" : s >= 80 ? "good" : s >= 60 ? "ok" : "low");
-const FIT_CLS = { strong: "success", medium: "warning", weak: "danger" } as const;
-const VERDICT = { better: ["Better", "success"], similar: ["Similar", "muted"], worse: ["Behind", "warning"], unknown: ["Not measurable", "muted"] } as const;
 
 function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return <button type="button" className="ov-btn ghost small" aria-label="Copy" onClick={async () => { try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1200); } catch { /* no clipboard */ } }}>{ok ? <Check size={12} /> : <Copy size={12} />}</button>;
-}
-
-/** The creative readiness ring: fills once from empty, counts up once; the markup always carries the final number. */
-export function ScoreRing({ score }: { score: number }) {
-  return (
-    <Ring share={score / 100} size={110} stroke={9} tone={score >= 80 ? "good" : score >= 60 ? "ok" : "low"} label={`Creative readiness ${score} out of 100`}>
-      <b><CountUp value={score} /></b>
-      <small>of 100</small>
-    </Ring>
-  );
-}
-
-export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; seek: (t: number) => void; setActive: (i: number | null) => void; onCompare: () => void }) {
-  const [how, setHow] = useState(false);
-  const [openCat, setOpenCat] = useState<string | null>(null);
-  return (
-    <div className="st-panel">
-      <Reveal as="section" className="st-block">
-        <div className="st-score">
-          <ScoreRing score={a.score.overall} />
-          <div className="st-score-meta">
-            <small>Creative readiness</small>
-            <b>{a.score.label}</b>
-            <p>{a.observed.summary}</p>
-            <p className="st-score-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
-            <button type="button" className="ov-link" onClick={() => setHow((v) => !v)}>How is this scored? <ChevronDown size={12} style={{ transform: how ? "rotate(180deg)" : undefined }} /></button>
-          </div>
-        </div>
-        {how && (
-          <div className="st-how">
-            <p>SOCIA looks at {a.meta.frames} sampled frame{a.meta.frames === 1 ? "" : "s"}{a.meta.hadTranscript ? ", the transcript you provided" : " (no transcript was provided)"} and your caption, then compares with the cover frames and captions of your own top posts. Scores are an editor&apos;s judgement of what is visible, never a prediction of views or virality.</p>
-            <ul>
-              {a.categories.map((c) => (
-                <li key={c.id}><b>{CATEGORY_INFO[c.id].label}</b> analyzes: {CATEGORY_INFO[c.id].analyzes.join("; ")}.</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <ul className="st-cats">
-          {a.categories.map((c) => (
-            <li key={c.id} className={`st-cat ${CAT_TONE(c.score)}${openCat === c.id ? " on" : ""}`}>
-              <button type="button" className="st-cat-row" onClick={() => setOpenCat(openCat === c.id ? null : c.id)} aria-expanded={openCat === c.id}>
-                <span className="st-cat-label">{CATEGORY_INFO[c.id].label}</span>
-                <Bar share={(c.score ?? 0) / 100} tone={c.score == null ? "muted" : "data"} className="st-cat-track" />
-                <b>{c.score == null ? "n/a" : c.score}</b>
-                <ChevronDown size={13} className="st-cat-chev" />
-              </button>
-              {openCat === c.id && (
-                <div className="st-cat-detail">
-                  <p>{c.explanation || "Not assessable from what was provided."}</p>
-                  {c.evidence && <div className="ov-why-block"><small>Evidence</small><p>{c.evidence}</p></div>}
-                  {c.fix && <div className="ov-why-block rec"><small>Suggested fix</small><p>{c.fix}</p></div>}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Reveal>
-
-      {a.planFit && (
-        <section className="st-block">
-          <h3>Against your planned post</h3>
-          <p className="st-planfit"><b>{a.planFit.title}</b> {a.planFit.summary}</p>
-        </section>
-      )}
-
-      {a.strengths && a.strengths.length > 0 && (
-        <section className="st-block">
-          <h3>What works</h3>
-          <ul className="st-works">{a.strengths.map((x) => <li key={x}>{x}</li>)}</ul>
-        </section>
-      )}
-
-      <section className="st-block">
-        <h3>Highest-priority edits</h3>
-        <ol className="st-fixes">
-          {a.topFixes.map((f, i) => (
-            <li key={i} className="st-fix">
-              <span className="st-fix-num">{String(i + 1).padStart(2, "0")}</span>
-              <div className="st-fix-body">
-                <b>{f.title}</b>
-                <p className="st-fix-obs">{f.observed}</p>
-                <p className="st-fix-sug"><em>Suggested:</em> {f.suggestion}</p>
-                <div className="st-fix-actions">
-                  {f.t != null && a.kind === "video" && <button type="button" className="ov-btn ghost small" onClick={() => seek(f.t!)}><Clock size={12} /> Jump to {fmtT(f.t)}</button>}
-                  {f.apply && <button type="button" className={`ov-btn ${w[f.apply.field === "onscreen" ? "hook" : f.apply.field] === f.apply.value ? "ghost" : "primary"} small`} onClick={() => apply(f.apply!.field, f.apply!.value)}>{f.apply.field === "hook" ? "Use this hook" : f.apply.field === "cta" ? "Use CTA" : f.apply.field === "caption" ? "Use caption" : "Use text"}</button>}
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {a.segments.length > 0 && (
-        <section className="st-block">
-          <h3>Video structure</h3>
-          <ul className="st-segs">
-            {a.segments.map((s, i) => (
-              <li key={i} className={`st-seg ${s.rating}`}>
-                <button type="button" onClick={() => seek(s.start)}>
-                  <span className="st-seg-time">{fmtT(s.start)}–{fmtT(s.end)}</span>
-                  <span className="st-seg-body"><b>{s.label}</b><small>{s.reason}</small></span>
-                  <em className={`ov-chip ${s.rating === "strong" || s.rating === "good" ? "success" : s.rating === "needs" ? "warning" : "danger"}`}>{s.rating === "needs" ? "Needs improvement" : s.rating[0].toUpperCase() + s.rating.slice(1)}</em>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {a.markers.length > 0 && (
-        <section className="st-block">
-          <h3>Timeline insights</h3>
-          <ul className="st-markers">
-            {a.markers.map((m, i) => (
-              <li key={i}><button type="button" className={`st-marker ${m.kind}`} onClick={() => { seek(m.t); setActive(i); }}><span>{fmtT(m.t)}</span><b>{m.label}</b><small>{m.kind === "issue" ? "Issue" : m.kind === "strong" ? "Strong" : m.kind === "pacing" ? "Pacing" : m.kind === "cta" ? "CTA" : "Text"}</small></button></li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <section className="st-block">
-        <h3>Platform fit</h3>
-        <ul className="st-fit">
-          {a.platformFit.map((p) => (
-            <li key={p.platform}><b>{p.platform}</b><em className={`ov-chip ${FIT_CLS[p.fit]}`}>{p.fit[0].toUpperCase() + p.fit.slice(1)}</em><p>{p.note}</p></li>
-          ))}
-        </ul>
-        <p className="ov-source">Fit is an editor&apos;s read of length, opening and text against each format. SOCIA does not claim platform ranking rules.</p>
-      </section>
-
-      <section className="st-block">
-        <div className="st-block-head"><h3>Compare to my winners</h3>{a.compare && <button type="button" className="ov-link" onClick={onCompare}>See examples <ArrowRight size={12} /></button>}</div>
-        {a.compare ? (
-          <>
-            <p className="ov-source">Compared with {a.compare.basis}.</p>
-            <table className="st-cmp"><thead><tr><th>Signal</th><th>This draft</th><th>Your winners</th><th></th></tr></thead><tbody>
-              {a.compare.rows.map((r) => (<tr key={r.label}><td>{r.label}</td><td>{r.current}</td><td>{r.winners}</td><td><em className={`ov-chip ${VERDICT[r.verdict][1]}`}>{VERDICT[r.verdict][0]}</em></td></tr>))}
-            </tbody></table>
-            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.compare.summary}</p></div>
-          </>
-        ) : <div className="ov-empty small">No synced posts to compare with yet. Connect Instagram and this fills in with your own top posts.</div>}
-      </section>
-
-      <section className="st-block">
-        <h3>Compare with niche</h3>
-        {a.niche ? (
-          <>
-            <p className="ov-source">Observed among {a.niche.basis}. Patterns, not guarantees.</p>
-            <ul className="st-list">{a.niche.patterns.map((p) => <li key={p}>{p}</li>)}</ul>
-            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.niche.summary}</p></div>
-          </>
-        ) : <div className="ov-empty small">No analysed niche content on file yet. Run discovery on Competitors and this compares your draft with what is working around you.</div>}
-      </section>
-    </div>
-  );
 }
 
 export function ImprovePanel({ a, w, seek, playT, thumbs, durationSec, frame, canHandoff, onFix, onCaption, onProposed }: {

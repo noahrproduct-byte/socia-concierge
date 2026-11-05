@@ -8,6 +8,7 @@ import type { StudioAnalysis, TopFix } from "./studio";
 import type { QuickAudio } from "./audio/quick";
 import { TEXT_PRESETS, charCount, type TextPresetId } from "./textPresets";
 import { humanText } from "./studioClips/overlay";
+import { validCuts } from "./studioVerdict";
 
 export type Capability = "text" | "noise" | "pauses" | "look" | "music" | "captions" | "caption";
 
@@ -85,10 +86,10 @@ export function momentsFrom({ analysis: a, durationSec, hook, cta }: MomentInput
     } else if (f.kind === "ending") {
       const value = lineFor(f.apply?.field === "cta" ? f.apply.value : null) ?? lineFor(cta) ?? lineFor(a.cta.current);
       const t = Math.max(0, dur - 3.5);
+      // Only with a line to put on screen. An ending that asks for nothing is not a music problem, so no track is offered for it.
       if (value) push({ capability: "text", priority, ...span(t, 3.5), title: f.title, observed: f.observed, fix: f.suggestion, text: { value, presetId: presetForFix("ending", value) } });
-      else push({ capability: "music", priority, ...span(t, 3.5), title: f.title, observed: f.observed, fix: f.suggestion });
     } else if (f.kind === "pacing") {
-      const cuts = (a.cuts?.edits ?? []).map((c) => ({ start: r1(c.start), end: r1(c.end), reason: c.reason }));
+      const cuts = validCuts<{ start: number; end: number; reason: string }>(a.cuts?.edits, dur).map((c) => ({ start: r1(c.start), end: r1(c.end), reason: c.reason }));
       if (!cuts.length) return;
       push({ capability: "pauses", priority, t: cuts[0].start, end: r1(Math.min(dur, cuts[cuts.length - 1].end)), title: f.title, observed: f.observed, fix: f.suggestion, cuts });
     } else if (f.kind === "audio") {
@@ -103,7 +104,7 @@ export function momentsFrom({ analysis: a, durationSec, hook, cta }: MomentInput
   });
 
   // Suggested cuts not already covered.
-  const edits = (a.cuts?.edits ?? []).filter((c) => c.end > c.start);
+  const edits = validCuts<{ start: number; end: number; reason: string }>(a.cuts?.edits, dur);
   if (edits.length && !out.some((m) => m.capability === "pauses")) {
     const cuts = edits.map((c) => ({ start: r1(c.start), end: r1(c.end), reason: c.reason }));
     const saved = cuts.reduce((s, c) => s + (c.end - c.start), 0);
@@ -145,7 +146,8 @@ export function momentsSummary(ms: Moment[]): string {
  * dropped rather than left as a sliver.
  */
 export function applyCuts<S extends { id: string; in: number; out: number; role: "opener" | "body" | "ending"; note: string }>(segments: S[], cuts: { start: number; end: number }[], minSec = 0.8): S[] {
-  const ranges = cuts.filter((c) => c.end > c.start).sort((a, b) => a.start - b.start);
+  // Never a zero-length or backwards range: only cuts the editor can really make (lib/studioVerdict.ts).
+  const ranges = validCuts<{ start: number; end: number }>(cuts, Number.MAX_SAFE_INTEGER).sort((a, b) => a.start - b.start);
   if (!ranges.length) return segments;
   const out: S[] = [];
   let outT = 0;

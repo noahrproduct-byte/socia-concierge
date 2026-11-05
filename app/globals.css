@@ -9985,7 +9985,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .st { position: relative; }
 .st-grid { display: grid; grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .st-grid.empty { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
-.st-preview { display: flex; flex-direction: column; gap: 14px; position: sticky; top: 72px; }
+.st-preview { min-width: 0; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 72px; }
 .st-work { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .st-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; min-height: 420px; padding: 30px; border: 1.5px dashed rgba(var(--primary-rgb), 0.45); border-radius: 14px; background: var(--surface); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
 .st-drop:hover, .st-drop.drag { border-color: var(--primary); background: var(--primary-subtle); }
@@ -10058,7 +10058,8 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .st-error-ico { flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--danger-subtle); color: var(--danger-text); }
 .st-error b { display: block; font-size: 14px; color: var(--text-primary); }
 .st-error p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }
-.st-tabs { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); }
+.st-tabs { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.st-tabs button[role="tab"] { flex: none; white-space: nowrap; }
 .st-tabs button[role="tab"] { border: none; background: none; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 8px 12px 10px; border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
 .st-tabs button[role="tab"].on { color: var(--primary-text); border-bottom-color: var(--primary); }
 .st-tabs-ask { margin-left: auto; padding-bottom: 6px; }
@@ -10187,7 +10188,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .st-privacy { display: flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 11.5px; color: var(--text-muted); }
 .st-err { font-size: 12.5px; color: var(--danger-text); }
 @media (max-width: 1180px) {
-  .st-grid, .st-grid.empty { grid-template-columns: 1fr; }
+  .st-grid, .st-grid.empty { grid-template-columns: minmax(0, 1fr); }
   .st-preview { position: static; }
   .stp-stage { max-height: 480px; }
   .st-audio, .ask-diff { grid-template-columns: 1fr; }

@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { Type, Music, SunMedium, Volume2, Scissors, Captions, ArrowRight, MessageSquareText } from "lucide-react";
 import { useRenderedText } from "./TextOverlay";
 import { fmtT } from "@/lib/studio";
+import { fmtSpan } from "@/lib/studioVerdict";
 import { CAPABILITY, type Capability, type Moment } from "@/lib/studioFixes";
 import { TEXT_PRESETS, type TextPresetId } from "@/lib/textPresets";
 
@@ -101,7 +102,7 @@ function PauseCut({ open, durationSec, cuts, chosen, toggle }: { open: boolean; 
         {pieces.map((p, k) => <i key={k} className={p.kind === "keep" ? "speech" : "pause"} style={{ flexGrow: open && p.kind === "cut" && chosen.has(p.i!) ? 0 : p.len / durationSec, flexBasis: 0 }} />)}
       </div>
       <div className="imw-pauses">
-        {cuts.map((c, i) => <label key={i} className="st-check"><input type="checkbox" checked={chosen.has(i)} onChange={() => toggle(i)} /> {fmtT(c.start)} to {fmtT(c.end)}{c.reason ? ` · ${c.reason}` : ""}</label>)}
+        {cuts.map((c, i) => <label key={i} className="st-check"><input type="checkbox" checked={chosen.has(i)} onChange={() => toggle(i)} /> {fmtSpan(c.start, c.end)}{c.reason ? ` · ${c.reason}` : ""}</label>)}
         <span className="ov-source">{saved > 0 ? `Saves ${saved.toFixed(1)} s; the video runs ${Math.max(0, durationSec - saved).toFixed(1)} s.` : "Nothing chosen."}</span>
       </div>
     </div>

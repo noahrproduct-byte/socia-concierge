@@ -25,12 +25,19 @@ describe("moments SOCIA can act on", () => {
     expect(presetForFix("opening", "a line that is quite a bit longer than forty characters")).toBe("caption_bar");
     expect(presetForFix("ending", "come by tonight")).toBe("callout_box");
   });
-  it("makes the ending a callout when there is an ask, a track when there is none", () => {
+  it("makes the ending a callout when there is an ask, and never answers a missing ask with a music track", () => {
     const fix = { title: "Ending asks nothing", observed: "", suggestion: "", kind: "ending" as const, t: 18, apply: null };
     const withAsk = momentsFrom({ analysis: base({ topFixes: [fix] }), durationSec: 20, cta: "come by tonight" });
     expect(withAsk[0]).toMatchObject({ capability: "text", t: 16.5, end: 20, text: { presetId: "callout_box" } });
     const noAsk = momentsFrom({ analysis: base({ topFixes: [fix] }), durationSec: 20 });
-    expect(noAsk[0].capability).toBe("music");
+    expect(noAsk.some((m) => m.capability === "music")).toBe(false);
+  });
+  it("never turns a zero-length or backwards range into a cut", () => {
+    const pacing = { title: "Tighten the middle", observed: "", suggestion: "", kind: "pacing" as const, t: 6, apply: null };
+    const bad = base({ topFixes: [pacing], cuts: { currentSec: 20, suggestedSec: 19, edits: [{ type: "remove", start: 0, end: 0, reason: "nothing" }, { type: "trim", start: 9, end: 8, reason: "backwards" }, { type: "trim", start: 3, end: 3.1, reason: "too short" }], note: "" } });
+    expect(momentsFrom({ analysis: bad, durationSec: 20 }).some((m) => m.capability === "pauses")).toBe(false);
+    const ok = base({ topFixes: [pacing], cuts: { currentSec: 20, suggestedSec: 18, edits: [{ type: "remove", start: 0, end: 0, reason: "nothing" }, { type: "remove", start: 6.2, end: 7.9, reason: "repeat" }], note: "" } });
+    expect(momentsFrom({ analysis: ok, durationSec: 20 }).find((m) => m.capability === "pauses")?.cuts).toEqual([{ start: 6.2, end: 7.9, reason: "repeat" }]);
   });
   it("reads suggested cuts and measured pauses as one pauses moment", () => {
     const a = base({ cuts: { currentSec: 20, suggestedSec: 17, edits: [{ type: "remove", start: 8.1, end: 9.9, reason: "nothing happens" }], note: "" }, measuredAudio: { durationSec: 20, hasAudio: true, levelDb: -27, peakDb: -6, level: "quiet", audibleRatio: 0.8, silentOpeningSec: 0, longestPauseSec: 1.8, pauses: [{ start: 8.1, end: 9.9 }, { start: 14, end: 15.3 }], bpm: null, musicLikely: false } as never });

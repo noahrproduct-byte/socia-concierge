@@ -1,4 +1,5 @@
 import type { QuickAudio } from "@/lib/audio/quick";
+import type { CompetitorCompare, Direction, Experiment, FixEvidence, FixPriority, PostRef } from "@/lib/studioVerdict";
 // Content Studio: "I have a piece of content, help me make it better before
 // it goes live." Browser-safe types and helpers. The analysis is produced on
 // the server (app/api/studio/analyze) from frames sampled in the browser,
@@ -34,14 +35,18 @@ export type Category = { id: CategoryId; score: number | null; explanation: stri
 export type Marker = { t: number; kind: "issue" | "strong" | "pacing" | "cta" | "text"; label: string };
 export type Segment = { start: number; end: number; label: string; rating: "weak" | "good" | "strong" | "needs"; reason: string };
 export type ApplyField = "hook" | "cta" | "caption" | "onscreen";
-export type TopFix = { title: string; observed: string; suggestion: string; kind: "opening" | "hook_text" | "ending" | "pacing" | "text" | "audio" | "visual" | "caption"; t: number | null; apply: { field: ApplyField; value: string } | null };
+export type TopFix = {
+  title: string; observed: string; suggestion: string; kind: "opening" | "hook_text" | "ending" | "pacing" | "text" | "audio" | "visual" | "caption"; t: number | null; apply: { field: ApplyField; value: string } | null;
+  /** Analyses since the improvement workspace carry these (lib/studioVerdict.ts); older saved ones don't. */
+  priority?: FixPriority; end?: number | null; why?: string; evidence?: FixEvidence | null;
+};
 export type HookStyle = "curiosity" | "direct" | "local" | "educational" | "challenge" | "story";
 export type HookOption = { style: HookStyle; text: string };
 export type OnScreenText = { t: number; text: string; role: "opening" | "mid" | "cta" };
 export type Cut = { type: "remove" | "trim"; start: number; end: number; reason: string };
 export type AudioDirection = { style: string; bpm: string; texture: string; why: string };
 export type PlatformFit = { platform: "Instagram Reels" | "TikTok" | "YouTube Shorts"; fit: "strong" | "medium" | "weak"; note: string };
-export type CompareRow = { label: string; current: string; winners: string; verdict: "better" | "similar" | "worse" | "unknown" };
+export type CompareRow = { label: string; current: string; winners: string; verdict: "better" | "similar" | "worse" | "unknown"; /** The account's own posts (W1..) the row rests on. */ refs?: string[] };
 
 export type StudioAnalysis = {
   kind: StudioKind;
@@ -58,7 +63,15 @@ export type StudioAnalysis = {
   cuts: { currentSec: number; suggestedSec: number; edits: Cut[]; note: string } | null;
   audio: { observed: string; direction: AudioDirection; alternative: AudioDirection };
   platformFit: PlatformFit[];
-  compare: { basis: string; rows: CompareRow[]; summary: string; sample: number } | null;
+  compare: { basis: string; rows: CompareRow[]; summary: string; sample: number; /** The top posts compared against, to open and watch. */ posts?: PostRef[] } | null;
+  /** The one thing holding the draft back, in a sentence. */
+  diagnosis?: string;
+  /** The draft against competitors' Reels that took off; null when SOCIA holds none. */
+  competitors?: CompetitorCompare | null;
+  /** Signals too thin to state as fact, kept as tests. */
+  experiments?: Experiment[];
+  /** Three ways to remake it, with tradeoffs. */
+  directions?: Direction[];
   niche: { basis: string; patterns: string[]; summary: string } | null;
   caption: { current: string | null; suggestion: string | null };
   /** Up to three things that already work, each tied to a moment or something visible. */
@@ -122,9 +135,11 @@ export function analysisSummary(a: StudioAnalysis): string {
   return [
     `Score ${a.score.overall}/100 (${a.score.label}). Categories: ${cats}.`,
     `Observed: ${a.observed.summary} Subject first appears at ${a.observed.subjectAppearsAt != null ? `${a.observed.subjectAppearsAt.toFixed(1)}s` : "unknown"}; face ${a.observed.faceSeen == null ? "unknown" : a.observed.faceSeen ? "seen" : "not seen"}; on-screen text ${a.observed.onScreenText == null ? "unknown" : a.observed.onScreenText ? "present" : "absent"}; CTA ${a.observed.ctaDetected == null ? "unknown" : a.observed.ctaDetected ? "detected" : "not detected"}.`,
-    `Top fixes: ${a.topFixes.map((f, i) => `${i + 1}. ${f.title} (${f.observed})`).join(" ")}`,
+    a.diagnosis ? `Diagnosis: ${a.diagnosis}` : "",
+    `Top fixes: ${a.topFixes.map((f, i) => `${i + 1}. ${f.title}${f.priority ? ` [${f.priority}]` : ""} (${f.observed})`).join(" ")}`,
     a.segments.length ? `Structure: ${a.segments.map((s) => `${fmtT(s.start)}–${fmtT(s.end)} ${s.label} [${s.rating}]`).join("; ")}.` : "",
     a.compare ? `Compared with top posts (${a.compare.basis}): ${a.compare.summary}` : "",
+    a.competitors ? `Compared with competitors (${a.competitors.basis}): ${a.competitors.summary}` : "",
   ].filter(Boolean).join("\n");
 }
 
