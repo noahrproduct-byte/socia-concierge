@@ -32,7 +32,7 @@ import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
 import { fmtNum, audienceInsight, type Kpi, type Series, type Insight, type PostCard, type Focus, type Upcoming, type GoalTracker } from "@/lib/overview";
 import type { CalPost } from "@/lib/audience";
 import { buildWeek, compareBars, describeDay, scoreTone, COMPETITOR_METRICS, type CalendarItem, type CompetitorMetric, type Competitors, type PlanDayItem, type WeekCover, type WeekDay } from "@/lib/overviewVisual";
-import { ActionChips, BriefingLines, GoalBars, GoalNotes, LearningLines, WorksBars, WorksNotes, type IntelData } from "./IntelSections";
+import { ActionChips, AngleSections, BriefingLines, GoalBars, GoalNotes, LearningLines, WorksBars, WorksNotes, type IntelData } from "./IntelSections";
 import { Bar, CountUp, Details, Reveal, Ring, useMotionOk } from "./motion";
 import YourTasks from "./YourTasks";
 import type { MyTask } from "@/lib/teamWork";
@@ -589,9 +589,11 @@ export default function Dashboard({ d }: { d: DashboardData }) {
 
               <Card className="dash-lift">
                 <CardHeader title="What's working" />
-                <WorksBars works={d.intel.works} gap={d.intel.worksGap} />
-                {d.intel.works.length > 0 && (
-                  <Details label="Details" openLabel="Less"><WorksNotes works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} /></Details>
+                {/* Formats when there is more than one to compare; hooks, topics and niche trends always. */}
+                {(d.intel.works.length > 0 || !d.intel.angles.length) && <WorksBars works={d.intel.works} gap={d.intel.worksGap} />}
+                <AngleSections intel={d.intel} />
+                {(d.intel.works.length > 0 || d.intel.angles.length > 0 || d.intel.nicheRead) && (
+                  <Details label="Details" openLabel="Less"><WorksNotes works={d.intel.works} themes={d.intel.themes} postsRead={d.intel.postsRead} nicheRead={d.intel.nicheRead} /></Details>
                 )}
               </Card>
             </Reveal>
