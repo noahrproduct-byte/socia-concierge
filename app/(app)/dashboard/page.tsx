@@ -32,7 +32,7 @@ import type { Deliverable } from "@/lib/schema";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { captionlessLabels } from "@/lib/publishing/postLabelLoad";
 import { computeContentScore } from "@/lib/contentScore";
-import type { CalendarItem, Competitors, PlanDayItem } from "@/lib/overviewVisual";
+import { coverOf, type CalendarItem, type Competitors, type PlanDayItem } from "@/lib/overviewVisual";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
@@ -190,7 +190,7 @@ export default async function DashboardPage({
   // is cut in the browser, in their time zone), with their titles.
   const calendar: CalendarItem[] = scheduled
     .filter((p) => Math.abs(new Date(p.scheduled_at).getTime() - now.getTime()) <= 9 * DAY_MS)
-    .map((p) => ({ id: p.id, at: p.scheduled_at, status: p.status, mediaType: p.media_type, title: displayTitle(p.caption) === "(no caption)" ? labels?.get(p.id) ?? "Untitled post" : displayTitle(p.caption) }));
+    .map((p) => ({ id: p.id, at: p.scheduled_at, status: p.status, mediaType: p.media_type, title: displayTitle(p.caption) === "(no caption)" ? labels?.get(p.id) ?? "Untitled post" : displayTitle(p.caption), mediaUrl: p.media_url }));
   const planRow = plansRes.data?.[0] as { id: string; data: Deliverable; created_at: string } | undefined;
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
@@ -352,7 +352,7 @@ export default async function DashboardPage({
     summaries: [igSummary, fbSummary, ytSummary, ttSummary],
     insights, top, posts, baseline, medianViews,
     focus, upcoming, goals, trackers,
-    timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m) })),
+    timed: media.filter((m) => m.timestamp).map((m) => ({ id: m.id ?? m.timestamp!, t: m.timestamp!, e: interactionsTotal(m), format: formatOf(m), cover: coverOf(m.thumbnail_url ?? m.media_url, m.media_type === "VIDEO" && !m.thumbnail_url) })),
     today,
     repurpose,
     firstName,

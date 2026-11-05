@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWeek, compareBars, describeDay, kindOfFormat, planWeekday, scoreTone, shortNum, type Competitors } from "./overviewVisual";
+import { buildWeek, compareBars, coverOf, describeDay, kindOfFormat, planWeekday, scoreTone, shortNum, type Competitors } from "./overviewVisual";
 
 // A Wednesday at noon local time.
 const now = new Date(2026, 10, 4, 12, 0, 0);
@@ -17,19 +17,20 @@ describe("buildWeek", () => {
   it("places published posts, calendar posts and plan lines on their days, once each", () => {
     const week = buildWeek({
       now,
-      published: [{ t: iso(2026, 10, 2), format: "Reel" }],
+      published: [{ t: iso(2026, 10, 2), format: "Reel", cover: { src: "https://cdn.example/poster.jpg", video: false } }],
       calendar: [
         { id: "z", at: iso(2026, 10, 2, 14), status: "published", mediaType: "REELS", title: "Same reel, from the Calendar" },
-        { id: "a", at: iso(2026, 10, 5), status: "scheduled", mediaType: "REELS", title: "Thursday reel" },
+        { id: "a", at: iso(2026, 10, 5), status: "scheduled", mediaType: "REELS", title: "Thursday reel", mediaUrl: "https://files.example/u/clip.mp4" },
         { id: "b", at: iso(2026, 10, 6), status: "draft", mediaType: "IMAGE", title: "Friday photo" },
         { id: "c", at: iso(2026, 10, 7), status: "cancelled", mediaType: "IMAGE", title: "Dropped" },
       ],
       plan: [{ day: "Saturday", format: "carousel", title: "Menu carousel" }, { day: "Thursday", format: "Reel", title: "Ignored: day already has a post" }],
     });
-    expect(week[0].items).toEqual([{ kind: "reel", status: "posted", title: "Reel" }]);
-    expect(week[3].items).toEqual([{ kind: "reel", status: "scheduled", title: "Thursday reel" }]);
-    expect(week[4].items).toEqual([{ kind: "photo", status: "draft", title: "Friday photo" }]);
-    expect(week[5].items).toEqual([{ kind: "carousel", status: "planned", title: "Menu carousel" }]);
+    expect(week[0].items).toEqual([{ kind: "reel", status: "posted", title: "Reel", cover: { src: "https://cdn.example/poster.jpg", video: false } }]);
+    expect(week[3].items).toEqual([{ kind: "reel", status: "scheduled", title: "Thursday reel", cover: { src: "https://files.example/u/clip.mp4", video: true } }]);
+    // No media yet, and a plan line that is only an idea: no cover, the icon stands in.
+    expect(week[4].items).toEqual([{ kind: "photo", status: "draft", title: "Friday photo", cover: null }]);
+    expect(week[5].items).toEqual([{ kind: "carousel", status: "planned", title: "Menu carousel", cover: null }]);
     expect(week[6].items).toEqual([]);
   });
 
@@ -38,6 +39,18 @@ describe("buildWeek", () => {
     expect(describeDay(week[0])).toBe("Mon 2: reel posted");
     expect(describeDay(week[1])).toBe("Tue 3: nothing posted");
     expect(describeDay(week[6])).toBe("Sun 8: nothing planned");
+  });
+});
+
+describe("coverOf", () => {
+  it("goes by the file's own type, else by what the post says it is", () => {
+    expect(coverOf("https://files.example/a.MP4?x=1", false)).toEqual({ src: "https://files.example/a.MP4?x=1", video: true });
+    expect(coverOf("https://files.example/a.jpg", true)).toEqual({ src: "https://files.example/a.jpg", video: false });
+    expect(coverOf("https://files.example/a", true)).toEqual({ src: "https://files.example/a", video: true });
+  });
+  it("gives nothing without a web address", () => {
+    expect(coverOf(null, true)).toBeNull();
+    expect(coverOf("x", false)).toBeNull();
   });
 });
 

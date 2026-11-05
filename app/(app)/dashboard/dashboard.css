@@ -408,18 +408,19 @@ button.dash-stat {
 .dash-day.is-today .dash-day-head b {
   color: var(--accent-ink);
 }
+/* Up to three posts a day, each a small portrait tile that shrinks with the day. */
 .dash-day-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 56px));
+  align-items: end;
+  gap: var(--sp-2);
   margin-top: auto;
 }
 .dash-day-item {
   position: relative;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  aspect-ratio: 3 / 4;
   border-radius: var(--r-control);
   background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--border);
@@ -428,6 +429,18 @@ button.dash-stat {
 .dash-day-item svg {
   width: 16px;
   height: 16px;
+}
+/* The post's own picture (or its video's opening frame) over the kind icon. */
+.dash-day-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--r-control);
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+  pointer-events: none;
 }
 .dash-day-item i,
 .dash-legend i {
@@ -463,6 +476,7 @@ button.dash-stat {
   background: var(--negative);
 }
 .dash-day-none {
+  grid-column: 1 / -1;
   display: block;
   width: 32px;
   height: 4px;
@@ -471,6 +485,7 @@ button.dash-stat {
   margin-top: auto;
 }
 .dash-day-add {
+  grid-column: 1 / -1;
   display: grid;
   place-items: center;
   width: 32px;
@@ -1085,6 +1100,19 @@ button.dash-stat {
   .dash-chips {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* The week scrolls sideways, one day at a time, so the covers stay readable. */
+  .dash-strip {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: var(--sp-1);
+    -webkit-overflow-scrolling: touch;
+  }
+  .dash-day,
+  .dash-day-skel {
+    flex: 0 0 128px;
+    scroll-snap-align: start;
+  }
 }
 @media (max-width: 640px) {
   .dash-stack {
@@ -1122,19 +1150,6 @@ button.dash-stat {
   .dash-spark {
     display: none;
   }
-  /* The week scrolls sideways, one day at a time. */
-  .dash-strip {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding-bottom: var(--sp-1);
-    -webkit-overflow-scrolling: touch;
-  }
-  .dash-day,
-  .dash-day-skel {
-    flex: 0 0 96px;
-    scroll-snap-align: start;
-  }
   .dash-top {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1145,7 +1160,6 @@ button.dash-stat {
 /* Touch: every control on the page is at least 44px tall, the system's own included. */
 @media (pointer: coarse) {
   .dash-details-btn,
-  .dash-day-item,
   .dash-day-add,
   .dash-stack .s-card-head .s-link,
   .dash-stack .s-btn,
@@ -1159,7 +1173,6 @@ button.dash-stat {
     align-items: center;
     padding: 0 var(--sp-2);
   }
-  .dash-day-item,
   .dash-day-add {
     width: var(--control-h-lg);
     height: var(--control-h-lg);
