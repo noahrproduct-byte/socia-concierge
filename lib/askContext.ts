@@ -17,7 +17,7 @@ import { interactionsTotal, engagementRateOf } from "./engagement";
 import { followerPoints, summarizeFollowers } from "./followers";
 import { buildGaps } from "./gaps";
 import { postCards, buildKpis, buildSeries, buildInsights, bucketize, bucketTitle, detectOutliers, rangeDays, fmtNum, type PostCard } from "./overview";
-import { competitorsBlock } from "./planEvidence";
+import { competitorsBlock, igSnapLine, loadIgSnaps, type IgSnapRow } from "./planEvidence";
 import { activeFindings } from "./intel/insightStore";
 import { experimentResults } from "./experimentsLoad";
 import { experimentsEvidence } from "./experiments";
@@ -165,9 +165,11 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     try { const { data } = await scopeToWorkspace(supabase.from("discovered_accounts").select("platform, platform_account_id, handle, display_name, followers, location, category, classification, relevance_score, data_source, relevance_reasons").eq("user_id", userId), cwid).order("relevance_score", { ascending: false, nullsFirst: false }).limit(40); accounts = (data ?? []).filter(nicheVetted).slice(0, 12); } catch { /* none */ }
     try { tracked = await listTracked<{ platform: string; handle: string }>(supabase, userId, "platform, handle", { limit: 20, workspaceId: cwid }); } catch { /* none */ }
     try { const { data } = await scopeToWorkspace(supabase.from("discovered_content").select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at, data_source, relevance_reasons").eq("user_id", userId), cwid).order("multiplier", { ascending: false, nullsFirst: false }).limit(80); winning = (data ?? []).filter(nicheVetted).slice(0, 30); } catch { /* none */ }
+    // The numbers SOCIA last read from Instagram for these accounts (the same saved reads Discover shows).
+    const igSnaps = await loadIgSnaps(supabase, userId, [...tracked, ...accounts].filter((x) => x.platform === "instagram" && x.handle).map((x) => x.handle!));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const block = competitorsBlock(accounts as any, tracked as any, winning as any);
-    if (block) parts.push(`# Competitors and winning content SOCIA holds (YouTube figures from the YouTube Data API; Instagram/Facebook accounts from web research carry no metrics)`, block);
+    const block = competitorsBlock(accounts as any, tracked as any, winning as any, igSnaps);
+    if (block) parts.push(`# Competitors and winning content SOCIA holds (YouTube figures from the YouTube Data API; Instagram figures as SOCIA last read them from Instagram, with the date; an account with no figures has not been read)`, block);
     const formats = formatsEvidence(await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5));
     if (formats) parts.push(`# Formats that lead in this niche (SOCIA's grouping of other accounts' public posts; their results, not the user's)`, formats);
     if (ctx.competitorId || ctx.competitorName) {
@@ -178,6 +180,7 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
       parts.push(`# The competitor the user selected: ${ctx.competitorName ?? ctx.competitorId ?? "unknown"} (${ctx.competitorPlatform ?? sel?.platform ?? "platform unknown"})`,
         sel ? `Followers/subscribers: ${n(sel.followers)}; location ${sel.location ?? "unknown"}; category ${sel.category ?? "unknown"}; classification ${sel.classification}.` : "No stored profile row for this account beyond the name.",
         ...(ctx.comparisons?.length ? [`Measured comparison (you vs them): ${ctx.comparisons.join("; ")}`] : ["No measured comparison lines were provided."]),
+        ...selectedIgLines(igSnaps, [sel?.handle, ctx.competitorId, ctx.competitorName]),
         theirs.length ? `Their analysed content:\n${theirs.slice(0, 8).map((w) => `- "${w.title ?? "(untitled)"}" · views ${n(w.views)}, likes ${n(w.likes)}, comments ${n(w.comments)}${w.multiplier != null ? `, ${Number(w.multiplier).toFixed(1)}× their median` : ""}${w.trend_tags?.length ? ` · features: ${w.trend_tags.join(", ")}` : ""}${w.why_recommended ? ` · web-research note: ${w.why_recommended}` : ""}`).join("\n")}` : "No analysed posts stored for this account.");
     }
   }
@@ -216,4 +219,21 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
   }
 
   return { system: systemPrompt(ctx.page, profile), evidence: parts.join("\n\n"), posts: acct.posts, plan, handle: acct.handle };
+}
+
+/** The selected competitor's saved Instagram read: its numbers and its most-liked recent posts, when SOCIA holds one. */
+function selectedIgLines(snaps: Map<string, IgSnapRow>, names: (string | null | undefined)[]): string[] {
+  const keys = names.filter((v): v is string => Boolean(v)).map((v) => v.toLowerCase().replace(/^@/, "").replace(/^instagram:/, ""));
+  const snap = keys.map((k) => snaps.get(k)).find(Boolean);
+  if (!snap) return [];
+  const line = igSnapLine(snap);
+  type M = { caption?: string | null; likes?: number | null; comments?: number | null; views?: number | null; timestamp?: string | null; mediaType?: string | null };
+  const media = (Array.isArray(snap.media) ? (snap.media as M[]) : []).filter((m) => m && (m.likes != null || m.views != null));
+  const top = [...media].sort((a, b) => (b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0)).slice(0, 5);
+  return [
+    line ? `What Instagram published for them: ${line}.` : "",
+    top.length
+      ? `Their recent posts with the most ${top[0].views != null ? "views" : "likes"}:\n${top.map((m) => `- "${(m.caption ?? "(no caption)").split("\n")[0].slice(0, 90)}"${m.timestamp ? ` (${m.timestamp.slice(0, 10)})` : ""} · ${[m.views != null ? `${m.views.toLocaleString("en-US")} views` : null, m.likes != null ? `${m.likes.toLocaleString("en-US")} likes` : null, m.comments != null ? `${m.comments.toLocaleString("en-US")} comments` : null].filter(Boolean).join(", ")}`).join("\n")}`
+      : "",
+  ].filter(Boolean);
 }

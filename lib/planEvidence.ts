@@ -97,6 +97,63 @@ export type CompetitorRow = {
 
 export type TrackedRow = { platform: string; handle: string };
 
+/** An Instagram account's latest public numbers as SOCIA last read them (ig_competitor_snapshots, lib/igCompetitorData.ts). */
+export type IgSnapRow = {
+  handle: string;
+  display_name?: string | null;
+  followers: number | null;
+  posts_per_week: number | string | null;
+  median_engagement: number | string | null;
+  media?: unknown;
+  fetched_at?: string | null;
+};
+
+const numOrNull = (v: unknown): number | null => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+const medianOf = (xs: number[]): number | null => {
+  if (!xs.length) return null;
+  const a = [...xs].sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+};
+
+/**
+ * What Instagram published for one account, as SOCIA last read it: followers,
+ * how often it posts, the median likes plus comments of its recent posts, and
+ * median views once three of those posts carry views. Only numbers that were
+ * read; "" when the row holds none.
+ */
+export function igSnapLine(r: IgSnapRow): string {
+  const media = Array.isArray(r.media) ? (r.media as { views?: unknown }[]) : [];
+  const views = media.map((m) => numOrNull(m?.views)).filter((v): v is number => v != null);
+  const perWeek = numOrNull(r.posts_per_week);
+  const eng = numOrNull(r.median_engagement);
+  const bits = [
+    r.followers != null ? `${n(r.followers)} followers` : null,
+    perWeek != null ? `${perWeek.toFixed(1)} posts a week` : null,
+    eng != null ? `median ${n(Math.round(eng))} likes and comments a post${media.length ? ` (last ${media.length})` : ""}` : null,
+    views.length >= 3 ? `median ${n(Math.round(medianOf(views)!))} views (${views.length} posts)` : null,
+  ].filter(Boolean);
+  if (!bits.length) return "";
+  return `${bits.join(", ")}${r.fetched_at ? `; read from Instagram ${dayOf(r.fetched_at)}` : ""}`;
+}
+
+const snapKey = (handle: string) => handle.toLowerCase().replace(/^@/, "");
+
+/** The saved Instagram reads for these handles, by handle. Best-effort: none when the table can't be read. */
+export async function loadIgSnaps(supabase: Supa, userId: string, handles: string[]): Promise<Map<string, IgSnapRow>> {
+  const out = new Map<string, IgSnapRow>();
+  const wanted = [...new Set(handles.map(snapKey).filter(Boolean))].slice(0, 30);
+  if (!wanted.length) return out;
+  try {
+    // One customer's saved reads only: the table is keyed by its user_id.
+    const { data } = await supabase.from("ig_competitor_snapshots").select("user_id, handle, display_name, followers, posts_per_week, median_engagement, media, fetched_at").eq("user_id", userId).in("handle", wanted);
+    for (const r of (data ?? []) as IgSnapRow[]) out.set(snapKey(r.handle), r);
+  } catch {
+    /* no saved reads */
+  }
+  return out;
+}
+
 export type WinningRow = {
   platform: string;
   account_name: string | null;
@@ -165,16 +222,22 @@ export function outcomesBlock(outcomes: PlanOutcome[]): string {
   ].join("\n");
 }
 
-export function competitorsBlock(accounts: CompetitorRow[], tracked: TrackedRow[], winning: WinningRow[]): string {
+export function competitorsBlock(accounts: CompetitorRow[], tracked: TrackedRow[], winning: WinningRow[], igSnaps: Map<string, IgSnapRow> = new Map()): string {
   const seen = new Set<string>();
+  // An Instagram account's saved public numbers, when SOCIA has read them.
+  const igLine = (platform: string, handle: string | null) => {
+    const snap = platform === "instagram" && handle ? igSnaps.get(snapKey(handle)) : undefined;
+    return snap ? igSnapLine(snap) : "";
+  };
   const accountLines: string[] = [];
   for (const a of [...accounts].sort((x, y) => (y.relevance_score ?? -1) - (x.relevance_score ?? -1)).slice(0, 10)) {
     const handle = a.handle ? `@${a.handle.replace(/^@/, "")}` : a.display_name ?? "(unnamed)";
     seen.add(`${a.platform}:${(a.handle ?? a.display_name ?? "").toLowerCase().replace(/^@/, "")}`);
+    const read = igLine(a.platform, a.handle);
     const bits = [
       PLATFORM[a.platform] ?? a.platform,
       CLASS[a.classification ?? ""] ?? a.classification ?? null,
-      a.followers != null ? `${n(a.followers)} ${audienceWord(a.platform)}` : `${audienceWord(a.platform)} not published`,
+      read || (a.followers != null ? `${n(a.followers)} ${audienceWord(a.platform)}` : `${audienceWord(a.platform)} not published`),
       a.location,
       a.category,
     ].filter(Boolean);
@@ -184,7 +247,7 @@ export function competitorsBlock(accounts: CompetitorRow[], tracked: TrackedRow[
     const key = `${t.platform}:${t.handle.toLowerCase().replace(/^@/, "")}`;
     if (seen.has(key)) continue;
     accountLines.push(
-      `- @${t.handle.replace(/^@/, "")} · ${PLATFORM[t.platform] ?? t.platform} · added by the user · no public metrics available for this account`,
+      `- @${t.handle.replace(/^@/, "")} · ${PLATFORM[t.platform] ?? t.platform} · tracked by the user · ${igLine(t.platform, t.handle) || "no public numbers read for this account yet"}`,
     );
   }
 
@@ -291,7 +354,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   const trends = niche?.signals ?? null;
   const proven = niche?.proven ?? [];
   const trendsBlock_ = trendsEvidence(trends);
-  const competitorsBlock_ = competitorsBlock(accounts, tracked, winning);
+  const igSnaps = await loadIgSnaps(supabase, userId, [...tracked, ...accounts].filter((x) => x.platform === "instagram" && x.handle).map((x) => x.handle!));
+  const competitorsBlock_ = competitorsBlock(accounts, tracked, winning, igSnaps);
   const outcomesBlock_ = outcomesBlock(opts.outcomes ?? []);
   const outcomeItems = (opts.outcomes ?? []).filter((o) => o.summary.onCalendar > 0).slice(0, 2).reduce((n, o) => n + o.items.length, 0);
   const competitorCount = new Set([
