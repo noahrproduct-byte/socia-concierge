@@ -7,6 +7,7 @@ import { isOwnPath } from "@/lib/storagePaths";
 import { verifyExportPath } from "@/lib/studioClips/exportToken";
 import { dbErrorResponse, errorResponse } from "@/lib/dbError";
 import { isMissingColumnError } from "@/lib/workspaces";
+import { stampPostAuthor } from "@/lib/teamWorkServer";
 
 export const runtime = "nodejs";
 
@@ -65,6 +66,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (ins.error && ctx.workspace && isMissingColumnError(ins.error)) ins = await ctx.client.from("scheduled_posts").insert(draft).select("id").single();
     if (ins.error) return dbErrorResponse("studio/draft", ins.error);
     const postId = (ins.data as { id: string }).id;
+    await stampPostAuthor(ctx.client, ctx.ownerId, postId, ctx.viewerId);
     await markRendered(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, { path: body.path, durationSec: typeof body.durationSec === "number" ? body.durationSec : null, postId });
     return NextResponse.json({ postId });
   } catch (e) {

@@ -4,6 +4,7 @@ import { resolveContext } from "@/lib/context";
 import { requireFeature } from "@/lib/planGuard";
 import { getActiveConnection, getIgSnapshot } from "@/lib/instagramSync";
 import { loadItem, loadPickerAccountsDetailed, saveItem, stampPostWorkspace, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
+import { stampPostAuthor } from "@/lib/teamWorkServer";
 import { CAPABILITIES } from "@/lib/publishing/capabilities";
 import { PLATFORMS, defaultSettings, type DestinationSettings, type MediaItem, type Platform } from "@/lib/publishing/types";
 import type { CreatePostPayload } from "@/lib/publishing/composer";
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
   try {
     const item = await saveItem(ctx.client, ctx.ownerId, payload, "draft");
     await stampPostWorkspace(ctx.client, ctx.ownerId, wsId, item.id);
+    await stampPostAuthor(ctx.client, ctx.ownerId, item.id, ctx.viewerId);
     return NextResponse.json({ postId: item.id, platforms: chosen.map((a) => CAPABILITIES[a.platform].label) });
   } catch (e) {
     await supabase.storage.from(BUCKET).remove([path]).catch(() => null);

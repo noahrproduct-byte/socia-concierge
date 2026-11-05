@@ -109,4 +109,6 @@ export type ComposerPageProps = {
   ready: boolean;
   /** Approvals (Pro): Members submit, the owner and Admins approve; null when the plan doesn't include it. */
   approvalRole?: "submit" | "approve" | null;
+  /** Ready for review (lib/teamWork): "mark" for a Member without approvals, "review" for the owner and Admins. */
+  readyRole?: "mark" | "review" | null;
 };

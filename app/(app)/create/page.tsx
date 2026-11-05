@@ -12,6 +12,8 @@ import PageHeader from "@/components/PageHeader";
 import ComposerPage from "@/components/composer/ComposerPage";
 import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { approvalRole as approvalRoleFor } from "@/lib/approvals";
+import { teamWorkFor } from "@/lib/teamWorkServer";
+import { readyRoleFor } from "@/lib/teamWork";
 import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
 
@@ -91,10 +93,14 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
   }
 
   // Approvals (Pro): Members submit, the owner and Admins approve.
-  const approvalRole = approvalRoleFor(ctx, checkFeature(ent, "approval_workflow").ok);
+  const approvalsOn = checkFeature(ent, "approval_workflow").ok;
+  const approvalRole = approvalRoleFor(ctx, approvalsOn);
+  // Ready for review (every plan with a team): Members mark drafts ready, the owner and Admins see it.
+  const readyRole = (await teamWorkFor(ctx).catch(() => null)) ? readyRoleFor(ctx.role, approvalsOn) : null;
 
   const props: ComposerPageProps = {
     approvalRole,
+    readyRole,
     userId: user.id,
     workspaceId: ctx.workspace?.id ?? null,
     accounts: accountsRes.accounts,

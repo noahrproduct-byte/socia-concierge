@@ -1,0 +1,61 @@
+/* Working as a team (lib/teamWork.ts): who films a plan post, Your tasks on
+   the Dashboard, ready for review in Create post, the author on the Calendar,
+   the Team activity list. Tokens only. */
+
+/* A plan post's person line, and the hand-over form */
+.tw-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding-top: var(--sp-2); border-top: 1px solid var(--line); color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.tw-line > p { flex: 1 1 220px; min-width: 0; margin: 0; }
+.tw-line b { color: var(--ink); font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.tw-ok { color: var(--positive-ink); }
+.tw-late { color: var(--warning-ink); }
+.tw-note { color: var(--ink-3); }
+.tw-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.tw-err { flex-basis: 100%; margin: 0; color: var(--negative-ink); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+
+.tw-assign { display: flex; flex-direction: column; gap: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.tw-assign-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--sp-3); }
+@media (max-width: 600px) { .tw-assign-row { grid-template-columns: minmax(0, 1fr); } }
+
+/* Your tasks (Dashboard) */
+.tw-tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tw-task { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3) 0; border-top: 1px solid var(--line); min-width: 0; }
+.tw-task:first-child { border-top: 0; padding-top: 0; }
+.tw-task-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-3); }
+.tw-task-head h4 { margin: 0; color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body); font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.tw-task-meta { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.tw-task p { margin: 0; max-width: 72ch; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); overflow-wrap: anywhere; }
+.tw-task p b { color: var(--ink); font-weight: var(--fw-semibold); }
+.tw-done-note { display: flex; flex-direction: column; gap: var(--sp-2); max-width: 520px; }
+
+/* Ready for review (Create post) */
+.tw-ready { display: flex; flex-direction: column; gap: var(--sp-2); }
+.tw-ready p { margin: 0; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.tw-ready-banner { display: flex; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface); color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.tw-ready-banner b { display: block; color: var(--ink); font-weight: var(--fw-semibold); }
+.tw-ready-banner p { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
+.tw-ready-banner .tw-actions { margin-top: var(--sp-2); }
+
+/* Activity (Settings > Team) */
+.tw-activity { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.tw-activity li { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: var(--sp-3); align-items: baseline; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.tw-activity li > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.tw-activity a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.tw-activity a:hover { color: var(--ink); }
+.tw-activity time { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tw-sub { margin: var(--sp-4) 0 var(--sp-2); color: var(--ink); font-size: var(--fs-body); font-weight: var(--fw-semibold); }
+.tm-roles { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--sp-1) var(--sp-3); margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.tm-roles dt { color: var(--ink); font-weight: var(--fw-semibold); }
+.tm-roles dd { margin: 0; color: var(--ink-2); }
+@media (max-width: 600px) { .tm-roles { grid-template-columns: minmax(0, 1fr); } .tm-roles dd { margin-bottom: var(--sp-2); } }
+.tw-empty { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+
+/* The author on the Calendar */
+.cal2-team { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); min-width: 0; }
+.tw-by { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* Settings > Team: the global `select { width: 100% }` made the owner's role
+   picker take the whole row and squeezed the email to one letter per line. */
+.tm-item .tm-role { width: auto; flex: 0 0 auto; }
+.tm .tm-roles, .tm .tw-activity, .tm .tw-empty { margin-bottom: var(--sp-4); }
+.tw-ready-banner > svg, .tw-line > svg { flex: 0 0 auto; }
+.tw-ready p > svg { display: inline; vertical-align: -2px; margin-right: var(--sp-1); }

@@ -56,6 +56,7 @@ export const MIGRATIONS = [
   "ai-spend.sql",
   "contacts.sql",
   "contacts-guard.sql",
+  "team-work.sql",
 ];
 
 const SUPABASE_STANDIN = `

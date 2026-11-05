@@ -87,11 +87,12 @@ export type Action =
   | "billing"          // plan & billing
   | "delete_workspace" // owner only
   | "manage_workspace" // rename, brand profile
-  | "delete_on_platform"; // remove a published post from its platform (lib/platformDelete)
+  | "delete_on_platform" // remove a published post from its platform (lib/platformDelete)
+  | "assign_work";       // hand a plan post to someone (lib/teamWorkServer)
 
 const ROLE_ACTIONS: Record<WorkspaceRole, Set<Action>> = {
-  owner: new Set(["publish", "connect", "invite", "remove_member", "change_role", "billing", "delete_workspace", "manage_workspace", "delete_on_platform"]),
-  admin: new Set(["publish", "connect", "invite", "remove_member", "manage_workspace", "delete_on_platform"]),
+  owner: new Set(["publish", "connect", "invite", "remove_member", "change_role", "billing", "delete_workspace", "manage_workspace", "delete_on_platform", "assign_work"]),
+  admin: new Set(["publish", "connect", "invite", "remove_member", "manage_workspace", "delete_on_platform", "assign_work"]),
   member: new Set([]),
 };
 
@@ -111,6 +112,7 @@ export function forbiddenCopy(action: Action): string {
     case "delete_workspace": return "Only the workspace owner can delete a workspace.";
     case "manage_workspace": return "Only the workspace owner or an admin can change workspace settings.";
     case "delete_on_platform": return "Only the workspace owner or an admin can delete a post from a platform.";
+    case "assign_work": return "Only the workspace owner or an admin can hand out the plan's videos.";
   }
 }
 

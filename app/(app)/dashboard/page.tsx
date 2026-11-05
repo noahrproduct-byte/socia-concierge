@@ -2,6 +2,7 @@ import { loadPlanOutcome } from "@/lib/planOutcomesLoad";
 import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace } from "@/lib/context";
+import { myTasks } from "@/lib/teamWorkServer";
 import { trialReelsByMedia } from "@/lib/publishing/db";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { getProfile } from "@/lib/profile";
@@ -108,6 +109,9 @@ export default async function DashboardPage({
     }
   })();
 
+  // Plan posts handed to the viewer (lib/teamWorkServer); none without a team.
+  const tasksP = myTasks(ctx).catch(() => ({ tasks: [], enabled: false }));
+
   // The shared intelligence store and the brand's goals (both empty before their migrations).
   const intelP = Promise.all([
     listInsights(ctx, { limit: 30 }).catch(() => ({ tableReady: false, insights: [] })),
@@ -195,7 +199,7 @@ export default async function DashboardPage({
   const latestPlan = planRow ? { id: planRow.id, data: planRow.data, created_at: planRow.created_at } : null;
 
   // The Today card: the facts for Growth and up, an upgrade line below that.
-  const [[waiting, studioNext], repurpose] = await Promise.all([todayExtrasP, repurposeP]);
+  const [[waiting, studioNext], repurpose, mine] = await Promise.all([todayExtrasP, repurposeP, tasksP]);
   const lockedPlan = minPlanWithFeature("daily_recommendations");
   const today: TodayCardProps = recsOn
     ? {
@@ -361,6 +365,7 @@ export default async function DashboardPage({
     score: score ? { score: score.score, verdict: score.verdict, dims: score.dims.map((x) => ({ label: x.label, value: x.value, method: x.method })), sampleSize: score.sampleSize } : null,
     calendar,
     planWeek,
+    tasks: mine.tasks,
     intel: {
       briefing,
       works,

@@ -8,7 +8,8 @@ import type { CreatePostPayload } from "@/lib/publishing/composer";
 import { loadItem, loadPickerAccountsDetailed, saveItem, stampPostWorkspace, MissingTableError, MIGRATION_MESSAGE } from "@/lib/publishing/db";
 import { publishNow, type ClientUploadRequest } from "@/lib/publishing/runner";
 import { resolveContext, can, forbiddenCopy, type Ctx } from "@/lib/context";
-import { approveOnSchedule, memberEditBlock } from "@/lib/approvals";
+import { memberEditBlock } from "@/lib/approvals";
+import { afterPostSaved, onScheduledByReviewer } from "@/lib/teamWorkServer";
 import { isOwnPath } from "@/lib/storagePaths";
 
 export const runtime = "nodejs";
@@ -107,6 +108,9 @@ function parsePayload(body: unknown): { payload: CreatePostPayload } | { error: 
 }
 
 const stampWorkspace = (ctx: Ctx, postId: string) => stampPostWorkspace(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, postId);
+// Who made it, and the plan task it may finish (lib/teamWorkServer).
+const teamWork = (ctx: Ctx, postId: string, payload: { id?: string | null; planId: string | null; planDay: string | null; media: unknown[] }) =>
+  afterPostSaved(ctx, { id: postId, isNew: !payload.id, planId: payload.planId, planDay: payload.planDay, hasMedia: payload.media.length > 0 });
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -193,11 +197,13 @@ export async function POST(req: Request) {
     if (isDraft) {
       const item = await saveItem(ctx.client, ctx.ownerId, payload, "draft");
       await stampWorkspace(ctx, item.id);
+      await teamWork(ctx, item.id, payload);
       return NextResponse.json({ item, uploads: [] });
     }
     if (payload.action === "schedule") {
       const saved = await saveItem(ctx.client, ctx.ownerId, payload, "scheduled");
       await stampWorkspace(ctx, saved.id);
+      await teamWork(ctx, saved.id, payload);
       // YouTube schedules natively but the bytes go browser -> YouTube, so the
       // upload starts in this request. Anything already holding an external id
       // is left to the cron to confirm; it is never uploaded twice.
@@ -207,8 +213,8 @@ export async function POST(req: Request) {
       let uploads: ClientUploadRequest[] = [];
       if (targets.length) uploads = (await publishNow(ctx.client, ctx.ownerId, saved, targets, 40_000)).uploads;
       const item = targets.length ? (await loadItem(ctx.client, saved.id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? saved : saved;
-      // Scheduling a post that was waiting for approval is the approval.
-      await approveOnSchedule(ctx, saved.id, payload.scheduledAt ?? payload.destinations.map((d) => d.scheduledAt).filter(Boolean).sort()[0] ?? null);
+      // Scheduling a post that was waiting for approval (or marked ready) is the approval.
+      await onScheduledByReviewer(ctx, saved.id, payload.scheduledAt ?? payload.destinations.map((d) => d.scheduledAt).filter(Boolean).sort()[0] ?? null);
       return NextResponse.json({ item, uploads });
     }
     // publish: every destination is scheduled for now, then run in this request.
@@ -217,10 +223,11 @@ export async function POST(req: Request) {
       ...payload, scheduledAt: nowIso, destinations: payload.destinations.map((d) => ({ ...d, scheduledAt: nowIso })),
     }, "scheduled");
     await stampWorkspace(ctx, saved.id);
+    await teamWork(ctx, saved.id, payload);
     const targets = saved.destinations.filter((d) => d.status === "scheduled");
     const { uploads } = await publishNow(ctx.client, ctx.ownerId, saved, targets, 40_000);
     const item = (await loadItem(ctx.client, saved.id, ctx.ownerId, ctx.workspace?.id ?? null)) ?? saved;
-    await approveOnSchedule(ctx, saved.id, null);
+    await onScheduledByReviewer(ctx, saved.id, null);
     return NextResponse.json({ item, uploads });
   } catch (e) {
     if (e instanceof MissingTableError) return NextResponse.json({ error: MIGRATION_MESSAGE }, { status: 409 });
