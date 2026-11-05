@@ -4,6 +4,7 @@ import { getStripe } from "@/lib/stripe";
 import { createServiceClient } from "@/lib/supabase/service";
 import { applySubscription, billingEventSeen, markBillingEvent, saveCustomerId, userIdForSubscription } from "@/lib/billing";
 import { fitToPlan } from "@/lib/planDowngrade";
+import { topupCredits } from "@/lib/credits/ledger";
 
 export const runtime = "nodejs";
 
@@ -64,6 +65,12 @@ export async function POST(req: Request) {
         userId = session.client_reference_id ?? session.metadata?.user_id ?? null;
         const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id ?? null;
         if (userId && customerId) await saveCustomerId(svc, userId, customerId);
+        // A credit top-up (app/api/billing/topup): a one-off payment, added once per session.
+        const credits = Number(session.metadata?.credits ?? 0);
+        if (userId && session.mode === "payment" && credits > 0 && session.payment_status === "paid") {
+          await topupCredits(userId, Math.round(credits), session.id, `Top-up ${session.metadata?.pack ?? ""}`.trim());
+          break;
+        }
         const subId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id ?? null;
         if (userId && subId) {
           const sub = await stripe.subscriptions.retrieve(subId);

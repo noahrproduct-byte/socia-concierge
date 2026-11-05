@@ -11,9 +11,9 @@ const FEATURES = Object.keys(FEATURE_MIN_PLAN) as FeatureKey[];
 const BUILT = FEATURES.filter((k) => FEATURE_STATUS[k] !== "coming_soon");
 const tier = (p: PlanId) => BUILT.filter((k) => FEATURE_MIN_PLAN[k] === p);
 
-describe("plans are cumulative: FREE ⊂ STARTER ⊂ GROWTH ⊂ PRO", () => {
+describe("plans are cumulative: FREE ⊂ STARTER ⊂ GROWTH ⊂ PRO ⊂ SCALE", () => {
   it("ranks the plans in order", () => {
-    expect(PLAN_ORDER.map((p) => PLAN_RANK[p])).toEqual([0, 1, 2, 3]);
+    expect(PLAN_ORDER.map((p) => PLAN_RANK[p])).toEqual([0, 1, 2, 3, 4]);
   });
 
   it("includes a feature on its minimum plan and every plan above it, never below", () => {
@@ -23,12 +23,13 @@ describe("plans are cumulative: FREE ⊂ STARTER ⊂ GROWTH ⊂ PRO", () => {
     }
   });
 
-  it("gives Starter Free + Starter, Growth Free + Starter + Growth, and Pro everything built", () => {
+  it("gives Starter Free + Starter, Growth Free + Starter + Growth, Pro everything but Scale's, and Scale everything built", () => {
     const usable = (p: PlanId) => BUILT.filter((k) => canUseFeature(ent(p), k)).sort();
     expect(usable("free")).toEqual([...tier("free")].sort());
     expect(usable("starter")).toEqual([...tier("free"), ...tier("starter")].sort());
     expect(usable("growth")).toEqual([...tier("free"), ...tier("starter"), ...tier("growth")].sort());
-    expect(usable("pro")).toEqual([...BUILT].sort());
+    expect(usable("pro")).toEqual([...tier("free"), ...tier("starter"), ...tier("growth"), ...tier("pro")].sort());
+    expect(usable("scale")).toEqual([...BUILT].sort());
   });
 
   it("never offers a plan an upgrade to a plan it already outranks", () => {
