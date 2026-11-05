@@ -21,7 +21,7 @@ Live at [sociaos.com](https://sociaos.com).
 
 Also: **Ask SOCIA**, an assistant on every page that answers from the account's data and can put posts or ideas on the calendar after you confirm; and an **MCP server** (`/mcp`, OAuth at `/oauth/*`) so Claude, ChatGPT and other AI apps can read a brand's data and, when the owner allows it, create posts.
 
-**Plans:** Free, Starter ($19.99), Growth ($34.99) and Pro ($49.99) a month. Each plan includes everything below it. Limits and features live in `lib/plans.ts`.
+**Plans:** Free, Starter ($19.99), Growth ($34.99), Pro ($49.99) and Scale ($80) a month. Each plan includes everything below it. Limits and features live in `lib/plans.ts`; Scale adds the AI Clipper and AI Studio, paid for in credits priced in `lib/credits/config.ts`.
 
 ## Content Studio
 
@@ -87,7 +87,7 @@ Features whose keys are missing switch themselves off and say so in the app. Loc
 
 The SQL lives in `supabase/`. Run it in the Supabase SQL editor in this order (the order `supabase/tests/harness.ts` tests):
 
-`schema`, `youtube-connections`, `plans-and-usage`, `post-destinations`, `plans-security-fix`, `workspaces`, `team`, `alerts`, `competitor-history`, `competitors-workspaces`, `platform-snapshots`, `comment-replies`, `billing`, `tiktok-catchup`, `studio`, `studio-phase-b`, `studio-audio`, `known-usernames`, `ai-assistants`, `approvals`, `security-hardening`, `rls-audit`, `growth-profile`, `platform-deletions`, `intelligence`, `competitor-autopick`, `studio-cut-meter`.
+`schema`, `youtube-connections`, `plans-and-usage`, `post-destinations`, `plans-security-fix`, `workspaces`, `team`, `alerts`, `competitor-history`, `competitors-workspaces`, `platform-snapshots`, `comment-replies`, `billing`, `tiktok-catchup`, `studio`, `studio-phase-b`, `studio-audio`, `known-usernames`, `ai-assistants`, `approvals`, `security-hardening`, `rls-audit`, `growth-profile`, `platform-deletions`, `intelligence`, `competitor-autopick`, `studio-cut-meter`, `claude-week`, `comment-auto`, `ai-spend`, `ai-studio`.
 
 - Every file except `schema.sql` and `plans-and-usage.sql` is safe to run again.
 - `tiktok-connections.sql` is superseded by `tiktok-catchup.sql`; don't run it.

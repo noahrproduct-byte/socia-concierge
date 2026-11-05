@@ -33,7 +33,7 @@
 
 import { timedFn } from "@/lib/timing";
 import {
-  PLANS, PLAN_ORDER, FEATURE_STATUS, METER_PERIOD, normalizePlan, planRank, planIncludes, isPlanId, minPlanWithFeature,
+  PLANS, PLAN_ORDER, FEATURE_STATUS, METER_PERIOD, normalizePlan, onSale, planRank, planIncludes, isPlanId, minPlanWithFeature,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey, type MeterPeriod,
 } from "./plans";
 import { featureError, limitError, usageError, type PlanError } from "./planErrors";
@@ -232,7 +232,7 @@ export function canUseFeature(ent: Entitlements, key: FeatureKey): boolean {
 export function upgradeFor(ent: Entitlements, key: FeatureKey): PlanId | null {
   if (canUseFeature(ent, key) || FEATURE_STATUS[key] === "coming_soon") return null;
   const min = minPlanWithFeature(key);
-  return planRank(ent.plan) < planRank(min) ? min : null;
+  return planRank(ent.plan) < planRank(min) && onSale(min) ? min : null;
 }
 
 export function getLimit(ent: Entitlements, key: LimitKey): number {

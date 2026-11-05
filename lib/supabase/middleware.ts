@@ -59,6 +59,8 @@ export async function updateSession(request: NextRequest) {
     "/plan",
     "/scorer",
     "/studio",
+    "/clipper",
+    "/ai-studio",
     "/reports",
     "/settings",
     "/comments",
