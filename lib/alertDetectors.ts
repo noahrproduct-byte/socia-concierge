@@ -6,7 +6,7 @@
 // metric measured against the previous equal period. The caller stores them
 // (lib/alerts.ts); the fingerprint keeps re-runs from duplicating.
 
-export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity" | "plan_result" | "plan_ready" | "cross_platform" | "approval";
+export type AlertType = "breakout" | "performance_change" | "competitor_move" | "trend" | "opportunity" | "plan_result" | "plan_ready" | "cross_platform" | "approval" | "team";
 export type AlertSeverity = "good" | "info" | "warning";
 
 export type AlertCandidate = {

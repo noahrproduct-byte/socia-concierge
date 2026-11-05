@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 4, 2026</p>
+      <p className="legal-date">Last updated: November 5, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -126,8 +126,9 @@ export default function PrivacyPage() {
           remove in Settings at any time.
         </li>
         <li>
-          <b>Teams and workspaces</b>: the people you invite, their roles, and
-          who submitted, approved or published a post.
+          <b>Teams and workspaces</b>: the people you invite, their roles, who
+          made, marked ready, submitted, approved or published a post, and the
+          plan videos handed to someone, with the day to film by and any note.
         </li>
         <li>
           <b>AI assistants you connect</b>: if you connect SOCIA to an AI

@@ -34,6 +34,8 @@ import type { CalPost } from "@/lib/audience";
 import { buildWeek, compareBars, describeDay, scoreTone, COMPETITOR_METRICS, type CalendarItem, type CompetitorMetric, type Competitors, type PlanDayItem, type WeekCover, type WeekDay } from "@/lib/overviewVisual";
 import { ActionChips, BriefingLines, GoalBars, GoalNotes, LearningLines, WorksBars, WorksNotes, type IntelData } from "./IntelSections";
 import { Bar, CountUp, Details, Reveal, Ring, useMotionOk } from "./motion";
+import YourTasks from "./YourTasks";
+import type { MyTask } from "@/lib/teamWork";
 
 const DASH = String.fromCharCode(0x2014);
 
@@ -81,6 +83,8 @@ export type DashboardData = {
   calendar?: CalendarItem[];
   /** The latest plan's week, when that plan is this week's. */
   planWeek?: PlanDayItem[] | null;
+  /** Plan posts handed to the viewer to film (lib/teamWorkServer); empty without a team. */
+  tasks?: MyTask[];
 };
 
 type Metric = "views" | "engagement" | "followers";
@@ -368,6 +372,13 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </div>
       </section>
       </Reveal>
+
+      {/* ---- plan posts handed to you ---------------------------------------------- */}
+      {(d.tasks?.length ?? 0) > 0 && (
+        <Reveal index={next()}>
+          <YourTasks tasks={d.tasks!} />
+        </Reveal>
+      )}
 
       {/* ---- this week ------------------------------------------------------------ */}
       <Reveal index={next()}>

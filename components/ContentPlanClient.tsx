@@ -48,6 +48,7 @@ import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
+import { PlanTaskRow, usePlanTasks } from "@/components/plan/PlanTasks";
 import { reasonLabel } from "@/lib/planItems";
 import { Tabs, TabList, Tab, TabPanel } from "@/components/system";
 import type { GrowthStrategy } from "@/lib/strategy";
@@ -559,6 +560,7 @@ function OutcomeTags({ o }: { o: ItemOutcome | null }) {
 
 function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; strategy: GrowthStrategy | null; goal: string | null; onUpdate: (d: Deliverable) => void }) {
   const [section, setSection] = useState<PlanSectionId>("week");
+  const team = usePlanTasks(planId);
   // Times are SOCIA's, from the audience data, never the model's guess. The
   // same rule the Calendar uses, so the two never disagree.
   const aud = useMemo(() => buildAudience(posts), [posts]);
@@ -912,6 +914,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
                   )}
                 </div>
                 <RejectedNote item={post} />
+                {planId && team.state && post.decision?.status !== "rejected" && <PlanTaskRow planId={planId} item={post} state={team.state} reload={team.reload} />}
                 <ItemActions
                   item={post}
                   canApprove={Boolean(planId) && !onCalendar(i)}

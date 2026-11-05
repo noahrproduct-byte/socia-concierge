@@ -10,6 +10,7 @@ import { scopeToWorkspace, isMissingColumnError } from "@/lib/workspaces";
 import { memberEditBlock } from "@/lib/approvals";
 import { isOwnPath } from "@/lib/storagePaths";
 import { dbErrorResponse } from "@/lib/dbError";
+import { stampPostAuthor } from "@/lib/teamWorkServer";
 
 export const runtime = "nodejs";
 
@@ -191,6 +192,7 @@ export async function POST(req: Request) {
   // Without the column only when the column is missing, never on another error.
   if (error && ctx.workspace && isMissingColumnError(error)) ({ data, error } = await ctx.client.from("scheduled_posts").insert(rows).select("*"));
   if (error) return dbErrorResponse("schedule", error);
+  await Promise.all(((data ?? []) as { id: string }[]).map((r) => stampPostAuthor(ctx.client, ctx.ownerId, r.id, ctx.viewerId)));
   return NextResponse.json({ posts: data ?? [], skipped, plan });
 }
 

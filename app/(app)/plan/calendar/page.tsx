@@ -19,6 +19,8 @@ import { scopeToWorkspace } from "@/lib/workspaces";
 import { PLANS, type PlanId } from "@/lib/plans";
 import type { PlanError } from "@/lib/planErrors";
 import { postLabel, type LabelSource } from "@/lib/publishing/postLabel";
+import { teamWorkFor, workspacePeople } from "@/lib/teamWorkServer";
+import { shortName } from "@/lib/teamWork";
 
 export const metadata = { title: "Calendar | SOCIA" };
 
@@ -147,10 +149,20 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   } catch {
     results = new Map();
   }
+  // Who made each post and what is marked ready for review, once more than one person works here (lib/teamWorkServer).
+  const twSvc = await teamWorkFor(ctx).catch(() => null);
+  const people = twSvc ? await workspacePeople(twSvc, ctx, user.email ?? null).catch(() => []) : [];
+  const byId = new Map(people.map((p) => [p.userId, p]));
+  const teamOf = (r: ScheduledPost): CalItem["team"] => {
+    if (people.length < 2) return undefined;
+    const row = r as ScheduledPost & { created_by?: string | null; ready_at?: string | null };
+    const by = row.created_by ? byId.get(row.created_by) : undefined;
+    return { by: by ? (by.isYou ? "You" : shortName(by.label)) : null, byFull: by?.label ?? null, ready: Boolean(row.ready_at) && r.status === "draft" };
+  };
   const scheduled: CalItem[] = scheduledRows.map((r) => {
     const ds = destinations.get(r.id);
     const result = results.get(r.id) ?? null;
-    return { ...r, ...(ds ? { destinations: ds } : {}), result, label: postLabel(r.caption, labelSources.get(r.id)) };
+    return { ...r, ...(ds ? { destinations: ds } : {}), result, label: postLabel(r.caption, labelSources.get(r.id)), team: teamOf(r) };
   });
 
   // Videos the person's Claude made for the weekly plan, waiting for review (lib/claudeWeek).

@@ -57,6 +57,7 @@ export const MIGRATIONS = [
   "contacts.sql",
   "contacts-guard.sql",
   "ai-studio.sql",
+  "team-work.sql",
 ];
 
 const SUPABASE_STANDIN = `
