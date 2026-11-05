@@ -3,7 +3,7 @@ import { rateHit } from "@/lib/oauth/runtime";
 import { aiBudgetDenied } from "@/lib/aiSpend";
 
 /** Hourly buckets whose action calls a paid AI service: they also stop at the plan's monthly AI ceiling. */
-const AI_BUCKETS = new Set(["clip_edl", "comment_redraft", "comment_sync", "growth_strategy", "initial_plan", "music-playlist", "niche", "niche_formats", "studio-brief", "transcribe", "competitor_intel", "studio_ideas"]);
+const AI_BUCKETS = new Set(["clip_edl", "comment_redraft", "comment_sync", "growth_strategy", "initial_plan", "music-playlist", "niche", "niche_formats", "studio-brief", "studio-enhance", "transcribe", "competitor_intel", "studio_ideas"]);
 
 /**
  * A per-person hourly ceiling on a costly action that has no plan allowance of
