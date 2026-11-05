@@ -7,7 +7,7 @@ import CompetitorsPage from "@/components/competitors/CompetitorsPage";
 import type { CompetitorsData, FollowerPoint, Tracked, NicheRange, PlatformFilter, YouSeriesPoint } from "@/components/competitors/types";
 import { getIgSnapshot, readDailySnapshots, type IgMediaItem } from "@/lib/instagramSync";
 import { channelStats, ytConfigured, type YtStats } from "@/lib/youtube";
-import { buildQueries, discoveryProfileFrom, nameKey } from "@/lib/discovery";
+import { buildQueries, discoveryProfileFrom, nameKey, nicheVetted } from "@/lib/discovery";
 import { readFormatsDoc } from "@/lib/nicheFormatsLoad";
 import { cell, absent, type LeaderRow } from "@/lib/competitorRollup";
 import { competitorHistoryEnabled, competitorMomentum, type CompetitorPoint } from "@/lib/competitorHistory";
@@ -94,11 +94,12 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     try {
       let dq = ctx.client
         .from("discovered_accounts")
-        .select("platform, handle, display_name, profile_image, profile_url, followers, location, classification, relevance_score, relevance_reasons")
+        .select("platform, handle, display_name, profile_image, profile_url, followers, location, classification, relevance_score, relevance_reasons, data_source")
         .eq("user_id", ctx.ownerId);
       if (cwid) dq = dq.eq("workspace_id", cwid);
-      const { data } = await dq.order("relevance_score", { ascending: false }).limit(40);
-      return (data ?? []) as Record<string, unknown>[];
+      const { data } = await dq.order("relevance_score", { ascending: false }).limit(60);
+      // YouTube search results count only once they passed the niche check (lib/nicheCheck.ts).
+      return ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted).slice(0, 40);
     } catch { return []; } // discovery tables may not exist yet
   })();
   const historyP: Promise<(CompetitorPoint & { platform: string; handle: string })[] | null> = (async () => {
@@ -122,11 +123,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
     try {
       let cq = ctx.client
         .from("discovered_content")
-        .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, why_recommended, data_source")
+        .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, relevance_score, relevance_reasons, why_recommended, data_source")
         .eq("user_id", ctx.ownerId);
       if (cwid) cq = cq.eq("workspace_id", cwid);
       const { data } = await cq.order("relevance_score", { ascending: false }).limit(200);
-      return (data ?? []) as Record<string, unknown>[];
+      return ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted);
     } catch { return []; } // no discovery yet
   })();
   const savedP: Promise<NichePost[]> = (async () => {

@@ -29,6 +29,7 @@ import type { Platform } from "./publishing/types";
 import { recordAlerts, alertsEnabled } from "./alerts";
 import { getEntitlements, canUseFeature, type Entitlements } from "./entitlements";
 import { competitorScopeId, competitorsScopedEnabled } from "./workspaces";
+import { nicheVetted } from "./discovery";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -267,10 +268,10 @@ async function nicheSignalsFor(svc: Supa, userId: string, workspaceId: string | 
   if (!wantTrend && !wantOpp) return [];
   try {
     const cwid = await competitorScopeId(svc, workspaceId);
-    let q = svc.from("discovered_content").select("trend_tags, multiplier, content_type, last_checked, published_at").eq("user_id", userId);
+    let q = svc.from("discovered_content").select("trend_tags, multiplier, content_type, last_checked, published_at, data_source, relevance_reasons").eq("user_id", userId);
     if (cwid) q = q.eq("workspace_id", cwid);
     const { data } = await q.limit(200);
-    const rows = (data ?? []) as ContentRow[];
+    const rows = ((data ?? []) as ContentRow[]).filter(nicheVetted);
     if (!rows.length) return [];
     const weekKey = isoWeekKey(now);
     const out: AlertCandidate[] = [];

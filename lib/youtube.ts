@@ -278,6 +278,7 @@ export async function searchChannels(query: string, max = 6): Promise<YtStats[]>
       subscribers: ch.subscribers,
       lifetimeViews: ch.views,
       videoCount: ch.videoCount,
+      description: ch.description,
       // Cadence/engagement need per-video reads; the discover list stays cheap
       // and the full picture appears once the channel is tracked.
       uploadsPerWeek: null,

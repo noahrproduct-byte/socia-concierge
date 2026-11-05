@@ -16,11 +16,12 @@ import {
 } from "@/lib/youtube";
 import {
   buildQueries, discoveryProfileFrom, locationMatters, scoreAccount, scoreContent, dedupeAccounts, dedupeContent,
-  rollUpTrends, canonicalUrl,
+  rollUpTrends, canonicalUrl, nicheVetted,
   type AccountCandidate, type ContentCandidate, type DiscoveryProfile,
   type ScoredAccount, type ScoredContent, type TrendRollup,
 } from "@/lib/discovery";
 import { autoPickCompetitors, type Pick } from "@/lib/competitorAutoPick";
+import { checkNiche, type NicheCheckItem } from "@/lib/nicheCheck";
 
 /** Fresh research runs one account may start per hour. */
 const INTEL_RUNS_PER_HOUR = 2;
@@ -203,7 +204,8 @@ export async function GET(req: Request) {
       const vidQueries = queries.slice(0, 3);
 
       const chResults = await Promise.all(
-        chQueries.map(async (q) => ({ q, list: await searchChannels(q.q, 5) })),
+        // More than are kept: the search ranks by size, and the niche check below drops the ones that only share a word.
+        chQueries.map(async (q) => ({ q, list: await searchChannels(q.q, 8) })),
       );
       for (const { q, list } of chResults) {
         for (const ch of list) {
@@ -219,6 +221,8 @@ export async function GET(req: Request) {
             category: null,
             dataSource: "youtube_api",
             matchedIntent: q.intent,
+            // The channel's own description: read by the niche check and the scorer, never stored.
+            note: ch.description ? ch.description.slice(0, 300) : null,
           });
         }
       }
@@ -271,19 +275,37 @@ export async function GET(req: Request) {
     }
   }
 
+  const who = profile.accountType === "creator" ? "creator" : profile.accountType === "personal_brand" ? "personal brand" : profile.accountType === "organization" ? "organisation" : "business";
+  const nicheLine = [profile.niche, profile.subNiche, profile.specific].filter(Boolean).join(" > ");
+  const facts = [
+    `Niche: ${nicheLine}.`,
+    profile.focus ? `What they offer or talk about: ${profile.focus}.` : "",
+    profile.audience ? `Their audience: ${profile.audience}.` : "",
+    location ? `Based in ${location}${locationMatters(profile) ? ", and their customers or audience are mostly nearby" : ""}.` : "",
+    profile.goalText ? `Their stated goal: "${profile.goalText}".` : "",
+  ].filter(Boolean).join("\n");
+
+  // ---- YouTube results must be in the niche before anything is kept ------
+  // A keyword search matches words, not meaning (lib/nicheCheck.ts). Only
+  // YouTube candidates exist at this point; the ones that fail are dropped,
+  // and when the check cannot run none are kept.
+  if (accountCandidates.length || contentCandidates.length) {
+    const items: NicheCheckItem[] = [
+      ...accountCandidates.map((c, i) => ({ id: `C${i + 1}`, kind: "channel" as const, name: c.displayName ?? c.handle ?? "", text: c.note ?? null })),
+      ...contentCandidates.map((c, i) => ({ id: `V${i + 1}`, kind: "video" as const, name: c.accountName ?? "", text: c.title })),
+    ];
+    const keep = await checkNiche(ctx.ownerId, `A ${who}${brandName ? ` called ${brandName}` : ""}.\n${facts}`, items);
+    const keptAccounts = accountCandidates.filter((_, i) => keep?.has(`C${i + 1}`)).map((c) => ({ ...c, nicheChecked: true }));
+    const keptContent = contentCandidates.filter((_, i) => keep?.has(`V${i + 1}`)).map((c) => ({ ...c, nicheChecked: true }));
+    accountCandidates.splice(0, accountCandidates.length, ...keptAccounts);
+    contentCandidates.splice(0, contentCandidates.length, ...keptContent);
+    if (!keep) sources.youtube = "failed";
+  }
+
   // ---- Web research: Instagram / Facebook, no metrics -------------------
   if (!process.env.ANTHROPIC_API_KEY) {
     sources.web = "no_key";
   } else {
-    const who = profile.accountType === "creator" ? "creator" : profile.accountType === "personal_brand" ? "personal brand" : profile.accountType === "organization" ? "organisation" : "business";
-    const nicheLine = [profile.niche, profile.subNiche, profile.specific].filter(Boolean).join(" > ");
-    const facts = [
-      `Niche: ${nicheLine}.`,
-      profile.focus ? `What they offer or talk about: ${profile.focus}.` : "",
-      profile.audience ? `Their audience: ${profile.audience}.` : "",
-      location ? `Based in ${location}${locationMatters(profile) ? ", and their customers or audience are mostly nearby" : ""}.` : "",
-      profile.goalText ? `Their stated goal: "${profile.goalText}".` : "",
-    ].filter(Boolean).join("\n");
     const prompt = `A ${who}${brandName ? ` called ${brandName}` : ""} wants to know which Instagram and Facebook accounts to study, and which recent posts are worth learning from.
 ${facts}
 
@@ -500,9 +522,10 @@ async function readStored(supabase: any, userId: string, workspaceId: string | n
       relevanceScore: r.relevance_score ?? 0, relevanceReasons: r.relevance_reasons ?? [],
       trendTags: r.trend_tags ?? [], why: r.why_recommended, dataSource: r.data_source,
     }));
-    // Rows stored before an account was connected may be the user's own.
-    const theirs = accounts.filter((a) => !isOwnAccount(own, { id: a.platformAccountId, handle: a.handle, name: a.displayName }));
-    const theirContent = content.filter((c) => !isOwnAccount(own, { handle: c.accountHandle, name: c.accountName }));
+    // Rows stored before an account was connected may be the user's own; YouTube rows count only once niche-checked.
+    const vetted = <T extends { dataSource: unknown; relevanceReasons: unknown }>(x: T) => nicheVetted({ data_source: x.dataSource, relevance_reasons: x.relevanceReasons });
+    const theirs = accounts.filter(vetted).filter((a) => !isOwnAccount(own, { id: a.platformAccountId, handle: a.handle, name: a.displayName }));
+    const theirContent = content.filter(vetted).filter((c) => !isOwnAccount(own, { handle: c.accountHandle, name: c.accountName }));
     return {
       accounts: theirs, content: theirContent, trends: rollUpTrends(theirContent), ranAt: runRes.data.ran_at,
       sources: runRes.data.sources ?? { youtube: "ok", web: "ok" }, profileGaps: [],

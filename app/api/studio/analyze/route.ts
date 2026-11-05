@@ -17,6 +17,7 @@ import { conceptPrompt } from "@/lib/studioGuide";
 import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
+import { nicheVetted } from "@/lib/discovery";
 import { fetchAllowed, isPlatformMediaUrl } from "@/lib/fetchGuard";
 
 export const runtime = "nodejs";
@@ -111,8 +112,8 @@ Planned shots: ${planned.guide.shots.map((x) => x.shot).join("; ")}` : ""}`
   const covers = (await Promise.all(top.map((p) => (p.thumb ? fetchB64(p.thumb) : Promise.resolve(null))))).map((b, i) => ({ b64: b, post: top[i] }));
   let niche: { title: string | null; trend_tags: string[] | null; multiplier: number | null; account_name: string | null }[] = [];
   try {
-    const { data } = await scopeToWorkspace(ctx.client.from("discovered_content").select("title, trend_tags, multiplier, account_name").eq("user_id", ctx.ownerId), await competitorScopeId(ctx.client, ctx.workspace?.id)).order("multiplier", { ascending: false, nullsFirst: false }).limit(8);
-    niche = data ?? [];
+    const { data } = await scopeToWorkspace(ctx.client.from("discovered_content").select("title, trend_tags, multiplier, account_name, data_source, relevance_reasons").eq("user_id", ctx.ownerId), await competitorScopeId(ctx.client, ctx.workspace?.id)).order("multiplier", { ascending: false, nullsFirst: false }).limit(40);
+    niche = (data ?? []).filter(nicheVetted).slice(0, 8);
   } catch { niche = []; }
 
   const winnersText = top.length
