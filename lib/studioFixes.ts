@@ -41,6 +41,8 @@ export type Moment = {
   cuts?: { start: number; end: number; reason: string }[];
   /** noise: what was measured. */
   sound?: { levelDb: number | null; level: QuickAudio["level"] };
+  /** Which of the analysis's fixes this moment carries out (its index in topFixes); absent for moments SOCIA measured itself. */
+  fixIndex?: number;
 };
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -76,30 +78,30 @@ export function momentsFrom({ analysis: a, durationSec, hook, cta }: MomentInput
   const span = (t: number, len = 3) => ({ t: r1(clampT(t, dur)), end: r1(Math.min(dur, clampT(t, dur) + len)) });
 
   // SOCIA's highest-priority edits, each only when there is a fix it can make.
-  a.topFixes.forEach((f, i) => {
-    const priority: Moment["priority"] = i === 0 ? 1 : 2;
+  a.topFixes.forEach((f, fixIndex) => {
+    const priority: Moment["priority"] = fixIndex === 0 ? 1 : 2;
     if (f.kind === "opening" || f.kind === "hook_text" || f.kind === "text") {
       const value = lineFor(f.apply?.field === "hook" || f.apply?.field === "onscreen" ? f.apply.value : null) ?? lineFor(hook) ?? lineFor(a.hooks.current);
       if (!value) return;
       const t = f.kind === "text" ? clampT(f.t, dur) : 0;
-      push({ capability: "text", priority, ...span(t), title: f.title, observed: f.observed, fix: f.suggestion, text: { value, presetId: presetForFix(f.kind, value) } });
+      push({ fixIndex, capability: "text", priority, ...span(t), title: f.title, observed: f.observed, fix: f.suggestion, text: { value, presetId: presetForFix(f.kind, value) } });
     } else if (f.kind === "ending") {
       const value = lineFor(f.apply?.field === "cta" ? f.apply.value : null) ?? lineFor(cta) ?? lineFor(a.cta.current);
       const t = Math.max(0, dur - 3.5);
       // Only with a line to put on screen. An ending that asks for nothing is not a music problem, so no track is offered for it.
-      if (value) push({ capability: "text", priority, ...span(t, 3.5), title: f.title, observed: f.observed, fix: f.suggestion, text: { value, presetId: presetForFix("ending", value) } });
+      if (value) push({ fixIndex, capability: "text", priority, ...span(t, 3.5), title: f.title, observed: f.observed, fix: f.suggestion, text: { value, presetId: presetForFix("ending", value) } });
     } else if (f.kind === "pacing") {
       const cuts = validCuts<{ start: number; end: number; reason: string }>(a.cuts?.edits, dur).map((c) => ({ start: r1(c.start), end: r1(c.end), reason: c.reason }));
       if (!cuts.length) return;
-      push({ capability: "pauses", priority, t: cuts[0].start, end: r1(Math.min(dur, cuts[cuts.length - 1].end)), title: f.title, observed: f.observed, fix: f.suggestion, cuts });
+      push({ fixIndex, capability: "pauses", priority, t: cuts[0].start, end: r1(Math.min(dur, cuts[cuts.length - 1].end)), title: f.title, observed: f.observed, fix: f.suggestion, cuts });
     } else if (f.kind === "audio") {
       const m = a.measuredAudio;
       if (!m || !m.hasAudio) return;
-      push({ capability: "noise", priority, ...span(f.t ?? 0, 4), title: f.title, observed: f.observed, fix: f.suggestion, sound: { levelDb: m.levelDb, level: m.level } });
+      push({ fixIndex, capability: "noise", priority, ...span(f.t ?? 0, 4), title: f.title, observed: f.observed, fix: f.suggestion, sound: { levelDb: m.levelDb, level: m.level } });
     } else if (f.kind === "visual") {
-      push({ capability: "look", priority, ...span(f.t ?? 0, 4), title: f.title, observed: f.observed, fix: f.suggestion });
+      push({ fixIndex, capability: "look", priority, ...span(f.t ?? 0, 4), title: f.title, observed: f.observed, fix: f.suggestion });
     } else if (f.kind === "caption") {
-      push({ capability: "caption", priority, t: 0, end: 0, title: f.title, observed: f.observed, fix: f.suggestion });
+      push({ fixIndex, capability: "caption", priority, t: 0, end: 0, title: f.title, observed: f.observed, fix: f.suggestion });
     }
   });
 

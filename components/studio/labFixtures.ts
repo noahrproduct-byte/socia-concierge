@@ -9,6 +9,7 @@ import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, Edl, StudioBuil
 import type { ProjectSummary } from "@/lib/studioClips/server";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import type { LibraryClip } from "@/lib/studioClips/library";
+import type { Lesson, RaterOutcome } from "@/lib/raterLog";
 import type { StudioAnalysis } from "@/lib/studio";
 import type { TranscriptWord } from "@/lib/transcribe/types";
 
@@ -207,3 +208,14 @@ export function analysis(durationSec: number): StudioAnalysis {
 }
 
 export const transcript = () => ({ text: SPEECH.c1.map((w) => w.text).join(" "), words: SPEECH.c1.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs })) });
+
+/** The rater's memory: three earlier videos, at each stage, and one lesson (lib/raterLog.ts). */
+export function raterLog(): { outcomes: RaterOutcome[]; lessons: Lesson[] } {
+  const fix = (title: string, kind: RaterOutcome["fixes"][number]["kind"], applied: boolean): RaterOutcome["fixes"][number] => ({ title, kind, priority: "high", applied });
+  const outcomes: RaterOutcome[] = [
+    { postId: "post-0001", at: "2026-10-28T15:00:00.000Z", score: 61, diagnosis: "The strongest proof was hidden behind a weak opening.", fixes: [fix("Fix your opening", "opening", true), fix("Simplify the ending", "ending", true)], direction: "Payoff first", hook: "Wait for the cheese pull", cta: "Come before 10", state: "published", publishedAt: "2026-10-29T17:00:00.000Z", permalink: "https://www.instagram.com/reel/abc/", result: { short: "1.6x your median", text: "1.6x your typical Instagram post.", measured: true, early: false, multiplier: 1.6 } },
+    { postId: "post-0002", at: "2026-11-02T15:00:00.000Z", score: 66, diagnosis: "The ending asked for three things at once.", fixes: [fix("Simplify the ending", "ending", true), fix("Even out the voice", "audio", false)], direction: null, hook: "Twenty a day, smashed to order", cta: "Tag who you're bringing", state: "published", publishedAt: "2026-11-04T17:00:00.000Z", permalink: null, result: { short: "0.9x your median so far", text: "0.9x your typical Instagram post so far.", measured: true, early: true, multiplier: 0.9 } },
+    { postId: "post-0003", at: "2026-11-04T15:00:00.000Z", score: 64, diagnosis: "Your best shot comes after an opening with no words.", fixes: [fix("Fix your opening", "opening", false)], direction: null, hook: null, cta: null, state: "draft", publishedAt: null, permalink: null, result: null },
+  ];
+  return { outcomes, lessons: [{ kind: "ending", posts: 3, above: 2, median: 1.4, line: "When you changed the ending: 3 posts, median 1.4x your usual, 2 of 3 above it. A pattern in your own posts, not proof the change is the reason." }] };
+}

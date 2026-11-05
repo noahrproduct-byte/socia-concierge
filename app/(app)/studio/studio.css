@@ -1112,3 +1112,125 @@
     justify-self: start;
   }
 }
+
+/* ---- the change shown on the footage, on a Verdict card ---- */
+.sd-preview {
+  max-width: 420px;
+}
+.sd-more {
+  margin: 0;
+}
+/* ---- two openings to test ---- */
+.sd-ab {
+  list-style: none;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-2);
+}
+.sd-ab li {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+}
+.sd-ab span {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+}
+.sd-ab b {
+  display: block;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-medium);
+}
+.sd-ab small {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+/* ---- what happened after your changes ---- */
+.sd-after {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  text-align: left;
+}
+.sd-after h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.sd-lessons {
+  margin: 0;
+  padding: var(--sp-3);
+  list-style: none;
+  display: grid;
+  gap: var(--sp-2);
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-body);
+}
+.sd-outcomes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.sd-outcomes li {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) 0;
+}
+.sd-outcomes li + li {
+  border-top: 1px solid var(--border);
+}
+.sd-outcomes header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-3);
+}
+.sd-outcomes b {
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-semibold);
+  overflow-wrap: anywhere;
+}
+.sd-outcomes p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-body);
+}
+.sd-outcomes em {
+  font-style: normal;
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+.sd-state {
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sd-state.is-published {
+  color: var(--positive-ink);
+}
+.sd-state.is-failed {
+  color: var(--negative-ink);
+}
