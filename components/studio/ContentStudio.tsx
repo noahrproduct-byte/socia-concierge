@@ -13,7 +13,10 @@ import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Lo
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
-import { DirectionsPanel, PerformancePanel, TimelinePanel, VerdictPanel } from "./RaterPanels";
+import { AfterCard, DirectionsPanel, PerformancePanel, TimelinePanel, VerdictPanel } from "./RaterPanels";
+import { momentsFrom, presetForFix } from "@/lib/studioFixes";
+import { entryFor, type Lesson, type RaterOutcome } from "@/lib/raterLog";
+import type { Direction } from "@/lib/studioVerdict";
 import { AskSociaButton } from "../AskSocia";
 import PlanNotice, { UsageLine } from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
@@ -75,6 +78,13 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [listenNote, setListenNote] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("verdict");
   const [step, setStep] = useState<Step>("edits");
+  // The creative direction whose opening is in use, and the rater's memory of earlier videos (lib/raterLog.ts).
+  const [direction, setDirection] = useState<{ name: string; opening: string } | null>(null);
+  const [after, setAfter] = useState<{ outcomes: RaterOutcome[]; lessons: Lesson[] } | null>(null);
+  const loadAfter = useCallback(() => {
+    fetch("/api/studio/rater-log").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.outcomes) setAfter({ outcomes: j.outcomes, lessons: j.lessons ?? [] }); }).catch(() => {});
+  }, []);
+  useEffect(() => { loadAfter(); }, [loadAfter]);
   const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: goalDefault, cover: null });
   const [seek, setSeek] = useState<SeekRequest>(null);
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
@@ -286,6 +296,15 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         setSavedId(id);
         saved = id;
       }
+      if (saved && analysis) {
+        // What SOCIA recommended and what was applied, kept with the post so its result can be read against it later. Best effort.
+        const entry = entryFor({
+          postId: saved, score: analysis.score.overall, diagnosis: analysis.diagnosis ?? "", fixes: analysis.topFixes,
+          current: { hook: analysis.hooks.current, cta: analysis.cta.current, caption: analysis.caption.current },
+          working: { hook: w.hook, cta: w.cta, caption: w.caption, onscreen: w.onscreen }, direction,
+        });
+        if (entry) void fetch("/api/studio/rater-log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entry }) }).then(() => loadAfter()).catch(() => {});
+      }
       if (saved) {
         notify("Draft saved to the Calendar");
         // It's a post now: Ask SOCIA must not offer to schedule the same file again.
@@ -295,7 +314,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       notify(e instanceof Error ? e.message : "Couldn't save the draft");
     } finally { setSaving(false); }
     return saved;
-  }, [source, w.caption, w.cta, userId, ratedRef]);
+  }, [source, w.caption, w.cta, w.hook, w.onscreen, userId, ratedRef, analysis, direction, loadAfter]);
 
   // ---- hand the piece to Create Post ---------------------------------------
   // Same save as above (an already saved draft is reused), then the composer
@@ -332,6 +351,19 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     void dur;
     router.push("/studio?mode=edit");
   }, [source, frames, w.layers, router]);
+  // The edits SOCIA can make, each tied to the fix it carries out (the Verdict cards offer them directly).
+  const moments = useMemo(() => (analysis && analysis.kind === "video" ? momentsFrom({ analysis, durationSec: frames?.duration ?? 0, hook: w.hook, cta: w.cta }) : []), [analysis, frames, w.hook, w.cta]);
+  const pickDirection = useCallback((d: Direction) => { apply("hook", d.opening); setDirection({ name: d.name, opening: d.opening }); }, [apply]);
+  // A direction as a new version: the editor opens on the same file with that opening line on the video.
+  const directionToEditor = useCallback((d: Direction) => {
+    if (!source?.file) return;
+    const dur = frames?.duration ?? 0;
+    const presetId = presetForFix("opening", d.opening);
+    const end = Math.min(dur || 3, 3);
+    const layer: EdlText = { id: `dir${Date.now().toString(36)}`, at: 0, end, text: d.opening, role: roleForTiming(0, end, dur), presetId };
+    handFiles("edit", [source.file], { layers: [layer], fix: { panel: "text" } });
+    router.push("/studio?mode=edit");
+  }, [source, frames, router]);
   const onProposed = useCallback((lines: { id: string; presetId: EdlText["presetId"]; text: string; at: number; end: number }[]) => {
     const dur = frames?.duration ?? 0;
     setW((c) => {
@@ -419,6 +451,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               <p className="ov-source">No virality odds, no view predictions, no invented trending audio.</p>
             </div>
           )}
+          {!source && after && <AfterCard outcomes={after.outcomes} lessons={after.lessons} />}
           {source && (phase === "extracting" || phase === "listening" || phase === "transcribing" || phase === "analyzing") && (
             <div className="ov-card st-progress" aria-live="polite">
               <b>{phase === "extracting" ? "Reading the file" : phase === "listening" || phase === "transcribing" ? "Listening to the video" : "Analyzing"}</b>
@@ -455,10 +488,10 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
                 <span className="st-tabs-ask"><AskSociaButton className="ov-btn ghost small" label="Ask SOCIA about this content" context={{ page: "studio", studio: { kind: source.kind, durationSec: frames?.duration ?? null, goal: w.goal, transcript: transcript || null, caption: w.caption || null, summary: summaryForAsk } }} contextLabel={source.name} onProposal={onProposal} /></span>
               </div>
-              {tab === "verdict" && <VerdictPanel a={analysis} w={w} apply={apply} seek={doSeek} onImprove={() => { setTab("improve"); setStep("edits"); }} />}
+              {tab === "verdict" && <VerdictPanel a={analysis} w={w} apply={apply} seek={doSeek} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onImprove={() => { setTab("improve"); setStep("edits"); }} onCaption={() => { setTab("improve"); setStep("caption"); }} />}
               {tab === "timeline" && <TimelinePanel a={analysis} thumbs={frames?.thumbs ?? []} playT={playT} seek={doSeek} setActive={setActiveMarker} />}
               {tab === "performance" && <PerformancePanel a={analysis} onCompare={() => window.location.assign("/analytics#content")} />}
-              {tab === "directions" && <DirectionsPanel a={analysis} w={w} apply={apply} />}
+              {tab === "directions" && <DirectionsPanel a={analysis} w={w} apply={apply} canHandoff={Boolean(source.file)} onUseDirection={pickDirection} onEditor={directionToEditor} />}
               {tab === "improve" && (
                 <>
                   <div className="sd-steps" role="tablist" aria-label="Improve and export">

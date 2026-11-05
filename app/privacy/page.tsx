@@ -115,7 +115,11 @@ export default function PrivacyPage() {
           analyze is read in your browser, which sends sampled frames for
           analysis; its sound is uploaded briefly for transcription. Clips you
           add to Build or Edit are uploaded to private storage so SOCIA can
-          analyze them and you can edit them and use them again later.
+          analyze them and you can edit them and use them again later. When you
+          save a video you analyzed to your Calendar, SOCIA keeps a short
+          record with that brand: the changes it recommended, which ones you
+          applied and the opening and ending lines you chose, so it can show
+          how the post did afterwards. It keeps the most recent twelve.
         </li>
         <li>
           <b>Brand and profile details you provide</b>: your niche, goals,

@@ -20,6 +20,8 @@ import { scopeToWorkspace, competitorScopeId } from "@/lib/workspaces";
 import { nicheVetted } from "@/lib/discovery";
 import { fetchAllowed, isPlatformMediaUrl } from "@/lib/fetchGuard";
 import { loadNicheRead } from "@/lib/trendSignalsLoad";
+import { loadOutcomes } from "@/lib/raterLogLoad";
+import { logEvidence } from "@/lib/raterLog";
 import { refResult } from "@/lib/trendSignals";
 import { byPriority, citedIds, cleanCompetitors, cleanDirections, cleanExperiments, cleanFixExtras, validCuts, type PostRef } from "@/lib/studioVerdict";
 
@@ -122,6 +124,8 @@ Planned shots: ${planned.guide.shots.map((x) => x.shot).join("; ")}` : ""}`
   const top: PostCard[] = [...posts].sort((a, b) => (b.views ?? -1) - (a.views ?? -1)).slice(0, 6);
   // Competitors' Reels that took off, the same read plans and ideas build on (lib/trendSignalsLoad.ts); none off the plan feature or when nothing is on file.
   const nicheReadP = competitorScopeId(ctx.client, ctx.workspace?.id).then((scope) => loadNicheRead(ctx.client, ctx.ownerId, scope, { location: profile?.brand_detail?.location ?? null })).catch(() => null);
+  // What SOCIA recommended for earlier videos, what was applied and how those posts did (lib/raterLog.ts).
+  const pastP = loadOutcomes(ctx).then(logEvidence).catch(() => "");
   const covers = (await Promise.all(top.map((p) => (p.thumb ? fetchB64(p.thumb) : Promise.resolve(null))))).map((b, i) => ({ b64: b, post: top[i] }));
   const rivals = ((await nicheReadP)?.proven ?? []).filter((r) => r.proven).slice(0, 6);
   // The posts a comparison may cite, each with its own link and published numbers (never the model's).
@@ -146,6 +150,7 @@ Planned shots: ${planned.guide.shots.map((x) => x.shot).join("; ")}` : ""}`
   const nicheText = niche.length
     ? `High-performing content SOCIA found in the niche (titles and detected features only; treat as observed patterns, not proof):\n${niche.map((n) => `- "${n.title ?? "(untitled)"}"${n.trend_tags?.length ? ` · features: ${n.trend_tags.join(", ")}` : ""}${n.multiplier != null ? ` · ${Number(n.multiplier).toFixed(1)}× the creator's median` : ""}`).join("\n")}`
     : "No niche content is on file (return an empty patterns list and say so).";
+  const past = await pastP;
   const rivalsText = rivals.length
     ? `Competitors' Reels and Shorts that took off (SOCIA read these numbers from the platforms; each beat its own creator's usual by 1.5x or more, or passed 100,000 views; other accounts' results, not a prediction for this one):\n${rivals.map((r) => `${r.id}. ${r.platform} ${r.format} by ${r.accountHandle ? `@${r.accountHandle}` : r.accountName} · ${r.line ? `opens: "${r.line}"` : r.title ? `"${r.title.slice(0, 100)}"` : "no caption"} · ${refResult(r) || "no counts published"}${r.structures.length ? ` · hook structure: ${r.structures.join(", ")}` : ""}${r.topics.length ? ` · topic: ${r.topics.join(", ")}` : ""}`).join("\n")}`
     : "No competitor Reels are on file (return an empty competitors.rows list).";
@@ -178,6 +183,10 @@ ${winnersText}
 ${nicheText}
 
 ${rivalsText}
+
+${past ? `# What SOCIA recommended for this account's earlier videos, and what happened
+${past}
+Use this. Build on a change that was applied and did better than the account's usual, and say so in that fix's evidence.account. Do not push a change again as if it were new when it was applied and the post did at or below the usual: say what you would change about it this time. One post is never proof, and a pattern needs three settled posts: keep those words' caution.` : ""}
 
 Return the JSON. Requirements:
 - diagnosis: one sentence, under 110 characters, naming the single thing holding the draft back.

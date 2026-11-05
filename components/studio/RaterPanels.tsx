@@ -15,6 +15,9 @@ import Link from "next/link";
 import { ArrowRight, Check, ChevronDown, Clock, Copy, ExternalLink, FlaskConical } from "lucide-react";
 import { CATEGORY_INFO, fmtT, type ApplyField, type Marker, type StudioAnalysis, type TopFix } from "@/lib/studio";
 import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, type Direction, type PostRef, type RefRow } from "@/lib/studioVerdict";
+import { CAPABILITY, type Moment } from "@/lib/studioFixes";
+import { finding, nextStep, type Lesson, type RaterOutcome } from "@/lib/raterLog";
+import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
 import { Bar } from "@/components/dashboard/motion";
 import "@/app/(app)/dashboard/dashboard.css";
 import "@/app/(app)/studio/studio.css";
@@ -46,8 +49,23 @@ function fixWhen(f: TopFix): string | null {
 
 // ------------------------------------------------------------------ verdict ----
 
-export function VerdictPanel({ a, w, apply, seek, onImprove }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; seek: (t: number) => void; onImprove: () => void }) {
+export type VerdictProps = {
+  a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; seek: (t: number) => void;
+  /** The edits SOCIA can make (lib/studioFixes.ts), each tied to the fix it carries out. */
+  moments: Moment[];
+  thumbs: { src: string; t: number }[];
+  frame: { width: number; height: number } | null;
+  durationSec: number;
+  /** The file is at hand, so a fix can open the editor with it applied. */
+  canHandoff: boolean;
+  onFix: (m: Moment, o: FixOptions) => void;
+  onImprove: () => void;
+  onCaption: () => void;
+};
+
+export function VerdictPanel({ a, w, apply, seek, moments, thumbs, frame, durationSec, canHandoff, onFix, onImprove, onCaption }: VerdictProps) {
   const [openCat, setOpenCat] = useState<string | null>(null);
+  const [preview, setPreview] = useState<number | null>(null);
   const urgent = a.topFixes.filter((f) => f.priority === "critical" || f.priority === "high").length;
   const inUse = (f: TopFix) => (f.apply ? (f.apply.field === "onscreen" ? w.onscreen.includes(f.apply.value) : w[f.apply.field] === f.apply.value) : false);
   return (
@@ -72,6 +90,7 @@ export function VerdictPanel({ a, w, apply, seek, onImprove }: { a: StudioAnalys
         {a.topFixes.map((f, i) => {
           const when = fixWhen(f);
           const priority = f.priority ?? (i === 0 ? "high" : "medium");
+          const m = moments.find((x) => x.fixIndex === i) ?? null;
           return (
             <li key={`${f.title}-${i}`} className={`sd-fix is-${priority}`}>
               <header>
@@ -87,8 +106,13 @@ export function VerdictPanel({ a, w, apply, seek, onImprove }: { a: StudioAnalys
               <div className="sd-fix-actions">
                 {f.t != null && a.kind === "video" && <button type="button" className="ov-btn ghost small" onClick={() => seek(f.t!)}><Clock size={12} /> Jump to {fmtT(f.t)}</button>}
                 {f.apply && <button type="button" className={`ov-btn ${inUse(f) ? "ghost" : "primary"} small`} onClick={() => apply(f.apply!.field, f.apply!.value)}>{inUse(f) ? <><Check size={12} /> In use</> : APPLY_LABEL[f.apply.field]}</button>}
-                {a.kind === "video" && priority !== "experiment" && <button type="button" className="ov-btn ghost small" onClick={onImprove}>Fix it in Improve <ArrowRight size={12} /></button>}
+                {m && m.capability !== "caption" && <button type="button" className="ov-btn ghost small" aria-expanded={preview === i} onClick={() => setPreview(preview === i ? null : i)}>{preview === i ? "Hide the preview" : "Preview the change"}</button>}
+                {m && m.capability !== "caption" && <button type="button" className={`ov-btn ${f.apply ? "ghost" : "primary"} small`} disabled={!canHandoff} onClick={() => onFix(m, { presetId: m.text?.presetId, cuts: m.cuts?.map(({ start, end }) => ({ start, end })) })}>{CAPABILITY[m.capability].label} <ArrowRight size={12} /></button>}
+                {m && m.capability === "caption" && <button type="button" className="ov-btn ghost small" onClick={onCaption}>Rewrite the caption <ArrowRight size={12} /></button>}
               </div>
+              {m && m.capability !== "caption" && <p className="sd-note">{canHandoff ? `Opens the ${CAPABILITY[m.capability].where}${m.capability === "pauses" || m.capability === "text" ? " with this applied. Your original file is not changed" : ""}.` : "Upload the original file to apply this in the editor."}</p>}
+              {!m && !f.apply && priority !== "experiment" && a.kind === "video" && <p className="sd-note">This one is yours to make: SOCIA can&apos;t reshoot or re-record it.</p>}
+              {m && preview === i && <div className="sd-preview"><MomentPreview m={m} thumbs={thumbs} frame={frame} durationSec={durationSec} /></div>}
               {(f.evidence || f.apply) && (
                 <details className="sd-why">
                   <summary>Why SOCIA recommends this</summary>
@@ -105,6 +129,10 @@ export function VerdictPanel({ a, w, apply, seek, onImprove }: { a: StudioAnalys
           );
         })}
       </ol>
+
+      {a.kind === "video" && moments.length > 0 && (
+        <p className="sd-note sd-more"><button type="button" className="ov-link" onClick={onImprove}>All {moments.length} edits SOCIA can make, one by one <ArrowRight size={12} /></button></p>
+      )}
 
       {a.strengths && a.strengths.length > 0 && (
         <section className="st-block">
@@ -354,7 +382,7 @@ export function PerformancePanel({ a, onCompare }: { a: StudioAnalysis; onCompar
 
 // --------------------------------------------------------------- directions ----
 
-function DirectionCard({ d, inUse, onUse }: { d: Direction; inUse: boolean; onUse: () => void }) {
+function DirectionCard({ d, inUse, onUse, canHandoff, onEditor }: { d: Direction; inUse: boolean; onUse: () => void; canHandoff: boolean; onEditor: () => void }) {
   return (
     <li className={`sd-dir${d.testFirst ? " is-first" : ""}`}>
       <header>
@@ -384,14 +412,18 @@ function DirectionCard({ d, inUse, onUse }: { d: Direction; inUse: boolean; onUs
       </dl>
       <div className="sd-fix-actions">
         <button type="button" className={`ov-btn ${inUse ? "ghost" : "primary"} small`} onClick={onUse}>{inUse ? <><Check size={12} /> Opening in use</> : "Use this opening"}</button>
+        <button type="button" className="ov-btn ghost small" disabled={!canHandoff} onClick={onEditor}>Start this version in the editor <ArrowRight size={12} /></button>
         <CopyBtn text={directionText(d)} label="Copy the brief" />
       </div>
+      <p className="sd-note">{canHandoff ? "The editor opens with this opening line on the video. Reordering the shots is yours to do there; your original file is not changed." : "Upload the original file to start this version in the editor."}</p>
     </li>
   );
 }
 
-export function DirectionsPanel({ a, w, apply }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void }) {
+export function DirectionsPanel({ a, w, apply, canHandoff, onUseDirection, onEditor }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; canHandoff: boolean; onUseDirection: (d: Direction) => void; onEditor: (d: Direction) => void }) {
   const dirs = a.directions ?? [];
+  const first = dirs.find((d) => d.testFirst) ?? dirs[0];
+  const second = dirs.find((d) => d !== first);
   return (
     <div className="st-panel">
       {dirs.length > 0 ? (
@@ -399,11 +431,22 @@ export function DirectionsPanel({ a, w, apply }: { a: StudioAnalysis; w: Working
           <h3>Three ways to remake it</h3>
           <p className="sd-note">Each is a version to test, with what it costs you. SOCIA can&apos;t know which will do best: it marks the one it would try first and says why.</p>
           <ol className="sd-dirs">
-            {dirs.map((d) => <DirectionCard key={d.name} d={d} inUse={w.hook === d.opening} onUse={() => apply("hook", d.opening)} />)}
+            {dirs.map((d) => <DirectionCard key={d.name} d={d} inUse={w.hook === d.opening} onUse={() => onUseDirection(d)} canHandoff={canHandoff} onEditor={() => onEditor(d)} />)}
           </ol>
         </section>
       ) : (
         <div className="ov-empty small">{a.kind === "video" ? "This analysis was made before creative directions existed. Re-analyze to get three ways to remake the video." : "Creative directions are for videos. For a still post, the opening lines below and the Caption tab carry the change."}</div>
+      )}
+
+      {first && second && (
+        <section className="st-block">
+          <h3><FlaskConical size={14} /> Test two openings</h3>
+          <ol className="sd-ab">
+            <li><span>Version A</span><div><b>{first.opening}</b><small>{first.name}</small></div></li>
+            <li><span>Version B</span><div><b>{second.opening}</b><small>{second.name}</small></div></li>
+          </ol>
+          <p className="sd-note">Post A as this video and B on your next comparable one, at a similar time of day. Choose &ldquo;Use this opening&rdquo; on the version you are posting, then save it: SOCIA records which one it was and shows both results on the Rate screen once they have been out about three days. Two posts show a difference, not a cause.</p>
+        </section>
       )}
 
       {a.hooks.options.length > 0 && (
@@ -436,5 +479,42 @@ export function DirectionsPanel({ a, w, apply }: { a: StudioAnalysis; w: Working
         </section>
       )}
     </div>
+  );
+}
+
+// ------------------------------------------------------- what happened after ----
+
+const STATE_WORD: Record<RaterOutcome["state"], string> = { draft: "Draft", scheduled: "Scheduled", published: "Published", failed: "Did not publish", gone: "Removed" };
+
+/**
+ * The rater's memory (lib/raterLog.ts): each video it rated and saved, what
+ * was applied and how the post did once it was out. Hidden until one exists.
+ */
+export function AfterCard({ outcomes, lessons }: { outcomes: RaterOutcome[]; lessons: Lesson[] }) {
+  if (!outcomes.length) return null;
+  return (
+    <section className="ov-card sd-after" aria-labelledby="sd-after-h">
+      <h2 id="sd-after-h">What happened after your changes</h2>
+      <p className="sd-note">Each video you rated and saved, the changes you applied, and how the post did against your own usual. One post is never proof; a pattern needs three settled posts.</p>
+      {lessons.length > 0 && <ul className="sd-lessons">{lessons.map((l) => <li key={l.kind}>{l.line}</li>)}</ul>}
+      <ul className="sd-outcomes">
+        {outcomes.slice(0, 6).map((o) => {
+          const applied = o.fixes.filter((f) => f.applied);
+          const step = nextStep(o);
+          return (
+            <li key={o.postId}>
+              <header>
+                <b>{o.direction ? `${o.direction}: ` : ""}{o.hook || o.diagnosis || "Rated video"}</b>
+                <span className={`sd-state is-${o.state}`}>{STATE_WORD[o.state]}{o.result?.measured ? ` · ${o.result.short}` : ""}</span>
+              </header>
+              <p>{applied.length ? `Applied: ${applied.map((f) => f.title).join("; ")}.` : "No recommended change was applied."} Scored {o.score} on {new Date(o.at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}.</p>
+              <p>{finding(o)}</p>
+              {step && <p><em>Next:</em> {step}</p>}
+              {o.permalink && <a href={o.permalink} target="_blank" rel="noopener noreferrer" className="ov-link">Open the post <ExternalLink size={12} aria-hidden /></a>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

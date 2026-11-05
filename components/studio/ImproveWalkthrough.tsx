@@ -109,6 +109,37 @@ function PauseCut({ open, durationSec, cuts, chosen, toggle }: { open: boolean; 
   );
 }
 
+/**
+ * One moment's change shown on the footage, as it would be applied with
+ * SOCIA's own choices (its preset, every cut): the before and after for a
+ * card that offers the fix without the walkthrough around it. Nothing in it
+ * is a control; the choices are made in Improve.
+ */
+export function MomentPreview({ m, thumbs, frame, durationSec }: { m: Moment; thumbs: { src: string; t: number }[]; frame: { width: number; height: number } | null; durationSec: number }) {
+  const src = thumbs.length ? thumbs.reduce((best, th) => (Math.abs(th.t - m.t) < Math.abs(best.t - m.t) ? th : best), thumbs[0]).src : null;
+  const size = frame ?? { width: 1080, height: 1920 };
+  if (m.capability === "text" && m.text) return <TextOnFrame src={src} open presetId={m.text.presetId} text={m.text.value} frame={size} />;
+  if (m.capability === "noise") return <LevelMeter open sound={m.sound} />;
+  if (m.capability === "look") return <BeforeAfter src={src} open afterStyle={{ filter: "sepia(0.06) saturate(0.94) brightness(1.02)" }} label={["Now", "Matched (approximate)"]} />;
+  if (m.capability === "pauses" && m.cuts?.length) {
+    const saved = m.cuts.reduce((a, c) => a + (c.end - c.start), 0);
+    let cursor = 0;
+    const pieces: { kind: "keep" | "cut"; len: number }[] = [];
+    m.cuts.forEach((c) => { pieces.push({ kind: "keep", len: Math.max(0, c.start - cursor) }); pieces.push({ kind: "cut", len: c.end - c.start }); cursor = c.end; });
+    pieces.push({ kind: "keep", len: Math.max(0, durationSec - cursor) });
+    return (
+      <div className="imw-viz">
+        <div className="imw-cutbar" aria-hidden>{pieces.map((p, k) => <i key={k} className={p.kind === "keep" ? "speech" : "pause"} style={{ flexGrow: p.len / durationSec, flexBasis: 0 }} />)}</div>
+        <ul className="imw-pauses">
+          {m.cuts.map((c, i) => <li key={i}>{fmtSpan(c.start, c.end)}{c.reason ? ` · ${c.reason}` : ""}</li>)}
+          <li className="ov-source">Removes {saved.toFixed(1)} s; the video would run {Math.max(0, durationSec - saved).toFixed(1)} s.</li>
+        </ul>
+      </div>
+    );
+  }
+  return null;
+}
+
 /** A track's level under the speech, rising into the ending: how SOCIA mixes the one it makes. */
 function MusicLine({ open }: { open: boolean }) {
   return (
