@@ -16,6 +16,7 @@ import {
 import type { DailySnapshot } from "./dashboardMetrics";
 import { recentPlanOutcomes } from "./planOutcomesLoad";
 import { weeklyScorecard, type Scorecard } from "./weeklyScorecard";
+import { nicheVetted } from "./discovery";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -81,10 +82,10 @@ export async function buildWeeklyRoundup(
   let trends: RoundupItem[] = [];
   let opportunities: RoundupItem[] = [];
   try {
-    let q = supabase.from("discovered_content").select("trend_tags, multiplier, content_type, last_checked, published_at").eq("user_id", ownerId);
+    let q = supabase.from("discovered_content").select("trend_tags, multiplier, content_type, last_checked, published_at, data_source, relevance_reasons").eq("user_id", ownerId);
     if (cwid) q = q.eq("workspace_id", cwid);
     const { data } = await q.limit(200);
-    const rows = (data ?? []) as { trend_tags: unknown; multiplier: number | null; content_type: string | null; last_checked: string | null; published_at: string | null }[];
+    const rows = ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted) as { trend_tags: unknown; multiplier: number | null; content_type: string | null; last_checked: string | null; published_at: string | null }[];
     if (rows.length) {
       const items = rows.map((r) => ({
         trendTags: Array.isArray(r.trend_tags) ? (r.trend_tags as unknown[]).map((t) => String(t)) : [],

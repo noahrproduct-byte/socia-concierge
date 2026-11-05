@@ -15,6 +15,7 @@ import { growthLines } from "./growth";
 import { anthropic, FAST_MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
 import { buildFormats, examplesFrom, formatsKey, type FormatExample, type FormatsDoc, type RawFormat } from "./nicheFormats";
+import { nicheVetted } from "./discovery";
 
 export const formatsSchema = {
   type: "object", additionalProperties: false,
@@ -57,15 +58,16 @@ export async function loadExamples(ctx: Ctx, now: Date): Promise<{ examples: For
   const scoped = <T>(q: T): T => (cwid ? ((q as unknown as { eq: (c: string, v: string) => T }).eq("workspace_id", cwid)) : q);
   const [contentRes, runRes, tracked, accountsRes, mine] = await Promise.all([
     scoped(ctx.client.from("discovered_content")
-      .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, multiplier, data_source")
+      .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, multiplier, data_source, relevance_reasons")
       .eq("user_id", ctx.ownerId)).limit(200).then((r: { data: unknown }) => r, () => ({ data: [] })),
     scoped(ctx.client.from("discovery_runs").select("ran_at").eq("user_id", ctx.ownerId)).maybeSingle().then((r: { data: unknown }) => r, () => ({ data: null })),
     listTracked<{ platform: string; handle: string }>(ctx.client, ctx.ownerId, "platform, handle", { workspaceId: cwid }).catch(() => []),
-    scoped(ctx.client.from("discovered_accounts").select("platform, handle").eq("user_id", ctx.ownerId)).limit(40).then((r: { data: unknown }) => r, () => ({ data: [] })),
+    scoped(ctx.client.from("discovered_accounts").select("platform, handle, data_source, relevance_reasons").eq("user_id", ctx.ownerId)).limit(60).then((r: { data: unknown }) => r, () => ({ data: [] })),
     ownAccounts(ctx.client, ctx.ownerId).catch(() => null),
   ]);
-  const content = (contentRes.data ?? []) as Record<string, unknown>[];
-  const accounts = (accountsRes.data ?? []) as { platform: string; handle: string | null }[];
+  // YouTube search results count only once they passed the niche check (lib/nicheCheck.ts).
+  const content = ((contentRes.data ?? []) as Record<string, unknown>[]).filter(nicheVetted);
+  const accounts = ((accountsRes.data ?? []) as { platform: string; handle: string | null }[]).filter(nicheVetted).slice(0, 40);
   const igHandles = [
     ...tracked.filter((t) => t.platform === "instagram").map((t) => t.handle),
     ...accounts.filter((a) => a.platform === "instagram" && a.handle).map((a) => a.handle!),

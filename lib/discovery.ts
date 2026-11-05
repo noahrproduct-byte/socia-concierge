@@ -207,7 +207,23 @@ export type AccountCandidate = {
   engagementRate?: number | null;
   matchedIntent?: string;
   note?: string | null;
+  /** Set once a YouTube search result passed the niche check (lib/nicheCheck.ts). */
+  nicheChecked?: boolean;
 };
+
+/** The reason a YouTube search result carries once it passed the niche check. */
+export const NICHE_CHECKED = "Checked against your niche";
+
+/**
+ * Whether a stored discovery row may be shown or built on. A YouTube keyword
+ * search matches words, not meaning, so its rows count only once they passed
+ * the niche check; rows stored before that check existed do not.
+ */
+export function nicheVetted(row: object): boolean {
+  const r = row as { data_source?: unknown; relevance_reasons?: unknown };
+  if (r.data_source !== "youtube_api") return true;
+  return Array.isArray(r.relevance_reasons) && r.relevance_reasons.includes(NICHE_CHECKED);
+}
 
 export type ScoredAccount = AccountCandidate & {
   classification: Classification;
@@ -307,6 +323,7 @@ export function scoreAccount(c: AccountCandidate, p: DiscoveryProfile): ScoredAc
     score += 8;
     reasons.push("Verified public metrics");
   }
+  if (c.nicheChecked) reasons.push(NICHE_CHECKED);
 
   return {
     ...c,
@@ -358,6 +375,8 @@ export type ContentCandidate = {
   dataSource: DataSource;
   why: string | null;
   matchedIntent?: string;
+  /** Set once a YouTube search result passed the niche check (lib/nicheCheck.ts). */
+  nicheChecked?: boolean;
 };
 
 export type ScoredContent = ContentCandidate & {
@@ -504,6 +523,7 @@ export function scoreContent(c: ContentCandidate, p: DiscoveryProfile): ScoredCo
     score += 6;
     reasons.push("Verified public metrics");
   }
+  if (c.nicheChecked) reasons.push(NICHE_CHECKED);
 
   return {
     ...c,

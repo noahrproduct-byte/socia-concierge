@@ -23,6 +23,7 @@ import { experimentResults } from "./experimentsLoad";
 import { experimentsEvidence } from "./experiments";
 import { FORMATS_PRODUCER, formatsEvidence } from "./nicheFormats";
 import { listTracked } from "./trackedCompetitors";
+import { nicheVetted } from "./discovery";
 import type { SavedPlan } from "./schema";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -161,9 +162,9 @@ export async function buildAskEvidence(supabase: Supa, userId: string, ctx: AskC
     let tracked: { platform: string; handle: string }[] = [];
     let winning: { platform: string; account_name: string | null; title: string | null; views: number | null; likes: number | null; comments: number | null; multiplier: number | null; trend_tags: string[] | null; why_recommended: string | null; published_at: string | null }[] = [];
     const cwid = await competitorScopeId(supabase, workspaceId);
-    try { const { data } = await scopeToWorkspace(supabase.from("discovered_accounts").select("platform, platform_account_id, handle, display_name, followers, location, category, classification, relevance_score").eq("user_id", userId), cwid).order("relevance_score", { ascending: false, nullsFirst: false }).limit(12); accounts = data ?? []; } catch { /* none */ }
+    try { const { data } = await scopeToWorkspace(supabase.from("discovered_accounts").select("platform, platform_account_id, handle, display_name, followers, location, category, classification, relevance_score, data_source, relevance_reasons").eq("user_id", userId), cwid).order("relevance_score", { ascending: false, nullsFirst: false }).limit(40); accounts = (data ?? []).filter(nicheVetted).slice(0, 12); } catch { /* none */ }
     try { tracked = await listTracked<{ platform: string; handle: string }>(supabase, userId, "platform, handle", { limit: 20, workspaceId: cwid }); } catch { /* none */ }
-    try { const { data } = await scopeToWorkspace(supabase.from("discovered_content").select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at").eq("user_id", userId), cwid).order("multiplier", { ascending: false, nullsFirst: false }).limit(30); winning = data ?? []; } catch { /* none */ }
+    try { const { data } = await scopeToWorkspace(supabase.from("discovered_content").select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at, data_source, relevance_reasons").eq("user_id", userId), cwid).order("multiplier", { ascending: false, nullsFirst: false }).limit(80); winning = (data ?? []).filter(nicheVetted).slice(0, 30); } catch { /* none */ }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const block = competitorsBlock(accounts as any, tracked as any, winning as any);
     if (block) parts.push(`# Competitors and winning content SOCIA holds (YouTube figures from the YouTube Data API; Instagram/Facebook accounts from web research carry no metrics)`, block);

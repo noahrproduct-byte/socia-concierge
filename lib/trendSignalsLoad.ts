@@ -13,6 +13,7 @@ import { withBaseline, type CompPost } from "./competitorIntel";
 import { listTracked } from "./trackedCompetitors";
 import { isOwnAccount, ownAccounts } from "./ownAccounts";
 import { locationTokens } from "./competitorPatterns";
+import { nicheVetted } from "./discovery";
 import { scopeToWorkspace } from "./workspaces";
 import type { NichePost } from "./nicheTrends";
 import { provenReels, rankTrendingReels, trendSignals, type ProvenReel, type TrendAccount, type TrendSignals } from "./trendSignals";
@@ -52,18 +53,19 @@ async function read(client: Supa, ownerId: string, scopeId: string | null, locat
     listTracked<{ platform: string; handle: string }>(client, ownerId, "platform, handle", { workspaceId: scopeId }).catch(() => []),
     (async () => {
       try {
-        const { data } = await scopeToWorkspace(client.from("discovered_accounts").select("platform, handle, display_name").eq("user_id", ownerId), scopeId)
-          .order("relevance_score", { ascending: false, nullsFirst: false }).limit(24);
-        return (data ?? []) as { platform: string; handle: string | null; display_name: string | null }[];
+        const { data } = await scopeToWorkspace(client.from("discovered_accounts").select("platform, handle, display_name, data_source, relevance_reasons").eq("user_id", ownerId), scopeId)
+          .order("relevance_score", { ascending: false, nullsFirst: false }).limit(48);
+        // YouTube search results count only once they passed the niche check (lib/nicheCheck.ts).
+        return ((data ?? []) as { platform: string; handle: string | null; display_name: string | null }[]).filter(nicheVetted).slice(0, 24);
       } catch { return []; }
     })(),
     (async () => {
       try {
         const { data } = await scopeToWorkspace(client.from("discovered_content")
-          .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, data_source")
+          .select("content_url, platform, account_name, account_handle, title, thumbnail_url, views, likes, comments, published_at, content_type, multiplier, data_source, relevance_reasons")
           .eq("user_id", ownerId), scopeId)
           .in("content_type", ["short", "reel"]).order("relevance_score", { ascending: false }).limit(120);
-        return (data ?? []) as Record<string, unknown>[];
+        return ((data ?? []) as Record<string, unknown>[]).filter(nicheVetted);
       } catch { return []; }
     })(),
   ]);

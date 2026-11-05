@@ -17,6 +17,7 @@ import { experimentsEvidence } from "./experiments";
 import type { GrowthStrategy } from "./strategy";
 import type { Deliverable } from "./schema";
 import { loadNicheRead } from "./trendSignalsLoad";
+import { nicheVetted } from "./discovery";
 import { provenEvidence, trendsEvidence, type ProvenReel } from "./trendSignals";
 
 export type Evidence = {
@@ -255,11 +256,12 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   try {
     const { data } = await scopeToWorkspace(supabase
       .from("discovered_accounts")
-      .select("platform, handle, display_name, followers, location, category, classification, relevance_score")
+      .select("platform, handle, display_name, followers, location, category, classification, relevance_score, data_source, relevance_reasons")
       .eq("user_id", userId), workspaceId)
       .order("relevance_score", { ascending: false, nullsFirst: false })
-      .limit(12);
-    accounts = (data ?? []) as CompetitorRow[];
+      .limit(40);
+    // YouTube search results count only once they passed the niche check (lib/nicheCheck.ts).
+    accounts = ((data ?? []) as (CompetitorRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted).slice(0, 12);
   } catch { /* none */ }
   try {
     tracked = await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId });
@@ -267,11 +269,11 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   try {
     const { data } = await scopeToWorkspace(supabase
       .from("discovered_content")
-      .select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at")
+      .select("platform, account_name, title, views, likes, comments, multiplier, trend_tags, why_recommended, published_at, data_source, relevance_reasons")
       .eq("user_id", userId), workspaceId)
       .order("multiplier", { ascending: false, nullsFirst: false })
-      .limit(30);
-    winning = (data ?? []) as WinningRow[];
+      .limit(80);
+    winning = ((data ?? []) as (WinningRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted).slice(0, 30);
   } catch { /* none */ }
 
   // The niche's trends read live alongside the stored rows; null off the plan feature or on a slow platform.
