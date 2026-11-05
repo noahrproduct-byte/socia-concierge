@@ -12,7 +12,9 @@ import { ArrowRight, ChevronDown, Plug, Target } from "lucide-react";
 import { Empty, ButtonLink } from "@/components/system";
 import { GOAL_PLATFORM_NAME } from "@/lib/growth";
 import type { GrowthBriefing, LearningLine, NextAction, WorkRow } from "@/lib/intel/overview";
+import type { AngleRow, NicheTry } from "@/lib/intel/angles";
 import { Bar, useMotionOk } from "./motion";
+import { TREND_LEADS_AT as LEADS_AT } from "@/lib/trendSignals";
 
 const DASH = String.fromCharCode(0x2014);
 
@@ -36,6 +38,15 @@ export type IntelData = {
   works: WorkRow[];
   /** Why works is empty, from the account's own counts (lib/intel/overview.ts worksGap). */
   worksGap?: string;
+  /** Hooks and topics against the account's median, with the niche's read of each (lib/intel/angles.ts). */
+  angles: AngleRow[];
+  anglesGap?: string;
+  /** Hooks and topics leading in the niche that none of the account's posts use. */
+  nicheToTry: NicheTry[];
+  /** How much of the niche the trends rest on; null when nothing is stored yet. */
+  nicheRead: { reels: number; accounts: number } | null;
+  /** The plan includes niche trends. */
+  nicheOn: boolean;
   themes: { name: string; posts: number; example: string }[];
   postsRead: number;
   actions: NextAction[];
@@ -132,8 +143,76 @@ export function WorksBars({ works, gap }: { works: WorkRow[]; gap?: string }) {
   );
 }
 
+const nicheLine = (n: NonNullable<AngleRow["niche"]>) =>
+  n.leads && n.multiple != null ? `Leads in your niche, ${n.multiple}x` : "Not ahead in your niche";
+
+function AngleBars({ title, rows, label }: { title: string; rows: AngleRow[]; label: string }) {
+  if (!rows.length) return null;
+  const max = Math.max(1, ...rows.map((r) => r.multiple));
+  return (
+    <>
+      <span className="dash-mini-label">{title}</span>
+      <ul className="dash-bars is-wrap" aria-label={label}>
+        {rows.map((r) => (
+          <li key={`${r.platform}-${r.kind}-${r.label}`} role="img" aria-label={`${r.label} on ${GOAL_PLATFORM_NAME[r.platform]}: ${r.multiple} times your median, ${r.posts} posts${r.niche ? `. ${nicheLine(r.niche)}` : ""}`}>
+            <span className="dash-bars-name">
+              <b>{r.label}</b>
+              <small>{r.posts} posts</small>
+              {r.niche && <small className={r.niche.leads ? "dash-bars-lead" : undefined}>{nicheLine(r.niche)}</small>}
+            </span>
+            <Bar share={r.multiple / max} tone={r.multiple >= 1 ? "data" : "muted"} />
+            <b className="dash-bars-num">{r.multiple}x</b>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/**
+ * "What's working" beyond formats: the account's hooks and topics against its
+ * own median (so a Reels-only account has a comparison too), and what leads in
+ * the niche that it hasn't tried. Every number is counted (lib/intel/angles.ts).
+ */
+export function AngleSections({ intel }: { intel: IntelData }) {
+  const hooks = intel.angles.filter((a) => a.kind === "hook").slice(0, 3);
+  const topics = intel.angles.filter((a) => a.kind === "topic").slice(0, 3);
+  const toTry = intel.nicheToTry;
+  return (
+    <>
+      <AngleBars title="How your posts open" rows={hooks} label="Hooks against your median" />
+      <AngleBars title="What they're about" rows={topics} label="Topics against your median" />
+      {!intel.angles.length && intel.anglesGap && <p className="dash-note">{intel.anglesGap}</p>}
+      {intel.nicheOn && (
+        toTry.length > 0 ? (
+          <>
+            <span className="dash-mini-label">Trending in your niche, not in your posts yet</span>
+            <ul className="dash-notes">
+              {toTry.map((t) => (
+                <li key={`${t.kind}-${t.label}`}>
+                  <span>
+                    <b>{t.label}</b> {t.kind === "hook" ? "openings" : "posts"}{t.multiple != null ? ` reach ${t.multiple}x their creators' usual` : " lead"}, across {t.posts} Reels from {t.accounts} accounts.
+                  </span>{" "}
+                  <Link className="s-link" href={`/plan?note=${encodeURIComponent(`Try a ${t.kind === "hook" ? `"${t.label}" opening` : `post about ${t.label.toLowerCase()}`}: it leads in my niche (${t.multiple ?? "?"}x their creators' usual across ${t.posts} Reels from ${t.accounts} accounts) and I haven't used it yet.`)}`}>Add to plan</Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="dash-note">
+            {intel.nicheRead
+              ? `Nothing leads in your niche that your posts don't already use, from ${intel.nicheRead.reels} recent Reels by ${intel.nicheRead.accounts} accounts.`
+              : "No niche Reels stored yet."}{" "}
+            <Link className="s-link" href="/discover">Open Discover</Link>
+          </p>
+        )
+      )}
+    </>
+  );
+}
+
 /** What the works bars rest on, for the card's Details. */
-export function WorksNotes({ works, themes, postsRead }: { works: WorkRow[]; themes: IntelData["themes"]; postsRead: number }) {
+export function WorksNotes({ works, themes, postsRead, nicheRead = null }: { works: WorkRow[]; themes: IntelData["themes"]; postsRead: number; nicheRead?: IntelData["nicheRead"] }) {
   return (
     <>
       {themes.length > 0 && (
@@ -141,7 +220,9 @@ export function WorksNotes({ works, themes, postsRead }: { works: WorkRow[]; the
           <span>Recurring themes</span> {themes.map((t) => `${t.name} (${t.posts})`).join(", ")}. Named from your captions, not yet measured.
         </p>
       )}
-      <p className="dash-note">Median {works[0]?.metric ?? "result"} per post for each format, against the account&apos;s own median, from the {postsRead} most recent posts SOCIA read.</p>
+      {works.length > 0 && <p className="dash-note">Median {works[0].metric} per post for each format, against the account&apos;s own median, from the {postsRead} most recent posts SOCIA read.</p>}
+      <p className="dash-note">Hooks and topics are named from your captions with SOCIA&apos;s tag list. Each needs 3 posts on a platform with 6, and is compared with your median the same way.</p>
+      {nicheRead && <p className="dash-note">Niche trends come from {nicheRead.reels} recent Reels by {nicheRead.accounts} accounts that SOCIA last read for Discover. &ldquo;Leads&rdquo; means their median is {LEADS_AT}x their own creators&apos; usual. Other accounts&apos; results, not a forecast for yours.</p>}
     </>
   );
 }

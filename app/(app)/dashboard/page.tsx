@@ -36,6 +36,9 @@ import { computeContentScore } from "@/lib/contentScore";
 import { coverOf, type CalendarItem, type Competitors, type PlanDayItem } from "@/lib/overviewVisual";
 import { listTracked } from "@/lib/trackedCompetitors";
 import { competitorScopeId } from "@/lib/workspaces";
+import { loadCachedNicheRead } from "@/lib/trendSignalsLoad";
+import { anglesGap, nicheToTry, worksByAngle } from "@/lib/intel/angles";
+import { locationTokens } from "@/lib/competitorPatterns";
 import { isOwnAccount, ownAccounts } from "@/lib/ownAccounts";
 import { buildAccountSample } from "@/lib/intel/accountSample";
 import { growthBriefing, goalLine, nextActions, recentLearning, whatWorks, worksGap } from "@/lib/intel/overview";
@@ -120,6 +123,11 @@ export default async function DashboardPage({
   ]);
   const [profile, ent] = await Promise.all([getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)), getEntitlements(ctx.client, ctx.ownerId)]);
   const igConnected = profile?.account_connected ?? false;
+  // The niche's hooks and topics for "What's working", from reads SOCIA already stored (no platform call).
+  const brandLocation = profile?.brand_detail?.location ?? null;
+  const nicheP = canUseFeature(ent, "niche_intelligence")
+    ? competitorScopeId(ctx.client, wsId ?? undefined).then((cwid) => loadCachedNicheRead(ctx.client, ctx.ownerId, cwid, { location: brandLocation })).catch(() => null)
+    : Promise.resolve(null);
   // Daily recommendations (Growth+): the two reads only the Today card needs
   // start now, alongside the platform reads.
   const recsOn = canUseFeature(ent, "daily_recommendations");
@@ -296,6 +304,9 @@ export default async function DashboardPage({
     tt: ttConnected && ttRow ? { username: (ttRow.username as string | null) ?? null, followers: (ttRow.follower_count as number | null) ?? null, videos: Array.isArray(ttRow.videos) ? (ttRow.videos as TtVideo[]) : [] } : null,
   });
   const works = whatWorks(sample);
+  const niche = await nicheP;
+  const loc = locationTokens(brandLocation);
+  const angles = worksByAngle(sample, { loc, niche: niche?.signals });
   const summaries = [igSummary, fbSummary, ytSummary, ttSummary];
   const connectedPlatforms = summaries.filter((x) => x.connected).map((x) => x.platform as GoalPlatform);
   const extras = {
@@ -370,6 +381,11 @@ export default async function DashboardPage({
       briefing,
       works,
       worksGap: works.length ? undefined : worksGap(sample),
+      angles,
+      anglesGap: angles.length ? undefined : anglesGap(sample, loc),
+      nicheToTry: nicheToTry(sample, niche?.signals, { loc }),
+      nicheRead: niche ? { reels: niche.signals.reelsRead, accounts: niche.signals.accounts } : null,
+      nicheOn: canUseFeature(ent, "niche_intelligence"),
       themes: growth?.understanding?.themes ?? [],
       postsRead: sample.posts.length,
       actions,

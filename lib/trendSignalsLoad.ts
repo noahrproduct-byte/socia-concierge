@@ -43,7 +43,19 @@ type Supa = any;
 /** What the niche read gives a plan or an idea batch: the grouped trends, and the Reels that took off, to build on. */
 export type NicheRead = { signals: TrendSignals; proven: ProvenReel[] };
 
-async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date): Promise<NicheRead | null> {
+/** How old a stored Instagram read may be for a cached-only read (the Dashboard never calls a platform for this). */
+const CACHED_MAX_AGE_MS = 7 * 86_400_000;
+
+/** Stored Business Discovery reads of these handles, no newer than CACHED_MAX_AGE_MS; no platform call. */
+async function cachedIgCompetitors(client: Supa, ownerId: string, handles: string[], now: Date): Promise<{ competitors: IgCompetitor[] }> {
+  if (!handles.length) return { competitors: [] };
+  const { data } = await client.from("ig_competitor_snapshots").select("handle, display_name, profile_picture, media, fetched_at").eq("user_id", ownerId).in("handle", handles);
+  const rows = ((data ?? []) as { handle: string; display_name: string | null; profile_picture: string | null; media: IgCompetitor["media"]; fetched_at: string }[])
+    .filter((r) => now.getTime() - Date.parse(r.fetched_at) < CACHED_MAX_AGE_MS);
+  return { competitors: rows.map((r) => ({ handle: r.handle, found: true, displayName: r.display_name, profilePicture: r.profile_picture, media: r.media ?? [] }) as IgCompetitor) };
+}
+
+async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date, cachedOnly = false): Promise<NicheRead | null> {
   const ent = await getEntitlements(client, ownerId);
   if (!canUseFeature(ent, "niche_intelligence")) return null;
   const mine = await ownAccounts(client, ownerId).catch(() => null);
@@ -76,10 +88,13 @@ async function read(client: Supa, ownerId: string, scopeId: string | null, locat
     ...discovered.filter((d) => d.platform === platform && d.handle).map((d) => d.handle!),
   ].map((h) => h.replace(/^@/, "").toLowerCase()))].filter((h) => notMine({ handle: h })).slice(0, max);
   const igHandles = handles("instagram", 8);
-  const ytHandles = ytConfigured() ? handles("youtube", 6) : [];
+  // A cached-only read skips YouTube: its channel reads cost quota on every call.
+  const ytHandles = ytConfigured() && !cachedOnly ? handles("youtube", 6) : [];
 
   const [igRes, ytRes] = await Promise.all([
-    igHandles.length ? igCompetitorRows(client, ownerId, igHandles).catch(() => null) : Promise.resolve(null),
+    !igHandles.length ? Promise.resolve(null)
+      : cachedOnly ? cachedIgCompetitors(client, ownerId, igHandles, now).catch(() => null)
+      : igCompetitorRows(client, ownerId, igHandles).catch(() => null),
     Promise.all(ytHandles.map((h) => channelStats(h).catch(() => null))),
   ]);
 
@@ -119,4 +134,13 @@ export async function loadNicheRead(client: Supa, ownerId: string, scopeId: stri
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * The same read from what SOCIA already stored (Instagram reads of the last
+ * week and the Reels discovery saved), with no platform call: cheap enough
+ * for every Dashboard view. Null without the plan feature or anything stored.
+ */
+export async function loadCachedNicheRead(client: Supa, ownerId: string, scopeId: string | null, opts: { location?: string | null; now?: Date } = {}): Promise<NicheRead | null> {
+  return read(client, ownerId, scopeId, opts.location ?? null, opts.now ?? new Date(), true).catch(() => null);
 }

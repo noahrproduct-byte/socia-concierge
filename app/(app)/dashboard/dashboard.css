@@ -664,6 +664,13 @@ button.dash-stat {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Hook and topic names wrap rather than cut off (they run longer than format names). */
+.dash-bars.is-wrap .dash-bars-name b {
+  white-space: normal;
+}
+.dash-bars-name small.dash-bars-lead {
+  color: var(--success-text);
+}
 .dash-bars-num {
   color: var(--ink);
   font-size: var(--fs-body);
