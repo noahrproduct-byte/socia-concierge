@@ -153,3 +153,33 @@ describe("proven Reels", () => {
     expect(provenEvidence([])).toBe("");
   });
 });
+
+describe("viral track record", () => {
+  it("counts the Reel, the Reels that open the same way and the Reels on its topic, and says what it counted", async () => {
+    const { trackRecord, trackWord, sanitizeTrack } = await import("./trendSignals");
+    const group = (label: string, kind: "hook" | "topic", above: number, of: number, med: number, leads: boolean) =>
+      ({ label, kind, posts: of, accounts: 3, withBaseline: of, aboveBaseline: above, medianMultiplier: med, leads, examples: [] });
+    const signals = { reelsRead: 20, accounts: 5, hooks: [group("POV", "hook", 4, 5, 2.1, true)], topics: [group("Kitchen / process", "topic", 2, 4, 1.1, false)], strongLines: [] };
+    const t = trackRecord({ multiplier: 8, views: 240000, basis: "views", structures: ["POV"], topics: ["Kitchen / process"] }, signals);
+    // 40 for the Reel at 8x; hook 20*4/5 + 10 = 26; topic 20*2/4 + 0 = 10.
+    expect(t.parts.map((p) => [p.points, p.max])).toEqual([[40, 40], [26, 30], [10, 30]]);
+    expect(t.score).toBe(76);
+    expect(trackWord(t)).toBe("strong");
+    expect(t.parts[1].basis).toBe("4 of 5 niche Reels with the same hook structure (POV) beat their creator's usual, worth 16 of 20. Their median is 2.1x, at or above 1.3x, worth 10 more.");
+    expect(sanitizeTrack(JSON.parse(JSON.stringify(t)))).toEqual(t);
+  });
+
+  it("scores a part 0 and says why when too few Reels share it, and never rounds a thin sample up", async () => {
+    const { trackRecord, trackWord, sanitizeTrack } = await import("./trendSignals");
+    const empty = { reelsRead: 2, accounts: 1, hooks: [], topics: [], strongLines: [] };
+    const t = trackRecord({ multiplier: 2, views: 900, basis: "likes and comments", structures: ["POV"], topics: [] }, empty);
+    expect(t.parts.map((p) => p.points)).toEqual([13, 0, 0]);
+    expect(t.parts[1].basis).toMatch(/^Fewer than 3 niche Reels from 2 accounts share its hook structure \(POV\)/);
+    expect(t.parts[2].basis).toMatch(/found no topic it recognises/);
+    expect(trackWord(t)).toBe("one Reel only");
+    const noBase = trackRecord({ multiplier: null, views: 500000, basis: "views", structures: [], topics: [] }, empty);
+    expect(noBase.score).toBe(15);
+    expect(sanitizeTrack({ parts: [{ label: "x", points: 90, max: 40, basis: "b" }] })).toBeNull();
+    expect(sanitizeTrack("76")).toBeNull();
+  });
+});

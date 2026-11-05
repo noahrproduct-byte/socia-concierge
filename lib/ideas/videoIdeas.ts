@@ -170,6 +170,7 @@ export function ideaText(idea: VideoIdea): string {
     `Sound: ${SOUND[idea.sound.kind]}${idea.sound.feel ? `, ${idea.sound.feel}` : ""}.`,
     idea.needs ? `You need: ${idea.needs}` : "",
     idea.ref ? `Built on a Reel that took off: ${refLine(idea.ref)}. ${idea.ref.url}` : "",
+    idea.ref?.track ? `Viral track record: ${idea.ref.track.score} of 100 (how Reels like it did for other accounts, not a forecast).` : "",
     idea.caption ? `Caption: ${idea.caption}` : "",
   ].filter((l, k, a) => !(l === "" && a[k - 1] === "")).join("\n").trim();
 }

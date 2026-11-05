@@ -135,7 +135,7 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   if (evidence?.provenBlock) {
     parts.push(`\n# Reels that took off in this niche (build the week on these)`);
     parts.push(evidence.provenBlock);
-    parts.push(`Build every Reel or short video in the week on one of these whenever one fits the account: the same format, hook structure, pacing and angle, remade with this account's own subject, place, footage and words. Put that Reel's id (for example "R2") in the post's "reference" field, and say in its evidence field what the post takes from it. Use a different Reel for each post while they last; when there are fewer Reels than posts, or none fits a post, leave that post's "reference" as "". Never reuse the Reel's wording, never cite an id that isn't listed, and never say the post will match the Reel's result: it is another account's number.`);
+    parts.push(`Build every Reel or short video in the week on one of these whenever one fits the account: the same format, hook structure, pacing and angle, remade with this account's own subject, place, footage and words. Put that Reel's id (for example "R2") in the post's "reference" field, and say in its evidence field what the post takes from it. Start with the Reels that have the higher track record (a count, out of 100, of how that Reel and the niche Reels sharing its hook and topic did). Use a different Reel for each post while they last; when there are fewer Reels than posts, or none fits a post, leave that post's "reference" as "". Never reuse the Reel's wording, never cite an id that isn't listed, and never say the post will match the Reel's result: it is another account's number.`);
   }
 
   if (evidence?.outcomesBlock) {

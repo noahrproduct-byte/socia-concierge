@@ -4,7 +4,7 @@
 // account, and it says so: never a forecast for the person's own post.
 
 import { ExternalLink } from "lucide-react";
-import { refResult, type ReelRef } from "@/lib/trendSignals";
+import { TREND_WINDOW_DAYS, refResult, trackWord, type ReelRef } from "@/lib/trendSignals";
 
 const PLATFORM: Record<string, string> = { instagram: "Instagram", youtube: "YouTube", tiktok: "TikTok", facebook: "Facebook" };
 
@@ -18,6 +18,23 @@ export function ReelRefNote({ r }: { r: ReelRef }) {
         {result ? `: ${result}.` : "."}
         {r.structure ? ` Hook structure: ${r.structure.replace(/ hook$/i, "")}.` : ""}
       </p>
+      {r.track && (
+        <details className="s-reelref-track">
+          <summary>
+            <b>Viral track record: {r.track.score} of 100</b> ({trackWord(r.track)}) <span>How this is counted</span>
+          </summary>
+          <ul>
+            {r.track.parts.map((p) => (
+              <li key={p.label}>
+                <b>{p.label}: {p.points} of {p.max}.</b> {p.basis}
+              </li>
+            ))}
+          </ul>
+          <p>
+            SOCIA counts this from the Reels it read in your niche over the last {TREND_WINDOW_DAYS} days. It measures how Reels like this one did for other accounts, and nothing in it is a guess.
+          </p>
+        </details>
+      )}
       <p className="s-reelref-foot">
         <a href={r.url} target="_blank" rel="noopener noreferrer" className="s-link">
           Open the Reel <ExternalLink size={12} aria-hidden />

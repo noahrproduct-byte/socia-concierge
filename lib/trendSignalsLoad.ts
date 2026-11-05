@@ -104,7 +104,8 @@ async function read(client: Supa, ownerId: string, scopeId: string | null, locat
   const reels = rankTrendingReels(accounts, content, now);
   if (!reels.length) return null;
   const loc = locationTokens(location);
-  return { signals: trendSignals(reels, { loc }), proven: provenReels(reels, { loc, max: 8 }) };
+  // Every hook and topic group, not only the six a prompt lists, so each Reel's track record finds its own.
+  return { signals: trendSignals(reels, { loc }), proven: provenReels(reels, { loc, max: 8, signals: trendSignals(reels, { loc, max: 40 }) }) };
 }
 
 /** The niche's trends for one brand, or null when the plan lacks niche trends, nothing was found, or the read ran out of time. */

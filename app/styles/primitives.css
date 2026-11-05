@@ -1183,3 +1183,26 @@
   gap: var(--sp-1);
   white-space: nowrap;
 }
+.s-reelref-track summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.s-reelref-track summary span {
+  color: var(--accent-ink);
+  font-weight: var(--fw-medium);
+  margin-left: var(--sp-1);
+}
+.s-reelref-track summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.s-reelref-track ul {
+  margin: var(--sp-2) 0;
+  padding-left: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.s-reelref-track p {
+  color: var(--ink-3);
+}
