@@ -16,8 +16,8 @@ import { experimentResults } from "./experimentsLoad";
 import { experimentsEvidence } from "./experiments";
 import type { GrowthStrategy } from "./strategy";
 import type { Deliverable } from "./schema";
-import { loadTrendSignals } from "./trendSignalsLoad";
-import { trendsEvidence } from "./trendSignals";
+import { loadNicheRead } from "./trendSignalsLoad";
+import { provenEvidence, trendsEvidence, type ProvenReel } from "./trendSignals";
 
 export type Evidence = {
   postsBlock: string;
@@ -32,6 +32,9 @@ export type Evidence = {
   experimentsBlock: string;
   /** Hook structures, topics and opening lines leading in the niche's recent Reels (lib/trendSignals.ts). */
   trendsBlock: string;
+  /** The niche's Reels that took off, each with the id a post cites (lib/trendSignals.ts provenEvidence), and the Reels behind those ids. */
+  provenBlock?: string;
+  proven?: ProvenReel[];
   used: EvidenceUsed;
 };
 
@@ -272,7 +275,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   } catch { /* none */ }
 
   // The niche's trends read live alongside the stored rows; null off the plan feature or on a slow platform.
-  const trendsP = loadTrendSignals(supabase, userId, workspaceId ?? null, { location: opts.location ?? null }).catch(() => null);
+  const trendsP = loadNicheRead(supabase, userId, workspaceId ?? null, { location: opts.location ?? null }).catch(() => null);
   const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
   let recentPlans: PlanRow[] = [];
   try {
@@ -282,7 +285,9 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   } catch { /* none */ }
 
   const postsBlock = ownPostsBlock(media, followers);
-  const trends = await trendsP;
+  const niche = await trendsP;
+  const trends = niche?.signals ?? null;
+  const proven = niche?.proven ?? [];
   const trendsBlock_ = trendsEvidence(trends);
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning);
   const outcomesBlock_ = outcomesBlock(opts.outcomes ?? []);
@@ -300,6 +305,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     decisionsBlock: decisionsBlock(recentPlans),
     experimentsBlock: experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, opts.strategy).catch(() => [])),
     trendsBlock: trendsBlock_,
+    provenBlock: provenEvidence(proven),
+    proven,
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,

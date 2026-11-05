@@ -3,6 +3,7 @@
 // (SOCIA generates the coming week by itself). Usage metering and permission
 // checks happen in the callers; this only produces and stores the plan.
 import { normalizePlanItem, withItemIds } from "./planItems";
+import { pickRef } from "./trendSignals";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { anthropic, MODEL, effortFor } from "./anthropic";
 import { recordAiUsage } from "./aiUsage";
@@ -67,9 +68,11 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   if (!text) throw new PlanGenerationError("empty", "Empty response from the model. Try again.");
   const data = parsePlanJson(text) as Deliverable | null;
   if (!data) throw new PlanGenerationError("parse", "Could not parse the model's response. Try again.");
-  data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map(normalizePlanItem));
+  // A post's "reference" is an id from the Reels the strategist was shown: SOCIA swaps it for that Reel's own link and numbers.
+  const proven = evidence?.proven ?? [];
+  data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map((p) => normalizePlanItem({ ...p, ref: pickRef(p.reference, proven) ?? undefined })));
   // Record what the plan was built from, so the report and history can say so.
-  if (evidence) data.evidenceUsed = evidence.used;
+  if (evidence) data.evidenceUsed = { ...evidence.used, references: data.weeklyPlan.filter((p) => p.ref).length };
   return data;
 }
 

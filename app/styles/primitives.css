@@ -1148,3 +1148,38 @@
     opacity: 0;
   }
 }
+
+/* ---- the niche Reel a plan post or idea is built on (components/system/ReelRef.tsx) ---- */
+.s-reelref {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-reelref p {
+  margin: 0;
+}
+.s-reelref b {
+  color: var(--ink);
+  font-weight: var(--fw-semibold);
+}
+.s-reelref-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  color: var(--ink-3);
+}
+.s-reelref-foot .s-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  white-space: nowrap;
+}

@@ -132,6 +132,12 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     parts.push(`Use what leads: build some planned posts on a leading hook structure or topic, adapted to this account's own subjects, place and voice. Write each hook fresh; the opening lines above are other people's words, so learn their structure and never reuse their wording. When a post uses a trend, name it and its basis in that post's evidence field (for example "POV opening: median 2.1x across 5 niche Reels from 3 accounts"). Never present another account's result as a prediction for this one, and ignore a group that doesn't lead.`);
   }
 
+  if (evidence?.provenBlock) {
+    parts.push(`\n# Reels that took off in this niche (build the week on these)`);
+    parts.push(evidence.provenBlock);
+    parts.push(`Build every Reel or short video in the week on one of these whenever one fits the account: the same format, hook structure, pacing and angle, remade with this account's own subject, place, footage and words. Put that Reel's id (for example "R2") in the post's "reference" field, and say in its evidence field what the post takes from it. Use a different Reel for each post while they last; when there are fewer Reels than posts, or none fits a post, leave that post's "reference" as "". Never reuse the Reel's wording, never cite an id that isn't listed, and never say the post will match the Reel's result: it is another account's number.`);
+  }
+
   if (evidence?.outcomesBlock) {
     parts.push(`\n# What happened to the last plan`);
     parts.push(evidence.outcomesBlock);
