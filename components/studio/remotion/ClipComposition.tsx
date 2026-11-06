@@ -28,6 +28,7 @@ import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
 import type { BuildSource, Edl, EdlText } from "@/lib/studioClips/types";
 import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
+import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
 import type { TransitionKind } from "@/lib/studioClips/types";
 import { gainAtDb } from "@/lib/studioClips/sound";
@@ -182,6 +183,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     return Object.fromEntries(Object.entries(finish.grades).map(([id, g]) => [id, [colorCorrection(g.params)]]));
   }, [finish]);
   const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps) : []), [edl, words, captionsOn, fps]);
+  // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
+  const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily }}>
@@ -223,7 +226,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         <Sequence from={0} durationInFrames={tl.durationFrames} name="soundtrack">
           <Audio
             src={musicUrl!}
-            volume={(f) => music.musicVolume * Math.min(1, f / MUSIC_FADE_IN, (tl.durationFrames - f) / MUSIC_FADE_OUT)}
+            volume={(f) => music.musicVolume * (spoken.length ? duckLevel(f / fps, spoken) : 1) * Math.min(1, f / MUSIC_FADE_IN, (tl.durationFrames - f) / MUSIC_FADE_OUT)}
           />
         </Sequence>
       )}

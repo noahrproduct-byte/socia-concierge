@@ -13,11 +13,12 @@ import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { Edl } from "@/lib/studioClips/types";
 import type { Playlist, Soundtrack } from "@/lib/music/taste";
+import { DUCK } from "@/lib/studioClips/musicDuck";
 
 type TrackStatus = { state: "waiting" | "making" | "ready" | "failed"; error: string | null };
 const PARALLEL = 2;
 
-export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrackUrl, onPlaylist, onSoundtrack, onLevels, autoAdding = false }: {
+export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrackUrl, onPlaylist, onSoundtrack, onLevels, onDuck, speechPct = 0, autoAdding = false }: {
   buildId: string;
   edl: Edl;
   canEdit: boolean;
@@ -29,6 +30,10 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
   onSoundtrack: (s: Soundtrack | null) => void;
   /** the person moved a level slider (one undo step; saved with the cut) */
   onLevels: (musicVolume: number, originalVolume: number) => void;
+  /** the person switched "lower the music under speech" on or off (saved with the cut) */
+  onDuck: (on: boolean) => void;
+  /** how much of the cut has speech, 0..100 from the transcript; 0 when nobody speaks */
+  speechPct?: number;
   /** SOCIA is adding a track on its own right now */
   autoAdding?: boolean;
 }) {
@@ -161,6 +166,12 @@ export default function MusicPlaylist({ buildId, edl, canEdit, trackUrls, onTrac
               <b>Mix: {st.name}</b>
               <label><span>Music</span><input type="range" min={0} max={100} step={5} value={Math.round(st.musicVolume * 100)} disabled={!canEdit} onChange={(e) => onLevels(Number(e.target.value) / 100, st.originalVolume)} /><em>{Math.round(st.musicVolume * 100)}%</em></label>
               <label><span>Original sound</span><input type="range" min={0} max={100} step={5} value={Math.round(st.originalVolume * 100)} disabled={!canEdit} onChange={(e) => onLevels(st.musicVolume, Number(e.target.value) / 100)} /><em>{Math.round(st.originalVolume * 100)}%</em></label>
+              {speechPct > 0 ? (
+                <label className="st-check cbm-duck">
+                  <input type="checkbox" checked={Boolean(st.duck)} disabled={!canEdit} onChange={(e) => onDuck(e.target.checked)} />
+                  <span>Lower the music while someone is speaking <small>Speech fills {speechPct}% of this cut. The music drops to {Math.round(DUCK.under * 100)}% of its level under the words and comes back up in between.</small></span>
+                </label>
+              ) : <small className="cbm-duck-none">Nobody speaks in this cut, so the music stays at one level.</small>}
               {canEdit && <button type="button" className="ov-btn ghost small" onClick={() => void remove()}><X size={12} /> Take the music out</button>}
             </div>
           )}

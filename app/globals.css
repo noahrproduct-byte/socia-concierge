@@ -11228,6 +11228,8 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .cbf-dot { width: 6px; height: 6px; margin: 6px 4px 0; border-radius: 99px; background: var(--border-strong); flex: none; }
 .cbf-pauses { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); }
 .cbf-pauses .ov-btn { margin-left: auto; }
+.cbf-pauses .ov-btn + .ov-btn { margin-left: 0; }
+.cbf-pauses > span { flex: 1; min-width: 200px; }
 .cbf-not b { font-size: 12.5px; color: var(--text-primary); }
 .cbf-not ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
 .cbf-compare { margin-top: 6px; align-self: flex-start; }
@@ -11264,6 +11266,9 @@ p.cbm-muted { display: block; }
 .cbm-track audio { width: 100%; max-width: 320px; height: 32px; margin-top: 4px; }
 .cbm-mix { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
 .cbm-mix > b { font-size: 12.5px; color: var(--text-primary); }
+.cbm-mix label.cbm-duck { display: flex; align-items: flex-start; gap: var(--sp-2); font-size: var(--fs-nav); line-height: var(--lh-body); color: var(--text-primary); }
+.cbm-duck span { display: grid; gap: var(--sp-1); }
+.cbm-duck small, .cbm-duck-none { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
 .cbm-mix label { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
 .cbm-mix input[type="range"] { accent-color: var(--accent); width: 100%; padding: 0; border: 0; background: transparent; }
 .cbm-mix em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; }
