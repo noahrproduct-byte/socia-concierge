@@ -67,7 +67,6 @@
     "components/studio/ClipBuilder.tsx": 2,
     "components/studio/ClipsStudio.tsx": 3,
     "components/studio/ClipsViews.tsx": 3,
-    "components/studio/ContentStudio.tsx": 1,
     "components/studio/StudioPanels.tsx": 4
   },
   "oops-error": {
