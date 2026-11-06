@@ -19,7 +19,7 @@ import { signedUrl } from "@/lib/aiStudio/media";
 import { ClipperError, type ClipperOptions } from "./provider";
 import { clipExamples } from "./examples";
 import { clipResultLines, loadClipOutcomes } from "./learn";
-import { PICK_SCHEMA, PICK_SYSTEM, pickMessage, transcriptLines, validatePicks, type ClipPick } from "./pick";
+import { PICK_SCHEMA, PICK_SYSTEM, checkPicks, pickMessage, transcriptLines, type ClipPick } from "./pick";
 import type { TranscriptWord } from "@/lib/transcribe/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -88,7 +88,12 @@ export async function pickMoments(svc: Supa, job: JobLike, words: TranscriptWord
     console.error(`[clipper] pick: unreadable answer, stop ${res.stop_reason}, ${text.length} chars`);
     throw new ClipperError("SOCIA couldn't read its own pick of the moments. Try again.", "pick_failed", true);
   }
-  return { picks: validatePicks(raw, words, job.options), brand };
+  const { picks, ...counts } = checkPicks(raw, words, job.options);
+  // Counts only, never the words: why a job did or didn't get clips.
+  console.log("[clipper] pick", JSON.stringify({ job: job.id, words: words.length, kept: picks.length, ...counts, stop: res.stop_reason, outputTokens: res.usage?.output_tokens }));
+  // Clips came back and none survived: that is SOCIA's fault, not the video's, so it isn't reported as "no moments".
+  if (counts.returned > 0 && !picks.length) throw new ClipperError("None of the picked moments passed SOCIA's checks.", "pick_rejected", true);
+  return { picks, brand };
 }
 
 /** Rows for the clips table, captions written in the brand's voice. */

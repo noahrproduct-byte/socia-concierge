@@ -29,11 +29,8 @@ export function lengthRange(lengths: ClipLength[]): { min: number; max: number }
   return { min: Math.min(...picked.map((l) => LENGTH_SECONDS[l][0])), max: Math.max(...picked.map((l) => LENGTH_SECONDS[l][1])) };
 }
 
-const clock = (ms: number) => {
-  const s = Math.max(0, ms / 1000);
-  const m = Math.floor(s / 60);
-  return `${m}:${(s - m * 60).toFixed(1).padStart(4, "0")}`;
-};
+/** Plain seconds, the unit the answer is in, so a time can't be misread as minutes and seconds. */
+const secs = (ms: number) => (Math.max(0, ms) / 1000).toFixed(1);
 
 export type Line = { startMs: number; endMs: number; text: string };
 
@@ -55,7 +52,7 @@ export function transcriptLines(words: TranscriptWord[]): Line[] {
   return out;
 }
 
-export const formatLines = (lines: Line[]): string => lines.map((l) => `[${clock(l.startMs)}-${clock(l.endMs)}] ${l.text}`).join("\n");
+export const formatLines = (lines: Line[]): string => lines.map((l) => `[${secs(l.startMs)}-${secs(l.endMs)}] ${l.text}`).join("\n");
 
 /** One of Noah's labelled clips (docs/clipper/examples.json). */
 export type ClipExample = { verdict: "good" | "bad"; transcript: string; seconds: number; why: string; niche?: string };
@@ -100,9 +97,9 @@ A good clip:
 - Earns the viewer's time: a story, an opinion, a useful tip, a result, a funny or emotional moment.
 
 Rules:
-- start and end are seconds in the video, taken from the transcript's timestamps: start at the first word of a line, end at the last word of a line.
+- The transcript's timestamps are plain seconds from the start of the video: [230.5-236.8] runs from 230.5 to 236.8 seconds. start and end are plain seconds too, copied from those timestamps: start where a line starts, end where a line ends.
 - Keep every clip inside the length range you are given. Clips never overlap.
-- Return at most the number of clips asked for, best first. Return fewer when fewer moments are good: an empty list is better than weak clips.
+- Return the best moments the video has, up to the number asked for, best first, and let the score say how strong each one is: a weaker moment gets a lower score, not left out. Return an empty list only when nothing in the transcript makes sense on its own.
 - title: a short headline in sentence case that says what the clip is about, written for the viewer.
 - hook: the clip's opening words exactly as spoken in the transcript.
 - score: 0 to 10, how well the clip meets the bar above. Judge the moment, not the topic's popularity.
@@ -115,7 +112,7 @@ export function pickMessage(b: PickBrief): string {
   const { min, max } = lengthRange(b.options.lengths);
   const parts = [
     `Brand: ${b.brand || "unknown"}`,
-    `Video length: ${clock(b.durationMs)}. Language: ${b.options.lang}.`,
+    `Video length: ${secs(b.durationMs)} seconds. Language: ${b.options.lang}.`,
     `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
   ];
   if (b.examples.length) {
@@ -142,20 +139,28 @@ const clean = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/\s+
  * overlapping a better clip by more than a quarter, best first.
  */
 export function validatePicks(raw: unknown, words: TranscriptWord[], opts: Pick<PickBrief["options"], "maxClips" | "lengths">): ClipPick[] {
+  return checkPicks(raw, words, opts).picks;
+}
+
+/** What the model answered and what the check did with it: counts only, for the log. */
+export type PickCheck = { picks: ClipPick[]; returned: number; badTimes: number; tooFewWords: number; wrongLength: number; overlaps: number };
+
+export function checkPicks(raw: unknown, words: TranscriptWord[], opts: Pick<PickBrief["options"], "maxClips" | "lengths">): PickCheck {
   const list = (raw as { clips?: unknown })?.clips;
-  if (!Array.isArray(list) || !words.length) return [];
+  const check: PickCheck = { picks: [], returned: Array.isArray(list) ? list.length : 0, badTimes: 0, tooFewWords: 0, wrongLength: 0, overlaps: 0 };
+  if (!Array.isArray(list) || !words.length) return check;
   const { min, max } = lengthRange(opts.lengths);
   const picks: ClipPick[] = [];
   for (const r of list as Partial<RawPick>[]) {
     const s = Number(r.start) * 1000, e = Number(r.end) * 1000;
-    if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) continue;
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) { check.badTimes++; continue; }
     const first = words.findIndex((w) => w.endMs > s);
     let last = -1;
     for (let i = words.length - 1; i >= 0; i--) if (words[i].startMs < e) { last = i; break; }
-    if (first < 0 || last < first || last - first + 1 < 3) continue;
+    if (first < 0 || last < first || last - first + 1 < 3) { check.tooFewWords++; continue; }
     const startMs = words[first].startMs, endMs = words[last].endMs;
     const sec = (endMs - startMs) / 1000;
-    if (sec < min * 0.85 || sec > max * 1.15) continue;
+    if (sec < min * 0.85 || sec > max * 1.15) { check.wrongLength++; continue; }
     const score = Math.max(0, Math.min(10, Math.round(Number(r.score) * 10) / 10 || 0));
     picks.push({
       startMs, endMs, score,
@@ -170,10 +175,12 @@ export function validatePicks(raw: unknown, words: TranscriptWord[], opts: Pick<
       const overlap = Math.min(k.endMs, p.endMs) - Math.max(k.startMs, p.startMs);
       return overlap > 0.25 * Math.min(k.endMs - k.startMs, p.endMs - p.startMs);
     });
-    if (!clash) kept.push(p);
+    if (clash) { check.overlaps++; continue; }
+    kept.push(p);
     if (kept.length >= opts.maxClips) break;
   }
-  return kept;
+  check.picks = kept;
+  return check;
 }
 
 /** The words inside a clip, at their times in the source video, for its captions. */
