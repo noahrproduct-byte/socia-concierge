@@ -1,16 +1,13 @@
 "use client";
 
-// The Content Rater's workspaces (Noah, 2026-11-05): the analysis as decisions
-// rather than a report.
-//   Verdict      what to fix, in priority order, each with its evidence
-//   Timeline     where the problems are, on the video's own frames
-//   Performance  the draft against the account's top posts and competitors' Reels
-//   Directions   three ways to remake it, to test
-// Improve and export (the edits, caption, sound and publishing) stay in
-// StudioPanels.tsx. Every number shown is one SOCIA measured or read. The
-// score is an editor's judgement and predicts nothing; the performance outlook
-// beside it is calculated from the account's own Reels (lib/outlook.ts) and
-// states a view range only when its replay over those Reels holds up.
+// The Content Rater's results (Noah asked for the one-page Analyze layout back,
+// 2026-11-06): the score, the outlook, what to fix, where it happens, the
+// comparisons and other ways to make it, in one scroll. Improve, Caption, Audio
+// and Prepare stay in StudioPanels.tsx. Every number shown is one SOCIA measured
+// or read. The score is an editor's judgement and predicts nothing; the
+// performance outlook is calculated from the account's own Reels
+// (lib/outlook.ts) and states a view range only when its replay over those
+// Reels holds up.
 
 import { useState } from "react";
 import Link from "next/link";
@@ -22,7 +19,7 @@ import { finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } fro
 import { BACKTEST_MIN, BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, patternLine, roundViews, type Outlook } from "@/lib/outlook";
 import type { OutlookPayload } from "@/lib/outlookLoad";
 import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
-import { Bar } from "@/components/dashboard/motion";
+import { Bar, CountUp, Reveal, Ring } from "@/components/dashboard/motion";
 import "@/app/(app)/dashboard/dashboard.css";
 import "@/app/(app)/studio/studio.css";
 
@@ -153,10 +150,12 @@ export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: O
   );
 }
 
-// ------------------------------------------------------------------ verdict ----
+// ------------------------------------------------------------------ analyze ----
 
-export type VerdictProps = {
+export type AnalyzeProps = {
   a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; seek: (t: number) => void;
+  setActive: (i: number | null) => void;
+  onCompare: () => void;
   /** The edits SOCIA can make (lib/studioFixes.ts), each tied to the fix it carries out. */
   moments: Moment[];
   thumbs: { src: string; t: number }[];
@@ -170,98 +169,62 @@ export type VerdictProps = {
   /** The account's own Reels for the performance outlook; null on a still image, where Reels are no comparison. */
   outlook: OutlookState | null;
   onOutlookRetry: () => void;
+  onUseDirection: (d: Direction) => void;
+  onEditor: (d: Direction) => void;
 };
 
-export function VerdictPanel({ a, w, apply, seek, moments, thumbs, frame, durationSec, canHandoff, onFix, onImprove, onCaption, outlook, onOutlookRetry }: VerdictProps) {
+/** The creative readiness ring: fills once from empty, counts up once; the markup always carries the final number. */
+function ScoreRing({ score }: { score: number }) {
+  return (
+    <Ring share={score / 100} size={110} stroke={9} tone={score >= 80 ? "good" : score >= 60 ? "ok" : "low"} label={`Creative readiness ${score} out of 100`}>
+      <b><CountUp value={score} /></b>
+      <small>of 100</small>
+    </Ring>
+  );
+}
+
+const MARKER_WORD: Record<Marker["kind"], string> = { issue: "Issue", strong: "Strong", pacing: "Pacing", cta: "CTA", text: "Text" };
+type Entry = { t: number; end: number | null; kind: Marker["kind"]; word: string; label: string; marker: number | null };
+
+/** Everything the analysis placed in time, in order: its markers, its suggested cuts and the text it would add. */
+function entriesOf(a: StudioAnalysis): Entry[] {
+  const out: Entry[] = a.markers.map((m, i) => ({ t: m.t, end: null, kind: m.kind, word: MARKER_WORD[m.kind] ?? "Note", label: m.label, marker: i }));
+  for (const c of a.cuts?.edits ?? []) out.push({ t: c.start, end: c.end, kind: "pacing", word: "Suggested edit", label: `${c.type === "trim" ? "Trim" : "Cut"} ${(c.end - c.start).toFixed(1)} s${c.reason ? `: ${c.reason}` : ""}`, marker: null });
+  for (const o of a.onScreenText) out.push({ t: o.t, end: null, kind: "text", word: "Suggested edit", label: `Add on-screen text: ${o.text}`, marker: null });
+  return out.sort((x, y) => x.t - y.t);
+}
+
+/** The results on one page, top to bottom: the score, the outlook, what to fix, where it happens, then the comparisons and other ways to make it. */
+export function AnalyzePanel({ a, w, apply, seek, setActive, onCompare, moments, thumbs, frame, durationSec, canHandoff, onFix, onImprove, onCaption, outlook, onOutlookRetry, onUseDirection, onEditor }: AnalyzeProps) {
+  const [how, setHow] = useState(false);
   const [openCat, setOpenCat] = useState<string | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
-  const urgent = a.topFixes.filter((f) => f.priority === "critical" || f.priority === "high").length;
   const inUse = (f: TopFix) => (f.apply ? (f.apply.field === "onscreen" ? w.onscreen.includes(f.apply.value) : w[f.apply.field] === f.apply.value) : false);
+  const entries = a.kind === "video" ? entriesOf(a) : [];
   return (
     <div className="st-panel">
-      <section className="st-block sd-verdict">
-        <div className="sd-vscore" role="img" aria-label={`Creative readiness ${a.score.overall} out of 100: ${a.score.label}`}>
-          <b>{a.score.overall}</b>
-          <small>of 100</small>
+      <Reveal as="section" className="st-block">
+        <div className="st-score">
+          <ScoreRing score={a.score.overall} />
+          <div className="st-score-meta">
+            <small>Creative readiness</small>
+            <b>{a.score.label}</b>
+            {a.diagnosis && <p>{a.diagnosis}</p>}
+            <p>{a.observed.summary}</p>
+            <p className="st-score-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
+            <button type="button" className="ov-link" aria-expanded={how} onClick={() => setHow((v) => !v)}>How is this scored? <ChevronDown size={12} style={{ transform: how ? "rotate(180deg)" : undefined }} /></button>
+          </div>
         </div>
-        <div className="sd-vhead">
-          <small>Creative review · {a.score.label}</small>
-          <h3>{a.diagnosis || a.observed.summary}</h3>
-          <p>
-            {a.topFixes.length} change{a.topFixes.length === 1 ? "" : "s"} to make{urgent ? `, ${urgent} of ${urgent === 1 ? "it" : "them"} high priority` : ""}.
-            {a.diagnosis && a.observed.summary ? ` ${a.observed.summary}` : ""}
-          </p>
-          <p className="sd-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
-        </div>
-      </section>
-
-      {outlook && <OutlookBlock state={outlook} caption={w.caption} suggestion={a.caption.suggestion} onRetry={onOutlookRetry} />}
-
-      <ol className="sd-fixes" aria-label="Changes to make, most important first">
-        {a.topFixes.map((f, i) => {
-          const when = fixWhen(f);
-          const priority = f.priority ?? (i === 0 ? "high" : "medium");
-          const m = moments.find((x) => x.fixIndex === i) ?? null;
-          return (
-            <li key={`${f.title}-${i}`} className={`sd-fix is-${priority}`}>
-              <header>
-                <span className="sd-fix-n">{String(i + 1).padStart(2, "0")}</span>
-                <b>{f.title}</b>
-                <span className="sd-fix-meta">{when ? `${when} · ` : ""}{PRIORITY_LABEL[priority]}</span>
-              </header>
-              <dl>
-                <div><dt>Problem</dt><dd>{f.observed}</dd></div>
-                <div><dt>Fix</dt><dd>{f.suggestion}</dd></div>
-                {f.why && <div><dt>Why</dt><dd>{f.why}</dd></div>}
-              </dl>
-              <div className="sd-fix-actions">
-                {f.t != null && a.kind === "video" && <button type="button" className="ov-btn ghost small" onClick={() => seek(f.t!)}><Clock size={12} /> Jump to {fmtT(f.t)}</button>}
-                {f.apply && <button type="button" className={`ov-btn ${inUse(f) ? "ghost" : "primary"} small`} onClick={() => apply(f.apply!.field, f.apply!.value)}>{inUse(f) ? <><Check size={12} /> In use</> : APPLY_LABEL[f.apply.field]}</button>}
-                {m && m.capability !== "caption" && <button type="button" className="ov-btn ghost small" aria-expanded={preview === i} onClick={() => setPreview(preview === i ? null : i)}>{preview === i ? "Hide the preview" : "Preview the change"}</button>}
-                {m && m.capability !== "caption" && <button type="button" className={`ov-btn ${f.apply ? "ghost" : "primary"} small`} disabled={!canHandoff} onClick={() => onFix(m, { presetId: m.text?.presetId, cuts: m.cuts?.map(({ start, end }) => ({ start, end })) })}>{CAPABILITY[m.capability].label} <ArrowRight size={12} /></button>}
-                {m && m.capability === "caption" && <button type="button" className="ov-btn ghost small" onClick={onCaption}>Rewrite the caption <ArrowRight size={12} /></button>}
-              </div>
-              {m && m.capability !== "caption" && <p className="sd-note">{canHandoff ? `Opens the ${CAPABILITY[m.capability].where}${m.capability === "pauses" || m.capability === "text" ? " with this applied. Your original file is not changed" : ""}.` : "Upload the original file to apply this in the editor."}</p>}
-              {!m && !f.apply && priority !== "experiment" && a.kind === "video" && <p className="sd-note">This one is yours to make: SOCIA can&apos;t reshoot or re-record it.</p>}
-              {m && preview === i && <div className="sd-preview"><MomentPreview m={m} thumbs={thumbs} frame={frame} durationSec={durationSec} /></div>}
-              {(f.evidence || f.apply) && (
-                <details className="sd-why">
-                  <summary>Why SOCIA recommends this</summary>
-                  <dl>
-                    <div><dt>Observed</dt><dd>{f.observed}</dd></div>
-                    {f.evidence?.account && <div><dt>Your posts</dt><dd>{f.evidence.account}</dd></div>}
-                    {f.evidence?.niche && <div><dt>Your niche</dt><dd>{f.evidence.niche}</dd></div>}
-                    {f.evidence && <div><dt>Confidence</dt><dd><b>{CONFIDENCE_LABEL[f.evidence.confidence]}.</b> {f.evidence.confidenceWhy}</dd></div>}
-                    {f.apply && <div><dt>Suggested line</dt><dd>{f.apply.value}</dd></div>}
-                  </dl>
-                </details>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-
-      {a.kind === "video" && moments.length > 0 && (
-        <p className="sd-note sd-more"><button type="button" className="ov-link" onClick={onImprove}>All {moments.length} edits SOCIA can make, one by one <ArrowRight size={12} /></button></p>
-      )}
-
-      {a.strengths && a.strengths.length > 0 && (
-        <section className="st-block">
-          <h3>What you&apos;re already doing well</h3>
-          <ul className="sd-works">{a.strengths.map((x) => <li key={x}>{x}</li>)}</ul>
-        </section>
-      )}
-
-      {a.planFit && (
-        <section className="st-block">
-          <h3>Against your planned post</h3>
-          <p className="st-planfit"><b>{a.planFit.title}</b> {a.planFit.summary}</p>
-        </section>
-      )}
-
-      <details className="st-block sd-scores">
-        <summary>All {a.categories.length} scores and how they are judged</summary>
-        <p className="sd-note">SOCIA looks at {a.meta.frames} sampled frame{a.meta.frames === 1 ? "" : "s"}{a.meta.hadTranscript ? ", the transcript" : " (no transcript was provided)"} and your caption, then compares with your own top posts{a.competitors ? " and competitors' Reels" : ""}. Scores close together mean the same thing: use the order above to decide what to fix first.</p>
+        {how && (
+          <div className="st-how">
+            <p>SOCIA looks at {a.meta.frames} sampled frame{a.meta.frames === 1 ? "" : "s"}{a.meta.hadTranscript ? ", the transcript" : " (no transcript was provided)"} and your caption, then compares with your own top posts{a.competitors ? " and competitors' Reels" : ""}. Scores are an editor&apos;s judgement of what is visible, never a prediction of views or virality.</p>
+            <ul>
+              {a.categories.map((c) => (
+                <li key={c.id}><b>{CATEGORY_INFO[c.id].label}</b> analyzes: {CATEGORY_INFO[c.id].analyzes.join("; ")}.</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <ul className="st-cats">
           {a.categories.map((c) => (
             <li key={c.id} className={`st-cat ${CAT_TONE(c.score)}${openCat === c.id ? " on" : ""}`}>
@@ -276,82 +239,77 @@ export function VerdictPanel({ a, w, apply, seek, moments, thumbs, frame, durati
                   <p>{c.explanation || "Not assessable from what was provided."}</p>
                   {c.evidence && <div className="ov-why-block"><small>Evidence</small><p>{c.evidence}</p></div>}
                   {c.fix && <div className="ov-why-block rec"><small>Suggested fix</small><p>{c.fix}</p></div>}
-                  <p className="sd-note">Judged on: {CATEGORY_INFO[c.id].analyzes.join("; ")}.</p>
                 </div>
               )}
             </li>
           ))}
         </ul>
-      </details>
-    </div>
-  );
-}
+      </Reveal>
 
-// ----------------------------------------------------------------- timeline ----
+      {outlook && <OutlookBlock state={outlook} caption={w.caption} suggestion={a.caption.suggestion} onRetry={onOutlookRetry} />}
 
-type Tone = "problem" | "chance" | "strong" | "edit";
-const TONE_WORD: Record<Tone, string> = { problem: "Problem", chance: "Opportunity", strong: "Strong moment", edit: "Suggested edit" };
-const MARKER_TONE: Record<Marker["kind"], Tone> = { issue: "problem", pacing: "chance", cta: "chance", text: "chance", strong: "strong" };
-type Entry = { t: number; end: number | null; tone: Tone; label: string; detail: string | null; marker: number | null };
+      {a.planFit && (
+        <section className="st-block">
+          <h3>Against your planned post</h3>
+          <p className="st-planfit"><b>{a.planFit.title}</b> {a.planFit.summary}</p>
+        </section>
+      )}
 
-/** Everything the analysis placed in time, in order: its markers, its suggested cuts and the text it would add. */
-function entriesOf(a: StudioAnalysis): Entry[] {
-  const out: Entry[] = a.markers.map((m, i) => ({ t: m.t, end: null, tone: MARKER_TONE[m.kind] ?? "chance", label: m.label, detail: null, marker: i }));
-  for (const c of a.cuts?.edits ?? []) out.push({ t: c.start, end: c.end, tone: "edit", label: `${c.type === "trim" ? "Trim" : "Cut"} ${(c.end - c.start).toFixed(1)} s`, detail: c.reason || null, marker: null });
-  for (const o of a.onScreenText) out.push({ t: o.t, end: null, tone: "edit", label: `Add on-screen text: ${o.text}`, detail: o.role === "opening" ? "Opening line" : o.role === "cta" ? "Ending line" : "Mid-video line", marker: null });
-  return out.sort((x, y) => x.t - y.t);
-}
-
-export function TimelinePanel({ a, thumbs, playT, seek, setActive }: { a: StudioAnalysis; thumbs: { src: string; t: number }[]; playT: number; seek: (t: number) => void; setActive: (i: number | null) => void }) {
-  const dur = Math.max(1, a.durationSec ?? 1);
-  const entries = entriesOf(a);
-  const go = (e: Entry) => { seek(e.t); setActive(e.marker); };
-  if (a.kind !== "video") {
-    return <div className="st-panel"><div className="ov-empty small">A still post has no timeline. The changes to make are in Verdict.</div></div>;
-  }
-  return (
-    <div className="st-panel">
-      <section className="st-block">
-        <h3>Where it happens</h3>
-        <div className="sd-strip" aria-label="Frames from your video; choose one to jump there">
-          {thumbs.map((f) => (
-            <button key={f.t} type="button" className={Math.abs(playT - f.t) < 0.4 ? "is-on" : ""} onClick={() => seek(f.t)} aria-label={`Jump to ${fmtT(f.t)}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.src} alt="" />
-              <small>{fmtAt(f.t)}</small>
-            </button>
-          ))}
-        </div>
-        <div className="sd-track" role="group" aria-label="Moments on the video">
-          {a.segments.map((s, i) => <span key={i} className={`sd-seg is-${s.rating}`} style={{ left: `${(s.start / dur) * 100}%`, width: `${((s.end - s.start) / dur) * 100}%` }} title={`${fmtT(s.start)} to ${fmtT(s.end)}: ${s.label}`} />)}
-          {entries.map((e, i) => <button key={i} type="button" className={`sd-pin is-${e.tone}`} style={{ left: `${Math.min(100, (e.t / dur) * 100)}%` }} onClick={() => go(e)} aria-label={`${fmtT(e.t)} ${TONE_WORD[e.tone]}: ${e.label}`} />)}
-          <i className="sd-head" style={{ left: `${Math.min(100, (playT / dur) * 100)}%` }} aria-hidden />
-        </div>
-        <ul className="sd-legend" aria-hidden>
-          {(Object.keys(TONE_WORD) as Tone[]).map((t) => <li key={t} className={`is-${t}`}><i />{TONE_WORD[t]}</li>)}
-        </ul>
-      </section>
+      {a.strengths && a.strengths.length > 0 && (
+        <section className="st-block">
+          <h3>What works</h3>
+          <ul className="st-works">{a.strengths.map((x) => <li key={x}>{x}</li>)}</ul>
+        </section>
+      )}
 
       <section className="st-block">
-        <h3>Moments</h3>
-        {entries.length ? (
-          <ul className="sd-moments">
-            {entries.map((e, i) => (
-              <li key={i}>
-                <button type="button" className={`is-${e.tone}`} onClick={() => go(e)}>
-                  <span className="sd-m-t">{e.end != null ? fmtSpan(e.t, e.end) : fmtAt(e.t)}</span>
-                  <span className="sd-m-body"><b>{e.label}</b>{e.detail && <small>{e.detail}</small>}</span>
-                  <em>{TONE_WORD[e.tone]}</em>
-                </button>
+        <h3>Highest-priority edits</h3>
+        <ol className="st-fixes">
+          {a.topFixes.map((f, i) => {
+            const when = fixWhen(f);
+            const priority = f.priority ?? (i === 0 ? "high" : "medium");
+            const m = moments.find((x) => x.fixIndex === i) ?? null;
+            return (
+              <li key={`${f.title}-${i}`} className="st-fix">
+                <span className="st-fix-num">{String(i + 1).padStart(2, "0")}</span>
+                <div className="st-fix-body">
+                  <b>{f.title}</b>
+                  <p className="sd-note">{when ? `${when} · ` : ""}{PRIORITY_LABEL[priority]}</p>
+                  <p className="st-fix-obs">{f.observed}</p>
+                  <p className="st-fix-sug"><em>Suggested:</em> {f.suggestion}</p>
+                  {f.why && <p className="st-fix-obs">{f.why}</p>}
+                  <div className="st-fix-actions">
+                    {f.t != null && a.kind === "video" && <button type="button" className="ov-btn ghost small" onClick={() => seek(f.t!)}><Clock size={12} /> Jump to {fmtT(f.t)}</button>}
+                    {f.apply && <button type="button" className={`ov-btn ${inUse(f) ? "ghost" : "primary"} small`} onClick={() => apply(f.apply!.field, f.apply!.value)}>{inUse(f) ? <><Check size={12} /> In use</> : APPLY_LABEL[f.apply.field]}</button>}
+                    {m && m.capability !== "caption" && <button type="button" className="ov-btn ghost small" aria-expanded={preview === i} onClick={() => setPreview(preview === i ? null : i)}>{preview === i ? "Hide the preview" : "Preview the change"}</button>}
+                    {m && m.capability !== "caption" && <button type="button" className={`ov-btn ${f.apply ? "ghost" : "primary"} small`} disabled={!canHandoff} onClick={() => onFix(m, { presetId: m.text?.presetId, cuts: m.cuts?.map(({ start, end }) => ({ start, end })) })}>{CAPABILITY[m.capability].label} <ArrowRight size={12} /></button>}
+                    {m && m.capability === "caption" && <button type="button" className="ov-btn ghost small" onClick={onCaption}>Rewrite the caption <ArrowRight size={12} /></button>}
+                  </div>
+                  {m && m.capability !== "caption" && <p className="sd-note">{canHandoff ? `Opens the ${CAPABILITY[m.capability].where}${m.capability === "pauses" || m.capability === "text" ? " with this applied. Your original file is not changed" : ""}.` : "Upload the original file to apply this in the editor."}</p>}
+                  {!m && !f.apply && priority !== "experiment" && a.kind === "video" && <p className="sd-note">This one is yours to make: SOCIA can&apos;t reshoot or re-record it.</p>}
+                  {m && preview === i && <div className="sd-preview"><MomentPreview m={m} thumbs={thumbs} frame={frame} durationSec={durationSec} /></div>}
+                  {f.evidence && (
+                    <details className="sd-why">
+                      <summary>Why SOCIA recommends this</summary>
+                      <dl>
+                        {f.evidence.account && <div><dt>Your posts</dt><dd>{f.evidence.account}</dd></div>}
+                        {f.evidence.niche && <div><dt>Your niche</dt><dd>{f.evidence.niche}</dd></div>}
+                        <div><dt>Confidence</dt><dd><b>{CONFIDENCE_LABEL[f.evidence.confidence]}.</b> {f.evidence.confidenceWhy}</dd></div>
+                        {f.apply && <div><dt>Suggested line</dt><dd>{f.apply.value}</dd></div>}
+                      </dl>
+                    </details>
+                  )}
+                </div>
               </li>
-            ))}
-          </ul>
-        ) : <p className="sd-note">SOCIA placed nothing at a specific time in this video.</p>}
+            );
+          })}
+        </ol>
+        {a.kind === "video" && moments.length > 0 && <p className="sd-note"><button type="button" className="ov-link" onClick={onImprove}>All {moments.length} edits SOCIA can make, one by one <ArrowRight size={12} /></button></p>}
       </section>
 
       {a.segments.length > 0 && (
         <section className="st-block">
-          <h3>Structure</h3>
+          <h3>Video structure</h3>
           <ul className="st-segs">
             {a.segments.map((s, i) => (
               <li key={i} className={`st-seg ${s.rating}`}>
@@ -365,11 +323,92 @@ export function TimelinePanel({ a, thumbs, playT, seek, setActive }: { a: Studio
           </ul>
         </section>
       )}
+
+      {entries.length > 0 && (
+        <section className="st-block">
+          <h3>Timeline insights</h3>
+          <ul className="st-markers">
+            {entries.map((e, i) => (
+              <li key={i}><button type="button" className={`st-marker ${e.kind}`} onClick={() => { seek(e.t); setActive(e.marker); }}><span>{e.end != null ? fmtSpan(e.t, e.end) : fmtAt(e.t)}</span><b>{e.label}</b><small>{e.word}</small></button></li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="st-block">
+        <h3>Platform fit</h3>
+        <ul className="st-fit">
+          {a.platformFit.map((p) => (
+            <li key={p.platform}><b>{p.platform}</b><em className={`ov-chip ${FIT_CLS[p.fit]}`}>{p.fit[0].toUpperCase() + p.fit.slice(1)}</em><p>{p.note}</p></li>
+          ))}
+        </ul>
+        <p className="ov-source">Fit is an editor&apos;s read of length, opening and text against each format. SOCIA does not claim platform ranking rules.</p>
+      </section>
+
+      <section className="st-block">
+        <div className="st-block-head"><h3>Compare to my winners</h3>{a.compare && <button type="button" className="ov-link" onClick={onCompare}>See examples <ArrowRight size={12} /></button>}</div>
+        {a.compare ? (
+          <>
+            <p className="ov-source">Compared with {a.compare.basis}. A pattern across {a.compare.sample} posts shows what they share, not what caused their results.</p>
+            {a.compare.posts && a.compare.posts.length > 0 && <PostRow posts={a.compare.posts} mine />}
+            <RefTable head={["This draft", "Your winners"]} rows={a.compare.rows.map((r) => ({ label: r.label, current: r.current, theirs: r.winners, verdict: r.verdict, refs: r.refs }))} />
+            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.compare.summary}</p></div>
+          </>
+        ) : <div className="ov-empty small">No synced posts to compare with yet. Connect Instagram and this fills in with your own top posts.</div>}
+      </section>
+
+      <section className="st-block">
+        <div className="st-block-head"><h3>Compare with competitors</h3><Link href="/discover" className="ov-link">Discover <ArrowRight size={12} /></Link></div>
+        {a.competitors ? (
+          <>
+            <p className="ov-source">Compared with {a.competitors.basis}, with the numbers the platforms published. Their results, not a forecast for yours. Take the structure, never the wording.</p>
+            <PostRow posts={a.competitors.posts} mine={false} />
+            <RefTable head={["This draft", "Their Reels"]} rows={a.competitors.rows} />
+            {a.competitors.takeaways.length > 0 && (
+              <>
+                <h4 className="sd-sub">What you could take from them</h4>
+                <ul className="st-list">{a.competitors.takeaways.map((t) => <li key={t}>{t}</li>)}</ul>
+              </>
+            )}
+            {a.competitors.summary && <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.competitors.summary}</p></div>}
+          </>
+        ) : <div className="ov-empty small">No competitor Reels on file for this brand yet. Track a few accounts on Discover, and your next analysis compares this draft with their Reels that took off.</div>}
+      </section>
+
+      <section className="st-block">
+        <h3>Compare with niche</h3>
+        {a.niche ? (
+          <>
+            <p className="ov-source">Observed among {a.niche.basis}. Patterns, not guarantees.</p>
+            <ul className="st-list">{a.niche.patterns.map((p) => <li key={p}>{p}</li>)}</ul>
+            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.niche.summary}</p></div>
+          </>
+        ) : <div className="ov-empty small">No analysed niche content on file yet. Run discovery on Discover and this compares your draft with what is working around you.</div>}
+      </section>
+
+      {a.experiments && a.experiments.length > 0 && (
+        <section className="st-block">
+          <h3><FlaskConical size={14} /> Worth testing, not proven</h3>
+          <ul className="sd-tests">
+            {a.experiments.map((e) => (
+              <li key={e.title}>
+                <b>{e.title}</b>
+                {e.hypothesis && <p>{e.hypothesis}</p>}
+                {e.basis && <p><em>Based on:</em> {e.basis}</p>}
+                <p><em>How to test:</em> {e.how}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="sd-note">These rest on a small or mixed sample, so other differences between the posts could explain them. Test before you rely on them.</p>
+        </section>
+      )}
+
+      <Directions a={a} w={w} apply={apply} canHandoff={canHandoff} onUseDirection={onUseDirection} onEditor={onEditor} />
     </div>
   );
 }
 
-// -------------------------------------------------------------- performance ----
+// ----------------------------------------------------------------- compare ----
 
 /** The real posts a comparison rests on, to open and watch. */
 function PostRow({ posts, mine }: { posts: PostRef[]; mine: boolean }) {
@@ -419,78 +458,6 @@ function RefTable({ head, rows }: { head: [string, string]; rows: (RefRow | { la
   );
 }
 
-export function PerformancePanel({ a, onCompare }: { a: StudioAnalysis; onCompare: () => void }) {
-  return (
-    <div className="st-panel">
-      <section className="st-block">
-        <div className="st-block-head"><h3>Against your top posts</h3>{a.compare && <button type="button" className="ov-link" onClick={onCompare}>All your posts <ArrowRight size={12} /></button>}</div>
-        {a.compare ? (
-          <>
-            {a.compare.posts && a.compare.posts.length > 0 && <PostRow posts={a.compare.posts} mine />}
-            <RefTable head={["This draft", "Your top posts"]} rows={a.compare.rows.map((r) => ({ label: r.label, current: r.current, theirs: r.winners, verdict: r.verdict, refs: r.refs }))} />
-            <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.compare.summary}</p></div>
-            <p className="sd-note">Compared with {a.compare.basis}. A pattern across {a.compare.sample} posts shows what they share, not what caused their results.</p>
-          </>
-        ) : <div className="ov-empty small">No synced posts to compare with yet. Connect Instagram and this fills in with your own top posts.</div>}
-      </section>
-
-      <section className="st-block">
-        <div className="st-block-head"><h3>Against competitors&apos; Reels</h3><Link href="/discover" className="ov-link">Discover <ArrowRight size={12} /></Link></div>
-        {a.competitors ? (
-          <>
-            <PostRow posts={a.competitors.posts} mine={false} />
-            <RefTable head={["This draft", "Their Reels"]} rows={a.competitors.rows} />
-            {a.competitors.takeaways.length > 0 && (
-              <>
-                <h4 className="sd-sub">What you could take from them</h4>
-                <ul className="st-list">{a.competitors.takeaways.map((t) => <li key={t}>{t}</li>)}</ul>
-              </>
-            )}
-            {a.competitors.summary && <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.competitors.summary}</p></div>}
-            <p className="sd-note">Compared with {a.competitors.basis}, with the numbers the platforms published. Their results, not a forecast for yours. Take the structure, never the wording.</p>
-          </>
-        ) : <div className="ov-empty small">No competitor Reels on file for this brand yet. Track a few accounts on Discover, and your next analysis compares this draft with their Reels that took off.</div>}
-      </section>
-
-      {a.experiments && a.experiments.length > 0 && (
-        <section className="st-block">
-          <h3><FlaskConical size={14} /> Worth testing, not proven</h3>
-          <ul className="sd-tests">
-            {a.experiments.map((e) => (
-              <li key={e.title}>
-                <b>{e.title}</b>
-                {e.hypothesis && <p>{e.hypothesis}</p>}
-                {e.basis && <p><em>Based on:</em> {e.basis}</p>}
-                <p><em>How to test:</em> {e.how}</p>
-              </li>
-            ))}
-          </ul>
-          <p className="sd-note">These rest on a small or mixed sample, so other differences between the posts could explain them. Test before you rely on them.</p>
-        </section>
-      )}
-
-      {a.niche && (
-        <section className="st-block">
-          <h3>Patterns in your niche</h3>
-          <ul className="st-list">{a.niche.patterns.map((p) => <li key={p}>{p}</li>)}</ul>
-          <div className="ov-why-block ai"><small>SOCIA&apos;s read</small><p>{a.niche.summary}</p></div>
-          <p className="sd-note">Observed among {a.niche.basis}. Patterns, not guarantees.</p>
-        </section>
-      )}
-
-      <section className="st-block">
-        <h3>Platform fit</h3>
-        <ul className="st-fit">
-          {a.platformFit.map((p) => (
-            <li key={p.platform}><b>{p.platform}</b><em className={`ov-chip ${FIT_CLS[p.fit]}`}>{p.fit[0].toUpperCase() + p.fit.slice(1)}</em><p>{p.note}</p></li>
-          ))}
-        </ul>
-        <p className="sd-note">Fit is an editor&apos;s read of length, opening and text against each format. SOCIA does not claim platform ranking rules.</p>
-      </section>
-    </div>
-  );
-}
-
 // --------------------------------------------------------------- directions ----
 
 function DirectionCard({ d, inUse, onUse, canHandoff, onEditor }: { d: Direction; inUse: boolean; onUse: () => void; canHandoff: boolean; onEditor: () => void }) {
@@ -531,13 +498,13 @@ function DirectionCard({ d, inUse, onUse, canHandoff, onEditor }: { d: Direction
   );
 }
 
-export function DirectionsPanel({ a, w, apply, canHandoff, onUseDirection, onEditor }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; canHandoff: boolean; onUseDirection: (d: Direction) => void; onEditor: (d: Direction) => void }) {
+function Directions({ a, w, apply, canHandoff, onUseDirection, onEditor }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; canHandoff: boolean; onUseDirection: (d: Direction) => void; onEditor: (d: Direction) => void }) {
   const dirs = a.directions ?? [];
   const first = dirs.find((d) => d.testFirst) ?? dirs[0];
   const second = dirs.find((d) => d !== first);
   return (
-    <div className="st-panel">
-      {dirs.length > 0 ? (
+    <>
+      {dirs.length > 0 && (
         <section className="st-block">
           <h3>Three ways to remake it</h3>
           <p className="sd-note">Each is a version to test, with what it costs you. SOCIA can&apos;t know which will do best: it marks the one it would try first and says why.</p>
@@ -545,8 +512,6 @@ export function DirectionsPanel({ a, w, apply, canHandoff, onUseDirection, onEdi
             {dirs.map((d) => <DirectionCard key={d.name} d={d} inUse={w.hook === d.opening} onUse={() => onUseDirection(d)} canHandoff={canHandoff} onEditor={() => onEditor(d)} />)}
           </ol>
         </section>
-      ) : (
-        <div className="ov-empty small">{a.kind === "video" ? "This analysis was made before creative directions existed. Re-analyze to get three ways to remake the video." : "Creative directions are for videos. For a still post, the opening lines below and the Caption tab carry the change."}</div>
       )}
 
       {first && second && (
@@ -589,7 +554,7 @@ export function DirectionsPanel({ a, w, apply, canHandoff, onUseDirection, onEdi
           </ul>
         </section>
       )}
-    </div>
+    </>
   );
 }
 

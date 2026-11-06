@@ -10122,6 +10122,7 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .st-marker.issue span { color: var(--danger-text); } .st-marker.strong span { color: var(--success-text); } .st-marker.pacing span { color: var(--warning-text); } .st-marker.cta span { color: var(--primary-text); }
 .st-fit li { display: grid; grid-template-columns: 130px auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--surface-muted); border: 1px solid var(--border); }
 .st-fit li b { font-size: 12.5px; color: var(--text-primary); }
+.st-fit li em { justify-self: start; }
 .st-fit li p { grid-column: 1 / 3; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
 .st-cmp { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
 .st-cmp th { text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }

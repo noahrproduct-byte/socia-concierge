@@ -13,7 +13,7 @@ import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Lo
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
-import { AfterCard, DirectionsPanel, PerformancePanel, TimelinePanel, VerdictPanel, type OutlookState } from "./RaterPanels";
+import { AfterCard, AnalyzePanel, type OutlookState } from "./RaterPanels";
 import { momentsFrom, presetForFix } from "@/lib/studioFixes";
 import { entryFor, type Lesson, type RaterOutcome } from "@/lib/raterLog";
 import { outlookFor, recordOf } from "@/lib/outlook";
@@ -56,12 +56,8 @@ const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }
   api: { title: "SOCIA AI is unavailable", body: "The analysis service didn't respond. Try again in a moment." },
   slow: { title: "The analysis took too long", body: "It was stopped before it finished. Try again in a moment." },
 };
-// Five workspaces, in the order the questions come: what to fix, where it is, what the data says, how else to make it, then making the change.
-const TABS = [["verdict", "Verdict"], ["timeline", "Timeline"], ["performance", "Performance"], ["directions", "Directions"], ["improve", "Improve and export"]] as const;
+const TABS = [["analyze", "Analyze"], ["improve", "Improve"], ["caption", "Caption"], ["audio", "Audio"], ["prepare", "Prepare"]] as const;
 type Tab = (typeof TABS)[number][0];
-// Inside Improve and export: the edits SOCIA makes, the caption, the sound, then publishing.
-const STEPS = [["edits", "Edits"], ["caption", "Caption"], ["audio", "Sound"], ["prepare", "Publish"]] as const;
-type Step = (typeof STEPS)[number][0];
 
 export default function ContentStudio({ userId, niche, location, goalDefault, drafts, connected, postsSynced, modeTabs, plan }: { userId: string; niche: string | null; location: string | null; goalDefault: GoalId | null; drafts: DraftItem[]; connected: boolean; postsSynced: number; /** The Studio mode switch, rendered under the header. */ modeTabs?: ReactNode; /** The planned post this draft is for: the review compares it with what was planned. */ plan?: { planId: string; index: number; title: string } | null }) {
   const [source, setSource] = useState<Source | null>(null);
@@ -78,8 +74,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [audioFacts, setAudioFacts] = useState<QuickAudio | null>(null);
   const [auto, setAuto] = useState<{ text: string; timed: string } | null>(null);
   const [listenNote, setListenNote] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("verdict");
-  const [step, setStep] = useState<Step>("edits");
+  const [tab, setTab] = useState<Tab>("analyze");
   // The creative direction whose opening is in use, and the rater's memory of earlier videos (lib/raterLog.ts).
   const [direction, setDirection] = useState<{ name: string; opening: string } | null>(null);
   const [after, setAfter] = useState<{ outcomes: RaterOutcome[]; lessons: Lesson[] } | null>(null);
@@ -161,7 +156,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       if (src.file && (src.kind === "video" || src.kind === "image")) {
         setRatedRef(rememberRated(src.file, { name: src.name, kind: src.kind, durationSec: fr.duration ?? null, summary: analysisSummary(a).slice(0, 400), caption: opts?.caption ?? w.caption }));
       }
-      setPhase("done"); setTab("verdict"); setStep("edits");
+      setPhase("done"); setTab("analyze");
     } catch {
       setErr({ kind: "api" }); setPhase("error");
     }
@@ -327,7 +322,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       notify(e instanceof Error ? e.message : "Couldn't save the draft");
     } finally { setSaving(false); }
     return saved;
-  }, [source, w.caption, w.cta, w.hook, w.onscreen, userId, ratedRef, analysis, direction, loadAfter]);
+  }, [source, w.caption, w.cta, w.hook, w.onscreen, userId, ratedRef, analysis, direction, outlook, loadAfter]);
 
   // ---- hand the piece to Create Post ---------------------------------------
   // Same save as above (an already saved draft is reused), then the composer
@@ -364,7 +359,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     void dur;
     router.push("/studio?mode=edit");
   }, [source, frames, w.layers, router]);
-  // The edits SOCIA can make, each tied to the fix it carries out (the Verdict cards offer them directly).
+  // The edits SOCIA can make, each tied to the fix it carries out (the Analyze page offers them directly).
   const moments = useMemo(() => (analysis && analysis.kind === "video" ? momentsFrom({ analysis, durationSec: frames?.duration ?? 0, hook: w.hook, cta: w.cta }) : []), [analysis, frames, w.hook, w.cta]);
   const pickDirection = useCallback((d: Direction) => { apply("hook", d.opening); setDirection({ name: d.name, opening: d.opening }); }, [apply]);
   // A direction as a new version: the editor opens on the same file with that opening line on the video.
@@ -501,18 +496,10 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
                 <span className="st-tabs-ask"><AskSociaButton className="ov-btn ghost small" label="Ask SOCIA about this content" context={{ page: "studio", studio: { kind: source.kind, durationSec: frames?.duration ?? null, goal: w.goal, transcript: transcript || null, caption: w.caption || null, summary: summaryForAsk } }} contextLabel={source.name} onProposal={onProposal} /></span>
               </div>
-              {tab === "verdict" && <VerdictPanel a={analysis} w={w} apply={apply} seek={doSeek} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onImprove={() => { setTab("improve"); setStep("edits"); }} onCaption={() => { setTab("improve"); setStep("caption"); }} outlook={analysis.kind === "video" ? outlook : null} onOutlookRetry={loadOutlook} />}
-              {tab === "timeline" && <TimelinePanel a={analysis} thumbs={frames?.thumbs ?? []} playT={playT} seek={doSeek} setActive={setActiveMarker} />}
-              {tab === "performance" && <PerformancePanel a={analysis} onCompare={() => window.location.assign("/analytics#content")} />}
-              {tab === "directions" && <DirectionsPanel a={analysis} w={w} apply={apply} canHandoff={Boolean(source.file)} onUseDirection={pickDirection} onEditor={directionToEditor} />}
-              {tab === "improve" && (
-                <>
-                  <div className="sd-steps" role="tablist" aria-label="Improve and export">
-                    {STEPS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={step === id} className={step === id ? "is-on" : ""} onClick={() => setStep(id)}>{label}</button>)}
-                  </div>
-                  {step === "edits" && <ImprovePanel a={analysis} w={w} seek={doSeek} playT={playT} thumbs={frames?.thumbs ?? []} durationSec={frames?.duration ?? 0} frame={videoSize} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setStep("caption")} onProposed={onProposed} />}
-                  {step === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
-                  {step === "audio" && (
+              {tab === "analyze" && <AnalyzePanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} onCompare={() => window.location.assign("/analytics#content")} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onImprove={() => setTab("improve")} onCaption={() => setTab("caption")} outlook={analysis.kind === "video" ? outlook : null} onOutlookRetry={loadOutlook} onUseDirection={pickDirection} onEditor={directionToEditor} />}
+              {tab === "improve" && <ImprovePanel a={analysis} w={w} seek={doSeek} playT={playT} thumbs={frames?.thumbs ?? []} durationSec={frames?.duration ?? 0} frame={videoSize} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onProposed={onProposed} />}
+              {tab === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
+              {tab === "audio" && (
                 <>
                   {source.kind === "video" && source.file && (
                     <div className="ov-card cb-manual">
@@ -522,10 +509,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                   )}
                   <AudioPanel a={analysis} />
                 </>
-                  )}
-                  {step === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} />}
-                </>
               )}
+              {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} />}
             </>
           )}
           {source && !analysis && phase === "done" && <div className="ov-empty">No analysis yet.</div>}
