@@ -26,6 +26,7 @@ import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
 import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { timeline } from "@/lib/studioClips/timeline";
+import { speechShare, speechSpans } from "@/lib/studioClips/musicDuck";
 import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
 import type { ClipMeasure } from "@/lib/studioClips/measure";
 import { alignToBeats } from "@/lib/studioClips/beats";
@@ -215,6 +216,12 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   };
   const sources = useMemo(() => Object.fromEntries((data?.sources ?? []).map((s) => [s.clipId, s])) as Record<string, BuildSource>, [data]);
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
+  // How much of the cut has speech, from the transcript's own word timings (the music panel offers ducking only when there is some).
+  const speechPct = useMemo(() => {
+    if (!edl || !tl) return 0;
+    const spans = speechSpans(edl, Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])));
+    return Math.round(speechShare(spans, tl.durationSec) * 100);
+  }, [edl, tl, sources]);
   const anySpeech = useMemo(() => (edl ? edl.segments.some((s) => sources[s.clipId]?.words?.length) : false), [edl, sources]);
   const captionsOn = Boolean(edl?.captions);
   // The soundtrack's playable link: made tracks are signed when the cut loads, and when one is made here.
@@ -637,6 +644,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 onPlaylist={(p) => setEdl((e) => (e ? { ...e, playlist: p } : e))}
                 onSoundtrack={(st) => setEdl((e) => { if (!e) return e; if (st) return { ...e, soundtrack: st }; const { soundtrack: _drop, ...rest } = e; void _drop; return rest; })}
                 onLevels={(musicVolume, originalVolume) => { setEdl((e) => (e?.soundtrack ? { ...e, soundtrack: { ...e.soundtrack, musicVolume, originalVolume } } : e)); setDirty(true); }}
+                onDuck={(on) => { setEdl((e) => { if (!e?.soundtrack) return e; const { duck: _old, ...st } = e.soundtrack; void _old; return { ...e, soundtrack: on ? { ...st, duck: true } : st }; }); setDirty(true); }}
+                speechPct={speechPct}
               />
               <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
             </div>

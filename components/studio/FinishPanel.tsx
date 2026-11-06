@@ -10,7 +10,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, AudioLines, Check, Loader2, Palette, RefreshCw, Scissors } from "lucide-react";
 import { measureCut, type ClipMeasure } from "@/lib/studioClips/measure";
 import { ENHANCE_TARGET, gradeClip, lookStats, matchTarget } from "@/lib/studioClips/grade";
-import { cutPauses, findPauses, planSound, soundStats, SOUND } from "@/lib/studioClips/sound";
+import { cutPauses, findPauses, planSound, soundStats, speechPauses, PAUSE, SOUND } from "@/lib/studioClips/sound";
+import { clearJumpCuts, jumpCutCount, variedCount, varyJumpCuts, JUMP } from "@/lib/studioClips/jumpCuts";
 import { withFinish } from "@/lib/studioClips/finish";
 import { clipLabel, type BuildSource, type ClipGrade, type Edl, type EdlFinish } from "@/lib/studioClips/types";
 
@@ -69,8 +70,14 @@ export default function FinishPanel({
     return out;
   }, [measures]);
   const sounds = useMemo(() => Object.fromEntries(Object.entries(measures ?? {}).map(([id, m]) => [id, m.windows ? planSound(m.windows) : null])), [measures]);
-  const pauses = useMemo(() => Object.fromEntries(Object.entries(measures ?? {}).map(([id, m]) => [id, m.windows ? findPauses(m.windows) : []])), [measures]);
-  const pausePreview = useMemo(() => (measures ? cutPauses(edl, pauses) : null), [edl, pauses, measures]);
+  // Measured silences, checked against the transcript: a quiet word is speech, not a pause (lib/studioClips/sound.ts).
+  const pauses = useMemo(() => Object.fromEntries(Object.entries(measures ?? {}).map(([id, m]) => [id, m.windows ? speechPauses(findPauses(m.windows), sources[id]?.words) : []])), [measures, sources]);
+  const [air, setAir] = useState(false);
+  const pausePreview = useMemo(() => (measures ? cutPauses(edl, pauses, air ? PAUSE.airSec : PAUSE.keepSec) : null), [edl, pauses, measures, air]);
+  // Hard cuts between pieces of the same clip, and how many pieces already carry the alternate framing (lib/studioClips/jumpCuts.ts).
+  const jumpCuts = useMemo(() => jumpCutCount(edl), [edl]);
+  const varied = useMemo(() => variedCount(edl), [edl]);
+  const varyPreview = useMemo(() => varyJumpCuts(edl), [edl]);
   const noise = useMemo(() => Object.entries(measures ?? {}).map(([id, m]) => ({ id, db: m.windows ? soundStats(m.windows).noiseDb : null })).filter((x) => x.db != null) as { id: string; db: number }[], [measures]);
 
   const setLook = async (next: Look) => {
@@ -186,8 +193,21 @@ export default function FinishPanel({
           {finish?.pausesCut ? <span>{finish.pausesCut.count} long pause{finish.pausesCut.count === 1 ? "" : "s"} cut ({finish.pausesCut.seconds}s). Undo brings {finish.pausesCut.count === 1 ? "it" : "them"} back.</span>
             : pausePreview?.count ? <span>{pausePreview.count} pause{pausePreview.count === 1 ? "" : "s"} over 0.8s of silence ({pausePreview.seconds}s in all).</span>
             : <span>{measures ? "No pauses over 0.8s of silence in this cut." : "Pauses are found when the sound is measured."}</span>}
+          {!!pausePreview?.count && (
+            <label className="st-check"><input type="checkbox" checked={air} disabled={disabled} onChange={(e) => setAir(e.target.checked)} /> Leave more air ({PAUSE.airSec}s either side, not {PAUSE.keepSec}s)</label>
+          )}
           {!!pausePreview?.count && <button type="button" className="ov-btn ghost small" disabled={disabled} onClick={cutLongPauses}>Cut {pausePreview.count === 1 ? "it" : "them"}</button>}
         </div>
+        {jumpCuts > 0 && (
+          <div className="cbf-pauses">
+            <Scissors size={13} />
+            {varied > 0 && !varyPreview.changed
+              ? <span>{jumpCuts} jump cut{jumpCuts === 1 ? "" : "s"}: {varied} piece{varied === 1 ? " is" : "s are"} punched in to {Math.round(JUMP.zoom * 100)}%, so each cut reads as a new shot.</span>
+              : <span>{jumpCuts} jump cut{jumpCuts === 1 ? "" : "s"}: the picture jumps while the framing stays the same. Punching in to {Math.round(JUMP.zoom * 100)}% on every other piece makes each read as a new shot.</span>}
+            {varyPreview.changed > 0 && <button type="button" className="ov-btn ghost small" disabled={!canEdit || busy} onClick={() => onCommit(varyPreview.edl)}>Vary the framing</button>}
+            {varied > 0 && <button type="button" className="ov-btn ghost small" disabled={!canEdit || busy} onClick={() => onCommit(clearJumpCuts(edl).edl)}>One framing</button>}
+          </div>
+        )}
       </section>
 
       <section className="ov-card cbf-sec cbf-not">

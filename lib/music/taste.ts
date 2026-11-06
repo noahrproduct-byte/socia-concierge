@@ -36,7 +36,11 @@ export type TrackBrief = {
 export type SoundSuggestion = { search: string; why: string };
 export type Playlist = { taste: string[]; tracks: TrackBrief[]; suggestions: SoundSuggestion[]; createdAt: string };
 /** The track mixed into the cut, and the two levels the person sets each time. */
-export type Soundtrack = { trackId: string; name: string; path: string; musicVolume: number; originalVolume: number };
+export type Soundtrack = {
+  trackId: string; name: string; path: string; musicVolume: number; originalVolume: number;
+  /** Lower the music while someone is speaking and bring it up between (lib/studioClips/musicDuck.ts). Absent = one level throughout. */
+  duck?: boolean;
+};
 
 export const PLAYLIST_SIZE = 6;
 export const MAX_PICKS = 20;
@@ -148,7 +152,7 @@ export function sanitizeSoundtrack(v: unknown, playlist: Playlist | null | undef
   const track = playlist.tracks.find((t) => t.id === o.trackId);
   if (!track) return null;
   const level = (x: unknown, d: number) => (typeof x === "number" && Number.isFinite(x) ? Math.round(Math.min(1, Math.max(0, x)) * 100) / 100 : d);
-  return { trackId: track.id, name: track.name, path: pathFor(track.id), musicVolume: level(o.musicVolume, 0.6), originalVolume: level(o.originalVolume, 1) };
+  return { trackId: track.id, name: track.name, path: pathFor(track.id), musicVolume: level(o.musicVolume, 0.6), originalVolume: level(o.originalVolume, 1), ...(o.duck === true ? { duck: true } : {}) };
 }
 
 /** Where a track's MP3 lives in the private studio bucket: beside the project's clips. */

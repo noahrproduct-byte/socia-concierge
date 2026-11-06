@@ -4,6 +4,7 @@
 import type { Edl, EdlSegment, TranscriptWord, TransitionKind } from "./types";
 import { OUTPUT } from "./types";
 import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
+import { cleanCaptionWords } from "./captionClean";
 
 export const FPS = OUTPUT.fps;
 export const secToFrames = (s: number): number => Math.max(0, Math.round(s * FPS));
@@ -63,9 +64,12 @@ export type CaptionLike = { text: string; startMs: number; endMs: number; timest
  */
 export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>): CaptionLike[] {
   const out: CaptionLike[] = [];
+  const cleaned = new Map<string, TranscriptWord[]>();
   for (const s of timeline(edl).segments) {
-    const ws = words[s.clipId];
-    if (!ws?.length) continue;
+    const said = words[s.clipId];
+    if (!said?.length) continue;
+    // What the caption shows: broken-off words, stutters and filler sounds tidied (lib/studioClips/captionClean.ts).
+    const ws = cleaned.get(s.clipId) ?? cleaned.set(s.clipId, cleanCaptionWords(said)).get(s.clipId)!;
     const inMs = s.in * 1000, outMs = s.out * 1000, offsetMs = s.startSec * 1000 - inMs;
     for (const w of ws) {
       const mid = (w.startMs + w.endMs) / 2;

@@ -124,7 +124,36 @@ export const dbToGain = (db: number) => Math.pow(10, db / 20);
 
 // ------------------------------------------------------------------ pauses ----
 
-export const PAUSE = { minSec: 0.8, keepSec: 0.15, minPieceSec: 1 } as const;
+export const PAUSE = {
+  minSec: 0.8, keepSec: 0.15, minPieceSec: 1,
+  /** "More air" keeps this much either side of a cut pause, for an edit that breathes rather than pops */
+  airSec: 0.35,
+  /** a cut never comes closer to a word than this: two frames before it starts, four after it ends, so a soft consonant isn't clipped */
+  wordLeadSec: 0.07,
+  wordTailSec: 0.13,
+} as const;
+
+/**
+ * Measured silences checked against the transcript. Volume alone can't tell
+ * a pause from a quiet word, so each silence is shrunk until it holds no word
+ * (with a small pad either side of the words around it) and dropped when what
+ * is left is no longer a pause. Without a transcript the silences stand as
+ * measured.
+ */
+export function speechPauses(pauses: { start: number; end: number }[], words: { startMs: number; endMs: number }[] | null | undefined, minSec: number = PAUSE.minSec): { start: number; end: number }[] {
+  if (!words?.length) return pauses;
+  const out: { start: number; end: number }[] = [];
+  for (const p of pauses) {
+    // A word counts as inside the pause when any part of it is; the pause is cut back to clear each one.
+    let pieces = [{ start: p.start, end: p.end }];
+    for (const w of words) {
+      const a = w.startMs / 1000 - PAUSE.wordLeadSec, b = w.endMs / 1000 + PAUSE.wordTailSec;
+      pieces = pieces.flatMap((x) => (b <= x.start || a >= x.end ? [x] : [{ start: x.start, end: Math.min(x.end, a) }, { start: Math.max(x.start, b), end: x.end }]));
+    }
+    for (const x of pieces) if (x.end - x.start >= minSec) out.push({ start: Number(x.start.toFixed(2)), end: Number(x.end.toFixed(2)) });
+  }
+  return out;
+}
 
 /** Stretches of dead silence in measured windows (same threshold as ingest). */
 export function findPauses(ws: SoundWindow[], minSec: number = PAUSE.minSec): { start: number; end: number }[] {
@@ -137,7 +166,7 @@ export function findPauses(ws: SoundWindow[], minSec: number = PAUSE.minSec): { 
  * shorter than a second are never created (the pause stays instead). Text
  * lines move with the footage they were on.
  */
-export function cutPauses(edl: Edl, pausesByClip: Record<string, { start: number; end: number }[]>): { edl: Edl; count: number; seconds: number } {
+export function cutPauses(edl: Edl, pausesByClip: Record<string, { start: number; end: number }[]>, keepSec: number = PAUSE.keepSec): { edl: Edl; count: number; seconds: number } {
   const removed: { at: number; len: number }[] = [];
   const segments: EdlSegment[] = [];
   let outT = 0;
@@ -153,15 +182,16 @@ export function cutPauses(edl: Edl, pausesByClip: Record<string, { start: number
       const leading = p.a <= pieceIn + 0.05;
       const trailing = p.b >= s.out - 0.05;
       if (leading) {
-        const newIn = p.b - PAUSE.keepSec;
+        const newIn = p.b - keepSec;
         if (segOut - newIn < PAUSE.minPieceSec) continue;
         pieceIn = newIn;
       } else if (trailing) {
-        const newOut = p.a + PAUSE.keepSec;
+        const newOut = p.a + keepSec;
         if (newOut - pieceIn < PAUSE.minPieceSec) continue;
         segOut = newOut;
       } else {
-        const cutA = p.a + PAUSE.keepSec, cutB = p.b - PAUSE.keepSec;
+        const cutA = p.a + keepSec, cutB = p.b - keepSec;
+        if (cutB - cutA < 0.1) continue; // the air kept either side is all of it
         if (cutA - pieceIn < PAUSE.minPieceSec || segOut - cutB < PAUSE.minPieceSec) continue;
         pieces.push({ in: pieceIn, out: cutA });
         pieceIn = cutB;
