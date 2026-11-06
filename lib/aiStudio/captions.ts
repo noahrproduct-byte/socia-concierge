@@ -22,7 +22,8 @@ const SCHEMA = {
         properties: {
           index: { type: "integer" },
           caption: { type: "string" },
-          hashtags: { type: "array", items: { type: "string" }, maxItems: 5 },
+          // The cap of 5 is applied below: structured outputs refuse maxItems.
+          hashtags: { type: "array", items: { type: "string" } },
         },
       },
     },

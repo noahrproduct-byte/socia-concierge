@@ -130,12 +130,28 @@ export function pickMessage(b: PickBrief): string {
 export type RawPick = { start: number; end: number; title: string; hook: string; score: number; reason: string };
 export type ClipPick = { startMs: number; endMs: number; title: string; hook: string; score: number; reason: string; text: string };
 
+/** How far a clip's start or end moves to reach a sentence's edge. */
+const SENTENCE_SNAP_MS = 1500;
+const endsSentence = (w: TranscriptWord) => /[.!?…]["')\]]?$/.test(w.text);
+
+/** The word index nearest `ms` (by `at`) that `ok` accepts, within SENTENCE_SNAP_MS; `fallback` when there is none. */
+function nearestEdge(words: TranscriptWord[], ms: number, fallback: number, at: (w: TranscriptWord) => number, ok: (i: number) => boolean): number {
+  let best = fallback, bestGap = SENTENCE_SNAP_MS + 1;
+  for (let i = 0; i < words.length; i++) {
+    const gap = Math.abs(at(words[i]) - ms);
+    if (gap < bestGap && ok(i)) { best = i; bestGap = gap; }
+  }
+  return best;
+}
+
 const clean = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, n) : "");
 
 /**
  * The model's picks, made safe: a clip starts with the word being spoken at its
  * start and ends with the last word that begins before its end, so no word is
- * cut in half; at least 3 words, inside the allowed length with 15% slack, not
+ * cut in half, then moves to a sentence's edge when one is within SENTENCE_SNAP_MS
+ * (an answer a moment too long would otherwise end on the next sentence's first
+ * word); at least 3 words, inside the allowed length with 15% slack, not
  * overlapping a better clip by more than a quarter, best first.
  */
 export function validatePicks(raw: unknown, words: TranscriptWord[], opts: Pick<PickBrief["options"], "maxClips" | "lengths">): ClipPick[] {
@@ -154,9 +170,13 @@ export function checkPicks(raw: unknown, words: TranscriptWord[], opts: Pick<Pic
   for (const r of list as Partial<RawPick>[]) {
     const s = Number(r.start) * 1000, e = Number(r.end) * 1000;
     if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) { check.badTimes++; continue; }
-    const first = words.findIndex((w) => w.endMs > s);
+    let first = words.findIndex((w) => w.endMs > s);
     let last = -1;
     for (let i = words.length - 1; i >= 0; i--) if (words[i].startMs < e) { last = i; break; }
+    if (first >= 0 && last >= first) {
+      first = nearestEdge(words, s, first, (w) => w.startMs, (i) => i === 0 || endsSentence(words[i - 1]));
+      last = nearestEdge(words, e, last, (w) => w.endMs, (i) => endsSentence(words[i]));
+    }
     if (first < 0 || last < first || last - first + 1 < 3) { check.tooFewWords++; continue; }
     const startMs = words[first].startMs, endMs = words[last].endMs;
     const sec = (endMs - startMs) / 1000;

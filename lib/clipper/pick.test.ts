@@ -47,6 +47,18 @@ describe("checking the picker's answer", () => {
     expect(clipWords(words, p.startMs, p.endMs)).toHaveLength(20);
   });
 
+  it("lands on a sentence's edge when one is close, never on the next sentence's first word", () => {
+    // The answer overshoots w19. by half a second, into w20 of the next sentence.
+    const [p] = validatePicks({ clips: [{ start: 10.6, end: 20.3, title: "A", hook: "", score: 8, reason: "" }] }, words, opts);
+    expect(p.text.startsWith("w0 ")).toBe(true);
+    expect(p.text.endsWith("w19.")).toBe(true);
+    // No sentence edge within reach: it stays on the words asked for.
+    const plain = Array.from({ length: 80 }, (_, i) => ({ text: `w${i}`, startMs: i * 500, endMs: i * 500 + 400, confidence: null }));
+    const [q] = validatePicks({ clips: [{ start: 5, end: 20, title: "B", hook: "", score: 8, reason: "" }] }, plain, opts);
+    expect(q.text.startsWith("w10 ")).toBe(true);
+    expect(q.text.endsWith(" w39")).toBe(true);
+  });
+
   it("drops clips that are too short or long, outside the video, or reversed", () => {
     const bad = [
       { start: 10, end: 13, title: "short", hook: "", score: 9, reason: "" },
