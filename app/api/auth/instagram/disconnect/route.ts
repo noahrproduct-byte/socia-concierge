@@ -63,6 +63,8 @@ export async function POST(req: Request) {
   const dropSnapshots = async () => {
     for (const id of gone) {
       await db.from("account_snapshots").delete().eq("user_id", ownerId).eq("ig_user_id", id).then(() => null, () => null);
+      // Each Reel's daily numbers (lib/reelHistory.ts).
+      await db.from("reel_history").delete().eq("user_id", ownerId).eq("ig_user_id", id).then(() => null, () => null);
       // The commenters this account's posts produced (lib/contacts); sign-ups stay.
       await dropCommenters(db, id, ownerId).catch(() => 0);
     }

@@ -9,6 +9,7 @@
 // browser-safe; the record lives on the brand (lib/raterLogLoad.ts).
 
 import type { FixPriority } from "./studioVerdict";
+import { recordCheck, sanitizeRecord, type OutlookRecord } from "./outlook";
 
 export const LOG_MAX = 12;
 /** Settled, measured posts a lesson about one kind of change needs. */
@@ -40,6 +41,8 @@ export type RaterEntry = {
   direction: string | null;
   hook: string | null;
   cta: string | null;
+  /** The view range SOCIA stated before the video went out (lib/outlook.ts); absent on older entries. */
+  outlook?: OutlookRecord | null;
 };
 
 const text = (v: unknown, n: number): string => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
@@ -59,7 +62,7 @@ export function sanitizeEntry(v: unknown, now: Date = new Date()): RaterEntry | 
     return [{ title, kind: x.kind as FixKind, priority: PRIORITIES.has(x.priority as string) ? (x.priority as FixPriority) : "medium", applied: x.applied === true }];
   }).slice(0, 5);
   const score = typeof o.score === "number" && Number.isFinite(o.score) ? Math.max(0, Math.min(100, Math.round(o.score))) : 0;
-  return { postId, at, score, diagnosis: text(o.diagnosis, 160), fixes, direction: text(o.direction, 40) || null, hook: text(o.hook, 120) || null, cta: text(o.cta, 120) || null };
+  return { postId, at, score, diagnosis: text(o.diagnosis, 160), fixes, direction: text(o.direction, 40) || null, hook: text(o.hook, 120) || null, cta: text(o.cta, 120) || null, outlook: sanitizeRecord(o.outlook) };
 }
 
 export function sanitizeLog(v: unknown): RaterEntry[] {
@@ -87,6 +90,7 @@ export function entryFor(input: {
   current: { hook: string | null; cta: string | null; caption: string | null };
   working: { hook: string; cta: string; caption: string; onscreen: string[] };
   direction: { name: string; opening: string } | null;
+  outlook?: OutlookRecord | null;
 }): RaterEntry | null {
   const w = input.working;
   const used = (field: string, value: string) => (field === "onscreen" ? w.onscreen.includes(value) : field === "hook" ? w.hook === value : field === "cta" ? w.cta === value : w.caption.trim() === value.trim());
@@ -103,7 +107,7 @@ export function entryFor(input: {
         : false,
     })),
     direction: input.direction && w.hook === input.direction.opening ? input.direction.name : null,
-    hook: w.hook, cta: w.cta,
+    hook: w.hook, cta: w.cta, outlook: input.outlook ?? null,
   });
 }
 
@@ -116,7 +120,7 @@ export function addEntry(log: RaterEntry[], entry: RaterEntry): RaterEntry[] {
 
 export type PostState = "draft" | "scheduled" | "published" | "failed" | "gone";
 /** How the post did, as lib/postResults measures it; null until it is published. */
-export type OutcomeResult = { short: string; text: string; measured: boolean; early: boolean; multiplier: number | null };
+export type OutcomeResult = { short: string; text: string; measured: boolean; early: boolean; multiplier: number | null; /** The Reel's views on Instagram, when it reports them. */ views?: number | null };
 export type RaterOutcome = RaterEntry & { state: PostState; publishedAt: string | null; permalink: string | null; result: OutcomeResult | null };
 
 /** What one post's result does and doesn't say about the changes made to it. */
@@ -134,6 +138,12 @@ export function finding(o: RaterOutcome): string {
   if (m >= ABOVE) return `It did better than your usual${early}. ${caveat}`;
   if (m < BELOW) return `It did below your usual${early}. ${caveat}`;
   return `It did about your usual${early}. ${caveat}`;
+}
+
+/** The post's views against the range SOCIA stated before it went out; null until both exist. */
+export function outlookFinding(o: RaterOutcome): string | null {
+  if (!o.outlook || o.state !== "published" || !o.result?.measured || o.result.views == null) return null;
+  return recordCheck(o.outlook, o.result.views, o.result.early);
 }
 
 /** What to do next, from one post's result. */

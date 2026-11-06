@@ -13,9 +13,10 @@ import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Lo
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
-import { AfterCard, DirectionsPanel, PerformancePanel, TimelinePanel, VerdictPanel } from "./RaterPanels";
+import { AfterCard, DirectionsPanel, PerformancePanel, TimelinePanel, VerdictPanel, type OutlookState } from "./RaterPanels";
 import { momentsFrom, presetForFix } from "@/lib/studioFixes";
 import { entryFor, type Lesson, type RaterOutcome } from "@/lib/raterLog";
+import { outlookFor, recordOf } from "@/lib/outlook";
 import type { Direction } from "@/lib/studioVerdict";
 import { AskSociaButton } from "../AskSocia";
 import PlanNotice, { UsageLine } from "../PlanNotice";
@@ -86,6 +87,13 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     fetch("/api/studio/rater-log").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.outcomes) setAfter({ outcomes: j.outcomes, lessons: j.lessons ?? [] }); }).catch(() => {});
   }, []);
   useEffect(() => { loadAfter(); }, [loadAfter]);
+  // The account's own Reels, for the performance outlook (lib/outlook.ts).
+  const [outlook, setOutlook] = useState<OutlookState>({ status: "loading" });
+  const loadOutlook = useCallback(() => {
+    setOutlook({ status: "loading" });
+    fetch("/api/studio/outlook").then((r) => (r.ok ? r.json() : Promise.reject(new Error("outlook")))).then((j) => setOutlook(j?.model ? { status: "ready", data: j } : { status: "error" })).catch(() => setOutlook({ status: "error" }));
+  }, []);
+  useEffect(() => { loadOutlook(); }, [loadOutlook]);
   const [w, setW] = useState<Working>({ hook: "", cta: "", caption: "", onscreen: [], layers: [], platform: "Instagram Reels", goal: goalDefault, cover: null });
   const [seek, setSeek] = useState<SeekRequest>(null);
   const [activeMarker, setActiveMarker] = useState<number | null>(null);
@@ -305,6 +313,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
           postId: saved, score: analysis.score.overall, diagnosis: analysis.diagnosis ?? "", fixes: analysis.topFixes,
           current: { hook: analysis.hooks.current, cta: analysis.cta.current, caption: analysis.caption.current },
           working: { hook: w.hook, cta: w.cta, caption: w.caption, onscreen: w.onscreen }, direction,
+          // The range stated before it goes out, so the result can be read against it later.
+          outlook: analysis.kind === "video" && outlook.status === "ready" ? recordOf(outlook.data.model, outlookFor(outlook.data.model, caption)) : null,
         });
         if (entry) void fetch("/api/studio/rater-log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entry }) }).then(() => loadAfter()).catch(() => {});
       }
@@ -491,7 +501,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
                 <span className="st-tabs-ask"><AskSociaButton className="ov-btn ghost small" label="Ask SOCIA about this content" context={{ page: "studio", studio: { kind: source.kind, durationSec: frames?.duration ?? null, goal: w.goal, transcript: transcript || null, caption: w.caption || null, summary: summaryForAsk } }} contextLabel={source.name} onProposal={onProposal} /></span>
               </div>
-              {tab === "verdict" && <VerdictPanel a={analysis} w={w} apply={apply} seek={doSeek} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onImprove={() => { setTab("improve"); setStep("edits"); }} onCaption={() => { setTab("improve"); setStep("caption"); }} />}
+              {tab === "verdict" && <VerdictPanel a={analysis} w={w} apply={apply} seek={doSeek} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onImprove={() => { setTab("improve"); setStep("edits"); }} onCaption={() => { setTab("improve"); setStep("caption"); }} outlook={analysis.kind === "video" ? outlook : null} onOutlookRetry={loadOutlook} />}
               {tab === "timeline" && <TimelinePanel a={analysis} thumbs={frames?.thumbs ?? []} playT={playT} seek={doSeek} setActive={setActiveMarker} />}
               {tab === "performance" && <PerformancePanel a={analysis} onCompare={() => window.location.assign("/analytics#content")} />}
               {tab === "directions" && <DirectionsPanel a={analysis} w={w} apply={apply} canHandoff={Boolean(source.file)} onUseDirection={pickDirection} onEditor={directionToEditor} />}
