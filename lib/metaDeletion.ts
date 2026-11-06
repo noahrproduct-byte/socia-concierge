@@ -34,6 +34,7 @@ export async function deleteMetaUserData(supabase: Supa, platformUserId: string,
   // Instagram-scoped id: connections and the snapshots derived from them.
   removed.instagram_connections = await count(supabase.from("instagram_connections").delete({ count: "exact" }).eq("ig_user_id", id));
   removed.account_snapshots = await count(supabase.from("account_snapshots").delete({ count: "exact" }).eq("ig_user_id", id));
+  removed.reel_history = await count(supabase.from("reel_history").delete({ count: "exact" }).eq("ig_user_id", id));
   removed.platform_snapshots = await dropPlatformHistory(supabase, null, "instagram", [id]);
   // People who commented on that account's posts, as SOCIA recorded them (lib/contacts).
   removed.contacts = await dropCommenters(supabase, id, null).catch(() => 0);

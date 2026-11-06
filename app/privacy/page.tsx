@@ -34,7 +34,9 @@ export default function PrivacyPage() {
           <code>instagram_business_content_publish</code>,{" "}
           <code>instagram_business_manage_comments</code>), we read your
           profile, follower counts, your posts and their metrics and insights,
-          and the comments on your posts. This includes collab posts you joined
+          and the comments on your posts. Once a day we keep the numbers of
+          each Reel from its first 30 days, so SOCIA can read how a Reel grew
+          and not only where it ended up. This includes collab posts you joined
           as a collaborator, with the posting account&apos;s username and the
           post&apos;s totals. We publish only posts you schedule, and reply to a
           comment only when you approve the reply or, if you turn on automatic

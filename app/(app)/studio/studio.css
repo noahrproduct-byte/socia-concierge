@@ -546,6 +546,102 @@
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
+/* ---- performance outlook: the draft against the account's own Reels ---- */
+.sd-outlook {
+  display: grid;
+  gap: var(--sp-3);
+}
+.sd-ohead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-1) var(--sp-3);
+}
+.sd-outlook h3 {
+  margin: 0;
+}
+.sd-ohead small,
+.sd-ostats small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-ostats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+}
+.sd-ostats > div {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-1);
+  min-width: 0;
+  padding: var(--sp-3);
+}
+.sd-ostats > div + div {
+  border-left: 1px solid var(--border);
+}
+.sd-ostats dt {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-ostats dd {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
+  font-variant-numeric: tabular-nums;
+}
+.sd-ostats dd b {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+}
+.sd-outlook .sd-note b {
+  color: var(--ink-2);
+  font-weight: var(--fw-medium);
+}
+.sd-opat {
+  display: grid;
+  gap: var(--sp-2);
+}
+.sd-opat h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
+  font-weight: var(--fw-semibold);
+}
+.sd-opat ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-1);
+}
+.sd-opat li {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-control);
+  background: var(--surface-raised);
+  color: var(--ink-2);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .sd-ostats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sd-ostats > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
 .sd-fixes {
   list-style: none;
   margin: 0;

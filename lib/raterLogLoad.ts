@@ -11,6 +11,7 @@ import { currentDetail, freshDetail } from "@/lib/intel/understandLoad";
 import type { BrandDetail } from "@/lib/profile";
 import type { ScheduledPost } from "@/lib/scheduling";
 import { loadDestinationsLite, loadMeasureSources, resultsForPosts } from "@/lib/planOutcomesLoad";
+import { measureDestination } from "@/lib/postResults";
 import { addEntry, sanitizeLog, type PostState, type RaterEntry, type RaterOutcome } from "./raterLog";
 
 export async function readLog(ctx: Ctx): Promise<RaterEntry[]> {
@@ -63,12 +64,19 @@ export async function loadOutcomes(ctx: Ctx, now: Date = new Date()): Promise<Ra
   }
   const byId = new Map(posts.map((p) => [p.id, p]));
   let results = new Map<string, { short: string; text: string; measured: boolean; early: boolean; multiplier: number | null }>();
+  // The Reel's own view count, for the range stated before it went out.
+  const views = new Map<string, number>();
   const published = posts.filter((p) => p.status === "published");
   if (published.length) {
     try {
       const dests = await loadDestinationsLite(ctx.client, published.map((p) => p.id));
       const sources = await loadMeasureSources(ctx.client, ctx.ownerId, wsId, published, dests);
       results = resultsForPosts(published, dests, sources, now);
+      for (const p of published) {
+        const igId = dests.find((d) => d.postId === p.id && d.platform === "instagram" && d.status === "published" && d.externalPostId)?.externalPostId ?? p.published_media_id;
+        const v = igId ? measureDestination("instagram", igId, sources).views : null;
+        if (v != null) views.set(p.id, v);
+      }
     } catch {
       /* results stay empty: each entry then says it is not measured yet */
     }
@@ -78,7 +86,7 @@ export async function loadOutcomes(ctx: Ctx, now: Date = new Date()): Promise<Ra
     const r = results.get(e.postId);
     return {
       ...e, state: stateOf(p), publishedAt: p?.status === "published" ? p.updated_at : null, permalink: p?.permalink ?? null,
-      result: r ? { short: r.short, text: r.text, measured: r.measured, early: r.early, multiplier: r.multiplier } : null,
+      result: r ? { short: r.short, text: r.text, measured: r.measured, early: r.early, multiplier: r.multiplier, views: views.get(e.postId) ?? null } : null,
     };
   });
 }

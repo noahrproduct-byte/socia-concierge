@@ -7,6 +7,7 @@
 import { timedFn } from "@/lib/timing";
 import { scheduleBackground, onceEvery } from "@/lib/background";
 import { hasSnapshot, writeDailySnapshot } from "./snapshotJob";
+import { recordReelHistory } from "./reelHistory";
 import { fetchCollabMedia, mergeCollab } from "./igCollab";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -445,6 +446,10 @@ async function syncInstagramImpl(supabase: Supa, userId: string, workspaceId?: s
     error: permissionError,
     checked_at: now,
   };
+
+  // Today's numbers for each recent Reel, kept so its growth can be read later
+  // (lib/reelHistory.ts). Before collab posts are merged in: those are not this account's.
+  await recordReelHistory(supabase, userId, igId ?? null, fresh.media);
 
   // Collab posts this account joined (another account posted them). Added
   // after the insights pass: their insights belong to the account that posted.

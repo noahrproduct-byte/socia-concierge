@@ -49,6 +49,7 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     if (p === "/api/studio/library") return json({ clips: fx.library(thumbs, durationSec) });
     if (p === "/api/studio/style") return json({ brand: null, templates: [] });
     if (p === "/api/studio/music") return json({ auto: true });
+    if (p === "/api/studio/outlook") return json(fx.outlook(new URLSearchParams(window.location.search).get("outlook")));
     if (p === "/api/studio/rater-log") return method === "GET" ? json(fx.raterLog()) : json({ ok: true });
     if (p === "/api/studio/analyze") return json({ analysis: fx.analysis(durationSec), usage: { meter: "content_studio", used: 2, limit: 20, remaining: 18, resetsOn: "2026-12-01" } });
     if (p === "/api/studio/transcribe") return json({ transcript: fx.transcript() });

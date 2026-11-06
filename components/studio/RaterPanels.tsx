@@ -7,8 +7,10 @@
 //   Performance  the draft against the account's top posts and competitors' Reels
 //   Directions   three ways to remake it, to test
 // Improve and export (the edits, caption, sound and publishing) stay in
-// StudioPanels.tsx. Every number shown is one SOCIA measured or read; the
-// score is an editor's judgement and nothing here predicts views.
+// StudioPanels.tsx. Every number shown is one SOCIA measured or read. The
+// score is an editor's judgement and predicts nothing; the performance outlook
+// beside it is calculated from the account's own Reels (lib/outlook.ts) and
+// states a view range only when its replay over those Reels holds up.
 
 import { useState } from "react";
 import Link from "next/link";
@@ -16,7 +18,9 @@ import { ArrowRight, Check, ChevronDown, Clock, Copy, ExternalLink, FlaskConical
 import { CATEGORY_INFO, fmtT, type ApplyField, type Marker, type StudioAnalysis, type TopFix } from "@/lib/studio";
 import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, type Direction, type PostRef, type RefRow } from "@/lib/studioVerdict";
 import { CAPABILITY, type Moment } from "@/lib/studioFixes";
-import { finding, nextStep, type Lesson, type RaterOutcome } from "@/lib/raterLog";
+import { finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } from "@/lib/raterLog";
+import { BACKTEST_MIN, BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, patternLine, roundViews, type Outlook } from "@/lib/outlook";
+import type { OutlookPayload } from "@/lib/outlookLoad";
 import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
 import { Bar } from "@/components/dashboard/motion";
 import "@/app/(app)/dashboard/dashboard.css";
@@ -47,6 +51,108 @@ function fixWhen(f: TopFix): string | null {
   return f.end != null && f.end > f.t ? fmtSpan(f.t, f.end) : fmtAt(f.t);
 }
 
+// ------------------------------------------------------------------ outlook ----
+
+/** What the page knows about the account's Reels: still loading, failed, or the payload. */
+export type OutlookState = { status: "loading" } | { status: "error" } | { status: "ready"; data: OutlookPayload };
+
+const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const MOMENTUM_WORD = { above: "Above your earlier Reels", below: "Below your earlier Reels", level: "Level with your earlier Reels" } as const;
+
+/**
+ * The draft against the account's own Reels (lib/outlook.ts): its usual views
+ * and range, what the caption shares with past Reels, and, only when the
+ * replay over those Reels passed, an index and a view range. Every figure is
+ * calculated from stored view counts; the method and the sample open below it.
+ */
+export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: OutlookState; caption: string; suggestion: string | null; onRetry: () => void }) {
+  if (state.status === "loading") return null;
+  if (state.status === "error") {
+    return (
+      <section className="st-block sd-outlook" aria-labelledby="sd-outlook-h">
+        <h3 id="sd-outlook-h">Performance outlook</h3>
+        <p className="sd-note">Your Reel history could not be loaded, so there is nothing to compare this draft with. <button type="button" className="ov-link" onClick={onRetry}>Try again</button></p>
+      </section>
+    );
+  }
+  const { connected, handle, insightsOk, model } = state.data;
+  const b = model.baseline, bt = model.backtest, mo = model.momentum;
+  // Before a caption is written, the suggested one stands in, and is named as such.
+  const own = caption.trim().length > 0;
+  const read = own ? caption : suggestion ?? "";
+  const o: Outlook = outlookFor(model, read);
+  const f = o.forecast;
+  const alt = f && own && suggestion && suggestion.trim() !== caption.trim() ? outlookFor(model, suggestion).forecast : null;
+  return (
+    <section className="st-block sd-outlook" aria-labelledby="sd-outlook-h">
+      <div className="sd-ohead">
+        <h3 id="sd-outlook-h">Performance outlook</h3>
+        {connected && handle && <small>From @{handle}&apos;s own Reels on Instagram</small>}
+      </div>
+
+      {!connected && <p className="sd-note">No Instagram account is connected to this brand, so there are no Reels to compare this draft with. <Link href="/settings" className="ov-link">Connect one in Settings</Link></p>}
+
+      {connected && !b && (
+        <p className="sd-note">
+          <b>Not enough account history for a reliable personalized forecast.</b>{" "}
+          SOCIA compares with Reels that have been out {SETTLE_DAYS} days and have a view count: it has {model.reels.length} and needs {BASELINE_MIN}.
+          {model.pending > 0 ? ` ${model.pending} newer ${model.pending === 1 ? "one is" : "ones are"} still in ${model.pending === 1 ? "its" : "their"} first week.` : ""}
+          {insightsOk === false ? " Instagram is not sharing view counts for this account: reconnect it in Settings to allow insights." : ""}
+        </p>
+      )}
+
+      {b && (
+        <>
+          <dl className="sd-ostats">
+            {f ? (
+              <>
+                <div><dt>Virality index</dt><dd><b>{f.index}</b> of 100</dd><small>50 is your usual Reel. A position among your own Reels, not a probability.</small></div>
+                <div><dt>Expected views</dt><dd><b>{fmtViews(f.low)} to {fmtViews(f.high)}</b></dd><small>Built to hold 8 times in 10; replayed on your Reels it held {Math.round((bt?.coverage ?? 0) * 100)}%.</small></div>
+                <div><dt>Your usual</dt><dd><b>{fmtViews(b.median)}</b> views</dd><small>Median of your last {b.n} Reels.</small></div>
+              </>
+            ) : (
+              <>
+                <div><dt>Your usual</dt><dd><b>{fmtViews(b.median)}</b> views</dd><small>Median of your last {b.n} Reels.</small></div>
+                <div><dt>Usual range</dt><dd><b>{fmtViews(roundViews(b.low))} to {fmtViews(roundViews(b.high))}</b></dd><small>Half of those Reels landed in this range.</small></div>
+                <div>
+                  <dt>Recent momentum</dt>
+                  <dd><b>{mo ? MOMENTUM_WORD[mo.word] : "Not measurable yet"}</b></dd>
+                  <small>{mo ? `Last ${mo.recentN}: median ${fmtViews(mo.recentMedian)}. The ${mo.earlierN} before: ${fmtViews(mo.earlierMedian)}.` : `Needs ${RECENT_N + BASELINE_MIN} settled Reels; you have ${b.n}.`}</small>
+                </div>
+              </>
+            )}
+          </dl>
+
+          {!f && <p className="sd-note"><b>Virality index: not shown yet.</b> SOCIA&apos;s model has to predict your past Reels better than your plain median before it may score a draft{bt && bt.n >= BACKTEST_MIN ? ", and so far it does not" : ", and there are too few Reels to test it on"}. The range above is your usual, not a forecast for this draft.</p>}
+          {alt && f && (alt.index !== f.index || alt.low !== f.low || alt.high !== f.high) && <p className="sd-note"><b>With the suggested caption:</b> index {alt.index}, {fmtViews(alt.low)} to {fmtViews(alt.high)} views. Edits to the video itself raise the creative review; their effect on views can&apos;t be estimated from your history, so none is shown.</p>}
+
+          <div className="sd-opat">
+            <h4>What your own Reels show about {own ? "this caption" : "the suggested caption"}</h4>
+            {!read.trim()
+              ? <p className="sd-note">Write the caption and SOCIA compares how it opens, its subject and its length with your Reels.</p>
+              : o.shared.length
+                ? <ul>{o.shared.map((p) => <li key={p.key}>{patternLine(p)}</li>)}</ul>
+                : <p className="sd-note">Nothing about this caption matches a pattern in your Reels. A pattern needs three Reels with it and three without.</p>}
+            {o.shared.length > 0 && <p className="sd-note">Patterns in a few of your posts, not proof of why they did well: other things differed between them.</p>}
+          </div>
+
+          <details className="sd-why">
+            <summary>View supporting evidence</summary>
+            <dl>
+              <div><dt>Sample</dt><dd>{b.n} Reels posted {day(b.from)} to {day(b.to)}, each out at least {SETTLE_DAYS} days with a view count from Instagram.{model.pending > 0 ? ` ${model.pending} newer ${model.pending === 1 ? "one is" : "ones are"} left out until ${model.pending === 1 ? "it settles" : "they settle"}.` : ""} Collab Reels another account posted are left out.</dd></div>
+              <div><dt>Your usual</dt><dd>Median {fmtViews(b.median)} views. Half of those Reels fell between {fmtViews(b.low)} and {fmtViews(b.high)}.</dd></div>
+              {mo && <div><dt>Momentum</dt><dd>Your last {mo.recentN} Reels have a median of {fmtViews(mo.recentMedian)} views; the {mo.earlierN} before them, {fmtViews(mo.earlierMedian)}.</dd></div>}
+              <div><dt>How the index works</dt><dd>The estimate starts at your median, moves half-way toward where your last {RECENT_N} Reels run, then by each caption pattern, weighted by how many Reels carry it, and is capped between half and double your median. The index is the share of your last {b.n} Reels with fewer views than that estimate.</dd></div>
+              <div><dt>The check</dt><dd>{bt ? bt.why : "No Reel can be replayed yet."} It runs again each time, and the index is withdrawn if it stops passing.</dd></div>
+              <div><dt>Not included</dt><dd>How each Reel&apos;s views grew over time (SOCIA has kept only the latest count), video length (Instagram does not provide it), and the picture and sound of past Reels.</dd></div>
+            </dl>
+          </details>
+        </>
+      )}
+    </section>
+  );
+}
+
 // ------------------------------------------------------------------ verdict ----
 
 export type VerdictProps = {
@@ -61,9 +167,12 @@ export type VerdictProps = {
   onFix: (m: Moment, o: FixOptions) => void;
   onImprove: () => void;
   onCaption: () => void;
+  /** The account's own Reels for the performance outlook; null on a still image, where Reels are no comparison. */
+  outlook: OutlookState | null;
+  onOutlookRetry: () => void;
 };
 
-export function VerdictPanel({ a, w, apply, seek, moments, thumbs, frame, durationSec, canHandoff, onFix, onImprove, onCaption }: VerdictProps) {
+export function VerdictPanel({ a, w, apply, seek, moments, thumbs, frame, durationSec, canHandoff, onFix, onImprove, onCaption, outlook, onOutlookRetry }: VerdictProps) {
   const [openCat, setOpenCat] = useState<string | null>(null);
   const [preview, setPreview] = useState<number | null>(null);
   const urgent = a.topFixes.filter((f) => f.priority === "critical" || f.priority === "high").length;
@@ -85,6 +194,8 @@ export function VerdictPanel({ a, w, apply, seek, moments, thumbs, frame, durati
           <p className="sd-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
         </div>
       </section>
+
+      {outlook && <OutlookBlock state={outlook} caption={w.caption} suggestion={a.caption.suggestion} onRetry={onOutlookRetry} />}
 
       <ol className="sd-fixes" aria-label="Changes to make, most important first">
         {a.topFixes.map((f, i) => {
@@ -509,6 +620,7 @@ export function AfterCard({ outcomes, lessons }: { outcomes: RaterOutcome[]; les
               </header>
               <p>{applied.length ? `Applied: ${applied.map((f) => f.title).join("; ")}.` : "No recommended change was applied."} Scored {o.score} on {new Date(o.at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}.</p>
               <p>{finding(o)}</p>
+              {outlookFinding(o) && <p>{outlookFinding(o)}</p>}
               {step && <p><em>Next:</em> {step}</p>}
               {o.permalink && <a href={o.permalink} target="_blank" rel="noopener noreferrer" className="ov-link">Open the post <ExternalLink size={12} aria-hidden /></a>}
             </li>

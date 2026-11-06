@@ -10,6 +10,8 @@ import type { ProjectSummary } from "@/lib/studioClips/server";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import type { LibraryClip } from "@/lib/studioClips/library";
 import type { Lesson, RaterOutcome } from "@/lib/raterLog";
+import { buildModel, type OutlookReel } from "@/lib/outlook";
+import type { OutlookPayload } from "@/lib/outlookLoad";
 import type { StudioAnalysis } from "@/lib/studio";
 import type { TranscriptWord } from "@/lib/transcribe/types";
 
@@ -209,11 +211,30 @@ export function analysis(durationSec: number): StudioAnalysis {
 
 export const transcript = () => ({ text: SPEECH.c1.map((w) => w.text).join(" "), words: SPEECH.c1.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs })) });
 
+/**
+ * The account's Reels for the performance outlook (lib/outlook.ts), built by
+ * the real calculation from a made-up history. `mode` picks the state to look
+ * at: "forecast" (a pattern strong enough that the replay passes), "thin"
+ * (too few Reels), "none" (no Instagram), otherwise the usual case, where the
+ * index stays hidden.
+ */
+export function outlook(mode: string | null): OutlookPayload {
+  if (mode === "none") return { connected: false, handle: null, insightsOk: null, model: buildModel([], 0) };
+  const at = (i: number, n: number) => new Date(Date.parse(NOW) - (10 + (n - 1 - i) * 4) * 86_400_000).toISOString();
+  const wobble = [0.6, 0.8, 1, 1.3, 1.7];
+  const noise = [1900, 640, 3100, 1250, 2300, 880, 1500, 2750, 1020, 1700];
+  const n = mode === "thin" ? 5 : 44;
+  const reels: OutlookReel[] = Array.from({ length: n }, (_, i) => mode === "forecast"
+    ? { at: at(i, n), views: Math.round((i % 2 ? 4000 : 1000) * wobble[i % 5]), traits: [i % 2 ? "open:Question" : "open:Listicle hook", "caption:short"] }
+    : { at: at(i, n), views: Math.round(noise[(i * 3) % 10] * (i >= n - 8 ? 1.4 : 1)), traits: [i % 3 === 0 ? "open:Question" : "open:Listicle hook", i % 4 === 0 ? "caption:long" : "caption:short", ...(i % 5 === 0 ? ["theme:Behind the scenes"] : [])] });
+  return { connected: true, handle: "smashdowntown", insightsOk: true, model: buildModel(reels, 2) };
+}
+
 /** The rater's memory: three earlier videos, at each stage, and one lesson (lib/raterLog.ts). */
 export function raterLog(): { outcomes: RaterOutcome[]; lessons: Lesson[] } {
   const fix = (title: string, kind: RaterOutcome["fixes"][number]["kind"], applied: boolean): RaterOutcome["fixes"][number] => ({ title, kind, priority: "high", applied });
   const outcomes: RaterOutcome[] = [
-    { postId: "post-0001", at: "2026-10-28T15:00:00.000Z", score: 61, diagnosis: "The strongest proof was hidden behind a weak opening.", fixes: [fix("Fix your opening", "opening", true), fix("Simplify the ending", "ending", true)], direction: "Payoff first", hook: "Wait for the cheese pull", cta: "Come before 10", state: "published", publishedAt: "2026-10-29T17:00:00.000Z", permalink: "https://www.instagram.com/reel/abc/", result: { short: "1.6x your median", text: "1.6x your typical Instagram post.", measured: true, early: false, multiplier: 1.6 } },
+    { postId: "post-0001", at: "2026-10-28T15:00:00.000Z", score: 61, diagnosis: "The strongest proof was hidden behind a weak opening.", fixes: [fix("Fix your opening", "opening", true), fix("Simplify the ending", "ending", true)], direction: "Payoff first", hook: "Wait for the cheese pull", cta: "Come before 10", state: "published", publishedAt: "2026-10-29T17:00:00.000Z", permalink: "https://www.instagram.com/reel/abc/", outlook: { kind: "usual", n: 24, median: 1700, low: 1000, high: 2700, index: null }, result: { short: "1.6x your median", text: "1.6x your typical Instagram post.", measured: true, early: false, multiplier: 1.6, views: 3100 } },
     { postId: "post-0002", at: "2026-11-02T15:00:00.000Z", score: 66, diagnosis: "The ending asked for three things at once.", fixes: [fix("Simplify the ending", "ending", true), fix("Even out the voice", "audio", false)], direction: null, hook: "Twenty a day, smashed to order", cta: "Tag who you're bringing", state: "published", publishedAt: "2026-11-04T17:00:00.000Z", permalink: null, result: { short: "0.9x your median so far", text: "0.9x your typical Instagram post so far.", measured: true, early: true, multiplier: 0.9 } },
     { postId: "post-0003", at: "2026-11-04T15:00:00.000Z", score: 64, diagnosis: "Your best shot comes after an opening with no words.", fixes: [fix("Fix your opening", "opening", false)], direction: null, hook: null, cta: null, state: "draft", publishedAt: null, permalink: null, result: null },
   ];
