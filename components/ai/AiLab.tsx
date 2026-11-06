@@ -16,11 +16,12 @@ const said = "So here is the thing nobody tells you about opening a pizza place.
 const words = said.map((text, i) => ({ text, startMs: 2000 + i * 420, endMs: 2000 + i * 420 + 380, confidence: null }));
 const sociaClips = [
   { id: "s1", title: "The dough is the whole business", score: 8.6, score_reason: "Opens on a claim nobody else makes and pays it off in one line.", duration_ms: 11000, caption: "The dough is the whole business.", hashtags: ["pizza", "smallbusiness"], playUrl: null, downloadUrl: null, transcript: said.join(" "), hook: "So here is the thing nobody tells you", render: { sourceUrl: LONG, startMs: 2000, endMs: 13000, cropX: 0.5, words, captions: true } },
+  { id: "s2", title: "If the dough is wrong nothing else matters", score: 7.1, score_reason: "A clear rule, said plainly.", duration_ms: 6000, caption: "If the dough is wrong nothing else matters.", hashtags: ["pizza"], playUrl: null, downloadUrl: null, transcript: said.slice(-9).join(" "), hook: "If the dough is wrong", render: { sourceUrl: LONG, startMs: 8000, endMs: 14000, cropX: 0.5, words: words.slice(-9), captions: true } },
 ];
 const clipJobs = [
-  { id: "j0", status: "done", provider: "socia", source_kind: "upload", source_url: "upload", source_minutes: 1, credits_reserved: 17, credits_charged: 17, error: null, created_at: new Date(Date.now() - 600_000).toISOString(), options: { headline: true, captions: true } },
+  { id: "j0", status: "done", provider: "socia", source_kind: "upload", source_url: "upload", source_minutes: 1, credits_reserved: 17, credits_charged: 17, error: null, created_at: new Date(Date.now() - 600_000).toISOString(), options: { headline: true, captions: true, sourceName: "Opening a pizza place.mp4" } },
   { id: "j1", status: "done", source_kind: "youtube", source_url: "https://www.youtube.com/watch?v=OqLfw-TzzfI", source_minutes: 12, credits_reserved: 90, credits_charged: 90, error: null, created_at: new Date(Date.now() - 3600_000).toISOString(), options: {} },
-  { id: "j2", status: "processing", source_kind: "upload", source_url: "upload", source_minutes: 40, credits_reserved: 300, credits_charged: null, error: null, created_at: new Date(Date.now() - 120_000).toISOString(), options: {} },
+  { id: "j2", status: "processing", provider: "socia", stage: "transcribing", source_kind: "upload", source_url: "upload", source_minutes: 40, credits_reserved: 300, credits_charged: null, error: null, created_at: new Date(Date.now() - 120_000).toISOString(), options: { sourceName: "Founder interview.mov" } },
   { id: "j3", status: "failed", source_kind: "url", source_url: "https://example.com/talk.mp4", source_minutes: 8, credits_reserved: 60, credits_charged: 0, error: "The video could not be downloaded from that link.", created_at: new Date(Date.now() - 86400_000).toISOString(), options: {} },
 ];
 const clips = [

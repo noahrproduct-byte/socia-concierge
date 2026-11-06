@@ -25,6 +25,8 @@ export type ClipperOptions = {
   /** Spoken language, ISO code. */
   lang: string;
   clipModel: "clip_v1" | "clip_v2";
+  /** The uploaded file's name, for the job list. */
+  sourceName?: string;
 };
 
 export const DEFAULT_CLIPPER_OPTIONS: ClipperOptions = { maxClips: 5, lengths: ["under30", "30to60"], captions: true, headline: true, lang: "en", clipModel: "clip_v1" };

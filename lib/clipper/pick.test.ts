@@ -26,7 +26,7 @@ describe("the transcript the picker reads", () => {
   });
 
   it("gives the brief Noah's examples, the brand's results and the niche, when there are any", () => {
-    const base = { brand: "Salvo's Pizza", lines: transcriptLines(words), durationMs: 40_000, options: { maxClips: 3, lengths: ["under30" as const], lang: "en" }, examples: [], results: [], niche: null };
+    const base = { brand: "Salvo's Pizza", lines: transcriptLines(words), durationMs: 40_000, options: { maxClips: 3, lengths: ["under30" as const] }, examples: [], results: [], niche: null };
     const plain = pickMessage(base);
     expect(plain).toContain("Pick up to 3 clips, each 8 to 30 seconds long.");
     expect(plain).not.toContain("Noah's examples");
@@ -95,7 +95,7 @@ describe("checking the picker's answer", () => {
   });
 
   it("shows the model plain seconds, so a time can't be read as minutes and seconds", () => {
-    const m = pickMessage({ brand: "b", lines: [{ startMs: 230_500, endMs: 236_800, text: "People say." }], durationMs: 256_700, options: { maxClips: 5, lengths: ["under30"], lang: "en" }, examples: [], results: [], niche: null });
+    const m = pickMessage({ brand: "b", lines: [{ startMs: 230_500, endMs: 236_800, text: "People say." }], durationMs: 256_700, options: { maxClips: 5, lengths: ["under30"] }, examples: [], results: [], niche: null });
     expect(m).toContain("[230.5-236.8] People say.");
     expect(m).toContain("Video length: 256.7 seconds.");
     expect(m).not.toMatch(/\d:\d\d/);

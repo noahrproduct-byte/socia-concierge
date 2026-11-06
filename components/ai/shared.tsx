@@ -65,7 +65,11 @@ export function uploadToSigned(signedUrl: string, file: File, onProgress?: (p: n
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     xhr.setRequestHeader("x-upsert", "false");
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status}).`)));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+      const tooBig = xhr.status === 413 || /exceeded the maximum/i.test(xhr.responseText ?? "");
+      reject(new Error(tooBig ? "This file is bigger than storage allows right now. Export a smaller version and try again." : `Upload failed (${xhr.status}).`));
+    };
     xhr.onerror = () => reject(new Error("Upload failed. Check your connection and try again."));
     xhr.send(file);
   });
@@ -83,8 +87,8 @@ export function videoMinutes(file: File): Promise<number | null> {
   });
 }
 
-export function StatusChip({ status }: { status: string }) {
-  const label = status === "queued" ? "Waiting to start" : status === "processing" ? "Working" : status === "done" ? "Done" : status === "failed" ? "Failed" : status;
+export function StatusChip({ status, working = "Working" }: { status: string; working?: string }) {
+  const label = status === "queued" ? "Waiting to start" : status === "processing" ? working : status === "done" ? "Done" : status === "failed" ? "Failed" : status;
   return <span className={`ai-status is-${status}`}>{(status === "queued" || status === "processing") && <Loader2 size={12} className="spin" aria-hidden />}{label}</span>;
 }
 

@@ -61,7 +61,7 @@ export type PickBrief = {
   brand: string;
   lines: Line[];
   durationMs: number;
-  options: Pick<ClipperOptions, "maxClips" | "lengths" | "lang">;
+  options: Pick<ClipperOptions, "maxClips" | "lengths">;
   examples: ClipExample[];
   /** This brand's posted clips and how each did against its own median, one line each. */
   results: string[];
@@ -100,7 +100,7 @@ Rules:
 - The transcript's timestamps are plain seconds from the start of the video: [230.5-236.8] runs from 230.5 to 236.8 seconds. start and end are plain seconds too, copied from those timestamps: start where a line starts, end where a line ends.
 - Keep every clip inside the length range you are given. Clips never overlap.
 - Return the best moments the video has, up to the number asked for, best first, and let the score say how strong each one is: a weaker moment gets a lower score, not left out. Return an empty list only when nothing in the transcript makes sense on its own.
-- title: a short headline in sentence case that says what the clip is about, written for the viewer.
+- title: a short headline in sentence case that says what the clip is about, written for the viewer, in the language the video is spoken in.
 - hook: the clip's opening words exactly as spoken in the transcript.
 - score: 0 to 10, how well the clip meets the bar above. Judge the moment, not the topic's popularity.
 - reason: one sentence on why this moment works as a clip, quoting what is said.
@@ -112,7 +112,7 @@ export function pickMessage(b: PickBrief): string {
   const { min, max } = lengthRange(b.options.lengths);
   const parts = [
     `Brand: ${b.brand || "unknown"}`,
-    `Video length: ${secs(b.durationMs)} seconds. Language: ${b.options.lang}.`,
+    `Video length: ${secs(b.durationMs)} seconds.`,
     `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
   ];
   if (b.examples.length) {

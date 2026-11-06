@@ -47,7 +47,7 @@ export async function writeClipCaptions(ownerId: string, brand: string, clips: {
     const res = await anthropic.messages.create({
       model: FAST_MODEL,
       max_tokens: 4000,
-      system: `You write Instagram captions for short clips cut from a longer video, in the brand's own voice. One or two plain sentences that say what the clip shows or the point it makes, written the way the person would type it, then 3 to 5 hashtags without the # sign. Sentence case, no marketing words, no emoji, no em dashes, no claims that are not in the transcript.`,
+      system: `You write Instagram captions for short clips cut from a longer video, in the brand's own voice. One or two plain sentences that say what the clip shows or the point it makes, written the way the person would type it, in the language the clip is spoken in, then 3 to 5 hashtags without the # sign. Sentence case, no marketing words, no emoji, no em dashes, no claims that are not in the transcript.`,
       output_config: { format: { type: "json_schema", schema: SCHEMA } },
       messages: [{ role: "user", content: `${brand}\n\n# Clips\n${list}\n\nWrite one caption per clip, index matching.` }],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
