@@ -126,7 +126,7 @@ async function fail(svc: Supa, job: GenerationJobRow, message: string, refund: b
 export async function pollGenerationJob(svc: Supa, job: GenerationJobRow): Promise<GenerationJobRow> {
   if (job.status === "queued") return submitGenerationJob(svc, job);
   if (job.status !== "processing" || !job.provider_request_id) return job;
-  if (Date.now() - new Date(job.created_at).getTime() > GEN_MAX_AGE_MS) return fail(svc, job, "The generation took too long and was stopped. Your credits are back.", true);
+  if (Date.now() - new Date(job.created_at).getTime() > GEN_MAX_AGE_MS) return fail(svc, job, "The generation took too long and was stopped.", true);
   const provider = generationProvider();
   if (!provider) return job;
   const now = new Date().toISOString();

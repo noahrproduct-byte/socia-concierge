@@ -202,7 +202,7 @@ async function fail(svc: Supa, job: ClipJobRow, message: string, refund: boolean
 export async function pollClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
   if (job.status === "queued") return (await submitClipJob(svc, job)) ?? job;
   if (job.status !== "processing" || !job.provider_job_id) return job;
-  if (Date.now() - new Date(job.created_at).getTime() > CLIP_MAX_AGE_MS) return fail(svc, job, "The clipping took too long and was stopped. Your credits are back.", true);
+  if (Date.now() - new Date(job.created_at).getTime() > CLIP_MAX_AGE_MS) return fail(svc, job, "The clipping took too long and was stopped.", true);
   if (job.provider === SOCIA_PROVIDER) return pollSociaJob(svc, job);
   const provider = clipperProvider();
   if (!provider) return job;
@@ -238,6 +238,9 @@ async function submitSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
 
 /** A pick that died part-way may be claimed again after this long. */
 const PICK_STALE_MS = 10 * 60_000;
+/** Each pick is a paid AI call: after this many failures the job stops and the credits go back. */
+const PICK_ATTEMPTS = 3;
+const pickAttempt = (stage: string | null | undefined) => (stage === "pick-retry-2" ? 3 : stage === "pick-retry" ? 2 : 1);
 
 async function pollSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
   const now = new Date();
@@ -258,13 +261,13 @@ async function pollSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
   // One poller at a time picks (each pick is a paid AI call): claim the job first.
   const stale = new Date(now.getTime() - PICK_STALE_MS).toISOString();
   const claim = svc.from("clip_jobs").update({ stage: "picking-run", updated_at: new Date().toISOString() }).eq("id", job.id);
-  const { data: claimed } = await (job.stage === "picking" ? claim.eq("stage", "picking") : claim.in("stage", ["picking-run", "pick-retry"]).lt("updated_at", stale)).select("transcript").maybeSingle();
+  const { data: claimed } = await (job.stage === "picking" ? claim.eq("stage", "picking") : claim.in("stage", ["picking-run", "pick-retry", "pick-retry-2"]).lt("updated_at", stale)).select("transcript").maybeSingle();
   if (!claimed) return job;
   const words = unpackWords((claimed as { transcript: unknown }).transcript);
   try {
     const durationMs = words.length ? words[words.length - 1].endMs : job.source_minutes * 60_000;
     const { picks, brand } = await pickMoments(svc, job, words, durationMs);
-    if (!picks.length) return fail(svc, job, "SOCIA found no moments in this video that stand on their own as clips. Your credits are back.", true);
+    if (!picks.length) return fail(svc, job, "SOCIA found no moments in this video that stand on their own as clips.", true);
     const rows = await clipRows(job, picks, brand);
     const { error } = await svc.from("clips").upsert(rows, { onConflict: "job_id,provider_clip_id" });
     if (error) throw new ClipperError(`clips not saved: ${error.message}`, "db", true);
@@ -272,9 +275,12 @@ async function pollSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
     const { data } = await svc.from("clip_jobs").update({ status: "done", stage: null, credits_charged: job.credits_reserved, finished_at: done, updated_at: done, error: null }).eq("id", job.id).select(JOB_COLS).single();
     return (data as ClipJobRow) ?? { ...job, status: "done" };
   } catch (e) {
-    console.error("[clipper] pick failed:", (e as Error)?.message ?? e);
-    await svc.from("clip_jobs").update({ stage: "pick-retry", updated_at: new Date().toISOString() }).eq("id", job.id);
-    return { ...job, stage: "pick-retry" };
+    const attempt = pickAttempt(job.stage);
+    console.error(`[clipper] pick failed (attempt ${attempt}):`, (e as Error)?.message ?? e);
+    if (attempt >= PICK_ATTEMPTS) return fail(svc, job, "SOCIA couldn't pick the moments in this video. Try again in a little while.", true);
+    const stage = attempt === 1 ? "pick-retry" : "pick-retry-2";
+    await svc.from("clip_jobs").update({ stage, updated_at: new Date().toISOString() }).eq("id", job.id);
+    return { ...job, stage };
   }
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clipWords, formatLines, lengthRange, packWords, pickMessage, transcriptLines, unpackWords, validatePicks } from "./pick";
+import { PICK_SYSTEM, checkPicks, clipWords, formatLines, lengthRange, packWords, pickMessage, transcriptLines, unpackWords, validatePicks } from "./pick";
 import { clipResultLines } from "./learn";
 import { clipCredits } from "@/lib/credits/config";
 import type { TranscriptWord } from "@/lib/transcribe/types";
@@ -16,7 +16,7 @@ describe("the transcript the picker reads", () => {
     expect(lines[0]).toMatchObject({ startMs: 10_000, endMs: 14_900 });
     const paused = [...words.slice(0, 3), { text: "later", startMs: 30_000, endMs: 30_400, confidence: null }];
     expect(transcriptLines(paused).map((l) => l.text)).toEqual(["w0 w1 w2", "later"]);
-    expect(formatLines(lines.slice(0, 1))).toBe("[0:10.0-0:14.9] w0 w1 w2 w3 w4 w5 w6 w7 w8 w9.");
+    expect(formatLines(lines.slice(0, 1))).toBe("[10.0-14.9] w0 w1 w2 w3 w4 w5 w6 w7 w8 w9.");
   });
 
   it("stores words compactly and reads them back", () => {
@@ -68,6 +68,27 @@ describe("checking the picker's answer", () => {
     ] }, words, opts);
     expect(picks.map((p) => p.title)).toEqual(["best", "overlaps the best"]);
     expect(validatePicks({ clips: [{ start: 10, end: 20, title: "x", hook: "", score: 99, reason: "" }] }, words, opts)[0].score).toBe(10);
+  });
+
+  it("counts what it drops, so a job with no clips can say why", () => {
+    const c = checkPicks({ clips: [
+      { start: 10, end: 20, title: "kept", hook: "", score: 9, reason: "" },
+      { start: 11, end: 21, title: "overlap", hook: "", score: 8, reason: "" },
+      { start: 22, end: 24, title: "too short", hook: "", score: 7, reason: "" },
+      { start: 90, end: 100, title: "past the end", hook: "", score: 7, reason: "" },
+      { start: 30, end: 29, title: "reversed", hook: "", score: 7, reason: "" },
+    ] }, words, { maxClips: 5, lengths: ["under30"] });
+    expect(c).toMatchObject({ returned: 5, badTimes: 1, tooFewWords: 1, wrongLength: 1, overlaps: 1 });
+    expect(c.picks.map((p) => p.title)).toEqual(["kept"]);
+  });
+
+  it("shows the model plain seconds, so a time can't be read as minutes and seconds", () => {
+    const m = pickMessage({ brand: "b", lines: [{ startMs: 230_500, endMs: 236_800, text: "People say." }], durationMs: 256_700, options: { maxClips: 5, lengths: ["under30"], lang: "en" }, examples: [], results: [], niche: null });
+    expect(m).toContain("[230.5-236.8] People say.");
+    expect(m).toContain("Video length: 256.7 seconds.");
+    expect(m).not.toMatch(/\d:\d\d/);
+    expect(PICK_SYSTEM).toContain("plain seconds");
+    expect(PICK_SYSTEM).not.toContain("an empty list is better");
   });
 
   it("allows the lengths asked for", () => {
