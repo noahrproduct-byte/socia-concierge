@@ -15,7 +15,9 @@ export const KEYFRAME_WIDTH = 480;
 /** Width of the frames sampled for scene-change detection (never uploaded). */
 export const SCAN_WIDTH = 160;
 export const MIN_KEYFRAMES = 3;
-export const MAX_KEYFRAMES = 8;
+export const MAX_KEYFRAMES = 24;
+/** One frame this often, so SOCIA can see what really happens in a clip and when. */
+export const KEYFRAME_STEP_SEC = 1.5;
 /** Transcription audio: 16 kHz mono 16-bit WAV. */
 export const WAV_SAMPLE_RATE = 16000;
 /** Shortest and longest clip Build from Clips accepts, in seconds. */
@@ -77,6 +79,8 @@ export type ClipMoment = {
   label: string;
   strength: "strong" | "good" | "weak";
   why: string;
+  /** The sound of this action is part of the appeal: cutting, sizzling, pouring. */
+  sound?: boolean;
 };
 
 /** Pass 1: what SOCIA understood about one clip. Cached by fingerprint. */
@@ -97,6 +101,8 @@ export type ClipCard = {
   openerCandidate: boolean;
   model: string;
   createdAt: string;
+  /** How closely it was looked at (lib/studioClips/teach.ts CARD_DETAIL); absent = the first, coarse cards. */
+  detail?: number;
 };
 
 export type StudioClip = {
@@ -200,6 +206,8 @@ export type EdlSegment = {
   volume?: number;
   /** How this cut comes in from the one before (ignored on the first): a hard cut, a fade, or a CapCut-style zoom or whip blur. Absent = a hard cut. */
   transition?: TransitionKind;
+  /** The real sound of what's happening here plays up front, over the music (lib/studioClips/teach.ts). */
+  sound?: boolean;
 };
 
 export const TRANSITIONS = [
@@ -286,6 +294,10 @@ export type Edl = {
   style?: EdlStyle;
   /** A cut made from a written brief and/or a reference video (lib/studioClips/reference.ts): what it follows, so Regenerate follows it too. */
   brief?: EdlBrief;
+  /** The ending in big type in the middle of the frame: the place, the ask, the website. */
+  endCard?: EndCard;
+  /** No one is talking and the action's own sound is the point: the clips' sound is lifted for it, not just cleaned. */
+  actionSound?: boolean;
   /** Original tracks SOCIA made for this cut from the account's taste (lib/music/taste.ts). Server-owned. */
   playlist?: Playlist;
   /** The track mixed in, and the two levels the person chose. */
@@ -295,6 +307,8 @@ export type Edl = {
   /** When SOCIA coloured the cut on its own (lib/studioClips/autoLook.ts), once per cut whatever happened. */
   lookAuto?: string;
 };
+
+export type EndCard = { location: string; cta: string; site: string };
 
 export type EdlBrief = { prompt: string | null; reference: string | null; referenceName: string | null };
 

@@ -91,8 +91,15 @@ export async function cutHasSpeech(client: Supa, edl: Edl, projectId: string): P
   return speechIn(await clipRows(client, projectId), edl);
 }
 
-/** Levels for a track SOCIA adds on its own: low under real speech; with no one talking the music leads and the room sound sits under it. */
-export const autoLevels = (speech: boolean) => (speech ? { musicVolume: 0.35, originalVolume: 1 } : { musicVolume: 0.85, originalVolume: 0.2 });
+/**
+ * Levels for a track SOCIA adds on its own. Low under real speech. Under an
+ * action's own sound it's background music, at one level throughout (the shots
+ * set their own sound). Otherwise the music leads and the room sits under it.
+ */
+export const autoLevels = (speech: boolean, action = false) => {
+  if (speech) return { musicVolume: 0.35, originalVolume: 1 };
+  return action ? { musicVolume: 0.7, originalVolume: 1 } : { musicVolume: 0.85, originalVolume: 0.2 };
+};
 
 /** Make one track of the cut's playlist and store it; returns its storage path. Already made = returned as is. */
 export async function makeTrack(client: Supa, args: { ownerId: string; wsId: string | null; buildId: string; trackId: string }): Promise<{ path: string; made: boolean }> {

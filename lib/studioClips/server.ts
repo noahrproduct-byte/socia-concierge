@@ -16,6 +16,7 @@ import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForE
 import { sanitizeFinish } from "./finish";
 import { applyPacing } from "./pacing";
 import { smoothTransitions } from "./transitions";
+import { cardIsCurrent, QUIET_ROOM_VOLUME, teachEdit } from "./teach";
 import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
@@ -178,6 +179,8 @@ export async function registerClip(client: Supa, args: { ownerId: string; viewer
   try {
     const { data } = await client.from("studio_clips").select("facts, transcript, card").eq("user_id", ownerId).eq("fingerprint", input.fingerprint).not("card", "is", null).order("created_at", { ascending: false }).limit(1);
     reuse = ((data ?? []) as ClipRow[])[0] ?? null;
+    // A card from before SOCIA looked closely is read again: the facts and the transcript still hold.
+    if (reuse && !cardIsCurrent(reuse.card)) reuse = { ...reuse, card: null };
   } catch { reuse = null; }
 
   const row: Record<string, unknown> = {
@@ -474,7 +477,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const urls = await frameUrls(client, ordered);
   const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, brief ? briefText(brief) : null);
   const forEdl = rows.map(toClipForEdl);
-  const edl = paced(validateEdl(raw, forEdl).edl, forEdl, brief?.prompt);
+  const edl = taught(paced(validateEdl(raw, forEdl).edl, forEdl, brief?.prompt), raw, acct, forEdl);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
   // A new version keeps the look the cut had.
   edl.style = row.edl.style ?? CAPCUT_STYLE;
@@ -649,12 +652,13 @@ export async function buildFromBrief(client: Supa, args: {
   const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = rows.map(toClipForEdl);
   const footageSec = usable.filter((r) => opp.clipIds.includes(r.id)).reduce((a, r) => a + (r.duration_s ?? 0), 0);
-  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry), forEdl, footageSec, prompt);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry), forEdl, footageSec, acct, prompt);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
   // Every clip the person gave is in the cut, and the cut is long enough to be a post.
   const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec));
   if (filled.added.length) edl.notes.push(`SOCIA added ${filled.added.map((id) => clipLabel(rows.find((r) => r.id === id)?.position ?? 0)).join(", ")} so every clip you gave is in the cut.`);
-  edl.segments = filled.segments;
+  // Clips added so every one is in the cut join and sound like the rest of it.
+  edl.segments = smoothTransitions(filled.segments, prompt).map((s) => (edl.actionSound && !s.sound ? { ...s, volume: QUIET_ROOM_VOLUME } : s));
   if (preset) { edl.width = preset.width; edl.height = preset.height; }
   edl.style = preset?.style ?? CAPCUT_STYLE;
   edl.cleanSound = true;
@@ -688,15 +692,20 @@ function paced(edl: Edl, forEdl: ClipForEdl[], asked?: string | null): Edl {
  * 2-second Halloween video, 2026-11-02) is made once more, told how long it
  * should be. The longer of the two is kept.
  */
-async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, asked?: string | null): Promise<{ edl: Edl; model: string }> {
+/** The cut, held to what Noah taught (lib/studioClips/teach.ts). The place and the site come from the brand settings. */
+function taught(edl: Edl, raw: RawEdl, acct: AccountContext, forEdl: ClipForEdl[]): Edl {
+  return teachEdit(edl, { location: acct.location, website: acct.brand?.website }, forEdl, raw.endCard);
+}
+
+async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, acct: AccountContext, asked?: string | null): Promise<{ edl: Edl; model: string }> {
   const first = await make(null);
-  let edl = paced(validateEdl(first.raw, forEdl).edl, forEdl, asked);
+  let edl = taught(paced(validateEdl(first.raw, forEdl).edl, forEdl, asked), first.raw, acct, forEdl);
   let model = first.model;
   const len = edlDurationSec(edl);
   const floor = Math.min(10, footageSec * 0.5);
   if (footageSec >= 6 && len < floor) {
     const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
-    const second = paced(validateEdl(again.raw, forEdl).edl, forEdl, asked);
+    const second = taught(paced(validateEdl(again.raw, forEdl).edl, forEdl, asked), again.raw, acct, forEdl);
     if (edlDurationSec(second) > len) { edl = second; model = again.model; }
   }
   return { edl, model };
@@ -721,7 +730,7 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = used.map(toClipForEdl);
   const footageSec = used.reduce((a, r) => a + (r.duration_s ?? 0), 0);
-  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry), forEdl, footageSec);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry), forEdl, footageSec, acct);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from these clips.");
   edl.style = edl.style ?? CAPCUT_STYLE;
   edl.cleanSound = true;
