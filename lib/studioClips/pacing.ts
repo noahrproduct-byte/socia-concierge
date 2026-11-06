@@ -2,7 +2,7 @@
 // validation and reported for every cut in the editor. Every rule is a plain
 // number a person could check with a stopwatch:
 //   - the opener starts on the action (never inside a silent lead-in) and runs
-//     1 to 4 seconds unless speech carries it longer;
+//     1 to 5 seconds unless speech carries it longer (one unbroken move can hold it);
 //   - no cut drags: a cut without speech stops at 5 seconds, one with speech
 //     at 10, both at a word or pause boundary;
 //   - the ending has room to land (1.5 seconds or more);
@@ -19,7 +19,7 @@ import { clipLabel } from "./types";
 
 export const PACING = {
   openerMinSec: 1,
-  openerMaxSec: 4,
+  openerMaxSec: 5,
   /** a cut with no words inside it stops here */
   silentMaxSec: 5,
   /** a cut carrying speech stops here */

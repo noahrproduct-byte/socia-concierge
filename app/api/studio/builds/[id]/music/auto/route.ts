@@ -79,7 +79,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     // The person may have picked a track while this one was being made: theirs stays.
     if (fresh.edl.soundtrack) return NextResponse.json({ state: "has" });
     const speech = await cutHasSpeech(ctx.client, fresh.edl, fresh.project_id);
-    const soundtrack = sanitizeSoundtrack({ trackId: track.id, ...autoLevels(speech) }, fresh.edl.playlist, (t) => musicPath(ctx.ownerId, fresh.project_id, id, t));
+    const soundtrack = sanitizeSoundtrack({ trackId: track.id, ...autoLevels(speech, Boolean(fresh.edl.actionSound)) }, fresh.edl.playlist, (t) => musicPath(ctx.ownerId, fresh.project_id, id, t));
     if (!soundtrack) return NextResponse.json({ error: "SOCIA couldn't add the track." }, { status: 500 });
     await save({ ...fresh.edl, soundtrack });
     const url = (await signUrls(ctx.client, [path]))[path] ?? null;

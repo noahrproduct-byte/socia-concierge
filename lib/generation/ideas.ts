@@ -32,7 +32,7 @@ const SCHEMA = {
         properties: {
           hook: { type: "string" }, concept: { type: "string" }, shot: { type: "string" },
           kind: { type: "string", enum: ["text_to_video", "text_to_image"] },
-          caption: { type: "string" }, hashtags: { type: "array", items: { type: "string" }, maxItems: 5 },
+          caption: { type: "string" }, hashtags: { type: "array", items: { type: "string" } },
         },
       },
     },

@@ -26,7 +26,11 @@ import { refResult } from "@/lib/trendSignals";
 import { byPriority, citedIds, cleanCompetitors, cleanDirections, cleanExperiments, cleanFixExtras, validCuts, type PostRef } from "@/lib/studioVerdict";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// One large Opus answer with frames can take minutes. The model call stops at
+// MODEL_BUDGET_MS, before the platform's limit, so a slow one gives the person's
+// allowance back and answers plainly instead of being cut off with no reply.
+export const maxDuration = 300;
+const MODEL_BUDGET_MS = 280_000;
 
 // Content Studio analysis. Inputs: frames the browser sampled (the file never
 // leaves the device), the transcript/caption the user typed, their goal, and
@@ -228,10 +232,13 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
       output_config: effortFor(MODEL),
       messages: [{ role: "user", content: [...images, { type: "text", text }] }],
     };
+    const startedAt = Date.now();
     // output_config is newer than this SDK's types; it is sent as-is.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const res = await anthropic.messages.create(params as any);
+    const res = await anthropic.messages.create(params as any, { signal: AbortSignal.timeout(MODEL_BUDGET_MS) });
     recordAiUsage(ctx.ownerId, "studio_analyze", res);
+    // Counts only: how long ratings really take.
+    console.log("[studio/analyze] done", JSON.stringify({ ms: Date.now() - startedAt, stop: res.stop_reason, outputTokens: res.usage?.output_tokens, frames: body.frames.length }));
     if (res.stop_reason === "refusal") {
       await u.release();
       return NextResponse.json({ error: "SOCIA declined to analyse this content." }, { status: 422 });
@@ -298,6 +305,10 @@ Respond with ONLY one JSON object (no markdown fences, no preamble) in exactly t
     return NextResponse.json({ analysis, usage: u.usage });
   } catch (err) {
     await u.release();
+    if ((err as Error)?.name === "APIUserAbortError" || (err as Error)?.name === "TimeoutError") {
+      console.error(`[studio/analyze] stopped after ${MODEL_BUDGET_MS} ms`);
+      return NextResponse.json({ error: "The analysis took too long and was stopped. It didn't use up an analysis. Try again in a moment.", kind: "timeout" }, { status: 504 });
+    }
     const kind2 = aiFailure("studio/analyze", err);
     return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind2], kind: kind2 }, { status: kind2 === "rate_limited" ? 429 : 502 });
   }

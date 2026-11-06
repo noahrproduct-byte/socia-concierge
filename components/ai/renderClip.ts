@@ -9,6 +9,7 @@
 import { ClipComposition } from "@/components/studio/remotion/ClipComposition";
 import { timeline } from "@/lib/studioClips/timeline";
 import { OUTPUT, type BuildSource, type Edl } from "@/lib/studioClips/types";
+import { CAPCUT_STYLE } from "@/lib/studioClips/style";
 import type { ClipRender } from "@/lib/clipper/server";
 
 const SOURCE_ID = "source";
@@ -24,6 +25,8 @@ export function clipEdl(r: ClipRender, title: string | null, headline: boolean):
     text: headline && title ? [{ id: "title", at: 0, end: Math.min(3, len), text: title.slice(0, 80), role: "opening" }] : [],
     captions: r.captions && r.words.length ? { source: "transcript" } : null,
     enhance: [], audio: [], cta: null, music: null, caption: "", notes: [],
+    // Noah's rule for every new cut: CapCut's look. Large captions, since a talk is carried by its words.
+    style: { ...CAPCUT_STYLE, captions: { ...CAPCUT_STYLE.captions, size: "l" } },
   };
 }
 

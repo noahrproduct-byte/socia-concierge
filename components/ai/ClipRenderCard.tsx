@@ -14,9 +14,13 @@ import { renderClip } from "./renderClip";
 
 const OUT_RATIO = 9 / 16;
 
-export default function ClipRenderCard({ id, title, sub, why, render, headline, canMutate, onRendered, onCancel }: {
+export default function ClipRenderCard({ id, title, sub, why, render, headline, canMutate, onRendered, onCancel, autoStart = false, onSettled }: {
   id: string; title: string; sub: string; why: string | null; render: ClipRender; headline: boolean; canMutate: boolean;
   onRendered: () => void; onCancel?: () => void;
+  /** Its turn in "Make all": starts as soon as the video has loaded. */
+  autoStart?: boolean;
+  /** Finished, made or not, so the next clip in "Make all" can start. */
+  onSettled?: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -31,6 +35,23 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   // How much of the source's width the vertical frame covers (1 = the source is already vertical or narrower).
   const share = size ? Math.min(1, (size.height * OUT_RATIO) / size.width) : null;
   const movable = share != null && share < 0.999;
+
+  // Its turn in "Make all". The ref keeps one start per turn, however often this re-renders.
+  const started = useRef(false);
+  const makeRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => {
+    if (!autoStart || !size || started.current) return;
+    started.current = true;
+    void makeRef.current();
+  }, [autoStart, size]);
+
+  // Leaving the page stops a render in this browser.
+  useEffect(() => {
+    if (!busy) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
 
   useEffect(() => {
     const v = video.current;
@@ -85,8 +106,9 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
       onRendered();
     } catch (e) {
       setErr(errorText(e));
-    } finally { setBusy(null); setProgress(null); }
+    } finally { setBusy(null); setProgress(null); started.current = false; onSettled?.(); }
   }
+  makeRef.current = make;
 
   const left = share != null ? cropX * (1 - share) * 100 : 0;
   return (

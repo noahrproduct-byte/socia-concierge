@@ -25,6 +25,7 @@ import { useSafeZoneGuide } from "./TextOverlay";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
 import { cleanSounds } from "@/lib/studioClips/cleanSound";
+import EndCardPanel from "./EndCardPanel";
 import { timeline } from "@/lib/studioClips/timeline";
 import { speechShare, speechSpans } from "@/lib/studioClips/musicDuck";
 import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
@@ -263,16 +264,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [cleanAudio, setCleanAudio] = useState<Record<string, string>>({});
   const [cleaning, setCleaning] = useState<{ done: number; total: number } | null>(null);
   const cleanOn = Boolean(edl?.cleanSound);
+  const actionOn = Boolean(edl?.actionSound);
   const usedClips = useMemo(() => (edl ? Array.from(new Set(edl.segments.map((s) => s.clipId))).filter((id) => sources[id]).sort() : []), [edl, sources]);
   const cleanFor = useCallback(async () => {
     const todo = usedClips.map((id) => ({ clipId: id, url: sources[id].url }));
     if (!todo.length) return {};
     setCleaning({ done: 0, total: todo.length });
-    const out = await cleanSounds(todo, (done, total) => setCleaning({ done, total }));
+    const out = await cleanSounds(todo, (done, total) => setCleaning({ done, total }), actionOn ? "action" : "clean");
     setCleanAudio((cur) => ({ ...cur, ...out }));
     setCleaning(null);
     return out;
-  }, [usedClips, sources]);
+  }, [usedClips, sources, actionOn]);
   useEffect(() => { if (cleanOn) void cleanFor(); }, [cleanOn, cleanFor]);
   const tracks = useMemo(() => (edl ? tracksFor(edl, (id) => (sources[id] ? clipLabel(sources[id].position) : "Expired clip"), Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])), captionsOn) : null), [edl, sources, captionsOn]);
   const missing = useMemo(() => (edl ? edl.segments.filter((s) => !sources[s.clipId]).length : 0), [edl, sources]);
@@ -611,7 +613,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 <b><Volume2 size={14} /> Reduce background noise</b>
                 <small>
                   {cleaning ? `Cleaning the sound in this browser: ${cleaning.done} of ${cleaning.total} clips.`
-                    : cleanOn ? (Object.keys(cleanAudio).length ? "Hum, hiss and steady background noise are turned down, and the level is evened out." : "This browser couldn't clean the sound, so the clips keep their own.")
+                    : cleanOn ? (Object.keys(cleanAudio).length ? (actionOn ? "The hum is taken out and the sound of the action is brought up, over the music." : "Hum, hiss and steady background noise are turned down, and the level is evened out.") : "This browser couldn't clean the sound, so the clips keep their own.")
                     : "Turns down hum, hiss and steady background noise, and evens out the level. Done in this browser; your clips aren't changed."}
                 </small>
               </div>
@@ -845,6 +847,12 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 playhead={() => at()?.sec ?? null}
                 openId={sel?.kind === "text" ? edl.text[sel.index]?.id ?? null : null}
                 onOpen={(l) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, Math.round(l.at * OUTPUT.fps) + 1)); } }}
+              />
+              <EndCardPanel
+                card={edl.endCard ?? null}
+                disabled={!data.canEdit || busy}
+                onChange={(endCard) => { const { endCard: _old, ...rest } = edl; commit(endCard ? { ...rest, endCard } : rest); }}
+                onShow={() => { const p = player.current; if (p) { p.pause(); p.seekTo(tl.durationFrames - 2); } }}
               />
               <div className="ov-card cbb-caption-copy">
                 <b>Caption for the post</b>

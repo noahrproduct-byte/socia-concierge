@@ -40,7 +40,8 @@ export async function startTranscription(svc: Supa, job: JobLike): Promise<strin
   if (!provider) throw new ClipperError("Transcription is not set up, so SOCIA can't clip right now.", "not_configured", false);
   const url = await signedUrl(svc, job.source_path, 24 * 3600);
   if (!url) throw new ClipperError("The uploaded file could not be read.", "no_source", false);
-  const t = await provider.submit(url, { language: job.options.lang || null });
+  // No language given: the provider detects it, so a video in any language transcribes properly.
+  const t = await provider.submit(url);
   recordTranscription(job.user_id, "clipper", job.source_minutes * 60);
   return t.id;
 }
@@ -68,7 +69,7 @@ export async function pickMoments(svc: Supa, job: JobLike, words: TranscriptWord
   const brand = brandLine(profile);
   const message = pickMessage({
     brand, durationMs, lines: transcriptLines(words),
-    options: { maxClips: job.options.maxClips, lengths: job.options.lengths, lang: job.options.lang },
+    options: { maxClips: job.options.maxClips, lengths: job.options.lengths },
     examples: clipExamples(), results: clipResultLines(outcomes), niche: trendsEvidence(niche?.signals ?? null) || null,
   });
   const model = modelFor("clipper_pick");

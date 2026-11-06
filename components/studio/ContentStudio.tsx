@@ -44,7 +44,7 @@ export type DraftItem = { id: string; caption: string; media_url: string | null;
 
 type Source = { kind: StudioKind; url: string; name: string; file: File | null; files: File[]; draftId: string | null; images: string[] };
 type Phase = "idle" | "loading" | "extracting" | "listening" | "transcribing" | "analyzing" | "done" | "error";
-type ErrKind = "unsupported" | "too_large" | "too_short" | "too_long" | "cors" | "failed" | "api" | "plan";
+type ErrKind = "unsupported" | "too_large" | "too_short" | "too_long" | "cors" | "failed" | "api" | "plan" | "slow";
 // "plan" renders the PlanNotice from the server's PlanError instead of copy from here.
 const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }> = {
   unsupported: { title: "Unsupported format", body: "Use an MP4 or MOV video, or a JPG/PNG image. Some codecs (HEVC from iPhone) don't decode in the browser; export as H.264." },
@@ -54,6 +54,7 @@ const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }
   cors: { title: "Couldn't read this draft's media", body: "The file is stored, but the browser couldn't sample frames from it. Upload the original file instead." },
   failed: { title: "Analysis failed", body: "Something went wrong reading the result. Try again; if it repeats, use a different export of the video." },
   api: { title: "SOCIA AI is unavailable", body: "The analysis service didn't respond. Try again in a moment." },
+  slow: { title: "The analysis took too long", body: "It was stopped before it finished. Try again in a moment." },
 };
 // Five workspaces, in the order the questions come: what to fix, where it is, what the data says, how else to make it, then making the change.
 const TABS = [["verdict", "Verdict"], ["timeline", "Timeline"], ["performance", "Performance"], ["directions", "Directions"], ["improve", "Improve and export"]] as const;
@@ -146,6 +147,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (isPlanError(json)) setErr({ kind: "plan", planError: json });
+        // A 504 with no message: the platform cut the request off, so the file is not the problem.
+        else if (res.status === 504) setErr({ kind: "slow", detail: json.error });
         else setErr({ kind: res.status === 503 || res.status === 502 || res.status === 429 ? "api" : "failed", detail: json.error });
         setPhase("error"); return;
       }
@@ -435,7 +438,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
           <div className="ov-card st-context">
             <label><span>Voiceover or on-screen text <small>{source?.kind === "video" ? "(transcribed automatically when there's speech)" : "(optional, improves accuracy a lot)"}</small></span>
               <textarea rows={3} value={transcript} onChange={(e) => setTranscript(e.target.value)} placeholder={source?.kind === "video" ? "SOCIA fills this in from the video's speech; add on-screen text if you like…" : "Paste what's said or shown on screen…"} disabled={busy} /></label>
-            {auto && transcript.trim() === auto.text.trim() && <small className="st-auto-note">Transcribed automatically from the video — fix anything it got wrong and re-analyze.</small>}
+            {auto && transcript.trim() === auto.text.trim() && <small className="st-auto-note">Transcribed automatically from the video. Fix anything it got wrong and analyze again.</small>}
             {listenNote && <small className="st-auto-note muted">{listenNote}</small>}
             {source && frames && phase !== "extracting" && (
               <div className="st-row-actions">
@@ -472,7 +475,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 <li className={phase === "analyzing" ? "on" : ""}><i />Analyzing hook, pacing, clarity and CTA</li>
                 <li className={phase === "analyzing" ? "on" : ""}><i />Comparing with your top posts{connected ? "" : " (not connected)"} and competitors&apos; Reels SOCIA has read</li>
               </ul>
-              <p className="ov-source">One request to SOCIA; usually 20 to 40 seconds. Results appear together when it finishes.</p>
+              <p className="ov-source">One request to SOCIA; it can take a couple of minutes. Results appear together when it finishes.</p>
             </div>
           )}
           {phase === "error" && err && err.kind === "plan" && err.planError && (
@@ -486,7 +489,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               <span className="st-error-ico"><AlertTriangle size={16} /></span>
               <div><b>{ERR_COPY[err.kind].title}</b><p>{err.detail ?? ERR_COPY[err.kind].body}</p>
                 <div className="st-row-actions">
-                  {source && frames && err.kind === "api" && <button type="button" className="ov-btn primary small" onClick={() => analyze(source, frames)}>Try again</button>}
+                  {source && frames && (err.kind === "api" || err.kind === "slow") && <button type="button" className="ov-btn primary small" onClick={() => analyze(source, frames)}>Try again</button>}
                   <button type="button" className="ov-btn ghost small" onClick={() => input.current?.click()}>Upload a different file</button>
                 </div>
               </div>

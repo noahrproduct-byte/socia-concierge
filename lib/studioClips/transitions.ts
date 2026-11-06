@@ -9,19 +9,20 @@
 // The blur values are pixels for @remotion/effects' WebGL blur and zoom-blur,
 // which run in the Player and in the browser render alike.
 //
-// Noah, 2026-11-06: the mix of heavy zooms and whips looked bad, not smooth. A
-// cut SOCIA makes now joins its shots one way (smoothTransitions), and zoom and
-// whip stay for the person to choose, at gentler values. Pure.
+// Noah, 2026-11-06: the mix of heavy zooms and whips looked bad, not smooth, and
+// a short dissolve on the beat looked really good. A cut SOCIA makes joins its
+// shots one way (smoothTransitions); zoom and whip stay for the person to choose,
+// at gentler values. Pure.
 import type { TransitionKind } from "./types";
 
 /**
- * One way of joining shots through a whole cut: a soft dissolve, or a hard cut
- * where SOCIA chose one. Zoom and whip stay only when the person asked for them
- * in their words (`asked`).
+ * One way of joining shots through a whole cut: the 0.3 s soft dissolve Noah
+ * called "really good" (2026-11-06), on every join after the first shot. Another
+ * kind stays only when the person asked for it in their words (`asked`).
  */
 export function smoothTransitions<T extends { transition?: TransitionKind }>(segments: T[], asked?: string | null): T[] {
-  if (asked && /\b(whip|zoom)/i.test(asked)) return segments;
-  return segments.map((s) => (s.transition === "zoom" || s.transition === "whip" ? { ...s, transition: "fade" as const } : s));
+  if (asked && /\b(whip|zoom|hard cut|jump cut)/i.test(asked)) return segments;
+  return segments.map((s, i) => (i ? { ...s, transition: "fade" as const } : s));
 }
 
 export type TransitionLook = {
