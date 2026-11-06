@@ -9,6 +9,12 @@ describe("clipper options", () => {
     expect(cleanOptions({ maxClips: 0, lang: "english" }).maxClips).toBe(1);
     expect(cleanOptions({ lang: "english" }).lang).toBe("en");
   });
+  it("keeps the uploaded file's name for the job list, cleaned and short", () => {
+    expect(cleanOptions({ sourceName: "  Talk\u0000 one.mp4 " }).sourceName).toBe("Talk one.mp4");
+    expect(cleanOptions({ sourceName: "x".repeat(300) }).sourceName).toHaveLength(120);
+    expect(cleanOptions({}).sourceName).toBeUndefined();
+    expect(cleanOptions({ sourceName: 7 }).sourceName).toBeUndefined();
+  });
   it("recognises YouTube links only", () => {
     for (const u of ["https://www.youtube.com/watch?v=OqLfw-TzzfI", "https://youtu.be/OqLfw-TzzfI", "https://youtube.com/shorts/abcdefgh"]) expect(YOUTUBE_RE.test(u), u).toBe(true);
     for (const u of ["https://vimeo.com/1", "https://example.com/youtube.com/watch?v=x", "not a url"]) expect(YOUTUBE_RE.test(u), u).toBe(false);

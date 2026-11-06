@@ -61,7 +61,7 @@ export type PickBrief = {
   brand: string;
   lines: Line[];
   durationMs: number;
-  options: Pick<ClipperOptions, "maxClips" | "lengths" | "lang">;
+  options: Pick<ClipperOptions, "maxClips" | "lengths">;
   examples: ClipExample[];
   /** This brand's posted clips and how each did against its own median, one line each. */
   results: string[];
@@ -100,7 +100,7 @@ Rules:
 - The transcript's timestamps are plain seconds from the start of the video: [230.5-236.8] runs from 230.5 to 236.8 seconds. start and end are plain seconds too, copied from those timestamps: start where a line starts, end where a line ends.
 - Keep every clip inside the length range you are given. Clips never overlap.
 - Return the best moments the video has, up to the number asked for, best first, and let the score say how strong each one is: a weaker moment gets a lower score, not left out. Return an empty list only when nothing in the transcript makes sense on its own.
-- title: a short headline in sentence case that says what the clip is about, written for the viewer.
+- title: a short headline in sentence case that says what the clip is about, written for the viewer, in the language the video is spoken in.
 - hook: the clip's opening words exactly as spoken in the transcript.
 - score: 0 to 10, how well the clip meets the bar above. Judge the moment, not the topic's popularity.
 - reason: one sentence on why this moment works as a clip, quoting what is said.
@@ -112,7 +112,7 @@ export function pickMessage(b: PickBrief): string {
   const { min, max } = lengthRange(b.options.lengths);
   const parts = [
     `Brand: ${b.brand || "unknown"}`,
-    `Video length: ${secs(b.durationMs)} seconds. Language: ${b.options.lang}.`,
+    `Video length: ${secs(b.durationMs)} seconds.`,
     `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
   ];
   if (b.examples.length) {
@@ -130,12 +130,28 @@ export function pickMessage(b: PickBrief): string {
 export type RawPick = { start: number; end: number; title: string; hook: string; score: number; reason: string };
 export type ClipPick = { startMs: number; endMs: number; title: string; hook: string; score: number; reason: string; text: string };
 
+/** How far a clip's start or end moves to reach a sentence's edge. */
+const SENTENCE_SNAP_MS = 1500;
+const endsSentence = (w: TranscriptWord) => /[.!?…]["')\]]?$/.test(w.text);
+
+/** The word index nearest `ms` (by `at`) that `ok` accepts, within SENTENCE_SNAP_MS; `fallback` when there is none. */
+function nearestEdge(words: TranscriptWord[], ms: number, fallback: number, at: (w: TranscriptWord) => number, ok: (i: number) => boolean): number {
+  let best = fallback, bestGap = SENTENCE_SNAP_MS + 1;
+  for (let i = 0; i < words.length; i++) {
+    const gap = Math.abs(at(words[i]) - ms);
+    if (gap < bestGap && ok(i)) { best = i; bestGap = gap; }
+  }
+  return best;
+}
+
 const clean = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, n) : "");
 
 /**
  * The model's picks, made safe: a clip starts with the word being spoken at its
  * start and ends with the last word that begins before its end, so no word is
- * cut in half; at least 3 words, inside the allowed length with 15% slack, not
+ * cut in half, then moves to a sentence's edge when one is within SENTENCE_SNAP_MS
+ * (an answer a moment too long would otherwise end on the next sentence's first
+ * word); at least 3 words, inside the allowed length with 15% slack, not
  * overlapping a better clip by more than a quarter, best first.
  */
 export function validatePicks(raw: unknown, words: TranscriptWord[], opts: Pick<PickBrief["options"], "maxClips" | "lengths">): ClipPick[] {
@@ -154,9 +170,13 @@ export function checkPicks(raw: unknown, words: TranscriptWord[], opts: Pick<Pic
   for (const r of list as Partial<RawPick>[]) {
     const s = Number(r.start) * 1000, e = Number(r.end) * 1000;
     if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) { check.badTimes++; continue; }
-    const first = words.findIndex((w) => w.endMs > s);
+    let first = words.findIndex((w) => w.endMs > s);
     let last = -1;
     for (let i = words.length - 1; i >= 0; i--) if (words[i].startMs < e) { last = i; break; }
+    if (first >= 0 && last >= first) {
+      first = nearestEdge(words, s, first, (w) => w.startMs, (i) => i === 0 || endsSentence(words[i - 1]));
+      last = nearestEdge(words, e, last, (w) => w.endMs, (i) => endsSentence(words[i]));
+    }
     if (first < 0 || last < first || last - first + 1 < 3) { check.tooFewWords++; continue; }
     const startMs = words[first].startMs, endMs = words[last].endMs;
     const sec = (endMs - startMs) / 1000;

@@ -8,9 +8,13 @@ import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinute
 import type { ClipRender } from "@/lib/clipper/server";
 import ClipRenderCard from "./ClipRenderCard";
 
-type Job = { id: string; status: "queued" | "processing" | "done" | "failed" | "cancelled"; source_kind: string; source_url: string; source_minutes: number; credits_reserved: number; credits_charged: number | null; error: string | null; created_at: string; options: ClipperOptions };
+type Job = { id: string; status: "queued" | "processing" | "done" | "failed" | "cancelled"; source_kind: string; source_url: string; source_minutes: number; credits_reserved: number; credits_charged: number | null; error: string | null; created_at: string; options: ClipperOptions; stage?: string | null };
 type Clip = { id: string; title: string | null; score: number | null; score_reason: string | null; duration_ms: number | null; caption: string | null; hashtags: string[]; playUrl: string | null; downloadUrl: string | null; transcript: string | null; render?: ClipRender | null };
 type Source = "youtube" | "upload" | "url";
+
+/** SOCIA's own clipper says which step a job is on (lib/clipper/server.ts); others just work. */
+const stageLabel = (stage: string | null | undefined): string | undefined =>
+  stage === "transcribing" ? "Transcribing" : stage ? "Picking the moments" : undefined;
 
 const fmtDur = (ms: number | null) => (ms == null ? "" : `${Math.round(ms / 1000)} s`);
 const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -20,6 +24,15 @@ const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "sh
  * this browser). vizardReady: YouTube and direct links go to Vizard when its
  * key is set; otherwise only uploads are offered.
  */
+/** One button for all the moments not made yet; they are made one at a time, in this browser. */
+function MakeAll({ clips, canMutate, queue, queueSize, onStart }: { clips: Clip[]; canMutate: boolean; queue: string[]; queueSize: number; onStart: (ids: string[]) => void }) {
+  const waiting = clips.filter((c) => c.render && !c.playUrl).map((c) => c.id);
+  if (!canMutate) return null;
+  if (queue.length) return <p className="ai-note" role="status"><Loader2 size={14} className="spin" aria-hidden /> Making clip {queueSize - queue.length + 1} of {queueSize}. Keep this page open until they finish.</p>;
+  if (waiting.length < 2) return null;
+  return <div className="ai-makeall"><button type="button" className="btn-primary" onClick={() => onStart(waiting)}>Make all {waiting.length} clips</button><small>Each clip is made in this browser, so keep the page open.</small></div>;
+}
+
 export default function ClipperPage({ initialBalance, canMutate, sociaReady, vizardReady }: { initialBalance: number | null; canMutate: boolean; sociaReady: boolean; vizardReady: boolean }) {
   const [balance, setBalance] = useState<number | null>(initialBalance);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -27,6 +40,9 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
   const [open, setOpen] = useState<string | null>(null);
   // A made clip whose crop is being changed.
   const [recrop, setRecrop] = useState<string | null>(null);
+  // Clips waiting to be made one after another by "Make all"; the first is in progress.
+  const [queue, setQueue] = useState<string[]>([]);
+  const [queueSize, setQueueSize] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   // The measured price, waiting for a second press (not an error).
@@ -84,7 +100,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
           setUploaded(up.path);
           path = up.path;
         }
-        body = { source: { kind: "upload", path }, minutes, options: opts };
+        body = { source: { kind: "upload", path }, minutes, options: { ...opts, sourceName: file.name } };
       }
       setBusy("Starting");
       const r = await api<{ job: Job; balance: number | null }>("/api/clipper/jobs", { method: "POST", body: JSON.stringify(body) });
@@ -176,16 +192,18 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
           {jobs.map((j) => (
             <li key={j.id} className={`ai-job${open === j.id ? " is-open" : ""}`}>
               <button type="button" className="ai-job-row" onClick={() => { setOpen(open === j.id ? null : j.id); if (j.status === "done" && !clipsByJob[j.id]) void loadJob(j.id); }} aria-expanded={open === j.id}>
-                <span className="ai-job-src">{j.source_kind === "youtube" ? j.source_url : j.source_kind === "upload" ? "Uploaded video" : j.source_url}</span>
+                <span className="ai-job-src">{j.source_kind === "youtube" ? j.source_url : j.source_kind === "upload" ? j.options?.sourceName ?? "Uploaded video" : j.source_url}</span>
                 <span className="ai-job-meta">{j.source_minutes} min · {j.credits_charged ?? j.credits_reserved} credits · {when(j.created_at)}</span>
-                <StatusChip status={j.status} />
+                <StatusChip status={j.status} working={stageLabel(j.stage)} />
               </button>
               {j.status === "failed" && <p className="ai-err">{j.error ?? "Clipping failed."} {j.credits_charged === 0 && "Your credits are back."}</p>}
               {j.status === "done" && j.error && <p className="ai-note">{j.error}</p>}
+              {open === j.id && j.status === "done" && <MakeAll clips={clipsByJob[j.id] ?? []} canMutate={canMutate} queue={queue} queueSize={queueSize} onStart={(ids) => { setQueue(ids); setQueueSize(ids.length); }} />}
               {open === j.id && j.status === "done" && (
                 <div className="ai-grid">
                   {(clipsByJob[j.id] ?? []).map((c) => c.render && (!c.playUrl || recrop === c.id) ? (
                     <ClipRenderCard key={c.id} id={c.id} title={c.title ?? "Clip"} render={c.render} headline={j.options?.headline !== false} canMutate={canMutate}
+                      autoStart={queue[0] === c.id} onSettled={() => setQueue((q) => q.filter((x) => x !== c.id))}
                       sub={`${fmtDur(c.duration_ms)}${c.score != null ? `, score ${c.score}/10` : ""}`} why={c.score_reason}
                       onRendered={() => { setRecrop(null); void loadJob(j.id); }} onCancel={c.playUrl ? () => setRecrop(null) : undefined} />
                   ) : (

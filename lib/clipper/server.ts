@@ -112,6 +112,7 @@ export function cleanOptions(raw: unknown): ClipperOptions {
     headline: typeof o.headline === "boolean" ? o.headline : true,
     lang: typeof o.lang === "string" && /^[a-z]{2}(-[A-Za-z]{2})?$/.test(o.lang) ? o.lang : "en",
     clipModel: o.clipModel === "clip_v2" ? "clip_v2" : "clip_v1",
+    ...(typeof o.sourceName === "string" && o.sourceName.trim() ? { sourceName: o.sourceName.replace(/[\p{C}]/gu, "").trim().slice(0, 120) } : {}),
   };
 }
 
