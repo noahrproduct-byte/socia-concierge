@@ -7,8 +7,22 @@
 //         zoomed and blurred and settles sharp ("zoom blur")
 //   whip  both slide sideways with a horizontal blur, like a fast pan ("whip blur")
 // The blur values are pixels for @remotion/effects' WebGL blur and zoom-blur,
-// which run in the Player and in the browser render alike. Pure.
+// which run in the Player and in the browser render alike.
+//
+// Noah, 2026-11-06: the mix of heavy zooms and whips looked bad, not smooth. A
+// cut SOCIA makes now joins its shots one way (smoothTransitions), and zoom and
+// whip stay for the person to choose, at gentler values. Pure.
 import type { TransitionKind } from "./types";
+
+/**
+ * One way of joining shots through a whole cut: a soft dissolve, or a hard cut
+ * where SOCIA chose one. Zoom and whip stay only when the person asked for them
+ * in their words (`asked`).
+ */
+export function smoothTransitions<T extends { transition?: TransitionKind }>(segments: T[], asked?: string | null): T[] {
+  if (asked && /\b(whip|zoom)/i.test(asked)) return segments;
+  return segments.map((s) => (s.transition === "zoom" || s.transition === "whip" ? { ...s, transition: "fade" as const } : s));
+}
 
 export type TransitionLook = {
   opacity: number;
@@ -46,13 +60,13 @@ export function transitionLook(a: { frame: number; frames: number; into?: Transi
   const look: TransitionLook = { opacity: 1, scale: 1, x: 0, zoomBlur: 0, blur: 0, whip: false, sound: Math.min(1 - inP, 1 - outP) };
   switch (a.into) {
     case "fade": look.opacity = 1 - inP; break;
-    case "zoom": look.opacity = 1 - inP; look.scale *= 1 + 0.25 * inP; look.zoomBlur += 60 * inP; break;
+    case "zoom": look.opacity = 1 - inP; look.scale *= 1 + 0.08 * inP; look.zoomBlur += 20 * inP; break;
     // The incoming whip is opaque for most of the move, so the frame never looks empty.
-    case "whip": look.opacity = clamp01((1 - inP) / 0.4); look.x += 35 * inP; look.blur += 40 * inP; look.whip = true; break;
+    case "whip": look.opacity = clamp01((1 - inP) / 0.4); look.x += 18 * inP; look.blur += 20 * inP; look.whip = true; break;
   }
   switch (a.out) {
-    case "zoom": look.scale *= 1 + 0.25 * outP; look.zoomBlur += 60 * outP; break;
-    case "whip": look.x -= 35 * outP; look.blur += 40 * outP; look.whip = true; break;
+    case "zoom": look.scale *= 1 + 0.08 * outP; look.zoomBlur += 20 * outP; break;
+    case "whip": look.x -= 18 * outP; look.blur += 20 * outP; look.whip = true; break;
     // fade: the outgoing cut stays as it is under the incoming one.
   }
   return look;

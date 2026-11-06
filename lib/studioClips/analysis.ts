@@ -112,7 +112,7 @@ export async function breakDownReference(ref: ReferenceInput, acct: AccountConte
 - pace: how often it cuts and how that changes (use the measured cut times).
 - ending: how it ends (a reveal, a question, an ask, a loop).
 - beats: 3 to 10 in order, covering the whole video, each with start/end seconds, what it shows (shot type and action, not who), the on-screen text exactly as written in the frames ("" when none) and what is said ("" when nothing).
-- text: the on-screen text style as seen in the frames: where it sits, its background (dark box, light box, a coloured box = accent, or none), capitals or not, size relative to the frame, the closest font from the list (bebas = tall condensed bold, montserrat = wide geometric bold, poppins = rounded, playfair = serif, inter = plain sans), and accent as #rrggbb only when a coloured box or text colour is clearly visible, else "".
+- text: the on-screen text style as seen in the frames: where it sits, its background (dark box, light box, a coloured box = accent, or none), capitals or not, size relative to the frame, the closest font from the list (bebas = tall condensed bold, anton = heavy condensed, montserrat = wide geometric bold, poppins = rounded, tiktok = plain sans), and accent as #rrggbb only when a coloured box or text colour is clearly visible, else "".
 - captions: true when word-by-word subtitles of the speech are on screen.`;
   const content: Content = [
     { type: "text", text: `${accountText(acct)}
@@ -313,7 +313,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   - Pace to the brief: for a POV, a rush, "how busy", a day in the life or anything energetic, 6 to 10 segments of 0.8 to 2.5 seconds each; calmer posts, fewer and longer.
   - End on the strongest, most satisfying image and let it run 2.5 to 4 seconds.
   - Handheld movement is fine; it's how short-form looks.
-- transition: how each segment comes in from the one before (the first segment's is ignored). "zoom" (zoom blur) for a change of place or scene, "whip" (whip blur) between moving shots and pans, "fade" for calm or slow moments, "cut" on a hard beat or between two still shots. Mix them to suit the footage; don't put the same one on every cut, and leave none abrupt in a POV or energetic edit.
+- transition: how each segment comes in from the one before (the first segment's is ignored). Join the whole video one way so it feels smooth: "fade" (a short soft dissolve) on every join, or "cut" where a shot lands hard on the action. Use "zoom" or "whip" only when the brief asks for them by name.
 - targetSec: a sensible length for this footage, typically 10–30 seconds; never longer than the footage supports, and never much shorter than it allows when the clips are good.
 - text: 1 to 3 on-screen lines (opening line, optional mid-point line, optional CTA line) with output-relative at/end seconds. Short and plain, the way a person types their own on-screen text (lowercase is fine, a "POV:" opener stays as written), in the brand's voice; never ad copy. The opening line stays up through the opener; a later line describes only what is on screen.
 - enhance: only for clips whose MEASUREMENTS say they are darker, brighter, cooler or warmer than the others, or low in contrast. These are checked against the numbers afterwards; unsupported ones are dropped.

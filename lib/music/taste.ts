@@ -53,7 +53,7 @@ const fmtX = (m: number) => `${m >= 10 ? Math.round(m) : m.toFixed(1).replace(/\
 export function tasteLines(t: TasteInput): string[] {
   const out: string[] = [];
   if (t.profile && (t.profile.bpmRange || t.profile.energy)) {
-    out.push(`Your best measured posts (${t.profile.basedOn}) run ${t.profile.bpmRange ? `${t.profile.bpmRange[0]} to ${t.profile.bpmRange[1]} BPM` : "with no steady beat"}${t.profile.energy ? `, ${t.profile.energy} energy` : ""}${t.profile.musicShare != null ? `, with music in ${Math.round(t.profile.musicShare * 100)}% of them` : ""}.`);
+    out.push(`Your best measured posts (${t.profile.basedOn}) run ${t.profile.bpmRange ? `${t.profile.bpmRange[0]} to ${t.profile.bpmRange[1]} BPM` : "at no tempo SOCIA could measure"}${t.profile.energy ? `, ${t.profile.energy} energy` : ""}${t.profile.musicShare != null ? `, with music in ${Math.round(t.profile.musicShare * 100)}% of them` : ""}.`);
   }
   if (t.library?.medianMultiplier != null && t.original?.medianMultiplier != null && t.library.n >= 3 && t.original.n >= 3) {
     const lib = t.library.medianMultiplier, own = t.original.medianMultiplier;
@@ -135,10 +135,37 @@ export function cleanPlaylist(raw: unknown, ids: () => string): { tracks: TrackB
 }
 
 /** What the music model is asked for: how it sounds, never an artist or a song. */
+/** Words that would ask the music model for the opposite of a steady groove (a playlist saved before this rule can hold them). */
+const unsteady = (s: string) => s
+  .replace(/\b(free[- ]time|rubato|drifting|meandering|ambient drone)\b/gi, "")
+  .replace(/\b(with\s+)?no steady beat\b/gi, "")
+  .replace(/\bthat never locks into a groove\b/gi, "")
+  .replace(/\s*,\s*,/g, ",").replace(/\s+/g, " ").replace(/^[\s,]+|[\s,]+$/g, "");
+
+/**
+ * How many seconds of music to make for a video: past its end, so the groove
+ * is still going when the video finishes (the model tends to wind a track down
+ * in its last few seconds) and small edits don't run out of music.
+ */
+export const trackSeconds = (videoSec: number) => videoSec + 4;
+
+/**
+ * Whether a cut really has someone talking: enough words inside the parts of
+ * the clips it uses. A stray "okay, okay" isn't speech to mix music under.
+ */
+export function cutSpeaks(segments: { clipId: string; in: number; out: number }[], words: Record<string, { startMs: number }[] | null | undefined>, minWords = MIN_SPEECH_WORDS): boolean {
+  const n = segments.reduce((a, s) => a + (words[s.clipId] ?? []).filter((w) => w.startMs / 1000 >= s.in && w.startMs / 1000 < s.out).length, 0);
+  return n >= minWords;
+}
+/** Words before music treats a cut as talking and sits under it. */
+const MIN_SPEECH_WORDS = 8;
+
 export function trackPrompt(t: TrackBrief, seconds: number, underSpeech: boolean): { prompt: string; lengthMs: number } {
   const sec = Math.round(Math.min(MAX_TRACK_SEC, Math.max(MIN_TRACK_SEC, seconds)));
-  const prompt = `${t.mood} ${t.style} instrumental${t.instruments ? ` with ${t.instruments}` : ""}, about ${t.bpm} BPM, ${t.energy} energy, ${sec} seconds, for a short vertical social video${underSpeech ? "; leave space in the mid-range so a voice sits clearly on top" : ""}. Clean modern production, a clear start and a tidy ending.`;
-  return { prompt: prompt.slice(0, 600), lengthMs: sec * 1000 };
+  // The requirements go first and are never cut off; the description is what gets trimmed.
+  const steady = `One consistent groove from the first second to the last: a clear steady beat at a constant tempo, the same energy and instruments throughout. It starts straight away, with no intro, no build, no breakdown, no change of section and no ending or fade out.`;
+  const about = `${unsteady(`${t.mood} ${t.style}`)} instrumental${t.instruments ? ` with ${unsteady(t.instruments)}` : ""}, ${t.bpm} BPM, ${t.energy} energy, ${sec} seconds, for a short vertical social video${underSpeech ? "; leave space in the mid-range so a voice sits clearly on top" : ""}.`;
+  return { prompt: `${steady} ${about}`.slice(0, 600), lengthMs: sec * 1000 };
 }
 
 /**

@@ -13,7 +13,7 @@ export const framesToSec = (f: number): number => f / FPS;
 export const dbToGain = (db: number): number => Math.pow(10, db / 20);
 
 /** A transition overlaps two cuts for this many frames (about 0.27 s, CapCut's usual length). */
-export const TRANSITION_FRAMES = 8;
+export const TRANSITION_FRAMES = 12;
 
 /** Frames a cut overlaps the one before it: none for a hard cut, and never more than half of either cut. */
 export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number): number {

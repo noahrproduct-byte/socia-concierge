@@ -49,7 +49,7 @@ describe("the breakdown", () => {
     expect(b.beats[0].onscreen).toBe("Guess what this becomes,");
     expect(b.text).toEqual({ position: "top", box: "accent", uppercase: true, size: "l", font: "bebas", accent: "#ff3300" });
     expect(cleanBreakdown({ ...raw, beats: [] }, 12)).toBeNull();
-    expect(cleanBreakdown({ ...raw, text: { position: "sideways", font: "comic" } }, 12)!.text).toMatchObject({ position: "middle", font: "inter", accent: "" });
+    expect(cleanBreakdown({ ...raw, text: { position: "sideways", font: "comic" } }, 12)!.text).toMatchObject({ position: "middle", font: "montserrat", accent: "" });
   });
   it("becomes the brief the cut follows, with its beats and measured pace", () => {
     const b = cleanBreakdown(raw, 12)!;

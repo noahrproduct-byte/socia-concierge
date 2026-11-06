@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tasteLines, addPick, sanitizePicks, cleanPlaylist, trackPrompt, sanitizeSoundtrack, sanitizePlaylist, musicPath, type TasteInput, type MusicPick } from "./taste";
+import { cutSpeaks, trackSeconds, tasteLines, addPick, sanitizePicks, cleanPlaylist, trackPrompt, sanitizeSoundtrack, sanitizePlaylist, musicPath, type TasteInput, type MusicPick } from "./taste";
 
 const base: TasteInput = { profile: null, library: null, original: null, picks: [], videoSec: 21.4, hasSpeech: true, cutNote: null, niche: null };
 
@@ -50,9 +50,33 @@ describe("the playlist", () => {
     const t = { id: "m1abcd", name: "Warm", style: "acoustic pop", mood: "warm", bpm: 110, energy: "medium" as const, instruments: "guitar", why: "" };
     const r = trackPrompt(t, 21.4, true);
     expect(r.lengthMs).toBe(21000);
-    expect(r.prompt).toMatch(/^warm acoustic pop instrumental with guitar, about 110 BPM, medium energy, 21 seconds.*a voice sits clearly on top/);
+    expect(r.prompt).toMatch(/warm acoustic pop instrumental with guitar, 110 BPM, medium energy, 21 seconds.*a voice sits clearly on top/);
     expect(trackPrompt(t, 3, false).lengthMs).toBe(10000);
     expect(trackPrompt(t, 500, false).lengthMs).toBe(120000);
+  });
+  it("always asks for one consistent groove, never a wandering track or a tidy ending", () => {
+    const t = { id: "m1abcd", name: "Loose", style: "Free-time acoustic folk with no steady beat, drifting", mood: "Cozy", bpm: 104, energy: "medium" as const, instruments: "nylon guitar, shaker that never locks into a groove", why: "" };
+    const { prompt } = trackPrompt(t, 20, false);
+    expect(prompt).toMatch(/^One consistent groove from the first second to the last/);
+    expect(prompt).toMatch(/no intro, no build, no breakdown/);
+    expect(prompt).not.toMatch(/free-time|drifting|never locks|tidy ending/i);
+    expect(prompt.slice(prompt.indexOf("Cozy"))).not.toMatch(/no steady beat/i);
+    expect(prompt).toContain("104 BPM");
+  });
+  it("makes music past the end of the video, so it's still going when the video finishes", () => {
+    expect(trackSeconds(19.3)).toBeGreaterThanOrEqual(22);
+  });
+  it("doesn't call a stray word speech, and only counts words the cut really uses", () => {
+    const words = { a: [{ startMs: 32000 }, { startMs: 32400 }] };
+    expect(cutSpeaks([{ clipId: "a", in: 29, out: 35 }], words)).toBe(false);
+    const talk = { a: Array.from({ length: 20 }, (_, i) => ({ startMs: i * 500 })) };
+    expect(cutSpeaks([{ clipId: "a", in: 0, out: 10 }], talk)).toBe(true);
+    expect(cutSpeaks([{ clipId: "a", in: 20, out: 30 }], talk)).toBe(false);
+    expect(cutSpeaks([{ clipId: "a", in: 29, out: 35 }], words, 3)).toBe(false);
+  });
+  it("doesn't tell the model the account likes music with no beat", () => {
+    const lines = tasteLines({ ...base, profile: { basedOn: 2, bpmRange: null, energy: "medium", musicShare: 1 } as never });
+    expect(lines.join(" ")).not.toMatch(/no steady beat/);
   });
   it("only lets a cut use one of its own tracks, with the path made on the server", () => {
     const playlist = sanitizePlaylist({ taste: ["a"], tracks: [{ id: "m1abcd", name: "Warm", style: "pop", mood: "warm", bpm: 110, energy: "medium" }], suggestions: [], createdAt: "x" })!;

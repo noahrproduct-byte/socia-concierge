@@ -16,6 +16,14 @@ export const FONTS = [
 ] as const;
 export type FontId = (typeof FONTS)[number]["id"];
 
+/**
+ * The fonts a person picks from, and all a new cut uses (Noah, 2026-11-06:
+ * "CapCut fonts only"; Inter read as AI). CapCut publishes no font list, so
+ * these are the bold fonts creators' guides name for it, plus TikTok's own.
+ * The others stay valid only so older cuts keep their look.
+ */
+export const CAPCUT_FONTS = FONTS.filter((f) => f.id !== "inter" && f.id !== "playfair");
+
 /** "outline": CapCut's Classic look, white text with a black outline and no box behind it. */
 export type TextBox = "outline" | "dark" | "light" | "accent" | "none";
 export type CaptionPosition = "top" | "middle" | "bottom";

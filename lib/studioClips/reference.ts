@@ -5,7 +5,7 @@
 // A model breaks the reference down into beats and a text style; this file
 // bounds what comes in, turns the breakdown into the brief the editor follows,
 // and maps its text style onto the cut. Pure and tested.
-import { FONTS, sanitizeStyle, DEFAULT_STYLE, type EdlStyle, type FontId } from "./style";
+import { CAPCUT_FONTS, CAPCUT_STYLE, DEFAULT_STYLE, sanitizeStyle, type EdlStyle, type FontId } from "./style";
 import type { ClipCard, ClipMoment, Edl, EdlBrief, EdlSegment, MomentRef, Opportunity } from "./types";
 
 export const PROMPT_MAX = 2000;
@@ -129,7 +129,7 @@ export const BREAKDOWN_SCHEMA = {
         box: { type: "string", enum: ["dark", "light", "accent", "none"] },
         uppercase: { type: "boolean" },
         size: { type: "string", enum: ["s", "m", "l"] },
-        font: { type: "string", enum: FONTS.map((f) => f.id) },
+        font: { type: "string", enum: CAPCUT_FONTS.map((f) => f.id) },
         accent: { type: "string" },
       },
       required: ["position", "box", "uppercase", "size", "font", "accent"],
@@ -161,7 +161,7 @@ export function cleanBreakdown(raw: unknown, durationSec: number): ReferenceBrea
       box: pick(t.box, ["dark", "light", "accent", "none"] as const, "dark"),
       uppercase: typeof t.uppercase === "boolean" ? t.uppercase : false,
       size: pick(t.size, ["s", "m", "l"] as const, "m"),
-      font: pick(t.font, FONTS.map((f) => f.id), DEFAULT_STYLE.font),
+      font: pick(t.font, CAPCUT_FONTS.map((f) => f.id), CAPCUT_STYLE.font),
       accent: typeof t.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(t.accent) ? t.accent.toLowerCase() : "",
     },
     captions: Boolean(o.captions),

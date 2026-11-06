@@ -50,6 +50,8 @@ describe("ENHANCE_SYSTEM", () => {
     expect(ENHANCE_SYSTEM).toMatch(/Use only the footage listed/);
     expect(ENHANCE_SYSTEM).toMatch(/Never invent facts/);
     expect(ENHANCE_SYSTEM).toMatch(/never change the idea/);
+    expect(ENHANCE_SYSTEM).toMatch(/One call to action only/);
+    expect(ENHANCE_SYSTEM).toMatch(/throwaway speech/);
     expect(ENHANCE_SYSTEM).not.toMatch(/—/);
   });
 });

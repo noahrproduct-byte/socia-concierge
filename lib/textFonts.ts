@@ -8,6 +8,9 @@
 import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
+import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
+import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
+import { loadFont as loadTikTok } from "@remotion/google-fonts/TikTokSans";
 import type { FontId } from "./studioClips/style";
 import type { TextFont } from "./textPresets";
 
@@ -18,10 +21,13 @@ const LOADERS: Partial<Record<FontId, () => Loaded>> = {
   inter: () => loadInter("normal", { weights: ["600", "700"], subsets: [...SUBSETS] }),
   montserrat: () => loadMontserrat("normal", { weights: ["800"], subsets: [...SUBSETS] }),
   anton: () => loadAnton("normal", { weights: ["400"], subsets: [...SUBSETS] }),
+  poppins: () => loadPoppins("normal", { weights: ["800"], subsets: [...SUBSETS] }),
+  bebas: () => loadBebas("normal", { weights: ["400"], subsets: [...SUBSETS] }),
+  tiktok: () => loadTikTok("normal", { weights: ["800"], subsets: [...SUBSETS] }),
 };
 
 /** CSS family names, by font id, once loaded. */
-const FAMILY: Partial<Record<FontId, string>> = { inter: "Inter", montserrat: "Montserrat", anton: "Anton" };
+const FAMILY: Partial<Record<FontId, string>> = { inter: "Inter", montserrat: "Montserrat", anton: "Anton", poppins: "Poppins", bebas: "Bebas Neue", tiktok: "TikTok Sans" };
 const loaded = new Map<FontId, Promise<string>>();
 
 /** The CSS font-family stack for a preset font (usable before the face arrives; the browser falls back until then). */
