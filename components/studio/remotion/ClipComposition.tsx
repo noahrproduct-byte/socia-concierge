@@ -26,7 +26,8 @@ import { DEFAULT_STYLE, captionLayout, type EdlStyle, type FontId } from "@/lib/
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
-import type { BuildSource, Edl, EdlText } from "@/lib/studioClips/types";
+import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
+import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
 import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
@@ -63,6 +64,10 @@ export type ClipCompositionProps = {
 
 /** The soundtrack fades in over 0.2 s and out over the last 0.8 s, so it never starts or stops abruptly. */
 const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
+
+/** The ending: the frame softens behind big type in the middle (lib/studioClips/teach.ts). */
+const END_FRAMES = Math.round(END_CARD_SEC * FPS);
+const END_SOFTEN_FRAMES = 9;
 
 /** How long before a shot appears the Player starts loading it. */
 const PREMOUNT_FRAMES = 45;
@@ -116,6 +121,28 @@ function SafeZoneLayer({ width, height }: { width: number; height: number }) {
   );
 }
 
+/** The place, the ask and the website, big and in the middle, no box. The right side stays clear of the app's icons. */
+function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
+  const frame = useCurrentFrame();
+  const family = useMemo(() => familyFor("anton"), []);
+  const appear = interpolate(frame, [0, 4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const pop = interpolate(frame, [0, 5], [0.92, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const line = (text: string, base: number, stroke: number) => {
+    if (!text) return null;
+    const size = endLineSize(text, base, width);
+    return <div style={{ fontSize: size, lineHeight: 1.12, WebkitTextStroke: `${Math.round((stroke * 2 * width) / 1080)}px #000`, paintOrder: "stroke fill", whiteSpace: "nowrap" }}>{text}</div>;
+  };
+  return (
+    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", paddingRight: `${(40 / 1080) * 100}%`, opacity: appear, transform: `scale(${pop})` }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: (28 * width) / 1080, fontFamily: family, fontWeight: 400, color: "#fff", textAlign: "center" }}>
+        {line(card.location.toUpperCase(), 168, 7)}
+        {line(card.cta.toUpperCase(), 330, 9)}
+        {line(card.site.toUpperCase(), 142, 7)}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
 function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: EdlStyle; fontFamily: string }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -151,18 +178,23 @@ type Effects = ReturnType<typeof colorCorrection>[];
  * it leaves into the next (lib/studioClips/transitions.ts). Blur is a WebGL
  * effect on the video itself, so the Player and the browser render agree.
  */
-function SegmentLayer({ s, into, out, effects, children }: {
+function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   s: TimelineSegment; into: TransitionKind | undefined; out: TransitionKind | undefined; effects: Effects | undefined;
+  /** The frame of this cut where it softens behind the ending, when it is the last one and the cut has an ending card. */
+  softenFrom?: number;
   children: (p: { effects: Effects | undefined }) => React.ReactNode;
 }) {
   const f = useCurrentFrame();
+  const soft = softenFrom == null ? 0 : interpolate(f, [softenFrom, softenFrom + END_SOFTEN_FRAMES], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const look = transitionLook({ frame: f, frames: s.durationFrames, into, overlapIn: s.overlapIn, out, overlapOut: s.overlapOut });
   const fx: Effects = [...(effects ?? [])];
   if (look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
   if (look.blur > 0.5) fx.push(blur({ radius: look.blur, vertical: look.whip ? false : true }));
+  if (soft > 0) fx.push(blur({ radius: 40 * soft }));
   return (
     <AbsoluteFill style={{ opacity: look.opacity, transform: look.scale !== 1 || look.x !== 0 ? `translateX(${look.x}%) scale(${look.scale})` : undefined }}>
       {children({ effects: fx.length ? fx : undefined })}
+      {soft > 0 && <AbsoluteFill style={{ backgroundColor: "#000", opacity: 0.42 * soft }} />}
     </AbsoluteFill>
   );
 }
@@ -180,6 +212,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const music = edl.soundtrack && musicUrl ? edl.soundtrack : null;
   const original = music ? music.originalVolume : 1;
   const finish = finishOn === false ? undefined : edl.finish;
+  const card = edl.endCard ?? null;
   // One effect instance per graded clip, so the WebGL program isn't rebuilt every frame.
   const effects = useMemo(() => {
     if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
@@ -203,7 +236,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           // premountFor: the Player loads the next shot before it is on screen. Without it the shot started
           // loading as the transition began, so it arrived late and the join stuttered. A render ignores it.
           <Sequence key={s.id} from={s.startFrame} durationInFrames={s.durationFrames} premountFor={PREMOUNT_FRAMES} name={`${s.role} · clip ${src.position + 1}`}>
-            <SegmentLayer s={s} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]}>
+            <SegmentLayer s={s} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]} softenFrom={card && !next ? Math.max(0, s.durationFrames - END_FRAMES) : undefined}>
               {({ effects: fx }) => (
                 <Video
                   src={src.url}
@@ -245,6 +278,11 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           <CaptionPage page={p.page} style={style} fontFamily={fontFamily} />
         </Sequence>
       ))}
+      {card && (
+        <Sequence from={Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES)} name="ending">
+          <EndCardLayer card={card} width={width} />
+        </Sequence>
+      )}
       {safeZoneGuide && <SafeZoneLayer width={width} height={height} />}
     </AbsoluteFill>
   );

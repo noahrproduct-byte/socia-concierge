@@ -5,8 +5,8 @@
 // WAV for transcription. Mediabunny (WebCodecs) does the decoding; a <video>
 // element fallback covers browsers or files it cannot read.
 import { extractFrames } from "@/lib/studio";
-import { frameStats, sceneCuts, chooseKeyframes, visualSummary, parseWav, pcmWindows, audioSummary, type FrameSample } from "./facts";
-import { KEYFRAME_WIDTH, SCAN_WIDTH, MIN_KEYFRAMES, MAX_KEYFRAMES, WAV_SAMPLE_RATE, MAX_CLIP_SEC, type AudioFacts, type ClipFacts } from "./types";
+import { frameStats, sceneCuts, denseKeyframes, visualSummary, parseWav, pcmWindows, audioSummary, type FrameSample } from "./facts";
+import { KEYFRAME_STEP_SEC, KEYFRAME_WIDTH, SCAN_WIDTH, MIN_KEYFRAMES, MAX_KEYFRAMES, WAV_SAMPLE_RATE, MAX_CLIP_SEC, type AudioFacts, type ClipFacts } from "./types";
 
 export type Probe = { durationSec: number; width: number | null; height: number | null; hasAudio: boolean; method: "mediabunny" | "video-element" };
 export type Keyframe = { t: number; blob: Blob };
@@ -118,8 +118,8 @@ async function ingestWithMediabunny(mb: Mediabunny, file: File, probe: Probe, on
     }
     const cuts = sceneCuts(samples);
 
-    // 2) The keyframes SOCIA keeps: one per scene plus the opening.
-    const keyTimes = chooseKeyframes(d, cuts, MIN_KEYFRAMES, MAX_KEYFRAMES);
+    // 2) The keyframes SOCIA keeps: a steady look through the clip, and every scene.
+    const keyTimes = denseKeyframes(d, cuts, KEYFRAME_STEP_SEC, MIN_KEYFRAMES, MAX_KEYFRAMES);
     const keys = new mb.CanvasSink(video, { width: KEYFRAME_WIDTH });
     const frames: Keyframe[] = [];
     for await (const r of keys.canvasesAtTimestamps(keyTimes)) {

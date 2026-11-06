@@ -57,6 +57,24 @@ export function sceneCuts(samples: FrameSample[], threshold = 0.35): number[] {
  * near the start (the opening decides whether anyone stays), evenly filled
  * when there are too few scenes, capped when there are too many.
  */
+/**
+ * The frames SOCIA keeps of a clip: one every `step` seconds and one inside each
+ * scene, thinned evenly to `max`. Enough to see what really happens and when,
+ * not one per scene: a single long take is where a video's best moments hide.
+ */
+export function denseKeyframes(duration: number, cuts: number[], step: number, min = 3, max = 24): number[] {
+  const d = Math.max(0.1, duration);
+  const scene = chooseKeyframes(d, cuts, min, max);
+  const even: number[] = [];
+  for (let t = Math.min(step / 2, d / 2); t < d; t += step) even.push(t);
+  const times = [...scene];
+  for (const t of even) if (times.every((x) => Math.abs(x - t) >= step / 3)) times.push(t);
+  times.sort((a, b) => a - b);
+  if (times.length <= max) return times;
+  const keep = (max - 1) / (times.length - 1);
+  return Array.from({ length: max }, (_, i) => times[Math.round(i / keep)]);
+}
+
 export function chooseKeyframes(duration: number, cuts: number[], min = 3, max = 8): number[] {
   const d = Math.max(0.1, duration);
   const edges = [0, ...cuts.filter((c) => c > 0 && c < d).sort((a, b) => a - b), d];
