@@ -63,6 +63,9 @@ export type ClipCompositionProps = {
 /** The soundtrack fades in over 0.2 s and out over the last 0.8 s, so it never starts or stops abruptly. */
 const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
 
+/** How long before a shot appears the Player starts loading it. */
+const PREMOUNT_FRAMES = 45;
+
 /** Heavier type for the outline look: a thin weight disappears inside its outline. */
 const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === "bebas" ? 400 : 800);
 
@@ -74,11 +77,11 @@ const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === 
  * so neither path ever paints a fallback face. Only the way in and out is
  * animated here: a fade or a small pop, as the preset says.
  */
-function TextLayer({ line, width, height }: { line: EdlText; width: number; height: number }) {
+function TextLayer({ line, width, height, font }: { line: EdlText; width: number; height: number; font: FontId }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const preset = presetOf(line);
-  const args = useMemo(() => ({ presetId: preset.id, text: line.text, slot: line.slot, width, height }), [preset.id, line.text, line.slot, width, height]);
+  const args = useMemo(() => ({ presetId: preset.id, text: line.text, slot: line.slot, width, height, font }), [preset.id, line.text, line.slot, width, height, font]);
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -194,7 +197,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         const cleaned = edl.cleanSound ? cleanAudio?.[s.clipId] : undefined;
         const level = (f: number) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames) * (s.volume ?? 1) * original * transitionSound(f, s.durationFrames, s.overlapIn, s.overlapOut);
         return (
-          <Sequence key={s.id} from={s.startFrame} durationInFrames={s.durationFrames} name={`${s.role} · clip ${src.position + 1}`}>
+          // premountFor: the Player loads the next shot before it is on screen. Without it the shot started
+          // loading as the transition began, so it arrived late and the join stuttered. A render ignores it.
+          <Sequence key={s.id} from={s.startFrame} durationInFrames={s.durationFrames} premountFor={PREMOUNT_FRAMES} name={`${s.role} · clip ${src.position + 1}`}>
             <SegmentLayer s={s} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]}>
               {({ effects: fx }) => (
                 <Video
@@ -229,7 +234,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       )}
       {edl.text.filter((t) => t.text.trim()).map((t) => (
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} name={`text · ${presetOf(t).label}`}>
-          <TextLayer line={t} width={width} height={height} />
+          <TextLayer line={t} width={width} height={height} font={style.font} />
         </Sequence>
       ))}
       {pages.map((p, i) => (

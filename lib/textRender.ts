@@ -5,7 +5,8 @@
 // is always what is made. Layout (wrapping, shrinking to fit, position in the
 // safe zone) is pure and tested; only drawTextLayer() touches a canvas.
 import { canvasFont, ensureTextFonts } from "./textFonts";
-import { TEXT_PRESETS, frameScale, safeZoneFor, type SafeZone, type TextFont, type TextPreset, type TextSlot } from "./textPresets";
+import { TEXT_PRESETS, frameScale, safeZoneFor, type SafeZone, type TextFont, type TextPreset, type TextSlot, presetInFont } from "./textPresets";
+import type { FontId } from "./studioClips/style";
 
 /** Width of a string in a canvas font; the tests pass a fake, the renderer a 2D context. */
 export type Measure = (text: string, font: string) => number;
@@ -223,12 +224,12 @@ export function drawTextLayer(ctx: Ctx, preset: TextPreset, layout: TextLayout):
   ctx.restore();
 }
 
-export type RenderArgs = { presetId: TextPreset["id"]; text: string; slot?: TextSlot | null; width: number; height: number };
+export type RenderArgs = { presetId: TextPreset["id"]; text: string; slot?: TextSlot | null; width: number; height: number; /** the video's font (its Style); the preset's own when absent */ font?: FontId | null };
 export type RenderedText = { url: string; width: number; height: number; layout: TextLayout };
 
 const cache = new Map<string, Promise<RenderedText>>();
 const CACHE_MAX = 48;
-export const renderKey = (a: RenderArgs): string => JSON.stringify([a.presetId, a.text, a.slot ?? null, a.width, a.height]);
+export const renderKey = (a: RenderArgs): string => JSON.stringify([a.presetId, a.text, a.slot ?? null, a.width, a.height, a.font ?? null]);
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 /** Text widths from a shared 2D context, for live fit checks in the UI. Null where there is no canvas. */
@@ -253,7 +254,7 @@ export function renderTextLayer(a: RenderArgs): Promise<RenderedText> {
   const hit = cache.get(key);
   if (hit) return hit;
   const p = (async () => {
-    const preset = TEXT_PRESETS[a.presetId];
+    const preset = presetInFont(TEXT_PRESETS[a.presetId], a.font);
     await ensureTextFonts(presetFonts(preset));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(a.width)); canvas.height = Math.max(1, Math.round(a.height));

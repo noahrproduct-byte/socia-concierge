@@ -7,6 +7,10 @@ import { aspectOf, clipLabel, fmtClock, isTransition } from "./types";
 import { overlapFrames, secToFrames } from "./timeline";
 import { finishSteps, sanitizeFinish } from "./finish";
 import { cleanVolume, sanitizeStyle } from "./style";
+import { cutSpeaks } from "../music/taste";
+
+/** A short spoken line earns captions; a stray "okay, okay" doesn't. */
+const MIN_CAPTION_WORDS = 3;
 
 export type ClipForEdl = {
   id: string;
@@ -220,7 +224,8 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     targetSec: target,
     segments,
     text,
-    captions: speechClips.length ? { source: "transcript" } : null,
+    // Word-by-word captions only for a cut with real talking; a stray "okay, okay" stays off screen.
+    captions: speechClips.length && cutSpeaks(segments, Object.fromEntries(speechClips.map((c) => [c.id, c.words])), MIN_CAPTION_WORDS) ? { source: "transcript" } : null,
     enhance: enh.kept,
     audio: audioBalance(inCut),
     cta: raw.cta?.trim() || null,

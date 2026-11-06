@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { overlapFrames, timeline, TRANSITION_FRAMES } from "./timeline";
-import { transitionLook, transitionSound } from "./transitions";
+import { transitionLook, transitionSound, smoothTransitions } from "./transitions";
 import { edlDurationSec, validateEdl } from "./edl";
 import type { Edl } from "./types";
 
@@ -32,19 +32,29 @@ describe("transitions overlap two cuts", () => {
 describe("how a transition looks and sounds", () => {
   it("a zoom starts the incoming cut zoomed and blurred, and it lands sharp", () => {
     const start = transitionLook({ frame: 0, frames: 60, into: "zoom", overlapIn: 8, overlapOut: 0 });
-    expect(start.zoomBlur).toBeGreaterThan(50);
-    expect(start.scale).toBeGreaterThan(1.2);
+    expect(start.zoomBlur).toBeGreaterThan(10);
+    expect(start.zoomBlur).toBeLessThanOrEqual(24);
+    expect(start.scale).toBeGreaterThan(1.05);
+    expect(start.scale).toBeLessThan(1.15);
     expect(start.opacity).toBe(0);
     const done = transitionLook({ frame: 8, frames: 60, into: "zoom", overlapIn: 8, overlapOut: 0 });
     expect([done.zoomBlur, done.scale, done.opacity]).toEqual([0, 1, 1]);
   });
   it("a whip slides out sideways with a horizontal blur; the sound crossfades", () => {
     const end = transitionLook({ frame: 59, frames: 60, out: "whip", overlapIn: 0, overlapOut: 8 });
-    expect(end.x).toBeLessThan(-30);
+    expect(end.x).toBeLessThan(-10);
+    expect(end.x).toBeGreaterThan(-25);
     expect(end.whip).toBe(true);
-    expect(end.blur).toBeGreaterThan(30);
+    expect(end.blur).toBeGreaterThan(10);
+    expect(end.blur).toBeLessThanOrEqual(24);
     expect(transitionSound(0, 60, 8, 0)).toBe(0);
     expect(transitionSound(30, 60, 8, 8)).toBe(1);
+  });
+  it("joins a SOCIA cut one soft way, and keeps zoom or whip only when the person asked", () => {
+    const segs = [{ transition: "cut" as const }, { transition: "zoom" as const }, { transition: "whip" as const }, { transition: "fade" as const }, {}];
+    expect(smoothTransitions(segs).map((s) => s.transition)).toEqual(["cut", "fade", "fade", "fade", undefined]);
+    expect(smoothTransitions(segs, "show the crust being made").map((s) => s.transition)).toEqual(["cut", "fade", "fade", "fade", undefined]);
+    expect(smoothTransitions(segs, "fast edit with whip transitions").map((s) => s.transition)).toEqual(["cut", "zoom", "whip", "fade", undefined]);
   });
   it("a cut keeps the transition it was given; the first cut and unknown ones are hard cuts", () => {
     const raw = { segments: [{ clipId: "a", in: 0, out: 3, transition: "zoom" }, { clipId: "b", in: 0, out: 3, transition: "whip" }, { clipId: "c", in: 0, out: 3, transition: "spin" }], text: [] };

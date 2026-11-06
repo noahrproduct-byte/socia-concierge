@@ -39,8 +39,8 @@ export const TEXT_PRESET_IDS: TextPresetId[] = ["hook_title", "caption_bar", "ca
 
 export type TextAnimation = "fade" | "pop";
 
-/** SOCIA's palette for text on video. */
-export const BRAND = { black: "#0b0b0d", gray: "#9aa0a8", neon: "#2d9cff", white: "#ffffff" } as const;
+/** Colours for text on video: white on black, as CapCut's defaults are. Big Stat's number is the one accent. */
+export const BRAND = { black: "#000000", white: "#ffffff", yellow: "#ffd400" } as const;
 
 export type TextFont = { family: FontId; weight: number };
 
@@ -91,54 +91,64 @@ export type TextPreset = {
   lead?: { font: TextFont; size: { min: number; max: number }; color: string; gap: number };
 };
 
-const INTER_600: TextFont = { family: "inter", weight: 600 };
-const INTER_700: TextFont = { family: "inter", weight: 700 };
+// Noah, 2026-11-06: text must look like a creator typed it in CapCut, not like
+// a web app. One font and one look through a video: white with a black outline,
+// and at most one solid label that hugs its words. No full-width bars, no
+// coloured buttons, no accent stripes.
+const BOLD: TextFont = { family: "montserrat", weight: 800 };
+const OUTLINE = { kind: "outline", padding: { x: 0, y: 8 }, radius: 0, strokeRatio: 0.11, strokeColor: BRAND.black } as const;
 
 export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
   hook_title: {
     id: "hook_title", label: "Hook Title", hint: "Big and bold at the top. The first thing they read.", sample: "Wait for it",
-    font: { family: "montserrat", weight: 800 }, size: { min: 56, max: 84 }, lineHeight: 1.1, letterSpacing: -0.01,
+    font: BOLD, size: { min: 56, max: 84 }, lineHeight: 1.12, letterSpacing: -0.01,
     maxLines: 3, maxChars: 40, color: BRAND.white,
-    box: { kind: "outline", padding: { x: 0, y: 8 }, radius: 0, strokeRatio: 0.16, strokeColor: BRAND.black, shadow: { blur: 18, offsetY: 4, color: "rgba(0,0,0,0.45)" } },
+    box: OUTLINE,
     align: "center", widthPct: 1, slot: "top", time: { start: 0, end: 3 }, animation: "pop",
   },
   caption_bar: {
-    id: "caption_bar", label: "Caption Bar", hint: "A dark bar across the bottom. Reads like a news caption.", sample: "Open every day from 7am",
-    font: INTER_600, size: { min: 34, max: 46 }, lineHeight: 1.25, letterSpacing: 0,
+    id: "caption_bar", label: "Caption", hint: "White words with a black outline, low in the frame.", sample: "Open every day from 7am",
+    font: BOLD, size: { min: 38, max: 54 }, lineHeight: 1.18, letterSpacing: 0,
     maxLines: 2, maxChars: 80, color: BRAND.white,
-    box: { kind: "fill", fill: "rgba(11,11,13,0.78)", padding: { x: 32, y: 22 }, radius: 18, fullWidth: true },
+    box: OUTLINE,
     align: "center", widthPct: 1, slot: "bottom", time: { start: 0, end: 5 }, animation: "fade",
   },
   callout_box: {
-    id: "callout_box", label: "Callout Box", hint: "White words in a neon-blue box, centre of the frame.", sample: "Only 20 made a day",
-    font: INTER_700, size: { min: 40, max: 58 }, lineHeight: 1.2, letterSpacing: 0,
-    maxLines: 3, maxChars: 60, color: BRAND.white,
-    box: { kind: "fill", fill: BRAND.neon, padding: { x: 38, y: 26 }, radius: 24, shadow: { blur: 24, offsetY: 8, color: "rgba(0,0,0,0.35)" } },
-    align: "center", widthPct: 0.86, slot: "middle", time: { start: 1, end: 4 }, animation: "pop",
+    id: "callout_box", label: "Label", hint: "Black words on a white label that hugs them. Good for one call to action.", sample: "Only 20 made a day",
+    font: BOLD, size: { min: 40, max: 56 }, lineHeight: 1.18, letterSpacing: 0,
+    maxLines: 3, maxChars: 60, color: BRAND.black,
+    box: { kind: "fill", fill: BRAND.white, padding: { x: 30, y: 18 }, radius: 14 },
+    align: "center", widthPct: 0.86, slot: "bottom", time: { start: 1, end: 4 }, animation: "pop",
   },
   lower_third: {
-    id: "lower_third", label: "Label", hint: "A small left-aligned tag low in the frame. Names, places, prices.", sample: "Downtown · since 2019",
-    font: INTER_600, size: { min: 28, max: 36 }, lineHeight: 1.2, letterSpacing: 0.02, uppercase: true,
+    id: "lower_third", label: "Tag", hint: "A small dark tag low in the frame. Names, places, prices.", sample: "Downtown, since 2019",
+    font: BOLD, size: { min: 28, max: 36 }, lineHeight: 1.2, letterSpacing: 0,
     maxLines: 2, maxChars: 50, color: BRAND.white,
-    box: { kind: "fill", fill: "rgba(11,11,13,0.86)", padding: { x: 26, y: 16 }, radius: 10, accentBar: BRAND.neon },
+    box: { kind: "fill", fill: BRAND.black, padding: { x: 24, y: 14 }, radius: 10 },
     align: "left", widthPct: 0.72, slot: "bottom", time: { start: 0, end: 4 }, animation: "fade",
   },
   big_stat: {
     id: "big_stat", label: "Big Stat", hint: "A huge number with a small line under it. First line is the number.", sample: "200+\nburgers every Friday",
-    font: INTER_600, size: { min: 32, max: 42 }, lineHeight: 1.2, letterSpacing: 0,
+    font: BOLD, size: { min: 32, max: 42 }, lineHeight: 1.2, letterSpacing: 0,
     maxLines: 3, maxChars: 52, color: BRAND.white,
-    box: { kind: "shadow", padding: { x: 0, y: 8 }, radius: 0, shadow: { blur: 24, offsetY: 6, color: "rgba(0,0,0,0.55)" } },
+    box: OUTLINE,
     align: "center", widthPct: 0.9, slot: "middle", time: { start: 0, end: 3 }, animation: "pop",
-    lead: { font: { family: "anton", weight: 400 }, size: { min: 120, max: 190 }, color: BRAND.neon, gap: 10 },
+    lead: { font: { family: "anton", weight: 400 }, size: { min: 120, max: 190 }, color: BRAND.yellow, gap: 10 },
   },
   subtitle: {
-    id: "subtitle", label: "Plain Subtitle", hint: "White words with a dark edge at the bottom. Fits over anything.", sample: "we start the dough at 5am",
-    font: INTER_700, size: { min: 36, max: 50 }, lineHeight: 1.25, letterSpacing: 0,
+    id: "subtitle", label: "Plain Subtitle", hint: "Smaller white words with a black outline at the bottom. Fits over anything.", sample: "we start the dough at 5am",
+    font: BOLD, size: { min: 34, max: 46 }, lineHeight: 1.22, letterSpacing: 0,
     maxLines: 2, maxChars: 80, color: BRAND.white,
-    box: { kind: "outline", padding: { x: 0, y: 6 }, radius: 0, strokeRatio: 0.14, strokeColor: BRAND.black, shadow: { blur: 14, offsetY: 3, color: "rgba(0,0,0,0.6)" } },
+    box: OUTLINE,
     align: "center", widthPct: 1, slot: "bottom", time: { start: 0, end: 5 }, animation: "fade",
   },
 };
+
+/** A preset in the video's own font, so every line matches. Older cuts set to a dropped font keep Montserrat. */
+export function presetInFont(p: TextPreset, font?: FontId | null): TextPreset {
+  if (!font || font === "inter" || font === "playfair") return p;
+  return { ...p, font: { family: font, weight: font === "anton" || font === "bebas" ? 400 : 800 } };
+}
 
 /** How many lines of text one video may carry. */
 export const MAX_TEXT_LAYERS = 5;

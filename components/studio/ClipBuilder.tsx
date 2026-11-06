@@ -39,7 +39,7 @@ import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
 import { motion } from "framer-motion";
 import { Bar, Details, Reveal, Ring, useMotionOk } from "@/components/dashboard/motion";
-import { DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
+import { CAPCUT_FONTS, DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
@@ -648,7 +648,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 <b><Palette size={14} /> Text</b>
                 <label className="cbb-field">Font
                   <select value={st.font} disabled={!data.canEdit || busy} onChange={(e) => setStyle({ font: e.target.value as EdlStyle["font"] })}>
-                    {FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                    {FONTS.filter((f) => f.id === st.font || CAPCUT_FONTS.some((c) => c.id === f.id)).map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
                   </select>
                 </label>
                 <label className="cbb-field">Brand colour

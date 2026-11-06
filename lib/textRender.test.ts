@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ASPECTS } from "./studioClips/types";
 import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapParagraph, type Measure } from "./textRender";
-import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, defaultTiming, frameScale, presetForRole, presetOf, safeZoneFor, type TextPresetId, type TextSlot } from "./textPresets";
+import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, defaultTiming, frameScale, presetForRole, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
+import { CAPCUT_FONTS } from "./studioClips/style";
 
 /** A fake canvas: every character is 0.55 em wide (emoji 1 em), whatever the face. */
 const measure: Measure = (text, font) => {
@@ -27,6 +28,28 @@ describe("the safe zone", () => {
   });
 });
 
+describe("the CapCut look (Noah, 2026-11-06)", () => {
+  it("has no web-app fonts, full-width bars, coloured buttons or accent stripes", () => {
+    for (const id of TEXT_PRESET_IDS) {
+      const p = TEXT_PRESETS[id];
+      expect(p.font.family).not.toBe("inter");
+      expect(p.box.fullWidth).toBeFalsy();
+      expect(p.box.accentBar).toBeUndefined();
+      if (p.box.kind === "fill") expect(["#000000", "#ffffff"]).toContain(p.box.fill);
+    }
+  });
+  it("draws every line in the video's font; a font that was dropped falls back to the preset's", () => {
+    expect(presetInFont(TEXT_PRESETS.hook_title, "tiktok").font).toEqual({ family: "tiktok", weight: 800 });
+    expect(presetInFont(TEXT_PRESETS.subtitle, "bebas").font).toEqual({ family: "bebas", weight: 400 });
+    expect(presetInFont(TEXT_PRESETS.subtitle, "inter").font.family).toBe("montserrat");
+    expect(presetInFont(TEXT_PRESETS.subtitle, "playfair").font.family).toBe("montserrat");
+    expect(presetInFont(TEXT_PRESETS.subtitle).font.family).toBe("montserrat");
+  });
+  it("only offers the bold fonts", () => {
+    expect(CAPCUT_FONTS.map((f) => f.id)).toEqual(["montserrat", "tiktok", "anton", "poppins", "bebas"]);
+  });
+});
+
 describe("presets", () => {
   it("are the six from the brief, each with a size range, limits and a default time", () => {
     expect(TEXT_PRESET_IDS).toEqual(["hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"]);
@@ -40,7 +63,7 @@ describe("presets", () => {
     }
     expect(TEXT_PRESETS.hook_title.slot).toBe("top");
     expect(TEXT_PRESETS.caption_bar.slot).toBe("bottom");
-    expect(TEXT_PRESETS.callout_box.slot).toBe("middle");
+    expect(TEXT_PRESETS.callout_box.slot).toBe("bottom");
     expect(TEXT_PRESETS.lower_third.align).toBe("left");
   });
   it("map old roles to the closest look", () => {
@@ -132,14 +155,13 @@ describe("layout inside the safe zone", () => {
     expect(mid.box.y).toBeGreaterThan(top.box.y);
     expect(mid.box.y).toBeLessThan(bot.box.y);
   });
-  it("a caption bar spans the zone; a label sits at its left", () => {
-    const bar = lay("caption_bar", "Open at 7");
-    expect(bar.box.width).toBe(880);
-    expect(bar.box.x).toBe(60);
+  it("text hugs its words, with no bar across the frame; a tag sits at the left", () => {
+    const line = lay("caption_bar", "Open at 7");
+    expect(line.box.width).toBeLessThan(880);
     const label = lay("lower_third", "Downtown");
     expect(label.box.x).toBe(60);
     expect(label.box.width).toBeLessThan(880);
-    expect(label.lines[0].text).toBe("DOWNTOWN");
+    expect(label.lines[0].text).toBe("Downtown");
   });
   it("big stat: the number leads, the subline follows", () => {
     const l = lay("big_stat", "200+\nburgers every Friday");

@@ -16,7 +16,7 @@ describe("the beat grid", () => {
   });
   it("places the cut point in the middle of a transition's overlap", () => {
     const e = edl([seg("s1", "a", 0, 2), seg("s2", "b", 0, 2, { transition: "zoom" })]);
-    expect(cutPoint(e, 1)).toBeCloseTo(2 - 8 / 30 + 4 / 30, 2);
+    expect(cutPoint(e, 1)).toBeCloseTo(2 - 12 / 30 + 6 / 30, 2);
   });
 });
 
