@@ -49,6 +49,8 @@ function mock(url: string, init?: RequestInit): Response | null {
     if (!sent || sent < 14) return json({ error: "This video is 14 minutes long, so clipping it uses 105 credits. Press Make clips again to go ahead.", code: "confirm_price", minutes: 14, price: 105 }, 409);
     return json({ error: "Not enough credits for this. Buy a top-up or wait for next month's allowance.", code: "insufficient_credits", balance: 5550 }, 402);
   }
+  const stop = /^\/api\/clipper\/jobs\/([^/?]+)\/cancel$/.exec(u);
+  if (stop) return json({ job: { ...clipJobs.find((j) => j.id === stop[1]), status: "cancelled", stage: null, credits_charged: 0 }, balance: 5850 });
   const cj = /^\/api\/clipper\/jobs\/([^/?]+)/.exec(u);
   if (cj) return json({ job: clipJobs.find((j) => j.id === cj[1]) ?? clipJobs[0], clips: cj[1] === "j1" ? clips : cj[1] === "j0" ? sociaClips : [] });
   // Making a clip: the upload address goes nowhere in the lab, so the made file's size is kept on window for checking.
