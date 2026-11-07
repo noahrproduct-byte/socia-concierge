@@ -39,6 +39,8 @@ export type TopFix = {
   title: string; observed: string; suggestion: string; kind: "opening" | "hook_text" | "ending" | "pacing" | "text" | "audio" | "visual" | "caption"; t: number | null; apply: { field: ApplyField; value: string } | null;
   /** Analyses since the improvement workspace carry these (lib/studioVerdict.ts); older saved ones don't. */
   priority?: FixPriority; end?: number | null; why?: string; evidence?: FixEvidence | null;
+  /** The full plan for the fix (Noah, 2026-11-06): the steps, how it moves, the part of the score it lifts, and a prompt when AI could make it. */
+  steps?: string[]; motion?: string; part?: string | null; scoreAfter?: number | null; aiPrompt?: string;
 };
 export type HookStyle = "curiosity" | "direct" | "local" | "educational" | "challenge" | "story";
 export type HookOption = { style: HookStyle; text: string };

@@ -159,12 +159,14 @@ export function AudioPanel({ a }: { a: StudioAnalysis }) {
   );
 }
 
-export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, onSaveDraft, onPublish, saving, savedId, planNote }: {
+export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, onSaveDraft, onPublish, saving, savedId, planNote, onToEditor }: {
   a: StudioAnalysis | null; w: Working; versions: { analysis: StudioAnalysis; at: string }[]; setGoal: (g: GoalId | null) => void; setPlatform: (p: string | null) => void; improve: Improve;
   onSaveDraft: () => Promise<unknown>;
   /** Saves the draft (same flow as onSaveDraft) and hands it to Create Post. */
   onPublish: () => Promise<void>;
   saving: boolean; savedId: string | null; planNote: string;
+  /** Opens the Video editor with the preview's lines; null when the original file isn't at hand. */
+  onToEditor: (() => void) | null;
 }) {
   const [vars, setVars] = useState<ImproveOption[]>([]);
   const [busy, setBusy] = useState(false);
@@ -175,6 +177,12 @@ export function PreparePanel({ a, w, versions, setGoal, setPlatform, improve, on
   const done = items.filter((i) => i.done).length;
   return (
     <div className="st-panel">
+      {a?.kind === "video" && w.layers.length > 0 && (
+        <section className="st-block sd-linestatus">
+          <p>{w.layers.length === 1 ? "The line on your preview is not in this file yet." : `The ${w.layers.length} lines on your preview are not in this file yet.`} Saving here posts your video as it is.</p>
+          {onToEditor ? <button type="button" className="ov-btn primary small" onClick={onToEditor}>Put {w.layers.length === 1 ? "it" : "them"} on the video <ArrowRight size={12} /></button> : <p className="sd-note">Upload the original file to put {w.layers.length === 1 ? "it" : "them"} on the video.</p>}
+        </section>
+      )}
       <section className="st-block">
         <h3>Content goal</h3>
         <div className="st-modes">
