@@ -88,7 +88,7 @@ export function videoMinutes(file: File): Promise<number | null> {
 }
 
 export function StatusChip({ status, working = "Working" }: { status: string; working?: string }) {
-  const label = status === "queued" ? "Waiting to start" : status === "processing" ? working : status === "done" ? "Done" : status === "failed" ? "Failed" : status;
+  const label = status === "queued" ? "Waiting to start" : status === "processing" ? working : status === "done" ? "Done" : status === "failed" ? "Failed" : status === "cancelled" ? "Cancelled" : status;
   return <span className={`ai-status is-${status}`}>{(status === "queued" || status === "processing") && <Loader2 size={12} className="spin" aria-hidden />}{label}</span>;
 }
 
