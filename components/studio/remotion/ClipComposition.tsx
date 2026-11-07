@@ -28,6 +28,8 @@ import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
+import { cropXAt } from "@/lib/clipper/reframe";
+import type { SegmentFrame } from "@/lib/studioClips/types";
 import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
 import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
@@ -182,7 +184,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   s: TimelineSegment; into: TransitionKind | undefined; out: TransitionKind | undefined; effects: Effects | undefined;
   /** The frame of this cut where it softens behind the ending, when it is the last one and the cut has an ending card. */
   softenFrom?: number;
-  children: (p: { effects: Effects | undefined }) => React.ReactNode;
+  children: (p: { effects: Effects | undefined; frame: number }) => React.ReactNode;
 }) {
   const f = useCurrentFrame();
   const soft = softenFrom == null ? 0 : interpolate(f, [softenFrom, softenFrom + END_SOFTEN_FRAMES], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
@@ -193,7 +195,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   if (soft > 0) fx.push(blur({ radius: 40 * soft }));
   return (
     <AbsoluteFill style={{ opacity: look.opacity, transform: look.scale !== 1 || look.x !== 0 ? `translateX(${look.x}%) scale(${look.scale})` : undefined }}>
-      {children({ effects: fx.length ? fx : undefined })}
+      {children({ effects: fx.length ? fx : undefined, frame: f })}
       {soft > 0 && <AbsoluteFill style={{ backgroundColor: "#000", opacity: 0.42 * soft }} />}
     </AbsoluteFill>
   );
@@ -203,6 +205,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
+  // A crop that moves during the cut (the AI Clipper): the same box, at this frame's position on its path.
+  const pathBox = (s: { clipId: string; frame?: SegmentFrame }, local: number) => (s.frame?.path ? box({ clipId: s.clipId, frame: { ...s.frame, x: cropXAt(s.frame.path, local / FPS) } }) : null);
   const box = (s: { clipId: string; frame?: { zoom: number; x: number; y: number } }) => videoBox(sources[s.clipId]?.width ?? null, sources[s.clipId]?.height ?? null, width, height, s.frame);
   const tl = useMemo(() => timeline(edl), [edl]);
   // Measured balance, expressed as attenuation so no clip is pushed above unity.
@@ -237,7 +241,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           // loading as the transition began, so it arrived late and the join stuttered. A render ignores it.
           <Sequence key={s.id} from={s.startFrame} durationInFrames={s.durationFrames} premountFor={PREMOUNT_FRAMES} name={`${s.role} · clip ${src.position + 1}`}>
             <SegmentLayer s={s} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]} softenFrom={card && !next ? Math.max(0, s.durationFrames - END_FRAMES) : undefined}>
-              {({ effects: fx }) => (
+              {({ effects: fx, frame: local }) => (
                 <Video
                   src={src.url}
                   trimBefore={s.inFrame}
@@ -252,7 +256,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
                   // Cover the frame, never letterboxed: sized to the footage's own aspect and the
                   // person's reframe (videoBox), or centred cover when the size isn't known.
                   objectFit={box(s) ? "fill" : "cover"}
-                  style={box(s) ?? { width: "100%", height: "100%" }}
+                  style={pathBox(s, local) ?? box(s) ?? { width: "100%", height: "100%" }}
                 />
               )}
             </SegmentLayer>

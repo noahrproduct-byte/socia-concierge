@@ -8,7 +8,12 @@
 
 export type SourceSize = { width: number; height: number; duration: number };
 
-type Opened = { size: SourceSize; frame: (seconds: number) => Promise<string | null> };
+type Opened = {
+  size: SourceSize;
+  frame: (seconds: number) => Promise<string | null>;
+  /** JPEG frames (base64, no prefix) at these times, for the framing decision. */
+  frames: (times: number[]) => Promise<{ t: number; data: string }[]>;
+};
 
 const opened = new Map<string, Promise<Opened | null>>();
 
@@ -25,18 +30,30 @@ async function open(url: string): Promise<Opened | null> {
   if (!video) return null;
   const [duration, width, height, decodable] = await Promise.all([input.computeDuration(), video.getDisplayWidth(), video.getDisplayHeight(), video.canDecode().catch(() => false)]);
   const sink = decodable ? new mb.CanvasSink(video, { width: 640, poolSize: 1 }) : null;
+  const toJpeg = (src: HTMLCanvasElement | OffscreenCanvas, quality: number) => {
+    const out = document.createElement("canvas");
+    out.width = src.width;
+    out.height = src.height;
+    out.getContext("2d")?.drawImage(src as CanvasImageSource, 0, 0);
+    return out.toDataURL("image/jpeg", quality);
+  };
   return {
     size: { width, height, duration },
     frame: async (seconds) => {
       if (!sink) return null;
       const got = await sink.getCanvas(seconds);
       if (!got) return null;
-      const src = got.canvas as HTMLCanvasElement | OffscreenCanvas;
-      const out = document.createElement("canvas");
-      out.width = src.width;
-      out.height = src.height;
-      out.getContext("2d")?.drawImage(src as CanvasImageSource, 0, 0);
-      return out.toDataURL("image/jpeg", 0.8);
+      return toJpeg(got.canvas as HTMLCanvasElement | OffscreenCanvas, 0.8);
+    },
+    frames: async (times) => {
+      if (!sink) return [];
+      const out: { t: number; data: string }[] = [];
+      let i = 0;
+      for await (const got of sink.canvasesAtTimestamps(times)) {
+        const t = times[i++];
+        if (got) out.push({ t, data: toJpeg(got.canvas as HTMLCanvasElement | OffscreenCanvas, 0.6).split(",")[1] });
+      }
+      return out;
     },
   };
 }
@@ -64,6 +81,16 @@ export function sourceFrame(url: string, seconds: number): Promise<string | null
     const o = await openOnce(url);
     return o ? o.frame(seconds) : null;
   }).catch(() => null);
+  line = run;
+  return run;
+}
+
+/** Frames at these source times, in line with the stills. Empty when they can't be read. */
+export function sourceFrames(url: string, times: number[]): Promise<{ t: number; data: string }[]> {
+  const run = line.then(async () => {
+    const o = await openOnce(url);
+    return o ? o.frames(times) : [];
+  }).catch(() => []);
   line = run;
   return run;
 }

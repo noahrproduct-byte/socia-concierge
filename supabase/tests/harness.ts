@@ -59,6 +59,7 @@ export const MIGRATIONS = [
   "ai-studio.sql",
   "team-work.sql",
   "own-clipper.sql",
+  "clip-crop-path.sql",
   "reel-history.sql",
 ];
 

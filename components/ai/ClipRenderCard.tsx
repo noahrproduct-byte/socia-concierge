@@ -11,7 +11,8 @@ import type { ClipRender } from "@/lib/clipper/server";
 import { renderBlocker } from "@/components/studio/renderBuild";
 import { api, errorText, uploadToSigned } from "./shared";
 import { renderClip } from "./renderClip";
-import { sourceFrame, sourceSize, type SourceSize } from "./sourceMedia";
+import { sourceFrame, sourceFrames, sourceSize, type SourceSize } from "./sourceMedia";
+import { cropXAt, sampleTimes, type CropKey } from "@/lib/clipper/reframe";
 
 const OUT_RATIO = 9 / 16;
 
@@ -33,6 +34,11 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   const [stillFailed, setStillFailed] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [cropX, setCropX] = useState(render.cropX);
+  // Where the frame moves during the clip (lib/clipper/reframe.ts). Dragging it means "stay here" instead.
+  const [path, setPath] = useState<CropKey[] | null>(render.cropPath ?? null);
+  const [fixed, setFixed] = useState(false);
+  const [playT, setPlayT] = useState(0);
+  const [note, setNote] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -41,6 +47,8 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   // How much of the source's width the vertical frame covers (1 = the source is already vertical or narrower).
   const share = size ? Math.min(1, (size.height * OUT_RATIO) / size.width) : null;
   const movable = share != null && share < 0.999;
+  // What the frame shows now: its spot on the path as the video plays, or where it was put.
+  const shownX = !fixed && path ? cropXAt(path, playT) : cropX;
 
   useEffect(() => {
     let live = true;
@@ -81,7 +89,10 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   useEffect(() => {
     const v = video.current;
     if (!v) return;
-    const stop = () => { if (v.currentTime >= render.endMs / 1000) { v.pause(); v.currentTime = render.startMs / 1000; } };
+    const stop = () => {
+      if (v.currentTime >= render.endMs / 1000) { v.pause(); v.currentTime = render.startMs / 1000; }
+      setPlayT(Math.max(0, v.currentTime - render.startMs / 1000));
+    };
     v.addEventListener("timeupdate", stop);
     return () => v.removeEventListener("timeupdate", stop);
   }, [render.startMs, render.endMs]);
@@ -101,20 +112,37 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   function onDown(e: PointerEvent<HTMLDivElement>) {
     if (!movable || busy) return;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    drag.current = { startX: e.clientX, startCrop: cropX };
+    drag.current = { startX: e.clientX, startCrop: shownX };
   }
   function onMove(e: PointerEvent<HTMLDivElement>) {
     const d = drag.current;
     const w = box.current?.clientWidth;
     if (!d || !w || share == null) return;
+    if (Math.abs(e.clientX - d.startX) < 3) return; // A press without a drag doesn't pin the frame.
     const free = w * (1 - share);
+    setFixed(true);
     setCropX(Math.min(1, Math.max(0, d.startCrop + (e.clientX - d.startX) / free)));
   }
   const onUp = () => { drag.current = null; };
   function onKey(e: KeyboardEvent<HTMLDivElement>) {
     if (!movable) return;
-    if (e.key === "ArrowLeft") { e.preventDefault(); setCropX((x) => Math.max(0, x - 0.05)); }
-    if (e.key === "ArrowRight") { e.preventDefault(); setCropX((x) => Math.min(1, x + 0.05)); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); setFixed(true); setCropX(Math.max(0, shownX - 0.05)); }
+    if (e.key === "ArrowRight") { e.preventDefault(); setFixed(true); setCropX(Math.min(1, shownX + 0.05)); }
+  }
+
+  /** Claude decides what to keep in view from frames of this moment. Null when that doesn't work; the clip is still made. */
+  async function findFraming(s: SourceSize): Promise<CropKey[] | null> {
+    try {
+      const start = render.startMs / 1000;
+      const times = sampleTimes((render.endMs - render.startMs) / 1000);
+      const read = await sourceFrames(render.sourceUrl, times.map((t) => start + t));
+      const frames = read.map((f) => ({ t: Math.round((f.t - start) * 10) / 10, data: f.data }));
+      if (!frames.length) return null;
+      const r = await api<{ path: CropKey[] | null }>(`/api/clipper/clips/${id}/reframe`, { method: "POST", body: JSON.stringify({ frames, width: s.width, height: s.height }) });
+      return r.path;
+    } catch {
+      return null;
+    }
   }
 
   async function make() {
@@ -122,15 +150,22 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
     try {
       const blocked = await renderBlocker(1080, 1920);
       if (blocked) throw new Error(blocked);
+      let usePath = fixed ? null : path;
+      if (!fixed && !usePath && movable && size) {
+        setBusy("Working out the framing"); setNote(null);
+        usePath = await findFraming(size);
+        setPath(usePath);
+        if (!usePath) setNote("SOCIA couldn't work out the framing for this one, so the frame stays where it is.");
+      }
       setBusy("Making the clip"); setProgress(0);
-      const { blob } = await renderClip({ ...render, cropX }, {
+      const { blob } = await renderClip({ ...render, cropX, cropPath: usePath }, {
         title, headline, size: { width: size?.width ?? null, height: size?.height ?? null }, sourceSec: size?.duration ?? render.endMs / 1000,
         onProgress: (f) => setProgress(f),
       });
       setBusy("Saving"); setProgress(null);
       const up = await api<{ path: string; signedUrl: string }>(`/api/clipper/clips/${id}`, { method: "POST" });
       await uploadToSigned(up.signedUrl, new File([blob], "clip.mp4", { type: "video/mp4" }), (p) => setProgress(p));
-      await api(`/api/clipper/clips/${id}`, { method: "PATCH", body: JSON.stringify({ path: up.path, cropX }) });
+      await api(`/api/clipper/clips/${id}`, { method: "PATCH", body: JSON.stringify({ path: up.path, cropX, cropPath: usePath }) });
       onRendered();
     } catch (e) {
       setErr(errorText(e));
@@ -138,7 +173,7 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   }
   makeRef.current = make;
 
-  const left = share != null ? cropX * (1 - share) * 100 : 0;
+  const left = share != null ? shownX * (1 - share) * 100 : 0;
   return (
     <article className="ai-card ai-cropcard">
       <div className="ai-crop" ref={box} style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
@@ -149,7 +184,7 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
         {playing && !showVideo && <span className="ai-crop-wait is-over">Loading the video</span>}
         {share != null && (
           <div className={`ai-crop-win${movable ? " is-movable" : ""}`} style={{ left: `${left}%`, width: `${share * 100}%` }}
-            role="slider" tabIndex={movable ? 0 : -1} aria-label="Where the vertical frame sits" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(cropX * 100)}
+            role="slider" tabIndex={movable ? 0 : -1} aria-label="Where the vertical frame sits" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(shownX * 100)}
             aria-disabled={!movable || undefined} onKeyDown={onKey} />
         )}
         <button type="button" className="ai-crop-play" onClick={toggle} onPointerDown={(e) => e.stopPropagation()} aria-label={playing ? "Pause" : "Play this moment"}>
@@ -160,7 +195,10 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
         <b>{title}</b>
         <small>{sub}</small>
         {sizeFailed && <p className="ai-err" role="alert">SOCIA couldn&apos;t read this video. Reload the page to try again.</p>}
-        {movable ? <small>Drag the frame, or use the arrow keys, so the speaker is inside it.</small> : size && <small>This video is already vertical, so the whole frame is used.</small>}
+        {movable && !fixed && <small>{path ? "The frame follows the video. Press play to watch it, or drag it to keep it in one place." : "SOCIA moves the frame with the video when it makes this clip. Drag the frame to keep it in one place instead."}</small>}
+        {movable && fixed && <small>The frame stays where you put it. <button type="button" className="ai-linkish" disabled={Boolean(busy)} onClick={() => setFixed(false)}>Let SOCIA move it</button></small>}
+        {note && <small>{note}</small>}
+        {movable ? null : size && <small>This video is already vertical, so the whole frame is used.</small>}
         {why && <details className="ai-why"><summary>Why this moment</summary><p>{why}</p></details>}
         {progress != null && <progress className="ai-progress" value={progress} max={1} />}
         {err && <p className="ai-err" role="alert">{err}</p>}

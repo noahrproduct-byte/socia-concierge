@@ -17,6 +17,7 @@ import { brandLine, writeClipCaptions } from "@/lib/aiStudio/captions";
 import { fileSeconds, isReadableLink, youtubeSeconds, MAX_SOURCE_MINUTES } from "./sourceLength";
 import { SOCIA_PROVIDER, checkTranscription, clipRows, pickMoments, sociaClipperReady, startTranscription } from "./socia";
 import { clipWords, packWords, unpackWords } from "./pick";
+import { readCropPath, type CropKey } from "./reframe";
 import type { TranscriptWord } from "@/lib/transcribe/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,10 +38,10 @@ export type ClipRow = {
   duration_ms: number | null; title: string | null; score: number | null; score_reason: string | null; transcript: string | null;
   caption: string | null; hashtags: string[]; created_at: string;
   /** SOCIA's own clips: where they sit in the source, the opening words, and the 9:16 crop (0 left, 1 right). */
-  start_ms?: number | null; end_ms?: number | null; hook?: string | null; crop_x?: number | null;
+  start_ms?: number | null; end_ms?: number | null; hook?: string | null; crop_x?: number | null; crop_path?: unknown;
 };
 /** What the browser needs to render one of SOCIA's own clips (components/ai/renderClip.ts). */
-export type ClipRender = { sourceUrl: string; startMs: number; endMs: number; cropX: number; words: TranscriptWord[]; captions: boolean };
+export type ClipRender = { sourceUrl: string; startMs: number; endMs: number; cropX: number; cropPath?: CropKey[] | null; words: TranscriptWord[]; captions: boolean };
 export type ClipView = ClipRow & { playUrl: string | null; downloadUrl: string | null; render?: ClipRender | null };
 
 export const JOB_COLS = "id, user_id, workspace_id, source_kind, source_url, source_path, source_minutes, options, provider, provider_job_id, status, credits_reserved, credits_charged, error, created_at, updated_at, last_polled_at, finished_at, stage";
@@ -335,7 +336,8 @@ export async function loadClipJob(client: Supa, ownerId: string, id: string): Pr
 
 /** The job's clips with play and download links (service role signs them). */
 export async function loadClips(client: Supa, ownerId: string, jobId: string, job?: ClipJobRow | null): Promise<ClipView[]> {
-  const { data, error } = await client.from("clips").select(CLIP_COLS).eq("job_id", jobId).eq("user_id", ownerId).order("score", { ascending: false, nullsFirst: false }).order("created_at");
+  // "*": crop_path arrives with clip-crop-path.sql, and this read must not depend on when that runs.
+  const { data, error } = await client.from("clips").select("*").eq("job_id", jobId).eq("user_id", ownerId).order("score", { ascending: false, nullsFirst: false }).order("created_at");
   if (error) throw new ClipperError(error.message, "db");
   const svc = createServiceClient();
   const rows = (data ?? []) as ClipRow[];
@@ -352,7 +354,7 @@ export async function loadClips(client: Supa, ownerId: string, jobId: string, jo
     const playUrl = svc ? await signedUrl(svc, r.video_path) : null;
     const downloadUrl = svc ? await signedUrl(svc, r.video_path, undefined, `${(r.title ?? "clip").replace(/[^\w-]+/g, "_").slice(0, 60)}.mp4`) : null;
     const render: ClipRender | null = sourceUrl && r.start_ms != null && r.end_ms != null
-      ? { sourceUrl, startMs: r.start_ms, endMs: r.end_ms, cropX: Number(r.crop_x ?? 0.5), words: clipWords(words, r.start_ms, r.end_ms), captions: job?.options?.captions !== false }
+      ? { sourceUrl, startMs: r.start_ms, endMs: r.end_ms, cropX: Number(r.crop_x ?? 0.5), cropPath: readCropPath(r.crop_path), words: clipWords(words, r.start_ms, r.end_ms), captions: job?.options?.captions !== false }
       : null;
     out.push({ ...r, playUrl: playUrl ?? r.video_url, downloadUrl: downloadUrl ?? r.video_url, render });
   }

@@ -3,6 +3,7 @@ import { aiRequest, aiErrorResponse } from "@/lib/aiStudio/auth";
 import { perUserLimit } from "@/lib/rateLimit";
 import { createServiceClient } from "@/lib/supabase/service";
 import { AI_BUCKET, mediaPath, removePaths, signedUploadUrl } from "@/lib/aiStudio/media";
+import { readCropPath } from "@/lib/clipper/reframe";
 
 export const runtime = "nodejs";
 
@@ -45,7 +46,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!r.ok) return r.res;
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
-  const body = (await req.json().catch(() => null)) as { path?: unknown; cropX?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { path?: unknown; cropX?: unknown; cropPath?: unknown } | null;
   const path = typeof body?.path === "string" ? body.path : "";
   const cropX = typeof body?.cropX === "number" && Number.isFinite(body.cropX) ? Math.min(1, Math.max(0, body.cropX)) : null;
   // Only a file this route handed out: the owner's clips folder, a SOCIA-made name.
@@ -61,6 +62,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!(found ?? []).some((f: { name: string }) => f.name === name)) return NextResponse.json({ error: "The rendered file didn't arrive. Render it again." }, { status: 409 });
     const { error } = await svc.from("clips").update({ video_path: path, crop_x: cropX }).eq("id", id).eq("user_id", r.ctx.ownerId);
     if (error) throw new Error(error.message);
+    // The clip was made with the frame moving (the path) or kept where the person put it (null).
+    const pathSaved = await svc.from("clips").update({ crop_path: readCropPath(body?.cropPath) }).eq("id", id).eq("user_id", r.ctx.ownerId);
+    if (pathSaved.error) console.error("[clipper] crop path not saved:", pathSaved.error.message);
     // A re-render replaces the earlier file.
     if (clip.video_path && clip.video_path !== path) await removePaths(svc, [clip.video_path]);
     return NextResponse.json({ ok: true });
