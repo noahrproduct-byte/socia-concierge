@@ -10,6 +10,23 @@ html {
   caret-color: var(--accent);
 }
 
+/*
+ * Every button answers a press with the same small push as the design system's
+ * own (.s-btn). Zero specificity, so a button with its own transform keeps it.
+ * Press only: scaling on hover jitters layouts (anti-slop standard).
+ */
+:where(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[class*="btn"]) {
+  transition: transform var(--t-press) var(--ease-out);
+}
+:where(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), a[class*="btn"]):active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(button, [role="button"], a[class*="btn"]):active {
+    transform: none;
+  }
+}
+
 ::selection {
   background: rgba(var(--accent-rgb), 0.24);
 }
