@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byPriority, citedIds, cleanCompetitors, cleanDirections, cleanExperiments, cleanFixExtras, directionText, fmtSpan, validCuts, type PostRef } from "./studioVerdict";
+import { byPriority, citedIds, cleanCompetitors, cleanDirections, cleanExperiments, cleanFixExtras, directionText, fmtSpan, scoreAfterEdits, validCuts, type PostRef } from "./studioVerdict";
 
 const posts: PostRef[] = [
   { id: "R1", title: "POV: the first bite", url: "https://www.instagram.com/reel/r1/", thumb: null, account: "@cornerpatty", result: "240K views, 6.0x their usual" },
@@ -9,10 +9,10 @@ const posts: PostRef[] = [
 describe("a fix's priority, range and evidence", () => {
   it("keeps what the model gave when it is valid, bounded to the video", () => {
     const x = cleanFixExtras({ priority: "critical", end: 99, why: "The opening delays the proof.", evidence: { account: "W1 and W3", niche: "R1", confidence: "moderate", confidenceWhy: "A pattern, not proof." } }, 0, 0, 30);
-    expect(x).toEqual({ priority: "critical", end: 30, why: "The opening delays the proof.", evidence: { account: "W1 and W3", niche: "R1", confidence: "moderate", confidenceWhy: "A pattern, not proof." } });
+    expect(x).toEqual({ priority: "critical", end: 30, why: "The opening delays the proof.", evidence: { account: "W1 and W3", niche: "R1", confidence: "moderate", confidenceWhy: "A pattern, not proof." }, steps: [], motion: "", part: null, scoreAfter: null, aiPrompt: "" });
   });
   it("falls back by rank, never invents a range, and treats unknown confidence as low", () => {
-    expect(cleanFixExtras({}, 0, 4, 30)).toEqual({ priority: "high", end: null, why: "", evidence: null });
+    expect(cleanFixExtras({}, 0, 4, 30)).toEqual({ priority: "high", end: null, why: "", evidence: null, steps: [], motion: "", part: null, scoreAfter: null, aiPrompt: "" });
     expect(cleanFixExtras({ priority: "urgent", end: 4, evidence: { confidence: "certain" } }, 2, 4, 30)).toMatchObject({ priority: "medium", end: null, evidence: { confidence: "low" } });
     // A fix with no time has no range, whatever the model sent.
     expect(cleanFixExtras({ end: 8 }, 1, null, 30).end).toBeNull();
@@ -70,5 +70,30 @@ describe("experiments and directions", () => {
   });
   it("replaces em dashes the model wrote", () => {
     expect(cleanExperiments([{ title: "Test music — quietly", how: "Next three" }])[0].title).toBe("Test music, quietly");
+  });
+});
+
+describe("the full plan for a fix", () => {
+  const scores = { hook: 58, cta: 52, audio: null };
+  it("keeps the steps, the motion and the prompt, bounded", () => {
+    const x = cleanFixExtras({ steps: ["At 0.0s, put the line up.", "", 4, "Hold it to 2.0s."], motion: "Pops in over 0.2 s.", aiPrompt: "Vertical 9:16 close-up." }, 0, 0, 10, scores);
+    expect(x.steps).toEqual(["At 0.0s, put the line up.", "Hold it to 2.0s."]);
+    expect(x.motion).toBe("Pops in over 0.2 s.");
+    expect(x.aiPrompt).toBe("Vertical 9:16 close-up.");
+  });
+  it("accepts an estimate only when it lifts a part that was scored, by what one edit can earn", () => {
+    expect(cleanFixExtras({ part: "hook", scoreAfter: 74 }, 0, 0, 10, scores)).toMatchObject({ part: "hook", scoreAfter: 74 });
+    expect(cleanFixExtras({ part: "hook", scoreAfter: 99 }, 0, 0, 10, scores).scoreAfter).toBe(88);
+    expect(cleanFixExtras({ part: "hook", scoreAfter: 40 }, 0, 0, 10, scores)).toMatchObject({ part: null, scoreAfter: null });
+    expect(cleanFixExtras({ part: "audio", scoreAfter: 80 }, 0, 0, 10, scores)).toMatchObject({ part: null, scoreAfter: null });
+    expect(cleanFixExtras({ part: "views", kind: "ending", scoreAfter: 70 }, 0, 0, 10, scores)).toMatchObject({ part: "cta", scoreAfter: 70 });
+    expect(cleanFixExtras({ part: "hook" }, 0, 0, 10, scores)).toMatchObject({ part: null, scoreAfter: null });
+  });
+  it("estimates the whole score from each part's largest gain, averaged over the parts scored", () => {
+    const categories = [{ id: "hook", score: 58 }, { id: "cta", score: 52 }, { id: "audio", score: null }, { id: "goal", score: 70 }];
+    const a = { score: { overall: 60 }, categories, topFixes: [{ part: "hook", scoreAfter: 76 }, { part: "hook", scoreAfter: 70 }, { part: "cta", scoreAfter: 64 }] };
+    expect(scoreAfterEdits(a)).toBe(70);
+    expect(scoreAfterEdits({ ...a, topFixes: [{ part: null, scoreAfter: null }] })).toBeNull();
+    expect(scoreAfterEdits({ ...a, score: { overall: 99 } })).toBe(100);
   });
 });

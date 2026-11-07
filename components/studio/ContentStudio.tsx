@@ -373,7 +373,10 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const onFix = useCallback((m: Moment, o: FixOptions) => {
     if (!source?.file) return;
     const dur = frames?.duration ?? 0;
-    const layers: EdlText[] = w.layers.map((l) => (l.id === m.id && o.presetId ? { ...l, presetId: o.presetId } : l)).filter((l) => l.text.trim());
+    const chosen: EdlText[] = w.layers.map((l) => (l.id === m.id && o.presetId ? { ...l, presetId: o.presetId } : l)).filter((l) => l.text.trim());
+    // A text fix brings its own line, unless a line the person chose already holds those seconds.
+    const own: EdlText[] = m.text && !chosen.some((l) => m.t < l.end && m.end > l.at) ? [{ id: m.id, at: m.t, end: m.end, text: m.text.value, role: roleForTiming(m.t, m.end, dur), presetId: o.presetId ?? m.text.presetId }] : [];
+    const layers = [...chosen, ...own];
     const panel = CAPABILITY[m.capability].panel ?? "text";
     handFiles("edit", [source.file], { layers, fix: { panel, cleanSound: m.capability === "noise" || undefined, cuts: o.cuts?.length ? o.cuts : undefined } });
     void dur;
@@ -525,7 +528,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               </div>
               {tab === "analyze" && <AnalyzePanel a={analysis} caption={w.caption} onOpenEdit={(i) => { setFocusEdit(i); setTab("improve"); }} outlook={analysis.kind === "video" ? outlook : null} onOutlookRetry={loadOutlook} />}
               {tab === "improve" && (
-                <EditsPanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} focus={focusEdit} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onToEditor={linesToEditor}>
+                <EditsPanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} focus={focusEdit} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onToEditor={linesToEditor} onWalkthroughClosed={() => onProposed([])} outlook={analysis.kind === "video" ? outlook : null} lessons={after?.lessons ?? []}>
                   {analysis.kind === "video" ? <ImprovePanel a={analysis} w={w} seek={doSeek} playT={playT} thumbs={frames?.thumbs ?? []} durationSec={frames?.duration ?? 0} frame={videoSize} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onProposed={onProposed} /> : null}
                 </EditsPanel>
               )}

@@ -597,7 +597,7 @@
 .sd-edit-head {
   width: 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: var(--sp-2) var(--sp-3);
   padding: var(--sp-3);
@@ -620,10 +620,85 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.sd-edit-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
 .sd-edit-body {
   display: grid;
-  gap: var(--sp-3);
-  padding: 0 var(--sp-3) var(--sp-3);
+  gap: var(--sp-4);
+  padding: var(--sp-1) var(--sp-3) var(--sp-3);
+}
+.sd-howto {
+  display: grid;
+  gap: var(--sp-2);
+}
+.sd-howto .sd-sub {
+  margin: 0;
+}
+.sd-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: sd-step;
+  display: grid;
+  gap: var(--sp-2);
+}
+.sd-steps li {
+  counter-increment: sd-step;
+  display: grid;
+  grid-template-columns: var(--sp-5) minmax(0, 1fr);
+  gap: var(--sp-2);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.sd-steps li::before {
+  content: counter(sd-step);
+  color: var(--accent-ink);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.sd-impact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-2);
+}
+.sd-impact > div {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+}
+.sd-impact small {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-impact b {
+  color: var(--ink);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.sd-prompt {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.sd-prompt p {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-nav);
+  line-height: var(--lh-nav);
 }
 .sd-pf {
   display: grid;
@@ -967,13 +1042,9 @@
   .sd-edit-head {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
-  .sd-edit-head small,
-  .sd-edit-head .sd-prio {
+  .sd-edit-meta {
     grid-column: 2;
     grid-row: 2;
-  }
-  .sd-edit-head .sd-prio {
-    justify-self: end;
   }
 }
 

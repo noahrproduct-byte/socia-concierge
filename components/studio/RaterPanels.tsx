@@ -13,9 +13,9 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, ChevronDown, Clock, Copy, ExternalLink, FlaskConical } from "lucide-react";
 import { CATEGORY_INFO, fmtT, type ApplyField, type Marker, type StudioAnalysis, type TopFix } from "@/lib/studio";
-import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, type Direction, type PostRef } from "@/lib/studioVerdict";
+import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, scoreAfterEdits, type Direction, type PostRef } from "@/lib/studioVerdict";
 import { CAPABILITY, type Moment } from "@/lib/studioFixes";
-import { finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } from "@/lib/raterLog";
+import { KIND_LABEL, finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } from "@/lib/raterLog";
 import { BACKTEST_MIN, BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, roundViews } from "@/lib/outlook";
 import type { OutlookPayload } from "@/lib/outlookLoad";
 import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
@@ -307,14 +307,75 @@ export type EditsProps = {
   onFix: (m: Moment, o: FixOptions) => void;
   onCaption: () => void;
   onToEditor: () => void;
+  /** The account's own Reels; null on a still post, where they are no comparison. */
+  outlook: OutlookState | null;
+  /** What the person's own settled posts show about each kind of change (lib/raterLog.ts). */
+  lessons: Lesson[];
+  /** The walkthrough proposes its lines while it is open; closing it takes them back off the preview. */
+  onWalkthroughClosed: () => void;
   /** The walkthrough of every edit along the video. */
   children?: ReactNode;
 };
 
+/**
+ * Where this draft stands and what the edits can honestly claim. Reach comes
+ * only from the account's own Reels: a range for this draft once the replay
+ * passed, otherwise its usual range, named as that. The after figure is the
+ * creative score, because no past Reel was rated, so nothing yet says what an
+ * edit does to views. Noah's brief: no number that isn't a real model output.
+ */
+function ReachStrip({ a, w, outlook }: { a: StudioAnalysis; w: Working; outlook: OutlookState | null }) {
+  const after = scoreAfterEdits(a);
+  const model = outlook?.status === "ready" ? outlook.data.model : null;
+  const b = model?.baseline ?? null;
+  const f = model ? outlookFor(model, w.caption.trim() ? w.caption : a.caption.suggestion ?? "").forecast : null;
+  if (!b && after == null) return null;
+  return (
+    <section className="st-block sd-outlook" aria-label="Reach and what the edits change">
+      <dl className="sd-ostats">
+        {b && (
+          <>
+            <div><dt>{f ? "Expected reach" : "Your usual reach"}</dt><dd><b>{f ? `${fmtViews(f.low)} to ${fmtViews(f.high)}` : `${fmtViews(roundViews(b.low))} to ${fmtViews(roundViews(b.high))}`}</b></dd><small>{f ? "Views, for this draft as it is." : `Views on half of your last ${b.n} Reels, not a forecast for this draft.`}</small></div>
+            <div><dt>Virality index</dt>{f ? <dd><b>{f.index}</b> of 100</dd> : <dd className="sd-oword">Not shown yet</dd>}<small>{f ? "50 is your usual Reel. Not a probability." : "It has to beat your plain median on your past Reels first."}</small></div>
+          </>
+        )}
+        {after != null && <div><dt>After these edits</dt><dd><b>{a.score.overall} to about {after}</b></dd><small>Creative readiness, SOCIA&apos;s estimate. Not views.</small></div>}
+      </dl>
+      <p className="sd-note">SOCIA doesn&apos;t put a view number on these edits: none of your past Reels were rated, so nothing yet shows what an edit does to your views. Once you post, it compares the real result with your usual, and each edit below shows what your own posts have shown so far.</p>
+    </section>
+  );
+}
+
+/** What this edit should do: its part of the score, and what the person's own posted results show about this kind of change. */
+function EditImpact({ f, a, lessons }: { f: TopFix; a: StudioAnalysis; lessons: Lesson[] }) {
+  const cat = a.categories.find((c) => c.id === f.part);
+  const lesson = lessons.find((l) => l.kind === f.kind);
+  const scored = cat?.score != null && f.scoreAfter != null;
+  return (
+    <div className="sd-impact">
+      {scored && (
+        <div>
+          <small>{CATEGORY_INFO[cat!.id].label} score</small>
+          <b>{cat!.score} to about {f.scoreAfter}</b>
+          <Bar share={f.scoreAfter! / 100} tone="data" className="st-cat-track" />
+          <small>SOCIA&apos;s estimate of this part. Not views.</small>
+        </div>
+      )}
+      <div>
+        <small>Your own results</small>
+        {lesson
+          ? <><b>{lesson.median.toFixed(1)}x your usual</b><small>Median of {lesson.posts} posts where you changed {KIND_LABEL[lesson.kind]}, {lesson.above} above your usual. A pattern, not proof.</small></>
+          : <><b>No result yet</b><small>SOCIA checks this once you post it, against your usual.</small></>}
+      </div>
+    </div>
+  );
+}
+
 /** The Improve tab: one edit open at a time, problem beside fix, with the longer reading folded away. */
-export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumbs, frame, durationSec, canHandoff, onFix, onCaption, onToEditor, children }: EditsProps) {
+export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumbs, frame, durationSec, canHandoff, onFix, onCaption, onToEditor, onWalkthroughClosed, outlook, lessons, children }: EditsProps) {
   const [open, setOpen] = useState<number | null>(focus);
   const [preview, setPreview] = useState<number | null>(null);
+  const [walking, setWalking] = useState(false);
   const inUse = (f: TopFix) => {
     if (!f.apply) return false;
     const { field, value } = f.apply;
@@ -325,6 +386,7 @@ export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumb
   const dur = Math.max(1, a.durationSec ?? 1);
   return (
     <div className="st-panel">
+      <ReachStrip a={a} w={w} outlook={outlook} />
       <section className="st-block">
         <h3>Highest-priority edits</h3>
         <ol className="sd-edits">
@@ -341,8 +403,7 @@ export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumb
                 <button type="button" className="sd-edit-head" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
                   <span className="st-fix-num">{String(i + 1).padStart(2, "0")}</span>
                   <b>{f.title}</b>
-                  {when && <small>{when}</small>}
-                  <em className={`sd-prio is-${priority}`}>{PRIORITY_LABEL[priority]}</em>
+                  <span className="sd-edit-meta">{when && <small>{when}</small>}<em className={`sd-prio is-${priority}`}>{PRIORITY_LABEL[priority]}</em></span>
                   <ChevronDown size={14} aria-hidden style={{ transform: open === i ? "rotate(180deg)" : undefined }} />
                 </button>
                 {open === i && (
@@ -352,6 +413,14 @@ export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumb
                       <div className="is-fix"><small>Fix</small><p>{f.suggestion}</p></div>
                     </div>
                     {f.why && <p className="sd-edit-why">{f.why}</p>}
+                    {f.steps && f.steps.length > 0 && (
+                      <div className="sd-howto">
+                        <h4 className="sd-sub">How to fix it</h4>
+                        <ol className="sd-steps">{f.steps.map((x) => <li key={x}>{x}</li>)}</ol>
+                      </div>
+                    )}
+                    {f.motion && <div className="sd-howto"><h4 className="sd-sub">How it should move</h4><p className="sd-edit-why">{f.motion}</p></div>}
+                    <EditImpact f={f} a={a} lessons={lessons} />
                     <div className="st-fix-actions">
                       {f.apply && <button type="button" className={`ov-btn ${on ? "ghost" : "primary"} small`} aria-pressed={on} onClick={() => apply(f.apply!.field, f.apply!.value)}>{on ? REMOVE_LABEL[f.apply.field] : APPLY_LABEL[f.apply.field]}</button>}
                       {f.t != null && a.kind === "video" && <button type="button" className="ov-btn ghost small" onClick={() => seek(f.t!)}><Clock size={12} /> Jump to {fmtT(f.t)}</button>}
@@ -366,6 +435,12 @@ export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumb
                     {showEditor && !on && <p className="sd-note">{canHandoff ? `Opens the ${CAPABILITY[m.capability].where}${m.capability === "pauses" || m.capability === "text" ? " with this applied. Your original file is not changed" : ""}.` : "Upload the original file to apply this in the editor."}</p>}
                     {!m && !f.apply && priority !== "experiment" && a.kind === "video" && <p className="sd-note">This one is yours to make: SOCIA can&apos;t reshoot or re-record it.</p>}
                     {m && preview === i && <div className="sd-preview"><MomentPreview m={m} thumbs={thumbs} frame={frame} durationSec={durationSec} /></div>}
+                    {f.aiPrompt && (
+                      <details className="sd-why">
+                        <summary>AI prompt to make this</summary>
+                        <div className="sd-prompt"><p>{f.aiPrompt}</p><CopyBtn text={f.aiPrompt} label="Copy the prompt" /></div>
+                      </details>
+                    )}
                     {f.evidence && (
                       <details className="sd-why">
                         <summary>Why SOCIA recommends this</summary>
@@ -386,9 +461,9 @@ export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumb
       </section>
 
       {children && (
-        <details className="st-block sd-fold">
+        <details className="st-block sd-fold" open={walking} onToggle={(e) => { const open = e.currentTarget.open; setWalking(open); if (!open && walking) onWalkthroughClosed(); }}>
           <summary>Go through every edit with the video{moments.length > 0 ? ` (${moments.length})` : ""}</summary>
-          {children}
+          {walking && children}
         </details>
       )}
 
