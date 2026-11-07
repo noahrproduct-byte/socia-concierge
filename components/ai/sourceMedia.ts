@@ -1,63 +1,69 @@
 "use client";
 
-// Every moment of a job plays from the same long source, and browsers stall
-// when several video elements load one large file at once: on a real 4-minute
-// source, five previews stayed empty for over 35 seconds, while one alone
-// loaded in 10. So the source is measured once per job, and previews load one
-// at a time, only when they are on screen.
+// Every moment of a job comes from the same long source, which can be large on
+// a slow connection (at 170 KB/s, video elements for a 44 MB talk showed
+// nothing after 75 seconds). So nothing streams it until someone presses play:
+// Mediabunny reads the source's header once per job, then a still frame per
+// moment, with range requests for only those bytes.
 
 export type SourceSize = { width: number; height: number; duration: number };
 
-// Each slot's turn ends when its preview has loaded or failed, or after this long, so one bad load can't hold up the rest.
-const SLOT_MS = 20_000;
+type Opened = { size: SourceSize; frame: (seconds: number) => Promise<string | null> };
 
-let busy = false;
-const waiting: (() => void)[] = [];
+const opened = new Map<string, Promise<Opened | null>>();
 
-function next() {
-  const go = waiting.shift();
-  if (go) { busy = true; go(); } else busy = false;
-}
+// Frames are read one at a time, so the first card isn't held up by the rest.
+let line: Promise<unknown> = Promise.resolve();
 
-/** Wait for a turn to load video. Call the returned function when done; extra calls are harmless. Pass a signal to leave the line. */
-export function takeSlot(signal?: AbortSignal): Promise<() => void> {
-  return new Promise((resolve, reject) => {
-    const start = () => {
-      let done = false;
-      const release = () => { if (done) return; done = true; clearTimeout(timer); next(); };
-      const timer = setTimeout(release, SLOT_MS);
-      if (signal?.aborted) { release(); reject(new DOMException("Left the line", "AbortError")); return; }
-      resolve(release);
-    };
-    if (busy) waiting.push(start);
-    else { busy = true; start(); }
+async function open(url: string): Promise<Opened | null> {
+  const mb = await import("mediabunny");
+  const input = new mb.Input({
+    formats: mb.ALL_FORMATS,
+    source: new mb.UrlSource(url, { getRetryDelay: (n) => (n < 3 ? 1 : null), maxCacheSize: 16 * 1024 * 1024 }),
   });
+  const video = await input.getPrimaryVideoTrack();
+  if (!video) return null;
+  const [duration, width, height, decodable] = await Promise.all([input.computeDuration(), video.getDisplayWidth(), video.getDisplayHeight(), video.canDecode().catch(() => false)]);
+  const sink = decodable ? new mb.CanvasSink(video, { width: 640, poolSize: 1 }) : null;
+  return {
+    size: { width, height, duration },
+    frame: async (seconds) => {
+      if (!sink) return null;
+      const got = await sink.getCanvas(seconds);
+      if (!got) return null;
+      const src = got.canvas as HTMLCanvasElement | OffscreenCanvas;
+      const out = document.createElement("canvas");
+      out.width = src.width;
+      out.height = src.height;
+      out.getContext("2d")?.drawImage(src as CanvasImageSource, 0, 0);
+      return out.toDataURL("image/jpeg", 0.8);
+    },
+  };
 }
 
-const sizes = new Map<string, Promise<SourceSize | null>>();
-
-/** The source's size and length, read once per source. Null when it can't be read. */
-export function sourceSize(url: string): Promise<SourceSize | null> {
-  const known = sizes.get(url);
+function openOnce(url: string): Promise<Opened | null> {
+  const known = opened.get(url);
   if (known) return known;
-  const read = (async () => {
-    const release = await takeSlot();
-    return new Promise<SourceSize | null>((resolve) => {
-      const v = document.createElement("video");
-      v.preload = "metadata";
-      v.muted = true;
-      const finish = (size: SourceSize | null) => {
-        release();
-        if (!size) sizes.delete(url); // A failed read may be tried again.
-        v.removeAttribute("src");
-        v.load(); // Lets go of the connection.
-        resolve(size);
-      };
-      v.onloadedmetadata = () => finish(v.videoWidth > 0 ? { width: v.videoWidth, height: v.videoHeight, duration: v.duration } : null);
-      v.onerror = () => finish(null);
-      v.src = url;
-    });
-  })();
-  sizes.set(url, read);
-  return read;
+  const next = open(url).catch((e) => {
+    console.warn("[clipper] source could not be read:", (e as Error)?.message ?? e);
+    return null;
+  });
+  void next.then((o) => { if (!o) opened.delete(url); }); // A failed read may be tried again.
+  opened.set(url, next);
+  return next;
+}
+
+/** The source's size and length. Null when it can't be read. */
+export async function sourceSize(url: string): Promise<SourceSize | null> {
+  return (await openOnce(url))?.size ?? null;
+}
+
+/** A still of the moment, as an image URL. Null when it can't be read; the video still plays. */
+export function sourceFrame(url: string, seconds: number): Promise<string | null> {
+  const run = line.then(async () => {
+    const o = await openOnce(url);
+    return o ? o.frame(seconds) : null;
+  }).catch(() => null);
+  line = run;
+  return run;
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Film, Lightbulb, Loader2 } from "lucide-react";
 import { DEFAULT_MODEL, GENERATION_MODELS, generationCredits, modelById, type GenerationKind } from "@/lib/credits/config";
+import { ConfirmDialog } from "@/components/system";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, CreditsLine, StatusChip, MediaCard } from "./shared";
 
 type Idea = { id: string; hook: string; concept: string; shot: string; kind: GenerationKind; caption: string; hashtags: string[] };
@@ -30,6 +31,10 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
   const [idea, setIdea] = useState<Idea | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // The generation waiting for "Remove" in the dialog; a failed delete keeps it open and says why.
+  const [removing, setRemoving] = useState<Job | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeErr, setRemoveErr] = useState<string | null>(null);
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [outputs, setOutputs] = useState<Record<string, Output[]>>({});
@@ -97,11 +102,12 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
   }
 
   async function remove(job: Job) {
-    if (!confirm("Remove this generation?")) return;
+    setRemoveBusy(true); setRemoveErr(null);
     try {
       await api(`/api/studio-ai/jobs/${job.id}`, { method: "DELETE" });
       setJobs((js) => js.filter((j) => j.id !== job.id));
-    } catch (e) { setErr(errorText(e)); }
+      setRemoving(null);
+    } catch (e) { setRemoveErr(errorText(e)); } finally { setRemoveBusy(false); }
   }
 
   const canGenerate = canMutate && !busy && prompt.trim().length > 3 && price != null && (kind !== "image_to_video" || Boolean(image));
@@ -187,16 +193,20 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
               {j.status === "done" && (
                 <div className="ai-grid">
                   {(outputs[j.id] ?? []).map((o) => (
-                    <MediaCard key={o.id} kind="generation" id={o.id} title={o.title ?? j.prompt.slice(0, 80)} isVideo={o.kind === "video"} playUrl={o.playUrl} downloadUrl={o.downloadUrl} caption={o.caption ?? ""} hashtags={o.hashtags ?? []} canMutate={canMutate} onDelete={() => remove(j)} />
+                    <MediaCard key={o.id} kind="generation" id={o.id} title={o.title ?? j.prompt.slice(0, 80)} isVideo={o.kind === "video"} playUrl={o.playUrl} downloadUrl={o.downloadUrl} caption={o.caption ?? ""} hashtags={o.hashtags ?? []} canMutate={canMutate} onDelete={() => { setRemoveErr(null); setRemoving(j); }} />
                   ))}
                   {!outputs[j.id] && <p className="ai-note"><Loader2 size={14} className="spin" aria-hidden /> Loading</p>}
                 </div>
               )}
-              {canMutate && j.status !== "done" && j.status !== "processing" && <button type="button" className="ai-act is-quiet ai-job-remove" onClick={() => remove(j)}>Remove</button>}
+              {canMutate && j.status !== "done" && j.status !== "processing" && <button type="button" className="ai-act is-quiet ai-job-remove" onClick={() => { setRemoveErr(null); setRemoving(j); }}>Remove</button>}
             </li>
           ))}
         </ul>
       </section>
+      <ConfirmDialog open={Boolean(removing)} onOpenChange={(o) => { if (!o) setRemoving(null); }} danger busy={removeBusy}
+        title="Remove this generation?" confirmLabel="Remove"
+        body={removeErr ?? "It and anything it made are deleted, and this can't be undone. Drafts already sent to the scheduler stay."}
+        onConfirm={() => { if (removing) return remove(removing); }} />
     </div>
   );
 }

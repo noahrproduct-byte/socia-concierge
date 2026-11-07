@@ -194,7 +194,7 @@ export async function submitClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJob
 
 async function fail(svc: Supa, job: ClipJobRow, message: string, refund: boolean): Promise<ClipJobRow> {
   const now = new Date().toISOString();
-  const { data } = await svc.from("clip_jobs").update({ status: "failed", error: message.slice(0, 500), finished_at: now, updated_at: now, credits_charged: refund ? 0 : job.credits_reserved }).eq("id", job.id).select(JOB_COLS).single();
+  const { data } = await svc.from("clip_jobs").update({ status: "failed", error: message.slice(0, 500), finished_at: now, updated_at: now, credits_charged: refund ? 0 : job.credits_reserved }).eq("id", job.id).in("status", ["queued", "processing"]).select(JOB_COLS).single();
   if (refund) await refundCredits(job.user_id, { kind: "clip_job", id: job.id }, "Clipping failed");
   return (data as ClipJobRow) ?? { ...job, status: "failed", error: message };
 }
@@ -273,14 +273,19 @@ async function pollSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
     const { error } = await svc.from("clips").upsert(rows, { onConflict: "job_id,provider_clip_id" });
     if (error) throw new ClipperError(`clips not saved: ${error.message}`, "db", true);
     const done = new Date().toISOString();
-    const { data } = await svc.from("clip_jobs").update({ status: "done", stage: null, credits_charged: job.credits_reserved, finished_at: done, updated_at: done, error: null }).eq("id", job.id).select(JOB_COLS).single();
-    return (data as ClipJobRow) ?? { ...job, status: "done" };
+    const { data } = await svc.from("clip_jobs").update({ status: "done", stage: null, credits_charged: job.credits_reserved, finished_at: done, updated_at: done, error: null }).eq("id", job.id).eq("status", "processing").select(JOB_COLS).maybeSingle();
+    if (!data) {
+      // Cancelled while the moments were being picked: refunded already, so no clips.
+      await svc.from("clips").delete().eq("job_id", job.id).eq("user_id", job.user_id);
+      return { ...job, status: "cancelled", stage: null };
+    }
+    return data as ClipJobRow;
   } catch (e) {
     const attempt = pickAttempt(job.stage);
     console.error(`[clipper] pick failed (attempt ${attempt}):`, (e as Error)?.message ?? e);
     if (attempt >= PICK_ATTEMPTS) return fail(svc, job, "SOCIA couldn't pick the moments in this video. Try again in a little while.", true);
     const stage = attempt === 1 ? "pick-retry" : "pick-retry-2";
-    await svc.from("clip_jobs").update({ stage, updated_at: new Date().toISOString() }).eq("id", job.id);
+    await svc.from("clip_jobs").update({ stage, updated_at: new Date().toISOString() }).eq("id", job.id).eq("status", "processing");
     return { ...job, stage };
   }
 }
@@ -365,6 +370,27 @@ export async function listClipsForLibrary(client: Supa, ownerId: string, wsId: s
   const out: ClipView[] = [];
   for (const r of (data ?? []) as ClipRow[]) out.push({ ...r, playUrl: svc ? await signedUrl(svc, r.video_path) : r.video_url, downloadUrl: null });
   return out;
+}
+
+/**
+ * Stop a job that is still running and give its credits back; its upload is
+ * deleted. The update only matches an open job, so one that just finished stays
+ * finished. A job already with an outside provider can't be stopped there, and
+ * would keep costing SOCIA, so it runs on. Null when it can't be cancelled.
+ */
+export async function cancelClipJob(job: ClipJobRow): Promise<ClipJobRow | null> {
+  if (job.status !== "queued" && job.status !== "processing") return null;
+  if (job.status === "processing" && job.provider !== SOCIA_PROVIDER) return null;
+  const svc = svcOrThrow();
+  const now = new Date().toISOString();
+  const { data, error } = await svc.from("clip_jobs")
+    .update({ status: "cancelled", stage: null, credits_charged: 0, error: null, finished_at: now, updated_at: now })
+    .eq("id", job.id).eq("user_id", job.user_id).in("status", ["queued", "processing"]).select(JOB_COLS).maybeSingle();
+  if (error) throw new ClipperError(error.message, "db");
+  if (!data) return null;
+  await refundCredits(job.user_id, { kind: "clip_job", id: job.id }, "Clipping cancelled");
+  await removePaths(svc, [job.source_path]);
+  return data as ClipJobRow;
 }
 
 /** Delete a finished or failed job with its clips and files. A processing job is left to finish. */

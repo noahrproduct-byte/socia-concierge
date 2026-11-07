@@ -7,8 +7,9 @@ import { clipCredits } from "@/lib/credits/config";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinutes, CreditsLine, StatusChip, MediaCard } from "./shared";
 import type { ClipRender } from "@/lib/clipper/server";
 import ClipRenderCard from "./ClipRenderCard";
+import { ConfirmDialog } from "@/components/system";
 
-type Job = { id: string; status: "queued" | "processing" | "done" | "failed" | "cancelled"; source_kind: string; source_url: string; source_minutes: number; credits_reserved: number; credits_charged: number | null; error: string | null; created_at: string; options: ClipperOptions; stage?: string | null };
+type Job = { id: string; status: "queued" | "processing" | "done" | "failed" | "cancelled"; source_kind: string; source_url: string; source_minutes: number; credits_reserved: number; credits_charged: number | null; error: string | null; created_at: string; options: ClipperOptions; stage?: string | null; provider?: string };
 type Clip = { id: string; title: string | null; score: number | null; score_reason: string | null; duration_ms: number | null; caption: string | null; hashtags: string[]; playUrl: string | null; downloadUrl: string | null; transcript: string | null; render?: ClipRender | null };
 type Source = "youtube" | "upload" | "url";
 
@@ -45,6 +46,14 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
   const [queueSize, setQueueSize] = useState(0);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  // The job waiting for "Remove job" in the dialog; a failed delete keeps it open and says why.
+  const [removing, setRemoving] = useState<Job | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeErr, setRemoveErr] = useState<string | null>(null);
+  // The same for stopping a job that is still running.
+  const [cancelling, setCancelling] = useState<Job | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelErr, setCancelErr] = useState<string | null>(null);
   // The measured price, waiting for a second press (not an error).
   const [priceNote, setPriceNote] = useState<string | null>(null);
 
@@ -115,12 +124,23 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
   }
 
   async function remove(job: Job) {
-    if (!confirm("Remove this job and its clips?")) return;
+    setRemoveBusy(true); setRemoveErr(null);
     try {
       await api(`/api/clipper/jobs/${job.id}`, { method: "DELETE" });
       setJobs((js) => js.filter((j) => j.id !== job.id));
       if (open === job.id) setOpen(null);
-    } catch (e) { setErr(errorText(e)); }
+      setRemoving(null);
+    } catch (e) { setRemoveErr(errorText(e)); } finally { setRemoveBusy(false); }
+  }
+
+  async function cancelJob(job: Job) {
+    setCancelBusy(true); setCancelErr(null);
+    try {
+      const r = await api<{ job: Job; balance: number | null }>(`/api/clipper/jobs/${job.id}/cancel`, { method: "POST" });
+      setJobs((js) => js.map((j) => (j.id === job.id ? r.job : j)));
+      setBalance(r.balance);
+      setCancelling(null);
+    } catch (e) { setCancelErr(errorText(e)); } finally { setCancelBusy(false); }
   }
 
   const toggleLength = (id: ClipLength) => setOpts((o) => ({ ...o, lengths: o.lengths.includes(id) ? (o.lengths.length > 1 ? o.lengths.filter((l) => l !== id) : o.lengths) : [...o.lengths.filter((l) => l !== "auto" && id !== "auto"), id] }));
@@ -204,6 +224,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
                 <span className="ai-job-meta">{j.source_minutes} min · {j.credits_charged ?? j.credits_reserved} credits · {when(j.created_at)}</span>
                 <StatusChip status={j.status} working={stageLabel(j.stage)} />
               </button>
+              {j.status === "cancelled" && <p className="ai-note">Cancelled. Your credits are back.</p>}
               {j.status === "failed" && <p className="ai-err">{j.error ?? "Clipping failed."} {j.credits_charged === 0 && "Your credits are back."}</p>}
               {j.status === "done" && j.error && <p className="ai-note">{j.error}</p>}
               {open === j.id && j.status === "done" && <MakeAll clips={clipsByJob[j.id] ?? []} canMutate={canMutate} queue={queue} queueSize={queueSize} onStart={(ids) => { setQueue(ids); setQueueSize(ids.length); }} />}
@@ -224,11 +245,20 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
                   {!clipsByJob[j.id] && <p className="ai-note"><Loader2 size={14} className="spin" aria-hidden /> Loading clips</p>}
                 </div>
               )}
-              {canMutate && j.status !== "processing" && j.status !== "queued" && <button type="button" className="ai-act is-quiet ai-job-remove" onClick={() => remove(j)}>Remove</button>}
+              {canMutate && (j.status === "queued" || (j.status === "processing" && j.provider === "socia")) && <button type="button" className="ai-act is-quiet ai-job-remove" onClick={() => { setCancelErr(null); setCancelling(j); }}>Cancel</button>}
+              {canMutate && j.status !== "processing" && j.status !== "queued" && <button type="button" className="ai-act is-quiet ai-job-remove" onClick={() => { setRemoveErr(null); setRemoving(j); }}>Remove</button>}
             </li>
           ))}
         </ul>
       </section>
+      <ConfirmDialog open={Boolean(cancelling)} onOpenChange={(o) => { if (!o) setCancelling(null); }} danger busy={cancelBusy}
+        title="Cancel this job?" confirmLabel="Cancel job" cancelLabel="Keep it running"
+        body={cancelErr ?? `SOCIA stops working on it, your ${cancelling?.credits_reserved ?? ""} credits come back, and the uploaded video is deleted. To clip it later, you'd upload it again.`}
+        onConfirm={() => { if (cancelling) return cancelJob(cancelling); }} />
+      <ConfirmDialog open={Boolean(removing)} onOpenChange={(o) => { if (!o) setRemoving(null); }} danger busy={removeBusy}
+        title="Remove this job?" confirmLabel="Remove job"
+        body={removeErr ?? "The uploaded video and every clip made from it are deleted, and this can't be undone. Drafts already sent to the scheduler stay."}
+        onConfirm={() => { if (removing) return remove(removing); }} />
     </div>
   );
 }

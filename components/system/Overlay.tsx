@@ -71,6 +71,7 @@ export function ConfirmDialog({
   title,
   body,
   confirmLabel,
+  cancelLabel = "Cancel",
   onConfirm,
   danger,
   busy,
@@ -80,6 +81,8 @@ export function ConfirmDialog({
   title: ReactNode;
   body: ReactNode;
   confirmLabel: string;
+  /** The button that backs out, when "Cancel" would be ambiguous (the action itself is a cancel). */
+  cancelLabel?: string;
   onConfirm: () => void | Promise<void>;
   danger?: boolean;
   busy?: boolean;
@@ -94,7 +97,7 @@ export function ConfirmDialog({
       actions={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
+            {cancelLabel}
           </Button>
           <Button variant={danger ? "danger" : "primary"} onClick={() => void onConfirm()} busy={busy}>
             {confirmLabel}
