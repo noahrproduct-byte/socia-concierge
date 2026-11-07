@@ -16,7 +16,7 @@ import { loadCachedNicheRead } from "@/lib/trendSignalsLoad";
 import { trendsEvidence } from "@/lib/trendSignals";
 import { brandLine, writeClipCaptions } from "@/lib/aiStudio/captions";
 import { signedUrl } from "@/lib/aiStudio/media";
-import { ClipperError, type ClipperOptions } from "./provider";
+import { ClipperError, transcriptionLanguage, type ClipperOptions } from "./provider";
 import { clipExamples } from "./examples";
 import { clipResultLines, loadClipOutcomes } from "./learn";
 import { PICK_SCHEMA, PICK_SYSTEM, checkPicks, pickMessage, transcriptLines, type ClipPick } from "./pick";
@@ -40,8 +40,7 @@ export async function startTranscription(svc: Supa, job: JobLike): Promise<strin
   if (!provider) throw new ClipperError("Transcription is not set up, so SOCIA can't clip right now.", "not_configured", false);
   const url = await signedUrl(svc, job.source_path, 24 * 3600);
   if (!url) throw new ClipperError("The uploaded file could not be read.", "no_source", false);
-  // No language given: the provider detects it, so a video in any language transcribes properly.
-  const t = await provider.submit(url);
+  const t = await provider.submit(url, { language: transcriptionLanguage(job.options.lang) });
   recordTranscription(job.user_id, "clipper", job.source_minutes * 60);
   return t.id;
 }

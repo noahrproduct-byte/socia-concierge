@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Scissors } from "lucide-react";
-import { CLIP_LENGTHS, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipperOptions } from "@/lib/clipper/provider";
+import { CLIP_LANGUAGES, CLIP_LENGTHS, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipperOptions } from "@/lib/clipper/provider";
 import { clipCredits } from "@/lib/credits/config";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinutes, CreditsLine, StatusChip, MediaCard } from "./shared";
 import type { ClipRender } from "@/lib/clipper/server";
@@ -155,6 +155,14 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
           </label>
         )}
         <div className="ai-options">
+          {provider === "socia" && (
+            <label className="ai-field ai-field-short">
+              <span>Language spoken</span>
+              <select value={opts.lang} onChange={(e) => setOpts((o) => ({ ...o, lang: e.target.value }))}>
+                {CLIP_LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+              </select>
+            </label>
+          )}
           <label className="ai-field ai-field-short">
             <span>Clips, at most</span>
             <input type="number" min={1} max={MAX_CLIPS} value={opts.maxClips} onChange={(e) => setOpts((o) => ({ ...o, maxClips: Math.min(MAX_CLIPS, Math.max(1, Number(e.target.value) || 1)) }))} />
