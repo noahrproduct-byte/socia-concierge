@@ -21,7 +21,7 @@ export function clipEdl(r: ClipRender, title: string | null, headline: boolean):
   return {
     version: 1, fps: OUTPUT.fps, width: OUTPUT.width, height: OUTPUT.height,
     targetSec: { min: len, max: len },
-    segments: [{ id: "cut-1", clipId: SOURCE_ID, in: inS, out: outS, role: "body", note: "", frame: { zoom: 1, x: r.cropX, y: 0.5 } }],
+    segments: [{ id: "cut-1", clipId: SOURCE_ID, in: inS, out: outS, role: "body", note: "", frame: { zoom: 1, x: r.cropX, y: 0.5, ...(r.cropPath?.length ? { path: r.cropPath } : {}) } }],
     text: headline && title ? [{ id: "title", at: 0, end: Math.min(3, len), text: title.slice(0, 80), role: "opening" }] : [],
     captions: r.captions && r.words.length ? { source: "transcript" } : null,
     enhance: [], audio: [], cta: null, music: null, caption: "", notes: [],

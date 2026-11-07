@@ -12,7 +12,7 @@ export type AiFeature =
   | "niche_analyze" | "niche_opportunity" | "niche_formats" | "growth_strategy" | "content_guide" | "account_audit" | "niche_describe"
   | "competitor_research" | "content_plan" | "comment_reply"
   | "clip_card" | "clip_batch" | "clip_edl" | "transcribe" | "music_playlist" | "video_ideas" | "place_scan"
-  | "clipper_captions" | "clipper_pick" | "studio_ideas" | "brief_enhance";
+  | "clipper_captions" | "clipper_pick" | "clipper_frame" | "studio_ideas" | "brief_enhance";
 
 type Usage = {
   input_tokens?: number; output_tokens?: number;
