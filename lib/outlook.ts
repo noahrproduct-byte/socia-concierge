@@ -9,11 +9,12 @@
 //   2. Patterns. What the draft's caption shares with those Reels (how it
 //      opens, its subject, its length) and how the Reels with and without
 //      that did. A pattern in a handful of posts, never a cause.
-//   3. The index and a view range. A small model (baseline x momentum x
-//      patterns) that is replayed over the account's own history, each Reel
-//      forecast from only what was known before it went out. It is shown only
-//      when that replay beats the plain median and its range holds; otherwise
-//      the index stays hidden and the page says why.
+//   3. The virality score and predicted views (Noah, 2026-11-06: show them
+//      whenever there is enough history). A small model (baseline x momentum x
+//      patterns), replayed over the account's own history, each Reel forecast
+//      from only what was known before it went out. Below the check (it must
+//      beat the plain median and its range must hold) the numbers still show,
+//      marked low confidence with the replay's own error beside them.
 //
 // What this can't see: SOCIA stores each Reel's latest numbers, not how they
 // grew, so a Reel counts only once it has settled; Instagram gives no video
@@ -288,29 +289,37 @@ export type Forecast = {
   estimate: number;
   low: number;
   high: number;
+  /** The replay passed. False: show it as low confidence. */
+  checked: boolean;
 };
 export type Outlook = {
   /** Patterns in the account's Reels that this draft's caption shares, strongest difference first. */
   shared: Pattern[];
-  /** Null unless the replay passed. */
+  /** Null only without a baseline: below BASELINE_MIN Reels there is nothing to calculate from. */
   forecast: Forecast | null;
 };
+
+/** Replayed misses a range needs before it is built from them; fewer, and the spread of the Reels themselves stands in. */
+const RANGE_MIN_REPLAYS = 5;
 
 export function outlookFor(model: AccountModel, caption: string | null | undefined): Outlook {
   const traits = traitsOf(caption);
   const shared = model.patterns.filter((p) => traits.includes(p.key)).sort((a, b) => Math.abs(Math.log(b.ratio)) - Math.abs(Math.log(a.ratio))).slice(0, 3);
-  if (!model.baseline || !model.backtest?.passes) return { shared, forecast: null };
+  if (!model.baseline) return { shared, forecast: null };
   const est = estimate(model.reels, traits);
   if (est == null) return { shared, forecast: null };
   const base = views(model.reels.slice(-BASELINE_MAX));
   const res = residuals(replay(model.reels));
+  const low = res.length >= RANGE_MIN_REPLAYS ? est * Math.exp(quantile(res, 0.1)) : quantile(base, 0.1);
+  const high = res.length >= RANGE_MIN_REPLAYS ? est * Math.exp(quantile(res, 0.9)) : quantile(base, 0.9);
   return {
     shared,
     forecast: {
       index: Math.round((base.filter((x) => x < est).length / base.length) * 100),
       estimate: roundViews(est),
-      low: roundViews(est * Math.exp(quantile(res, 0.1))),
-      high: roundViews(est * Math.exp(quantile(res, 0.9))),
+      low: roundViews(Math.min(low, est)),
+      high: roundViews(Math.max(high, est)),
+      checked: model.backtest?.passes === true,
     },
   };
 }

@@ -81,7 +81,7 @@ describe("the estimate", () => {
   });
 });
 
-describe("the replay that decides whether the index is shown", () => {
+describe("the replay that decides how much to trust the score", () => {
   it("forecasts each Reel only from Reels that had already settled when it went out", () => {
     // Posted daily: the Reel before is still inside its first week, so it can't inform the next.
     const daily = run(BASELINE_MIN + 6, () => ({ views: 1000 }), 1);
@@ -89,21 +89,27 @@ describe("the replay that decides whether the index is shown", () => {
     // Every 4 days: the one before is still settling, so a Reel needs 9 before it to have 8 settled.
     expect(backtest(run(BASELINE_MIN + 6, () => ({ views: 1000 }), 4))!.n).toBe(5);
   });
-  it("stays hidden when there are too few replays, with the count in the reason", () => {
+  it("is low confidence when there are too few replays, with the count in the reason", () => {
     const m = buildModel(run(BASELINE_MIN + 5, (i) => ({ views: 900 + (i % 5) * 60 })), 0);
     expect(m.backtest!.passes).toBe(false);
     expect(m.backtest!.why).toMatch(new RegExp(`needs ${BACKTEST_MIN}`));
-    expect(outlookFor(m, "Why does it tear?").forecast).toBeNull();
+    const f = outlookFor(m, "Why does it tear?").forecast!;
+    expect(f.checked).toBe(false);
+    expect(f.low).toBeLessThanOrEqual(f.estimate);
+    expect(f.high).toBeGreaterThanOrEqual(f.estimate);
   });
-  it("stays hidden when the patterns are noise: the model must beat the plain median", () => {
+  it("is low confidence when the patterns are noise: the model must beat the plain median to be checked", () => {
     // Views vary on a cycle of five, the trait alternates: both sides of it see the same views.
     const noise = [1200, 400, 2600, 800, 1500];
     const m = buildModel(run(40, (i) => ({ views: noise[i % 5], traits: [i % 2 ? "open:Question" : "y"] })), 0);
     expect(m.backtest!.n).toBeGreaterThanOrEqual(BACKTEST_MIN);
     expect(m.backtest!.passes).toBe(false);
-    expect(outlookFor(m, "Is this the best slice in town?").forecast).toBeNull();
+    const f = outlookFor(m, "Is this the best slice in town?").forecast!;
+    expect(f.checked).toBe(false);
+    expect(f.index).toBeGreaterThanOrEqual(0);
+    expect(f.index).toBeLessThanOrEqual(100);
   });
-  it("shows an index and a range when a real pattern makes it beat the median, and a different caption moves it", () => {
+  it("is checked when a real pattern makes it beat the median, and a different caption moves it", () => {
     const wobble = [0.6, 0.8, 1, 1.3, 1.7];
     const m = buildModel(run(44, (i) => ({ views: Math.round((i % 2 ? 4000 : 1000) * wobble[i % 5]), traits: [i % 2 ? "open:Question" : "y", "caption:short"] })), 0);
     expect(m.backtest!.passes).toBe(true);
@@ -111,6 +117,7 @@ describe("the replay that decides whether the index is shown", () => {
     expect(chanceOfAtLeast(m.backtest!.closer, m.backtest!.differed)).toBeLessThanOrEqual(0.05);
     const withQ = outlookFor(m, "Is this the best slice in town?").forecast!;
     const without = outlookFor(m, "The best slice in town.").forecast!;
+    expect(withQ.checked).toBe(true);
     expect(withQ.low).toBeLessThan(withQ.estimate);
     expect(withQ.high).toBeGreaterThan(withQ.estimate);
     expect(withQ.index).toBeGreaterThan(50);
@@ -138,9 +145,10 @@ describe("numbers", () => {
 
 describe("what is kept with a post", () => {
   const m = buildModel(run(12, (i) => ({ views: 1000 + i * 100 })), 0);
-  it("keeps the usual range when there is no forecast, and nothing without a baseline", () => {
+  it("keeps the prediction stated before posting, and nothing without a baseline", () => {
     expect(recordOf(buildModel([], 0), null)).toBeNull();
-    const r = recordOf(m, outlookFor(m, "A caption"))!;
+    expect(recordOf(m, outlookFor(m, "A caption"))).toMatchObject({ kind: "forecast", n: 12 });
+    const r = recordOf(m, { shared: [], forecast: null })!;
     expect(r).toMatchObject({ kind: "usual", n: 12, index: null });
     expect(r.low).toBeLessThan(r.high);
     expect(sanitizeRecord(JSON.parse(JSON.stringify(r)))).toEqual(r);
