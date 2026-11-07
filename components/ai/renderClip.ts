@@ -47,7 +47,8 @@ export async function renderClip(
     composition: { id: "socia-clipper-clip", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
     inputProps: props,
     container: "mp4",
-    videoBitrate: "high",
+    // Medium: a clip's file has to upload, often over a slow connection, and platforms compress it again anyway.
+    videoBitrate: "medium",
     pageResponsiveness: "medium",
     signal: opts.signal,
     onProgress: ({ progress }) => opts.onProgress?.(progress),

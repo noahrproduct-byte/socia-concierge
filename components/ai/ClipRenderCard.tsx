@@ -11,7 +11,7 @@ import type { ClipRender } from "@/lib/clipper/server";
 import { renderBlocker } from "@/components/studio/renderBuild";
 import { api, errorText, uploadToSigned } from "./shared";
 import { renderClip } from "./renderClip";
-import { sourceSize, takeSlot, type SourceSize } from "./sourceMedia";
+import { sourceFrame, sourceSize, type SourceSize } from "./sourceMedia";
 
 const OUT_RATIO = 9 / 16;
 
@@ -28,10 +28,10 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   const drag = useRef<{ startX: number; startCrop: number } | null>(null);
   const [size, setSize] = useState<SourceSize | null>(null);
   const [sizeFailed, setSizeFailed] = useState(false);
-  // The picture for this moment loads when the card is on screen and it's this card's turn (./sourceMedia.ts).
-  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
-  const [previewReady, setPreviewReady] = useState(false);
-  const releasePreview = useRef<() => void>(() => {});
+  // A still of the moment, read when the card is on screen (./sourceMedia.ts). The video only loads on play.
+  const [still, setStill] = useState<string | null>(null);
+  const [stillFailed, setStillFailed] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const [cropX, setCropX] = useState(render.cropX);
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -51,15 +51,14 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const line = new AbortController();
-    const src = `${render.sourceUrl}#t=${render.startMs / 1000}`;
+    let live = true;
     const seen = new IntersectionObserver((entries) => {
       if (!entries.some((e) => e.isIntersecting)) return;
       seen.disconnect();
-      void takeSlot(line.signal).then((release) => { releasePreview.current = release; setPreviewSrc(src); }).catch(() => {});
+      void sourceFrame(render.sourceUrl, render.startMs / 1000).then((f) => { if (!live) return; if (f) setStill(f); else setStillFailed(true); });
     }, { rootMargin: "200px" });
     seen.observe(el);
-    return () => { seen.disconnect(); line.abort(); releasePreview.current(); };
+    return () => { live = false; seen.disconnect(); };
   }, [render.sourceUrl, render.startMs]);
 
   // Its turn in "Make all". The ref keeps one start per turn, however often this re-renders.
@@ -90,10 +89,11 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   function toggle() {
     const v = video.current;
     if (!v) return;
-    // Pressing play doesn't wait in line.
-    if (!previewSrc) setPreviewSrc(`${render.sourceUrl}#t=${render.startMs / 1000}`);
+    // The source only starts loading now, inside the press, so the browser allows it to play with sound.
+    if (!v.getAttribute("src")) v.src = `${render.sourceUrl}#t=${render.startMs / 1000}`;
     if (v.paused) {
-      if (v.currentTime < render.startMs / 1000 || v.currentTime >= render.endMs / 1000) v.currentTime = render.startMs / 1000;
+      if (v.readyState > 0 && (v.currentTime < render.startMs / 1000 || v.currentTime >= render.endMs / 1000)) v.currentTime = render.startMs / 1000;
+      setPlaying(true);
       void v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     } else { v.pause(); setPlaying(false); }
   }
@@ -142,10 +142,11 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   return (
     <article className="ai-card ai-cropcard">
       <div className="ai-crop" ref={box} style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-        <video ref={video} src={previewSrc ?? undefined} playsInline preload="metadata"
-          onLoadedData={() => { setPreviewReady(true); releasePreview.current(); }} onError={() => releasePreview.current()}
-          onPause={() => setPlaying(false)} />
-        {!previewReady && <span className="ai-crop-wait">Loading the picture</span>}
+        <video ref={video} playsInline preload="none" onPlaying={() => setShowVideo(true)} onPause={() => setPlaying(false)} />
+        {/* eslint-disable-next-line @next/next/no-img-element -- a still made in this browser; next/image cannot optimise it */}
+        {still && !showVideo && <img className="ai-crop-still" src={still} alt="" draggable={false} />}
+        {!still && !showVideo && !playing && <span className="ai-crop-wait">{stillFailed ? "Press play to see this moment" : "Loading the picture"}</span>}
+        {playing && !showVideo && <span className="ai-crop-wait is-over">Loading the video</span>}
         {share != null && (
           <div className={`ai-crop-win${movable ? " is-movable" : ""}`} style={{ left: `${left}%`, width: `${share * 100}%` }}
             role="slider" tabIndex={movable ? 0 : -1} aria-label="Where the vertical frame sits" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(cropX * 100)}
