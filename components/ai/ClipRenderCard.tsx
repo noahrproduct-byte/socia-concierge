@@ -11,6 +11,7 @@ import type { ClipRender } from "@/lib/clipper/server";
 import { renderBlocker } from "@/components/studio/renderBuild";
 import { api, errorText, uploadToSigned } from "./shared";
 import { renderClip } from "./renderClip";
+import { sourceSize, takeSlot, type SourceSize } from "./sourceMedia";
 
 const OUT_RATIO = 9 / 16;
 
@@ -25,7 +26,12 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const drag = useRef<{ startX: number; startCrop: number } | null>(null);
-  const [size, setSize] = useState<{ width: number; height: number; duration: number } | null>(null);
+  const [size, setSize] = useState<SourceSize | null>(null);
+  const [sizeFailed, setSizeFailed] = useState(false);
+  // The picture for this moment loads when the card is on screen and it's this card's turn (./sourceMedia.ts).
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [previewReady, setPreviewReady] = useState(false);
+  const releasePreview = useRef<() => void>(() => {});
   const [cropX, setCropX] = useState(render.cropX);
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,6 +41,26 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   // How much of the source's width the vertical frame covers (1 = the source is already vertical or narrower).
   const share = size ? Math.min(1, (size.height * OUT_RATIO) / size.width) : null;
   const movable = share != null && share < 0.999;
+
+  useEffect(() => {
+    let live = true;
+    void sourceSize(render.sourceUrl).then((s) => { if (!live) return; if (s) setSize(s); else setSizeFailed(true); });
+    return () => { live = false; };
+  }, [render.sourceUrl]);
+
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const line = new AbortController();
+    const src = `${render.sourceUrl}#t=${render.startMs / 1000}`;
+    const seen = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      seen.disconnect();
+      void takeSlot(line.signal).then((release) => { releasePreview.current = release; setPreviewSrc(src); }).catch(() => {});
+    }, { rootMargin: "200px" });
+    seen.observe(el);
+    return () => { seen.disconnect(); line.abort(); releasePreview.current(); };
+  }, [render.sourceUrl, render.startMs]);
 
   // Its turn in "Make all". The ref keeps one start per turn, however often this re-renders.
   const started = useRef(false);
@@ -64,6 +90,8 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   function toggle() {
     const v = video.current;
     if (!v) return;
+    // Pressing play doesn't wait in line.
+    if (!previewSrc) setPreviewSrc(`${render.sourceUrl}#t=${render.startMs / 1000}`);
     if (v.paused) {
       if (v.currentTime < render.startMs / 1000 || v.currentTime >= render.endMs / 1000) v.currentTime = render.startMs / 1000;
       void v.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
@@ -113,10 +141,11 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   const left = share != null ? cropX * (1 - share) * 100 : 0;
   return (
     <article className="ai-card ai-cropcard">
-      <div className="ai-crop" ref={box} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-        <video ref={video} src={`${render.sourceUrl}#t=${render.startMs / 1000}`} playsInline preload="metadata"
-          onLoadedMetadata={(e) => { const v = e.currentTarget; setSize({ width: v.videoWidth, height: v.videoHeight, duration: v.duration }); }}
+      <div className="ai-crop" ref={box} style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+        <video ref={video} src={previewSrc ?? undefined} playsInline preload="metadata"
+          onLoadedData={() => { setPreviewReady(true); releasePreview.current(); }} onError={() => releasePreview.current()}
           onPause={() => setPlaying(false)} />
+        {!previewReady && <span className="ai-crop-wait">Loading the picture</span>}
         {share != null && (
           <div className={`ai-crop-win${movable ? " is-movable" : ""}`} style={{ left: `${left}%`, width: `${share * 100}%` }}
             role="slider" tabIndex={movable ? 0 : -1} aria-label="Where the vertical frame sits" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(cropX * 100)}
@@ -129,6 +158,7 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
       <div className="ai-card-body">
         <b>{title}</b>
         <small>{sub}</small>
+        {sizeFailed && <p className="ai-err" role="alert">SOCIA couldn&apos;t read this video. Reload the page to try again.</p>}
         {movable ? <small>Drag the frame, or use the arrow keys, so the speaker is inside it.</small> : size && <small>This video is already vertical, so the whole frame is used.</small>}
         {why && <details className="ai-why"><summary>Why this moment</summary><p>{why}</p></details>}
         {progress != null && <progress className="ai-progress" value={progress} max={1} />}

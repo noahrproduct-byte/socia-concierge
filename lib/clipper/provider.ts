@@ -14,6 +14,16 @@ export const CLIP_LENGTHS: { id: ClipLength; label: string }[] = [
 ];
 export const isClipLength = (v: unknown): v is ClipLength => CLIP_LENGTHS.some((l) => l.id === v);
 
+/** The languages offered for a video. English first: auto-detect is thrown by mixed speech (an English talk with Arabic recitation came back as Urdu). */
+export const CLIP_LANGUAGES: { id: string; label: string }[] = [
+  { id: "en", label: "English" }, { id: "es", label: "Spanish" }, { id: "fr", label: "French" }, { id: "de", label: "German" },
+  { id: "pt", label: "Portuguese" }, { id: "it", label: "Italian" }, { id: "ar", label: "Arabic" }, { id: "ur", label: "Urdu" },
+  { id: "hi", label: "Hindi" }, { id: "tr", label: "Turkish" }, { id: "id", label: "Indonesian" }, { id: "auto", label: "Detect it" },
+];
+
+/** The language to ask transcription for; null lets it detect. Pure. */
+export const transcriptionLanguage = (lang: string | null | undefined): string | null => (lang === "auto" ? null : lang || "en");
+
 export type ClipperOptions = {
   /** Upper bound on clips (1 to 20). The provider may return fewer. */
   maxClips: number;
@@ -22,7 +32,7 @@ export type ClipperOptions = {
   captions: boolean;
   /** An AI headline (hook) on each clip. */
   headline: boolean;
-  /** Spoken language, ISO code. */
+  /** Spoken language, ISO code, or "auto" to detect it. */
   lang: string;
   clipModel: "clip_v1" | "clip_v2";
   /** The uploaded file's name, for the job list. */

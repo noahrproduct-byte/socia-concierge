@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { cleanOptions, measureSourceMinutes, YOUTUBE_RE } from "./server";
 import { priceGeneration } from "@/lib/generation/server";
+import { transcriptionLanguage } from "./provider";
 
 describe("clipper options", () => {
   it("keeps good values and replaces bad ones with the defaults", () => {
@@ -8,6 +9,15 @@ describe("clipper options", () => {
     expect(cleanOptions(null)).toEqual({ maxClips: 5, lengths: ["under30", "30to60"], captions: true, headline: true, lang: "en", clipModel: "clip_v1" });
     expect(cleanOptions({ maxClips: 0, lang: "english" }).maxClips).toBe(1);
     expect(cleanOptions({ lang: "english" }).lang).toBe("en");
+  });
+  it("asks for the language chosen, English by default, and only detects when told to", () => {
+    expect(transcriptionLanguage("en")).toBe("en");
+    expect(transcriptionLanguage("ur")).toBe("ur");
+    expect(transcriptionLanguage("")).toBe("en");
+    expect(transcriptionLanguage(undefined)).toBe("en");
+    expect(transcriptionLanguage("auto")).toBeNull();
+    expect(cleanOptions({ lang: "auto" }).lang).toBe("auto");
+    expect(cleanOptions({}).lang).toBe("en");
   });
   it("keeps the uploaded file's name for the job list, cleaned and short", () => {
     expect(cleanOptions({ sourceName: "  Talk\u0000 one.mp4 " }).sourceName).toBe("Talk one.mp4");
