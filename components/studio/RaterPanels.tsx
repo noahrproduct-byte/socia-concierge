@@ -6,8 +6,8 @@
 // is other ways to make it. Caption, Audio and Prepare stay in StudioPanels.tsx.
 // Every number shown is one SOCIA measured or read. The score is an editor's
 // judgement and predicts nothing; the performance outlook is calculated from the
-// account's own Reels (lib/outlook.ts) and states a view range only when its
-// replay over those Reels holds up.
+// account's own Reels (lib/outlook.ts) and marks its virality score and predicted
+// views low confidence until its replay over those Reels holds up.
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -16,7 +16,7 @@ import { CATEGORY_INFO, fmtT, type ApplyField, type Marker, type StudioAnalysis,
 import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, scoreAfterEdits, type Direction, type PostRef } from "@/lib/studioVerdict";
 import { CAPABILITY, type Moment } from "@/lib/studioFixes";
 import { KIND_LABEL, finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } from "@/lib/raterLog";
-import { BACKTEST_MIN, BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, roundViews } from "@/lib/outlook";
+import { BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, type Backtest, type Forecast } from "@/lib/outlook";
 import type { OutlookPayload } from "@/lib/outlookLoad";
 import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
 import { lineInUse } from "@/lib/studioLines";
@@ -90,13 +90,43 @@ function LineStatus({ canHandoff, onToEditor }: { canHandoff: boolean; onToEdito
 export type OutlookState = { status: "loading" } | { status: "error" } | { status: "ready"; data: OutlookPayload };
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-const MOMENTUM_WORD = { above: "Above your earlier Reels", below: "Below your earlier Reels", level: "Level with your earlier Reels" } as const;
+
+/** The virality score and predicted views, with how far to trust them beside the number. */
+function ScoreStats({ f, coverage }: { f: Forecast; coverage: number | null }) {
+  return (
+    <>
+      <div>
+        <dt>Virality score {!f.checked && <em className="ov-chip warning">Low confidence</em>}</dt>
+        <dd><b>{f.index}</b> of 100</dd>
+        <small>50 is your usual Reel. Not a chance of going viral.</small>
+      </div>
+      <div>
+        <dt>Predicted views</dt>
+        <dd><b>{fmtViews(f.low)} to {fmtViews(f.high)}</b></dd>
+        <small>{coverage != null ? `Replayed on your past Reels, this kind of range held ${Math.round(coverage * 100)}% of the time.` : "Built from how far your own Reels vary."}</small>
+      </div>
+    </>
+  );
+}
+
+/** What the numbers rest on, in one breath. Low confidence says how far off the model was, against simply guessing the median. */
+function ConfidenceNote({ f, bt }: { f: Forecast; bt: Backtest | null }) {
+  const x = (n: number) => `${n.toFixed(1)}x`;
+  return (
+    <p className="sd-note">
+      {f.checked
+        ? <><b>Tested on your Reels.</b> Forecasting each past Reel from the ones before it, this was typically off by {bt ? x(bt.modelError) : "a little"}, against {bt ? x(bt.medianError) : "more"} for your plain median.</>
+        : <><b>Low confidence, a rough guide.</b> {bt ? `Forecasting ${bt.n} of your past Reels from the ones before each, this was typically off by ${x(bt.modelError)}, and just guessing your median by ${x(bt.medianError)}.` : "Too few of your Reels can be replayed to test it yet."}</>}
+      {" "}It reads your Reel history and caption, not this video&apos;s picture or sound, so edits to the video don&apos;t change it yet.
+    </p>
+  );
+}
 
 /**
  * The draft against the account's own Reels (lib/outlook.ts): its usual views
- * and range, and, only when the replay over those Reels passed, an index and a
- * view range. Every figure is calculated from stored view counts; the method
- * and the sample open below it.
+ * and range, a virality score and predicted views, marked low confidence until
+ * the replay over those Reels passes. Every figure is calculated from stored
+ * view counts; the method and the sample open below it.
  */
 export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: OutlookState; caption: string; suggestion: string | null; onRetry: () => void }) {
   if (state.status === "loading") return null;
@@ -136,28 +166,12 @@ export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: O
       {b && (
         <>
           <dl className="sd-ostats">
-            {f ? (
-              <>
-                <div><dt>Virality index</dt><dd><b>{f.index}</b> of 100</dd><small>50 is your usual Reel. A position among your own Reels, not a probability.</small></div>
-                <div><dt>Expected views</dt><dd><b>{fmtViews(f.low)} to {fmtViews(f.high)}</b></dd><small>Built to hold 8 times in 10; replayed on your Reels it held {Math.round((bt?.coverage ?? 0) * 100)}%.</small></div>
-                <div><dt>Your usual</dt><dd><b>{fmtViews(b.median)}</b> views</dd><small>Median of your last {b.n} Reels.</small></div>
-              </>
-            ) : (
-              <>
-                <div><dt>Your usual</dt><dd><b>{fmtViews(b.median)}</b> views</dd><small>Median of your last {b.n} Reels.</small></div>
-                <div><dt>Usual range</dt><dd><b>{fmtViews(roundViews(b.low))} to {fmtViews(roundViews(b.high))}</b></dd><small>Half of those Reels landed here.</small></div>
-                <div>
-                  <dt>Recent momentum</dt>
-                  {mo
-                    ? <><dd className="sd-oword">{MOMENTUM_WORD[mo.word]}</dd><TwoBars label="Median views" a={{ name: `Last ${mo.recentN}`, value: mo.recentMedian }} b={{ name: `${mo.earlierN} before`, value: mo.earlierMedian }} /></>
-                    : <><dd className="sd-oword">Not measurable yet</dd><small>Needs {RECENT_N + BASELINE_MIN} settled Reels; you have {b.n}.</small></>}
-                </div>
-              </>
-            )}
+            {f && <ScoreStats f={f} coverage={bt?.coverage ?? null} />}
+            <div><dt>Your usual</dt><dd><b>{fmtViews(b.median)}</b> views</dd><small>Median of your last {b.n} Reels.{mo ? ` Your last ${mo.recentN}: ${fmtViews(mo.recentMedian)}.` : ""}</small></div>
           </dl>
 
-          {!f && <p className="sd-note"><b>Virality index: not shown yet.</b> SOCIA&apos;s model has to predict your past Reels better than your plain median before it may score a draft{bt && bt.n >= BACKTEST_MIN ? ", and so far it does not" : ", and there are too few Reels to test it on"}. The range above is your usual, not a forecast for this draft.</p>}
-          {alt && f && (alt.index !== f.index || alt.low !== f.low || alt.high !== f.high) && <p className="sd-note"><b>With the suggested caption:</b> index {alt.index}, {fmtViews(alt.low)} to {fmtViews(alt.high)} views. Edits to the video itself raise the creative review; their effect on views can&apos;t be estimated from your history, so none is shown.</p>}
+          {f && <ConfidenceNote f={f} bt={bt} />}
+          {alt && f && (alt.index !== f.index || alt.low !== f.low || alt.high !== f.high) && <p className="sd-note"><b>With the suggested caption:</b> score {alt.index}, {fmtViews(alt.low)} to {fmtViews(alt.high)} views.</p>}
 
           <details className="sd-why">
             <summary>View supporting evidence</summary>
@@ -165,8 +179,8 @@ export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: O
               <div><dt>Sample</dt><dd>{b.n} Reels posted {day(b.from)} to {day(b.to)}, each out at least {SETTLE_DAYS} days with a view count from Instagram.{model.pending > 0 ? ` ${model.pending} newer ${model.pending === 1 ? "one is" : "ones are"} left out until ${model.pending === 1 ? "it settles" : "they settle"}.` : ""} Collab Reels another account posted are left out.</dd></div>
               <div><dt>Your usual</dt><dd>Median {fmtViews(b.median)} views. Half of those Reels fell between {fmtViews(b.low)} and {fmtViews(b.high)}.</dd></div>
               {mo && <div><dt>Momentum</dt><dd>Your last {mo.recentN} Reels have a median of {fmtViews(mo.recentMedian)} views; the {mo.earlierN} before them, {fmtViews(mo.earlierMedian)}.</dd></div>}
-              <div><dt>How the index works</dt><dd>The estimate starts at your median, moves half-way toward where your last {RECENT_N} Reels run, then by each caption pattern, weighted by how many Reels carry it, and is capped between half and double your median. The index is the share of your last {b.n} Reels with fewer views than that estimate.</dd></div>
-              <div><dt>The check</dt><dd>{bt ? bt.why : "No Reel can be replayed yet."} It runs again each time, and the index is withdrawn if it stops passing.</dd></div>
+              <div><dt>How the score works</dt><dd>The estimate starts at your median, moves half-way toward where your last {RECENT_N} Reels run, then by each caption pattern, weighted by how many Reels carry it, and is capped between half and double your median. The score is the share of your last {b.n} Reels with fewer views than that estimate. Predicted views are that estimate, widened by how far off it was when replayed on your Reels.</dd></div>
+              <div><dt>The check</dt><dd>{bt ? bt.why : "No Reel can be replayed yet."} It runs again each time. Until it passes, the score is marked low confidence.</dd></div>
               <div><dt>Not included</dt><dd>How each Reel&apos;s views grew over time (SOCIA has kept only the latest count), video length (Instagram does not provide it), and the picture and sound of past Reels.</dd></div>
             </dl>
           </details>
@@ -318,30 +332,24 @@ export type EditsProps = {
 };
 
 /**
- * Where this draft stands and what the edits can honestly claim. Reach comes
- * only from the account's own Reels: a range for this draft once the replay
- * passed, otherwise its usual range, named as that. The after figure is the
- * creative score, because no past Reel was rated, so nothing yet says what an
- * edit does to views. Noah's brief: no number that isn't a real model output.
+ * Where this draft stands and what the edits can honestly claim. The score and
+ * predicted views come only from the account's own Reels, marked low confidence
+ * until the replay passes. The after figure is the creative score, because no
+ * past Reel was rated, so nothing yet says what an edit does to views.
  */
 function ReachStrip({ a, w, outlook }: { a: StudioAnalysis; w: Working; outlook: OutlookState | null }) {
   const after = scoreAfterEdits(a);
   const model = outlook?.status === "ready" ? outlook.data.model : null;
-  const b = model?.baseline ?? null;
   const f = model ? outlookFor(model, w.caption.trim() ? w.caption : a.caption.suggestion ?? "").forecast : null;
-  if (!b && after == null) return null;
+  if (!f && after == null) return null;
   return (
     <section className="st-block sd-outlook" aria-label="Reach and what the edits change">
       <dl className="sd-ostats">
-        {b && (
-          <>
-            <div><dt>{f ? "Expected reach" : "Your usual reach"}</dt><dd><b>{f ? `${fmtViews(f.low)} to ${fmtViews(f.high)}` : `${fmtViews(roundViews(b.low))} to ${fmtViews(roundViews(b.high))}`}</b></dd><small>{f ? "Views, for this draft as it is." : `Views on half of your last ${b.n} Reels, not a forecast for this draft.`}</small></div>
-            <div><dt>Virality index</dt>{f ? <dd><b>{f.index}</b> of 100</dd> : <dd className="sd-oword">Not shown yet</dd>}<small>{f ? "50 is your usual Reel. Not a probability." : "It has to beat your plain median on your past Reels first."}</small></div>
-          </>
-        )}
+        {f && <ScoreStats f={f} coverage={model?.backtest?.coverage ?? null} />}
         {after != null && <div><dt>After these edits</dt><dd><b>{a.score.overall} to about {after}</b></dd><small>Creative readiness, SOCIA&apos;s estimate. Not views.</small></div>}
       </dl>
-      <p className="sd-note">SOCIA doesn&apos;t put a view number on these edits: none of your past Reels were rated, so nothing yet shows what an edit does to your views. Once you post, it compares the real result with your usual, and each edit below shows what your own posts have shown so far.</p>
+      {f && <ConfidenceNote f={f} bt={model?.backtest ?? null} />}
+      <p className="sd-note">Edits lift the creative score above. SOCIA has no record yet of what an edit does to your views, so it compares the real result with your usual once you post.</p>
     </section>
   );
 }

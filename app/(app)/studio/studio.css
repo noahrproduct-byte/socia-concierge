@@ -1024,10 +1024,6 @@
   font-size: var(--fs-nav);
   line-height: var(--lh-nav);
 }
-.sd-oword {
-  color: var(--ink);
-  font-weight: var(--fw-semibold);
-}
 @media (max-width: 640px) {
   .sd-pf,
   .sd-crow-sides {
@@ -1087,6 +1083,10 @@
   border-left: 1px solid var(--border);
 }
 .sd-ostats dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
   color: var(--ink-3);
   font-size: var(--fs-meta);
   line-height: var(--lh-meta);
@@ -1100,8 +1100,8 @@
 }
 .sd-ostats dd b {
   color: var(--ink);
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-lead);
   font-weight: var(--fw-semibold);
 }
 .sd-outlook .sd-note b {

@@ -216,7 +216,7 @@ export const transcript = () => ({ text: SPEECH.c1.map((w) => w.text).join(" "),
  * the real calculation from a made-up history. `mode` picks the state to look
  * at: "forecast" (a pattern strong enough that the replay passes), "thin"
  * (too few Reels), "none" (no Instagram), otherwise the usual case, where the
- * index stays hidden.
+ * score shows as low confidence.
  */
 export function outlook(mode: string | null): OutlookPayload {
   if (mode === "none") return { connected: false, handle: null, insightsOk: null, model: buildModel([], 0) };
