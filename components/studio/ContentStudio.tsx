@@ -13,10 +13,11 @@ import { Upload, FolderOpen, FileVideo, Image as ImageIcon, Music, RefreshCw, Lo
 import PageHeader from "../PageHeader";
 import StudioPlayer, { type SeekRequest } from "./StudioPlayer";
 import { ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, type Working, type ImproveOption } from "./StudioPanels";
-import { AfterCard, AnalyzePanel, type OutlookState } from "./RaterPanels";
+import { AfterCard, AnalyzePanel, ComparePanel, EditsPanel, RemakePanel, type OutlookState } from "./RaterPanels";
 import { momentsFrom, presetForFix } from "@/lib/studioFixes";
 import { entryFor, type Lesson, type RaterOutcome } from "@/lib/raterLog";
 import { outlookFor, recordOf } from "@/lib/outlook";
+import { mergeProposed, applyLine } from "@/lib/studioLines";
 import type { Direction } from "@/lib/studioVerdict";
 import { AskSociaButton } from "../AskSocia";
 import PlanNotice, { UsageLine } from "../PlanNotice";
@@ -24,7 +25,7 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
-import { extractFrames, imageFrames, analysisSummary, GOALS, MAX_BYTES, MAX_SECONDS, type StudioAnalysis, type StudioKind, type Frames, type GoalId, type ApplyField } from "@/lib/studio";
+import { fmtT, extractFrames, imageFrames, analysisSummary, GOALS, MAX_BYTES, MAX_SECONDS, type StudioAnalysis, type StudioKind, type Frames, type GoalId, type ApplyField } from "@/lib/studio";
 import { decodeToMono16k } from "@/lib/audio/decode";
 import { describeQuickAudio, quickAudioFrom, timedTranscript, type QuickAudio } from "@/lib/audio/quick";
 import { saveStudioHandoff } from "@/lib/studioHandoff";
@@ -56,7 +57,7 @@ const ERR_COPY: Record<Exclude<ErrKind, "plan">, { title: string; body: string }
   api: { title: "SOCIA AI is unavailable", body: "The analysis service didn't respond. Try again in a moment." },
   slow: { title: "The analysis took too long", body: "It was stopped before it finished. Try again in a moment." },
 };
-const TABS = [["analyze", "Analyze"], ["improve", "Improve"], ["caption", "Caption"], ["audio", "Audio"], ["prepare", "Prepare"]] as const;
+const TABS = [["analyze", "Analyze"], ["improve", "Improve"], ["compare", "Compare"], ["remake", "Remake"], ["caption", "Caption"], ["audio", "Audio"], ["prepare", "Prepare"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function ContentStudio({ userId, niche, location, goalDefault, drafts, connected, postsSynced, modeTabs, plan }: { userId: string; niche: string | null; location: string | null; goalDefault: GoalId | null; drafts: DraftItem[]; connected: boolean; postsSynced: number; /** The Studio mode switch, rendered under the header. */ modeTabs?: ReactNode; /** The planned post this draft is for: the review compares it with what was planned. */ plan?: { planId: string; index: number; title: string } | null }) {
@@ -75,6 +76,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [auto, setAuto] = useState<{ text: string; timed: string } | null>(null);
   const [listenNote, setListenNote] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("analyze");
+  // The edit Improve opens on: the one chosen on Analyze.
+  const [focusEdit, setFocusEdit] = useState(0);
   // The creative direction whose opening is in use, and the rater's memory of earlier videos (lib/raterLog.ts).
   const [direction, setDirection] = useState<{ name: string; opening: string } | null>(null);
   const [after, setAfter] = useState<{ outcomes: RaterOutcome[]; lessons: Lesson[] } | null>(null);
@@ -113,18 +116,35 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   useEffect(() => () => { if (source?.file) URL.revokeObjectURL(source.url); source?.images.forEach((u) => u.startsWith("blob:") && URL.revokeObjectURL(u)); }, [source]);
 
   const apply = useCallback((field: ApplyField, value: string) => {
-    setW((cur) => {
-      if (field !== "onscreen") return { ...cur, [field]: value };
-      if (cur.onscreen.includes(value)) return cur;
-      // On a video the line also goes on the picture, as a preset line where SOCIA saw it.
-      const hint = analysis?.onScreenText.find((o) => o.text === value);
-      const dur = frames?.duration ?? 0;
-      const room = analysis?.kind === "video" && dur > 0 && cur.layers.length < MAX_TEXT_LAYERS;
-      const layer = room ? newTextLayer(presetForLine(hint?.role ?? "mid", value).id, dur, hint ? hint.t : null, value) : null;
-      return { ...cur, onscreen: [...cur.onscreen, value], layers: layer ? [...cur.layers, layer] : cur.layers };
-    });
-    notify(field === "hook" ? "Hook in use" : field === "cta" ? "CTA in use" : field === "caption" ? "Caption updated" : analysis?.kind === "video" ? "Added to the video" : "Added to on-screen text");
-  }, [analysis, frames]);
+    const video = analysis?.kind === "video";
+    const dur = frames?.duration ?? 0;
+    if (field === "hook" || field === "cta") {
+      // The line goes where it can be seen: on the picture, or in a still post's caption (lib/studioLines.ts).
+      const r = applyLine(w, field, value, { video, durationSec: dur });
+      setW(r.next);
+      if (r.at != null) doSeek(r.at);
+      const name = field === "hook" ? "Hook" : "Ending";
+      notify(!r.used ? `${name} removed` : video ? `${name} on your preview at ${fmtT(r.at ?? 0)}` : `${name} added to your caption`);
+      return;
+    }
+    if (field === "caption") {
+      setW((cur) => ({ ...cur, caption: cur.caption === value ? "" : value }));
+      notify(w.caption === value ? "Caption removed" : "Caption updated");
+      return;
+    }
+    if (w.onscreen.includes(value)) {
+      setW((cur) => ({ ...cur, onscreen: cur.onscreen.filter((x) => x !== value), layers: cur.layers.filter((l) => l.text !== value) }));
+      notify("Text removed");
+      return;
+    }
+    // On a video the line also goes on the picture, as a preset line where SOCIA saw it.
+    const hint = analysis?.onScreenText.find((o) => o.text === value);
+    const room = video && dur > 0 && w.layers.length < MAX_TEXT_LAYERS;
+    const layer = room ? newTextLayer(presetForLine(hint?.role ?? "mid", value).id, dur, hint ? hint.t : null, value) : null;
+    setW((cur) => ({ ...cur, onscreen: [...cur.onscreen, value], layers: layer ? [...cur.layers, layer] : cur.layers }));
+    if (layer) doSeek(layer.at);
+    notify(layer ? `Text on your preview at ${fmtT(layer.at)}` : "Added to on-screen text");
+  }, [analysis, frames, w, doSeek]);
 
   // ---- analysis ---------------------------------------------------------
   const analyze = useCallback(async (src: Source, fr: Frames, opts?: { transcript?: string; caption?: string; goal?: GoalId | null; platform?: string | null; audio?: QuickAudio | null; auto?: { text: string; timed: string } | null }) => {
@@ -156,7 +176,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       if (src.file && (src.kind === "video" || src.kind === "image")) {
         setRatedRef(rememberRated(src.file, { name: src.name, kind: src.kind, durationSec: fr.duration ?? null, summary: analysisSummary(a).slice(0, 400), caption: opts?.caption ?? w.caption }));
       }
-      setPhase("done"); setTab("analyze");
+      setPhase("done"); setTab("analyze"); setFocusEdit(0);
     } catch {
       setErr({ kind: "api" }); setPhase("error");
     }
@@ -359,7 +379,13 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
     void dur;
     router.push("/studio?mode=edit");
   }, [source, frames, w.layers, router]);
-  // The edits SOCIA can make, each tied to the fix it carries out (the Analyze page offers them directly).
+  // The lines on the preview go to the Video editor, the step that really puts them in the file.
+  const linesToEditor = useCallback(() => {
+    if (!source?.file) return;
+    handFiles("edit", [source.file], { layers: w.layers.filter((l) => l.text.trim()), fix: { panel: "text" } });
+    router.push("/studio?mode=edit");
+  }, [source, w.layers, router]);
+  // The edits SOCIA can make, each tied to the fix it carries out (the Improve tab offers them directly).
   const moments = useMemo(() => (analysis && analysis.kind === "video" ? momentsFrom({ analysis, durationSec: frames?.duration ?? 0, hook: w.hook, cta: w.cta }) : []), [analysis, frames, w.hook, w.cta]);
   const pickDirection = useCallback((d: Direction) => { apply("hook", d.opening); setDirection({ name: d.name, opening: d.opening }); }, [apply]);
   // A direction as a new version: the editor opens on the same file with that opening line on the video.
@@ -375,7 +401,8 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const onProposed = useCallback((lines: { id: string; presetId: EdlText["presetId"]; text: string; at: number; end: number }[]) => {
     const dur = frames?.duration ?? 0;
     setW((c) => {
-      const next: EdlText[] = lines.slice(0, MAX_TEXT_LAYERS).map((l) => ({ id: l.id, at: l.at, end: l.end, text: l.text, role: roleForTiming(l.at, l.end, dur), presetId: l.presetId }));
+      const proposed: EdlText[] = lines.slice(0, MAX_TEXT_LAYERS).map((l) => ({ id: l.id, at: l.at, end: l.end, text: l.text, role: roleForTiming(l.at, l.end, dur), presetId: l.presetId }));
+      const next = mergeProposed(c.layers, proposed, c.onscreen);
       const same = c.layers.length === next.length && c.layers.every((x, i) => x.id === next[i].id && x.presetId === next[i].presetId && x.text === next[i].text && x.at === next[i].at && x.end === next[i].end);
       return same ? c : { ...c, layers: next };
     });
@@ -496,8 +523,14 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                 {TABS.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={tab === id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{label}</button>)}
                 <span className="st-tabs-ask"><AskSociaButton className="ov-btn ghost small" label="Ask SOCIA about this content" context={{ page: "studio", studio: { kind: source.kind, durationSec: frames?.duration ?? null, goal: w.goal, transcript: transcript || null, caption: w.caption || null, summary: summaryForAsk } }} contextLabel={source.name} onProposal={onProposal} /></span>
               </div>
-              {tab === "analyze" && <AnalyzePanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} onCompare={() => window.location.assign("/analytics#content")} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onImprove={() => setTab("improve")} onCaption={() => setTab("caption")} outlook={analysis.kind === "video" ? outlook : null} onOutlookRetry={loadOutlook} onUseDirection={pickDirection} onEditor={directionToEditor} />}
-              {tab === "improve" && <ImprovePanel a={analysis} w={w} seek={doSeek} playT={playT} thumbs={frames?.thumbs ?? []} durationSec={frames?.duration ?? 0} frame={videoSize} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onProposed={onProposed} />}
+              {tab === "analyze" && <AnalyzePanel a={analysis} caption={w.caption} onOpenEdit={(i) => { setFocusEdit(i); setTab("improve"); }} outlook={analysis.kind === "video" ? outlook : null} onOutlookRetry={loadOutlook} />}
+              {tab === "improve" && (
+                <EditsPanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} focus={focusEdit} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onToEditor={linesToEditor}>
+                  {analysis.kind === "video" ? <ImprovePanel a={analysis} w={w} seek={doSeek} playT={playT} thumbs={frames?.thumbs ?? []} durationSec={frames?.duration ?? 0} frame={videoSize} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onProposed={onProposed} /> : null}
+                </EditsPanel>
+              )}
+              {tab === "compare" && <ComparePanel a={analysis} caption={w.caption} outlook={analysis.kind === "video" ? outlook : null} onCompare={() => window.location.assign("/analytics#content")} />}
+              {tab === "remake" && <RemakePanel a={analysis} w={w} apply={apply} canHandoff={Boolean(source.file)} onUseDirection={pickDirection} onEditor={directionToEditor} onToEditor={linesToEditor} />}
               {tab === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
               {tab === "audio" && (
                 <>
@@ -510,7 +543,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
                   <AudioPanel a={analysis} />
                 </>
               )}
-              {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} />}
+              {tab === "prepare" && <PreparePanel a={analysis} w={w} versions={versions} setGoal={(g) => setW((c) => ({ ...c, goal: g }))} setPlatform={(p) => setW((c) => ({ ...c, platform: p }))} improve={improve} onSaveDraft={saveDraft} onPublish={publishOrSchedule} saving={saving} savedId={savedId} planNote={planNote} onToEditor={source.file ? linesToEditor : null} />}
             </>
           )}
           {source && !analysis && phase === "done" && <div className="ov-empty">No analysis yet.</div>}
@@ -525,7 +558,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         </div>
       )}
       {toast && <div className="cal2-toast" role="status"><Check size={13} /> {toast}</div>}
-      <div className="st-privacy"><Lock size={11} /> Frames are read on your device. SOCIA scores what it can see and never predicts views.</div>
+      <div className="st-privacy"><Lock size={11} /> Frames are read on your device. SOCIA scores what it can see; any view range comes only from your own Reels.</div>
     </div>
   );
 }
