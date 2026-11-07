@@ -130,5 +130,5 @@ div.ai-job-row { cursor: default; }
 button.ai-job-row { border-radius: 8px; transition: background-color var(--t-press) var(--ease-out); }
 button.ai-job-row:hover { background: var(--surface-hover); }
 button.ai-job-row:active { transform: none; }
-.ai-crop-win { transition: left 0.25s linear; }
+.ai-crop-win { transition: left 0.25s linear, width 0.25s linear; }
 .ai-linkish { padding: 0; border: 0; background: none; color: var(--accent-ink); font: inherit; cursor: pointer; text-decoration: underline; }

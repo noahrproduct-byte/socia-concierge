@@ -221,8 +221,8 @@ export const isTransition = (v: unknown): v is TransitionKind => TRANSITIONS.som
 
 export type SegmentFrame = {
   zoom: number; x: number; y: number;
-  /** The crop moves during the cut: where x should be and when, in seconds into the cut (lib/clipper/reframe.ts). Absent = it stays at x. */
-  path?: { t: number; x: number }[];
+  /** The shot changes during the cut: what to show when, in seconds into the cut (lib/clipper/reframe.ts). Absent = it stays at x. */
+  path?: { t: number; c: number; y: number; s: number }[];
 };
 
 /** The output sizes the editor offers (width × height at 1080 on the short side). */

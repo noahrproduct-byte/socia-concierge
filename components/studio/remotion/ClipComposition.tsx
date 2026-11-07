@@ -28,7 +28,7 @@ import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
-import { cropXAt } from "@/lib/clipper/reframe";
+import { viewAt, viewBox } from "@/lib/clipper/reframe";
 import type { SegmentFrame } from "@/lib/studioClips/types";
 import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
 import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
@@ -205,8 +205,11 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
-  // A crop that moves during the cut (the AI Clipper): the same box, at this frame's position on its path.
-  const pathBox = (s: { clipId: string; frame?: SegmentFrame }, local: number) => (s.frame?.path ? box({ clipId: s.clipId, frame: { ...s.frame, x: cropXAt(s.frame.path, local / FPS) } }) : null);
+  // Shots that change during the cut (the AI Clipper): the picture for this frame on its path.
+  const pathBox = (s: { clipId: string; frame?: SegmentFrame }, local: number) => {
+    const src = sources[s.clipId];
+    return s.frame?.path && src?.width && src?.height ? viewBox(src.width, src.height, width, height, viewAt(s.frame.path, local / FPS)) : null;
+  };
   const box = (s: { clipId: string; frame?: { zoom: number; x: number; y: number } }) => videoBox(sources[s.clipId]?.width ?? null, sources[s.clipId]?.height ?? null, width, height, s.frame);
   const tl = useMemo(() => timeline(edl), [edl]);
   // Measured balance, expressed as attenuation so no clip is pushed above unity.

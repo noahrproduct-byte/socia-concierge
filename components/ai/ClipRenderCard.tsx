@@ -12,7 +12,7 @@ import { renderBlocker } from "@/components/studio/renderBuild";
 import { api, errorText, uploadToSigned } from "./shared";
 import { renderClip } from "./renderClip";
 import { sourceFrame, sourceFrames, sourceSize, type SourceSize } from "./sourceMedia";
-import { cropXAt, sampleTimes, type CropKey } from "@/lib/clipper/reframe";
+import { sampleTimes, viewAt, type CropKey } from "@/lib/clipper/reframe";
 
 const OUT_RATIO = 9 / 16;
 
@@ -47,8 +47,11 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   // How much of the source's width the vertical frame covers (1 = the source is already vertical or narrower).
   const share = size ? Math.min(1, (size.height * OUT_RATIO) / size.width) : null;
   const movable = share != null && share < 0.999;
-  // What the frame shows now: its spot on the path as the video plays, or where it was put.
-  const shownX = !fixed && path ? cropXAt(path, playT) : cropX;
+  // What the frame shows now: where the shots have it as the video plays, or where it was put.
+  const view = !fixed && path ? viewAt(path, playT) : null;
+  const winShare = share != null && view ? Math.min(1, share / view.s) : share;
+  const winFree = winShare != null ? 1 - winShare : 0;
+  const shownX = view && winShare != null && winFree > 0 ? Math.min(1, Math.max(0, (view.c - winShare / 2) / winFree)) : view ? 0.5 : cropX;
 
   useEffect(() => {
     let live = true;
@@ -152,10 +155,10 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
       if (blocked) throw new Error(blocked);
       let usePath = fixed ? null : path;
       if (!fixed && !usePath && movable && size) {
-        setBusy("Working out the framing"); setNote(null);
+        setBusy("Choosing the shots"); setNote(null);
         usePath = await findFraming(size);
         setPath(usePath);
-        if (!usePath) setNote("SOCIA couldn't work out the framing for this one, so the frame stays where it is.");
+        if (!usePath) setNote("SOCIA couldn't work out the shots for this one, so the frame stays where it is.");
       }
       setBusy("Making the clip"); setProgress(0);
       const { blob } = await renderClip({ ...render, cropX, cropPath: usePath }, {
@@ -173,7 +176,7 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   }
   makeRef.current = make;
 
-  const left = share != null ? shownX * (1 - share) * 100 : 0;
+  const left = winShare != null ? shownX * winFree * 100 : 0;
   return (
     <article className="ai-card ai-cropcard">
       <div className="ai-crop" ref={box} style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
@@ -183,7 +186,7 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
         {!still && !showVideo && !playing && <span className="ai-crop-wait">{stillFailed ? "Press play to see this moment" : "Loading the picture"}</span>}
         {playing && !showVideo && <span className="ai-crop-wait is-over">Loading the video</span>}
         {share != null && (
-          <div className={`ai-crop-win${movable ? " is-movable" : ""}`} style={{ left: `${left}%`, width: `${share * 100}%` }}
+          <div className={`ai-crop-win${movable ? " is-movable" : ""}`} style={{ left: `${left}%`, width: `${(winShare ?? share) * 100}%` }}
             role="slider" tabIndex={movable ? 0 : -1} aria-label="Where the vertical frame sits" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(shownX * 100)}
             aria-disabled={!movable || undefined} onKeyDown={onKey} />
         )}
@@ -195,8 +198,8 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
         <b>{title}</b>
         <small>{sub}</small>
         {sizeFailed && <p className="ai-err" role="alert">SOCIA couldn&apos;t read this video. Reload the page to try again.</p>}
-        {movable && !fixed && <small>{path ? "The frame follows the video. Press play to watch it, or drag it to keep it in one place." : "SOCIA moves the frame with the video when it makes this clip. Drag the frame to keep it in one place instead."}</small>}
-        {movable && fixed && <small>The frame stays where you put it. <button type="button" className="ai-linkish" disabled={Boolean(busy)} onClick={() => setFixed(false)}>Let SOCIA move it</button></small>}
+        {movable && !fixed && <small>{path ? "SOCIA chose the shots. Press play to watch the frame change, or drag it to keep one shot." : "SOCIA chooses the shots when it makes this clip: zooming out, in and across as the video needs. Drag the frame to keep one shot instead."}</small>}
+        {movable && fixed && <small>One shot, where you put it. <button type="button" className="ai-linkish" disabled={Boolean(busy)} onClick={() => setFixed(false)}>Let SOCIA move it</button></small>}
         {note && <small>{note}</small>}
         {movable ? null : size && <small>This video is already vertical, so the whole frame is used.</small>}
         {why && <details className="ai-why"><summary>Why this moment</summary><p>{why}</p></details>}
