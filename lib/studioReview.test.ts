@@ -26,7 +26,7 @@ describe("the score is a creative assessment, never a prediction", () => {
   });
 
   it("says so on screen and in the model's instructions", () => {
-    // The score sits on the Verdict workspace (components/studio/RaterPanels.tsx).
+    // The score sits on the Analyze page (components/studio/RaterPanels.tsx).
     expect(read("components/studio/RaterPanels.tsx")).toMatch(/A creative assessment of this draft, not a prediction of reach, views or virality\./);
     expect(read("app/api/studio/analyze/route.ts")).toMatch(/creative readiness assessment of this draft[^.]*\. Never predict views, reach, virality or retention/);
   });

@@ -99,7 +99,7 @@ function Lab() {
       const root = document.querySelector(".st");
       if (!root) return;
       await dropSample(root);
-      // ?tab=Timeline (or Performance, Directions, Improve) opens that workspace once the analysis is back.
+      // ?tab=Improve (or Caption, Audio, Prepare) opens that tab once the analysis is back.
       const want = screen === "rate-improve" ? "Improve" : new URLSearchParams(window.location.search).get("tab");
       if (!want) return;
       for (let i = 0; i < 400 && alive; i++) {
