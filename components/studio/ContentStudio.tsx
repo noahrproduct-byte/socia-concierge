@@ -78,8 +78,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   const [tab, setTab] = useState<Tab>("analyze");
   // The edit Improve opens on: the one chosen on Analyze.
   const [focusEdit, setFocusEdit] = useState(0);
-  // The creative direction whose opening is in use, and the rater's memory of earlier videos (lib/raterLog.ts).
-  const [direction, setDirection] = useState<{ name: string; opening: string } | null>(null);
+  // The rater's memory of earlier videos (lib/raterLog.ts).
   const [after, setAfter] = useState<{ outcomes: RaterOutcome[]; lessons: Lesson[] } | null>(null);
   const loadAfter = useCallback(() => {
     fetch("/api/studio/rater-log").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.outcomes) setAfter({ outcomes: j.outcomes, lessons: j.lessons ?? [] }); }).catch(() => {});
@@ -327,7 +326,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         const entry = entryFor({
           postId: saved, score: analysis.score.overall, diagnosis: analysis.diagnosis ?? "", fixes: analysis.topFixes,
           current: { hook: analysis.hooks.current, cta: analysis.cta.current, caption: analysis.caption.current },
-          working: { hook: w.hook, cta: w.cta, caption: w.caption, onscreen: w.onscreen }, direction,
+          working: { hook: w.hook, cta: w.cta, caption: w.caption, onscreen: w.onscreen }, direction: null,
           // The range stated before it goes out, so the result can be read against it later.
           outlook: analysis.kind === "video" && outlook.status === "ready" ? recordOf(outlook.data.model, outlookFor(outlook.data.model, caption)) : null,
         });
@@ -342,7 +341,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
       notify(e instanceof Error ? e.message : "Couldn't save the draft");
     } finally { setSaving(false); }
     return saved;
-  }, [source, w.caption, w.cta, w.hook, w.onscreen, userId, ratedRef, analysis, direction, outlook, loadAfter]);
+  }, [source, w.caption, w.cta, w.hook, w.onscreen, userId, ratedRef, analysis, outlook, loadAfter]);
 
   // ---- hand the piece to Create Post ---------------------------------------
   // Same save as above (an already saved draft is reused), then the composer
@@ -390,7 +389,6 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
   }, [source, w.layers, router]);
   // The edits SOCIA can make, each tied to the fix it carries out (the Improve tab offers them directly).
   const moments = useMemo(() => (analysis && analysis.kind === "video" ? momentsFrom({ analysis, durationSec: frames?.duration ?? 0, hook: w.hook, cta: w.cta }) : []), [analysis, frames, w.hook, w.cta]);
-  const pickDirection = useCallback((d: Direction) => { apply("hook", d.opening); setDirection({ name: d.name, opening: d.opening }); }, [apply]);
   // A direction as a new version: the editor opens on the same file with that opening line on the video.
   const directionToEditor = useCallback((d: Direction) => {
     if (!source?.file) return;
@@ -528,12 +526,12 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
               </div>
               {tab === "analyze" && <AnalyzePanel a={analysis} caption={w.caption} onOpenEdit={(i) => { setFocusEdit(i); setTab("improve"); }} outlook={analysis.kind === "video" ? outlook : null} onOutlookRetry={loadOutlook} />}
               {tab === "improve" && (
-                <EditsPanel a={analysis} w={w} apply={apply} seek={doSeek} setActive={setActiveMarker} focus={focusEdit} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onToEditor={linesToEditor} onWalkthroughClosed={() => onProposed([])} outlook={analysis.kind === "video" ? outlook : null} lessons={after?.lessons ?? []}>
+                <EditsPanel a={analysis} w={w} seek={doSeek} setActive={setActiveMarker} focus={focusEdit} moments={moments} thumbs={frames?.thumbs ?? []} frame={videoSize} durationSec={frames?.duration ?? 0} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onWalkthroughClosed={() => onProposed([])} outlook={analysis.kind === "video" ? outlook : null} lessons={after?.lessons ?? []}>
                   {analysis.kind === "video" ? <ImprovePanel a={analysis} w={w} seek={doSeek} playT={playT} thumbs={frames?.thumbs ?? []} durationSec={frames?.duration ?? 0} frame={videoSize} canHandoff={Boolean(source.file)} onFix={onFix} onCaption={() => setTab("caption")} onProposed={onProposed} /> : null}
                 </EditsPanel>
               )}
               {tab === "compare" && <ComparePanel a={analysis} caption={w.caption} outlook={analysis.kind === "video" ? outlook : null} onCompare={() => window.location.assign("/analytics#content")} />}
-              {tab === "remake" && <RemakePanel a={analysis} w={w} apply={apply} canHandoff={Boolean(source.file)} onUseDirection={pickDirection} onEditor={directionToEditor} onToEditor={linesToEditor} />}
+              {tab === "remake" && <RemakePanel a={analysis} canHandoff={Boolean(source.file)} onEditor={directionToEditor} />}
               {tab === "caption" && <CaptionPanel a={analysis} w={w} setCaption={(s) => setW((c) => ({ ...c, caption: s }))} improve={improve} />}
               {tab === "audio" && (
                 <>

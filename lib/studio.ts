@@ -40,7 +40,7 @@ export type TopFix = {
   /** Analyses since the improvement workspace carry these (lib/studioVerdict.ts); older saved ones don't. */
   priority?: FixPriority; end?: number | null; why?: string; evidence?: FixEvidence | null;
   /** The full plan for the fix (Noah, 2026-11-06): the steps, how it moves, the part of the score it lifts, and a prompt when AI could make it. */
-  steps?: string[]; motion?: string; part?: string | null; scoreAfter?: number | null; aiPrompt?: string;
+  steps?: string[]; motion?: string; part?: string | null; scoreAfter?: number | null;
 };
 export type HookStyle = "curiosity" | "direct" | "local" | "educational" | "challenge" | "story";
 export type HookOption = { style: HookStyle; text: string };
@@ -78,6 +78,8 @@ export type StudioAnalysis = {
   caption: { current: string | null; suggestion: string | null };
   /** Up to three things that already work, each tied to a moment or something visible. */
   strengths?: string[];
+  /** The editor's score for the whole draft with every fix made well. Never views. */
+  overallAfter?: number | null;
   /** For a draft of a planned post: how it compares with what was planned. */
   planFit?: { title: string; summary: string } | null;
   meta: { frames: number; hadTranscript: boolean; analyzedAt: string; version: number; audioMeasured?: boolean; autoTranscript?: boolean };

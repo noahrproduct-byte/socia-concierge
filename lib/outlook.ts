@@ -24,12 +24,12 @@
 import { detectTrendTags, tagGroup } from "./discovery";
 import { hookLine, hookStructures } from "./trendSignals";
 
-/** Days a Reel must be out before its views count: most of a Reel's views arrive in its first week. */
-export const SETTLE_DAYS = 7;
+/** Days a Reel must be out before its views count: the same three days SOCIA treats a post as settled everywhere else (lib/postResults.ts). */
+export const SETTLE_DAYS = 3;
 /** The baseline is the most recent settled Reels, up to this many. */
 export const BASELINE_MAX = 30;
 /** Fewer settled Reels than this and no baseline is stated. */
-export const BASELINE_MIN = 8;
+export const BASELINE_MIN = 5;
 /** Recent momentum: the last RECENT_N against the ones before, which must number at least BASELINE_MIN. */
 export const RECENT_N = 8;
 /** Reels a pattern needs on each side (with it, without it). */

@@ -9356,7 +9356,7 @@ html.theme-switching, html.theme-switching body, html.theme-switching * {
 .ov-h-ico.primary { background: var(--primary-subtle); color: var(--primary-text); }
 .ov-h-ico.info { background: var(--info-subtle); color: var(--info-text); }
 .ov-range-label { font-size: 12px; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; white-space: nowrap; }
-.ov-source { margin-top: 8px; font-size: 11px; line-height: 1.45; color: var(--text-muted); }
+.ov-source { margin-top: 8px; font-size: 12px; line-height: 1.45; color: var(--text-secondary); }
 .ov-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; border: 1px dashed var(--border-strong); border-radius: 10px; font-size: 13px; color: var(--text-secondary); }
 .ov-empty b { color: var(--text-primary); font-weight: 650; }
 .ov-empty p { margin: 0; line-height: 1.5; }
@@ -10074,11 +10074,12 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .st-ring-fill { fill: none; stroke: var(--primary); stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
 .st-ring-num { fill: var(--text-primary); font-size: 30px; font-weight: 800; font-family: var(--font); }
 .st-ring-den { fill: var(--text-muted); font-size: 10px; font-family: var(--font); }
-.st-score-meta small { display: block; font-size: 10.5px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.st-score-meta small { display: block; font-size: 11px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
 .st-score-meta b { display: block; font-size: 17px; font-weight: 750; letter-spacing: -0.3px; color: var(--text-primary); margin: 2px 0 6px; }
-.st-score-meta p { font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 6px; }
+.st-score-meta p { font-size: 14px; line-height: 1.5; color: var(--text-primary); margin-bottom: 6px; }
 /* Creative readiness: always says it is not a prediction (anti-slop: no invented predictions). */
-.st-score-meta .st-score-note { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.st-score-note { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.4; }
+.st-score-meta .ov-chip { display: inline-block; margin-bottom: 6px; }
 .st-works { margin: 0; padding-left: var(--sp-5); list-style: disc; display: grid; gap: var(--sp-1); color: var(--text-secondary); font-size: var(--fs-body); line-height: var(--lh-body); }
 .st-planfit { margin: 0; color: var(--text-secondary); font-size: var(--fs-body); line-height: var(--lh-body); }
 .st-planfit b { color: var(--text-primary); margin-right: var(--sp-1); }
