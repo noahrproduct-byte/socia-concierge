@@ -26,7 +26,7 @@ export const CAPCUT_FONTS = FONTS.filter((f) => f.id !== "inter" && f.id !== "pl
 
 /** "outline": CapCut's Classic look, white text with a black outline and no box behind it. */
 export type TextBox = "outline" | "dark" | "light" | "accent" | "none";
-export type CaptionPosition = "top" | "middle" | "bottom";
+export type CaptionPosition = "top" | "middle" | "bottom" | "lower";
 export type CaptionSize = "s" | "m" | "l";
 
 export type EdlStyle = {
@@ -98,6 +98,7 @@ export function captionLayout(c: EdlStyle["captions"]): { top: string | null; bo
   const fontSize = c.size === "s" ? 44 : c.size === "l" ? 66 : 54;
   if (c.position === "top") return { top: "12%", bottom: null, fontSize };
   if (c.position === "middle") return { top: "44%", bottom: null, fontSize };
+  if (c.position === "lower") return { top: "60%", bottom: null, fontSize };
   return { top: null, bottom: "27%", fontSize };
 }
 

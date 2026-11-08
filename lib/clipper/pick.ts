@@ -8,16 +8,17 @@
 
 import type { TranscriptWord } from "@/lib/transcribe/types";
 import type { ClipLength, ClipperOptions, ClipType } from "./provider";
-import { RANKING_MOMENT_SEC } from "./ranking";
+import { RANKING_MOMENT_SEC, TRAILER_MOMENT_SEC } from "./ranking";
+import { checkEmphasis } from "./emphasis";
 
-/** Words as stored on the job: [text, startMs, endMs]. */
-export type StoredWord = [string, number, number];
+/** Words as stored on the job: [text, startMs, endMs], then who said it when that is known. */
+export type StoredWord = [string, number, number, string?];
 
-export const packWords = (words: TranscriptWord[]): StoredWord[] => words.map((w) => [w.text, Math.round(w.startMs), Math.round(w.endMs)]);
+export const packWords = (words: TranscriptWord[]): StoredWord[] => words.map((w) => (w.speaker ? [w.text, Math.round(w.startMs), Math.round(w.endMs), w.speaker] : [w.text, Math.round(w.startMs), Math.round(w.endMs)]));
 export const unpackWords = (stored: unknown): TranscriptWord[] =>
   Array.isArray(stored)
     ? stored.filter((w): w is StoredWord => Array.isArray(w) && typeof w[0] === "string" && Number.isFinite(w[1]) && Number.isFinite(w[2]))
-        .map(([text, startMs, endMs]) => ({ text, startMs, endMs, confidence: null }))
+        .map(([text, startMs, endMs, speaker]) => ({ text, startMs, endMs, confidence: null, ...(typeof speaker === "string" ? { speaker } : {}) }))
     : [];
 
 /** Seconds each length choice allows. "auto" is the short-form sweet spot. */
@@ -32,24 +33,24 @@ export function lengthRange(lengths: ClipLength[]): { min: number; max: number }
 
 type RangeOptions = Pick<ClipperOptions, "lengths" | "clipType">;
 /** The seconds one moment may run: a ranking's are short, because several share a clip. */
-export const momentRange = (o: RangeOptions) => (o.clipType === "ranking" ? RANKING_MOMENT_SEC : lengthRange(o.lengths));
+export const momentRange = (o: RangeOptions) => (o.clipType === "ranking" ? RANKING_MOMENT_SEC : o.clipType === "trailer" ? TRAILER_MOMENT_SEC : lengthRange(o.lengths));
 
 /** Plain seconds, the unit the answer is in, so a time can't be misread as minutes and seconds. */
 const secs = (ms: number) => (Math.max(0, ms) / 1000).toFixed(1);
 
-export type Line = { startMs: number; endMs: number; text: string };
+export type Line = { startMs: number; endMs: number; text: string; speaker?: string };
 
-/** The transcript as lines: broken at sentence ends, at pauses over 0.9 s, or after 28 words. */
+/** The transcript as lines: broken at sentence ends, at pauses over 0.9 s, when the speaker changes, or after 28 words. */
 export function transcriptLines(words: TranscriptWord[]): Line[] {
   const out: Line[] = [];
   let cur: TranscriptWord[] = [];
   const flush = () => {
-    if (cur.length) out.push({ startMs: cur[0].startMs, endMs: cur[cur.length - 1].endMs, text: cur.map((w) => w.text).join(" ") });
+    if (cur.length) out.push({ startMs: cur[0].startMs, endMs: cur[cur.length - 1].endMs, text: cur.map((w) => w.text).join(" "), ...(cur[0].speaker ? { speaker: cur[0].speaker } : {}) });
     cur = [];
   };
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
-    if (cur.length && w.startMs - cur[cur.length - 1].endMs > 900) flush();
+    if (cur.length && (w.startMs - cur[cur.length - 1].endMs > 900 || (w.speaker && w.speaker !== cur[0].speaker))) flush();
     cur.push(w);
     if (/[.!?…]["')\]]?$/.test(w.text) || cur.length >= 28) flush();
   }
@@ -57,7 +58,7 @@ export function transcriptLines(words: TranscriptWord[]): Line[] {
   return out;
 }
 
-export const formatLines = (lines: Line[]): string => lines.map((l) => `[${secs(l.startMs)}-${secs(l.endMs)}] ${l.text}`).join("\n");
+export const formatLines = (lines: Line[]): string => lines.map((l) => `[${secs(l.startMs)}-${secs(l.endMs)}]${l.speaker ? ` Speaker ${l.speaker}:` : ""} ${l.text}`).join("\n");
 
 /** One of Noah's labelled clips (docs/clipper/examples.json). */
 export type ClipExample = { verdict: "good" | "bad"; transcript: string; seconds: number; why: string; niche?: string };
@@ -85,8 +86,9 @@ export const PICK_SCHEMA = {
           start: { type: "number" }, end: { type: "number" },
           title: { type: "string" }, hook: { type: "string" },
           score: { type: "number" }, reason: { type: "string" },
+          emphasis: { type: "array", items: { type: "string" } },
         },
-        required: ["start", "end", "title", "hook", "score", "reason"],
+        required: ["start", "end", "title", "hook", "score", "reason", "emphasis"],
       },
     },
   },
@@ -98,14 +100,16 @@ export const PICK_SYSTEM = `You pick the moments from a long video that stand al
 A good clip:
 - Opens on its strongest line: a claim, a question, a surprise or the middle of an action. Never on a greeting, "so", "um", a setup or a reference to something said earlier.
 - Makes complete sense to someone who has seen nothing else of the video.
-- Has one idea, delivered and finished. It ends on the payoff or the last word of a thought, never mid-sentence.
+- Has one idea, delivered and finished. It stops on its strongest line, with no wind-down after it, and never mid-sentence.
+- When someone asks a question and it gets a strong answer, start on the question. Shorter is better when the idea is complete: most strong clips run 14 to 40 seconds.
 - Earns the viewer's time: a story, an opinion, a useful tip, a result, a funny or emotional moment.
 
 Rules:
 - The transcript's timestamps are plain seconds from the start of the video: [230.5-236.8] runs from 230.5 to 236.8 seconds. start and end are plain seconds too, copied from those timestamps: start where a line starts, end where a line ends.
 - Keep every clip inside the length range you are given. Clips never overlap.
 - Return the best moments the video has, up to the number asked for, best first, and let the score say how strong each one is: a weaker moment gets a lower score, not left out. Return an empty list only when nothing in the transcript makes sense on its own.
-- title: a short headline in sentence case that says what the clip is about, written for the viewer, in the language the video is spoken in.
+- title: a headline that stays on screen for the whole clip, at most 10 words in sentence case, in the language the video is spoken in. Say who or what it is about and include the number or result when there is one, so someone reading only this knows why to watch. Promise only what is in the clip, and never claim a reaction nobody had, such as "I laughed so hard".
+- emphasis: the words that carry the point, one for about every six spoken, each copied exactly as a single word from the transcript. Choose names, numbers and strong words, never words like "the" or "really".
 - hook: the clip's opening words exactly as spoken in the transcript.
 - score: 0 to 10, how well the clip meets the bar above. Judge the moment, not the topic's popularity.
 - reason: one sentence on why this moment works as a clip, quoting what is said.
@@ -113,7 +117,7 @@ Rules:
 - When you are given the brand's own clip results or Noah's examples, follow what they show works. When you are given the niche's hooks and topics, prefer moments that open the way leading hooks do, but only when the moment is genuinely good. Those are other accounts' results, not a promise.`;
 
 /** What each type of clip looks for. "best" adds nothing to the bar above; a ranking has its own rules below. */
-export const CLIP_TYPE_BRIEF: Record<Exclude<ClipType, "best" | "ranking">, string> = {
+export const CLIP_TYPE_BRIEF: Record<Exclude<ClipType, "best" | "ranking" | "trailer">, string> = {
   answers: "A question being asked and answered. Start on the question itself so the viewer hears it, and end when the answer lands. A question with a weak or rambling answer doesn't count.",
   takes: "A strong opinion or a claim that goes against what most people think, said plainly enough that someone would want to argue with it. A mild or balanced view doesn't count.",
   stories: "A story with a beginning, a turn and a payoff, told from the first line that sets it up to the line that lands it. A passing anecdote with no payoff doesn't count.",
@@ -126,6 +130,15 @@ export const RANKING_SCHEMA = {
   properties: { title: { type: "string" }, clips: PICK_SCHEMA.properties.clips },
   required: ["title", "clips"],
 } as const;
+
+export const TRAILER_SYSTEM = `${PICK_SYSTEM}
+
+This job is a trailer: short lines from across the whole video are joined into one clip that tells a story, so the rules above change in these ways:
+- Return the lines in the order they should play. They need not be in the order they were said. Shape them as a story: start on a line that raises a question or shows what was at stake, build through the turning point, and land on the strongest line.
+- Each line is a complete thought said in full, and joined together they must never make the person seem to say something they did not mean. Never join a line to an answer it wasn't given to.
+- The top-level title says what the video is about, in at most 8 words, in sentence case, only about what is in the transcript.
+- Each clip's title is a two or three word name for that line.
+- score: how strong the line is. It doesn't set the order.`;
 
 export const RANKING_SYSTEM = `${PICK_SYSTEM}
 
@@ -142,9 +155,9 @@ export function pickMessage(b: PickBrief): string {
   const parts = [
     `Brand: ${b.brand || "unknown"}`,
     `Video length: ${secs(b.durationMs)} seconds.`,
-    type === "ranking" ? `Pick up to ${b.options.maxClips} moments for one ranking, each ${min} to ${max} seconds long.` : `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
+    type === "trailer" ? `Pick up to ${b.options.maxClips} lines for one trailer, each ${min} to ${max} seconds long.` : type === "ranking" ? `Pick up to ${b.options.maxClips} moments for one ranking, each ${min} to ${max} seconds long.` : `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
   ];
-  if (type && type !== "best" && type !== "ranking") parts.push("# The kind of clip wanted", `${CLIP_TYPE_BRIEF[type]}\nOnly return moments of this kind. If the video has fewer than asked for, return fewer.`);
+  if (type && type !== "best" && type !== "ranking" && type !== "trailer") parts.push("# The kind of clip wanted", `${CLIP_TYPE_BRIEF[type]}\nOnly return moments of this kind. If the video has fewer than asked for, return fewer.`);
   if (b.examples.length) {
     parts.push(
       "# Noah's examples of clips (his judgement of what works and what doesn't)",
@@ -157,8 +170,8 @@ export function pickMessage(b: PickBrief): string {
   return parts.join("\n\n");
 }
 
-export type RawPick = { start: number; end: number; title: string; hook: string; score: number; reason: string };
-export type ClipPick = { startMs: number; endMs: number; title: string; hook: string; score: number; reason: string; text: string };
+export type RawPick = { start: number; end: number; title: string; hook: string; score: number; reason: string; emphasis: string[] };
+export type ClipPick = { startMs: number; endMs: number; title: string; hook: string; score: number; reason: string; text: string; emphasis?: string[]; order?: number };
 
 /** How far a clip's start or end moves to reach a sentence's edge. */
 const SENTENCE_SNAP_MS = 1500;
@@ -197,7 +210,7 @@ export function checkPicks(raw: unknown, words: TranscriptWord[], opts: PickBrie
   if (!Array.isArray(list) || !words.length) return check;
   const { min, max } = momentRange(opts);
   const picks: ClipPick[] = [];
-  for (const r of list as Partial<RawPick>[]) {
+  for (const [order, r] of (list as Partial<RawPick>[]).entries()) {
     const s = Number(r.start) * 1000, e = Number(r.end) * 1000;
     if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) { check.badTimes++; continue; }
     let first = words.findIndex((w) => w.endMs > s);
@@ -213,7 +226,7 @@ export function checkPicks(raw: unknown, words: TranscriptWord[], opts: PickBrie
     if (sec < min * 0.85 || sec > max * 1.15) { check.wrongLength++; continue; }
     const score = Math.max(0, Math.min(10, Math.round(Number(r.score) * 10) / 10 || 0));
     picks.push({
-      startMs, endMs, score,
+      startMs, endMs, score, order, emphasis: checkEmphasis(r.emphasis, words.slice(first, last + 1).map((w) => w.text)),
       title: clean(r.title, 120) || "Clip", hook: clean(r.hook, 200), reason: clean(r.reason, 400),
       text: words.slice(first, last + 1).map((w) => w.text).join(" "),
     });
@@ -229,7 +242,8 @@ export function checkPicks(raw: unknown, words: TranscriptWord[], opts: PickBrie
     kept.push(p);
     if (kept.length >= opts.maxClips) break;
   }
-  check.picks = kept;
+  // A trailer plays in the order it was written; everything else is best first.
+  check.picks = opts.clipType === "trailer" ? kept.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : kept;
   return check;
 }
 

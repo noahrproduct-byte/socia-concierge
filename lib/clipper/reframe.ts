@@ -1,31 +1,31 @@
 // Editing a landscape clip for a vertical video: which shot, when. A 16:9 source
 // shows only a third of its width at 9:16, so one fixed crop cuts people and
 // on-screen text in half. Claude looks at frames sampled from the clip and picks
-// shots, as an editor would: the whole picture when something doesn't fit, the
-// person normally, a punch-in on a strong line. This file turns those into a
-// calm path and says what the picture does at any moment, with the transitions
-// an editor would use between them. The renderer and the preview both read it.
+// shots, as an editor would: a band showing the person and the room, a tall crop
+// when they already fill the picture, the whole picture when something doesn't
+// fit. Noah's reference clips hold still and only change shot for a reason, so
+// this file turns the answer into a calm path of hard cuts and says what the
+// picture shows at any moment. The renderer and the preview both read it.
 // Pure, client-safe.
 
-export type ShotKind = "wide" | "person" | "tight";
+export type ShotKind = "wide" | "band" | "person" | "tight";
 
 /** From `t` seconds into the clip: `c`, `y` is the source point kept centred (0..1 each way), `s` how far in. */
 export type CropKey = { t: number; c: number; y: number; s: number };
 
 /** s = 1 fills the frame's height. Below 1 pulls back; the lowest value shows the source's whole width. */
 export const TIGHT_SCALE = 1.25;
+/** A roughly square picture across the frame, on black above and below. */
+export const BAND_SCALE = 0.56;
 
-/** A zoom between shot sizes. */
-export const ZOOM_SEC = 0.9;
-/** A short move at the same size. */
-export const MOVE_SEC = 0.6;
-/** At the same size, a move further than this across the source is a hard cut: a long slide shows only wall. */
-export const CUT_OVER = 0.3;
-/** A shot holds at least this long. */
-export const MIN_HOLD_SEC = 2.5;
+/** A picture on black sits this far (percent of the frame) below the middle, leaving the top for the headline. */
+const PICTURE_DROP = 6;
+
+/** A shot holds at least this long unless the speaker changes (./speakers.ts). */
+export const MIN_HOLD_SEC = 4;
 /** Smaller moves than this are noise. */
 const MIN_MOVE = 0.05;
-export const MAX_MOVES = 12;
+export const MAX_MOVES = 6;
 
 /** One sampled frame every this many seconds, up to MAX_SAMPLES. */
 export const SAMPLE_EVERY_SEC = 2;
@@ -45,7 +45,7 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /** The scale of a shot. Wide fits the source's whole width: share of a full-height crop. */
-export const shotScale = (kind: ShotKind, share: number): number => (kind === "wide" ? share : kind === "tight" ? TIGHT_SCALE : 1);
+export const shotScale = (kind: ShotKind, share: number): number => (kind === "wide" ? share : kind === "band" ? Math.max(share, BAND_SCALE) : kind === "tight" ? TIGHT_SCALE : 1);
 
 /**
  * The model's answer made calm: in order, inside the clip, starting at 0, with
@@ -57,12 +57,12 @@ export function cleanCropPath(raw: unknown, durationSec: number, share: number):
   if (!Array.isArray(moves) || share >= 1) return null;
   const keys: CropKey[] = (moves as { t?: unknown; shot?: unknown; center?: unknown; y?: unknown }[])
     .map((m) => ({ t: Number(m.t), shot: m.shot, c: Number(m.center), y: m.y == null ? 0.4 : Number(m.y) }))
-    .filter((m) => Number.isFinite(m.t) && m.t >= 0 && m.t < durationSec && (m.shot === "wide" || m.shot === "person" || m.shot === "tight")
+    .filter((m) => Number.isFinite(m.t) && m.t >= 0 && m.t < durationSec && (m.shot === "wide" || m.shot === "band" || m.shot === "person" || m.shot === "tight")
       && (m.shot === "wide" || Number.isFinite(m.c)) && Number.isFinite(m.y))
     .sort((a, b) => a.t - b.t)
     .map((m) => {
       const wide = m.shot === "wide";
-      return { t: Math.round(m.t * 10) / 10, c: wide ? 0.5 : r3(clamp(m.c, 0, 1)), y: wide ? 0.5 : r3(clamp(m.y, 0, 1)), s: r3(shotScale(m.shot as ShotKind, share)) };
+      return { t: Math.round(m.t * 10) / 10, c: wide ? 0.5 : r3(clamp(m.c, 0, 1)), y: wide || m.shot === "band" ? 0.5 : r3(clamp(m.y, 0, 1)), s: r3(shotScale(m.shot as ShotKind, share)) };
     });
   if (!keys.length) return null;
   const path: CropKey[] = [{ ...keys[0], t: 0 }];
@@ -76,28 +76,12 @@ export function cleanCropPath(raw: unknown, durationSec: number, share: number):
   return path;
 }
 
-const ease = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2);
-
-/** How the picture gets from one shot to the next: a hard cut for a long jump at the same size, otherwise a move or a zoom this long. */
-export function transitionSec(a: CropKey, b: CropKey): number {
-  if (a.s !== b.s) return ZOOM_SEC;
-  return Math.abs(a.c - b.c) > CUT_OVER ? 0 : MOVE_SEC;
-}
-
-/** What the picture shows `t` seconds into the clip: it holds, then arrives at each shot on time. */
+/** What the picture shows `t` seconds into the clip. Every change is a hard cut. */
 export function viewAt(path: CropKey[], t: number): { c: number; y: number; s: number } {
   if (!path.length) return { c: 0.5, y: 0.5, s: 1 };
   let at = path[0];
-  for (let i = 1; i < path.length; i++) {
-    const k = path[i];
-    const len = transitionSec(at, k);
-    const start = k.t - len;
-    if (t < start || (len === 0 && t < k.t)) break;
-    if (len > 0 && t < k.t) {
-      const p = ease((t - start) / len);
-      // Zoom evenly to the eye: scale moves in ratios, not steps.
-      return { c: at.c + (k.c - at.c) * p, y: at.y + (k.y - at.y) * p, s: Math.exp(Math.log(at.s) + (Math.log(k.s) - Math.log(at.s)) * p) };
-    }
+  for (const k of path.slice(1)) {
+    if (t < k.t) break;
     at = k;
   }
   return { c: at.c, y: at.y, s: at.s };
@@ -106,7 +90,7 @@ export function viewAt(path: CropKey[], t: number): { c: number; y: number; s: n
 /**
  * Where the video sits in the output for a view, in percent of the output. The
  * source point stays centred, never past the picture's edge; where the picture
- * no longer fills the frame it sits in the middle, on black.
+ * no longer fills the frame it sits just below the middle, on black.
  */
 export function viewBox(srcW: number, srcH: number, outW: number, outH: number, v: { c: number; y: number; s: number }): { position: "absolute"; width: string; height: string; left: string; top: string } {
   const srcA = srcW / srcH, outA = outW / outH;
@@ -114,7 +98,7 @@ export function viewBox(srcW: number, srcH: number, outW: number, outH: number, 
   const coverH = srcA > outA ? 100 : (outA / srcA) * 100;
   const w = coverW * v.s, h = coverH * v.s;
   const left = w >= 100 ? clamp(50 - v.c * w, 100 - w, 0) : (100 - w) / 2;
-  const top = h >= 100 ? clamp(50 - v.y * h, 100 - h, 0) : (100 - h) / 2;
+  const top = h >= 100 ? clamp(50 - v.y * h, 100 - h, 0) : (100 - h) / 2 + PICTURE_DROP;
   const pct = (n: number) => `${Math.round(n * 100) / 100}%`;
   return { position: "absolute", width: pct(w), height: pct(h), left: pct(left), top: pct(top) };
 }
@@ -129,34 +113,46 @@ export function readCropPath(v: unknown): CropKey[] | null {
 export const REFRAME_SCHEMA = {
   type: "object", additionalProperties: false,
   properties: {
+    camera: { type: "string", enum: ["one_camera", "changes"] },
+    framing: { type: "string", enum: ["band", "tall"] },
+    people: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false,
+        properties: { speaker: { type: "string" }, center: { type: "number" }, y: { type: "number" } },
+        required: ["speaker", "center", "y"],
+      },
+    },
     moves: {
       type: "array",
       items: {
         type: "object", additionalProperties: false,
-        properties: { t: { type: "number" }, shot: { type: "string", enum: ["wide", "person", "tight"] }, center: { type: "number" }, y: { type: "number" } },
+        properties: { t: { type: "number" }, shot: { type: "string", enum: ["wide", "band", "person", "tight"] }, center: { type: "number" }, y: { type: "number" } },
         required: ["t", "shot", "center", "y"],
       },
     },
   },
-  required: ["moves"],
+  required: ["camera", "framing", "people", "moves"],
 } as const;
 
-export const reframeSystem = (share: number) => `You are a video editor turning a landscape clip into a vertical 9:16 video. You choose the shot for each moment, the way a good editor would. A vertical frame at full height shows only ${Math.round(share * 100)}% of the source's width.
+export const reframeSystem = (share: number) => `You are a video editor turning a landscape clip into a vertical 9:16 video. A vertical frame at full height shows only ${Math.round(share * 100)}% of the source's width.
 
-You get frames sampled from the clip, each labelled with its time in seconds, and what is being said at each time.
+You get frames sampled from the clip, each labelled with its time in seconds, and what is said at each time. When the speakers are known, each line says who: Speaker A, Speaker B and so on.
 
-The shots:
-- "person": the normal shot. The picture fills the vertical frame, centred on the speaker's face, with their whole face well inside it.
-- "wide": zoom out to show the whole picture, on black above and below. Use it whenever something that matters doesn't fit in the "person" shot: on-screen text, a list building up, a screen, a demo, or two people together. The speaker stays visible beside the text, so never pan away from the speaker to read text: go wide instead. Stay wide until the text is gone or has been read, at least 3 seconds, or longer if more lines are appearing.
-- "tight": a punch-in on the face for the line that hits hardest: the claim, the payoff, the surprise. Rare: one or two in a clip, at most, and only when the speaker is steady and nothing on screen matters.
+First describe the clip:
+- camera: "one_camera" when the source holds one fixed view for the whole clip. "changes" when the source itself switches between different shots.
+- framing: "tall" only when one person already fills the source in a close-up, so a full-height crop looks natural. "band" for everything else: someone seated with room around them, or several people in one view.
+- people: each person you can see who speaks. speaker is their label from the transcript. center and y are where their face is, across and down the source, 0 to 1. Work out who is who by matching the times a label speaks to the frames where that person's mouth is open or they are gesturing. Leave out anyone you can't see, such as a host off camera. Empty when the transcript has no labels.
 
-Return moves. Each says that by time t (seconds into the clip) this shot should be showing. The first move is at t 0.
-- center: where to centre the shot across the source: 0 is the left edge, 0.5 the middle, 1 the right edge. Measure it from where the face actually is in the image. Ignored for "wide".
-- y: where to centre it vertically: 0 is the top, 1 the bottom. Measure it from the face. Ignored for "wide".
+Then return moves: by time t (seconds into the clip) this shot should be showing. The first move is at t 0. Every change is a hard cut.
+- "band": the normal shot for a landscape source. A roughly square picture across the frame with black above and below, showing the person and some of the room.
+- "person": a full-height crop on one face. Only when framing is "tall".
+- "wide": the whole source, on black. Use it when something that matters won't fit otherwise: on-screen text, a list building up, a screen or a demo.
+- "tight": a closer crop on the face. At most one in a clip, for the single line that hits hardest, and usually none.
+- center: where to centre the shot across the source, measured from where the face actually is. Ignored for "wide".
+- y: where to centre it down the source, measured from the face. Ignored for "wide" and "band".
 
-How to edit:
-- Start a shot just as its reason appears: go wide as the text comes on, not after.
-- A shot needs a reason: text appeared or went, the speaker changed, or a line lands. Never follow small gestures or a leaning head. Leave at least 3 seconds between moves. A person who stays put with nothing on screen needs just one move.`;
+How to edit: hold still. Good clips hold one shot for many seconds and never add movement for energy. Most clips need a single move at t 0. Add another only for a real reason: text or a screen appeared or went, or the source itself switched to a different shot and the person is now somewhere else. Never follow gestures or a leaning head, and leave at least 4 seconds between moves.`;
 
 /** The user message's text for one frame. */
 export const frameLabel = (t: number) => `Frame at ${t.toFixed(1)} s`;

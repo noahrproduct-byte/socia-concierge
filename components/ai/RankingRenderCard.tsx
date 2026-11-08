@@ -1,7 +1,7 @@
 "use client";
 
-// A ranking SOCIA put together from a long video, before it is a file: the
-// countdown it chose, then one press to choose the shots for each moment, join
+// A ranking or trailer SOCIA put together from a long video, before it is a file:
+// the moments it chose, then one press to choose the shots for each one, join
 // them in this browser (./renderClip.ts) and save the clip.
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Scissors } from "lucide-react";
@@ -17,8 +17,8 @@ import { sourceFrame, sourceSize, type SourceSize } from "./sourceMedia";
 const CENTRED = 0.5;
 const secs = (ms: number) => `${Math.round(ms / 1000)} s`;
 
-export default function RankingRenderCard({ id, ranking, sub, why, render, canMutate, onRendered, autoStart = false, onSettled }: {
-  id: string; ranking: Ranking; sub: string; why: string | null; render: ClipRender; canMutate: boolean;
+export default function RankingRenderCard({ id, ranking, headline = false, sub, why, render, canMutate, onRendered, autoStart = false, onSettled }: {
+  id: string; ranking: Ranking; headline?: boolean; sub: string; why: string | null; render: ClipRender; canMutate: boolean;
   onRendered: () => void; autoStart?: boolean; onSettled?: () => void;
 }) {
   const [size, setSize] = useState<SourceSize | null>(null);
@@ -68,7 +68,7 @@ export default function RankingRenderCard({ id, ranking, sub, why, render, canMu
       }
       setBusy("Making the clip"); setProgress(0);
       const { blob } = await renderClip({ ...render, cropX: CENTRED, cropPath: null }, {
-        title: ranking.title, headline: false, paths, size: { width: size.width, height: size.height }, sourceSec: size.duration,
+        title: ranking.title, headline, paths, size: { width: size.width, height: size.height }, sourceSec: size.duration,
         onProgress: (f) => setProgress(f),
       });
       setBusy("Saving"); setProgress(null);
@@ -95,9 +95,9 @@ export default function RankingRenderCard({ id, ranking, sub, why, render, canMu
         <ol className="ai-ranking">
           {rows.map((r) => <li key={r.rank}><span>{r.label}</span> <small>{secs(r.endMs - r.startMs)}</small></li>)}
         </ol>
-        <small>It plays from {rows.length} to 1, with the title and the list on screen.</small>
+        <small>{ranking.kind === "trailer" ? "These lines play in this order, as one story." : `It plays from ${rows.length} to 1, with the title and the list on screen.`}</small>
         {sizeFailed && <p className="ai-err" role="alert">SOCIA couldn&apos;t read this video. Reload the page to try again.</p>}
-        {why && <details className="ai-why"><summary>Why this order</summary><p>{why}</p></details>}
+        {why && <details className="ai-why"><summary>{ranking.kind === "trailer" ? "Why these lines" : "Why this order"}</summary><p>{why}</p></details>}
         {progress != null && <progress className="ai-progress" value={progress} max={1} />}
         {err && <p className="ai-err" role="alert">{err}</p>}
         <div className="ai-actions">

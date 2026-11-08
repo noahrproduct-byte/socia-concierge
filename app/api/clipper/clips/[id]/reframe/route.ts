@@ -7,6 +7,7 @@ import { recordAiUsage } from "@/lib/aiUsage";
 import { MAX_SAMPLES, REFRAME_SCHEMA, cleanCropPath, frameLabel, reframeSystem } from "@/lib/clipper/reframe";
 import { clipWords, formatLines, transcriptLines, unpackWords } from "@/lib/clipper/pick";
 import { readRanking } from "@/lib/clipper/ranking";
+import { speakerPath } from "@/lib/clipper/speakers";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -66,9 +67,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const text = block && "text" in block ? block.text : "";
     let raw: unknown = null;
     try { raw = JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch { raw = null; }
-    const path = cleanCropPath(raw, durationSec, share);
+    // A one-camera conversation follows whoever is talking; anything else takes the shots Claude chose.
+    const following = speakerPath(raw, words, durationSec, share);
+    const path = following ?? cleanCropPath(raw, durationSec, share);
     // Counts only: how framing is going, without any content.
-    console.log("[clipper] frame", JSON.stringify({ clip: id, frames: frames.length, moves: (raw as { moves?: unknown[] } | null)?.moves?.length ?? null, kept: path?.length ?? 0, ms: Date.now() - startedAt, stop: res.stop_reason, outputTokens: res.usage?.output_tokens }));
+    console.log("[clipper] frame", JSON.stringify({ clip: id, frames: frames.length, moves: (raw as { moves?: unknown[] } | null)?.moves?.length ?? null, kept: path?.length ?? 0, following: Boolean(following), camera: (raw as { camera?: unknown } | null)?.camera ?? null, people: (raw as { people?: unknown[] } | null)?.people?.length ?? null, ms: Date.now() - startedAt, stop: res.stop_reason, outputTokens: res.usage?.output_tokens }));
     if (path && item == null) {
       const saved = await svc.from("clips").update({ crop_path: path }).eq("id", id).eq("user_id", r.ctx.ownerId);
       if (saved.error) console.error("[clipper] frame path not saved:", saved.error.message);

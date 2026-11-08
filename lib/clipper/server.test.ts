@@ -13,6 +13,7 @@ describe("clipper options", () => {
     expect(cleanOptions({ clipType: "takes", maxClips: 12 })).toMatchObject({ clipType: "takes", maxClips: 12 });
     expect(cleanOptions({ clipType: "ranking", maxClips: 12 }).maxClips).toBe(5);
     expect(cleanOptions({ clipType: "ranking", maxClips: 1 }).maxClips).toBe(3);
+    expect(cleanOptions({ clipType: "trailer", maxClips: 20 }).maxClips).toBe(8);
   });
   it("asks for the language chosen, English by default, and only detects when told to", () => {
     expect(transcriptionLanguage("en")).toBe("en");

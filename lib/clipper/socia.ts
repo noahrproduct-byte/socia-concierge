@@ -19,8 +19,8 @@ import { signedUrl } from "@/lib/aiStudio/media";
 import { ClipperError, transcriptionLanguage, type ClipperOptions } from "./provider";
 import { clipExamples } from "./examples";
 import { clipResultLines, loadClipOutcomes } from "./learn";
-import { PICK_SCHEMA, PICK_SYSTEM, RANKING_SCHEMA, RANKING_SYSTEM, checkPicks, pickMessage, transcriptLines, type ClipPick } from "./pick";
-import { MIN_RANKED, rankingMs, rankingOf } from "./ranking";
+import { PICK_SCHEMA, PICK_SYSTEM, RANKING_SCHEMA, RANKING_SYSTEM, TRAILER_SYSTEM, checkPicks, pickMessage, transcriptLines, type ClipPick } from "./pick";
+import { MIN_RANKED, rankingMs, rankingOf, trailerOf } from "./ranking";
 import type { TranscriptWord } from "@/lib/transcribe/types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +41,7 @@ export async function startTranscription(svc: Supa, job: JobLike): Promise<strin
   if (!provider) throw new ClipperError("Transcription is not set up, so SOCIA can't clip right now.", "not_configured", false);
   const url = await signedUrl(svc, job.source_path, 24 * 3600);
   if (!url) throw new ClipperError("The uploaded file could not be read.", "no_source", false);
-  const t = await provider.submit(url, { language: transcriptionLanguage(job.options.lang) });
+  const t = await provider.submit(url, { language: transcriptionLanguage(job.options.lang), speakers: true });
   recordTranscription(job.user_id, "clipper", job.source_minutes * 60);
   return t.id;
 }
@@ -72,11 +72,12 @@ export async function pickMoments(svc: Supa, job: JobLike, words: TranscriptWord
     options: { maxClips: job.options.maxClips, lengths: job.options.lengths, clipType: job.options.clipType },
     examples: clipExamples(), results: clipResultLines(outcomes), niche: trendsEvidence(niche?.signals ?? null) || null,
   });
-  const ranking = job.options.clipType === "ranking";
+  const type = job.options.clipType;
+  const joined = type === "ranking" || type === "trailer";
   const model = modelFor("clipper_pick");
   const params = {
-    model, max_tokens: 6000, system: ranking ? RANKING_SYSTEM : PICK_SYSTEM,
-    output_config: { format: { type: "json_schema", schema: ranking ? RANKING_SCHEMA : PICK_SCHEMA }, ...effortFor(model) },
+    model, max_tokens: 6000, system: type === "trailer" ? TRAILER_SYSTEM : type === "ranking" ? RANKING_SYSTEM : PICK_SYSTEM,
+    output_config: { format: { type: "json_schema", schema: joined ? RANKING_SCHEMA : PICK_SCHEMA }, ...effortFor(model) },
     messages: [{ role: "user", content: message }],
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,7 +96,7 @@ export async function pickMoments(svc: Supa, job: JobLike, words: TranscriptWord
   console.log("[clipper] pick", JSON.stringify({ job: job.id, words: words.length, kept: picks.length, ...counts, stop: res.stop_reason, outputTokens: res.usage?.output_tokens }));
   // Clips came back and none survived: that is SOCIA's fault, not the video's, so it isn't reported as "no moments".
   if (counts.returned > 0 && !picks.length) throw new ClipperError("None of the picked moments passed SOCIA's checks.", "pick_rejected", true);
-  if (ranking) {
+  if (joined) {
     const title = (raw as { title?: unknown }).title;
     return { picks: picks.length >= MIN_RANKED ? picks : [], brand, rankingTitle: typeof title === "string" ? title.replace(/\s+/g, " ").trim().slice(0, 90) : "" };
   }
@@ -110,21 +111,22 @@ export async function clipRows(job: JobLike, picks: ClipPick[], brand: string, r
     job_id: job.id, user_id: job.user_id, workspace_id: job.workspace_id, provider_clip_id: `socia-${i + 1}`,
     video_url: null, video_path: null, start_ms: p.startMs, end_ms: p.endMs, duration_ms: p.endMs - p.startMs,
     title: p.title, hook: p.hook || null, score: p.score, score_reason: p.reason, transcript: p.text,
-    caption: captions[i]?.caption ?? p.title, hashtags: captions[i]?.hashtags ?? [], crop_x: 0.5,
+    caption: captions[i]?.caption ?? p.title, hashtags: captions[i]?.hashtags ?? [], crop_x: 0.5, emphasis: p.emphasis ?? [],
   }));
 }
 
 /** A ranking is one row: its range is the first moment played, and `ranking` holds them all. */
 async function rankingRows(job: JobLike, picks: ClipPick[], brand: string, title: string) {
-  const ranking = rankingOf(title, picks);
+  const ranking = job.options.clipType === "trailer" ? trailerOf(title, picks) : rankingOf(title, picks);
   const first = ranking.items[0];
-  const transcript = [...picks].reverse().map((p) => p.text).join(" ");
+  const inPlayOrder = job.options.clipType === "trailer" ? picks : [...picks].reverse();
+  const transcript = inPlayOrder.map((p) => p.text).join(" ");
   const [caption] = await writeClipCaptions(job.user_id, brand, [{ title: ranking.title, transcript }]);
   const score = Math.round((picks.reduce((sum, p) => sum + p.score, 0) / picks.length) * 10) / 10;
   return [{
     job_id: job.id, user_id: job.user_id, workspace_id: job.workspace_id, provider_clip_id: "socia-ranking",
     video_url: null, video_path: null, start_ms: first.startMs, end_ms: first.endMs, duration_ms: rankingMs(ranking),
     title: ranking.title, hook: null, score, score_reason: picks.map((p, i) => `${i + 1}. ${p.title}: ${p.reason}`).join(" "), transcript,
-    caption: caption?.caption ?? ranking.title, hashtags: caption?.hashtags ?? [], crop_x: 0.5, ranking,
+    caption: caption?.caption ?? ranking.title, hashtags: caption?.hashtags ?? [], crop_x: 0.5, ranking, emphasis: Array.from(new Set(picks.flatMap((p) => p.emphasis ?? []))),
   }];
 }
