@@ -57,6 +57,15 @@ describe("caption pages", () => {
     { text: "everything", startMs: 1100, endMs: 1900, confidence: 1 },
     { text: "now", startMs: 3000, endMs: 3400, confidence: 1 },
   ] };
+  it("never runs a page across a cut", () => {
+    const seg = (id: string, clipId: string, out: number) => ({ id, clipId, in: 0, out, role: "body" as const, note: "" });
+    const two = { ...spoken, segments: [seg("s1", "a", 1), seg("s2", "b", 1)] };
+    const said = {
+      a: [{ text: "first", startMs: 800, endMs: 950, confidence: 1 }],
+      b: [{ text: "second", startMs: 50, endMs: 300, confidence: 1 }],
+    };
+    expect(captionPages(two, said, 30).map((p) => p.page.tokens.map((t) => t.text.trim()))).toEqual([["first"], ["second"]]);
+  });
   it("holds a page until its last word has ended, and never past the next page", () => {
     const pages = captionPages(spoken, words, 30);
     expect(pages.length).toBe(2);

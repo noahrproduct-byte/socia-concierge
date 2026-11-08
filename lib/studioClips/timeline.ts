@@ -129,8 +129,15 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
   if (!edl.captions) return [];
   const captions = captionsForEdl(edl, words);
   if (!captions.length) return [];
-  const { pages } = createTikTokStyleCaptions({ captions, combineTokensWithinMilliseconds: pageMs });
-  const total = timeline(edl).durationFrames;
+  const tl = timeline(edl);
+  const total = tl.durationFrames;
+  // A page never runs across a cut, or the next shot's first word shows over this one.
+  const starts = tl.segments.map((s) => (s.startFrame / fps) * 1000);
+  const shotOf = (ms: number) => starts.reduce((at, s, i) => (ms >= s ? i : at), 0);
+  const pages = starts.flatMap((_, i) => {
+    const inShot = captions.filter((c) => shotOf(c.startMs) === i);
+    return inShot.length ? createTikTokStyleCaptions({ captions: inShot, combineTokensWithinMilliseconds: pageMs }).pages : [];
+  });
   const out: CaptionPageSpan[] = [];
   pages.forEach((page, i) => {
     const from = Math.round((page.startMs / 1000) * fps);

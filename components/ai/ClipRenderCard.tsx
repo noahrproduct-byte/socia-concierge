@@ -11,8 +11,9 @@ import type { ClipRender } from "@/lib/clipper/server";
 import { renderBlocker } from "@/components/studio/renderBuild";
 import { api, errorText, uploadToSigned } from "./shared";
 import { renderClip } from "./renderClip";
-import { sourceFrame, sourceFrames, sourceSize, type SourceSize } from "./sourceMedia";
-import { sampleTimes, viewAt, type CropKey } from "@/lib/clipper/reframe";
+import { findShots } from "./findShots";
+import { sourceFrame, sourceSize, type SourceSize } from "./sourceMedia";
+import { viewAt, type CropKey } from "@/lib/clipper/reframe";
 
 const OUT_RATIO = 9 / 16;
 
@@ -133,21 +134,6 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
     if (e.key === "ArrowRight") { e.preventDefault(); setFixed(true); setCropX(Math.min(1, shownX + 0.05)); }
   }
 
-  /** Claude decides what to keep in view from frames of this moment. Null when that doesn't work; the clip is still made. */
-  async function findFraming(s: SourceSize): Promise<CropKey[] | null> {
-    try {
-      const start = render.startMs / 1000;
-      const times = sampleTimes((render.endMs - render.startMs) / 1000);
-      const read = await sourceFrames(render.sourceUrl, times.map((t) => start + t));
-      const frames = read.map((f) => ({ t: Math.round((f.t - start) * 10) / 10, data: f.data }));
-      if (!frames.length) return null;
-      const r = await api<{ path: CropKey[] | null }>(`/api/clipper/clips/${id}/reframe`, { method: "POST", body: JSON.stringify({ frames, width: s.width, height: s.height }) });
-      return r.path;
-    } catch {
-      return null;
-    }
-  }
-
   async function make() {
     setErr(null);
     try {
@@ -156,7 +142,7 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
       let usePath = fixed ? null : path;
       if (!fixed && !usePath && movable && size) {
         setBusy("Choosing the shots"); setNote(null);
-        usePath = await findFraming(size);
+        usePath = await findShots(id, render.sourceUrl, size, render.startMs, render.endMs);
         setPath(usePath);
         if (!usePath) setNote("SOCIA couldn't work out the shots for this one, so the frame stays where it is.");
       }

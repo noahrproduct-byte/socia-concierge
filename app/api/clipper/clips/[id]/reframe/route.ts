@@ -6,16 +6,18 @@ import { anthropic, effortFor, modelFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
 import { MAX_SAMPLES, REFRAME_SCHEMA, cleanCropPath, frameLabel, reframeSystem } from "@/lib/clipper/reframe";
 import { clipWords, formatLines, transcriptLines, unpackWords } from "@/lib/clipper/pick";
+import { readRanking } from "@/lib/clipper/ranking";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
 const MAX_FRAME_CHARS = 200_000;
 
-// POST { frames: [{ t, data }], width, height } -> { path }: where the vertical
+// POST { frames: [{ t, data }], width, height, item? } -> { path }: where the vertical
 // frame should be during one of SOCIA's own clips. The browser reads the frames
 // from the source; Claude decides what to keep in view; the path is saved on
 // the clip. { path: null } means nothing usable came back: the crop stays put.
+// `item` is one moment of a ranking: its path goes back to the render, not on the row.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const r = await aiRequest("ai_clipper", { mutate: true });
@@ -24,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (limited) return limited;
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
-  const body = (await req.json().catch(() => null)) as { frames?: { t?: unknown; data?: unknown }[]; width?: unknown; height?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { frames?: { t?: unknown; data?: unknown }[]; width?: unknown; height?: unknown; item?: unknown } | null;
   const width = Number(body?.width), height = Number(body?.height);
   const frames = (Array.isArray(body?.frames) ? body.frames : []).slice(0, MAX_SAMPLES)
     .filter((f): f is { t: number; data: string } => Number.isFinite(f?.t) && typeof f?.data === "string" && f.data.length > 0 && f.data.length <= MAX_FRAME_CHARS);
@@ -33,14 +35,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (share >= 1) return NextResponse.json({ path: null });
   try {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
-    const { data } = await svc.from("clips").select("job_id, start_ms, end_ms").eq("id", id).eq("user_id", r.ctx.ownerId).maybeSingle();
-    const clip = data as { job_id: string; start_ms: number | null; end_ms: number | null } | null;
-    if (!clip || clip.start_ms == null || clip.end_ms == null) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
-    const durationSec = (clip.end_ms - clip.start_ms) / 1000;
+    const item = typeof body?.item === "number" && Number.isInteger(body.item) ? body.item : null;
+    const { data } = await svc.from("clips").select(item == null ? "job_id, start_ms, end_ms" : "job_id, start_ms, end_ms, ranking").eq("id", id).eq("user_id", r.ctx.ownerId).maybeSingle();
+    const clip = data as unknown as { job_id: string; start_ms: number | null; end_ms: number | null; ranking?: unknown } | null;
+    const range = item == null ? { startMs: clip?.start_ms, endMs: clip?.end_ms } : readRanking(clip?.ranking)?.items[item] ?? { startMs: null, endMs: null };
+    if (!clip || range.startMs == null || range.endMs == null) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
+    const durationSec = (range.endMs - range.startMs) / 1000;
     const { data: job } = await svc.from("clip_jobs").select("transcript").eq("id", clip.job_id).eq("user_id", r.ctx.ownerId).maybeSingle();
     // What is said, with times counted from the clip's start, like the frames.
-    const startMs = clip.start_ms;
-    const words = clipWords(unpackWords((job as { transcript?: unknown } | null)?.transcript), startMs, clip.end_ms)
+    const startMs = range.startMs;
+    const words = clipWords(unpackWords((job as { transcript?: unknown } | null)?.transcript), startMs, range.endMs)
       .map((w) => ({ ...w, startMs: w.startMs - startMs, endMs: w.endMs - startMs }));
     const content = [
       ...frames.flatMap((f) => [
@@ -65,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const path = cleanCropPath(raw, durationSec, share);
     // Counts only: how framing is going, without any content.
     console.log("[clipper] frame", JSON.stringify({ clip: id, frames: frames.length, moves: (raw as { moves?: unknown[] } | null)?.moves?.length ?? null, kept: path?.length ?? 0, ms: Date.now() - startedAt, stop: res.stop_reason, outputTokens: res.usage?.output_tokens }));
-    if (path) {
+    if (path && item == null) {
       const saved = await svc.from("clips").update({ crop_path: path }).eq("id", id).eq("user_id", r.ctx.ownerId);
       if (saved.error) console.error("[clipper] frame path not saved:", saved.error.message);
     }

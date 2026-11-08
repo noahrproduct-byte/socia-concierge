@@ -11,10 +11,11 @@ import type { Ctx } from "@/lib/context";
 import { clipCredits } from "@/lib/credits/config";
 import { spendCredits, refundCredits, CreditsError } from "@/lib/credits/ledger";
 import { clipperProvider } from "./vizard";
-import { ClipperError, MAX_CLIPS, isClipLength, type ClipperOptions, type ClipperSource, type ProviderClip, DEFAULT_CLIPPER_OPTIONS } from "./provider";
+import { ClipperError, MAX_CLIPS, isClipLength, isClipType, type ClipperOptions, type ClipperSource, type ProviderClip, DEFAULT_CLIPPER_OPTIONS } from "./provider";
 import { AI_BUCKET, copyUrlToBucket, mediaPath, removePaths, signedUrl } from "@/lib/aiStudio/media";
 import { brandLine, writeClipCaptions } from "@/lib/aiStudio/captions";
 import { fileSeconds, isReadableLink, youtubeSeconds, MAX_SOURCE_MINUTES } from "./sourceLength";
+import { RANKING_SIZE, readRanking, type Ranking } from "./ranking";
 import { SOCIA_PROVIDER, checkTranscription, clipRows, pickMoments, sociaClipperReady, startTranscription } from "./socia";
 import { clipWords, packWords, unpackWords } from "./pick";
 import { readCropPath, type CropKey } from "./reframe";
@@ -41,7 +42,7 @@ export type ClipRow = {
   start_ms?: number | null; end_ms?: number | null; hook?: string | null; crop_x?: number | null; crop_path?: unknown;
 };
 /** What the browser needs to render one of SOCIA's own clips (components/ai/renderClip.ts). */
-export type ClipRender = { sourceUrl: string; startMs: number; endMs: number; cropX: number; cropPath?: CropKey[] | null; words: TranscriptWord[]; captions: boolean };
+export type ClipRender = { sourceUrl: string; startMs: number; endMs: number; cropX: number; cropPath?: CropKey[] | null; words: TranscriptWord[]; captions: boolean; ranking?: Ranking | null };
 export type ClipView = ClipRow & { playUrl: string | null; downloadUrl: string | null; render?: ClipRender | null };
 
 export const JOB_COLS = "id, user_id, workspace_id, source_kind, source_url, source_path, source_minutes, options, provider, provider_job_id, status, credits_reserved, credits_charged, error, created_at, updated_at, last_polled_at, finished_at, stage";
@@ -106,13 +107,15 @@ export function cleanOptions(raw: unknown): ClipperOptions {
   const o = (raw ?? {}) as Record<string, unknown>;
   const lengths = Array.isArray(o.lengths) ? o.lengths.filter(isClipLength) : [];
   const n = typeof o.maxClips === "number" ? Math.round(o.maxClips) : DEFAULT_CLIPPER_OPTIONS.maxClips;
+  const clipType = isClipType(o.clipType) ? o.clipType : "best";
   return {
-    maxClips: Math.min(MAX_CLIPS, Math.max(1, n)),
+    maxClips: clipType === "ranking" ? Math.min(RANKING_SIZE.max, Math.max(RANKING_SIZE.min, n)) : Math.min(MAX_CLIPS, Math.max(1, n)),
     lengths: lengths.length ? Array.from(new Set(lengths)) : DEFAULT_CLIPPER_OPTIONS.lengths,
     captions: typeof o.captions === "boolean" ? o.captions : true,
     headline: typeof o.headline === "boolean" ? o.headline : true,
     lang: typeof o.lang === "string" && (o.lang === "auto" || /^[a-z]{2}(-[A-Za-z]{2})?$/.test(o.lang)) ? o.lang : "en",
     clipModel: o.clipModel === "clip_v2" ? "clip_v2" : "clip_v1",
+    clipType,
     ...(typeof o.sourceName === "string" && o.sourceName.trim() ? { sourceName: o.sourceName.replace(/[\p{C}]/gu, "").trim().slice(0, 120) } : {}),
   };
 }
@@ -139,7 +142,8 @@ export async function createClipJob(ctx: Ctx, input: CreateClipJobInput): Promis
   const { data, error } = await svc.from("clip_jobs").insert({
     user_id: ctx.ownerId, workspace_id: ctx.workspace?.id ?? null,
     source_kind: input.source.kind, source_url: input.source.url, source_path: input.source.path ?? null,
-    source_minutes: minutes, options: input.options, provider,
+    // Types are SOCIA's own picker; a link sent to Vizard gets its usual clips, and the job says so.
+    source_minutes: minutes, options: provider === SOCIA_PROVIDER ? input.options : { ...input.options, clipType: "best" }, provider,
     status: "queued", credits_reserved: credits,
   }).select(JOB_COLS).single();
   if (error) throw new ClipperError(error.message, "db");
@@ -268,9 +272,9 @@ async function pollSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
   const words = unpackWords((claimed as { transcript: unknown }).transcript);
   try {
     const durationMs = words.length ? words[words.length - 1].endMs : job.source_minutes * 60_000;
-    const { picks, brand } = await pickMoments(svc, job, words, durationMs);
+    const { picks, brand, rankingTitle } = await pickMoments(svc, job, words, durationMs);
     if (!picks.length) return fail(svc, job, "SOCIA found no moments in this video that stand on their own as clips.", true);
-    const rows = await clipRows(job, picks, brand);
+    const rows = await clipRows(job, picks, brand, rankingTitle);
     const { error } = await svc.from("clips").upsert(rows, { onConflict: "job_id,provider_clip_id" });
     if (error) throw new ClipperError(`clips not saved: ${error.message}`, "db", true);
     const done = new Date().toISOString();
@@ -353,8 +357,9 @@ export async function loadClips(client: Supa, ownerId: string, jobId: string, jo
   for (const r of rows) {
     const playUrl = svc ? await signedUrl(svc, r.video_path) : null;
     const downloadUrl = svc ? await signedUrl(svc, r.video_path, undefined, `${(r.title ?? "clip").replace(/[^\w-]+/g, "_").slice(0, 60)}.mp4`) : null;
+    const ranking = readRanking((r as { ranking?: unknown }).ranking);
     const render: ClipRender | null = sourceUrl && r.start_ms != null && r.end_ms != null
-      ? { sourceUrl, startMs: r.start_ms, endMs: r.end_ms, cropX: Number(r.crop_x ?? 0.5), cropPath: readCropPath(r.crop_path), words: clipWords(words, r.start_ms, r.end_ms), captions: job?.options?.captions !== false }
+      ? { sourceUrl, startMs: r.start_ms, endMs: r.end_ms, cropX: Number(r.crop_x ?? 0.5), cropPath: readCropPath(r.crop_path), words: ranking ? ranking.items.flatMap((i) => clipWords(words, i.startMs, i.endMs)) : clipWords(words, r.start_ms, r.end_ms), captions: job?.options?.captions !== false, ranking }
       : null;
     out.push({ ...r, playUrl: playUrl ?? r.video_url, downloadUrl: downloadUrl ?? r.video_url, render });
   }

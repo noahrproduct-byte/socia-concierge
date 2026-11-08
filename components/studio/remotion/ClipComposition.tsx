@@ -26,6 +26,8 @@ import { DEFAULT_STYLE, captionLayout, type EdlStyle, type FontId } from "@/lib/
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
+import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
+import { RankingLayer } from "./RankingLayer";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { viewAt, viewBox } from "@/lib/clipper/reframe";
@@ -54,6 +56,8 @@ export type ClipCompositionProps = {
   edl: Edl;
   sources: Record<string, BuildSource>;
   captionsOn: boolean;
+  /** the AI Clipper's countdown: its title and numbered list over the picture */
+  ranking?: RankingOverlay;
   /** false shows the cut without the measured corrections (Before); omitted = After */
   finishOn?: boolean;
   /** a playable link to the cut's soundtrack (edl.soundtrack), when it has one */
@@ -201,13 +205,14 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, finishOn, musicUrl, cleanAudio, safeZoneGuide }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, finishOn, musicUrl, cleanAudio, safeZoneGuide }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
   // Shots that change during the cut (the AI Clipper): the picture for this frame on its path.
   const pathBox = (s: { clipId: string; frame?: SegmentFrame }, local: number) => {
     const src = sources[s.clipId];
+    if (ranking && src?.width && src?.height) return rankingBox(src.width, src.height, width, height, ranking.items.length, s.frame?.path ? viewAt(s.frame.path, local / FPS).c : 0.5);
     return s.frame?.path && src?.width && src?.height ? viewBox(src.width, src.height, width, height, viewAt(s.frame.path, local / FPS)) : null;
   };
   const box = (s: { clipId: string; frame?: { zoom: number; x: number; y: number } }) => videoBox(sources[s.clipId]?.width ?? null, sources[s.clipId]?.height ?? null, width, height, s.frame);
@@ -280,6 +285,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           <TextLayer line={t} width={width} height={height} font={style.font} />
         </Sequence>
       ))}
+      {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
           <CaptionPage page={p.page} style={style} fontFamily={fontFamily} />

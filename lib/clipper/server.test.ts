@@ -5,10 +5,14 @@ import { transcriptionLanguage } from "./provider";
 
 describe("clipper options", () => {
   it("keeps good values and replaces bad ones with the defaults", () => {
-    expect(cleanOptions({ maxClips: 99, lengths: ["under30", "nope", "under30"], captions: false, lang: "fr", clipModel: "clip_v2" })).toEqual({ maxClips: 20, lengths: ["under30"], captions: false, headline: true, lang: "fr", clipModel: "clip_v2" });
-    expect(cleanOptions(null)).toEqual({ maxClips: 5, lengths: ["under30", "30to60"], captions: true, headline: true, lang: "en", clipModel: "clip_v1" });
+    expect(cleanOptions({ maxClips: 99, lengths: ["under30", "nope", "under30"], captions: false, lang: "fr", clipModel: "clip_v2" })).toEqual({ maxClips: 20, lengths: ["under30"], captions: false, headline: true, lang: "fr", clipModel: "clip_v2", clipType: "best" });
+    expect(cleanOptions(null)).toEqual({ maxClips: 5, lengths: ["under30", "30to60"], captions: true, headline: true, lang: "en", clipModel: "clip_v1", clipType: "best" });
     expect(cleanOptions({ maxClips: 0, lang: "english" }).maxClips).toBe(1);
     expect(cleanOptions({ lang: "english" }).lang).toBe("en");
+    expect(cleanOptions({ clipType: "nope" }).clipType).toBe("best");
+    expect(cleanOptions({ clipType: "takes", maxClips: 12 })).toMatchObject({ clipType: "takes", maxClips: 12 });
+    expect(cleanOptions({ clipType: "ranking", maxClips: 12 }).maxClips).toBe(5);
+    expect(cleanOptions({ clipType: "ranking", maxClips: 1 }).maxClips).toBe(3);
   });
   it("asks for the language chosen, English by default, and only detects when told to", () => {
     expect(transcriptionLanguage("en")).toBe("en");

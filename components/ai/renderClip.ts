@@ -11,6 +11,8 @@ import { timeline } from "@/lib/studioClips/timeline";
 import { OUTPUT, type BuildSource, type Edl } from "@/lib/studioClips/types";
 import { CAPCUT_STYLE } from "@/lib/studioClips/style";
 import type { ClipRender } from "@/lib/clipper/server";
+import { rankingOverlay, rankingMs, type Ranking } from "@/lib/clipper/ranking";
+import type { CropKey } from "@/lib/clipper/reframe";
 
 const SOURCE_ID = "source";
 
@@ -30,18 +32,32 @@ export function clipEdl(r: ClipRender, title: string | null, headline: boolean):
   };
 }
 
+/** A ranking's cut list: its moments joined with hard cuts, last place first. The title and list are drawn by the composition. */
+export function rankingEdl(r: ClipRender, ranking: Ranking, paths: (CropKey[] | null)[]): Edl {
+  const len = rankingMs(ranking) / 1000;
+  return {
+    version: 1, fps: OUTPUT.fps, width: OUTPUT.width, height: OUTPUT.height,
+    targetSec: { min: len, max: len },
+    segments: ranking.items.map((m, i) => ({ id: `rank-${m.rank}`, clipId: SOURCE_ID, in: m.startMs / 1000, out: m.endMs / 1000, role: "body", note: "", frame: { zoom: 1, x: r.cropX, y: 0.5, ...(paths[i]?.length ? { path: paths[i]! } : {}) } })),
+    text: [],
+    captions: r.captions && r.words.length ? { source: "transcript" } : null,
+    enhance: [], audio: [], cta: null, music: null, caption: "", notes: [],
+    style: { ...CAPCUT_STYLE, captions: { ...CAPCUT_STYLE.captions, size: "l" } },
+  };
+}
+
 export function clipSource(r: ClipRender, size: { width: number | null; height: number | null }, durationSec: number): BuildSource {
   return { clipId: SOURCE_ID, position: 0, name: "Source", url: r.sourceUrl, thumb: null, durationSec, width: size.width, height: size.height, words: r.words, moments: [] };
 }
 
 export async function renderClip(
   r: ClipRender,
-  opts: { title: string | null; headline: boolean; size: { width: number | null; height: number | null }; sourceSec: number; signal?: AbortSignal; onProgress?: (f: number) => void },
+  opts: { title: string | null; headline: boolean; size: { width: number | null; height: number | null }; sourceSec: number; paths?: (CropKey[] | null)[]; signal?: AbortSignal; onProgress?: (f: number) => void },
 ): Promise<{ blob: Blob; durationSec: number }> {
-  const edl = clipEdl(r, opts.title, opts.headline);
+  const edl = r.ranking ? rankingEdl(r, r.ranking, opts.paths ?? []) : clipEdl(r, opts.title, opts.headline);
   const tl = timeline(edl);
   const sources = { [SOURCE_ID]: clipSource(r, opts.size, opts.sourceSec) };
-  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: null, cleanAudio: {} };
+  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: null, cleanAudio: {}, ranking: r.ranking ? rankingOverlay(r.ranking) : undefined };
   const { renderMediaOnWeb } = await import("@remotion/web-renderer");
   const { getBlob } = await renderMediaOnWeb({
     composition: { id: "socia-clipper-clip", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
