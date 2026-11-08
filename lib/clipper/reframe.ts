@@ -50,12 +50,16 @@ export const shotScale = (kind: ShotKind, share: number): number => (kind === "w
 /**
  * The model's answer made calm: in order, inside the clip, starting at 0, with
  * small changes dropped and at least MIN_HOLD_SEC between shots. Null when there
- * is nothing usable, and the frame stays where it is.
+ * is nothing usable, and the frame stays where it is. `onePerson` holds every
+ * shot on the first one, apart from going wide.
  */
-export function cleanCropPath(raw: unknown, durationSec: number, share: number): CropKey[] | null {
+export function cleanCropPath(raw: unknown, durationSec: number, share: number, onePerson = false): CropKey[] | null {
   const moves = (raw as { moves?: unknown })?.moves;
   if (!Array.isArray(moves) || share >= 1) return null;
-  const keys: CropKey[] = (moves as { t?: unknown; shot?: unknown; center?: unknown; y?: unknown }[])
+  const answered = moves as { t?: unknown; shot?: unknown; center?: unknown; y?: unknown }[];
+  // One person talking to one camera: the picture stays on them. It only leaves for something that won't fit, like text or a screen.
+  const main = onePerson ? [...answered].sort((a, b) => Number(a.t) - Number(b.t)).find((m) => m.shot !== "wide") : undefined;
+  const keys: CropKey[] = answered.map((m) => (main && m.shot !== "wide" ? { ...main, t: m.t } : m))
     .map((m) => ({ t: Number(m.t), shot: m.shot, c: Number(m.center), y: m.y == null ? 0.4 : Number(m.y) }))
     .filter((m) => Number.isFinite(m.t) && m.t >= 0 && m.t < durationSec && (m.shot === "wide" || m.shot === "band" || m.shot === "person" || m.shot === "tight")
       && (m.shot === "wide" || Number.isFinite(m.c)) && Number.isFinite(m.y))
@@ -152,7 +156,7 @@ Then return moves: by time t (seconds into the clip) this shot should be showing
 - center: where to centre the shot across the source, measured from where the face actually is. Ignored for "wide".
 - y: where to centre it down the source, measured from the face. Ignored for "wide" and "band".
 
-How to edit: hold still. Good clips hold one shot for many seconds and never add movement for energy. Most clips need a single move at t 0. Add another only for a real reason: text or a screen appeared or went, or the source itself switched to a different shot and the person is now somewhere else. Never follow gestures or a leaning head, and leave at least 4 seconds between moves.`;
+How to edit: hold still. Good clips hold one shot for many seconds and never add movement for energy. When one person does all the talking, return a single move at t 0 and keep the picture on them. Add another only for a real reason: text or a screen appeared or went, or the source itself switched to a different shot and the person is now somewhere else. Never follow gestures or a leaning head, and leave at least 4 seconds between moves.`;
 
 /** The user message's text for one frame. */
 export const frameLabel = (t: number) => `Frame at ${t.toFixed(1)} s`;
