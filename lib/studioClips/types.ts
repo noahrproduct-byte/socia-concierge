@@ -219,7 +219,11 @@ export const TRANSITIONS = [
 export type TransitionKind = (typeof TRANSITIONS)[number]["id"];
 export const isTransition = (v: unknown): v is TransitionKind => TRANSITIONS.some((t) => t.id === v);
 
-export type SegmentFrame = { zoom: number; x: number; y: number };
+export type SegmentFrame = {
+  zoom: number; x: number; y: number;
+  /** The shot changes during the cut: what to show when, in seconds into the cut (lib/clipper/reframe.ts). Absent = it stays at x. */
+  path?: { t: number; c: number; y: number; s: number }[];
+};
 
 /** The output sizes the editor offers (width × height at 1080 on the short side). */
 export const ASPECTS = [
