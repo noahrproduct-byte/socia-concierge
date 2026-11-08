@@ -223,7 +223,7 @@ export function outlook(mode: string | null): OutlookPayload {
   const at = (i: number, n: number) => new Date(Date.parse(NOW) - (10 + (n - 1 - i) * 4) * 86_400_000).toISOString();
   const wobble = [0.6, 0.8, 1, 1.3, 1.7];
   const noise = [1900, 640, 3100, 1250, 2300, 880, 1500, 2750, 1020, 1700];
-  const n = mode === "thin" ? 5 : 44;
+  const n = mode === "thin" ? 3 : 44;
   const reels: OutlookReel[] = Array.from({ length: n }, (_, i) => mode === "forecast"
     ? { at: at(i, n), views: Math.round((i % 2 ? 4000 : 1000) * wobble[i % 5]), traits: [i % 2 ? "open:Question" : "open:Listicle hook", "caption:short"] }
     : { at: at(i, n), views: Math.round(noise[(i * 3) % 10] * (i >= n - 8 ? 1.4 : 1)), traits: [i % 3 === 0 ? "open:Question" : "open:Listicle hook", i % 4 === 0 ? "caption:long" : "caption:short", ...(i % 5 === 0 ? ["theme:Behind the scenes"] : [])] });

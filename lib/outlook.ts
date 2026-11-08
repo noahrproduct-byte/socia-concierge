@@ -10,13 +10,12 @@
 //      opens, its subject, its length) and how the Reels with and without
 //      that did. A pattern in a handful of posts, never a cause.
 //   3. The virality score and predicted views (Noah, 2026-11-08: "It should
-//      judge by the video"). The rater's read of this video (videoStrength)
-//      sets where it should land in the account's own range; the account's
-//      history (baseline x momentum x caption patterns) sets the scale. How
-//      strength maps to views is an assumption until rated videos have results,
-//      so a video-based forecast is always marked low confidence. The history
-//      part is replayed over the account's Reels, each forecast from only what
-//      was known before it went out.
+//      judge by the video"). Two numbers. Virality potential is the rater's read
+//      of this video alone (videoStrength), so a great video scores as great on
+//      a small account. Predicted views place that video within the account's
+//      own range, with the history (baseline x momentum x caption patterns)
+//      setting the scale. How strength maps to views is an assumption until
+//      rated videos have results, so those views are always low confidence.
 //
 // What this can't see: SOCIA stores each Reel's latest numbers, not how they
 // grew, so a Reel counts only once it has settled; Instagram gives no video
@@ -317,7 +316,7 @@ const PER_POINT = 0.015;
 export const STRONG_VIDEO = 75;
 
 export type Forecast = {
-  /** With a video: its strength and the account's position, blended. Without one: where the estimate sits among the baseline Reels. Not a probability. */
+  /** With a video: its potential on its own, with no account history in it. Without one: where the estimate sits among the baseline Reels. Not a probability. */
   index: number;
   estimate: number;
   low: number;
@@ -359,7 +358,7 @@ export function outlookFor(model: AccountModel, caption: string | null | undefin
   return {
     shared,
     forecast: {
-      index: Math.round(strength == null ? history : clamp(VIDEO_SHARE * strength + (1 - VIDEO_SHARE) * history, 0, 100)),
+      index: Math.round(strength == null ? history : clamp(strength, 0, 100)),
       estimate: roundViews(center),
       low: roundViews(Math.min(low, center)),
       high: roundViews(Math.max(high, center)),

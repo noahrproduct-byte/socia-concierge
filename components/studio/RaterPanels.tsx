@@ -76,20 +76,26 @@ export type OutlookState = { status: "loading" } | { status: "error" } | { statu
 
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
-/** The virality score and predicted views, with how far to trust them beside the number. */
-function ScoreStats({ f, coverage }: { f: Forecast; coverage: number | null }) {
+const POTENTIAL_WORD = (n: number) => (n >= 80 ? "High potential" : n >= 60 ? "Some potential" : "Low potential");
+
+/** The video's potential on its own, and what it should get on this account, as two separate numbers. */
+function ScoreStats({ strength, f, coverage }: { strength: number | null; f: Forecast | null; coverage: number | null }) {
   return (
     <>
-      <div>
-        <dt>Virality score {!f.checked && <em className="ov-chip warning">Low confidence</em>}</dt>
-        <dd><b>{f.index}</b> of 100</dd>
-        <small>From this video and how your account usually does.</small>
-      </div>
-      <div>
-        <dt>Predicted views</dt>
-        <dd><b>{fmtViews(f.low)} to {fmtViews(f.high)}</b></dd>
-        <small>{coverage != null ? `Replayed on your past Reels, this kind of range held ${Math.round(coverage * 100)}% of the time.` : "Built from how far your own Reels vary."}</small>
-      </div>
+      {strength != null && (
+        <div>
+          <dt>Virality potential</dt>
+          <dd><b>{Math.round(strength)}</b> of 100</dd>
+          <small>How strong this video is on its own, whatever your account size.</small>
+        </div>
+      )}
+      {f && (
+        <div>
+          <dt>Predicted views on your account {!f.checked && <em className="ov-chip warning">Low confidence</em>}</dt>
+          <dd><b>{fmtViews(f.low)} to {fmtViews(f.high)}</b></dd>
+          <small>{coverage != null ? `Depends on your current audience. On your past Reels, this kind of range held ${Math.round(coverage * 100)}% of the time.` : "Depends on your current audience and how far your Reels vary."}</small>
+        </div>
+      )}
     </>
   );
 }
@@ -100,7 +106,7 @@ function ConfidenceNote({ f, bt }: { f: Forecast; bt: Backtest | null }) {
   if (f.video) {
     return (
       <p className="sd-note">
-        <b>Low confidence, a rough guide.</b> SOCIA reads this video&apos;s hook, story, pacing, clarity, picture, captions and sound, then places it within your own Reels: a stronger video lands higher. That link isn&apos;t proven on your account yet, so SOCIA checks each rated video against its real result once you post. A video can also beat your best Reel by far, and no one can put a number on a breakout.
+        <b>Predicted views are low confidence, a rough guide.</b> SOCIA places this video within your own Reels: a stronger video lands higher. That link isn&apos;t proven on your account yet, so SOCIA checks each rated video against its real result once you post. A video can also beat your best Reel by far, and no one can put a number on a breakout.
       </p>
     );
   }
@@ -168,7 +174,7 @@ export function OutlookBlock({ state, caption, suggestion, strength, onRetry }: 
           </dl>
 
           {f && <ConfidenceNote f={f} bt={bt} />}
-          {alt && f && (alt.index !== f.index || alt.low !== f.low || alt.high !== f.high) && <p className="sd-note"><b>With the suggested caption:</b> score {alt.index}, {fmtViews(alt.low)} to {fmtViews(alt.high)} views.</p>}
+          {alt && f && (alt.low !== f.low || alt.high !== f.high) && <p className="sd-note"><b>With the suggested caption:</b> {fmtViews(alt.low)} to {fmtViews(alt.high)} views.</p>}
 
           <details className="sd-why">
             <summary>View supporting evidence</summary>
@@ -176,8 +182,8 @@ export function OutlookBlock({ state, caption, suggestion, strength, onRetry }: 
               <div><dt>Sample</dt><dd>{b.n} Reels posted {day(b.from)} to {day(b.to)}, each out at least {SETTLE_DAYS} days with a view count from Instagram.{model.pending > 0 ? ` ${model.pending} newer ${model.pending === 1 ? "one is" : "ones are"} left out until ${model.pending === 1 ? "it settles" : "they settle"}.` : ""} Collab Reels another account posted are left out.</dd></div>
               <div><dt>Your usual</dt><dd>Median {fmtViews(b.median)} views. Half of those Reels fell between {fmtViews(b.low)} and {fmtViews(b.high)}.</dd></div>
               {mo && <div><dt>Momentum</dt><dd>Your last {mo.recentN} Reels have a median of {fmtViews(mo.recentMedian)} views; the {mo.earlierN} before them, {fmtViews(mo.earlierMedian)}.</dd></div>}
-              <div><dt>How the score works</dt><dd>70% is how strong this video is: the hook counts for 30%, story, pacing, clarity and picture for 15% each, captions and sound for 5% each. The ask and brand fit don&apos;t count. The other 30% is where your account&apos;s history and this caption would place it among your last {b.n} Reels.</dd></div>
-              <div><dt>Predicted views</dt><dd>An ordinary video lands at your median; each point of strength moves it up or down your own range. That is weighed 70 to 30 with what your history expects, then widened by how far your Reels vary. A video scoring {STRONG_VIDEO} or more can reach at least your best Reel.</dd></div>
+              <div><dt>Virality potential</dt><dd>SOCIA&apos;s read of this video alone: the hook counts for 30%, story, pacing, clarity and picture for 15% each, captions and sound for 5% each. The ask and brand fit don&apos;t count, and neither does your account.</dd></div>
+              <div><dt>Predicted views</dt><dd>An ordinary video lands at your median; each point of potential moves it up or down your own range. That is weighed 70 to 30 with what your history expects, then widened by how far your Reels vary. A video with potential of {STRONG_VIDEO} or more can reach at least your best Reel.</dd></div>
               <div><dt>The check</dt><dd>On your history alone: {bt ? bt.why : "no Reel can be replayed yet."} The video part can only be checked against rated videos&apos; real results, so it stays low confidence until those exist.</dd></div>
               <div><dt>Not included</dt><dd>How each Reel&apos;s views grew over time (SOCIA has kept only the latest count), past Reels&apos; video length, and what your followers saw that week.</dd></div>
             </dl>
@@ -201,31 +207,37 @@ function ScoreRing({ score }: { score: number }) {
 }
 
 /** The first tab, and the short one: the score, each part of it, the outlook, and what to fix first. The detail is one tab away. */
-/** The virality prediction, beside the creative score: the number when the account has the Reels for it, and exactly what is missing when it hasn't. */
-function ViralityHero({ outlook, f }: { outlook: OutlookState; f: Forecast | null }) {
-  if (f) {
-    return (
-      <div className="st-score">
-        <Ring share={f.index / 100} size={110} stroke={9} tone={f.index >= 60 ? "good" : f.index >= 40 ? "ok" : "low"} label={`Virality prediction ${f.index} out of 100`}>
-          <b><CountUp value={f.index} /></b>
-          <small>of 100</small>
-        </Ring>
-        <div className="st-score-meta">
-          <small>Virality prediction</small>
-          <b>{fmtViews(f.low)} to {fmtViews(f.high)} views</b>
-          {!f.checked && <em className="ov-chip warning">Low confidence</em>}
-          <p>From SOCIA&apos;s read of this video and how your account usually does.</p>
-        </div>
-      </div>
-    );
-  }
+/** Virality potential beside the creative score, and the views on this account under it, or exactly what those views still need. */
+function ViralityHero({ outlook, strength, f }: { outlook: OutlookState; strength: number | null; f: Forecast | null }) {
   const data = outlook.status === "ready" ? outlook.data : null;
-  const line = outlook.status === "loading" ? "Reading your Reels."
+  const missing = outlook.status === "loading" ? "Reading your Reels."
     : outlook.status === "error" ? "Your Reel history could not be loaded."
-    : !data?.connected ? "Connect Instagram to get a prediction from your own Reels."
+    : !data?.connected ? "Connect Instagram to predict views from your own Reels."
     : data.insightsOk === false ? "Instagram isn't sharing view counts for this account. Reconnect it in Settings."
     : `SOCIA has ${data.model.reels.length} Reel${data.model.reels.length === 1 ? "" : "s"} with views out ${SETTLE_DAYS} days or more, and needs ${BASELINE_MIN}.${data.model.pending > 0 ? ` ${data.model.pending} newer ${data.model.pending === 1 ? "one counts" : "ones count"} once ${data.model.pending === 1 ? "it reaches" : "they reach"} that age.` : ""}`;
-  return <div className="st-score-meta sd-duo-empty"><small>Virality prediction</small><b>Not ready yet</b><p>{line}</p></div>;
+  const views = (
+    <div className="sd-heroviews">
+      <small>Predicted views on your account</small>
+      {f ? <b>{fmtViews(f.low)} to {fmtViews(f.high)}</b> : <p>{missing}</p>}
+      {f && !f.checked && <em className="ov-chip warning">Low confidence</em>}
+    </div>
+  );
+  if (strength == null) return <div className="st-score-meta sd-duo-empty"><small>Virality potential</small><b>Not ready yet</b><p>Too little of this video could be scored.</p>{views}</div>;
+  const n = Math.round(strength);
+  return (
+    <div className="st-score">
+      <Ring share={n / 100} size={110} stroke={9} tone={n >= 60 ? "good" : n >= 40 ? "ok" : "low"} label={`Virality potential ${n} out of 100`}>
+        <b><CountUp value={n} /></b>
+        <small>of 100</small>
+      </Ring>
+      <div className="st-score-meta">
+        <small>Virality potential</small>
+        <b>{POTENTIAL_WORD(n)}</b>
+        <p>How strong this video is on its own, whatever your account size.</p>
+        {views}
+      </div>
+    </div>
+  );
 }
 
 export function AnalyzePanel({ a, onOpenEdit, outlook, onOutlookRetry, caption }: { a: StudioAnalysis; onOpenEdit: (i: number) => void; outlook: OutlookState | null; onOutlookRetry: () => void; caption: string }) {
@@ -248,7 +260,7 @@ export function AnalyzePanel({ a, onOpenEdit, outlook, onOutlookRetry, caption }
               <p className="st-score-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
             </div>
           </div>
-          {outlook && <ViralityHero outlook={outlook} f={forecast} />}
+          {outlook && <ViralityHero outlook={outlook} strength={strength} f={forecast} />}
         </div>
         <div className="sd-hero-foot">
           <button type="button" className="ov-link" aria-expanded={how} onClick={() => setHow((v) => !v)}>How is this scored? <ChevronDown size={12} style={{ transform: how ? "rotate(180deg)" : undefined }} /></button>
@@ -371,15 +383,18 @@ function ReachStrip({ a, w, outlook }: { a: StudioAnalysis; w: Working; outlook:
   const after = scoreAfterEdits(a);
   const model = outlook?.status === "ready" ? outlook.data.model : null;
   const read = w.caption.trim() ? w.caption : a.caption.suggestion ?? "";
-  const f = model ? outlookFor(model, read, videoStrength(a.categories)).forecast : null;
-  const fixed = model ? outlookFor(model, read, strengthAfter(a.categories, a.topFixes)).forecast : null;
-  if (!f && after == null) return null;
+  const strength = videoStrength(a.categories);
+  const strengthFixed = strengthAfter(a.categories, a.topFixes);
+  const f = model ? outlookFor(model, read, strength).forecast : null;
+  const fixed = model ? outlookFor(model, read, strengthFixed).forecast : null;
+  const lifted = strength != null && strengthFixed != null && Math.round(strengthFixed) > Math.round(strength);
+  if (strength == null && !f && after == null) return null;
   return (
     <section className="st-block sd-outlook" aria-label="Reach and what the edits change">
       <dl className="sd-ostats">
-        {f && <ScoreStats f={f} coverage={model?.backtest?.coverage ?? null} />}
-        {f && fixed && fixed.index > f.index
-          ? <div><dt>After these edits</dt><dd><b>{f.index} to {fixed.index}</b> of 100</dd><small>{fmtViews(fixed.low)} to {fmtViews(fixed.high)} views.{after != null ? ` Creative readiness ${a.score.overall} to about ${after}.` : ""}</small></div>
+        <ScoreStats strength={strength} f={f} coverage={model?.backtest?.coverage ?? null} />
+        {lifted
+          ? <div><dt>After these edits</dt><dd><b>{Math.round(strength!)} to {Math.round(strengthFixed!)}</b> of 100</dd><small>{fixed ? `${fmtViews(fixed.low)} to ${fmtViews(fixed.high)} views on your account.` : ""}{after != null ? ` Creative readiness ${a.score.overall} to about ${after}.` : ""}</small></div>
           : after != null && <div><dt>After these edits</dt><dd><b>{a.score.overall} to about {after}</b></dd><small>Creative readiness, SOCIA&apos;s estimate.</small></div>}
       </dl>
       {f && <ConfidenceNote f={f} bt={model?.backtest ?? null} />}

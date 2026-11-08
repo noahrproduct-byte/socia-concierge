@@ -182,6 +182,13 @@ describe("reading the video itself", () => {
     expect(strong.estimate).toBeGreaterThan(usual.estimate);
     expect(usual.estimate).toBeGreaterThan(weak.estimate);
   });
+  it("keeps the account out of the potential: the same video scores the same on any account", () => {
+    const small = buildModel(run(10, () => ({ views: 100 })), 0);
+    const big = buildModel(run(10, () => ({ views: 900_000 })), 0);
+    expect(outlookFor(small, "A caption", 84).forecast!.index).toBe(84);
+    expect(outlookFor(big, "A caption", 84).forecast!.index).toBe(84);
+    expect(outlookFor(big, "A caption", 84).forecast!.estimate).toBeGreaterThan(outlookFor(small, "A caption", 84).forecast!.estimate);
+  });
   it("is always low confidence, because how strength maps to views isn't proven yet", () => {
     const f = outlookFor(m, "A caption", 90).forecast!;
     expect(f).toMatchObject({ video: true, checked: false });
