@@ -120,12 +120,27 @@ export const CAPTION_PAGE_MS = 1200;
 
 export type CaptionPageSpan = { page: TikTokPage; from: number; durationInFrames: number };
 
+/** One page as several of at most `maxWords` words, each new one starting when its first word is spoken. A sentence's end always closes a page. */
+export function splitCaptionPage(page: TikTokPage, maxWords: number): TikTokPage[] {
+  const groups: TikTokPage["tokens"][] = [[]];
+  page.tokens.forEach((t, i) => {
+    const cur = groups[groups.length - 1];
+    cur.push(t);
+    if ((cur.length >= maxWords || /[.!?…]["')\]]?\s*$/.test(t.text)) && i < page.tokens.length - 1) groups.push([]);
+  });
+  return groups.map((tokens) => {
+    const clean = tokens.map((t, i) => (i ? t : { ...t, text: t.text.trimStart() }));
+    const startMs = clean[0].fromMs;
+    return { text: clean.map((t) => t.text).join(""), startMs, durationMs: clean[clean.length - 1].toMs - startMs, tokens: clean };
+  });
+}
+
 /**
  * The caption pages on the frame timeline. A page runs from its first word
  * to the end of its last word (never cut off at the page length: a word that
  * starts late in the page still finishes), and never past the next page.
  */
-export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, fps: number = FPS, pageMs: number = CAPTION_PAGE_MS): CaptionPageSpan[] {
+export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, fps: number = FPS, pageMs: number = CAPTION_PAGE_MS, maxWords?: number): CaptionPageSpan[] {
   if (!edl.captions) return [];
   const captions = captionsForEdl(edl, words);
   if (!captions.length) return [];
@@ -136,7 +151,8 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
   const shotOf = (ms: number) => starts.reduce((at, s, i) => (ms >= s ? i : at), 0);
   const pages = starts.flatMap((_, i) => {
     const inShot = captions.filter((c) => shotOf(c.startMs) === i);
-    return inShot.length ? createTikTokStyleCaptions({ captions: inShot, combineTokensWithinMilliseconds: pageMs }).pages : [];
+    const made = inShot.length ? createTikTokStyleCaptions({ captions: inShot, combineTokensWithinMilliseconds: pageMs }).pages : [];
+    return maxWords ? made.flatMap((p) => splitCaptionPage(p, maxWords)) : made;
   });
   const out: CaptionPageSpan[] = [];
   pages.forEach((page, i) => {

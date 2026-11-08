@@ -34,7 +34,7 @@ export const frameScale = (width: number, height: number): number => Math.min(wi
 export type TextSlot = "top" | "middle" | "bottom";
 export const TEXT_SLOTS: { id: TextSlot; label: string }[] = [{ id: "top", label: "Top" }, { id: "middle", label: "Middle" }, { id: "bottom", label: "Bottom" }];
 
-export type TextPresetId = "hook_title" | "caption_bar" | "callout_box" | "lower_third" | "big_stat" | "subtitle";
+export type TextPresetId = "hook_title" | "caption_bar" | "callout_box" | "lower_third" | "big_stat" | "subtitle" | "clip_headline";
 export const TEXT_PRESET_IDS: TextPresetId[] = ["hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"];
 
 export type TextAnimation = "fade" | "pop";
@@ -106,6 +106,14 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
     box: OUTLINE,
     align: "center", widthPct: 1, slot: "top", time: { start: 0, end: 3 }, animation: "pop",
   },
+  // The AI Clipper's headline, up for a whole clip above the picture. Not one of the looks people pick (TEXT_PRESET_IDS).
+  clip_headline: {
+    id: "clip_headline", label: "Clip headline", hint: "A small headline above the picture for the whole clip.", sample: "Why sleep comes first",
+    font: BOLD, size: { min: 38, max: 50 }, lineHeight: 1.15, letterSpacing: 0,
+    maxLines: 3, maxChars: 80, color: BRAND.white,
+    box: OUTLINE,
+    align: "center", widthPct: 1, slot: "top", time: { start: 0, end: 3 }, animation: "fade",
+  },
   caption_bar: {
     id: "caption_bar", label: "Caption", hint: "White words with a black outline, low in the frame.", sample: "Open every day from 7am",
     font: BOLD, size: { min: 38, max: 54 }, lineHeight: 1.18, letterSpacing: 0,
@@ -168,7 +176,7 @@ export function presetForRole(role: TextRole | string | null | undefined): TextP
 
 /** The preset a stored line renders with: its own, or the one for its role. */
 export function presetOf(line: { presetId?: string | null; role?: string | null }): TextPreset {
-  return isTextPresetId(line.presetId) ? TEXT_PRESETS[line.presetId] : presetForRole(line.role);
+  return isTextPresetId(line.presetId) || line.presetId === "clip_headline" ? TEXT_PRESETS[line.presetId] : presetForRole(line.role);
 }
 
 /** Characters as a person counts them (an emoji is one), so the counter and the limit agree. */

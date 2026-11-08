@@ -19,7 +19,7 @@ export function RankingLayer({ ranking, fontFamily }: { ranking: RankingOverlay;
   return (
     <AbsoluteFill style={{ pointerEvents: "none", fontFamily, color: "#fff" }}>
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: rankingBand(rows.length, height).top, backgroundColor: "#000" }} />
-      <div style={{ position: "absolute", top: RANKING_LAYOUT.titleTop * k, left: 56 * k, right: 56 * k, textAlign: "center", fontSize: (ranking.title.length > 56 ? 50 : 60) * k, lineHeight: 1.15, fontWeight: 800 }}>{ranking.title}</div>
+      <div style={{ position: "absolute", top: RANKING_LAYOUT.titleTop * k, left: 56 * k, right: 56 * k, textAlign: "center", fontSize: (ranking.title.length > 56 ? 44 : 50) * k, lineHeight: 1.15, fontWeight: 800 }}>{ranking.title}</div>
       {rows.map((r, i) => {
         const shown = interpolate(t, [r.at, r.at + 0.15], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
         return (
