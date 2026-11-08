@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Scissors } from "lucide-react";
-import { CLIP_LANGUAGES, CLIP_LENGTHS, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipperOptions } from "@/lib/clipper/provider";
+import { CLIP_LANGUAGES, CLIP_LENGTHS, CLIP_TYPES, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipType, type ClipperOptions } from "@/lib/clipper/provider";
+import { RANKING_SIZE } from "@/lib/clipper/ranking";
+import RankingRenderCard from "./RankingRenderCard";
 import { clipCredits } from "@/lib/credits/config";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinutes, CreditsLine, StatusChip, MediaCard } from "./shared";
 import type { ClipRender } from "@/lib/clipper/server";
@@ -143,6 +145,10 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
     } catch (e) { setCancelErr(errorText(e)); } finally { setCancelBusy(false); }
   }
 
+  // Types are SOCIA's own picker. A link sent to Vizard gets its usual clips.
+  const clipType: ClipType = provider === "socia" ? opts.clipType ?? "best" : "best";
+  const ranking = clipType === "ranking";
+  const chooseType = (id: ClipType) => setOpts((o) => ({ ...o, clipType: id, ...(id === "ranking" ? { maxClips: Math.min(RANKING_SIZE.max, Math.max(RANKING_SIZE.min, o.maxClips)) } : {}) }));
   const toggleLength = (id: ClipLength) => setOpts((o) => ({ ...o, lengths: o.lengths.includes(id) ? (o.lengths.length > 1 ? o.lengths.filter((l) => l !== id) : o.lengths) : [...o.lengths.filter((l) => l !== "auto" && id !== "auto"), id] }));
   const canSubmit = canMutate && !busy && (source === "youtube" ? url.trim().length > 10 : source === "url" ? url.trim().length > 10 : Boolean(file));
 
@@ -174,6 +180,15 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
             <input type="number" min={1} max={600} value={minutes} onChange={(e) => setMinutes(e.target.value ? Math.max(1, Math.ceil(Number(e.target.value))) : "")} />
           </label>
         )}
+        {provider === "socia" && (
+          <div className="ai-field">
+            <span>Type of clips</span>
+            <div className="ai-chips">
+              {CLIP_TYPES.map((t) => <button key={t.id} type="button" className={`ai-chip${clipType === t.id ? " is-on" : ""}`} aria-pressed={clipType === t.id} onClick={() => chooseType(t.id)}>{t.label}</button>)}
+            </div>
+            <small>{CLIP_TYPES.find((t) => t.id === clipType)?.hint}</small>
+          </div>
+        )}
         <div className="ai-options">
           {provider === "socia" && (
             <label className="ai-field ai-field-short">
@@ -183,20 +198,29 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
               </select>
             </label>
           )}
+          {ranking ? (
+            <label className="ai-field ai-field-short">
+              <span>Moments in the ranking</span>
+              <select value={opts.maxClips} onChange={(e) => setOpts((o) => ({ ...o, maxClips: Number(e.target.value) }))}>
+                {[3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          ) : (
           <label className="ai-field ai-field-short">
             <span>Clips, at most</span>
             <input type="number" min={1} max={MAX_CLIPS} value={opts.maxClips} onChange={(e) => setOpts((o) => ({ ...o, maxClips: Math.min(MAX_CLIPS, Math.max(1, Number(e.target.value) || 1)) }))} />
           </label>
-          <div className="ai-field">
+          )}
+          {!ranking && <div className="ai-field">
             <span>Clip length</span>
             <div className="ai-chips">
               {CLIP_LENGTHS.map((l) => (
                 <button key={l.id} type="button" className={`ai-chip${opts.lengths.includes(l.id) ? " is-on" : ""}`} aria-pressed={opts.lengths.includes(l.id)} onClick={() => (l.id === "auto" ? setOpts((o) => ({ ...o, lengths: ["auto"] })) : toggleLength(l.id))}>{l.id === "auto" && provider === "socia" ? "Let SOCIA decide" : l.label}</button>
               ))}
             </div>
-          </div>
+          </div>}
           <label className="ai-check"><input type="checkbox" checked={opts.captions} onChange={(e) => setOpts((o) => ({ ...o, captions: e.target.checked }))} /> Captions on the clips</label>
-          <label className="ai-check"><input type="checkbox" checked={opts.headline} onChange={(e) => setOpts((o) => ({ ...o, headline: e.target.checked }))} /> A headline on each clip</label>
+          {!ranking && <label className="ai-check"><input type="checkbox" checked={opts.headline} onChange={(e) => setOpts((o) => ({ ...o, headline: e.target.checked }))} /> A headline on each clip</label>}
           {provider === "vizard" && <label className="ai-check"><input type="checkbox" checked={opts.clipModel === "clip_v2"} onChange={(e) => setOpts((o) => ({ ...o, clipModel: e.target.checked ? "clip_v2" : "clip_v1" }))} /> Newer clipping model (costs a quarter more)</label>}
         </div>
         <CreditsLine balance={balance} price={price} label={price == null ? undefined : "This will use"} />
@@ -221,7 +245,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
             <li key={j.id} className={`ai-job${open === j.id ? " is-open" : ""}`}>
               <button type="button" className="ai-job-row" onClick={() => { setOpen(open === j.id ? null : j.id); if (j.status === "done" && !clipsByJob[j.id]) void loadJob(j.id); }} aria-expanded={open === j.id}>
                 <span className="ai-job-src">{j.source_kind === "youtube" ? j.source_url : j.source_kind === "upload" ? j.options?.sourceName ?? "Uploaded video" : j.source_url}</span>
-                <span className="ai-job-meta">{j.source_minutes} min · {j.credits_charged ?? j.credits_reserved} credits · {when(j.created_at)}</span>
+                <span className="ai-job-meta">{j.options?.clipType && j.options.clipType !== "best" ? `${CLIP_TYPES.find((t) => t.id === j.options.clipType)?.label} · ` : ""}{j.source_minutes} min · {j.credits_charged ?? j.credits_reserved} credits · {when(j.created_at)}</span>
                 <StatusChip status={j.status} working={stageLabel(j.stage)} />
               </button>
               {j.status === "cancelled" && <p className="ai-note">Cancelled. Your credits are back.</p>}
@@ -230,7 +254,12 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
               {open === j.id && j.status === "done" && <MakeAll clips={clipsByJob[j.id] ?? []} canMutate={canMutate} queue={queue} queueSize={queueSize} onStart={(ids) => { setQueue(ids); setQueueSize(ids.length); }} />}
               {open === j.id && j.status === "done" && (
                 <div className="ai-grid">
-                  {(clipsByJob[j.id] ?? []).map((c) => c.render && (!c.playUrl || recrop === c.id) ? (
+                  {(clipsByJob[j.id] ?? []).map((c) => c.render?.ranking && !c.playUrl ? (
+                    <RankingRenderCard key={c.id} id={c.id} ranking={c.render.ranking} render={c.render} canMutate={canMutate}
+                      autoStart={queue[0] === c.id} onSettled={() => setQueue((q) => q.filter((x) => x !== c.id))}
+                      sub={`${fmtDur(c.duration_ms)}${c.score != null ? `, score ${c.score}/10` : ""}`} why={c.score_reason}
+                      onRendered={() => void loadJob(j.id)} />
+                  ) : c.render && !c.render.ranking && (!c.playUrl || recrop === c.id) ? (
                     <ClipRenderCard key={c.id} id={c.id} title={c.title ?? "Clip"} render={c.render} headline={j.options?.headline !== false} canMutate={canMutate}
                       autoStart={queue[0] === c.id} onSettled={() => setQueue((q) => q.filter((x) => x !== c.id))}
                       sub={`${fmtDur(c.duration_ms)}${c.score != null ? `, score ${c.score}/10` : ""}`} why={c.score_reason}
@@ -239,7 +268,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
                     <MediaCard key={c.id} kind="clip" id={c.id} title={c.title ?? "Clip"} isVideo playUrl={c.playUrl} downloadUrl={c.downloadUrl} caption={c.caption ?? ""} hashtags={c.hashtags ?? []} canMutate={canMutate}
                       sub={<>{fmtDur(c.duration_ms)}{c.score != null && <> · score {c.score}/10</>}</>}>
                       {c.score_reason && <details className="ai-why"><summary>Why this score</summary><p>{c.score_reason}</p></details>}
-                      {c.render && canMutate && <button type="button" className="ai-act is-quiet" onClick={() => setRecrop(c.id)}>Change the crop</button>}
+                      {c.render && !c.render.ranking && canMutate && <button type="button" className="ai-act is-quiet" onClick={() => setRecrop(c.id)}>Change the crop</button>}
                     </MediaCard>
                   ))}
                   {!clipsByJob[j.id] && <p className="ai-note"><Loader2 size={14} className="spin" aria-hidden /> Loading clips</p>}

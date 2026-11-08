@@ -14,6 +14,19 @@ export const CLIP_LENGTHS: { id: ClipLength; label: string }[] = [
 ];
 export const isClipLength = (v: unknown): v is ClipLength => CLIP_LENGTHS.some((l) => l.id === v);
 
+/** What kind of clips to look for. Everything but "ranking" changes only what the picker looks for; a ranking is one clip made of several moments. */
+export const CLIP_TYPES = [
+  { id: "best", label: "Best moments", hint: "The strongest parts of the video, each as its own clip." },
+  { id: "ranking", label: "Ranking", hint: "The top moments counted down in one clip, with the list on screen." },
+  { id: "answers", label: "Questions and answers", hint: "A question asked and answered. Good for interviews and podcasts." },
+  { id: "takes", label: "Hot takes", hint: "Strong opinions and claims people will want to argue with." },
+  { id: "stories", label: "Stories", hint: "A story told from its start to its payoff." },
+  { id: "tips", label: "Tips", hint: "One useful thing to do, explained from start to finish." },
+  { id: "funny", label: "Funny moments", hint: "Jokes and banter. SOCIA goes by what is said, so a laugh with no words can be missed." },
+] as const;
+export type ClipType = (typeof CLIP_TYPES)[number]["id"];
+export const isClipType = (v: unknown): v is ClipType => CLIP_TYPES.some((t) => t.id === v);
+
 /** The languages offered for a video. English first: auto-detect is thrown by mixed speech (an English talk with Arabic recitation came back as Urdu). */
 export const CLIP_LANGUAGES: { id: string; label: string }[] = [
   { id: "en", label: "English" }, { id: "es", label: "Spanish" }, { id: "fr", label: "French" }, { id: "de", label: "German" },
@@ -35,11 +48,13 @@ export type ClipperOptions = {
   /** Spoken language, ISO code, or "auto" to detect it. */
   lang: string;
   clipModel: "clip_v1" | "clip_v2";
+  /** What kind of clips to look for. Absent on jobs from before types: best moments. */
+  clipType?: ClipType;
   /** The uploaded file's name, for the job list. */
   sourceName?: string;
 };
 
-export const DEFAULT_CLIPPER_OPTIONS: ClipperOptions = { maxClips: 5, lengths: ["under30", "30to60"], captions: true, headline: true, lang: "en", clipModel: "clip_v1" };
+export const DEFAULT_CLIPPER_OPTIONS: ClipperOptions = { maxClips: 5, lengths: ["under30", "30to60"], captions: true, headline: true, lang: "en", clipModel: "clip_v1", clipType: "best" };
 export const MAX_CLIPS = 20;
 
 export type ClipperSource =

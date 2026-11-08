@@ -7,7 +7,8 @@
 // captions and numbers come from the transcript and SOCIA's own reads.
 
 import type { TranscriptWord } from "@/lib/transcribe/types";
-import type { ClipLength, ClipperOptions } from "./provider";
+import type { ClipLength, ClipperOptions, ClipType } from "./provider";
+import { RANKING_MOMENT_SEC } from "./ranking";
 
 /** Words as stored on the job: [text, startMs, endMs]. */
 export type StoredWord = [string, number, number];
@@ -28,6 +29,10 @@ export function lengthRange(lengths: ClipLength[]): { min: number; max: number }
   const picked = lengths.length ? lengths : (["auto"] as ClipLength[]);
   return { min: Math.min(...picked.map((l) => LENGTH_SECONDS[l][0])), max: Math.max(...picked.map((l) => LENGTH_SECONDS[l][1])) };
 }
+
+type RangeOptions = Pick<ClipperOptions, "lengths" | "clipType">;
+/** The seconds one moment may run: a ranking's are short, because several share a clip. */
+export const momentRange = (o: RangeOptions) => (o.clipType === "ranking" ? RANKING_MOMENT_SEC : lengthRange(o.lengths));
 
 /** Plain seconds, the unit the answer is in, so a time can't be misread as minutes and seconds. */
 const secs = (ms: number) => (Math.max(0, ms) / 1000).toFixed(1);
@@ -61,7 +66,7 @@ export type PickBrief = {
   brand: string;
   lines: Line[];
   durationMs: number;
-  options: Pick<ClipperOptions, "maxClips" | "lengths">;
+  options: Pick<ClipperOptions, "maxClips" | "lengths" | "clipType">;
   examples: ClipExample[];
   /** This brand's posted clips and how each did against its own median, one line each. */
   results: string[];
@@ -107,14 +112,39 @@ Rules:
 - Never invent words, numbers or claims that aren't in the transcript.
 - When you are given the brand's own clip results or Noah's examples, follow what they show works. When you are given the niche's hooks and topics, prefer moments that open the way leading hooks do, but only when the moment is genuinely good. Those are other accounts' results, not a promise.`;
 
+/** What each type of clip looks for. "best" adds nothing to the bar above; a ranking has its own rules below. */
+export const CLIP_TYPE_BRIEF: Record<Exclude<ClipType, "best" | "ranking">, string> = {
+  answers: "A question being asked and answered. Start on the question itself so the viewer hears it, and end when the answer lands. A question with a weak or rambling answer doesn't count.",
+  takes: "A strong opinion or a claim that goes against what most people think, said plainly enough that someone would want to argue with it. A mild or balanced view doesn't count.",
+  stories: "A story with a beginning, a turn and a payoff, told from the first line that sets it up to the line that lands it. A passing anecdote with no payoff doesn't count.",
+  tips: "One specific thing the viewer can do, with enough said to do it. General encouragement doesn't count.",
+  funny: "A joke, banter or an exchange that is funny from the words alone, from the setup through the punchline. Something that may only be funny to have been there doesn't count.",
+};
+
+export const RANKING_SCHEMA = {
+  type: "object", additionalProperties: false,
+  properties: { title: { type: "string" }, clips: PICK_SCHEMA.properties.clips },
+  required: ["title", "clips"],
+} as const;
+
+export const RANKING_SYSTEM = `${PICK_SYSTEM}
+
+This job is a ranking: the moments are joined into one clip and counted down, so the rules above change in these ways:
+- Choose moments that belong on one list, around one theme this video really has. Each one is still a complete thought that makes sense alone.
+- The top-level title says what is being ranked and by what measure, for example "Ranking his hardest lessons about money". Sentence case, at most 8 words, only about what is in the transcript.
+- Each clip's title is its name on the list: at most 4 words, sentence case, so a viewer knows which moment it is.
+- score decides the order: the highest score is number one. No two the same. Keep the moment with the biggest payoff for number one.`;
+
 /** The user message: the brief, then the timed transcript. */
 export function pickMessage(b: PickBrief): string {
-  const { min, max } = lengthRange(b.options.lengths);
+  const { min, max } = momentRange(b.options);
+  const type = b.options.clipType;
   const parts = [
     `Brand: ${b.brand || "unknown"}`,
     `Video length: ${secs(b.durationMs)} seconds.`,
-    `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
+    type === "ranking" ? `Pick up to ${b.options.maxClips} moments for one ranking, each ${min} to ${max} seconds long.` : `Pick up to ${b.options.maxClips} clips, each ${min} to ${max} seconds long.`,
   ];
+  if (type && type !== "best" && type !== "ranking") parts.push("# The kind of clip wanted", `${CLIP_TYPE_BRIEF[type]}\nOnly return moments of this kind. If the video has fewer than asked for, return fewer.`);
   if (b.examples.length) {
     parts.push(
       "# Noah's examples of clips (his judgement of what works and what doesn't)",
@@ -154,18 +184,18 @@ const clean = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/\s+
  * word); at least 3 words, inside the allowed length with 15% slack, not
  * overlapping a better clip by more than a quarter, best first.
  */
-export function validatePicks(raw: unknown, words: TranscriptWord[], opts: Pick<PickBrief["options"], "maxClips" | "lengths">): ClipPick[] {
+export function validatePicks(raw: unknown, words: TranscriptWord[], opts: PickBrief["options"]): ClipPick[] {
   return checkPicks(raw, words, opts).picks;
 }
 
 /** What the model answered and what the check did with it: counts only, for the log. */
 export type PickCheck = { picks: ClipPick[]; returned: number; badTimes: number; tooFewWords: number; wrongLength: number; overlaps: number };
 
-export function checkPicks(raw: unknown, words: TranscriptWord[], opts: Pick<PickBrief["options"], "maxClips" | "lengths">): PickCheck {
+export function checkPicks(raw: unknown, words: TranscriptWord[], opts: PickBrief["options"]): PickCheck {
   const list = (raw as { clips?: unknown })?.clips;
   const check: PickCheck = { picks: [], returned: Array.isArray(list) ? list.length : 0, badTimes: 0, tooFewWords: 0, wrongLength: 0, overlaps: 0 };
   if (!Array.isArray(list) || !words.length) return check;
-  const { min, max } = lengthRange(opts.lengths);
+  const { min, max } = momentRange(opts);
   const picks: ClipPick[] = [];
   for (const r of list as Partial<RawPick>[]) {
     const s = Number(r.start) * 1000, e = Number(r.end) * 1000;
