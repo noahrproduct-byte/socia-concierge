@@ -16,7 +16,7 @@ import { ImprovePanel, CaptionPanel, AudioPanel, PreparePanel, ImproveFailure, t
 import { AfterCard, AnalyzePanel, ComparePanel, EditsPanel, RemakePanel, type OutlookState } from "./RaterPanels";
 import { momentsFrom, presetForFix } from "@/lib/studioFixes";
 import { entryFor, type Lesson, type RaterOutcome } from "@/lib/raterLog";
-import { outlookFor, recordOf } from "@/lib/outlook";
+import { outlookFor, recordOf, videoStrength } from "@/lib/outlook";
 import { mergeProposed, applyLine } from "@/lib/studioLines";
 import type { Direction } from "@/lib/studioVerdict";
 import { AskSociaButton } from "../AskSocia";
@@ -328,7 +328,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
           current: { hook: analysis.hooks.current, cta: analysis.cta.current, caption: analysis.caption.current },
           working: { hook: w.hook, cta: w.cta, caption: w.caption, onscreen: w.onscreen }, direction: null,
           // The range stated before it goes out, so the result can be read against it later.
-          outlook: analysis.kind === "video" && outlook.status === "ready" ? recordOf(outlook.data.model, outlookFor(outlook.data.model, caption)) : null,
+          outlook: analysis.kind === "video" && outlook.status === "ready" ? recordOf(outlook.data.model, outlookFor(outlook.data.model, caption, videoStrength(analysis.categories))) : null,
         });
         if (entry) void fetch("/api/studio/rater-log", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entry }) }).then(() => loadAfter()).catch(() => {});
       }
@@ -559,7 +559,7 @@ export default function ContentStudio({ userId, niche, location, goalDefault, dr
         </div>
       )}
       {toast && <div className="cal2-toast" role="status"><Check size={13} /> {toast}</div>}
-      <div className="st-privacy"><Lock size={11} /> Frames are read on your device. SOCIA scores what it can see; any view range comes only from your own Reels.</div>
+      <div className="st-privacy"><Lock size={11} /> Frames are read on your device. SOCIA scores what it can see; predicted views are placed within your own Reels.</div>
     </div>
   );
 }
