@@ -20,7 +20,11 @@ export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return j as T;
 }
 
-export const errorText = (e: unknown): string => (e instanceof Error ? e.message : "SOCIA could not complete that. Try again in a moment.");
+export const errorText = (e: unknown): string =>
+  e instanceof Error
+    // The renderer's own timeout, which reads like a crash: browsers pause a page that is off screen.
+    ? (/delayRender/.test(e.message) ? "Making the clip stalled. Keep this page on screen while it runs, then press Make this clip again." : e.message)
+    : "SOCIA could not complete that. Try again in a moment.";
 export const isCreditsShort = (e: unknown): boolean => (e as { code?: string })?.code === "insufficient_credits";
 
 /** "Balance: 5,980 credits" with the price of what is about to run. */

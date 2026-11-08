@@ -9,13 +9,16 @@ import { viewBox } from "./reframe";
 /** Seconds one moment in a ranking may run. Short, because several share one clip. */
 export const RANKING_MOMENT_SEC = { min: 5, max: 30 };
 export const RANKING_SIZE = { min: 3, max: 5 };
+/** A trailer is short lines from across the video. */
+export const TRAILER_MOMENT_SEC = { min: 2, max: 12 };
+export const TRAILER_SIZE = { min: 4, max: 8 };
 /** Below this it is one clip, not a ranking. */
 export const MIN_RANKED = 2;
 
 /** One entry. `rank` 1 is the best. */
 export type RankedMoment = { rank: number; label: string; startMs: number; endMs: number; reason: string };
 /** What is being ranked and its moments in playing order: last place first, number one at the end. */
-export type Ranking = { title: string; items: RankedMoment[] };
+export type Ranking = { title: string; items: RankedMoment[]; kind?: "trailer" };
 /** The on-screen list, each `at` in seconds into the finished clip. */
 export type RankingOverlay = { title: string; items: { rank: number; label: string; at: number }[] };
 
@@ -23,6 +26,11 @@ export type RankingOverlay = { title: string; items: { rank: number; label: stri
 export function rankingOf(title: string, picks: ClipPick[]): Ranking {
   const items = picks.map((p, i) => ({ rank: i + 1, label: p.title, startMs: p.startMs, endMs: p.endMs, reason: p.reason }));
   return { title: title || "Ranking the best moments", items: items.reverse() };
+}
+
+/** A trailer plays in story order: `rank` is just its place in the line-up, and there is no list on screen. */
+export function trailerOf(title: string, picks: ClipPick[]): Ranking {
+  return { title: title || "The best of this video", kind: "trailer", items: picks.map((p, i) => ({ rank: i + 1, label: p.title, startMs: p.startMs, endMs: p.endMs, reason: p.reason })) };
 }
 
 /** A ranking from the database, or null when it isn't one. */
@@ -33,7 +41,7 @@ export function readRanking(v: unknown): Ranking | null {
   const items = r.items.filter((i): i is RankedMoment =>
     !!i && Number.isFinite(i.rank) && typeof i.label === "string" && Number.isFinite(i.startMs) && Number.isFinite(i.endMs) && i.endMs > i.startMs)
     .map((i) => ({ ...i, reason: typeof i.reason === "string" ? i.reason : "" }));
-  return items.length >= MIN_RANKED ? { title: r.title, items } : null;
+  return items.length >= MIN_RANKED ? { title: r.title, items, ...((v as { kind?: unknown }).kind === "trailer" ? { kind: "trailer" as const } : {}) } : null;
 }
 
 /** The panel above the picture, in 1080-wide pixels: the title, then one row per moment. */

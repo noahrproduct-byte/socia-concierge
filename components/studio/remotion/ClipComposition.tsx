@@ -27,6 +27,7 @@ import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
+import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
@@ -58,6 +59,8 @@ export type ClipCompositionProps = {
   captionsOn: boolean;
   /** the AI Clipper's countdown: its title and numbered list over the picture */
   ranking?: RankingOverlay;
+  /** the AI Clipper's marked words: one word per caption line takes the colour. Absent = no colouring. */
+  emphasis?: string[];
   /** false shows the cut without the measured corrections (Before); omitted = After */
   finishOn?: boolean;
   /** a playable link to the cut's soundtrack (edl.soundtrack), when it has one */
@@ -149,12 +152,15 @@ function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
   );
 }
 
-function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: EdlStyle; fontFamily: string }) {
+const EMPHASIS_COLOR = "#ffd400";
+
+function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; style: EdlStyle; fontFamily: string; emphasis?: string[] }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
   const l = captionLayout(style.captions);
   const outline = style.textBox === "outline";
+  const marked = emphasis ? emphasisIndex(page.tokens.map((t) => t.text), emphasis) : -1;
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
       <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: "6%", right: "6%", textAlign: "center" }}>
@@ -169,7 +175,7 @@ function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: Edl
         >
           {page.tokens.map((t, i) => {
             const active = t.fromMs <= nowMs && t.toMs > nowMs;
-            return <span key={`${t.fromMs}-${i}`} style={{ color: active ? "#fff" : "rgba(255,255,255,0.72)" }}>{t.text}</span>;
+            return <span key={`${t.fromMs}-${i}`} style={{ color: i === marked ? EMPHASIS_COLOR : active ? "#fff" : "rgba(255,255,255,0.72)" }}>{t.text}</span>;
           })}
         </span>
       </div>
@@ -205,7 +211,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, finishOn, musicUrl, cleanAudio, safeZoneGuide }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, emphasis, finishOn, musicUrl, cleanAudio, safeZoneGuide }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
@@ -288,7 +294,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
-          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} />
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis} />
         </Sequence>
       ))}
       {card && (

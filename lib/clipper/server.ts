@@ -15,7 +15,8 @@ import { ClipperError, MAX_CLIPS, isClipLength, isClipType, type ClipperOptions,
 import { AI_BUCKET, copyUrlToBucket, mediaPath, removePaths, signedUrl } from "@/lib/aiStudio/media";
 import { brandLine, writeClipCaptions } from "@/lib/aiStudio/captions";
 import { fileSeconds, isReadableLink, youtubeSeconds, MAX_SOURCE_MINUTES } from "./sourceLength";
-import { RANKING_SIZE, readRanking, type Ranking } from "./ranking";
+import { RANKING_SIZE, TRAILER_SIZE, readRanking, type Ranking } from "./ranking";
+import { readEmphasis } from "./emphasis";
 import { SOCIA_PROVIDER, checkTranscription, clipRows, pickMoments, sociaClipperReady, startTranscription } from "./socia";
 import { clipWords, packWords, unpackWords } from "./pick";
 import { readCropPath, type CropKey } from "./reframe";
@@ -42,7 +43,7 @@ export type ClipRow = {
   start_ms?: number | null; end_ms?: number | null; hook?: string | null; crop_x?: number | null; crop_path?: unknown;
 };
 /** What the browser needs to render one of SOCIA's own clips (components/ai/renderClip.ts). */
-export type ClipRender = { sourceUrl: string; startMs: number; endMs: number; cropX: number; cropPath?: CropKey[] | null; words: TranscriptWord[]; captions: boolean; ranking?: Ranking | null };
+export type ClipRender = { sourceUrl: string; startMs: number; endMs: number; cropX: number; cropPath?: CropKey[] | null; words: TranscriptWord[]; captions: boolean; ranking?: Ranking | null; emphasis?: string[] };
 export type ClipView = ClipRow & { playUrl: string | null; downloadUrl: string | null; render?: ClipRender | null };
 
 export const JOB_COLS = "id, user_id, workspace_id, source_kind, source_url, source_path, source_minutes, options, provider, provider_job_id, status, credits_reserved, credits_charged, error, created_at, updated_at, last_polled_at, finished_at, stage";
@@ -109,7 +110,7 @@ export function cleanOptions(raw: unknown): ClipperOptions {
   const n = typeof o.maxClips === "number" ? Math.round(o.maxClips) : DEFAULT_CLIPPER_OPTIONS.maxClips;
   const clipType = isClipType(o.clipType) ? o.clipType : "best";
   return {
-    maxClips: clipType === "ranking" ? Math.min(RANKING_SIZE.max, Math.max(RANKING_SIZE.min, n)) : Math.min(MAX_CLIPS, Math.max(1, n)),
+    maxClips: clipType === "ranking" ? Math.min(RANKING_SIZE.max, Math.max(RANKING_SIZE.min, n)) : clipType === "trailer" ? Math.min(TRAILER_SIZE.max, Math.max(TRAILER_SIZE.min, n)) : Math.min(MAX_CLIPS, Math.max(1, n)),
     lengths: lengths.length ? Array.from(new Set(lengths)) : DEFAULT_CLIPPER_OPTIONS.lengths,
     captions: typeof o.captions === "boolean" ? o.captions : true,
     headline: typeof o.headline === "boolean" ? o.headline : true,
@@ -359,7 +360,7 @@ export async function loadClips(client: Supa, ownerId: string, jobId: string, jo
     const downloadUrl = svc ? await signedUrl(svc, r.video_path, undefined, `${(r.title ?? "clip").replace(/[^\w-]+/g, "_").slice(0, 60)}.mp4`) : null;
     const ranking = readRanking((r as { ranking?: unknown }).ranking);
     const render: ClipRender | null = sourceUrl && r.start_ms != null && r.end_ms != null
-      ? { sourceUrl, startMs: r.start_ms, endMs: r.end_ms, cropX: Number(r.crop_x ?? 0.5), cropPath: readCropPath(r.crop_path), words: ranking ? ranking.items.flatMap((i) => clipWords(words, i.startMs, i.endMs)) : clipWords(words, r.start_ms, r.end_ms), captions: job?.options?.captions !== false, ranking }
+      ? { sourceUrl, startMs: r.start_ms, endMs: r.end_ms, cropX: Number(r.crop_x ?? 0.5), cropPath: readCropPath(r.crop_path), words: ranking ? ranking.items.flatMap((i) => clipWords(words, i.startMs, i.endMs)) : clipWords(words, r.start_ms, r.end_ms), captions: job?.options?.captions !== false, ranking, emphasis: readEmphasis((r as { emphasis?: unknown }).emphasis) }
       : null;
     out.push({ ...r, playUrl: playUrl ?? r.video_url, downloadUrl: downloadUrl ?? r.video_url, render });
   }

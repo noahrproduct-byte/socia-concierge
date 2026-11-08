@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Scissors } from "lucide-react";
 import { CLIP_LANGUAGES, CLIP_LENGTHS, CLIP_TYPES, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipType, type ClipperOptions } from "@/lib/clipper/provider";
-import { RANKING_SIZE } from "@/lib/clipper/ranking";
+import { RANKING_SIZE, TRAILER_SIZE } from "@/lib/clipper/ranking";
 import RankingRenderCard from "./RankingRenderCard";
 import { clipCredits } from "@/lib/credits/config";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinutes, CreditsLine, StatusChip, MediaCard } from "./shared";
@@ -148,7 +148,8 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
   // Types are SOCIA's own picker. A link sent to Vizard gets its usual clips.
   const clipType: ClipType = provider === "socia" ? opts.clipType ?? "best" : "best";
   const ranking = clipType === "ranking";
-  const chooseType = (id: ClipType) => setOpts((o) => ({ ...o, clipType: id, ...(id === "ranking" ? { maxClips: Math.min(RANKING_SIZE.max, Math.max(RANKING_SIZE.min, o.maxClips)) } : {}) }));
+  const trailer = clipType === "trailer";
+  const chooseType = (id: ClipType) => setOpts((o) => ({ ...o, clipType: id, ...(id === "ranking" ? { maxClips: Math.min(RANKING_SIZE.max, Math.max(RANKING_SIZE.min, o.maxClips)) } : id === "trailer" ? { maxClips: Math.min(TRAILER_SIZE.max, Math.max(6, o.maxClips)) } : {}) }));
   const toggleLength = (id: ClipLength) => setOpts((o) => ({ ...o, lengths: o.lengths.includes(id) ? (o.lengths.length > 1 ? o.lengths.filter((l) => l !== id) : o.lengths) : [...o.lengths.filter((l) => l !== "auto" && id !== "auto"), id] }));
   const canSubmit = canMutate && !busy && (source === "youtube" ? url.trim().length > 10 : source === "url" ? url.trim().length > 10 : Boolean(file));
 
@@ -198,11 +199,11 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
               </select>
             </label>
           )}
-          {ranking ? (
+          {ranking || trailer ? (
             <label className="ai-field ai-field-short">
-              <span>Moments in the ranking</span>
+              <span>{ranking ? "Moments in the ranking" : "Lines in the trailer"}</span>
               <select value={opts.maxClips} onChange={(e) => setOpts((o) => ({ ...o, maxClips: Number(e.target.value) }))}>
-                {[3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                {(ranking ? [3, 4, 5] : [4, 5, 6, 7, 8]).map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
           ) : (
@@ -211,7 +212,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
             <input type="number" min={1} max={MAX_CLIPS} value={opts.maxClips} onChange={(e) => setOpts((o) => ({ ...o, maxClips: Math.min(MAX_CLIPS, Math.max(1, Number(e.target.value) || 1)) }))} />
           </label>
           )}
-          {!ranking && <div className="ai-field">
+          {!ranking && !trailer && <div className="ai-field">
             <span>Clip length</span>
             <div className="ai-chips">
               {CLIP_LENGTHS.map((l) => (
@@ -255,7 +256,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
               {open === j.id && j.status === "done" && (
                 <div className="ai-grid">
                   {(clipsByJob[j.id] ?? []).map((c) => c.render?.ranking && !c.playUrl ? (
-                    <RankingRenderCard key={c.id} id={c.id} ranking={c.render.ranking} render={c.render} canMutate={canMutate}
+                    <RankingRenderCard key={c.id} id={c.id} ranking={c.render.ranking} headline={j.options?.headline !== false} render={c.render} canMutate={canMutate}
                       autoStart={queue[0] === c.id} onSettled={() => setQueue((q) => q.filter((x) => x !== c.id))}
                       sub={`${fmtDur(c.duration_ms)}${c.score != null ? `, score ${c.score}/10` : ""}`} why={c.score_reason}
                       onRendered={() => void loadJob(j.id)} />

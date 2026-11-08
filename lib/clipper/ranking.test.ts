@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TranscriptWord } from "@/lib/transcribe/types";
 import { CLIP_TYPE_BRIEF, RANKING_SCHEMA, checkPicks, pickMessage, type ClipPick, type Line } from "./pick";
 import { CLIP_TYPES } from "./provider";
-import { rankingBand, rankingBox, rankingMs, rankingOf, rankingOverlay, readRanking } from "./ranking";
+import { rankingBand, rankingBox, rankingMs, rankingOf, rankingOverlay, readRanking, trailerOf } from "./ranking";
 
 const pick = (startMs: number, endMs: number, title: string, score: number): ClipPick => ({ startMs, endMs, title, score, hook: "", reason: `why ${title}`, text: title });
 // Fifty seconds of speech, a sentence every 10 words.
@@ -57,9 +57,20 @@ describe("a ranking", () => {
   });
 });
 
+describe("a trailer", () => {
+  it("plays in the order it was written, not by score", () => {
+    const raw = { clips: [{ start: 20, end: 25, title: "Stakes", hook: "", score: 4, reason: "", emphasis: [] }, { start: 0, end: 5, title: "Payoff", hook: "", score: 9, reason: "", emphasis: [] }] };
+    const { picks } = checkPicks(raw, words, { maxClips: 6, lengths: ["auto"], clipType: "trailer" });
+    expect(picks.map((p) => p.title)).toEqual(["Stakes", "Payoff"]);
+    const t = trailerOf("A story", picks);
+    expect(t.items.map((i) => [i.rank, i.label])).toEqual([[1, "Stakes"], [2, "Payoff"]]);
+    expect(readRanking(t)?.kind).toBe("trailer");
+  });
+});
+
 describe("clip types", () => {
   it("has a brief for every type that only changes what is looked for", () => {
-    for (const t of CLIP_TYPES) if (t.id !== "best" && t.id !== "ranking") expect(CLIP_TYPE_BRIEF[t.id].length).toBeGreaterThan(20);
+    for (const t of CLIP_TYPES) if (t.id !== "best" && t.id !== "ranking" && t.id !== "trailer") expect(CLIP_TYPE_BRIEF[t.id].length).toBeGreaterThan(20);
   });
 
   it("tells the picker what to look for, and nothing extra for best moments", () => {

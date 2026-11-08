@@ -5,12 +5,14 @@ import type { Transcript, TranscriptionPoll, TranscriptionProvider, TranscriptWo
 
 const BASE = process.env.ASSEMBLYAI_BASE_URL || "https://api.assemblyai.com/v2";
 
-type AaiWord = { text: string; start: number; end: number; confidence?: number };
+type AaiWord = { text: string; start: number; end: number; confidence?: number; speaker?: string | null };
+type AaiUtterance = { speaker?: string | null; start: number; end: number };
 type AaiTranscript = {
   id: string;
   status: "queued" | "processing" | "completed" | "error";
   text?: string | null;
   words?: AaiWord[] | null;
+  utterances?: AaiUtterance[] | null;
   language_code?: string | null;
   audio_duration?: number | null;
   error?: string | null;
@@ -33,6 +35,13 @@ async function call<T>(path: string, init: RequestInit): Promise<T> {
   return json as T;
 }
 
+/** The word's own label, or the utterance it falls inside. Nothing at all when speakers weren't asked for. */
+function speakerOf(w: AaiWord, utterances: AaiUtterance[] | null | undefined): { speaker?: string } {
+  const mid = (w.start + w.end) / 2;
+  const speaker = w.speaker ?? utterances?.find((u) => mid >= u.start && mid <= u.end)?.speaker;
+  return speaker ? { speaker } : {};
+}
+
 export const assemblyAI: TranscriptionProvider = {
   name: "assemblyai",
   configured: () => Boolean(key()),
@@ -42,6 +51,7 @@ export const assemblyAI: TranscriptionProvider = {
     if (opts?.language) body.language_code = opts.language;
     else body.language_detection = true;
     // Optional model pin (e.g. "universal"); the account default otherwise.
+    if (opts?.speakers) body.speaker_labels = true;
     if (process.env.ASSEMBLYAI_SPEECH_MODEL) body.speech_model = process.env.ASSEMBLYAI_SPEECH_MODEL;
     const r = await call<AaiTranscript>("/transcript", { method: "POST", body: JSON.stringify(body) });
     if (!r?.id) throw new Error("AssemblyAI returned no transcript id.");
@@ -57,6 +67,7 @@ export const assemblyAI: TranscriptionProvider = {
       startMs: Math.max(0, Math.round(w.start)),
       endMs: Math.max(0, Math.round(w.end)),
       confidence: typeof w.confidence === "number" ? w.confidence : null,
+      ...speakerOf(w, r.utterances),
     }));
     const transcript: Transcript = {
       provider: "assemblyai",

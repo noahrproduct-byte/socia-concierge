@@ -184,7 +184,7 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
         <b>{title}</b>
         <small>{sub}</small>
         {sizeFailed && <p className="ai-err" role="alert">SOCIA couldn&apos;t read this video. Reload the page to try again.</p>}
-        {movable && !fixed && <small>{path ? "SOCIA chose the shots. Press play to watch the frame change, or drag it to keep one shot." : "SOCIA chooses the shots when it makes this clip: zooming out, in and across as the video needs. Drag the frame to keep one shot instead."}</small>}
+        {movable && !fixed && <small>{path ? "SOCIA chose the shots. Press play to watch them, or drag the frame to keep one shot." : "SOCIA chooses the shots when it makes this clip, cutting to whoever is talking. Drag the frame to keep one shot instead."}</small>}
         {movable && fixed && <small>One shot, where you put it. <button type="button" className="ai-linkish" disabled={Boolean(busy)} onClick={() => setFixed(false)}>Let SOCIA move it</button></small>}
         {note && <small>{note}</small>}
         {movable ? null : size && <small>This video is already vertical, so the whole frame is used.</small>}

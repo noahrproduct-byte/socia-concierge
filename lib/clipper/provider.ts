@@ -14,10 +14,11 @@ export const CLIP_LENGTHS: { id: ClipLength; label: string }[] = [
 ];
 export const isClipLength = (v: unknown): v is ClipLength => CLIP_LENGTHS.some((l) => l.id === v);
 
-/** What kind of clips to look for. Everything but "ranking" changes only what the picker looks for; a ranking is one clip made of several moments. */
+/** What kind of clips to look for. A ranking and a trailer are one clip made of several moments; the rest change only what the picker looks for. */
 export const CLIP_TYPES = [
   { id: "best", label: "Best moments", hint: "The strongest parts of the video, each as its own clip." },
   { id: "ranking", label: "Ranking", hint: "The top moments counted down in one clip, with the list on screen." },
+  { id: "trailer", label: "Trailer", hint: "The strongest lines from across the video joined into one short story." },
   { id: "answers", label: "Questions and answers", hint: "A question asked and answered. Good for interviews and podcasts." },
   { id: "takes", label: "Hot takes", hint: "Strong opinions and claims people will want to argue with." },
   { id: "stories", label: "Stories", hint: "A story told from its start to its payoff." },

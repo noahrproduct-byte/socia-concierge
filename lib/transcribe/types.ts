@@ -8,6 +8,8 @@ export type TranscriptWord = {
   endMs: number;
   /** 0..1 from the provider, or null when it reports none. */
   confidence: number | null;
+  /** Who said it ("A", "B"...), only when speaker labels were asked for. */
+  speaker?: string | null;
 };
 
 export type Transcript = {
@@ -32,7 +34,7 @@ export interface TranscriptionProvider {
   /** True when the credentials this provider needs are present. */
   configured(): boolean;
   /** Start transcribing the audio at a fetchable (signed, short-lived) URL. */
-  submit(audioUrl: string, opts?: { language?: string | null }): Promise<TranscriptionJob>;
+  submit(audioUrl: string, opts?: { language?: string | null; speakers?: boolean }): Promise<TranscriptionJob>;
   /** One status check; callers decide how often to poll. */
   poll(job: TranscriptionJob): Promise<TranscriptionPoll>;
 }

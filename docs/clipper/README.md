@@ -19,6 +19,7 @@ Each entry:
 - `verdict`: `good` or `bad`.
 - `why`: one or two sentences in Noah's words. This is what the picker learns from.
 - `niche` is optional.
+- For another creator's clip, `transcript` is a short description of what is said, not their words.
 
 To add one, send the clip (or a link to it) with your verdict and why. Claude transcribes it
 and adds the entry. Keep the list to the clearest 20 or so: the picker reads up to 12, good

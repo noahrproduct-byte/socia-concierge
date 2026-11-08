@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MAX_MOVES, MAX_SAMPLES, MOVE_SEC, TIGHT_SCALE, ZOOM_SEC, cleanCropPath, cropShare, readCropPath, sampleTimes, transitionSec, viewAt, viewBox } from "./reframe";
+import { BAND_SCALE, MAX_MOVES, MAX_SAMPLES, TIGHT_SCALE, cleanCropPath, cropShare, readCropPath, sampleTimes, shotScale, viewAt, viewBox } from "./reframe";
 
 const share = cropShare(1280, 720); // about 0.316
 const num = (s: string) => parseFloat(s);
@@ -45,30 +45,24 @@ describe("choosing shots", () => {
   });
 });
 
-describe("transitions", () => {
+describe("changing shot", () => {
   const p = { t: 0, c: 0.65, y: 0.35, s: 1 };
   const w = { t: 10, c: 0.5, y: 0.5, s: 0.316 };
 
-  it("zooms between shot sizes, moves a short way, and cuts a long way", () => {
-    expect(transitionSec(p, w)).toBe(ZOOM_SEC);
-    expect(transitionSec(p, { ...p, t: 10, c: 0.5 })).toBe(MOVE_SEC);
-    expect(transitionSec(p, { ...p, t: 10, c: 0.2 })).toBe(0);
-  });
-
-  it("holds, zooms out through the middle in even ratios, and arrives on time", () => {
-    const path = [p, w];
-    expect(viewAt(path, 0).s).toBe(1);
-    expect(viewAt(path, 10 - ZOOM_SEC).s).toBe(1);
-    expect(viewAt(path, 10 - ZOOM_SEC / 2).s).toBeCloseTo(Math.sqrt(0.316), 5);
-    expect(viewAt(path, 10)).toMatchObject({ s: 0.316, c: 0.5 });
-    expect(viewAt(path, 30)).toMatchObject({ s: 0.316 });
+  it("is always a hard cut, with no in-between", () => {
+    expect(viewAt([p, w], 9.99)).toMatchObject({ c: 0.65, s: 1 });
+    expect(viewAt([p, w], 10)).toMatchObject({ c: 0.5, s: 0.316 });
+    expect(viewAt([p, w], 30)).toMatchObject({ s: 0.316 });
     expect(viewAt([], 3)).toEqual({ c: 0.5, y: 0.5, s: 1 });
   });
 
-  it("makes a hard cut with no in-between", () => {
-    const path = [p, { ...p, t: 10, c: 0.2 }];
-    expect(viewAt(path, 9.99).c).toBe(0.65);
-    expect(viewAt(path, 10).c).toBe(0.2);
+  it("shows a square-ish band of a landscape source, in the middle, on black", () => {
+    expect(shotScale("band", share)).toBe(BAND_SCALE);
+    expect(shotScale("band", 0.9)).toBe(0.9); // Never narrower than the whole picture.
+    const b = viewBox(1280, 720, 1080, 1920, { c: 0.3, y: 0.5, s: BAND_SCALE });
+    expect(num(b.height)).toBeCloseTo(56, 0);
+    expect(num(b.top)).toBeCloseTo(28, 0);
+    expect(num(b.width)).toBeGreaterThan(100);
   });
 });
 
@@ -83,12 +77,12 @@ describe("where the picture sits", () => {
     expect(num(viewBox(1280, 720, 1080, 1920, { c: 1, y: 0.5, s: 1 }).left)).toBeCloseTo(100 - 316.05, 0);
   });
 
-  it("shows the whole picture when wide, in the middle, on black", () => {
+  it("shows the whole picture when wide, below the headline, on black", () => {
     const b = viewBox(1280, 720, 1080, 1920, { c: 0.5, y: 0.5, s: 0.3164 });
     expect(num(b.width)).toBeCloseTo(100, 0);
     expect(num(b.left)).toBeCloseTo(0, 0);
     expect(num(b.height)).toBeCloseTo(31.64, 1);
-    expect(num(b.top)).toBeCloseTo(34.18, 1);
+    expect(num(b.top)).toBeCloseTo(40.18, 1);
   });
 
   it("punches in around the face", () => {
