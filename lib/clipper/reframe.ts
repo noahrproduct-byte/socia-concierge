@@ -19,7 +19,7 @@ export const TIGHT_SCALE = 1.25;
 export const BAND_SCALE = 0.56;
 
 /** A picture on black sits this far (percent of the frame) below the middle, leaving the top for the headline. */
-const PICTURE_DROP = 6;
+const PICTURE_DROP = 2;
 
 /** A shot holds at least this long unless the speaker changes (./speakers.ts). */
 export const MIN_HOLD_SEC = 4;

@@ -68,7 +68,7 @@ describe("changing shot", () => {
     expect(shotScale("band", 0.9)).toBe(0.9); // Never narrower than the whole picture.
     const b = viewBox(1280, 720, 1080, 1920, { c: 0.3, y: 0.5, s: BAND_SCALE });
     expect(num(b.height)).toBeCloseTo(56, 0);
-    expect(num(b.top)).toBeCloseTo(28, 0);
+    expect(num(b.top)).toBeCloseTo(24, 0);
     expect(num(b.width)).toBeGreaterThan(100);
   });
 });
@@ -89,7 +89,7 @@ describe("where the picture sits", () => {
     expect(num(b.width)).toBeCloseTo(100, 0);
     expect(num(b.left)).toBeCloseTo(0, 0);
     expect(num(b.height)).toBeCloseTo(31.64, 1);
-    expect(num(b.top)).toBeCloseTo(40.18, 1);
+    expect(num(b.top)).toBeCloseTo(36.18, 1);
   });
 
   it("punches in around the face", () => {

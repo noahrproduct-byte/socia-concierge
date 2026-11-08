@@ -59,6 +59,8 @@ export type ClipCompositionProps = {
   captionsOn: boolean;
   /** the AI Clipper's countdown: its title and numbered list over the picture */
   ranking?: RankingOverlay;
+  /** the most words a caption line shows at once (the AI Clipper). Absent = as many as fit the page's time. */
+  captionWords?: number;
   /** the AI Clipper's marked words: one word per caption line takes the colour. Absent = no colouring. */
   emphasis?: string[];
   /** false shows the cut without the measured corrections (Before); omitted = After */
@@ -211,7 +213,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, emphasis, finishOn, musicUrl, cleanAudio, safeZoneGuide }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, cleanAudio, safeZoneGuide }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
@@ -236,7 +238,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
     return Object.fromEntries(Object.entries(finish.grades).map(([id, g]) => [id, [colorCorrection(g.params)]]));
   }, [finish]);
-  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps) : []), [edl, words, captionsOn, fps]);
+  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps, undefined, captionWords) : []), [edl, words, captionsOn, fps, captionWords]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
 

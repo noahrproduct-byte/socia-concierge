@@ -16,13 +16,16 @@ import type { CropKey } from "@/lib/clipper/reframe";
 
 const SOURCE_ID = "source";
 
-// Noah's rule for every new cut: CapCut's look. Large captions, in the middle of the picture below the face, like the clips he studied.
-const CLIP_STYLE = { ...CAPCUT_STYLE, captions: { ...CAPCUT_STYLE.captions, size: "l" as const, position: "lower" as const } };
+// Noah's rule for every new cut: CapCut's look. One line of a few words, in the middle of the picture below the face, like the clips he studied.
+const CLIP_STYLE = { ...CAPCUT_STYLE, captions: { ...CAPCUT_STYLE.captions, size: "m" as const, position: "lower" as const } };
+
+/** The most words on screen at once. */
+const CAPTION_WORDS = 4;
 
 const onBlack = (k: CropKey) => k.s < 0.95;
 
 /** The headline: up for the whole clip when it sits on the black above the picture, only the opening over a full-height crop, where it would cover the face. */
-const headlineLine = (title: string, len: number, whole: boolean): Edl["text"][number] => ({ id: "title", at: 0, end: whole ? len : Math.min(3, len), text: title.slice(0, 80), role: "opening" });
+const headlineLine = (title: string, len: number, whole: boolean): Edl["text"][number] => ({ id: "title", at: 0, end: whole ? len : Math.min(3, len), text: title.slice(0, 80), role: "opening", presetId: "clip_headline" });
 
 /** The one-cut cut list for a clip: Content Studio's format, so its renderer and captions apply as they are. */
 export function clipEdl(r: ClipRender, title: string | null, headline: boolean): Edl {
@@ -64,7 +67,7 @@ export async function renderClip(
   const edl = r.ranking ? rankingEdl(r, r.ranking, opts.paths ?? [], opts.headline) : clipEdl(r, opts.title, opts.headline);
   const tl = timeline(edl);
   const sources = { [SOURCE_ID]: clipSource(r, opts.size, opts.sourceSec) };
-  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: null, cleanAudio: {}, ranking: r.ranking && r.ranking.kind !== "trailer" ? rankingOverlay(r.ranking) : undefined, emphasis: r.emphasis ?? [] };
+  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: null, cleanAudio: {}, captionWords: CAPTION_WORDS, ranking: r.ranking && r.ranking.kind !== "trailer" ? rankingOverlay(r.ranking) : undefined, emphasis: r.emphasis ?? [] };
   const { renderMediaOnWeb } = await import("@remotion/web-renderer");
   const { getBlob } = await renderMediaOnWeb({
     composition: { id: "socia-clipper-clip", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
