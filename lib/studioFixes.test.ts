@@ -74,3 +74,11 @@ describe("applying cuts to a one-clip edit", () => {
     expect(out.map((s) => [s.in, s.out])).toEqual([[5, 7], [8, 15]]);
   });
 });
+
+describe("a fix about the picture", () => {
+  const visual = (suggestion: string) => base({ topFixes: [{ title: "Change the shot", observed: "Seen at 7 s.", suggestion, kind: "visual", t: 7, apply: null }] });
+  it("offers the colour tool only when the fix is about colour or light", () => {
+    expect(momentsFrom({ analysis: visual("Brighten the shot and warm the colour."), durationSec: 20 }).map((m) => m.capability)).toEqual(["look"]);
+    expect(momentsFrom({ analysis: visual("Show the app on a phone screen in the last two seconds."), durationSec: 20 })).toHaveLength(0);
+  });
+});
