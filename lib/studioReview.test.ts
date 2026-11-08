@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CATEGORY_INFO, SCORE_LABEL, studioSchema, type CategoryId } from "./studio";
+import { CATEGORY_INFO, FRAME_MAX, SCORE_LABEL, frameTimes, studioSchema, type CategoryId } from "./studio";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
@@ -29,5 +29,25 @@ describe("the score is a creative assessment, never a prediction", () => {
     // The score sits on the Analyze page (components/studio/RaterPanels.tsx).
     expect(read("components/studio/RaterPanels.tsx")).toMatch(/A creative assessment of this draft, not a prediction of reach, views or virality\./);
     expect(read("app/api/studio/analyze/route.ts")).toMatch(/creative readiness assessment of this draft[^.]*\. Never predict views, reach, virality or retention/);
+  });
+});
+
+describe("how much of a video the rater sees", () => {
+  it("samples a short video 10 times, front-loaded", () => {
+    const t = frameTimes(8);
+    expect(t).toHaveLength(10);
+    expect(t.slice(0, 4)).toEqual([0, 0.7, 1.5, 2.5]);
+    expect(Math.max(...t)).toBeLessThan(8);
+  });
+  it("adds about one frame every two seconds on a longer video, up to the limit", () => {
+    expect(frameTimes(30)).toHaveLength(4 + 14);
+    expect(frameTimes(63)).toHaveLength(FRAME_MAX);
+    expect(frameTimes(180)).toHaveLength(FRAME_MAX);
+  });
+  it("stays in order and inside the video, however short it is", () => {
+    for (const d of [1.2, 3, 8, 63, 180]) {
+      const t = frameTimes(d);
+      expect(t.every((x, i) => x < d && (i === 0 || x > t[i - 1]))).toBe(true);
+    }
   });
 });
