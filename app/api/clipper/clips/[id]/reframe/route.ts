@@ -69,7 +69,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     try { raw = JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch { raw = null; }
     // A one-camera conversation follows whoever is talking; anything else takes the shots Claude chose.
     const following = speakerPath(raw, words, durationSec, share);
-    const path = following ?? cleanCropPath(raw, durationSec, share);
+    const told = raw as { camera?: unknown; people?: unknown[] } | null;
+    const onePerson = told?.camera === "one_camera" && (new Set(words.map((w) => w.speaker).filter(Boolean)).size <= 1 || (told.people?.length ?? 0) <= 1);
+    const path = following ?? cleanCropPath(raw, durationSec, share, onePerson);
     // Counts only: how framing is going, without any content.
     console.log("[clipper] frame", JSON.stringify({ clip: id, frames: frames.length, moves: (raw as { moves?: unknown[] } | null)?.moves?.length ?? null, kept: path?.length ?? 0, following: Boolean(following), camera: (raw as { camera?: unknown } | null)?.camera ?? null, people: (raw as { people?: unknown[] } | null)?.people?.length ?? null, ms: Date.now() - startedAt, stop: res.stop_reason, outputTokens: res.usage?.output_tokens }));
     if (path && item == null) {

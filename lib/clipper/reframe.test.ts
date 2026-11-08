@@ -33,6 +33,13 @@ describe("choosing shots", () => {
     expect(path.map((k) => [k.t, k.s])).toEqual([[0, 1], [20, Math.round(share * 1000) / 1000], [30, TIGHT_SCALE]]);
   });
 
+  it("stays on one person, leaving only for something that won't fit", () => {
+    const moves = [person(0, 0.4), person(8, 0.7), { t: 14, shot: "tight", center: 0.4, y: 0.3 }, wide(20), person(26, 0.2), person(34, 0.8)];
+    const path = cleanCropPath({ moves }, 40, share, true)!;
+    expect(path.map((k) => [k.t, k.c, k.s])).toEqual([[0, 0.4, 1], [20, 0.5, Math.round(share * 1000) / 1000], [26, 0.4, 1]]);
+    expect(cleanCropPath({ moves: moves.slice(0, 3) }, 40, share, true)).toHaveLength(1);
+  });
+
   it("has nothing to do on a vertical source, or with no usable answer", () => {
     expect(cleanCropPath({ moves: [person(0)] }, 40, 1)).toBeNull();
     expect(cleanCropPath({ moves: [] }, 40, share)).toBeNull();
