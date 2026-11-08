@@ -57,6 +57,14 @@ describe("caption pages", () => {
     { text: "everything", startMs: 1100, endMs: 1900, confidence: 1 },
     { text: "now", startMs: 3000, endMs: 3400, confidence: 1 },
   ] };
+  it("shows at most the asked-for words at a time, and closes a page at a sentence's end", () => {
+    const talk = ["one", "two", "three", "four", "five.", "Six", "seven"].map((text, i) => ({ text, startMs: i * 150, endMs: i * 150 + 140, confidence: 1 }));
+    const pages = captionPages(spoken, { a: talk }, 30, undefined, 4);
+    expect(pages.map((p) => p.page.tokens.map((t) => t.text.trim()))).toEqual([["one", "two", "three", "four"], ["five."], ["Six", "seven"]]);
+    expect(pages[1].page.tokens[0].text).toBe("five.");
+    expect(pages[1].from).toBe(Math.round(0.6 * 30));
+  });
+
   it("never runs a page across a cut", () => {
     const seg = (id: string, clipId: string, out: number) => ({ id, clipId, in: 0, out, role: "body" as const, note: "" });
     const two = { ...spoken, segments: [seg("s1", "a", 1), seg("s2", "b", 1)] };
