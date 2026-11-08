@@ -265,5 +265,51 @@
       "A video that isn't the connected brand's should not lose points for not selling that brand.",
       "The virality prediction doesn't see the video, so it can't recognise a video like this."
     ]
+  },
+  {
+    "id": "DeMywLQDmBm",
+    "source": "https://www.instagram.com/reel/DeMywLQDmBm/",
+    "creator": "seethroughworks (19K followers, 104 posts)",
+    "durationSec": 18.1,
+    "kind": "video",
+    "publicCounts": {
+      "likes": 512372,
+      "comments": 1323,
+      "reposts": 5820,
+      "shares": "71.8K",
+      "views": null,
+      "readAt": "2026-11-08"
+    },
+    "evidenceAvailable": {
+      "frames": "1.5 per second, plus 5 per second over the first 2.5 s",
+      "soundMeasured": {
+        "meanDb": -17.2,
+        "peakDb": -1.6,
+        "silences": 0
+      },
+      "sceneCuts": 0,
+      "transcript": "whisper small.en",
+      "caption": "Why is the hook on a tape measure loose?"
+    },
+    "structure": "One continuous 3D animation with no hard cuts. 0 to 2.5 s question over the object; 2.5 to 3.7 s 'It isn't broken' with the hook flashing red; 3.7 to 6.6 s it slides by its own thickness, with bracket lines; 6.6 to 11 s hooked over wood, a glass plane marks zero at the inside face; 11 to 15.5 s pushed against a wall, zero at the outside face; 15.5 to 16.6 s 'Loose on purpose'; the camera returns to the opening view so it loops.",
+    "claudeRating": {
+      "overall": 91,
+      "hook": 93,
+      "structure": 94,
+      "pacing": 88,
+      "clarity": 97,
+      "visual": 92,
+      "captions": 92,
+      "audio": 85,
+      "cta": 40,
+      "goal": 92
+    },
+    "noah": {
+      "verdict": null,
+      "rating": null
+    },
+    "lessons": [
+      "pending Noah's corrections"
+    ]
   }
 ]
