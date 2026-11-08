@@ -99,6 +99,8 @@ export function momentsFrom({ analysis: a, durationSec, hook, cta }: MomentInput
       if (!m || !m.hasAudio) return;
       push({ fixIndex, capability: "noise", priority, ...span(f.t ?? 0, 4), title: f.title, observed: f.observed, fix: f.suggestion, sound: { levelDb: m.levelDb, level: m.level } });
     } else if (f.kind === "visual") {
+      // The Look panel only corrects colour and light, so a fix about what is in the shot gets no button for it.
+      if (!/colou?r|bright|dark|exposure|contrast|white balance|grade|tint|saturat|\blight/i.test(`${f.title} ${f.suggestion}`)) return;
       push({ fixIndex, capability: "look", priority, ...span(f.t ?? 0, 4), title: f.title, observed: f.observed, fix: f.suggestion });
     } else if (f.kind === "caption") {
       push({ fixIndex, capability: "caption", priority, t: 0, end: 0, title: f.title, observed: f.observed, fix: f.suggestion });

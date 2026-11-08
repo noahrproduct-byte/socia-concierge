@@ -157,7 +157,7 @@ export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: O
               <dt>Recent momentum</dt>
               {mo
                 ? <TwoBars label="Median views" a={{ name: `Last ${mo.recentN}`, value: mo.recentMedian }} b={{ name: `${mo.earlierN} before`, value: mo.earlierMedian }} />
-                : <dd><b>Not yet</b><small>Needs {RECENT_N + BASELINE_MIN} Reels; you have {b.n}.</small></dd>}
+                : <><dd><b>Not yet</b></dd><small>Needs {RECENT_N + BASELINE_MIN} Reels; you have {b.n}.</small></>}
             </div>
           </dl>
 
