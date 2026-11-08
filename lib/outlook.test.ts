@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  BASELINE_MIN, BACKTEST_MIN, SETTLE_DAYS, backtest, buildModel, chanceOfAtLeast, estimate, outlookFor, patternLine, quantile, rankAgreement,
+  BASELINE_MIN, BACKTEST_MIN, SETTLE_DAYS, STRONG_VIDEO, backtest, buildModel, chanceOfAtLeast, estimate, outlookFor, patternLine, quantile, rankAgreement, strengthAfter, videoStrength,
   recordCheck, recordOf, reelsFrom, roundViews, sanitizeRecord, traitsOf, type OutlookReel,
 } from "./outlook";
 
@@ -162,5 +162,39 @@ describe("what is kept with a post", () => {
     expect(recordCheck(r, 2900, false)).toBe("SOCIA's range for it was 1,100 to 3,400 views. It has 2,900: inside the range.");
     expect(recordCheck({ ...r, kind: "usual", index: null }, 400, true)).toBe("Your usual range then was 1,100 to 3,400 views. It has 400 so far: below the range, and the number is still moving.");
     expect(recordCheck(r, 9000, false)).toMatch(/above the range\.$/);
+  });
+});
+
+describe("reading the video itself", () => {
+  const parts = (n: number) => ["hook", "structure", "pacing", "clarity", "visual", "captions", "audio", "cta", "goal"].map((id) => ({ id, score: id === "cta" || id === "goal" ? 10 : n }));
+  const m = buildModel(run(30, (i) => ({ views: 200 + i * 100 })), 0);
+  it("ignores the ask and brand fit, and needs enough of the video to judge", () => {
+    expect(videoStrength(parts(80))).toBeCloseTo(80);
+    expect(videoStrength([{ id: "hook", score: 90 }, { id: "audio", score: 90 }])).toBeNull();
+    expect(videoStrength([{ id: "hook", score: 80 }, { id: "visual", score: null }, { id: "clarity", score: 60 }, { id: "pacing", score: 60 }])).toBeCloseTo(70);
+  });
+  it("gives a stronger video a higher score and more predicted views, on the same account and caption", () => {
+    const weak = outlookFor(m, "A caption", 40).forecast!;
+    const usual = outlookFor(m, "A caption", 60).forecast!;
+    const strong = outlookFor(m, "A caption", 90).forecast!;
+    expect(strong.index).toBeGreaterThan(usual.index);
+    expect(usual.index).toBeGreaterThan(weak.index);
+    expect(strong.estimate).toBeGreaterThan(usual.estimate);
+    expect(usual.estimate).toBeGreaterThan(weak.estimate);
+  });
+  it("is always low confidence, because how strength maps to views isn't proven yet", () => {
+    const f = outlookFor(m, "A caption", 90).forecast!;
+    expect(f).toMatchObject({ video: true, checked: false });
+    expect(outlookFor(m, "A caption").forecast!.video).toBe(false);
+  });
+  it("reaches the account's best Reel once the video is strong", () => {
+    expect(outlookFor(m, "A caption", STRONG_VIDEO).forecast!.high).toBeGreaterThanOrEqual(roundViews(200 + 29 * 100));
+  });
+  it("recalculates after the edits from each part's estimated score, not by adding points", () => {
+    const cats = parts(50);
+    const before = videoStrength(cats)!;
+    const after = strengthAfter(cats, [{ part: "hook", scoreAfter: 90 }, { part: "hook", scoreAfter: 70 }, { part: "cta", scoreAfter: 80 }]);
+    expect(after).toBeCloseTo(before + 0.3 * 40);
+    expect(strengthAfter([{ id: "hook", score: null }, ...cats.slice(1)], [{ part: "hook", scoreAfter: 90 }])).toBeCloseTo(50);
   });
 });

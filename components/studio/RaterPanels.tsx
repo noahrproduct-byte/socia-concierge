@@ -16,7 +16,7 @@ import { CATEGORY_INFO, fmtT, type ApplyField, type Marker, type StudioAnalysis,
 import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, scoreAfterEdits, type Direction, type PostRef } from "@/lib/studioVerdict";
 import { CAPABILITY, type Moment } from "@/lib/studioFixes";
 import { KIND_LABEL, finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } from "@/lib/raterLog";
-import { BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, roundViews, type Backtest, type Forecast } from "@/lib/outlook";
+import { BASELINE_MIN, RECENT_N, SETTLE_DAYS, STRONG_VIDEO, fmtViews, outlookFor, roundViews, strengthAfter, videoStrength, type Backtest, type Forecast } from "@/lib/outlook";
 import type { OutlookPayload } from "@/lib/outlookLoad";
 import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
 import { Bar, CountUp, Reveal, Ring } from "@/components/dashboard/motion";
@@ -83,7 +83,7 @@ function ScoreStats({ f, coverage }: { f: Forecast; coverage: number | null }) {
       <div>
         <dt>Virality score {!f.checked && <em className="ov-chip warning">Low confidence</em>}</dt>
         <dd><b>{f.index}</b> of 100</dd>
-        <small>50 is your usual Reel. From your past Reels and caption, not this video.</small>
+        <small>From this video and how your account usually does.</small>
       </div>
       <div>
         <dt>Predicted views</dt>
@@ -94,15 +94,21 @@ function ScoreStats({ f, coverage }: { f: Forecast; coverage: number | null }) {
   );
 }
 
-/** What the numbers rest on, in one breath. Low confidence says how far off the model was, against simply guessing the median. */
+/** What the numbers rest on, in one breath. The link from a strong video to views is an assumption until rated videos have results, and the page says so. */
 function ConfidenceNote({ f, bt }: { f: Forecast; bt: Backtest | null }) {
   const x = (n: number) => `${n.toFixed(1)}x`;
+  if (f.video) {
+    return (
+      <p className="sd-note">
+        <b>Low confidence, a rough guide.</b> SOCIA reads this video&apos;s hook, story, pacing, clarity, picture, captions and sound, then places it within your own Reels: a stronger video lands higher. That link isn&apos;t proven on your account yet, so SOCIA checks each rated video against its real result once you post. A video can also beat your best Reel by far, and no one can put a number on a breakout.
+      </p>
+    );
+  }
   return (
     <p className="sd-note">
       {f.checked
         ? <><b>Tested on your Reels.</b> Forecasting each past Reel from the ones before it, this was typically off by {bt ? x(bt.modelError) : "a little"}, against {bt ? x(bt.medianError) : "more"} for your plain median.</>
         : <><b>Low confidence, a rough guide.</b> {bt ? `Forecasting ${bt.n} of your past Reels from the ones before each, this was typically off by ${x(bt.modelError)}, and just guessing your median by ${x(bt.medianError)}.` : "Too few of your Reels can be replayed to test it yet."}</>}
-      {" "}It can&apos;t see this video&apos;s picture or sound, so a great video and a weak one with the same caption get the same number, and edits to the video don&apos;t change it.
     </p>
   );
 }
@@ -113,7 +119,7 @@ function ConfidenceNote({ f, bt }: { f: Forecast; bt: Backtest | null }) {
  * the replay over those Reels passes. Every figure is calculated from stored
  * view counts; the method and the sample open below it.
  */
-export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: OutlookState; caption: string; suggestion: string | null; onRetry: () => void }) {
+export function OutlookBlock({ state, caption, suggestion, strength, onRetry }: { state: OutlookState; caption: string; suggestion: string | null; strength: number | null; onRetry: () => void }) {
   if (state.status === "loading") return null;
   if (state.status === "error") {
     return (
@@ -128,8 +134,8 @@ export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: O
   // Before a caption is written, the suggested one stands in.
   const own = caption.trim().length > 0;
   const read = own ? caption : suggestion ?? "";
-  const f = outlookFor(model, read).forecast;
-  const alt = f && own && suggestion && suggestion.trim() !== caption.trim() ? outlookFor(model, suggestion).forecast : null;
+  const f = outlookFor(model, read, strength).forecast;
+  const alt = f && own && suggestion && suggestion.trim() !== caption.trim() ? outlookFor(model, suggestion, strength).forecast : null;
   return (
     <section className="st-block sd-outlook" aria-labelledby="sd-outlook-h">
       <div className="sd-ohead">
@@ -170,9 +176,10 @@ export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: O
               <div><dt>Sample</dt><dd>{b.n} Reels posted {day(b.from)} to {day(b.to)}, each out at least {SETTLE_DAYS} days with a view count from Instagram.{model.pending > 0 ? ` ${model.pending} newer ${model.pending === 1 ? "one is" : "ones are"} left out until ${model.pending === 1 ? "it settles" : "they settle"}.` : ""} Collab Reels another account posted are left out.</dd></div>
               <div><dt>Your usual</dt><dd>Median {fmtViews(b.median)} views. Half of those Reels fell between {fmtViews(b.low)} and {fmtViews(b.high)}.</dd></div>
               {mo && <div><dt>Momentum</dt><dd>Your last {mo.recentN} Reels have a median of {fmtViews(mo.recentMedian)} views; the {mo.earlierN} before them, {fmtViews(mo.earlierMedian)}.</dd></div>}
-              <div><dt>How the score works</dt><dd>The estimate starts at your median, moves half-way toward where your last {RECENT_N} Reels run, then by each caption pattern, weighted by how many Reels carry it, and is capped between half and double your median. The score is the share of your last {b.n} Reels with fewer views than that estimate. Predicted views are that estimate, widened by how far off it was when replayed on your Reels.</dd></div>
-              <div><dt>The check</dt><dd>{bt ? bt.why : "No Reel can be replayed yet."} It runs again each time. Until it passes, the score is marked low confidence.</dd></div>
-              <div><dt>Not included</dt><dd>How each Reel&apos;s views grew over time (SOCIA has kept only the latest count), video length (Instagram does not provide it), and the picture and sound of past Reels.</dd></div>
+              <div><dt>How the score works</dt><dd>70% is how strong this video is: the hook counts for 30%, story, pacing, clarity and picture for 15% each, captions and sound for 5% each. The ask and brand fit don&apos;t count. The other 30% is where your account&apos;s history and this caption would place it among your last {b.n} Reels.</dd></div>
+              <div><dt>Predicted views</dt><dd>An ordinary video lands at your median; each point of strength moves it up or down your own range. That is weighed 70 to 30 with what your history expects, then widened by how far your Reels vary. A video scoring {STRONG_VIDEO} or more can reach at least your best Reel.</dd></div>
+              <div><dt>The check</dt><dd>On your history alone: {bt ? bt.why : "no Reel can be replayed yet."} The video part can only be checked against rated videos&apos; real results, so it stays low confidence until those exist.</dd></div>
+              <div><dt>Not included</dt><dd>How each Reel&apos;s views grew over time (SOCIA has kept only the latest count), past Reels&apos; video length, and what your followers saw that week.</dd></div>
             </dl>
           </details>
         </>
@@ -207,7 +214,7 @@ function ViralityHero({ outlook, f }: { outlook: OutlookState; f: Forecast | nul
           <small>Virality prediction</small>
           <b>{fmtViews(f.low)} to {fmtViews(f.high)} views</b>
           {!f.checked && <em className="ov-chip warning">Low confidence</em>}
-          <p>50 is your usual Reel. This comes from your account&apos;s past Reels and the caption. It can&apos;t see this video.</p>
+          <p>From SOCIA&apos;s read of this video and how your account usually does.</p>
         </div>
       </div>
     );
@@ -226,7 +233,8 @@ export function AnalyzePanel({ a, onOpenEdit, outlook, onOutlookRetry, caption }
   const [openCat, setOpenCat] = useState<string | null>(null);
   const cat = a.categories.find((c) => c.id === openCat) ?? null;
   const model = outlook?.status === "ready" ? outlook.data.model : null;
-  const forecast = model ? outlookFor(model, caption.trim() ? caption : a.caption.suggestion ?? "").forecast : null;
+  const strength = videoStrength(a.categories);
+  const forecast = model ? outlookFor(model, caption.trim() ? caption : a.caption.suggestion ?? "", strength).forecast : null;
   return (
     <div className="st-panel">
       <Reveal as="section" className="st-block sd-hero">
@@ -276,7 +284,7 @@ export function AnalyzePanel({ a, onOpenEdit, outlook, onOutlookRetry, caption }
         )}
       </Reveal>
 
-      {outlook && <OutlookBlock state={outlook} caption={caption} suggestion={a.caption.suggestion} onRetry={onOutlookRetry} />}
+      {outlook && <OutlookBlock state={outlook} caption={caption} suggestion={a.caption.suggestion} strength={strength} onRetry={onOutlookRetry} />}
 
       {a.planFit && (
         <section className="st-block">
@@ -356,24 +364,26 @@ export type EditsProps = {
 };
 
 /**
- * Where this draft stands and what the edits can honestly claim. The score and
- * predicted views come only from the account's own Reels, marked low confidence
- * until the replay passes. The after figure is the creative score, because no
- * past Reel was rated, so nothing yet says what an edit does to views.
+ * Where this draft stands and what the edits should do. The after figures run
+ * the same calculation again on the rater's scores for the fixed video.
  */
 function ReachStrip({ a, w, outlook }: { a: StudioAnalysis; w: Working; outlook: OutlookState | null }) {
   const after = scoreAfterEdits(a);
   const model = outlook?.status === "ready" ? outlook.data.model : null;
-  const f = model ? outlookFor(model, w.caption.trim() ? w.caption : a.caption.suggestion ?? "").forecast : null;
+  const read = w.caption.trim() ? w.caption : a.caption.suggestion ?? "";
+  const f = model ? outlookFor(model, read, videoStrength(a.categories)).forecast : null;
+  const fixed = model ? outlookFor(model, read, strengthAfter(a.categories, a.topFixes)).forecast : null;
   if (!f && after == null) return null;
   return (
     <section className="st-block sd-outlook" aria-label="Reach and what the edits change">
       <dl className="sd-ostats">
         {f && <ScoreStats f={f} coverage={model?.backtest?.coverage ?? null} />}
-        {after != null && <div><dt>After these edits</dt><dd><b>{a.score.overall} to about {after}</b></dd><small>Creative readiness, SOCIA&apos;s estimate. Not views.</small></div>}
+        {f && fixed && fixed.index > f.index
+          ? <div><dt>After these edits</dt><dd><b>{f.index} to {fixed.index}</b> of 100</dd><small>{fmtViews(fixed.low)} to {fmtViews(fixed.high)} views.{after != null ? ` Creative readiness ${a.score.overall} to about ${after}.` : ""}</small></div>
+          : after != null && <div><dt>After these edits</dt><dd><b>{a.score.overall} to about {after}</b></dd><small>Creative readiness, SOCIA&apos;s estimate.</small></div>}
       </dl>
       {f && <ConfidenceNote f={f} bt={model?.backtest ?? null} />}
-      <p className="sd-note">Edits lift the creative score above. SOCIA has no record yet of what an edit does to your views, so it compares the real result with your usual once you post.</p>
+      <p className="sd-note">The after numbers are worked out again from SOCIA&apos;s score of the fixed video. Once you post, it compares the real result with this.</p>
     </section>
   );
 }

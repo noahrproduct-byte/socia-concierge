@@ -9,12 +9,14 @@
 //   2. Patterns. What the draft's caption shares with those Reels (how it
 //      opens, its subject, its length) and how the Reels with and without
 //      that did. A pattern in a handful of posts, never a cause.
-//   3. The virality score and predicted views (Noah, 2026-11-06: show them
-//      whenever there is enough history). A small model (baseline x momentum x
-//      patterns), replayed over the account's own history, each Reel forecast
-//      from only what was known before it went out. Below the check (it must
-//      beat the plain median and its range must hold) the numbers still show,
-//      marked low confidence with the replay's own error beside them.
+//   3. The virality score and predicted views (Noah, 2026-11-08: "It should
+//      judge by the video"). The rater's read of this video (videoStrength)
+//      sets where it should land in the account's own range; the account's
+//      history (baseline x momentum x caption patterns) sets the scale. How
+//      strength maps to views is an assumption until rated videos have results,
+//      so a video-based forecast is always marked low confidence. The history
+//      part is replayed over the account's Reels, each forecast from only what
+//      was known before it went out.
 //
 // What this can't see: SOCIA stores each Reel's latest numbers, not how they
 // grew, so a Reel counts only once it has settled; Instagram gives no video
@@ -283,14 +285,47 @@ export function buildModel(reels: OutlookReel[], pending: number): AccountModel 
 
 // ---------------------------------------------------------------- the draft ----
 
+/** How much each part of the rater's score counts toward reach. An ask or a brand fit doesn't make a video travel, so those don't count. */
+export const REACH_WEIGHTS: Record<string, number> = { hook: 0.3, structure: 0.15, pacing: 0.15, clarity: 0.15, visual: 0.15, captions: 0.05, audio: 0.05 };
+type Part = { id: string; score: number | null };
+
+/** The rater's read of this video as one number, 0 to 100, from the parts it could score. Null when too little could be scored. */
+export function videoStrength(parts: Part[]): number | null {
+  let sum = 0, weight = 0;
+  for (const p of parts) {
+    const w = REACH_WEIGHTS[p.id];
+    if (w && p.score != null) { sum += w * p.score; weight += w; }
+  }
+  return weight >= 0.5 ? sum / weight : null;
+}
+
+/** The same read with each fix made: every part at the best score a fix is estimated to reach. */
+export function strengthAfter(parts: Part[], fixes: { part?: string | null; scoreAfter?: number | null }[]): number | null {
+  return videoStrength(parts.map((p) => {
+    const best = Math.max(p.score ?? 0, ...fixes.filter((f) => f.part === p.id && f.scoreAfter != null).map((f) => f.scoreAfter as number));
+    return p.score == null ? p : { ...p, score: best };
+  }));
+}
+
+/** How much of the estimate comes from the video rather than the account's history. */
+export const VIDEO_SHARE = 0.7;
+/** The rater's middle for an ordinary draft: a video this strong should land at the account's median. */
+const ORDINARY = 60;
+/** Each point of strength moves a video this far through the account's own range of views. */
+const PER_POINT = 0.015;
+/** From this strength the range reaches at least the account's best Reel. */
+export const STRONG_VIDEO = 75;
+
 export type Forecast = {
-  /** Where the estimate sits among the baseline Reels: 50 is this account's usual Reel. Not a probability. */
+  /** With a video: its strength and the account's position, blended. Without one: where the estimate sits among the baseline Reels. Not a probability. */
   index: number;
   estimate: number;
   low: number;
   high: number;
-  /** The replay passed. False: show it as low confidence. */
+  /** The replay passed and no untested video assumption is in the number. False: show it as low confidence. */
   checked: boolean;
+  /** This forecast read the video, not only the account's history. */
+  video: boolean;
 };
 export type Outlook = {
   /** Patterns in the account's Reels that this draft's caption shares, strongest difference first. */
@@ -302,7 +337,7 @@ export type Outlook = {
 /** Replayed misses a range needs before it is built from them; fewer, and the spread of the Reels themselves stands in. */
 const RANGE_MIN_REPLAYS = 5;
 
-export function outlookFor(model: AccountModel, caption: string | null | undefined): Outlook {
+export function outlookFor(model: AccountModel, caption: string | null | undefined, strength: number | null = null): Outlook {
   const traits = traitsOf(caption);
   const shared = model.patterns.filter((p) => traits.includes(p.key)).sort((a, b) => Math.abs(Math.log(b.ratio)) - Math.abs(Math.log(a.ratio))).slice(0, 3);
   if (!model.baseline) return { shared, forecast: null };
@@ -310,16 +345,26 @@ export function outlookFor(model: AccountModel, caption: string | null | undefin
   if (est == null) return { shared, forecast: null };
   const base = views(model.reels.slice(-BASELINE_MAX));
   const res = residuals(replay(model.reels));
-  const low = res.length >= RANGE_MIN_REPLAYS ? est * Math.exp(quantile(res, 0.1)) : quantile(base, 0.1);
-  const high = res.length >= RANGE_MIN_REPLAYS ? est * Math.exp(quantile(res, 0.9)) : quantile(base, 0.9);
+  // Where this video should land in the account's own range, weighed with what the history expects.
+  const place = strength == null ? null : clamp(0.5 + (strength - ORDINARY) * PER_POINT, 0.05, 0.95);
+  const center = place == null ? est : Math.exp(VIDEO_SHARE * Math.log(quantile(base, place)) + (1 - VIDEO_SHARE) * Math.log(est));
+  // Too few replays to measure the miss: use how far the account's own Reels spread, around where this video lands.
+  const mid = quantile(base, 0.5);
+  const fewLow = strength == null ? quantile(base, 0.1) : center * (quantile(base, 0.25) / mid);
+  const fewHigh = strength == null ? quantile(base, 0.9) : center * (quantile(base, 0.75) / mid);
+  const low = res.length >= RANGE_MIN_REPLAYS ? center * Math.exp(quantile(res, 0.1)) : fewLow;
+  let high = res.length >= RANGE_MIN_REPLAYS ? center * Math.exp(quantile(res, 0.9)) : fewHigh;
+  if (strength != null && strength >= STRONG_VIDEO) high = Math.max(high, ...base);
+  const history = (base.filter((x) => x < est).length / base.length) * 100;
   return {
     shared,
     forecast: {
-      index: Math.round((base.filter((x) => x < est).length / base.length) * 100),
-      estimate: roundViews(est),
-      low: roundViews(Math.min(low, est)),
-      high: roundViews(Math.max(high, est)),
-      checked: model.backtest?.passes === true,
+      index: Math.round(strength == null ? history : clamp(VIDEO_SHARE * strength + (1 - VIDEO_SHARE) * history, 0, 100)),
+      estimate: roundViews(center),
+      low: roundViews(Math.min(low, center)),
+      high: roundViews(Math.max(high, center)),
+      checked: strength == null && model.backtest?.passes === true,
+      video: strength != null,
     },
   };
 }
