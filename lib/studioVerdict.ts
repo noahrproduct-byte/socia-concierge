@@ -43,12 +43,10 @@ export type FixExtras = {
   /** The part of the score this fix lifts, and the editor's estimate of that part once it is made. Never views. */
   part: string | null;
   scoreAfter: number | null;
-  /** A complete prompt for an AI tool, when an AI tool could make this change; "" otherwise. */
-  aiPrompt: string;
 };
 
-/** The most one fix may be estimated to lift a part of the score: a bigger claim isn't credible from one edit. */
-export const MAX_GAIN = 30;
+/** The highest score an estimate may claim: 85 and up is already rare for a finished draft. */
+export const MAX_AFTER = 95;
 const KIND_PART: Record<string, string> = { opening: "hook", hook_text: "hook", ending: "cta", pacing: "pacing", text: "captions", audio: "audio", visual: "visual", caption: "goal" };
 
 const text = (v: unknown, n: number): string => (typeof v === "string" ? v.replace(/\s*—\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, n) : "");
@@ -68,25 +66,32 @@ export function cleanFixExtras(raw: unknown, index: number, t: number | null, du
   const evidence: FixEvidence | null = e
     ? { account: text(e.account, 300), niche: text(e.niche, 300), confidence: isConfidence(e.confidence) ? e.confidence : "low", confidenceWhy: text(e.confidenceWhy, 300) }
     : null;
-  // The part must be one the analysis scored; the estimate must lift it, by no more than one edit plausibly can.
+  // The part must be one the analysis scored, and the estimate must lift it.
   const named = typeof r.part === "string" && r.part in scores ? r.part : KIND_PART[r.kind as string] ?? null;
   const part = named && scores[named] != null ? named : null;
   const after = num(r.scoreAfter);
   const now = part ? (scores[part] as number) : null;
-  const scoreAfter = now != null && after != null && after > now ? Math.min(100, now + MAX_GAIN, Math.round(after)) : null;
+  const scoreAfter = now != null && after != null && after > now ? Math.min(MAX_AFTER, Math.round(after)) : null;
   return {
     priority, end: end != null && end > (t ?? 0) ? end : null, why: text(r.why, 240), evidence,
     steps: (Array.isArray(r.steps) ? r.steps : []).map((x) => text(x, 220)).filter(Boolean).slice(0, 5),
-    motion: text(r.motion, 260), part: scoreAfter != null ? part : null, scoreAfter, aiPrompt: text(r.aiPrompt, 1200),
+    motion: text(r.motion, 260), part: scoreAfter != null ? part : null, scoreAfter,
   };
 }
 
+/** The editor's score for the whole draft with every fix made well; null unless it lifts the score. */
+export function cleanOverallAfter(raw: unknown, overall: number): number | null {
+  const n = num(raw);
+  return n != null && n > overall ? Math.min(MAX_AFTER, Math.round(n)) : null;
+}
+
 /**
- * Creative readiness if every fix were made: each part's largest estimated
+ * Creative readiness if every fix were made: the analysis's own judgement when it gave one; otherwise each part's largest estimated
  * gain, averaged over the parts that were scored, added to the overall score.
  * Null when no fix carries an estimate. An estimate of the editor's score, never views.
  */
-export function scoreAfterEdits(a: { score: { overall: number }; categories: { id: string; score: number | null }[]; topFixes: { part?: string | null; scoreAfter?: number | null }[] }): number | null {
+export function scoreAfterEdits(a: { score: { overall: number }; overallAfter?: number | null; categories: { id: string; score: number | null }[]; topFixes: { part?: string | null; scoreAfter?: number | null }[] }): number | null {
+  if (a.overallAfter != null) return a.overallAfter;
   const scored = a.categories.filter((c) => c.score != null);
   if (!scored.length) return null;
   const gain = new Map<string, number>();

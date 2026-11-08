@@ -16,21 +16,18 @@ import { CATEGORY_INFO, fmtT, type ApplyField, type Marker, type StudioAnalysis,
 import { CONFIDENCE_LABEL, PRIORITY_LABEL, directionText, fmtSpan, scoreAfterEdits, type Direction, type PostRef } from "@/lib/studioVerdict";
 import { CAPABILITY, type Moment } from "@/lib/studioFixes";
 import { KIND_LABEL, finding, nextStep, outlookFinding, type Lesson, type RaterOutcome } from "@/lib/raterLog";
-import { BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, type Backtest, type Forecast } from "@/lib/outlook";
+import { BASELINE_MIN, RECENT_N, SETTLE_DAYS, fmtViews, outlookFor, roundViews, type Backtest, type Forecast } from "@/lib/outlook";
 import type { OutlookPayload } from "@/lib/outlookLoad";
 import { MomentPreview, type FixOptions } from "./ImproveWalkthrough";
-import { lineInUse } from "@/lib/studioLines";
-import type { EdlText } from "@/lib/studioClips/types";
 import { Bar, CountUp, Reveal, Ring } from "@/components/dashboard/motion";
 import "@/app/(app)/dashboard/dashboard.css";
 import "@/app/(app)/studio/studio.css";
 
-type Working = { hook: string; cta: string; caption: string; onscreen: string[]; layers: EdlText[] };
+type Working = { caption: string };
 
 const VERDICT: Record<string, [string, string]> = { better: ["Better", "success"], similar: ["Similar", "muted"], worse: ["Behind", "warning"], unknown: ["Not measurable", "muted"] };
 const CAT_TONE = (s: number | null) => (s == null ? "na" : s >= 80 ? "good" : s >= 60 ? "ok" : "low");
-const APPLY_LABEL: Record<ApplyField, string> = { hook: "Use this hook", cta: "Use this ending", caption: "Use this caption", onscreen: "Use this text" };
-const REMOVE_LABEL: Record<ApplyField, string> = { hook: "Remove this hook", cta: "Remove this ending", caption: "Remove this caption", onscreen: "Remove this text" };
+const LINE_LABEL: Record<ApplyField, string> = { hook: "Opening line to use", cta: "Ending to use", caption: "Caption to use", onscreen: "On-screen text to use" };
 
 function CopyBtn({ text, label = "Copy" }: { text: string; label?: string }) {
   const [done, setDone] = useState(false);
@@ -68,18 +65,6 @@ function TwoBars({ a, b, label }: { a: { name: string; value: number }; b: { nam
     <div className="sd-two" role="img" aria-label={`${label}: ${a.name} ${fmtViews(a.value)} views, ${b.name} ${fmtViews(b.value)} views`}>
       <span>{a.name}</span><Bar share={a.value / max} tone="data" className="sd-two-bar" /><b>{fmtViews(a.value)}</b>
       <span>{b.name}</span><Bar share={b.value / max} tone="muted" className="sd-two-bar" /><b>{fmtViews(b.value)}</b>
-    </div>
-  );
-}
-
-/** What a used line now does, and the step that puts it in the post. A preview line is not in the file until the editor renders it. */
-function LineStatus({ canHandoff, onToEditor }: { canHandoff: boolean; onToEditor: () => void }) {
-  return (
-    <div className="sd-linestatus" role="status">
-      <p><Check size={13} aria-hidden /> On your preview now. Your file isn&apos;t changed until you put it on the video.</p>
-      {canHandoff
-        ? <button type="button" className="ov-btn primary small" onClick={onToEditor}>Put it on the video <ArrowRight size={12} /></button>
-        : <p className="sd-note">Upload the original file to put it on the video.</p>}
     </div>
   );
 }
@@ -166,8 +151,14 @@ export function OutlookBlock({ state, caption, suggestion, onRetry }: { state: O
       {b && (
         <>
           <dl className="sd-ostats">
-            {f && <ScoreStats f={f} coverage={bt?.coverage ?? null} />}
-            <div><dt>Your usual</dt><dd><b>{fmtViews(b.median)}</b> views</dd><small>Median of your last {b.n} Reels.{mo ? ` Your last ${mo.recentN}: ${fmtViews(mo.recentMedian)}.` : ""}</small></div>
+            <div><dt>Your usual</dt><dd><b>{fmtViews(b.median)}</b> views</dd><small>Median of your last {b.n} Reels.</small></div>
+            <div><dt>Usual range</dt><dd><b>{fmtViews(roundViews(b.low))} to {fmtViews(roundViews(b.high))}</b></dd><small>Half of those Reels landed here.</small></div>
+            <div>
+              <dt>Recent momentum</dt>
+              {mo
+                ? <TwoBars label="Median views" a={{ name: `Last ${mo.recentN}`, value: mo.recentMedian }} b={{ name: `${mo.earlierN} before`, value: mo.earlierMedian }} />
+                : <dd><b>Not yet</b><small>Needs {RECENT_N + BASELINE_MIN} Reels; you have {b.n}.</small></dd>}
+            </div>
           </dl>
 
           {f && <ConfidenceNote f={f} bt={bt} />}
@@ -203,22 +194,56 @@ function ScoreRing({ score }: { score: number }) {
 }
 
 /** The first tab, and the short one: the score, each part of it, the outlook, and what to fix first. The detail is one tab away. */
+/** The virality prediction, beside the creative score: the number when the account has the Reels for it, and exactly what is missing when it hasn't. */
+function ViralityHero({ outlook, f }: { outlook: OutlookState; f: Forecast | null }) {
+  if (f) {
+    return (
+      <div className="st-score">
+        <Ring share={f.index / 100} size={110} stroke={9} tone={f.index >= 60 ? "good" : f.index >= 40 ? "ok" : "low"} label={`Virality prediction ${f.index} out of 100`}>
+          <b><CountUp value={f.index} /></b>
+          <small>of 100</small>
+        </Ring>
+        <div className="st-score-meta">
+          <small>Virality prediction</small>
+          <b>{fmtViews(f.low)} to {fmtViews(f.high)} views</b>
+          {!f.checked && <em className="ov-chip warning">Low confidence</em>}
+          <p>50 is your usual Reel. Not a chance of going viral.</p>
+        </div>
+      </div>
+    );
+  }
+  const data = outlook.status === "ready" ? outlook.data : null;
+  const line = outlook.status === "loading" ? "Reading your Reels."
+    : outlook.status === "error" ? "Your Reel history could not be loaded."
+    : !data?.connected ? "Connect Instagram to get a prediction from your own Reels."
+    : data.insightsOk === false ? "Instagram isn't sharing view counts for this account. Reconnect it in Settings."
+    : `SOCIA has ${data.model.reels.length} Reel${data.model.reels.length === 1 ? "" : "s"} with views out ${SETTLE_DAYS} days or more, and needs ${BASELINE_MIN}.${data.model.pending > 0 ? ` ${data.model.pending} newer ${data.model.pending === 1 ? "one counts" : "ones count"} once ${data.model.pending === 1 ? "it reaches" : "they reach"} that age.` : ""}`;
+  return <div className="st-score-meta sd-duo-empty"><small>Virality prediction</small><b>Not ready yet</b><p>{line}</p></div>;
+}
+
 export function AnalyzePanel({ a, onOpenEdit, outlook, onOutlookRetry, caption }: { a: StudioAnalysis; onOpenEdit: (i: number) => void; outlook: OutlookState | null; onOutlookRetry: () => void; caption: string }) {
   const [how, setHow] = useState(false);
   const [openCat, setOpenCat] = useState<string | null>(null);
   const cat = a.categories.find((c) => c.id === openCat) ?? null;
+  const model = outlook?.status === "ready" ? outlook.data.model : null;
+  const forecast = model ? outlookFor(model, caption.trim() ? caption : a.caption.suggestion ?? "").forecast : null;
   return (
     <div className="st-panel">
       <Reveal as="section" className="st-block sd-hero">
-        <div className="st-score">
-          <ScoreRing score={a.score.overall} />
-          <div className="st-score-meta">
-            <small>Creative readiness</small>
-            <b>{a.score.label}</b>
-            <p>{a.diagnosis || a.observed.summary}</p>
-            <p className="st-score-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
-            <button type="button" className="ov-link" aria-expanded={how} onClick={() => setHow((v) => !v)}>How is this scored? <ChevronDown size={12} style={{ transform: how ? "rotate(180deg)" : undefined }} /></button>
+        <div className="sd-duo">
+          <div className="st-score">
+            <ScoreRing score={a.score.overall} />
+            <div className="st-score-meta">
+              <small>Creative readiness</small>
+              <b>{a.score.label}</b>
+              <p>{a.diagnosis || a.observed.summary}</p>
+              <p className="st-score-note">A creative assessment of this draft, not a prediction of reach, views or virality.</p>
+            </div>
           </div>
+          {outlook && <ViralityHero outlook={outlook} f={forecast} />}
+        </div>
+        <div className="sd-hero-foot">
+          <button type="button" className="ov-link" aria-expanded={how} onClick={() => setHow((v) => !v)}>How is this scored? <ChevronDown size={12} style={{ transform: how ? "rotate(180deg)" : undefined }} /></button>
         </div>
         {how && (
           <div className="st-how">
@@ -263,7 +288,7 @@ export function AnalyzePanel({ a, onOpenEdit, outlook, onOutlookRetry, caption }
       {a.strengths && a.strengths.length > 0 && (
         <section className="st-block">
           <h3>What works</h3>
-          <ul className="st-works">{a.strengths.map((x) => <li key={x}>{x}</li>)}</ul>
+          <ul className="sd-wins">{a.strengths.map((x) => <li key={x}><Check size={16} aria-hidden /><span>{x}</span></li>)}</ul>
         </section>
       )}
 
@@ -308,7 +333,7 @@ const RATING_WORD = (r: string) => (r === "needs" ? "Needs improvement" : r[0].t
 const RATING_CHIP = (r: string) => (r === "strong" || r === "good" ? "success" : r === "needs" ? "warning" : "danger");
 
 export type EditsProps = {
-  a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; seek: (t: number) => void; setActive: (i: number | null) => void;
+  a: StudioAnalysis; w: Working; seek: (t: number) => void; setActive: (i: number | null) => void;
   /** The edit to open first: the one chosen on the Analyze tab. */
   focus: number;
   /** The edits SOCIA can make (lib/studioFixes.ts), each tied to the fix it carries out. */
@@ -320,7 +345,6 @@ export type EditsProps = {
   canHandoff: boolean;
   onFix: (m: Moment, o: FixOptions) => void;
   onCaption: () => void;
-  onToEditor: () => void;
   /** The account's own Reels; null on a still post, where they are no comparison. */
   outlook: OutlookState | null;
   /** What the person's own settled posts show about each kind of change (lib/raterLog.ts). */
@@ -380,16 +404,10 @@ function EditImpact({ f, a, lessons }: { f: TopFix; a: StudioAnalysis; lessons: 
 }
 
 /** The Improve tab: one edit open at a time, problem beside fix, with the longer reading folded away. */
-export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumbs, frame, durationSec, canHandoff, onFix, onCaption, onToEditor, onWalkthroughClosed, outlook, lessons, children }: EditsProps) {
+export function EditsPanel({ a, w, seek, setActive, focus, moments, thumbs, frame, durationSec, canHandoff, onFix, onCaption, onWalkthroughClosed, outlook, lessons, children }: EditsProps) {
   const [open, setOpen] = useState<number | null>(focus);
   const [preview, setPreview] = useState<number | null>(null);
   const [walking, setWalking] = useState(false);
-  const inUse = (f: TopFix) => {
-    if (!f.apply) return false;
-    const { field, value } = f.apply;
-    if (field === "onscreen") return w.onscreen.includes(value);
-    return field === "caption" ? w.caption === value : lineInUse(w, field, value, a.kind === "video");
-  };
   const entries = a.kind === "video" ? entriesOf(a) : [];
   const dur = Math.max(1, a.durationSec ?? 1);
   return (
@@ -402,10 +420,8 @@ export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumb
             const when = fixWhen(f);
             const priority = f.priority ?? (i === 0 ? "high" : "medium");
             const m = moments.find((x) => x.fixIndex === i) ?? null;
-            const on = inUse(f);
-            // A line goes on the preview first; the editor is the next step, once it is in use.
-            const isLine = a.kind === "video" && f.apply != null && f.apply.field !== "caption";
-            const showEditor = m != null && m.capability !== "caption" && (!isLine || on);
+            // A line is information to use, not a button; only edits SOCIA really makes open the editor.
+            const showEditor = m != null && m.capability !== "caption" && m.capability !== "text";
             return (
               <li key={`${f.title}-${i}`} className={`sd-edit${open === i ? " is-open" : ""}`}>
                 <button type="button" className="sd-edit-head" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
@@ -429,26 +445,20 @@ export function EditsPanel({ a, w, apply, seek, setActive, focus, moments, thumb
                     )}
                     {f.motion && <div className="sd-howto"><h4 className="sd-sub">How it should move</h4><p className="sd-edit-why">{f.motion}</p></div>}
                     <EditImpact f={f} a={a} lessons={lessons} />
+                    {f.apply && (
+                      <div className="sd-line">
+                        <div><small>{LINE_LABEL[f.apply.field]}</small><p>{f.apply.value}</p></div>
+                        <CopyBtn text={f.apply.value} />
+                      </div>
+                    )}
                     <div className="st-fix-actions">
-                      {f.apply && <button type="button" className={`ov-btn ${on ? "ghost" : "primary"} small`} aria-pressed={on} onClick={() => apply(f.apply!.field, f.apply!.value)}>{on ? REMOVE_LABEL[f.apply.field] : APPLY_LABEL[f.apply.field]}</button>}
                       {f.t != null && a.kind === "video" && <button type="button" className="ov-btn ghost small" onClick={() => seek(f.t!)}><Clock size={12} /> Jump to {fmtT(f.t)}</button>}
                       {m && m.capability !== "caption" && <button type="button" className="ov-btn ghost small" aria-expanded={preview === i} onClick={() => setPreview(preview === i ? null : i)}>{preview === i ? "Hide the preview" : "Preview the change"}</button>}
-                      {showEditor && <button type="button" className={`ov-btn ${f.apply && !on ? "ghost" : "primary"} small`} disabled={!canHandoff} onClick={() => onFix(m, { presetId: m.text?.presetId, cuts: m.cuts?.map(({ start, end }) => ({ start, end })) })}>{isLine ? "Put it on the video" : CAPABILITY[m.capability].label} <ArrowRight size={12} /></button>}
+                      {showEditor && <button type="button" className="ov-btn primary small" disabled={!canHandoff} onClick={() => onFix(m, { presetId: m.text?.presetId, cuts: m.cuts?.map(({ start, end }) => ({ start, end })) })}>{CAPABILITY[m.capability].label} <ArrowRight size={12} /></button>}
                       {m && m.capability === "caption" && <button type="button" className="ov-btn ghost small" onClick={onCaption}>Rewrite the caption <ArrowRight size={12} /></button>}
                     </div>
-                    {on && isLine && !showEditor && <LineStatus canHandoff={canHandoff} onToEditor={onToEditor} />}
-                    {on && isLine && showEditor && <p className="sd-note">On your preview now. Your file isn&apos;t changed until you put it on the video.</p>}
-                    {on && f.apply && f.apply.field !== "caption" && a.kind !== "video" && <p className="sd-note">Added to your caption, in the Caption tab.</p>}
-                    {on && f.apply?.field === "caption" && <p className="sd-note">Your caption now reads this, in the Caption tab.</p>}
-                    {showEditor && !on && <p className="sd-note">{canHandoff ? `Opens the ${CAPABILITY[m.capability].where}${m.capability === "pauses" || m.capability === "text" ? " with this applied. Your original file is not changed" : ""}.` : "Upload the original file to apply this in the editor."}</p>}
-                    {!m && !f.apply && priority !== "experiment" && a.kind === "video" && <p className="sd-note">This one is yours to make: SOCIA can&apos;t reshoot or re-record it.</p>}
+                    {showEditor && <p className="sd-note">{canHandoff ? `Opens the ${CAPABILITY[m.capability].where}. Your original file is not changed.` : "Upload the original file to apply this in the editor."}</p>}
                     {m && preview === i && <div className="sd-preview"><MomentPreview m={m} thumbs={thumbs} frame={frame} durationSec={durationSec} /></div>}
-                    {f.aiPrompt && (
-                      <details className="sd-why">
-                        <summary>AI prompt to make this</summary>
-                        <div className="sd-prompt"><p>{f.aiPrompt}</p><CopyBtn text={f.aiPrompt} label="Copy the prompt" /></div>
-                      </details>
-                    )}
                     {f.evidence && (
                       <details className="sd-why">
                         <summary>Why SOCIA recommends this</summary>
@@ -665,7 +675,7 @@ export function ComparePanel({ a, onCompare, outlook, caption }: { a: StudioAnal
 
 // ------------------------------------------------------------------- remake ----
 
-function DirectionCard({ d, inUse, onUse, canHandoff, onEditor }: { d: Direction; inUse: boolean; onUse: () => void; canHandoff: boolean; onEditor: () => void }) {
+function DirectionCard({ d, canHandoff, onEditor }: { d: Direction; canHandoff: boolean; onEditor: () => void }) {
   return (
     <li className={`sd-dir${d.testFirst ? " is-first" : ""}`}>
       <header>
@@ -679,11 +689,9 @@ function DirectionCard({ d, inUse, onUse, canHandoff, onEditor }: { d: Direction
       </div>
       {d.approach && <p>{d.approach}</p>}
       <div className="sd-fix-actions">
-        <button type="button" className={`ov-btn ${inUse ? "ghost" : "primary"} small`} aria-pressed={inUse} onClick={onUse}>{inUse ? "Remove this opening" : "Use this opening"}</button>
-        {!inUse && <button type="button" className="ov-btn ghost small" disabled={!canHandoff} onClick={onEditor}>Start this version in the editor <ArrowRight size={12} /></button>}
+        <button type="button" className="ov-btn ghost small" disabled={!canHandoff} onClick={onEditor}>Start this version in the editor <ArrowRight size={12} /></button>
         <CopyBtn text={directionText(d)} label="Copy the brief" />
       </div>
-      {inUse && <LineStatus canHandoff={canHandoff} onToEditor={onEditor} />}
       {(d.storyboard.length > 0 || d.bestFor || d.tradeoff || d.evidence) && (
         <details className="sd-why">
           <summary>Storyboard and tradeoffs</summary>
@@ -711,14 +719,13 @@ function DirectionCard({ d, inUse, onUse, canHandoff, onEditor }: { d: Direction
 type RemakeView = "versions" | "lines" | "tests";
 
 /** The Remake tab: other ways to make this video, the lines to use, and what is worth testing. One at a time. */
-export function RemakePanel({ a, w, apply, canHandoff, onUseDirection, onEditor, onToEditor }: { a: StudioAnalysis; w: Working; apply: (f: ApplyField, v: string) => void; canHandoff: boolean; onUseDirection: (d: Direction) => void; onEditor: (d: Direction) => void; onToEditor: () => void }) {
+export function RemakePanel({ a, canHandoff, onEditor }: { a: StudioAnalysis; canHandoff: boolean; onEditor: (d: Direction) => void }) {
   const dirs = a.directions ?? [];
   const tests = a.experiments ?? [];
   const items = ([["versions", "Three versions"], ["lines", "Openings and endings"], ["tests", "Worth testing"]] as [RemakeView, string][]).filter(([id]) => (id === "versions" ? dirs.length > 0 : id === "tests" ? tests.length > 0 || dirs.length > 1 : true));
   const [view, setView] = useState<RemakeView>(items[0]?.[0] ?? "lines");
   const first = dirs.find((d) => d.testFirst) ?? dirs[0];
   const second = dirs.find((d) => d !== first);
-  const video = a.kind === "video";
   return (
     <div className="st-panel">
       {items.length > 1 && <SubTabs<RemakeView> label="Ways to remake it" on={view} set={setView} items={items} />}
@@ -728,7 +735,7 @@ export function RemakePanel({ a, w, apply, canHandoff, onUseDirection, onEditor,
           <h3>Three ways to remake it</h3>
           <p className="sd-note">Each is a version to test, with what it costs you. SOCIA can&apos;t know which will do best: it marks the one it would try first and says why.</p>
           <ol className="sd-dirs">
-            {dirs.map((d) => <DirectionCard key={d.name} d={d} inUse={lineInUse(w, "hook", d.opening, video)} onUse={() => onUseDirection(d)} canHandoff={canHandoff} onEditor={() => onEditor(d)} />)}
+            {dirs.map((d) => <DirectionCard key={d.name} d={d} canHandoff={canHandoff} onEditor={() => onEditor(d)} />)}
           </ol>
         </section>
       )}
@@ -743,11 +750,10 @@ export function RemakePanel({ a, w, apply, canHandoff, onUseDirection, onEditor,
                 {a.hooks.options.map((h) => (
                   <li key={h.text}>
                     <span><b>{h.text}</b><small>{h.style[0].toUpperCase() + h.style.slice(1)}</small></span>
-                    <button type="button" className={`ov-btn ${lineInUse(w, "hook", h.text, video) ? "ghost" : "primary"} small`} aria-pressed={lineInUse(w, "hook", h.text, video)} onClick={() => apply("hook", h.text)}>{lineInUse(w, "hook", h.text, video) ? "Remove" : "Use"}</button>
+                    <CopyBtn text={h.text} />
                   </li>
                 ))}
               </ul>
-              {video && a.hooks.options.some((h) => lineInUse(w, "hook", h.text, video)) && <LineStatus canHandoff={canHandoff} onToEditor={onToEditor} />}
             </section>
           )}
           {a.cta.options.length > 0 && (
@@ -758,11 +764,10 @@ export function RemakePanel({ a, w, apply, canHandoff, onUseDirection, onEditor,
                 {a.cta.options.map((c) => (
                   <li key={c}>
                     <span><b>{c}</b></span>
-                    <button type="button" className={`ov-btn ${lineInUse(w, "cta", c, video) ? "ghost" : "primary"} small`} aria-pressed={lineInUse(w, "cta", c, video)} onClick={() => apply("cta", c)}>{lineInUse(w, "cta", c, video) ? "Remove" : "Use"}</button>
+                    <CopyBtn text={c} />
                   </li>
                 ))}
               </ul>
-              {video && a.cta.options.some((c) => lineInUse(w, "cta", c, video)) && <LineStatus canHandoff={canHandoff} onToEditor={onToEditor} />}
             </section>
           )}
         </>
@@ -777,7 +782,7 @@ export function RemakePanel({ a, w, apply, canHandoff, onUseDirection, onEditor,
                 <li><span>Version A</span><div><b>{first.opening}</b><small>{first.name}</small></div></li>
                 <li><span>Version B</span><div><b>{second.opening}</b><small>{second.name}</small></div></li>
               </ol>
-              <p className="sd-note">Post A as this video and B on your next comparable one, at a similar time of day. Choose &ldquo;Use this opening&rdquo; on the version you are posting, then save it: SOCIA records which one it was and shows both results on the Rate screen once they have been out about three days. Two posts show a difference, not a cause.</p>
+              <p className="sd-note">Post A as this video and B on your next comparable one, at a similar time of day. Compare the two after about three days each. Two posts show a difference, not a cause.</p>
             </section>
           )}
           {tests.length > 0 && (

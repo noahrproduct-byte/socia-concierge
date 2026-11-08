@@ -26,7 +26,7 @@ describe("what a caption shows before it is posted", () => {
 describe("the account's comparable Reels", () => {
   const item = (daysAgo: number, extra: object = {}) => ({ media_product_type: "REELS", timestamp: new Date(NOW.getTime() - daysAgo * DAY).toISOString(), caption: "A Reel", insights: { views: 900 }, ...extra });
   it("keeps settled Reels with a reported view count, oldest first, and counts the ones still settling", () => {
-    const { reels, pending } = reelsFrom([item(3), item(20), item(9), item(SETTLE_DAYS - 0.5)], NOW);
+    const { reels, pending } = reelsFrom([item(1), item(20), item(9), item(SETTLE_DAYS - 0.5)], NOW);
     expect(reels.map((r) => Math.round((NOW.getTime() - Date.parse(r.at)) / DAY))).toEqual([20, 9]);
     expect(pending).toBe(2);
   });
@@ -83,11 +83,10 @@ describe("the estimate", () => {
 
 describe("the replay that decides how much to trust the score", () => {
   it("forecasts each Reel only from Reels that had already settled when it went out", () => {
-    // Posted daily: the Reel before is still inside its first week, so it can't inform the next.
-    const daily = run(BASELINE_MIN + 6, () => ({ views: 1000 }), 1);
-    expect(backtest(daily)).toBeNull();
-    // Every 4 days: the one before is still settling, so a Reel needs 9 before it to have 8 settled.
-    expect(backtest(run(BASELINE_MIN + 6, () => ({ views: 1000 }), 4))!.n).toBe(5);
+    // Posted daily: the two Reels before each are still settling, so they can't inform it.
+    expect(backtest(run(BASELINE_MIN + 6, () => ({ views: 1000 }), 1))!.n).toBe(4);
+    // Every 4 days: all the Reels before each have settled.
+    expect(backtest(run(BASELINE_MIN + 6, () => ({ views: 1000 }), 4))!.n).toBe(6);
   });
   it("is low confidence when there are too few replays, with the count in the reason", () => {
     const m = buildModel(run(BASELINE_MIN + 5, (i) => ({ views: 900 + (i % 5) * 60 })), 0);
