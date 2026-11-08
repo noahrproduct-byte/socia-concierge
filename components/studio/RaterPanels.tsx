@@ -83,7 +83,7 @@ function ScoreStats({ f, coverage }: { f: Forecast; coverage: number | null }) {
       <div>
         <dt>Virality score {!f.checked && <em className="ov-chip warning">Low confidence</em>}</dt>
         <dd><b>{f.index}</b> of 100</dd>
-        <small>50 is your usual Reel. Not a chance of going viral.</small>
+        <small>50 is your usual Reel. From your past Reels and caption, not this video.</small>
       </div>
       <div>
         <dt>Predicted views</dt>
@@ -102,7 +102,7 @@ function ConfidenceNote({ f, bt }: { f: Forecast; bt: Backtest | null }) {
       {f.checked
         ? <><b>Tested on your Reels.</b> Forecasting each past Reel from the ones before it, this was typically off by {bt ? x(bt.modelError) : "a little"}, against {bt ? x(bt.medianError) : "more"} for your plain median.</>
         : <><b>Low confidence, a rough guide.</b> {bt ? `Forecasting ${bt.n} of your past Reels from the ones before each, this was typically off by ${x(bt.modelError)}, and just guessing your median by ${x(bt.medianError)}.` : "Too few of your Reels can be replayed to test it yet."}</>}
-      {" "}It reads your Reel history and caption, not this video&apos;s picture or sound, so edits to the video don&apos;t change it yet.
+      {" "}It can&apos;t see this video&apos;s picture or sound, so a great video and a weak one with the same caption get the same number, and edits to the video don&apos;t change it.
     </p>
   );
 }
@@ -207,7 +207,7 @@ function ViralityHero({ outlook, f }: { outlook: OutlookState; f: Forecast | nul
           <small>Virality prediction</small>
           <b>{fmtViews(f.low)} to {fmtViews(f.high)} views</b>
           {!f.checked && <em className="ov-chip warning">Low confidence</em>}
-          <p>50 is your usual Reel. Not a chance of going viral.</p>
+          <p>50 is your usual Reel. This comes from your account&apos;s past Reels and the caption. It can&apos;t see this video.</p>
         </div>
       </div>
     );

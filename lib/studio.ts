@@ -161,12 +161,29 @@ export function versionDiff(prev: StudioAnalysis, cur: StudioAnalysis): VersionD
 
 // ------------------------------------------------------------ frames ----
 
+/** The fewest frames sampled from a video, and the most: about one every two seconds between them. */
 export const FRAME_COUNT = 10;
+export const FRAME_MAX = 30;
+const FRAME_EVERY_SEC = 2;
 export const FRAME_WIDTH = 480;
 export const MAX_SECONDS = 180;
 export const MAX_BYTES = 250 * 1024 * 1024;
 
 export type Frames = { frames: string[]; times: number[]; duration: number; thumbs: { src: string; t: number }[] };
+
+/**
+ * When to sample a video. The first three seconds always get four frames,
+ * because they decide whether anyone stays; the rest gets one about every two
+ * seconds, so a video cut fast isn't judged from a handful of its shots.
+ */
+export function frameTimes(duration: number): number[] {
+  const early = [0, 0.7, 1.5, 2.5].filter((t) => t < duration);
+  const span = Math.max(0, duration - 2.5);
+  const count = Math.min(FRAME_MAX - early.length, Math.max(FRAME_COUNT - early.length, Math.round(span / FRAME_EVERY_SEC)));
+  const rest: number[] = [];
+  for (let i = 1; i <= count; i++) { const t = 2.5 + (i / (count + 1)) * span; if (t < duration) rest.push(Number(t.toFixed(2))); }
+  return [...early, ...rest];
+}
 
 /** Sample frames from a video (a File or a same-site/CORS URL) with <video>
  *  + <canvas>. The file never leaves the browser; only small JPEG frames do. */
@@ -212,12 +229,7 @@ export async function extractFrames(source: File | string, onProgress: (done: nu
   canvas.height = Math.max(1, Math.round((video.videoHeight || FRAME_WIDTH) * scale));
   const ctx = canvas.getContext("2d");
   if (!ctx) { cleanup(); throw new Error("unsupported"); }
-  // Front-load the samples: the first three seconds decide whether anyone stays.
-  const early = [0, 0.7, 1.5, 2.5].filter((t) => t < duration);
-  const rest: number[] = [];
-  const remaining = FRAME_COUNT - early.length;
-  for (let i = 1; i <= remaining; i++) { const t = 2.5 + (i / (remaining + 1)) * Math.max(0, duration - 2.5); if (t < duration) rest.push(Number(t.toFixed(2))); }
-  const times = [...early, ...rest];
+  const times = frameTimes(duration);
   const frames: string[] = [], thumbs: { src: string; t: number }[] = [];
   try {
     for (let i = 0; i < times.length; i++) {

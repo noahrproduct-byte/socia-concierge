@@ -220,5 +220,50 @@
         "text": "A long setup is not dead time when the title has bought the wait; lo-fi disguise (letterbox, dashcam) can be a strength; skit-then-pitch carries reach so product-shot flaws matter less. Not a rule until Noah confirms."
       }
     ]
+  },
+  {
+    "id": "snitch-2026-11-08",
+    "source": "local file: ~/Desktop/2026-11-08 16.01.28.mp4 (Snitch app launch Reel)",
+    "creator": "Snitch (screen-time app)",
+    "durationSec": 62.8,
+    "kind": "video",
+    "evidenceAvailable": {
+      "frames": "every 2 s, plus 4 per second over the first 3 s",
+      "soundMeasured": {
+        "meanDb": -16.9,
+        "peakDb": -1.5,
+        "silences": 0
+      },
+      "sceneCuts": 74,
+      "transcript": "whisper small.en, 249 words",
+      "caption": false
+    },
+    "structure": "Handmade sign 'a few months ago', drawn paper phone, app on a cutting mat; recap of the app; inside joke to 10,000 users; announcement that saved hours earn real deals, with named people; ends on 'just comment Snitch' over the opening shot, so it loops.",
+    "claudeRating": {
+      "overall": 88,
+      "hook": 80,
+      "structure": 90,
+      "pacing": 92,
+      "clarity": 82,
+      "visual": 96,
+      "captions": 76,
+      "audio": 86,
+      "cta": 90,
+      "goal": 90
+    },
+    "liveRater": {
+      "overall": 56,
+      "note": "As Noah reported it on 2026-11-08; the full result was not seen."
+    },
+    "noah": {
+      "verdict": "Very creative; thinks it got over a million views (from memory). The rater's 56 is too low.",
+      "rating": null
+    },
+    "lessons": [
+      "Ten frames can't show a video with 74 cuts: the craft is invisible to the rater.",
+      "Harsh anchoring (most drafts 55-75) under-rates exceptional work.",
+      "A video that isn't the connected brand's should not lose points for not selling that brand.",
+      "The virality prediction doesn't see the video, so it can't recognise a video like this."
+    ]
   }
 ]
