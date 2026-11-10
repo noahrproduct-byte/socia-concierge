@@ -49,6 +49,33 @@ export function editFrames<T extends { t: number }>(clips: { id: string; frames:
   });
 }
 
+/**
+ * Shots of the same clip closer than this in the footage are one shot. Noah,
+ * 2026-11-10: a 25 s single take came back as nine pieces skipping 0.1 to 0.5 s
+ * each, every skip under a dissolve: the picture jumped and doubled at every
+ * join ("the cuts, the transitions aren't smooth at all").
+ */
+export const CONTINUOUS_GAP_SEC = 0.75;
+
+/** Neighbouring shots that are really one stretch of the same clip, joined back into one: no skip, no dissolve, no change of sound in the middle of it. */
+export function joinContinuous<S extends { clipId: string; in: number; out: number; sound?: boolean; volume?: number; transition?: Edl["segments"][number]["transition"]; role?: string; note?: string }>(segments: S[]): S[] {
+  const out: S[] = [];
+  for (const s of segments) {
+    const prev = out[out.length - 1];
+    const gap = prev ? s.in - prev.out : Infinity;
+    // Same clip, and either a skip too small to read as a new shot or the footage running backwards.
+    if (prev && prev.clipId === s.clipId && gap < CONTINUOUS_GAP_SEC && s.out > prev.in) {
+      const sound = Boolean(prev.sound || s.sound);
+      const merged = { ...prev, out: Math.max(prev.out, s.out), role: s.role === "ending" ? "ending" : prev.role } as S;
+      if (sound) { merged.sound = true; delete merged.volume; }
+      out[out.length - 1] = merged;
+      continue;
+    }
+    out.push(s);
+  }
+  return out;
+}
+
 type Brand = { location: string | null; website: string | null | undefined };
 
 /**
@@ -60,7 +87,8 @@ type Brand = { location: string | null; website: string | null | undefined };
  *  - the action's sound goes up front only when no one is talking.
  */
 export function teachEdit(edl: Edl, brand: Brand, clips: { id: string; durationSec: number; words: { startMs: number }[] | null }[], raw: { location?: unknown; cta?: unknown } | null | undefined): Edl {
-  const out: Edl = { ...edl, segments: edl.segments.map((s) => ({ ...s })), text: edl.text.map((t) => ({ ...t })) };
+  const out: Edl = { ...edl, segments: joinContinuous(edl.segments.map((s) => ({ ...s }))), text: edl.text.map((t) => ({ ...t })) };
+  out.segments.forEach((s, i) => { s.id = `s${i + 1}`; if (i === 0) delete s.transition; });
   const card = cleanEndCard({ location: brand.location ? raw?.location : "", cta: raw?.cta, site: siteName(brand.website) });
   // The place and the ask are what the card is for; a website alone isn't an ending.
   const shown = card && (card.location || card.cta) ? card : null;
