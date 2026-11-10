@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// A job cancelled: credits back once, upload gone, and a pick still running can't bring it back.
+// A job cancelled: credits back once (less the work already paid for), upload gone, and a pick still running can't bring it back.
 const refund = vi.fn(async () => 0);
+const spend = vi.fn(async (..._args: unknown[]) => 0);
 const removed: unknown[][] = [];
 let updates: { table: string; patch: Record<string, unknown>; filters: [string, string, unknown][] }[] = [];
 let deletes: { table: string; filters: [string, string, unknown][] }[] = [];
@@ -39,7 +40,7 @@ const svc = {
 };
 
 vi.mock("@/lib/supabase/service", () => ({ createServiceClient: () => svc, serviceConfigured: () => true }));
-vi.mock("@/lib/credits/ledger", () => ({ refundCredits: refund, spendCredits: vi.fn(), CreditsError: class extends Error {} }));
+vi.mock("@/lib/credits/ledger", () => ({ refundCredits: refund, spendCredits: spend, CreditsError: class extends Error {} }));
 const startTranscription = vi.fn(async () => "t9");
 vi.mock("./socia", () => ({
   SOCIA_PROVIDER: "socia", sociaClipperReady: () => true, startTranscription, checkTranscription: vi.fn(),
@@ -50,15 +51,37 @@ vi.mock("./socia", () => ({
 const { cancelClipJob, pollClipJob, loadClipJob } = await import("./server");
 const base = { id: "j1", user_id: "u1", workspace_id: null, source_kind: "upload", source_url: "x", source_path: "u1/clipper-sources/a.mp4", source_minutes: 5, options: {}, provider: "socia", provider_job_id: "t1", credits_reserved: 23, credits_charged: null, error: null, created_at: new Date().toISOString(), updated_at: "", last_polled_at: null, finished_at: null } as never as Parameters<typeof cancelClipJob>[0];
 
-beforeEach(() => { refund.mockClear(); startTranscription.mockClear(); removed.length = 0; updates = []; deletes = []; selects.length = 0; answer = (_t, patch) => ({ id: "j1", ...patch }); reads = () => TRANSCRIPT; });
+beforeEach(() => { refund.mockClear(); spend.mockClear(); startTranscription.mockClear(); removed.length = 0; updates = []; deletes = []; selects.length = 0; answer = (_t, patch) => ({ id: "j1", ...patch }); reads = () => TRANSCRIPT; });
 
 describe("cancelling a clip job", () => {
-  it("stops a running job, gives the credits back and deletes the upload", async () => {
-    const out = await cancelClipJob({ ...base, status: "processing", stage: "transcribing" });
+  it("stops a job that hasn't been sent anywhere, gives every credit back and deletes the upload", async () => {
+    const out = await cancelClipJob({ ...base, status: "queued", stage: null, provider_job_id: null });
     expect(out).toMatchObject({ status: "cancelled", credits_charged: 0 });
     expect(updates[0].filters).toContainEqual(["in", "status", ["queued", "processing"]]);
     expect(refund).toHaveBeenCalledTimes(1);
+    expect(spend).not.toHaveBeenCalled();
     expect(removed).toEqual([["u1/clipper-sources/a.mp4"]]);
+  });
+
+  it("keeps what the transcription cost once the video was sent, and gives the rest back", async () => {
+    const out = await cancelClipJob({ ...base, status: "processing", stage: "transcribing" });
+    // 5 minutes at $0.0035 a minute, at the 1.5 margin: 3 credits of 23.
+    expect(out).toMatchObject({ status: "cancelled", credits_charged: 3 });
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(spend).toHaveBeenCalledWith("u1", 3, { kind: "clip_job", id: "j1:kept" }, expect.any(String));
+    expect(removed).toEqual([["u1/clipper-sources/a.mp4"]]);
+  });
+
+  it("keeps the whole price once the moments are being picked", async () => {
+    const out = await cancelClipJob({ ...base, status: "processing", stage: "picking-run" });
+    expect(out).toMatchObject({ status: "cancelled", credits_charged: 23 });
+    expect(spend).toHaveBeenCalledWith("u1", 23, { kind: "clip_job", id: "j1:kept" }, expect.any(String));
+  });
+
+  it("doesn't take the kept part when the refund itself didn't go through", async () => {
+    refund.mockResolvedValueOnce(null as never);
+    await cancelClipJob({ ...base, status: "processing", stage: "transcribing" });
+    expect(spend).not.toHaveBeenCalled();
   });
 
   it("refuses a finished job or one already with an outside provider, without touching anything", async () => {
@@ -114,5 +137,25 @@ describe("loading one clip job", () => {
     const before = selects.length;
     expect(await loadClipJob(svc, "u1", "ws1", "not-an-id")).toBeNull();
     expect(selects.length).toBe(before);
+  });
+});
+
+describe("a clip job that fails", () => {
+  it("keeps the transcription's cost when the transcription finished but heard too little speech", async () => {
+    const socia = await import("./socia");
+    vi.mocked(socia.checkTranscription).mockResolvedValueOnce({ status: "failed", error: "too little speech", billed: true });
+    const out = await pollClipJob(svc, { ...base, status: "processing", stage: "transcribing" });
+    expect(out).toMatchObject({ status: "failed", credits_charged: 3 });
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(spend).toHaveBeenCalledWith("u1", 3, { kind: "clip_job", id: "j1:kept" }, expect.any(String));
+  });
+
+  it("gives everything back when the transcription service itself failed", async () => {
+    const socia = await import("./socia");
+    vi.mocked(socia.checkTranscription).mockResolvedValueOnce({ status: "failed", error: "couldn't be transcribed" });
+    const out = await pollClipJob(svc, { ...base, status: "processing", stage: "transcribing" });
+    expect(out).toMatchObject({ status: "failed", credits_charged: 0 });
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(spend).not.toHaveBeenCalled();
   });
 });

@@ -46,7 +46,8 @@ export async function startTranscription(svc: Supa, job: JobLike): Promise<strin
   return t.id;
 }
 
-export type TranscriptionState = { status: "processing" } | { status: "done"; words: TranscriptWord[]; durationMs: number } | { status: "failed"; error: string };
+/** `billed`: the transcription finished (and was paid for) even though the job can't go on. */
+export type TranscriptionState = { status: "processing" } | { status: "done"; words: TranscriptWord[]; durationMs: number } | { status: "failed"; error: string; billed?: boolean };
 
 export async function checkTranscription(transcriptId: string): Promise<TranscriptionState> {
   const provider = getTranscriptionProvider();
@@ -55,7 +56,7 @@ export async function checkTranscription(transcriptId: string): Promise<Transcri
   if (r.status === "error") return { status: "failed", error: "The video's speech couldn't be transcribed. Check that it has clear speech, then try again." };
   if (r.status !== "done") return { status: "processing" };
   const words = r.transcript.words ?? [];
-  if (words.length < 20) return { status: "failed", error: "SOCIA heard too little speech in this video to find clips in it." };
+  if (words.length < 20) return { status: "failed", error: "SOCIA heard too little speech in this video to find clips in it.", billed: true };
   return { status: "done", words, durationMs: r.transcript.durationMs ?? words[words.length - 1].endMs };
 }
 

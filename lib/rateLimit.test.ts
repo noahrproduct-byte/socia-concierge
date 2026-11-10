@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const s = vi.hoisted(() => ({ rate: "ok" as "ok" | "limited" | "unavailable", over: false, budgetCalls: 0 }));
-vi.mock("@/lib/oauth/runtime", () => ({ rateHit: async () => s.rate }));
+const s = vi.hoisted(() => ({ rate: "ok" as "ok" | "limited" | "unavailable", over: false, budgetCalls: 0, budgetFor: [] as string[], keys: [] as string[] }));
+vi.mock("@/lib/oauth/runtime", () => ({ rateHit: async (key: string) => { s.keys.push(key); return s.rate; } }));
 vi.mock("@/lib/aiSpend", () => ({
-  aiBudgetDenied: async () => { s.budgetCalls++; return s.over ? new Response(null, { status: 429 }) : null; },
+  aiBudgetDenied: async (owner: string) => { s.budgetCalls++; s.budgetFor.push(owner); return s.over ? new Response(null, { status: 429 }) : null; },
 }));
 
 import { perUserLimit } from "./rateLimit";
 
-beforeEach(() => { s.rate = "ok"; s.over = false; s.budgetCalls = 0; });
+beforeEach(() => { s.rate = "ok"; s.over = false; s.budgetCalls = 0; s.budgetFor = []; s.keys = []; });
 
 describe("perUserLimit", () => {
   it("lets a request through under the hourly limit", async () => {
@@ -28,5 +28,12 @@ describe("perUserLimit", () => {
     expect(s.budgetCalls).toBe(1);
     expect(await perUserLimit("o", "platform-delete", 30, "deletes")).toBeNull();
     expect(s.budgetCalls).toBe(1);
+  });
+  it("counts a member's hour on the member, and checks the month of the owner who pays", async () => {
+    await perUserLimit("member-1", "clipper_reframe", 120, "clip framing", "owner-1");
+    expect(s.keys).toEqual(["user:member-1:clipper_reframe"]);
+    expect(s.budgetFor).toEqual(["owner-1"]);
+    await perUserLimit("owner-1", "place_scan", 10, "place scans");
+    expect(s.budgetFor).toEqual(["owner-1", "owner-1"]);
   });
 });

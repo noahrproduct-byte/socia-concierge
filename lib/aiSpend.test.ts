@@ -14,7 +14,8 @@ vi.mock("./supabase/service", () => ({
 }));
 vi.mock("./entitlements", () => ({ getEntitlements: async () => ({ plan: "starter" }) }));
 
-import { addSpend, aiBudgetDenied, claudeMicros, monthKey, musicMicros, nextMonthStart, spendState, transcriptionMicros } from "./aiSpend";
+import { addSpend, aiBudgetDenied, claudeMicros, monthKey, musicMicros, nextMonthStart, spendState, transcriptionMicros, TRANSCRIBE_USD_PER_HOUR } from "./aiSpend";
+import { CLIP_TRANSCRIBE_USD_PER_MINUTE } from "./credits/config";
 import { PLANS } from "./plans";
 
 beforeEach(() => { state.spent = 0; state.error = null; state.rpc = []; });
@@ -33,6 +34,9 @@ describe("what a call costs", () => {
   it("prices transcription by the hour and music by the minute", () => {
     expect(transcriptionMicros(3600)).toBe(210_000);
     expect(musicMicros(60)).toBe(150_000);
+  });
+  it("prices transcription the same way the clipper's credits do", () => {
+    expect(CLIP_TRANSCRIBE_USD_PER_MINUTE).toBeCloseTo(TRANSCRIBE_USD_PER_HOUR / 60, 6);
   });
 });
 

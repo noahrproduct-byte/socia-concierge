@@ -97,6 +97,15 @@ export async function runUnderstand(client: Supa, args: { projectId: string; acc
   }
 }
 
+/**
+ * Seconds of audio the transcription service reported beyond the clip length
+ * already counted at submit (the length the browser measured). Pure.
+ */
+export function transcriptionOverrun(countedSec: number | null | undefined, heardMs: number | null | undefined): number {
+  if (typeof heardMs !== "number" || !(heardMs > 0)) return 0;
+  return Math.max(0, heardMs / 1000 - Math.max(0, countedSec ?? 0));
+}
+
 /** Submit every clip's audio, poll together, store transcripts as they land. */
 async function transcribeClips(client: Supa, provider: TranscriptionProvider, rows: ClipRow[], deadlineAt: number, onProgress: (pending: number, stage: UnderstandStage) => Promise<void>): Promise<void> {
   const urls = await signUrls(client, rows.map((r) => r.audio_path!).filter((p, i) => clipOwnsPath(rows[i], p)));
@@ -118,6 +127,9 @@ async function transcribeClips(client: Supa, provider: TranscriptionProvider, ro
       try {
         const r = await provider.poll(job);
         if (r.status === "done") {
+          // The service bills the audio it heard: anything past the clip's own length is counted too.
+          const row = rows.find((x) => x.id === clipId);
+          if (row) recordTranscription(row.user_id, "studio_clip", transcriptionOverrun(row.duration_s, r.transcript.durationMs));
           await client.from("studio_clips").update({ transcript: r.transcript, updated_at: new Date().toISOString() }).eq("id", clipId);
           jobs.delete(clipId);
         } else if (r.status === "error") {

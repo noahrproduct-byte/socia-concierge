@@ -12,6 +12,7 @@ import { MusicError, musicConfigured } from "@/lib/music/elevenlabs";
 import { readMusicAuto, readPicks } from "@/lib/music/store";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
 import { publicMessage } from "@/lib/dbError";
+import { perUserLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 240;
@@ -41,6 +42,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (row.edl.soundtrack) return NextResponse.json({ state: "has" });
     if (row.edl.musicAuto) return NextResponse.json({ state: "tried" });
     if (!(await readMusicAuto(ctx))) return NextResponse.json({ state: "off" });
+    // Making the playlist is a model call: the same hourly and monthly AI ceilings as asking for one by hand.
+    if (!row.edl.playlist) {
+      const limited = await perUserLimit(ctx.ownerId, "music-playlist", 20, "playlists");
+      if (limited) return limited;
+    }
 
     const save = async (edl: typeof row.edl) => {
       const { error } = await scopeToWorkspace(ctx.client.from("studio_builds").update({ edl, updated_at: new Date().toISOString() }).eq("id", id).eq("user_id", ctx.ownerId), wsId);
