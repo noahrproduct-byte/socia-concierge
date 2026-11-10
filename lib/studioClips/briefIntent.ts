@@ -14,17 +14,21 @@ const FINISH_WORDS = new Set([
   "make", "vertical", "crop", "reframe", "remove", "reduce", "fix", "improve", "better", "louder", "volume", "level", "levels",
   "caption", "captions", "captioned", "subtitle", "subtitles", "subs", "music", "song", "track", "sound", "audio", "noise", "hum", "echo",
   "colour", "color", "colours", "colors", "brighten", "brighter", "warmer", "grade", "look",
+  "pause", "pauses", "silence", "silences", "gaps", "dead", "air", "um", "ums", "uh", "uhs", "filler", "fillers", "mistake", "mistakes", "retake", "retakes", "stumble", "stumbles", "tighten", "tight", "tighter", "cut", "take", "trim", "all", "any", "where", "long", "awkward", "bits", "parts"
 ]);
 /** At least one of these: what the finish is. */
-const FINISH_ASKS = /\b(captions?|captioned|subtitles?|subs|music|song|track|sound|audio|noise|hum|echo|colou?rs?|brighten|brighter|warmer|grade|vertical|crop|reframe|louder|volume)\b/i;
+const FINISH_ASKS = /\b(captions?|captioned|subtitles?|subs|music|song|track|sound|audio|noise|hum|echo|colou?rs?|brighten|brighter|warmer|grade|vertical|crop|reframe|louder|volume|pauses?|silences?|gaps|ums?|uhs?|fillers?|mistakes?|retakes?|stumbles?|tighten|tighter)\b/i;
+/** Asks to take the pauses and mistakes out of a talk, keeping everything else (lib/studioClips/speech.ts). */
+const TIGHTEN = /\b(pauses?|silences?|gaps|dead air|ums?|uhs?|fillers?|mistakes?|retakes?|stumbles?|tighten|tighter)\b/i;
 
-export type BriefIntent = { keepWhole: boolean; music: boolean; captions: boolean };
+export type BriefIntent = { keepWhole: boolean; music: boolean; captions: boolean; tighten: boolean };
 
 export function briefIntent(prompt: string | null | undefined, hasReference = false): BriefIntent {
   const p = (prompt ?? "").toLowerCase().replace(/\b9\s*:\s*16\b/g, "vertical");
   const music = /\b(music|song|track|beat)\b/.test(p);
   const captions = /\b(captions?|captioned|subtitles?|subs)\b/.test(p);
-  if (hasReference || !p.trim() || !FINISH_ASKS.test(p)) return { keepWhole: false, music, captions };
+  const tighten = TIGHTEN.test(p);
+  if (hasReference || !p.trim() || !FINISH_ASKS.test(p)) return { keepWhole: false, music, captions, tighten };
   const words = p.match(/[a-z]+/g) ?? [];
-  return { keepWhole: words.every((w) => FINISH_WORDS.has(w)), music, captions };
+  return { keepWhole: words.every((w) => FINISH_WORDS.has(w)), music, captions, tighten };
 }

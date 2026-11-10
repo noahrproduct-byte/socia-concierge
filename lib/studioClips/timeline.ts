@@ -70,7 +70,8 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
     if (!said?.length) continue;
     // What the caption shows: broken-off words, stutters and filler sounds tidied (lib/studioClips/captionClean.ts).
     const ws = cleaned.get(s.clipId) ?? cleaned.set(s.clipId, cleanCaptionWords(said)).get(s.clipId)!;
-    const inMs = s.in * 1000, outMs = s.out * 1000, offsetMs = s.startSec * 1000 - inMs;
+    // A voice carried over the next shot (an L-cut) keeps its captions.
+    const inMs = s.in * 1000, outMs = (s.out + (s.voiceTail ?? 0)) * 1000, offsetMs = s.startSec * 1000 - inMs;
     for (const w of ws) {
       const mid = (w.startMs + w.endMs) / 2;
       if (mid < inMs || mid > outMs) continue;
@@ -93,6 +94,20 @@ export function edgeEnvelope(frameInSegment: number, durationFrames: number, fad
   const inRamp = Math.min(1, (frameInSegment + 1) / fade);
   const outRamp = Math.min(1, (durationFrames - frameInSegment) / fade);
   return Math.max(0, Math.min(1, Math.min(inRamp, outRamp)));
+}
+
+/** An L-cut's sound: the next shot's own sound sits this low while the voice before it carries over. */
+export const UNDER_VOICE = 0.15;
+const VOICE_RAMP_FRAMES = 6;
+/** How loud a shot's own sound is at `frame` while the previous shot's voice carries over its first `tailFrames`. */
+export function underVoice(frame: number, tailFrames: number): number {
+  if (tailFrames <= 0 || frame >= tailFrames + VOICE_RAMP_FRAMES) return 1;
+  if (frame < tailFrames) return UNDER_VOICE;
+  return UNDER_VOICE + (1 - UNDER_VOICE) * ((frame - tailFrames) / VOICE_RAMP_FRAMES);
+}
+/** The carried voice itself: full, then a short fade at its end so it never clicks. */
+export function voiceTailEnvelope(frame: number, tailFrames: number): number {
+  return Math.max(0, Math.min(1, (tailFrames - frame) / (EDGE_FADE_FRAMES * 2)));
 }
 
 /**
