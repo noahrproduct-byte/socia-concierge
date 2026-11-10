@@ -49,7 +49,8 @@ export async function POST(req: Request) {
     if (!YOUTUBE_RE.test(url)) return NextResponse.json({ error: "Paste a YouTube video link." }, { status: 400 });
     source = { kind: "youtube", url };
   } else if (kind === "upload") {
-    if (!path || !isOwnPath(path, [r.ctx.ownerId, r.viewerId]) || !/\.(mp4|mov|3gp)$/i.test(path)) return NextResponse.json({ error: "Upload the video first." }, { status: 400 });
+    // Only an upload this feature handed out: the owner's (or the viewer's) clipper-sources folder.
+    if (!path || !isOwnPath(path, [r.ctx.ownerId, r.viewerId]) || path.split("/")[1] !== "clipper-sources" || !/\.(mp4|mov|3gp)$/i.test(path)) return NextResponse.json({ error: "Upload the video first." }, { status: 400 });
     source = { kind: "upload", url: path, path };
   } else if (kind === "url") {
     if (!/^https:\/\/\S+\.(mp4|mov|3gp)(\?\S*)?$/i.test(url)) return NextResponse.json({ error: "Paste a direct https link to an .mp4, .mov or .3gp file." }, { status: 400 });

@@ -12,7 +12,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const r = await aiRequest("ai_clipper", { mutate: true });
   if (!r.ok) return r.res;
   try {
-    const job = await loadClipJob(r.ctx.client, r.ctx.ownerId, id);
+    const job = await loadClipJob(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     const cancelled = await cancelClipJob(job);
     if (!cancelled) return NextResponse.json({ error: "This job can't be cancelled any more. Reload the page to see where it is." }, { status: 409 });

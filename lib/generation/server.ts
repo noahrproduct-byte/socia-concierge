@@ -55,6 +55,26 @@ export type CreateGenerationInput = {
   hashtags?: string[];
 };
 
+const ideaText = (v: unknown, n: number): string => (typeof v === "string" ? v.trim().slice(0, n) : "");
+const IDEA_KINDS: GenerationKind[] = ["text_to_video", "image_to_video", "text_to_image"];
+
+/**
+ * The idea a request came from, as the page sent it: only the fields an idea
+ * has (lib/generation/ideas.ts), each a bounded string, so what is saved and
+ * shown later is always text. null when nothing usable is left. Pure.
+ */
+export function cleanIdea(raw: unknown): { id: string; hook: string; concept: string; shot: string; kind: GenerationKind | ""; caption: string; hashtags: string[] } | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const idea = {
+    id: ideaText(o.id, 40), hook: ideaText(o.hook, 120), concept: ideaText(o.concept, 400), shot: ideaText(o.shot, 1200),
+    kind: IDEA_KINDS.includes(o.kind as GenerationKind) ? (o.kind as GenerationKind) : ("" as const),
+    caption: ideaText(o.caption, 2200),
+    hashtags: (Array.isArray(o.hashtags) ? o.hashtags : []).filter((t): t is string => typeof t === "string").map((t) => t.slice(0, 40)).slice(0, 5),
+  };
+  return idea.hook || idea.concept || idea.shot ? idea : null;
+}
+
 /** Credits a request would cost, or null when the model and kind don't go together. Pure. */
 export function priceGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "durationSec">): number | null {
   const m = modelById(input.modelId);
@@ -107,7 +127,9 @@ export async function submitGenerationJob(svc: Supa, job: GenerationJobRow, webh
       webhookUrl, idempotencyKey: job.id,
     });
     const now = new Date().toISOString();
-    const { data } = await svc.from("generation_jobs").update({ provider_request_id: providerRequestId, input: { ...job.input, statusUrl }, status: "processing", last_polled_at: now, updated_at: now }).eq("id", job.id).select(JOB_COLS).single();
+    // Only a job still queued moves on: one removed or settled meanwhile is left as it is.
+    const { data, error } = await svc.from("generation_jobs").update({ provider_request_id: providerRequestId, input: { ...job.input, statusUrl }, status: "processing", last_polled_at: now, updated_at: now }).eq("id", job.id).eq("status", "queued").select(JOB_COLS).maybeSingle();
+    if (!data && !error) return reread(svc, job);
     return (data as GenerationJobRow) ?? { ...job, provider_request_id: providerRequestId, status: "processing" };
   } catch (e) {
     const err = e as GenerationError;
@@ -118,9 +140,17 @@ export async function submitGenerationJob(svc: Supa, job: GenerationJobRow, webh
 
 async function fail(svc: Supa, job: GenerationJobRow, message: string, refund: boolean): Promise<GenerationJobRow> {
   const now = new Date().toISOString();
-  const { data } = await svc.from("generation_jobs").update({ status: "failed", error: message.slice(0, 500), finished_at: now, updated_at: now, credits_charged: refund ? 0 : job.credits_reserved }).eq("id", job.id).select(JOB_COLS).single();
+  const { data, error } = await svc.from("generation_jobs").update({ status: "failed", error: message.slice(0, 500), finished_at: now, updated_at: now, credits_charged: refund ? 0 : job.credits_reserved }).eq("id", job.id).in("status", ["queued", "processing"]).select(JOB_COLS).maybeSingle();
+  // A job that had already finished is left as it is, and so are its credits.
+  if (!data && !error) return reread(svc, job);
   if (refund) await refundCredits(job.user_id, { kind: "generation_job", id: job.id }, "Generation failed");
   return (data as GenerationJobRow) ?? { ...job, status: "failed", error: message };
+}
+
+/** The job as it is stored now (after an update that only applies to an open job matched nothing). */
+async function reread(svc: Supa, job: GenerationJobRow): Promise<GenerationJobRow> {
+  const { data } = await svc.from("generation_jobs").select(JOB_COLS).eq("id", job.id).maybeSingle();
+  return (data as GenerationJobRow | null) ?? job;
 }
 
 export async function pollGenerationJob(svc: Supa, job: GenerationJobRow): Promise<GenerationJobRow> {
@@ -164,8 +194,8 @@ export async function finishGenerationJob(svc: Supa, job: GenerationJobRow, outp
     rows.push({
       job_id: job.id, user_id: job.user_id, workspace_id: job.workspace_id, kind: o.kind, output_url: o.url, output_path: path,
       duration_ms: o.kind === "video" && input?.durationSec ? input.durationSec * 1000 : null,
-      title: (job.idea as { hook?: string } | null)?.hook?.slice(0, 120) ?? job.prompt.slice(0, 120),
-      caption: input?.caption ?? (job.idea as { caption?: string } | null)?.caption ?? null,
+      title: cleanIdea(job.idea)?.hook || job.prompt.slice(0, 120),
+      caption: input?.caption ?? (cleanIdea(job.idea)?.caption || null),
       hashtags: input?.hashtags ?? [],
     });
   }
@@ -183,11 +213,15 @@ export async function listGenerationJobs(client: Supa, ownerId: string, wsId: st
   if (wsId) q = q.eq("workspace_id", wsId);
   const { data, error } = await q;
   if (error) throw new GenerationError(error.message, "db");
-  return (data ?? []) as GenerationJobRow[];
+  return ((data ?? []) as GenerationJobRow[]).map((j) => ({ ...j, idea: cleanIdea(j.idea) }));
 }
 
-export async function loadGenerationJob(client: Supa, ownerId: string, id: string): Promise<GenerationJobRow | null> {
-  const { data, error } = await client.from("generation_jobs").select(JOB_COLS).eq("id", id).eq("user_id", ownerId).maybeSingle();
+/** One job of the owner's, in the active Brand Workspace when there is one (as the list shows them). */
+export async function loadGenerationJob(client: Supa, ownerId: string, wsId: string | null, id: string): Promise<GenerationJobRow | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  let q = client.from("generation_jobs").select(JOB_COLS).eq("id", id).eq("user_id", ownerId);
+  if (wsId) q = q.eq("workspace_id", wsId);
+  const { data, error } = await q.maybeSingle();
   if (error) throw new GenerationError(error.message, "db");
   return (data as GenerationJobRow | null) ?? null;
 }

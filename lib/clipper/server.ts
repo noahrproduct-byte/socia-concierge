@@ -189,7 +189,9 @@ export async function submitClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJob
   } else source = { kind: "url", url: job.source_url, ext: (job.source_url.split("?")[0].split(".").pop() || "mp4").toLowerCase() };
   try {
     const { providerJobId } = await provider.submitJob(source, job.options);
-    const { data } = await svc.from("clip_jobs").update({ provider_job_id: providerJobId, status: "processing", last_polled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", job.id).select(JOB_COLS).single();
+    // Only a job still queued moves on: one cancelled meanwhile stays cancelled (its credits are back).
+    const { data, error } = await svc.from("clip_jobs").update({ provider_job_id: providerJobId, status: "processing", last_polled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", job.id).eq("status", "queued").select(JOB_COLS).maybeSingle();
+    if (!data && !error) return reread(svc, job);
     return (data as ClipJobRow) ?? { ...job, provider_job_id: providerJobId, status: "processing" };
   } catch (e) {
     const err = e as ClipperError;
@@ -200,9 +202,17 @@ export async function submitClipJob(svc: Supa, job: ClipJobRow): Promise<ClipJob
 
 async function fail(svc: Supa, job: ClipJobRow, message: string, refund: boolean): Promise<ClipJobRow> {
   const now = new Date().toISOString();
-  const { data } = await svc.from("clip_jobs").update({ status: "failed", error: message.slice(0, 500), finished_at: now, updated_at: now, credits_charged: refund ? 0 : job.credits_reserved }).eq("id", job.id).in("status", ["queued", "processing"]).select(JOB_COLS).single();
+  const { data, error } = await svc.from("clip_jobs").update({ status: "failed", error: message.slice(0, 500), finished_at: now, updated_at: now, credits_charged: refund ? 0 : job.credits_reserved }).eq("id", job.id).in("status", ["queued", "processing"]).select(JOB_COLS).maybeSingle();
+  // A job that had already finished or been cancelled is left as it is, and so are its credits.
+  if (!data && !error) return reread(svc, job);
   if (refund) await refundCredits(job.user_id, { kind: "clip_job", id: job.id }, "Clipping failed");
   return (data as ClipJobRow) ?? { ...job, status: "failed", error: message };
+}
+
+/** The job as it is stored now (after an update that only applies to an open job matched nothing). */
+async function reread(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
+  const { data } = await svc.from("clip_jobs").select(JOB_COLS).eq("id", job.id).maybeSingle();
+  return (data as ClipJobRow | null) ?? job;
 }
 
 /** Ask the provider about a processing job and finish it when it is done. */
@@ -234,7 +244,8 @@ async function submitSociaJob(svc: Supa, job: ClipJobRow): Promise<ClipJobRow> {
   try {
     const transcriptId = await startTranscription(svc, job);
     const now = new Date().toISOString();
-    const { data } = await svc.from("clip_jobs").update({ provider_job_id: transcriptId, status: "processing", stage: "transcribing", last_polled_at: now, updated_at: now }).eq("id", job.id).select(JOB_COLS).single();
+    const { data, error } = await svc.from("clip_jobs").update({ provider_job_id: transcriptId, status: "processing", stage: "transcribing", last_polled_at: now, updated_at: now }).eq("id", job.id).eq("status", "queued").select(JOB_COLS).maybeSingle();
+    if (!data && !error) return reread(svc, job);
     return (data as ClipJobRow) ?? { ...job, provider_job_id: transcriptId, status: "processing", stage: "transcribing" };
   } catch (e) {
     const err = e as ClipperError;
@@ -333,8 +344,12 @@ export async function listClipJobs(client: Supa, ownerId: string, wsId: string |
   return (data ?? []) as ClipJobRow[];
 }
 
-export async function loadClipJob(client: Supa, ownerId: string, id: string): Promise<ClipJobRow | null> {
-  const { data, error } = await client.from("clip_jobs").select(JOB_COLS).eq("id", id).eq("user_id", ownerId).maybeSingle();
+/** One job of the owner's, in the active Brand Workspace when there is one (as the list shows them). */
+export async function loadClipJob(client: Supa, ownerId: string, wsId: string | null, id: string): Promise<ClipJobRow | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  let q = client.from("clip_jobs").select(JOB_COLS).eq("id", id).eq("user_id", ownerId);
+  if (wsId) q = q.eq("workspace_id", wsId);
+  const { data, error } = await q.maybeSingle();
   if (error) throw new ClipperError(error.message, "db");
   return (data as ClipJobRow | null) ?? null;
 }
