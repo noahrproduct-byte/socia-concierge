@@ -13,6 +13,17 @@ export const OFFLINE_PLATFORMS: Record<OfflinePlatform, string> = {
 
 export const OFFLINE_LABEL = "Offline for now";
 
+const NAMES = { instagram: "Instagram", facebook: "Facebook", youtube: "YouTube" } as const;
+
+/** The platforms a customer can connect today, in the order the site names them. */
+export const OPEN_PLATFORMS = (Object.keys(NAMES) as (keyof typeof NAMES)[]).filter((p) => !(p in OFFLINE_PLATFORMS));
+
+/** Those platforms as words: "Instagram and YouTube", or "Instagram, Facebook and YouTube" once Facebook opens. */
+export function openPlatformsText(join: "and" | "or" = "and"): string {
+  const names = OPEN_PLATFORMS.map((p) => NAMES[p]);
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} ${join} ${names[names.length - 1]}` : names.join("");
+}
+
 /** Why this platform can't be connected right now, or null when it can. Accepts "facebook" or "Facebook". */
 export function offlineReason(platform: string): string | null {
   return OFFLINE_PLATFORMS[platform.toLowerCase() as OfflinePlatform] ?? null;

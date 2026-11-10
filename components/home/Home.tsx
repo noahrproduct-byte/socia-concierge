@@ -4,6 +4,7 @@ import { ArrowRight, Check } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { CONTACT_EMAIL, PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
+import { offlineReason, openPlatformsText } from "@/lib/platformStatus";
 import HomeNav from "./HomeNav";
 import HomeFaq from "./HomeFaq";
 import HomeMotion from "./HomeMotion";
@@ -22,7 +23,9 @@ import "./home.css";
 const FAQ = [
   {
     q: "Which platforms does SOCIA support?",
-    a: "Instagram, Facebook Pages and YouTube connect today: analytics, scheduling and publishing. TikTok accounts register now; analytics and posting switch on when TikTok approves SOCIA's API access.",
+    a: offlineReason("facebook")
+      ? `${openPlatformsText()} connect today: analytics, scheduling and publishing. Facebook Pages switch on when Facebook approves SOCIA's access. TikTok accounts register now; analytics and posting switch on when TikTok approves SOCIA's API access.`
+      : "Instagram, Facebook Pages and YouTube connect today: analytics, scheduling and publishing. TikTok accounts register now; analytics and posting switch on when TikTok approves SOCIA's API access.",
   },
   {
     q: "What does the free plan include?",
@@ -127,7 +130,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
             <p className="hm-meta">
               <span>Free plan</span>
               <span>No card needed</span>
-              <span>Instagram, Facebook, YouTube</span>
+              <span>{openPlatformsText()}</span>
             </p>
           </div>
         </section>
@@ -392,12 +395,13 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
                 </div>
                 <p>Posts and Reels, Trial Reels, collaborators, comment replies, posting-time analysis and analytics.</p>
               </li>
-              <li className="hm-platform">
+              <li className={`hm-platform${offlineReason("facebook") ? " is-pending" : ""}`}>
                 <div className="hm-platform-head">
                   <PlatformMark platform="facebook" brand />
                   Facebook
                 </div>
-                <p>Page posts and Reels, scheduling and analytics for the Pages you manage.</p>
+                <p>Page posts and Reels, scheduling and analytics for the Pages you manage{offlineReason("facebook") ? ", once Facebook approves SOCIA's access" : ""}.</p>
+                {offlineReason("facebook") && <span className="hm-status">Waiting on Facebook</span>}
               </li>
               <li className="hm-platform">
                 <div className="hm-platform-head">
@@ -538,7 +542,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
               Connect your accounts. Get your next post.
             </h2>
             <p className="hm-lead hm-end-lead">
-              Link Instagram, Facebook or YouTube. SOCIA reads your own posts and tells you what to post next, why it should
+              Link {openPlatformsText("or")}. SOCIA reads your own posts and tells you what to post next, why it should
               work, and when.
             </p>
             <div className="hm-end-cta">
