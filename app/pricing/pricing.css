@@ -164,7 +164,7 @@
 /* comparison table */
 /* Contained scroll so the plan header (and the category header under it) can
    stick while the long table scrolls inside the card. */
-.pr-table-wrap { border: 1px solid var(--so-line); border-radius: 18px; overflow: auto; max-height: 74vh; background: var(--so-surface); }
+.pr-table-wrap { position: relative; border: 1px solid var(--so-line); border-radius: 18px; overflow: auto; max-height: 74vh; background: var(--so-surface); }
 .pr-table { width: 100%; border-collapse: collapse; font-size: 13.5px; color: var(--so-text); }
 .pr-table th, .pr-table td { padding: 11px 14px; border-bottom: 1px solid var(--so-line); text-align: left; vertical-align: top; }
 .pr-table thead th { background: var(--so-surface); padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 6; }

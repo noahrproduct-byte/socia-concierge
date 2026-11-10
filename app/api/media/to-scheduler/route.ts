@@ -4,7 +4,7 @@ import { resolveContext, can, forbiddenCopy } from "@/lib/context";
 import { requireFeature } from "@/lib/planGuard";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getActiveConnection } from "@/lib/instagramSync";
-import { isMissingColumnError } from "@/lib/workspaces";
+import { isMissingColumnError, scopeToWorkspace } from "@/lib/workspaces";
 import { copyToScheduledMedia } from "@/lib/aiStudio/media";
 import { aiErrorResponse } from "@/lib/aiStudio/auth";
 import { dbErrorResponse } from "@/lib/dbError";
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const ctx = await resolveContext(supabase, user.id);
   if (!can(ctx, "publish")) return NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
   const body = (await req.json().catch(() => null)) as { kind?: string; id?: string } | null;
-  if ((body?.kind !== "clip" && body?.kind !== "generation") || typeof body.id !== "string") return NextResponse.json({ error: "Say which clip or generation." }, { status: 400 });
+  if ((body?.kind !== "clip" && body?.kind !== "generation") || typeof body.id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.id)) return NextResponse.json({ error: "Say which clip or generation." }, { status: 400 });
   const feature = body.kind === "clip" ? "ai_clipper" : "ai_studio";
   const { ent, denied } = await requireFeature(ctx.client, ctx.ownerId, feature);
   if (denied) return denied;
@@ -37,13 +37,13 @@ export async function POST(req: Request) {
     let isVideo = true;
     let ext = "mp4";
     if (body.kind === "clip") {
-      const { data } = await ctx.client.from("clips").select("video_path, caption, hashtags").eq("id", body.id).eq("user_id", ctx.ownerId).maybeSingle();
+      const { data } = await scopeToWorkspace(ctx.client.from("clips").select("video_path, caption, hashtags").eq("id", body.id).eq("user_id", ctx.ownerId), ctx.workspace?.id).maybeSingle();
       const c = data as { video_path: string | null; caption: string | null; hashtags: string[] } | null;
       if (!c) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
       path = c.video_path;
       caption = [c.caption ?? "", (c.hashtags ?? []).map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
     } else {
-      const { data } = await ctx.client.from("generations").select("output_path, kind, caption, hashtags").eq("id", body.id).eq("user_id", ctx.ownerId).maybeSingle();
+      const { data } = await scopeToWorkspace(ctx.client.from("generations").select("output_path, kind, caption, hashtags").eq("id", body.id).eq("user_id", ctx.ownerId), ctx.workspace?.id).maybeSingle();
       const g = data as { output_path: string | null; kind: "video" | "image"; caption: string | null; hashtags: string[] } | null;
       if (!g) return NextResponse.json({ error: "That generation does not exist." }, { status: 404 });
       path = g.output_path;

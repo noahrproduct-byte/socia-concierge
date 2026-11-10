@@ -423,6 +423,14 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+.sd-render-found {
+  margin-block: var(--sp-2);
+}
+.sd-render-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
 @media (max-width: 480px) {
   .sd-check .sd-parts li {
     flex-direction: column;

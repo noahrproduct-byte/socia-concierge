@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { aiRequest, aiErrorResponse, publicOrigin } from "@/lib/aiStudio/auth";
 import { perUserLimit } from "@/lib/rateLimit";
 import { recordEvent } from "@/lib/planGuard";
-import { checkGeneration, createGenerationJob, listGenerationJobs } from "@/lib/generation/server";
+import { checkGeneration, cleanIdea, createGenerationJob, listGenerationJobs } from "@/lib/generation/server";
 import { modelById, type GenerationKind } from "@/lib/credits/config";
 import { creditBalance } from "@/lib/credits/ledger";
 import { isOwnPath } from "@/lib/storagePaths";
@@ -44,10 +44,10 @@ export async function POST(req: Request) {
   const durationSec = typeof b?.durationSec === "number" ? Math.round(b.durationSec) : undefined;
   const aspectRatio = typeof b?.aspectRatio === "string" ? b.aspectRatio : undefined;
   const inputImagePath = typeof b?.inputImagePath === "string" ? b.inputImagePath : null;
-  if (inputImagePath && !isOwnPath(inputImagePath, [r.ctx.ownerId, r.viewerId])) return NextResponse.json({ error: "That image is not yours." }, { status: 403 });
+  if (inputImagePath && (!isOwnPath(inputImagePath, [r.ctx.ownerId, r.viewerId]) || inputImagePath.split("/")[1] !== "studio-inputs")) return NextResponse.json({ error: "That image is not yours." }, { status: 403 });
   const checked = checkGeneration({ kind, modelId: model.id, durationSec, aspectRatio });
   if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
-  const idea = b?.idea && typeof b.idea === "object" ? (b.idea as Record<string, unknown>) : null;
+  const idea = cleanIdea(b?.idea);
   const origin = publicOrigin(req);
   try {
     const job = await createGenerationJob(r.ctx, {

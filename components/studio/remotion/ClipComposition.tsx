@@ -33,7 +33,7 @@ import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { viewAt, viewBox } from "@/lib/clipper/reframe";
 import type { SegmentFrame } from "@/lib/studioClips/types";
-import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, videoBox, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
+import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, underVoice, voiceTailEnvelope, videoBox, EDGE_FADE_FRAMES, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
 import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
 import type { TransitionKind } from "@/lib/studioClips/types";
@@ -251,33 +251,47 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         const sound = finish?.sound ? finish.sounds[s.clipId] : undefined;
         const next = tl.segments[i + 1];
         const cleaned = edl.cleanSound ? cleanAudio?.[s.clipId] : undefined;
-        const level = (f: number) => (sound ? dbToGain(gainAtDb(sound, s.in + f / FPS)) : Math.min(1, gain)) * edgeEnvelope(f, s.durationFrames) * (s.volume ?? 1) * original * transitionSound(f, s.durationFrames, s.overlapIn, s.overlapOut);
+        // An L-cut (s.voiceTail): this shot's voice runs on over the next shot, so its sound doesn't fade
+        // out at the cut, and the next shot's own sound sits low under it.
+        const tailFrames = s.voiceTail && next ? Math.min(secToFrames(s.voiceTail), next.durationFrames) : 0;
+        const prevTail = i ? tl.segments[i - 1] : null;
+        const underFrames = prevTail?.voiceTail ? Math.min(secToFrames(prevTail.voiceTail), s.durationFrames) : 0;
+        const envelope = (f: number) => (tailFrames ? Math.min(1, (f + 1) / EDGE_FADE_FRAMES) : edgeEnvelope(f, s.durationFrames));
+        const gainAt = (t: number) => (sound ? dbToGain(gainAtDb(sound, t)) : Math.min(1, gain)) * (s.volume ?? 1) * original;
+        const level = (f: number) => gainAt(s.in + f / FPS) * envelope(f) * underVoice(f, underFrames) * transitionSound(f, s.durationFrames, s.overlapIn, s.overlapOut);
+        // premountFor: the Player loads the next shot before it is on screen. Without it the shot started
+        // loading as the transition began, so it arrived late and the join stuttered. A render ignores it.
         return (
-          // premountFor: the Player loads the next shot before it is on screen. Without it the shot started
-          // loading as the transition began, so it arrived late and the join stuttered. A render ignores it.
-          <Sequence key={s.id} from={s.startFrame} durationInFrames={s.durationFrames} premountFor={PREMOUNT_FRAMES} name={`${s.role} · clip ${src.position + 1}`}>
-            <SegmentLayer s={s} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]} softenFrom={card && !next ? Math.max(0, s.durationFrames - END_FRAMES) : undefined}>
-              {({ effects: fx, frame: local }) => (
-                <Video
-                  src={src.url}
-                  trimBefore={s.inFrame}
-                  durationInFrames={s.durationFrames}
-                  effects={fx}
-                  // Cleanup on: the measured gain curve (it may lift quiet sound; its peaks were measured
-                  // to stay under -1 dBFS). Off: the Phase B balance, as attenuation only. Sound crossfades
-                  // with the picture through a transition.
-                  // With the noise reduced, the clip's own sound is replaced by the cleaned track below.
-                  volume={cleaned ? 0 : level}
-                  muted={Boolean(cleaned)}
-                  // Cover the frame, never letterboxed: sized to the footage's own aspect and the
-                  // person's reframe (videoBox), or centred cover when the size isn't known.
-                  objectFit={box(s) ? "fill" : "cover"}
-                  style={pathBox(s, local) ?? box(s) ?? { width: "100%", height: "100%" }}
-                />
-              )}
-            </SegmentLayer>
-            {cleaned && <Audio src={cleaned} trimBefore={s.inFrame} durationInFrames={s.durationFrames} volume={level} />}
-          </Sequence>
+          <React.Fragment key={s.id}>
+            <Sequence from={s.startFrame} durationInFrames={s.durationFrames} premountFor={PREMOUNT_FRAMES} name={`${s.role} · clip ${src.position + 1}`}>
+              <SegmentLayer s={s} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]} softenFrom={card && !next ? Math.max(0, s.durationFrames - END_FRAMES) : undefined}>
+                {({ effects: fx, frame: local }) => (
+                  <Video
+                    src={src.url}
+                    trimBefore={s.inFrame}
+                    durationInFrames={s.durationFrames}
+                    effects={fx}
+                    // Cleanup on: the measured gain curve (it may lift quiet sound; its peaks were measured
+                    // to stay under -1 dBFS). Off: the Phase B balance, as attenuation only. Sound crossfades
+                    // with the picture through a transition.
+                    // With the noise reduced, the clip's own sound is replaced by the cleaned track below.
+                    volume={cleaned ? 0 : level}
+                    muted={Boolean(cleaned)}
+                    // Cover the frame, never letterboxed: sized to the footage's own aspect and the
+                    // person's reframe (videoBox), or centred cover when the size isn't known.
+                    objectFit={box(s) ? "fill" : "cover"}
+                    style={pathBox(s, local) ?? box(s) ?? { width: "100%", height: "100%" }}
+                  />
+                )}
+              </SegmentLayer>
+              {cleaned && <Audio src={cleaned} trimBefore={s.inFrame} durationInFrames={s.durationFrames} volume={level} />}
+            </Sequence>
+            {tailFrames > 0 && (
+              <Sequence from={s.startFrame + s.durationFrames} durationInFrames={tailFrames} premountFor={PREMOUNT_FRAMES} name="voice carries over">
+                <Audio src={cleaned ?? src.url} trimBefore={s.inFrame + s.durationFrames} durationInFrames={tailFrames} volume={(f) => gainAt(s.out + f / FPS) * voiceTailEnvelope(f, tailFrames)} />
+              </Sequence>
+            )}
+          </React.Fragment>
         );
       })}
       {music && (

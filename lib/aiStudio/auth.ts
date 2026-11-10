@@ -11,6 +11,9 @@ import type { FeatureKey } from "@/lib/plans";
 import { CreditsError } from "@/lib/credits/ledger";
 import { ClipperError } from "@/lib/clipper/provider";
 import { GenerationError } from "@/lib/generation/provider";
+import { APIError } from "@anthropic-ai/sdk";
+import { AI_UNAVAILABLE_COPY, aiFailureKind } from "@/lib/aiStatus";
+import { publicMessage } from "@/lib/dbError";
 
 export type AiRequest = { ok: true; ctx: Ctx; ent: Entitlements; viewerId: string } | { ok: false; res: NextResponse };
 
@@ -29,21 +32,36 @@ export async function aiRequest(feature: FeatureKey, opts: { mutate?: boolean } 
 export const MIGRATION_HINT = "The AI Clipper and AI Studio need their database tables. Run supabase/ai-studio.sql in the Supabase SQL editor.";
 export const isMissingTable = (e: unknown): boolean => /relation .* does not exist|PGRST205|PGRST202|Could not find the (table|function)/i.test((e as Error)?.message ?? String(e));
 
-/** The one answer for anything these routes throw. */
+const SERVER_ERROR = "SOCIA hit an error on its side. Try again in a moment.";
+
+/**
+ * The one answer for anything these routes throw. SOCIA's own sentences pass
+ * through; database, storage and AI service errors go to the log only.
+ */
 export function aiErrorResponse(where: string, e: unknown): NextResponse {
+  if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
   if (e instanceof CreditsError) {
     if (e.code === "insufficient_credits") return NextResponse.json({ error: "Not enough credits for this. Buy a top-up or wait for next month's allowance.", code: "insufficient_credits", balance: e.balance }, { status: 402 });
-    return NextResponse.json({ error: e.message, code: "credits_unavailable" }, { status: 503 });
+    console.error(`[${where}]`, e.message);
+    return NextResponse.json({ error: "Credits are unavailable right now. Try again in a moment.", code: "credits_unavailable" }, { status: 503 });
   }
   if (e instanceof ClipperError || e instanceof GenerationError) {
+    if (e.code === "db") {
+      console.error(`[${where}]`, e.message);
+      return NextResponse.json({ error: SERVER_ERROR }, { status: 500 });
+    }
     const status = e.code === "not_configured" || e.code === "no_service" ? 503 : e.retryable ? 503 : 400;
     return NextResponse.json({ error: e.message, code: e.code }, { status });
   }
-  if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
+  if (e instanceof APIError) {
+    const kind = aiFailureKind(e);
+    console.error(`[ai] ${where} ${kind} status=${e.status ?? "none"}: ${e.message.replace(/\s+/g, " ").slice(0, 300)}`);
+    return NextResponse.json({ error: AI_UNAVAILABLE_COPY[kind], kind }, { status: kind === "rate_limited" ? 429 : 502 });
+  }
   const status = (e as { status?: number })?.status;
-  if (status && status >= 400 && status < 600) return NextResponse.json({ error: (e as Error).message }, { status });
+  if (status && status >= 400 && status < 600) return NextResponse.json({ error: publicMessage(where, e, SERVER_ERROR) }, { status });
   console.error(`[${where}]`, (e as Error)?.message ?? e);
-  return NextResponse.json({ error: "SOCIA hit an error on its side. Try again in a moment." }, { status: 500 });
+  return NextResponse.json({ error: SERVER_ERROR }, { status: 500 });
 }
 
 /** Where providers should call back: the public origin, never localhost. */

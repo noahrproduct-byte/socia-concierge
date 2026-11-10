@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { openPlatformsText } from "@/lib/platformStatus";
 import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
 import { MONTHLY_CREDITS } from "@/lib/credits/config";
 import { comingSoonFor } from "@/lib/pricingTable";
@@ -31,7 +32,7 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
     case "free":
       return [
         workspaces,
-        "Connect Instagram, Facebook, TikTok and YouTube",
+        `Connect ${openPlatformsText()}`,
         `${formatHistory(L.analytics_history_days)} of analytics`,
         `${M.content_ideas} batches of video ideas/week`,
         askSocia,

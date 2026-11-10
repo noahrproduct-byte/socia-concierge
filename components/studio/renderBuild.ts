@@ -7,6 +7,8 @@ import { ClipComposition } from "./remotion/ClipComposition";
 import { timeline } from "@/lib/studioClips/timeline";
 import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { OUTPUT, type BuildPlayerData, type BuildSource } from "@/lib/studioClips/types";
+import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
+import { inspectRender } from "@/lib/studioClips/inspectRender";
 
 /** Why this browser can't render, or null when it can. */
 export async function renderBlocker(width: number, height: number): Promise<string | null> {
@@ -17,7 +19,12 @@ export async function renderBlocker(width: number, height: number): Promise<stri
   return `This browser can't render video: ${why || "WebCodecs is unavailable."} Open SOCIA in Chrome or Edge on a computer to make the videos.`;
 }
 
-export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortSignal; onProgress?: (f: number) => void } = {}): Promise<{ blob: Blob; durationSec: number; width: number; height: number }> {
+/**
+ * Render, then watch the file (lib/studioClips/renderCheck.ts): a render fault
+ * gets one more try. `report` is what SOCIA saw in the video returned; the
+ * caller decides what to do with a fault that is still there.
+ */
+export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortSignal; onProgress?: (f: number) => void } = {}): Promise<{ blob: Blob; durationSec: number; width: number; height: number; report: RenderReport | null }> {
   const edl = data.build.edl;
   if (!edl) throw new Error("This video has no cut yet.");
   const tl = timeline(edl);
@@ -28,16 +35,27 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
   // Background noise reduced first, as in the editor (clips that can't be cleaned keep their own sound).
   const cleanAudio = edl.cleanSound ? await cleanSounds(Array.from(new Set(edl.segments.map((s) => s.clipId))).map((id) => ({ clipId: id, url: sources[id].url }))) : {};
   const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null, cleanAudio };
-  const { getBlob } = await renderMediaOnWeb({
-    composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
-    inputProps: props,
-    container: "mp4",
-    videoBitrate: "high",
-    pageResponsiveness: "medium",
-    signal: opts.signal,
-    onProgress: ({ progress }) => opts.onProgress?.(progress),
-  });
-  return { blob: await getBlob(), durationSec: tl.durationSec, width: edl.width, height: edl.height };
+  const once = async () => {
+    const { getBlob } = await renderMediaOnWeb({
+      composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
+      inputProps: props,
+      container: "mp4",
+      videoBitrate: "high",
+      pageResponsiveness: "medium",
+      signal: opts.signal,
+      onProgress: ({ progress }) => opts.onProgress?.(progress),
+    });
+    return getBlob();
+  };
+  const speaks = edl.segments.some((s) => sources[s.clipId]?.words?.length);
+  const expect = { sound: Boolean(props.musicUrl) || speaks, music: Boolean(props.musicUrl) };
+  let blob = await once();
+  let report = await inspectRender(blob, edl, expect, opts.signal);
+  if (renderFaults(report).length) {
+    blob = await once();
+    report = await inspectRender(blob, edl, expect, opts.signal);
+  }
+  return { blob, durationSec: tl.durationSec, width: edl.width, height: edl.height, report };
 }
 
 /** The words spoken inside the cut, in order: what the caption writer hears. */

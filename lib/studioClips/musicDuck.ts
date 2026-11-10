@@ -28,7 +28,7 @@ export function speechSpans(edl: Edl, words: Record<string, TranscriptWord[] | n
   for (const s of timeline(edl).segments) {
     const ws = words[s.clipId];
     if (!ws?.length) continue;
-    const inMs = s.in * 1000, outMs = s.out * 1000, offset = s.startSec - s.in;
+    const inMs = s.in * 1000, outMs = (s.out + (s.voiceTail ?? 0)) * 1000, offset = s.startSec - s.in;
     for (const w of ws) {
       const mid = (w.startMs + w.endMs) / 2;
       if (mid < inMs || mid > outMs) continue;

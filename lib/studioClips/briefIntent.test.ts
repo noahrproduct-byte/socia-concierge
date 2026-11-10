@@ -8,9 +8,16 @@ describe("briefIntent", () => {
     }
   });
   it("makes a cut when the prompt asks for anything more", () => {
-    for (const p of ["make a 30 second reel with captions", "cut the best parts and add captions", "show the double crust being made", "add captions and make it funny", "remove the ums", "shorten it and add music", "add captions, start with the hook", "", "make it look good"]) {
+    for (const p of ["make a 30 second reel with captions", "cut the best parts and add captions", "show the double crust being made", "add captions and make it funny", "shorten it and add music", "add captions, start with the hook", "", "make it look good"]) {
       expect(briefIntent(p).keepWhole, p).toBe(false);
     }
+  });
+  it("keeps the whole talk and only tightens it when the prompt asks for the pauses or mistakes to go", () => {
+    for (const p of ["remove the ums", "add captions and cut the pauses", "take out the mistakes and the long pauses", "tighten it up"]) {
+      expect(briefIntent(p), p).toMatchObject({ keepWhole: true, tighten: true });
+    }
+    expect(briefIntent("add captions")).toMatchObject({ keepWhole: true, tighten: false });
+    expect(briefIntent("cut the best parts out")).toMatchObject({ keepWhole: false });
   });
   it("always cuts when there's a reference to copy", () => {
     expect(briefIntent("add captions", true).keepWhole).toBe(false);

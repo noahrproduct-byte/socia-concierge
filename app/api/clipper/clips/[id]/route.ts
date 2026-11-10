@@ -14,9 +14,11 @@ export const runtime = "nodejs";
 
 type ClipRow = { id: string; user_id: string; video_path: string | null; start_ms: number | null };
 
-async function ownClip(svc: ReturnType<typeof createServiceClient>, ownerId: string, id: string): Promise<ClipRow | null> {
+async function ownClip(svc: ReturnType<typeof createServiceClient>, ownerId: string, wsId: string | null, id: string): Promise<ClipRow | null> {
   if (!svc || !/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const { data } = await svc.from("clips").select("id, user_id, video_path, start_ms").eq("id", id).eq("user_id", ownerId).maybeSingle();
+  let q = svc.from("clips").select("id, user_id, video_path, start_ms").eq("id", id).eq("user_id", ownerId);
+  if (wsId) q = q.eq("workspace_id", wsId);
+  const { data } = await q.maybeSingle();
   const c = data as ClipRow | null;
   return c && c.start_ms != null ? c : null;
 }
@@ -30,7 +32,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   try {
-    if (!(await ownClip(svc, r.ctx.ownerId, id))) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
+    if (!(await ownClip(svc, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id))) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     const path = mediaPath(r.ctx.ownerId, "clips", "mp4");
     const up = await signedUploadUrl(svc, path);
     if (!up) return NextResponse.json({ error: "Storage did not give an upload address. Try again." }, { status: 503 });
@@ -55,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Render the clip first." }, { status: 400 });
   }
   try {
-    const clip = await ownClip(svc, r.ctx.ownerId, id);
+    const clip = await ownClip(svc, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!clip) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     const name = path.slice(prefix.length);
     const { data: found } = await svc.storage.from(AI_BUCKET).list(prefix.slice(0, -1), { search: name, limit: 1 });

@@ -23,7 +23,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const r = await aiRequest("ai_clipper", { mutate: true });
   if (!r.ok) return r.res;
-  const limited = await perUserLimit(r.viewerId, "clipper_reframe", 120, "clip framing");
+  const limited = await perUserLimit(r.ctx.ownerId, "clipper_reframe", 120, "clip framing");
   if (limited) return limited;
   const svc = createServiceClient();
   if (!svc) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
@@ -37,7 +37,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     const item = typeof body?.item === "number" && Number.isInteger(body.item) ? body.item : null;
-    const { data } = await svc.from("clips").select(item == null ? "job_id, start_ms, end_ms" : "job_id, start_ms, end_ms, ranking").eq("id", id).eq("user_id", r.ctx.ownerId).maybeSingle();
+    let q = svc.from("clips").select(item == null ? "job_id, start_ms, end_ms" : "job_id, start_ms, end_ms, ranking").eq("id", id).eq("user_id", r.ctx.ownerId);
+    if (r.ctx.workspace?.id) q = q.eq("workspace_id", r.ctx.workspace.id);
+    const { data } = await q.maybeSingle();
     const clip = data as unknown as { job_id: string; start_ms: number | null; end_ms: number | null; ranking?: unknown } | null;
     const range = item == null ? { startMs: clip?.start_ms, endMs: clip?.end_ms } : readRanking(clip?.ranking)?.items[item] ?? { startMs: null, endMs: null };
     if (!clip || range.startMs == null || range.endMs == null) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });

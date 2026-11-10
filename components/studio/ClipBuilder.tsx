@@ -36,6 +36,8 @@ import { clipsForEdl } from "@/lib/studioClips/clientClips";
 import type { Beat } from "@/lib/audio/features";
 import { pacingReport } from "@/lib/studioClips/pacing";
 import { checkCut, CHECK_LABEL } from "@/lib/studioClips/cutCheck";
+import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
+import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { bestMomentFor } from "@/lib/studioClips/rank";
 import "@/app/(app)/studio/studio.css";
 import "@/app/(app)/studio/studio-motion.css";
@@ -91,8 +93,9 @@ function Finished({ message }: { message: string }) {
   );
 }
 
-type ExportPhase = "idle" | "checking" | "rendering" | "uploading" | "saving" | "done" | "error";
-type ExportState = { phase: ExportPhase; progress: number; message: string | null; postId: string | null };
+type ExportPhase = "idle" | "checking" | "rendering" | "inspecting" | "review" | "uploading" | "saving" | "done" | "error";
+/** `report`: what SOCIA saw when it watched the finished video (lib/studioClips/renderCheck.ts). */
+type ExportState = { phase: ExportPhase; progress: number; message: string | null; postId: string | null; report?: RenderReport | null };
 
 export default function ClipBuilder({ buildId, title, onBack, fixture, initialPanel }: {
   buildId: string; title: string; onBack: () => void; fixture?: BuildPlayerData;
@@ -374,10 +377,46 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   };
 
   // ------------------------------------------------------------- export ----
+  // A render that still has a fault after the second try waits here for the person (Save it anyway, or back to the edit).
+  const held = useRef<{ blob: Blob; path: string | null; report: RenderReport | null } | null>(null);
+
+  /** Upload the finished video and save the draft; in fixture mode, download it instead. */
+  const saveRendered = async (blob: Blob, path: string | null, report: RenderReport | null) => {
+    if (!edl || !tl) return;
+    if (fixture || !path) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "socia-build.mp4"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setExp({ phase: "done", progress: 1, message: `Rendered ${(blob.size / 1024 / 1024).toFixed(1)} MB (downloaded in fixture mode).`, postId: null, report });
+      return;
+    }
+    setExp({ phase: "uploading", progress: 0, message: null, postId: null, report });
+    try {
+      await uploadMedia(supabase, "scheduled-media", path, new File([blob], "video.mp4", { type: "video/mp4" }), (sent, total) => setExp((e) => (e.phase === "uploading" ? { ...e, progress: total ? sent / total : 0 } : e)));
+      setExp((e) => ({ ...e, phase: "saving", progress: 1 }));
+      const d = await fetch(`/api/studio/builds/${buildId}/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, durationSec: tl.durationSec, caption: edl.caption }) });
+      const dj = await d.json().catch(() => null);
+      if (!d.ok) throw new Error(dj?.error ?? "Couldn't save the draft.");
+      setExp({ phase: "done", progress: 1, message: null, postId: dj.postId, report });
+      setData((cur) => (cur ? { ...cur, build: { ...cur.build, renderPath: path, postId: dj.postId } } : cur));
+    } catch (e) {
+      // The render happened but nothing was saved: give the video build back.
+      await giveBack(path);
+      throw e;
+    }
+  };
+  const giveBack = (path: string | null) => (path && !fixture ? fetch(`/api/studio/builds/${buildId}/export`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) }).catch(() => null) : Promise.resolve(null));
+  const failExport = (e: unknown) => {
+    if ((e as Error)?.name === "AbortError") { setExp({ phase: "idle", progress: 0, message: null, postId: null }); return; }
+    setExp({ phase: "error", progress: 0, message: (e as Error)?.message?.replace(/^Upload failed: /, "") ?? "Something went wrong.", postId: null });
+  };
+
   const exportVideo = async () => {
     if (!edl || !tl || !data) return;
     const ctrl = new AbortController(); abort.current = ctrl;
+    held.current = null;
     setExp({ phase: "checking", progress: 0, message: null, postId: null });
+    let path: string | null = null;
     try {
       const { canRenderMediaOnWeb, renderMediaOnWeb } = await import("@remotion/web-renderer");
       const check = await canRenderMediaOnWeb({ width: edl.width, height: edl.height, container: "mp4" });
@@ -387,7 +426,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         return;
       }
       if (dirty && !fixture) await save();
-      let path: string | null = null;
       if (!fixture) {
         const res = await fetch(`/api/studio/builds/${buildId}/export`, { method: "POST" });
         const j = await res.json().catch(() => null);
@@ -396,43 +434,55 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       }
       // The export waits for the cleaned sound, so the video sounds like the preview.
       const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
-      setExp({ phase: "rendering", progress: 0, message: null, postId: null });
       const props = { edl, sources, captionsOn, musicUrl, cleanAudio: cleaned };
-      const { getBlob } = await renderMediaOnWeb({
-        composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
-        inputProps: props,
-        container: "mp4",
-        videoBitrate: quality,
-        pageResponsiveness: "medium",
-        signal: ctrl.signal,
-        onProgress: ({ progress }) => setExp((e) => (e.phase === "rendering" ? { ...e, progress } : e)),
-      });
-      const blob = await getBlob();
-      if (fixture || !path) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href = url; a.download = "socia-build.mp4"; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        setExp({ phase: "done", progress: 1, message: `Rendered ${(blob.size / 1024 / 1024).toFixed(1)} MB (downloaded — fixture mode).`, postId: null });
+      const render = async (message: string | null) => {
+        setExp({ phase: "rendering", progress: 0, message, postId: null });
+        const { getBlob } = await renderMediaOnWeb({
+          composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
+          inputProps: props,
+          container: "mp4",
+          videoBitrate: quality,
+          pageResponsiveness: "medium",
+          signal: ctrl.signal,
+          onProgress: ({ progress }) => setExp((e) => (e.phase === "rendering" ? { ...e, progress } : e)),
+        });
+        return getBlob();
+      };
+      // SOCIA watches the file it made (lib/studioClips/renderCheck.ts); a render fault gets one more try.
+      const expect = { sound: Boolean(musicUrl) || anySpeech, music: Boolean(musicUrl) };
+      const inspect = async (b: Blob, message: string | null) => {
+        setExp({ phase: "inspecting", progress: 1, message, postId: null });
+        return inspectRender(b, edl, expect, ctrl.signal);
+      };
+      let blob = await render(null);
+      let report = await inspect(blob, null);
+      if (renderFaults(report).length) {
+        const again = `The first try had a problem (${renderFaults(report)[0].detail.replace(/\.$/, "")}), so SOCIA is making it once more.`;
+        blob = await render(again);
+        report = await inspect(blob, again);
+      }
+      if (renderFaults(report).length) {
+        held.current = { blob, path, report };
+        setExp({ phase: "review", progress: 1, message: null, postId: null, report });
         return;
       }
-      setExp({ phase: "uploading", progress: 0, message: null, postId: null });
-      try {
-        await uploadMedia(supabase, "scheduled-media", path, new File([blob], "video.mp4", { type: "video/mp4" }), (sent, total) => setExp((e) => (e.phase === "uploading" ? { ...e, progress: total ? sent / total : 0 } : e)));
-        setExp({ phase: "saving", progress: 1, message: null, postId: null });
-        const d = await fetch(`/api/studio/builds/${buildId}/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, durationSec: tl.durationSec, caption: edl.caption }) });
-        const dj = await d.json().catch(() => null);
-        if (!d.ok) throw new Error(dj?.error ?? "Couldn't save the draft.");
-        setExp({ phase: "done", progress: 1, message: null, postId: dj.postId });
-        setData((cur) => (cur ? { ...cur, build: { ...cur.build, renderPath: path, postId: dj.postId } } : cur));
-      } catch (e) {
-        // The render happened but nothing was saved: give the video build back.
-        await fetch(`/api/studio/builds/${buildId}/export`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) }).catch(() => null);
-        throw e;
-      }
+      await saveRendered(blob, path, report);
     } catch (e) {
-      if ((e as Error)?.name === "AbortError") { setExp({ phase: "idle", progress: 0, message: null, postId: null }); return; }
-      setExp({ phase: "error", progress: 0, message: (e as Error)?.message?.replace(/^Upload failed: /, "") ?? "Something went wrong.", postId: null });
+      if (path && (e as Error)?.name === "AbortError") await giveBack(path);
+      failExport(e);
     }
+  };
+  const saveAnyway = async () => {
+    const h = held.current;
+    if (!h) return;
+    held.current = null;
+    try { await saveRendered(h.blob, h.path, h.report); } catch (e) { failExport(e); }
+  };
+  const backToEdit = async () => {
+    const h = held.current;
+    held.current = null;
+    await giveBack(h?.path ?? null);
+    setExp({ phase: "idle", progress: 0, message: null, postId: null });
   };
 
   // ------------------------------------------------------ timeline edits ----
@@ -597,9 +647,27 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 {lookState?.state === "done" && lookState.corrected > 0 && <small className="ov-source">SOCIA corrected the colour of {lookState.corrected} clip{lookState.corrected === 1 ? "" : "s"}. Change it or switch it off in Look &amp; sound.</small>}
                 {build.postId && <Link className="ov-btn ghost small" href={`/create?post=${build.postId}`}>Open the saved draft <ArrowRight size={12} /></Link>}
               </>
+            ) : exp.phase === "review" ? (
+              <>
+                <p className="cbb-err" role="alert"><AlertTriangle size={12} aria-hidden /> SOCIA made this video twice and found the same problem both times, so it hasn&apos;t been saved yet.</p>
+                <ul className="sd-parts sd-render-found">
+                  {renderFaults(exp.report ?? null).map((f, i) => <li key={`${f.id}-${i}`} className="is-off"><span>{f.detail}</span></li>)}
+                </ul>
+                <p className="ov-source">Play that moment in the preview. A clip that won&apos;t load in this browser, or one that expired, is the usual cause.</p>
+                <div className="sd-render-actions">
+                  <button type="button" className="ov-btn ghost small" onClick={() => void backToEdit()}>Back to the edit</button>
+                  <button type="button" className="ov-btn primary small" onClick={() => void saveAnyway()}>Save it anyway</button>
+                </div>
+              </>
             ) : exp.phase === "done" ? (
               <>
                 <Finished message={exp.message ?? "Rendered and saved as a draft in your Calendar."} />
+                {exp.report && (
+                  <div className="sd-check">
+                    <small className={`sd-check-line${exp.report.findings.length ? " is-off" : ""}`}>{exp.report.findings.length ? <AlertTriangle size={12} aria-hidden /> : <Check size={12} aria-hidden />} {exp.report.line}</small>
+                    {exp.report.findings.length > 0 && <ul className="sd-parts">{exp.report.findings.map((f, i) => <li key={`${f.id}-${i}`} className="is-off"><span>{f.detail}</span></li>)}</ul>}
+                  </div>
+                )}
                 {exp.postId && <Link className="ov-btn primary small" href={`/create?post=${exp.postId}`}>Review in Create Post <ArrowRight size={12} /></Link>}
                 <button type="button" className="ov-btn ghost small" onClick={() => setExp({ phase: "idle", progress: 0, message: null, postId: null })}>Make another version</button>
               </>
@@ -608,10 +676,12 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 <ul className="st-progress">
                   <li className={exp.phase === "checking" ? "on" : "done"}><i />Checking this browser can render</li>
                   <li className={exp.phase === "rendering" ? "on" : exp.phase === "checking" ? "" : "done"}><i />Rendering {exp.phase === "rendering" ? `${Math.round(exp.progress * 100)}%` : ""}</li>
+                  <li className={exp.phase === "inspecting" ? "on" : exp.phase === "uploading" || exp.phase === "saving" ? "done" : ""}><i />Watching the finished video</li>
                   <li className={exp.phase === "uploading" ? "on" : exp.phase === "saving" ? "done" : ""}><i />Uploading {exp.phase === "uploading" ? `${Math.round(exp.progress * 100)}%` : ""}</li>
                   <li className={exp.phase === "saving" ? "on" : ""}><i />Saving the draft</li>
                 </ul>
-                <div className="sd-progress" aria-hidden><Bar share={exp.phase === "saving" ? 1 : exp.progress} /></div>
+                <div className="sd-progress" aria-hidden><Bar share={exp.phase === "saving" || exp.phase === "inspecting" ? 1 : exp.progress} /></div>
+                {exp.message && <p className="ov-source">{exp.message}</p>}
                 <button type="button" className="ov-btn ghost small" onClick={() => abort.current?.abort()}>Cancel</button>
                 <p className="ov-source">Keep this tab open while it renders.</p>
               </>

@@ -142,6 +142,29 @@ export function clipCredits(minutes: number, model: "clip_v1" | "clip_v2" = "cli
   return creditsForUsd(whole * CLIP_SOURCE_USD_PER_MINUTE * CLIP_MODEL_FACTOR[model]);
 }
 
+/** What transcribing one minute of source costs SOCIA (lib/aiSpend.ts TRANSCRIBE_USD_PER_HOUR, per minute). */
+export const CLIP_TRANSCRIBE_USD_PER_MINUTE = 0.0035;
+
+/** How far one of SOCIA's own clip jobs got before it stopped: what has been paid for. */
+export type ClipWorkDone = "none" | "transcription" | "all";
+
+/** The work behind a job's stage: sent for transcription, or the moments being picked (a model call). Pure. */
+export function clipWorkDone(job: { status: string; stage?: string | null; provider?: string | null }): ClipWorkDone {
+  if (job.status !== "processing" || job.provider !== "socia") return "none";
+  if (job.stage === "transcribing") return "transcription";
+  return job.stage ? "all" : "none";
+}
+
+/**
+ * Credits SOCIA keeps when one of its own clip jobs stops early: what the work
+ * already done cost, at the usual margin, never more than was spent. Pure.
+ */
+export function clipCreditsKept(minutes: number, reserved: number, done: ClipWorkDone): number {
+  if (done === "none" || !(reserved > 0)) return 0;
+  if (done === "all") return reserved;
+  return Math.min(reserved, creditsForUsd(Math.max(1, Math.ceil(minutes)) * CLIP_TRANSCRIBE_USD_PER_MINUTE));
+}
+
 /** "12 credits" / "1 credit". */
 export function formatCredits(n: number): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? "credit" : "credits"}`;

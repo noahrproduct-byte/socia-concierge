@@ -5,14 +5,15 @@ import { creditBalance } from "@/lib/credits/ledger";
 
 export const runtime = "nodejs";
 
-// POST -> { job, balance }: stop a job that is still running; its credits come back.
+// POST -> { job, balance }: stop a job that is still running; its credits come
+// back, less what the work already sent out cost (job.credits_charged).
 // 409 when it can't be stopped any more (finished, or already with an outside provider).
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const r = await aiRequest("ai_clipper", { mutate: true });
   if (!r.ok) return r.res;
   try {
-    const job = await loadClipJob(r.ctx.client, r.ctx.ownerId, id);
+    const job = await loadClipJob(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     const cancelled = await cancelClipJob(job);
     if (!cancelled) return NextResponse.json({ error: "This job can't be cancelled any more. Reload the page to see where it is." }, { status: 409 });

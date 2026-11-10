@@ -64,7 +64,7 @@
     "components/ov/PointDrawer.tsx": 2,
     "components/ov/PostingHeatmap.tsx": 2,
     "components/studio/AudioPanel.tsx": 1,
-    "components/studio/ClipBuilder.tsx": 2,
+    "components/studio/ClipBuilder.tsx": 1,
     "components/studio/ClipsStudio.tsx": 3,
     "components/studio/ClipsViews.tsx": 3,
     "components/studio/StudioPanels.tsx": 4

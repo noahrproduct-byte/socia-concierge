@@ -31,8 +31,8 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 | --- | --- | --- | --- |
 | 1 Video understanding | partial | Measured picture and sound facts, word-timed transcript, 24 frames a clip, moment log | No camera-motion, face or object tracking; frames every 1.5 s miss fast moments |
 | 2 Narrative | partial | Opener, roles, ask; **phase 1:** every shot now carries its purpose (hook, context, development, payoff, close) and the model is told to drop shots that add nothing | No check that the payoff the hook promises is in the cut; no repeated-sentence detection |
-| 3 Pacing | real | `pacing.ts`: start on the action, no shot drags, room for the ending, readable text, beat; pause cutting in `sound.ts` | Pauses are cut by length, not classified (set-up pause vs hesitation) |
-| 4 Transitions | partial | Cut, dissolve, zoom blur, whip blur render in preview and export. Before phase 1 every join of a SOCIA cut was forced to a dissolve. **Phase 1:** each join decided from what is on either side, with the reason | No J-cut or L-cut, match cut, cut-on-action detection, speed ramp or mask transitions |
+| 3 Pacing | real | `pacing.ts`: start on the action, no shot drags, room for the ending, readable text, beat. **Phase 3:** `speech.ts` classifies every pause from the word timings (set-up pauses kept, sentence breaks trimmed, hesitation and dead air cut) and takes out earlier takes, false starts and lone fillers | Pauses are judged from the transcript only, not from tone of voice |
+| 4 Transitions | partial | Cut, dissolve, zoom blur, whip blur render in preview and export. Before phase 1 every join of a SOCIA cut was forced to a dissolve. **Phase 1:** each join decided from what is on either side, with the reason | **Phase 3:** L-cuts (a voice finishes its sentence over the next quiet shot). No J-cut, match cut, cut-on-action detection, speed ramp or mask transitions |
 | 5 Motion and keyframes | partial | Reframe (zoom and focus point), a moving reframe path from the clipper, jump-cut punch-in (manual switch) | No eased push-in on emphasis, no subject tracking in the editor |
 | 6 Colour | real | Measured correction toward a shared target so clips match (`grade.ts`), gentle limits, before and after | No creative grade per niche; no "can't be fixed" warning for blown or out-of-focus footage |
 | 7 Audio | partial | Noise reduction, action-sound lift, level balance between clips, edge fades, crossfades under transitions | No loudness (LUFS) or true-peak check of the finished file; no de-essing |
@@ -41,7 +41,7 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 | 10 Niche-aware editing | missing | One rule set for everything; the niche only reaches the prompt | Pacing and join profiles per kind of video |
 | 11 Editorial plan (EDL) | real | Source in and out, transitions, sound, colour, text, notes; validated in code; undo and redo | No confidence per decision |
 | 12 Rendering | real | Same composition for preview and export, in the browser | None found in this audit |
-| 13 Quality assurance | partial | Before phase 1: the pacing report only. **Phase 1:** `cutCheck.ts` checks every cut for stutters, repeats, sentences cut off, transitions over speech, too-short shots, black frames and overlapping text; safe fixes are applied to SOCIA's own cuts, the rest shown in the editor | The rendered file itself is not inspected yet |
+| 13 Quality assurance | partial | Before phase 1: the pacing report only. **Phase 1:** `cutCheck.ts` checks every cut for stutters, repeats, sentences cut off, transitions over speech, too-short shots, black frames and overlapping text; safe fixes are applied to SOCIA's own cuts, the rest shown in the editor. **Phase 2:** `renderCheck.ts` + `inspectRender.ts` watch the finished file (length, size, black and frozen frames at every join, missing or dropped sound, clipping, level); a render fault gets one more try, then asks before saving | Loudness is an average level in dB, not a true LUFS measure |
 | 14 Performance learning | real | `learn.ts` compares the account's own Studio posts with its median, with sample sizes; rater outlook stays Low confidence until results exist | None in scope |
 
 ## Known problems carried in
@@ -65,11 +65,8 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 
 ## Proposed next phases
 
-1. **Check the rendered file**: after export, decode the MP4, look at frames on both sides of every
-   join for black, frozen or repeated frames, and measure loudness and true peak; fix or warn
-   before the draft is saved.
-2. **Speech editing**: classify pauses, find repeated sentences and false starts, L-cuts when a
-   voice runs over the next shot.
+1. ~~Check the rendered file~~ (done in phase 2, branch `render-check`).
+2. ~~Speech editing~~ (done in phase 3, branch `speech-edit`).
 3. **Niche profiles**: food and process, talking to camera, product demo; each sets pacing
    numbers and joins.
 4. **Caption emphasis in the editor**: reuse `lib/clipper/emphasis.ts` for numbers and contrasts.
