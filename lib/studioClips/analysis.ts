@@ -14,6 +14,7 @@ import type { ProposedGroup } from "./yield";
 import type { RawEdl } from "./edl";
 import { BREAKDOWN_SCHEMA, shotStats, timedSpeech, type ReferenceInput } from "./reference";
 import { CARD_DETAIL, editFrames } from "./teach";
+import { EDIT_STYLES, type EditStyleId } from "./profiles";
 
 export type AccountContext = {
   niche: string | null; location: string | null; goals: string | null; brand: BrandDetail | null;
@@ -288,6 +289,7 @@ const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
   shorter: "Shorter: aim for about 60% of the previous cut's length; keep only the strongest moments.",
   different_hook: "A different hook: open on a different moment than the previous cut and write a different opening line.",
   different_clips: "Use different footage: prefer clips and moments the previous cut did not use, where the material allows; keep the story coherent.",
+  restyle: "Edit it again in the editing style named below: same footage and story, cut the way that style is cut.",
 };
 
 export type EdlVariant = { directive: RegenerateDirective; previous: Edl };
@@ -305,7 +307,7 @@ export const BRIEF_CUT_RULES = `How to cut from this brief:
 - Order tells the story: start where the brief starts (walking in, the first moment), build through the busiest moments, then the payoff (the finished thing, the fullest shot), and end on the brand when a logo or sign is in the footage.
 - Text: the person's own lines when the brief gives them (keep "POV: …" when they wrote it), on screen from 0 for the first; otherwise the text rule below. No numbers or claims the clips don't show.`;
 
-export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant, brief?: string | null, retry?: string | null): Promise<{ raw: RawEdl; model: string }> {
+export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct: AccountContext, variant?: EdlVariant, brief?: string | null, retry?: string | null, style?: EditStyleId): Promise<{ raw: RawEdl; model: string }> {
   const used = clips.filter((c) => (variant ? true : opp.clipIds.includes(c.id)) && c.card);
   const previous = variant
     ? `\n\nThe previous cut (${variant.previous.segments.reduce((a, s) => a + (s.out - s.in), 0).toFixed(1)}s): ${variant.previous.segments.map((s) => `${clipLabel(used.find((c) => c.id === s.clipId)?.position ?? 0)} ${s.in.toFixed(1)}–${s.out.toFixed(1)}s`).join("; ")}${variant.previous.text[0] ? `; opening line "${variant.previous.text[0].text}"` : ""}.\nChange requested: ${DIRECTIVE_TEXT[variant.directive]}`
@@ -338,7 +340,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   const content: Content = [
     { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}
 
-${brief ? `${BRIEF_CUT_RULES}\n\n` : ""}${brief ? `The brief for this video. Follow it closely: its length, order, pace, on-screen lines and ending win over the general rules below, except the honesty rules. Where it asks for footage the clips don't have, say so in notes and use the nearest real moment.\n"""\n${brief.trim()}\n"""\n\n` : ""}The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
+${style ? `This video's editing style: ${EDIT_STYLES[style].label}. ${EDIT_STYLES[style].prompt} Where the general pace rules disagree, this style wins; the brief still wins over both.\n\n` : ""}${brief ? `${BRIEF_CUT_RULES}\n\n` : ""}${brief ? `The brief for this video. Follow it closely: its length, order, pace, on-screen lines and ending win over the general rules below, except the honesty rules. Where it asks for footage the clips don't have, say so in notes and use the nearest real moment.\n"""\n${brief.trim()}\n"""\n\n` : ""}The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.
 ${opp.opener ? `Opener candidate: ${clipLabel(used.find((c) => c.id === opp.opener!.clipId)?.position ?? 0)} ${opp.opener.start.toFixed(1)}–${opp.opener.end.toFixed(1)}s (${opp.opener.why}).` : "No opener was identified; choose the strongest available moment."}${previous}
 

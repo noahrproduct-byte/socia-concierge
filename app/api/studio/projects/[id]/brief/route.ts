@@ -64,7 +64,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const intent = briefIntent(prompt, Boolean(reference));
     if (intent.keepWhole && prompt) {
       const preset = (await readPresets(ctx).catch(() => null))?.brand ?? null;
-      const build = await wholeFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, prompt, music: intent.music, tighten: intent.tighten, preset });
+      const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null).catch(() => undefined);
+      const build = await wholeFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, prompt, music: intent.music, tighten: intent.tighten, acct, preset });
       return NextResponse.json({ build: guideOnly(build), breakdown: null, whole: true });
     }
     // A video from a brief is made by AI on the spot, so it counts one AI-made

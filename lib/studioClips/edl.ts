@@ -9,6 +9,7 @@ import { finishSteps, sanitizeFinish } from "./finish";
 import { cleanVolume, sanitizeStyle } from "./style";
 import { cutSpeaks } from "../music/taste";
 import { cleanEndCard } from "./teach";
+import { isEditStyle } from "./profiles";
 
 /** The longest a voice may carry over the next shot (an L-cut). */
 export const MAX_VOICE_TAIL_SEC = 3;
@@ -276,6 +277,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   const card = cleanEndCard(edited.endCard);
   if (card) r.edl.endCard = card;
   if (edited.actionSound === true) r.edl.actionSound = true;
+  if (isEditStyle(edited.editStyle)) r.edl.editStyle = edited.editStyle;
   if (typeof edited.lookAuto === "string" && !Number.isNaN(Date.parse(edited.lookAuto))) r.edl.lookAuto = new Date(edited.lookAuto).toISOString();
   return r;
 }

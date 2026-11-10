@@ -5,7 +5,9 @@
 //   - someone is talking at the join: a hard cut. A dissolve would play two
 //     voices and two faces at once, and the words dip under the crossfade;
 //   - anything else: the 0.3 s soft dissolve Noah approved on his hand cut
-//     (2026-11-06), which also shows time passing when a shot skips ahead.
+//     (2026-11-06), which also shows time passing when a shot skips ahead,
+//     unless the cut's editing style joins with hard cuts (talking to camera,
+//     demos, fast edits; lib/studioClips/profiles.ts).
 // A person who names a transition in their own words keeps every join as
 // given. Pure, unit-tested (joins.test.ts).
 import type { ClipForEdl } from "./edl";
@@ -14,7 +16,7 @@ import type { TransitionKind } from "./types";
 /** Speech this close to a join (seconds, either side) counts as talking across it. */
 export const SPEECH_AT_JOIN_SEC = 0.3;
 
-export type JoinWhy = "asked" | "speech" | "skip" | "montage";
+export type JoinWhy = "asked" | "speech" | "skip" | "montage" | "style";
 export type Join = { index: number; transition: TransitionKind; why: JoinWhy };
 
 export const JOIN_WHY: Record<JoinWhy, string> = {
@@ -22,6 +24,7 @@ export const JOIN_WHY: Record<JoinWhy, string> = {
   speech: "someone is talking here, so a hard cut keeps the words clear",
   skip: "the shot skips ahead, so a short dissolve shows the time passing",
   montage: "a new shot, joined with a short soft dissolve",
+  style: "a hard cut, as this editing style joins its shots",
 };
 
 /** The words a person named that mean they chose the joins themselves. */
@@ -39,7 +42,7 @@ function talkingAt(clip: Pick<ClipForEdl, "words"> | undefined, t: number, side:
  * Every join after the first shot, decided. The segments come back with their
  * transitions set (a hard cut is no transition); `joins` says why for each.
  */
-export function decideJoins<T extends Seg>(segments: T[], clips: Pick<ClipForEdl, "id" | "words">[], asked?: string | null): { segments: T[]; joins: Join[] } {
+export function decideJoins<T extends Seg>(segments: T[], clips: Pick<ClipForEdl, "id" | "words">[], asked?: string | null, between: "dissolve" | "cut" = "dissolve"): { segments: T[]; joins: Join[] } {
   const byId = new Map(clips.map((c) => [c.id, c]));
   if (asked && ASKED.test(asked)) {
     return { segments, joins: segments.slice(1).map((s, k) => ({ index: k + 1, transition: s.transition ?? "cut", why: "asked" as const })) };
@@ -54,6 +57,12 @@ export function decideJoins<T extends Seg>(segments: T[], clips: Pick<ClipForEdl
       const { transition: _t, ...rest } = s; void _t;
       return rest as T;
     }
+    // A style that joins with hard cuts (talking, demos, fast edits; lib/studioClips/profiles.ts).
+    if (between === "cut") {
+      joins.push({ index: i, transition: "cut", why: "style" });
+      const { transition: _t, ...rest } = s; void _t;
+      return rest as T;
+    }
     joins.push({ index: i, transition: "fade", why: prev.clipId === s.clipId && s.in > prev.out ? "skip" : "montage" });
     return { ...s, transition: "fade" as const };
   });
@@ -64,10 +73,11 @@ export function decideJoins<T extends Seg>(segments: T[], clips: Pick<ClipForEdl
 export function joinsNote(joins: Join[]): string {
   if (!joins.length || joins.every((j) => j.why === "asked")) return "";
   const n = (why: JoinWhy) => joins.filter((j) => j.why === why).length;
-  const soft = n("skip") + n("montage"), hard = n("speech");
+  const soft = n("skip") + n("montage"), hard = n("speech"), styled = n("style");
   const parts = [
     soft ? `${soft} soft dissolve${soft === 1 ? "" : "s"} between shots` : "",
     hard ? `${hard} hard cut${hard === 1 ? "" : "s"} where someone is talking, so the words stay clear` : "",
+    styled ? `${styled} hard cut${styled === 1 ? "" : "s"} between shots, as this style is cut` : "",
   ].filter(Boolean);
   return `SOCIA chose each join: ${parts.join(" and ")}.`;
 }

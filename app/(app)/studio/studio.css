@@ -423,6 +423,16 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
+.sd-restyle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-block: var(--sp-3);
+}
+.sd-restyle label {
+  white-space: nowrap;
+}
 .sd-render-found {
   margin-block: var(--sp-2);
 }

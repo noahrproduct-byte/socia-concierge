@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isEditStyle } from "@/lib/studioClips/profiles";
 import { AI_UNAVAILABLE_COPY } from "@/lib/aiStatus";
 import { aiFailure } from "@/lib/anthropic";
 import { requireFeature } from "@/lib/planGuard";
@@ -24,9 +25,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { ctx } = r;
   const forbidden = requireMutate(ctx);
   if (forbidden) return forbidden;
-  const body = (await req.json().catch(() => null)) as { directive?: string } | null;
-  const directive = REGENERATE_OPTIONS.find((o) => o.id === body?.directive)?.id as RegenerateDirective | undefined;
+  const body = (await req.json().catch(() => null)) as { directive?: string; style?: unknown } | null;
+  // "restyle" makes it again in the editing style named with it (lib/studioClips/profiles.ts).
+  const directive = (body?.directive === "restyle" ? "restyle" : REGENERATE_OPTIONS.find((o) => o.id === body?.directive)?.id) as RegenerateDirective | undefined;
   if (!directive) return NextResponse.json({ error: "Pick one of the regenerate options." }, { status: 400 });
+  const style = isEditStyle(body?.style) ? body.style : undefined;
+  if (directive === "restyle" && !style) return NextResponse.json({ error: "Pick an editing style." }, { status: 400 });
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
   try {
     if (await isManualBuild(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id)) return NextResponse.json({ error: "Your own edit has no AI rewrite. Edit it directly." }, { status: 400 });
@@ -38,7 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const limited = await perUserLimit(ctx.ownerId, "clip_edl", 40, "video edits");
     if (limited) return limited;
     const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null);
-    const build = await regenerateBuild(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, buildId: id, directive, acct });
+    const build = await regenerateBuild(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, buildId: id, directive, acct, style });
     return NextResponse.json(build);
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });

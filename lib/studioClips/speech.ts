@@ -68,7 +68,11 @@ export function sentences(words: TranscriptWord[]): [number, number][] {
 }
 
 /** Every pause worth cutting in a clip's speech, classified, with how much of it to keep. */
-export function classifyPauses(words: TranscriptWord[]): (SpeechCut & { kind: PauseKind })[] {
+/** "natural" keeps half as much again of every pause (demos and calm videos need room to take things in). */
+export type SpeechPace = "tight" | "natural";
+const PACE_SCALE: Record<SpeechPace, number> = { tight: 1, natural: 1.5 };
+
+export function classifyPauses(words: TranscriptWord[], pace: SpeechPace = "tight"): (SpeechCut & { kind: PauseKind })[] {
   const ws = sorted(words);
   const byStop = punctuated(ws);
   const sents = sentences(ws);
@@ -102,6 +106,7 @@ export function classifyPauses(words: TranscriptWord[]): (SpeechCut & { kind: Pa
     } else {
       kind = "hesitation"; keep = SPEECH.keep.hesitation;
     }
+    keep *= PACE_SCALE[pace];
     if (gap - keep < SPEECH.minCutSec) continue;
     // Keep half of what stays on each side, so the words never feel clipped.
     out.push({ start: r2(sec(a.endMs) + keep / 2), end: r2(sec(b.startMs) - keep / 2), why: "pause", kind });
@@ -165,9 +170,9 @@ export function findMistakes(words: TranscriptWord[]): SpeechCut[] {
 }
 
 /** All the speech cuts for a clip, merged where they touch. */
-export function speechCuts(words: TranscriptWord[] | null | undefined): SpeechCut[] {
+export function speechCuts(words: TranscriptWord[] | null | undefined, pace: SpeechPace = "tight"): SpeechCut[] {
   if (!words?.length) return [];
-  const all = [...findMistakes(words), ...classifyPauses(words)].sort((a, b) => a.start - b.start);
+  const all = [...findMistakes(words), ...classifyPauses(words, pace)].sort((a, b) => a.start - b.start);
   const out: SpeechCut[] = [];
   for (const c of all) {
     const last = out[out.length - 1];
@@ -200,12 +205,12 @@ export type SpeechEditResult<S> = { segments: S[]; removed: { why: SpeechCutWhy;
  * the stretches to take out. The first piece keeps the shot's transition and
  * role; the pieces after it join with hard cuts (jump cuts).
  */
-export function editSpeech<S extends Pick<EdlSegment, "id" | "clipId" | "in" | "out" | "role" | "transition">>(segments: S[], words: Record<string, TranscriptWord[] | null | undefined>): SpeechEditResult<S> {
+export function editSpeech<S extends Pick<EdlSegment, "id" | "clipId" | "in" | "out" | "role" | "transition">>(segments: S[], words: Record<string, TranscriptWord[] | null | undefined>, pace: SpeechPace = "tight"): SpeechEditResult<S> {
   const removed: { why: SpeechCutWhy; sec: number }[] = [];
   const cache = new Map<string, SpeechCut[]>();
   const out: S[] = [];
   for (const s of segments) {
-    const cuts = (cache.get(s.clipId) ?? cache.set(s.clipId, speechCuts(words[s.clipId])).get(s.clipId)!)
+    const cuts = (cache.get(s.clipId) ?? cache.set(s.clipId, speechCuts(words[s.clipId], pace)).get(s.clipId)!)
       .map((c) => ({ ...c, start: Math.max(c.start, s.in), end: Math.min(c.end, s.out) }))
       .filter((c) => c.end - c.start >= SPEECH.minCutSec);
     let pieceIn = s.in;

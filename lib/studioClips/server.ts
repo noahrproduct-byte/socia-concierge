@@ -18,6 +18,7 @@ import { applyPacing } from "./pacing";
 import { decideJoins, joinsNote } from "./joins";
 import { repairCut } from "./cutCheck";
 import { editSpeech, speechNote } from "./speech";
+import { pickStyle, speechShare, styleNote, styleOf, type EditStyleId, type StylePick } from "./profiles";
 import { varyJumpCuts } from "./jumpCuts";
 import { cardIsCurrent, QUIET_ROOM_VOLUME, teachEdit } from "./teach";
 import { studioLearnedLine } from "./learnLoad";
@@ -461,7 +462,7 @@ export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string |
 }
 
 /** Pass 3 again with a directive ("faster", "different hook", …); the previous cut goes to history. */
-export async function regenerateBuild(client: Supa, args: { ownerId: string; wsId: string | null; buildId: string; directive: RegenerateDirective; acct: AccountContext }): Promise<StudioBuild> {
+export async function regenerateBuild(client: Supa, args: { ownerId: string; wsId: string | null; buildId: string; directive: RegenerateDirective; acct: AccountContext; style?: EditStyleId }): Promise<StudioBuild> {
   const { ownerId, wsId, buildId, directive, acct } = args;
   const row = await loadBuildRow(client, ownerId, wsId, buildId);
   if (!row) throw new Error("That build does not exist.");
@@ -479,9 +480,12 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const pool = directive === "different_clips" ? rows.filter((r) => r.card && !r.purged_at) : rows.filter((r) => opp.clipIds.includes(r.id));
   const ordered = [...pool.filter((r) => opp.clipIds.includes(r.id)), ...pool.filter((r) => !opp.clipIds.includes(r.id))];
   const urls = await frameUrls(client, ordered);
-  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, brief ? briefText(brief) : null);
+  // The cut keeps its editing style, unless this is "make it again in another style".
+  const pick: StylePick | null = directive === "restyle" && args.style ? { id: args.style, why: "you chose it" } : row.edl.editStyle ? null : styleFor(ordered, acct, brief?.prompt);
+  const style = pick?.id ?? row.edl.editStyle ?? "process";
+  const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, brief ? briefText(brief) : null, null, style);
   const forEdl = rows.map(toClipForEdl);
-  const edl = finishCut(taught(paced(validateEdl(raw, forEdl).edl, forEdl, brief?.prompt), raw, acct, forEdl), forEdl, brief?.prompt);
+  const edl = shaped(raw, forEdl, acct, brief?.prompt, style, pick);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
   // A new version keeps the look the cut had.
   edl.style = row.edl.style ?? CAPCUT_STYLE;
@@ -641,7 +645,7 @@ export async function listVideos(client: Supa, ownerId: string, wsId: string | n
  * speech, the sound cleaned. No model call, no text, no ending card, and music
  * only when the prompt asked for it. Saved as a new build from the brief.
  */
-export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; music: boolean; tighten?: boolean; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
+export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; music: boolean; tighten?: boolean; acct?: AccountContext; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
   const { ownerId, wsId, project, prompt, music, tighten, preset } = args;
   const rows = await clipRows(client, project.id);
   const usable = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
@@ -658,6 +662,8 @@ export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId
     ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
   }, forEdl);
   if (!edl.segments.length) throw new Error("These clips are too short to post.");
+  // Its joins follow the footage's editing style (hard cuts for someone talking).
+  edl.editStyle = styleFor(usable, args.acct ?? { niche: null, location: null, goals: null, brand: null }, prompt).id;
   // The whole video stays as it is, unless the prompt asked for the pauses or mistakes to come out.
   Object.assign(edl, finishCut(edl, forEdl, prompt, { tighten: Boolean(tighten) }));
   edl.captions = usable.some((r) => r.transcript?.words?.length) ? { source: "transcript" } : null;
@@ -694,7 +700,8 @@ export async function buildFromBrief(client: Supa, args: {
   const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = rows.map(toClipForEdl);
   const footageSec = usable.filter((r) => opp.clipIds.includes(r.id)).reduce((a, r) => a + (r.duration_s ?? 0), 0);
-  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry), forEdl, footageSec, acct, prompt);
+  const pick = styleFor(usable.filter((r) => opp.clipIds.includes(r.id)), acct, prompt);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry, pick.id), forEdl, footageSec, acct, pick, prompt);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
   // Every clip the person gave is in the cut, and the cut is long enough to be a post.
   const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec));
@@ -725,7 +732,7 @@ export async function buildFromBrief(client: Supa, args: {
  * many moved; the person's own edits are never paced this way.
  */
 function paced(edl: Edl, forEdl: ClipForEdl[], asked?: string | null): Edl {
-  const { edl: out, changes } = applyPacing({ ...edl, segments: decideJoins(edl.segments, forEdl, asked).segments }, forEdl);
+  const { edl: out, changes } = applyPacing({ ...edl, segments: decideJoins(edl.segments, forEdl, asked, styleOf(edl.editStyle).joins).segments }, forEdl);
   if (changes.length) out.notes = [...out.notes, `SOCIA paced the cut: ${changes.length} change${changes.length === 1 ? "" : "s"} so cuts start on the action, nothing drags and every line can be read.`];
   return out;
 }
@@ -738,6 +745,20 @@ function paced(edl: Edl, forEdl: ClipForEdl[], asked?: string | null): Edl {
 /** The cut, held to what Noah taught (lib/studioClips/teach.ts). The place and the site come from the brand settings. */
 function taught(edl: Edl, raw: RawEdl, acct: AccountContext, forEdl: ClipForEdl[]): Edl {
   return teachEdit(edl, { location: acct.location, website: acct.brand?.website }, forEdl, raw.endCard);
+}
+
+/** The editing style for these clips (lib/studioClips/profiles.ts): the prompt, then how much of the footage is talk, then the account's niche. */
+function styleFor(rows: ClipRow[], acct: AccountContext, prompt: string | null | undefined): StylePick {
+  return pickStyle({ brief: prompt, niche: acct.niche, speechShare: speechShare(rows.map((r) => ({ durationSec: r.duration_s ?? 0, words: r.transcript?.words }))) });
+}
+
+const STYLE_NOTE = /^SOCIA edited this as/;
+
+/** The model's cut made real, in its editing style: validated, paced, held to what Noah taught, then finished. `pick` adds the note saying which style and why. */
+function shaped(raw: RawEdl, forEdl: ClipForEdl[], acct: AccountContext, asked: string | null | undefined, style: EditStyleId, pick: StylePick | null): Edl {
+  const edl = finishCut(taught(paced({ ...validateEdl(raw, forEdl).edl, editStyle: style }, forEdl, asked), raw, acct, forEdl), forEdl, asked);
+  if (pick) edl.notes = [...edl.notes.filter((n) => !STYLE_NOTE.test(n)), styleNote(pick)];
+  return edl;
 }
 
 const JOIN_NOTE = /^SOCIA chose each join/;
@@ -755,10 +776,11 @@ const SPEECH_NOTE = /^SOCIA tightened the speech/;
  */
 function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: { tighten?: boolean } = {}): Edl {
   const words = Object.fromEntries(forEdl.map((c) => [c.id, c.words]));
-  const spoken = opts.tighten === false ? { segments: edl.segments, removed: [] } : editSpeech(edl.segments, words);
-  const first = decideJoins(spoken.segments, forEdl, asked);
+  const style = styleOf(edl.editStyle);
+  const spoken = opts.tighten === false ? { segments: edl.segments, removed: [] } : editSpeech(edl.segments, words, style.speech);
+  const first = decideJoins(spoken.segments, forEdl, asked, style.joins);
   const { edl: repaired, fixed } = repairCut({ ...edl, segments: first.segments }, forEdl, { keepTransitions: first.joins.some((j) => j.why === "asked") });
-  const { segments, joins } = decideJoins(repaired.segments, forEdl, asked);
+  const { segments, joins } = decideJoins(repaired.segments, forEdl, asked, style.joins);
   let out: Edl = { ...repaired, segments };
   if (spoken.removed.length) out = varyJumpCuts(out).edl;
   const notes = edl.notes.filter((n) => !JOIN_NOTE.test(n));
@@ -770,15 +792,15 @@ function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: 
   return { ...out, notes };
 }
 
-async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, acct: AccountContext, asked?: string | null): Promise<{ edl: Edl; model: string }> {
+async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, acct: AccountContext, pick: StylePick, asked?: string | null): Promise<{ edl: Edl; model: string }> {
   const first = await make(null);
-  let edl = finishCut(taught(paced(validateEdl(first.raw, forEdl).edl, forEdl, asked), first.raw, acct, forEdl), forEdl, asked);
+  let edl = shaped(first.raw, forEdl, acct, asked, pick.id, pick);
   let model = first.model;
   const len = edlDurationSec(edl);
   const floor = Math.min(10, footageSec * 0.5);
   if (footageSec >= 6 && len < floor) {
     const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
-    const second = finishCut(taught(paced(validateEdl(again.raw, forEdl).edl, forEdl, asked), again.raw, acct, forEdl), forEdl, asked);
+    const second = shaped(again.raw, forEdl, acct, asked, pick.id, pick);
     if (edlDurationSec(second) > len) { edl = second; model = again.model; }
   }
   return { edl, model };
@@ -803,7 +825,8 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = used.map(toClipForEdl);
   const footageSec = used.reduce((a, r) => a + (r.duration_s ?? 0), 0);
-  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry), forEdl, footageSec, acct);
+  const pick = styleFor(used, acct, null);
+  const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry, pick.id), forEdl, footageSec, acct, pick);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from these clips.");
   edl.style = edl.style ?? CAPCUT_STYLE;
   edl.cleanSound = true;

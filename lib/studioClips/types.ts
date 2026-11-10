@@ -6,6 +6,7 @@ import type { Transcript, TranscriptWord } from "@/lib/transcribe/types";
 import type { EdlStyle, VideoPresets } from "./style";
 import type { TextPresetId, TextSlot } from "@/lib/textPresets";
 import type { Playlist, Soundtrack } from "@/lib/music/taste";
+import type { EditStyleId } from "./profiles";
 
 export type { Transcript, TranscriptWord };
 
@@ -318,6 +319,8 @@ export type Edl = {
   musicAuto?: string;
   /** When SOCIA coloured the cut on its own (lib/studioClips/autoLook.ts), once per cut whatever happened. */
   lookAuto?: string;
+  /** The editing style the cut was made in (lib/studioClips/profiles.ts): its pacing, joins and speech trimming. Absent = food and process. */
+  editStyle?: EditStyleId;
 };
 
 export type EndCard = { location: string; cta: string; site: string };
@@ -424,7 +427,8 @@ export type StudioBuild = {
 
 // -------------------------------------------------------- Make This Video ----
 
-export type RegenerateDirective = "faster" | "energetic" | "professional" | "shorter" | "different_hook" | "different_clips";
+/** "restyle" makes the cut again in another editing style (lib/studioClips/profiles.ts), named with the request. */
+export type RegenerateDirective = "faster" | "energetic" | "professional" | "shorter" | "different_hook" | "different_clips" | "restyle";
 
 export const REGENERATE_OPTIONS: { id: RegenerateDirective; label: string; hint: string }[] = [
   { id: "faster", label: "Faster paced", hint: "More, shorter cuts" },
