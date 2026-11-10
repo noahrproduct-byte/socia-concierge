@@ -38,6 +38,7 @@ import { pacingReport, pacingRules } from "@/lib/studioClips/pacing";
 import { EDIT_STYLES, EDIT_STYLE_IDS, isEditStyle, type EditStyleId } from "@/lib/studioClips/profiles";
 import { checkCut, CHECK_LABEL } from "@/lib/studioClips/cutCheck";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
+import { emphasisLabels, pickEmphasis } from "@/lib/studioClips/emphasis";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { bestMomentFor } from "@/lib/studioClips/rank";
 import "@/app/(app)/studio/studio.css";
@@ -307,6 +308,16 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   };
   const removeText = (i: number) => { if (!edl) return; commit({ ...edl, text: edl.text.filter((_, k) => k !== i) }); };
   const toggleCaptions = () => { if (!edl) return; commit({ ...edl, captions: edl.captions ? null : { source: "transcript" } }); };
+  // Highlighted words in the captions (lib/studioClips/emphasis.ts): on picks numbers and names in what is said; off clears them.
+  const spokenWords = useMemo(() => Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])), [sources]);
+  const highlighted = useMemo(() => (edl?.emphasis?.length ? emphasisLabels(edl, spokenWords, edl.emphasis) : []), [edl, spokenWords]);
+  const canHighlight = useMemo(() => (edl ? pickEmphasis(edl, spokenWords).length > 0 || Boolean(edl.emphasis?.length) : false), [edl, spokenWords]);
+  const toggleEmphasis = () => {
+    if (!edl) return;
+    if (edl.emphasis?.length) { const { emphasis: _e, ...rest } = edl; void _e; commit(rest as Edl); return; }
+    const list = pickEmphasis(edl, spokenWords);
+    if (list.length) commit({ ...edl, emphasis: list });
+  };
 
   // At the playhead: which cut it is in, and where that is inside the clip.
   const at = () => {
@@ -935,6 +946,21 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 </div>
                 <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!anySpeech || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
               </div>
+              {captionsOn && (
+                <div className="ov-card cbb-captions">
+                  <div>
+                    <b>Highlight the key words</b>
+                    <small>
+                      {highlighted.length
+                        ? `One word a line at most, in yellow: ${highlighted.join(", ")}.`
+                        : canHighlight
+                          ? "Colours the number or name that carries each line, one word at most."
+                          : "Nothing in what is said stands out to highlight: no numbers or names."}
+                    </small>
+                  </div>
+                  <button type="button" className={`cbb-toggle${highlighted.length ? " on" : ""}`} role="switch" aria-checked={highlighted.length > 0} aria-label="Highlight the key words" disabled={!canHighlight || !data.canEdit || busy} onClick={toggleEmphasis}><i /></button>
+                </div>
+              )}
               <TextLayersPanel
                 layers={edl.text}
                 onChange={(text) => commit({ ...edl, text })}

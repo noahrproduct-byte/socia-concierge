@@ -37,7 +37,7 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 | 6 Colour | real | Measured correction toward a shared target so clips match (`grade.ts`), gentle limits, before and after | No creative grade per niche; no "can't be fixed" warning for blown or out-of-focus footage |
 | 7 Audio | partial | Noise reduction, action-sound lift, level balance between clips, edge fades, crossfades under transitions | No loudness (LUFS) or true-peak check of the finished file; no de-essing |
 | 8 Music | real | Original tracks made for the account (licence-safe), measured beat, cuts on the beat, ducking under speech (off by default) | Track structure (drops, sections) not used |
-| 9 Captions and text | real | Word captions from the transcript, tidied; locked presets in the safe zone; end card | Caption emphasis exists for the clipper (`lib/clipper/emphasis.ts`) but not in the editor |
+| 9 Captions and text | real | Word captions from the transcript, tidied; locked presets in the safe zone; end card. **Phase 5:** one highlighted word a line at most (`emphasis.ts`): the model's marks that were really said, then numbers, then names; about one for every six words; a switch in Text & captions | Highlight colour is fixed yellow, not the brand's |
 | 10 Niche-aware editing | real | **Phase 4:** five editing styles (`profiles.ts`): food and process, talking to camera, product demo or how-to, fast and energetic, calm and premium. Picked from the prompt, then how much of the footage is talk, then the niche; each sets pacing numbers, joins, how much of each pause is kept, and the model's instructions. Regenerate can make the cut again in another style | Styles are rules, not yet learned from each account's results |
 | 11 Editorial plan (EDL) | real | Source in and out, transitions, sound, colour, text, notes; validated in code; undo and redo | No confidence per decision |
 | 12 Rendering | real | Same composition for preview and export, in the browser | None found in this audit |
@@ -68,4 +68,4 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 1. ~~Check the rendered file~~ (done in phase 2, branch `render-check`).
 2. ~~Speech editing~~ (done in phase 3, branch `speech-edit`).
 3. ~~Niche profiles~~ (done in phase 4, branch `edit-styles`).
-4. **Caption emphasis in the editor**: reuse `lib/clipper/emphasis.ts` for numbers and contrasts.
+4. ~~Caption emphasis in the editor~~ (done in phase 5, branch `caption-emphasis`).
