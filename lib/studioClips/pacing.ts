@@ -16,6 +16,7 @@ import { timeline } from "./timeline";
 import { charCount } from "@/lib/textPresets";
 import type { Edl, EdlSegment, EdlText } from "./types";
 import { clipLabel } from "./types";
+import { styleOf } from "./profiles";
 
 export const PACING = {
   openerMinSec: 1,
@@ -42,6 +43,12 @@ export const PACING = {
   /** a good Reel averages this long a cut */
   averageCutSec: [1, 4] as const,
 } as const;
+
+/** The pacing numbers for a cut: the defaults with its editing style's own (lib/studioClips/profiles.ts). */
+export function pacingRules(edl: Pick<Edl, "editStyle">) {
+  return { ...PACING, ...styleOf(edl.editStyle).pacing };
+}
+export type PacingRules = ReturnType<typeof pacingRules>;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const MIN = EDL_DEFAULTS.minSegmentSec;
@@ -81,6 +88,7 @@ export type PacingChange = { segmentId: string; what: string };
  */
 export function applyPacing(edl: Edl, clips: ClipForEdl[]): { edl: Edl; changes: PacingChange[] } {
   const byId = new Map(clips.map((c) => [c.id, c]));
+  const P = pacingRules(edl);
   const changes: PacingChange[] = [];
   const segments: EdlSegment[] = edl.segments.map((s) => ({ ...s }));
   const last = segments.length - 1;
@@ -95,9 +103,9 @@ export function applyPacing(edl: Edl, clips: ClipForEdl[]): { edl: Edl; changes:
     const outT = actionEnd(clip, s.in, s.out);
     if (outT < s.out - 0.05) { changes.push({ segmentId: s.id, what: `${label} ends at ${outT.toFixed(1)}s, after its last sound, instead of ${s.out.toFixed(1)}s.` }); s.out = outT; }
     // No cut drags.
-    const cap = hasSpeech(clip, s) ? PACING.speechMaxSec : PACING.silentMaxSec;
+    const cap = hasSpeech(clip, s) ? P.speechMaxSec : P.silentMaxSec;
     const isOpener = i === 0;
-    const openerCap = isOpener && !hasSpeech(clip, s) ? Math.min(cap, PACING.openerMaxSec) : cap;
+    const openerCap = isOpener && !hasSpeech(clip, s) ? Math.min(cap, P.openerMaxSec) : cap;
     if (s.out - s.in > openerCap + 0.05) {
       const target = snapTime(s.in + openerCap, clip, "out");
       const out = target > s.in + MIN ? target : r2(s.in + openerCap);
@@ -105,7 +113,7 @@ export function applyPacing(edl: Edl, clips: ClipForEdl[]): { edl: Edl; changes:
       s.out = out;
     }
     // The opener and the ending have room to land.
-    const floor = isOpener ? PACING.openerMinSec : i === last ? PACING.endingMinSec : 0;
+    const floor = isOpener ? P.openerMinSec : i === last ? P.endingMinSec : 0;
     if (floor && s.out - s.in < floor - 0.05 && clip.durationSec - s.in >= floor) {
       const target = snapTime(s.in + floor, clip, "out");
       const out = Math.min(clip.durationSec, Math.max(target, s.in + floor));
@@ -140,6 +148,7 @@ export type PacingReport = { score: number; line: string; parts: PacingPart[]; a
  */
 export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number; offsetSec: number } | null): PacingReport {
   const byId = new Map(clips.map((c) => [c.id, c]));
+  const P = pacingRules(edl);
   const tl = timeline(edl);
   const segs = edl.segments;
   const lens = segs.map((s) => s.out - s.in);
@@ -151,17 +160,17 @@ export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number
   if (first) {
     const len = first.out - first.in;
     const silentLead = firstClip ? actionStart(firstClip, first.in, first.out) > first.in + 0.05 : false;
-    const ok = !silentLead && len >= PACING.openerMinSec - 0.05 && (hasSpeech(firstClip, first) || len <= PACING.openerMaxSec + 0.05);
+    const ok = !silentLead && len >= P.openerMinSec - 0.05 && (hasSpeech(firstClip, first) || len <= P.openerMaxSec + 0.05);
     parts.push({ id: "opener", label: "Strong opening", ok, detail: silentLead ? `The first cut starts ${(actionStart(firstClip!, first.in, first.out) - first.in).toFixed(1)}s before its sound.` : `The first cut runs ${len.toFixed(1)}s${hasSpeech(firstClip, first) ? " with speech" : ""}.` });
   }
   if (segs.length) {
-    const ok = avg >= PACING.averageCutSec[0] - 0.05 && avg <= PACING.averageCutSec[1] + 0.05;
+    const ok = avg >= P.averageCutSec[0] - 0.05 && avg <= P.averageCutSec[1] + 0.05;
     parts.push({ id: "pace", label: "Short-form pace", ok, detail: `${segs.length} cut${segs.length === 1 ? "" : "s"} averaging ${avg.toFixed(1)}s.` });
-    const dragging = segs.filter((s) => s.out - s.in > (hasSpeech(byId.get(s.clipId), s) ? PACING.speechMaxSec : PACING.silentMaxSec) + 0.05);
+    const dragging = segs.filter((s) => s.out - s.in > (hasSpeech(byId.get(s.clipId), s) ? P.speechMaxSec : P.silentMaxSec) + 0.05);
     parts.push({ id: "drag", label: "No cut drags", ok: !dragging.length, detail: dragging.length ? `${dragging.map((s) => `${clipLabel(byId.get(s.clipId)?.position ?? 0)} (${(s.out - s.in).toFixed(1)}s)`).join(", ")} run${dragging.length === 1 ? "s" : ""} longer than a viewer waits.` : `The longest cut is ${Math.max(...lens).toFixed(1)}s.` });
     const ending = segs[segs.length - 1];
     const endLen = ending.out - ending.in;
-    parts.push({ id: "ending", label: "Room to land", ok: segs.length === 1 || endLen >= PACING.endingMinSec - 0.05, detail: `The last cut runs ${endLen.toFixed(1)}s.` });
+    parts.push({ id: "ending", label: "Room to land", ok: segs.length === 1 || endLen >= P.endingMinSec - 0.05, detail: `The last cut runs ${endLen.toFixed(1)}s.` });
   }
   if (edl.text.length) {
     const short = edl.text.filter((t) => t.end - t.at < minReadSec(t.text) - 0.05);

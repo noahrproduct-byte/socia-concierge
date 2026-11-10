@@ -38,7 +38,7 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 | 7 Audio | partial | Noise reduction, action-sound lift, level balance between clips, edge fades, crossfades under transitions | No loudness (LUFS) or true-peak check of the finished file; no de-essing |
 | 8 Music | real | Original tracks made for the account (licence-safe), measured beat, cuts on the beat, ducking under speech (off by default) | Track structure (drops, sections) not used |
 | 9 Captions and text | real | Word captions from the transcript, tidied; locked presets in the safe zone; end card | Caption emphasis exists for the clipper (`lib/clipper/emphasis.ts`) but not in the editor |
-| 10 Niche-aware editing | missing | One rule set for everything; the niche only reaches the prompt | Pacing and join profiles per kind of video |
+| 10 Niche-aware editing | real | **Phase 4:** five editing styles (`profiles.ts`): food and process, talking to camera, product demo or how-to, fast and energetic, calm and premium. Picked from the prompt, then how much of the footage is talk, then the niche; each sets pacing numbers, joins, how much of each pause is kept, and the model's instructions. Regenerate can make the cut again in another style | Styles are rules, not yet learned from each account's results |
 | 11 Editorial plan (EDL) | real | Source in and out, transitions, sound, colour, text, notes; validated in code; undo and redo | No confidence per decision |
 | 12 Rendering | real | Same composition for preview and export, in the browser | None found in this audit |
 | 13 Quality assurance | partial | Before phase 1: the pacing report only. **Phase 1:** `cutCheck.ts` checks every cut for stutters, repeats, sentences cut off, transitions over speech, too-short shots, black frames and overlapping text; safe fixes are applied to SOCIA's own cuts, the rest shown in the editor. **Phase 2:** `renderCheck.ts` + `inspectRender.ts` watch the finished file (length, size, black and frozen frames at every join, missing or dropped sound, clipping, level); a render fault gets one more try, then asks before saving | Loudness is an average level in dB, not a true LUFS measure |
@@ -67,6 +67,5 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 
 1. ~~Check the rendered file~~ (done in phase 2, branch `render-check`).
 2. ~~Speech editing~~ (done in phase 3, branch `speech-edit`).
-3. **Niche profiles**: food and process, talking to camera, product demo; each sets pacing
-   numbers and joins.
+3. ~~Niche profiles~~ (done in phase 4, branch `edit-styles`).
 4. **Caption emphasis in the editor**: reuse `lib/clipper/emphasis.ts` for numbers and contrasts.

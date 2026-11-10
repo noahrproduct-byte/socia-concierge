@@ -34,7 +34,8 @@ import { alignToBeats } from "@/lib/studioClips/beats";
 import { beatOfTrack } from "@/lib/studioClips/beatClient";
 import { clipsForEdl } from "@/lib/studioClips/clientClips";
 import type { Beat } from "@/lib/audio/features";
-import { pacingReport } from "@/lib/studioClips/pacing";
+import { pacingReport, pacingRules } from "@/lib/studioClips/pacing";
+import { EDIT_STYLES, EDIT_STYLE_IDS, isEditStyle, type EditStyleId } from "@/lib/studioClips/profiles";
 import { checkCut, CHECK_LABEL } from "@/lib/studioClips/cutCheck";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
@@ -249,6 +250,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     return () => { alive = false; };
   }, [edl?.soundtrack?.trackId, musicUrl, trackBpm]);
   const pace = useMemo(() => (edl ? pacingReport(edl, clipsForEdl(sources), beat) : null), [edl, sources, beat]);
+  const rules = pacingRules(edl ?? {});
+  // Regenerate in another editing style (lib/studioClips/profiles.ts).
+  const [restyle, setRestyle] = useState<EditStyleId | null>(null);
   // What a viewer would notice, checked again after every change (lib/studioClips/cutCheck.ts).
   const check = useMemo(() => (edl ? checkCut(edl, clipsForEdl(sources)) : null), [edl, sources]);
   const snapToBeat = useCallback((b: Beat, note = true) => {
@@ -364,10 +368,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     setData((d) => (d ? { ...d, build: b } : d)); setEdl(b.edl); setDirty(false);
   };
 
-  const regenerate = async (directive: RegenerateDirective) => {
+  const regenerate = async (directive: RegenerateDirective, style?: EditStyleId) => {
     if (!edl || fixture) return;
     setRegen(directive); setRegenErr(null);
-    const res = await fetch(`/api/studio/builds/${buildId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ directive }) });
+    const res = await fetch(`/api/studio/builds/${buildId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ directive, style }) });
     const j = await res.json().catch(() => null);
     setRegen(null);
     if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setRegenErr(j?.error ?? "Couldn't regenerate."); return; }
@@ -585,6 +589,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             <div className="cbb-player-meta">
               <b>{title}</b>
               <span>{tl.durationSec.toFixed(1)}s, {edl.segments.length} cut{edl.segments.length === 1 ? "" : "s"}, {edl.width}×{edl.height}</span>
+              {isEditStyle(edl.editStyle) && <small className="sd-pace-line">Edited as {EDIT_STYLES[edl.editStyle].label.toLowerCase()}: {EDIT_STYLES[edl.editStyle].summary.charAt(0).toLowerCase()}{EDIT_STYLES[edl.editStyle].summary.slice(1)}</small>}
               {pace && pace.parts.length > 0 && (
                 <div className="sd-ring-row sd-pace">
                   <Ring share={pace.score / 100} size={56} stroke={6} tone={pace.score >= 80 ? "good" : pace.score >= 60 ? "ok" : "low"} label={`Pacing ${pace.score} of 100: ${pace.line}`}><b>{pace.score}</b></Ring>
@@ -594,7 +599,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                       <ul className="sd-parts">
                         {pace.parts.map((p) => <li key={p.id} className={p.ok ? "" : "is-off"}><b>{p.label}</b><span>{p.detail}</span></li>)}
                       </ul>
-                      <p className="ov-source">The share of these rules the cut meets: start on the action, 1 to 4 s cuts on average, no cut over 5 s without speech (10 s with), 1.5 s to land the ending, each line up long enough to read{beat ? ", and cuts on the track's beat" : ""}.</p>
+                      <p className="ov-source">The share of these rules the cut meets{isEditStyle(edl.editStyle) ? ` for ${EDIT_STYLES[edl.editStyle].label.toLowerCase()}` : ""}: start on the action, {rules.averageCutSec[0]} to {rules.averageCutSec[1]} s cuts on average, no cut over {rules.silentMaxSec} s without speech ({rules.speechMaxSec} s with), {rules.endingMinSec} s to land the ending, each line up long enough to read{beat ? ", and cuts on the track's beat" : ""}.</p>
                     </Details>
                   </div>
                 </div>
@@ -962,6 +967,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                   <li key={o.id}><button type="button" disabled={!data.canEdit || busy} onClick={() => regenerate(o.id)}>{regen === o.id ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}<span><b>{o.label}</b><small>{o.hint}</small></span></button></li>
                 ))}
               </ul>
+              <div className="sd-restyle">
+                <label className="cbb-quality">Edit it as
+                  <select value={restyle ?? (isEditStyle(edl.editStyle) ? edl.editStyle : "process")} onChange={(e) => setRestyle(e.target.value as EditStyleId)} disabled={!data.canEdit || busy}>
+                    {EDIT_STYLE_IDS.map((id) => <option key={id} value={id}>{EDIT_STYLES[id].label}</option>)}
+                  </select>
+                </label>
+                <small className="ov-source">{EDIT_STYLES[restyle ?? (isEditStyle(edl.editStyle) ? edl.editStyle : "process")].summary}</small>
+                <button type="button" className="ov-btn ghost small" disabled={!data.canEdit || busy || !restyle || restyle === edl.editStyle} onClick={() => restyle && regenerate("restyle", restyle)}>
+                  {regen === "restyle" ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />} Make it again in this style
+                </button>
+              </div>
               {regenErr && <p className="cbb-err"><AlertTriangle size={12} /> {regenErr}</p>}
               <p className="ov-source">{MAX_REGENERATIONS - build.regenerations} of {MAX_REGENERATIONS} regenerations left for this post. Each one is written from the clips&apos; real moments and transcript, then checked the same way as the first.</p>
             </div>
