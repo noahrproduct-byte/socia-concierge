@@ -57,7 +57,7 @@ describe("validateEdl", () => {
   it("renders the same EDL as plain steps", () => {
     const { edl } = validateEdl(raw, [talking, dark, bright]);
     const steps = guideFromEdl(edl, [talking, dark, bright]).map((s) => s.text);
-    expect(steps[0]).toMatch(/^Start with Clip 1, 0:01–0:0\d — the spoken hook$/);
+    expect(steps[0]).toMatch(/^Start with Clip 1, 0:01–0:0\d: the spoken hook$/);
     expect(steps[1]).toMatch(/^Cut to Clip 2, 0:00–/);
     expect(steps[2]).toMatch(/^Finish on Clip 3/);
     expect(steps).toContainEqual(expect.stringMatching(/Put “200 people. One kitchen.” on screen as it opens/));

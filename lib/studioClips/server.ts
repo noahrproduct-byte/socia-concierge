@@ -15,7 +15,8 @@ import { opportunityEdl, type AccountContext, type ClipInput } from "./analysis"
 import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForEdl, type RawEdl } from "./edl";
 import { sanitizeFinish } from "./finish";
 import { applyPacing } from "./pacing";
-import { smoothTransitions } from "./transitions";
+import { decideJoins, joinsNote } from "./joins";
+import { repairCut } from "./cutCheck";
 import { cardIsCurrent, QUIET_ROOM_VOLUME, teachEdit } from "./teach";
 import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
@@ -268,6 +269,7 @@ export function toClipForEdl(r: ClipRow): ClipForEdl {
     brightness: v?.brightness ?? null, contrastLevel: v?.contrast ?? null,
     rmsDb: a?.rmsDb ?? null, audioLevel: a?.level ?? null,
     hasSpeech: Boolean(r.card?.speech.present && r.transcript?.words?.length),
+    lumaSamples: v?.sampled.length ? v.sampled.map((s) => ({ t: s.t, luma: s.luma })) : null,
   };
 }
 
@@ -477,7 +479,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const urls = await frameUrls(client, ordered);
   const { raw, model } = await opportunityEdl(opp, toClipInputs(ordered, urls), { ...acct, audio: acct.audio ?? (await audioLine(client, ownerId, wsId)) }, { directive, previous: row.edl }, brief ? briefText(brief) : null);
   const forEdl = rows.map(toClipForEdl);
-  const edl = taught(paced(validateEdl(raw, forEdl).edl, forEdl, brief?.prompt), raw, acct, forEdl);
+  const edl = finishCut(taught(paced(validateEdl(raw, forEdl).edl, forEdl, brief?.prompt), raw, acct, forEdl), forEdl, brief?.prompt);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
   // A new version keeps the look the cut had.
   edl.style = row.edl.style ?? CAPCUT_STYLE;
@@ -654,7 +656,7 @@ export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId
     ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
   }, forEdl);
   if (!edl.segments.length) throw new Error("These clips are too short to post.");
-  edl.segments = smoothTransitions(edl.segments, prompt);
+  Object.assign(edl, finishCut(edl, forEdl, prompt));
   edl.captions = usable.some((r) => r.transcript?.words?.length) ? { source: "transcript" } : null;
   edl.cleanSound = true;
   edl.brief = { prompt, reference: null, referenceName: null };
@@ -695,7 +697,8 @@ export async function buildFromBrief(client: Supa, args: {
   const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec));
   if (filled.added.length) edl.notes.push(`SOCIA added ${filled.added.map((id) => clipLabel(rows.find((r) => r.id === id)?.position ?? 0)).join(", ")} so every clip you gave is in the cut.`);
   // Clips added so every one is in the cut join and sound like the rest of it.
-  edl.segments = smoothTransitions(filled.segments, prompt).map((s) => (edl.actionSound && !s.sound ? { ...s, volume: QUIET_ROOM_VOLUME } : s));
+  Object.assign(edl, finishCut({ ...edl, segments: filled.segments }, forEdl, prompt));
+  edl.segments = edl.segments.map((s) => (edl.actionSound && !s.sound ? { ...s, volume: QUIET_ROOM_VOLUME } : s));
   if (preset) { edl.width = preset.width; edl.height = preset.height; }
   edl.style = preset?.style ?? CAPCUT_STYLE;
   edl.cleanSound = true;
@@ -719,7 +722,7 @@ export async function buildFromBrief(client: Supa, args: {
  * many moved; the person's own edits are never paced this way.
  */
 function paced(edl: Edl, forEdl: ClipForEdl[], asked?: string | null): Edl {
-  const { edl: out, changes } = applyPacing({ ...edl, segments: smoothTransitions(edl.segments, asked) }, forEdl);
+  const { edl: out, changes } = applyPacing({ ...edl, segments: decideJoins(edl.segments, forEdl, asked).segments }, forEdl);
   if (changes.length) out.notes = [...out.notes, `SOCIA paced the cut: ${changes.length} change${changes.length === 1 ? "" : "s"} so cuts start on the action, nothing drags and every line can be read.`];
   return out;
 }
@@ -734,15 +737,34 @@ function taught(edl: Edl, raw: RawEdl, acct: AccountContext, forEdl: ClipForEdl[
   return teachEdit(edl, { location: acct.location, website: acct.brand?.website }, forEdl, raw.endCard);
 }
 
+const FINISH_NOTE = /^SOCIA (chose each join|checked the cut)/;
+
+/**
+ * The last step of every cut SOCIA makes: each join chosen from what is on
+ * either side of it (lib/studioClips/joins.ts), then the cut checked the way a
+ * viewer would see it and repaired where that is safe (lib/studioClips/cutCheck.ts).
+ * One note for each, replacing any from an earlier pass.
+ */
+function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null): Edl {
+  const first = decideJoins(edl.segments, forEdl, asked);
+  const { edl: repaired, fixed } = repairCut({ ...edl, segments: first.segments }, forEdl, { keepTransitions: first.joins.some((j) => j.why === "asked") });
+  const { segments, joins } = decideJoins(repaired.segments, forEdl, asked);
+  const notes = edl.notes.filter((n) => !FINISH_NOTE.test(n));
+  const joinLine = joinsNote(joins);
+  if (joinLine) notes.push(joinLine);
+  if (fixed.length) notes.push(`SOCIA checked the cut before showing it: ${[...new Set(fixed)].join("; ")}.`);
+  return { ...repaired, segments, notes };
+}
+
 async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, acct: AccountContext, asked?: string | null): Promise<{ edl: Edl; model: string }> {
   const first = await make(null);
-  let edl = taught(paced(validateEdl(first.raw, forEdl).edl, forEdl, asked), first.raw, acct, forEdl);
+  let edl = finishCut(taught(paced(validateEdl(first.raw, forEdl).edl, forEdl, asked), first.raw, acct, forEdl), forEdl, asked);
   let model = first.model;
   const len = edlDurationSec(edl);
   const floor = Math.min(10, footageSec * 0.5);
   if (footageSec >= 6 && len < floor) {
     const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
-    const second = taught(paced(validateEdl(again.raw, forEdl).edl, forEdl, asked), again.raw, acct, forEdl);
+    const second = finishCut(taught(paced(validateEdl(again.raw, forEdl).edl, forEdl, asked), again.raw, acct, forEdl), forEdl, asked);
     if (edlDurationSec(second) > len) { edl = second; model = again.model; }
   }
   return { edl, model };

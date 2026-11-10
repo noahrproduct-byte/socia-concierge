@@ -3,7 +3,7 @@
 // in Phase B, so the guide and the preview can never disagree.
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
 import { MAX_TEXT_LAYERS, TEXT_PRESETS, clampChars, isTextPresetId, isTextSlot, presetForRole } from "@/lib/textPresets";
-import { aspectOf, clipLabel, fmtClock, isTransition } from "./types";
+import { aspectOf, clipLabel, fmtClock, isSegmentPurpose, isTransition } from "./types";
 import { overlapFrames, secToFrames } from "./timeline";
 import { finishSteps, sanitizeFinish } from "./finish";
 import { cleanVolume, sanitizeStyle } from "./style";
@@ -26,6 +26,8 @@ export type ClipForEdl = {
   rmsDb: number | null;
   audioLevel: AudioFacts["level"] | null;
   hasSpeech: boolean;
+  /** Measured brightness of the frames sampled through the clip (the cut check looks for black ones). Absent in the browser. */
+  lumaSamples?: { t: number; luma: number }[] | null;
 };
 
 /** What pass 3 hands over, before validation. */
@@ -34,7 +36,7 @@ export type RawEdl = {
   /** One of ASPECTS; anything else falls back to vertical. */
   width?: number;
   height?: number;
-  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string; sound?: boolean }[];
+  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string }[];
   style?: unknown;
   text?: { at: number; end?: number; text: string; role?: string; presetId?: string; slot?: string }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
@@ -176,7 +178,7 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     const volume = cleanVolume(s.volume);
     // How it comes in from the cut before: kept when it's one the renderer has; a hard cut otherwise.
     const transition = segments.length && isTransition(s.transition) && s.transition !== "cut" ? s.transition : undefined;
-    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}), ...(transition ? { transition } : {}), ...(s.sound === true ? { sound: true } : {}) });
+    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}), ...(transition ? { transition } : {}), ...(s.sound === true ? { sound: true } : {}), ...(isSegmentPurpose(s.purpose) ? { purpose: s.purpose } : {}) });
   });
   if (segments.length) {
     segments[0].role = "opener";
@@ -253,7 +255,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     targetSec: { min: edited.targetSec.min, max: Math.max(edited.targetSec.max, Math.ceil(total)) },
     width: edited.width,
     height: edited.height,
-    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition, sound: s.sound })),
+    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition, sound: s.sound, purpose: s.purpose })),
     style: edited.style,
     text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, presetId: t.presetId, slot: t.slot })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
@@ -283,6 +285,14 @@ const ENHANCE_COPY: Record<EdlEnhance["kind"], string> = {
   contrast: "Add {amount} contrast to {clip} — it's flat next to the others.",
 };
 
+const PURPOSE_COPY: Record<NonNullable<EdlSegment["purpose"]>, string> = {
+  hook: "the hook",
+  context: "what this is",
+  development: "the build-up",
+  payoff: "the payoff",
+  close: "the close",
+};
+
 /** The edit, as numbered steps a person could follow in any editor. */
 export function guideFromEdl(edl: Edl, clips: ClipForEdl[]): GuideStep[] {
   const byId = new Map(clips.map((c) => [c.id, c]));
@@ -292,7 +302,8 @@ export function guideFromEdl(edl: Edl, clips: ClipForEdl[]): GuideStep[] {
 
   edl.segments.forEach((s, i) => {
     const verb = s.role === "opener" ? "Start with" : s.role === "ending" ? "Finish on" : i === 1 ? "Cut to" : "Then";
-    push("cut", `${verb} ${label(s.clipId)}, ${fmtClock(s.in)}–${fmtClock(s.out)}${s.note ? ` — ${s.note}` : ""}`, { clipId: s.clipId, range: [s.in, s.out] });
+    const why = s.purpose ? ` (${PURPOSE_COPY[s.purpose]})` : "";
+    push("cut", `${verb} ${label(s.clipId)}, ${fmtClock(s.in)}–${fmtClock(s.out)}${why}${s.note ? `: ${s.note}` : ""}`, { clipId: s.clipId, range: [s.in, s.out] });
   });
   for (const t of edl.text) {
     const when = t.role === "opening" ? "as it opens" : t.role === "cta" ? "at the end" : `from ${fmtClock(t.at)} to ${fmtClock(t.end)}`;

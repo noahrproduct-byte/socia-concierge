@@ -208,7 +208,13 @@ export type EdlSegment = {
   transition?: TransitionKind;
   /** The real sound of what's happening here plays up front, over the music (lib/studioClips/teach.ts). */
   sound?: boolean;
+  /** What this shot does for the viewer in SOCIA's plan for the cut: the hook, context, development, the payoff or the close. */
+  purpose?: SegmentPurpose;
 };
+
+export const SEGMENT_PURPOSES = ["hook", "context", "development", "payoff", "close"] as const;
+export type SegmentPurpose = (typeof SEGMENT_PURPOSES)[number];
+export const isSegmentPurpose = (v: unknown): v is SegmentPurpose => SEGMENT_PURPOSES.includes(v as SegmentPurpose);
 
 export const TRANSITIONS = [
   { id: "cut", label: "Cut" },
