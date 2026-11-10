@@ -86,7 +86,7 @@ export default function PlanCta({
     body = signedIn
       ? <span className="pr-cta-muted">Included</span>
       : (
-        <Link href="/signup" className="so-btn so-btn-ghost">
+        <Link href="/signup" className="hm-btn hm-btn--outline hm-btn--lg">
           {p.cta} <ArrowRight size={14} />
         </Link>
       );
@@ -94,7 +94,7 @@ export default function PlanCta({
     body = (
       <a
         href={contactHref(`SOCIA ${p.name} plan`)}
-        className={`so-btn ${p.popular ? "so-btn-blue" : "so-btn-ghost"}`}
+        className={`hm-btn hm-btn--lg ${p.popular ? "hm-btn--primary" : "hm-btn--outline"}`}
         onClick={trackUpgrade}
         title="Opens an email to the SOCIA team"
       >
@@ -103,7 +103,7 @@ export default function PlanCta({
     );
   } else if (!signedIn) {
     body = (
-      <Link href="/signup" className={`so-btn ${p.popular ? "so-btn-blue" : "so-btn-ghost"}`}>
+      <Link href="/signup" className={`hm-btn hm-btn--lg ${p.popular ? "hm-btn--primary" : "hm-btn--outline"}`}>
         {p.cta} <ArrowRight size={14} />
       </Link>
     );
@@ -112,7 +112,7 @@ export default function PlanCta({
       <>
         <button
           type="button"
-          className={`so-btn ${p.popular ? "so-btn-blue" : "so-btn-ghost"}`}
+          className={`hm-btn hm-btn--lg ${p.popular ? "hm-btn--primary" : "hm-btn--outline"}`}
           onClick={startCheckout}
           disabled={busy}
           aria-busy={busy || undefined}

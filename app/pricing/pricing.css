@@ -1,76 +1,37 @@
-/* /pricing: only what the landing's .so classes cannot do. Every class here is
-   prefixed .pr-. Colour comes from the .so tokens; headings use Geist through
-   --font-display, everything else stays in the body font.
-
-   Light only since 2026-11-03: the .so palette (built dark for the old
-   landing) is re-pointed to light values for this page here, and the few .so
-   rules that set white text directly are overridden below. */
+/* /pricing: only what the homepage's .hm classes (components/home/home.css)
+   cannot do. Every class here is prefixed .pr-. The page wears the homepage's
+   look: its tokens, black actions, cards and type. The .so names below are
+   the comparison table's and cards' own variables, pointed at those tokens. */
 
 .pr-page {
-  --so-ink: #f7f6f3;
-  --so-surface: #ffffff;
-  --so-text: #17191d;
-  --so-dim: #5f646c;
-  --so-dimmer: #6b7078;
-  --so-faint: #a6a9ae;
-  --so-line: rgba(23, 25, 29, 0.1);
-  --so-blue: #2a62f5;
-  --so-blue-bright: #2a62f5;
-  --so-cyan: #2458e6;
+  --so-ink: var(--hm-canvas);
+  --so-surface: var(--hm-card);
+  --so-text: var(--hm-ink);
+  --so-dim: var(--hm-ash);
+  --so-dimmer: var(--hm-smoke);
+  --so-faint: var(--hm-quiet);
+  --so-line: var(--hm-border);
+  --so-blue: var(--hm-ink);
+  --so-blue-bright: var(--hm-ink);
+  --so-cyan: var(--hm-ink);
   min-height: 100vh; display: flex; flex-direction: column;
+  background: var(--hm-canvas);
 }
-.pr-page .so-h2,
-.pr-page .so-footer-statement { color: var(--so-text); }
-.pr-page .so-btn-ghost { border-color: var(--so-line); color: var(--so-text); }
-.pr-page .so-btn-ghost:hover { background: rgba(23, 25, 29, 0.04); }
-.pr-page .so-btn-blue { box-shadow: 0 6px 18px rgba(42, 98, 245, 0.2); }
-.pr-page .so-btn-blue:hover { box-shadow: 0 8px 22px rgba(42, 98, 245, 0.28); }
-.pr-page .so-footer-grid a:hover,
-.pr-page .so-footer-grid button:hover { color: var(--so-text); }
-.pr-page .so-mobile-menu { background: var(--so-surface); box-shadow: 0 12px 32px rgba(23, 25, 29, 0.12); }
-.pr-page .so-mobile-menu button,
-.pr-page .so-mobile-menu > a:not(.so-btn) { color: var(--so-text); }
-.pr-page .so-mobile-menu button:hover { background: rgba(23, 25, 29, 0.04); }
-.pr-main { flex: 1; position: relative; z-index: 2; padding: 124px 24px 0; }
-
-/* nav links are real links here, not scroll buttons */
-.pr-nav-link {
-  position: relative;
-  display: inline-block;
-  color: inherit;
-  opacity: 0.65;
-  font-size: 13.5px;
-  font-weight: 570;
-  padding: 8px 12px;
-  transition: opacity 0.15s;
-}
-.pr-nav-link::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 3px;
-  height: 1.5px;
-  background: currentColor;
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.pr-nav-link:hover, .pr-nav-link[aria-current="page"] { opacity: 1; }
-.pr-nav-link:hover::after, .pr-nav-link[aria-current="page"]::after { transform: scaleX(1); }
-.pr-page .so-footer { margin-top: 96px; }
+.pr-main { flex: 1; position: relative; padding: 140px 0 0; }
+.pr-page .hm-footer { margin-top: 96px; }
+.pr-page .hm-nav-links a[aria-current="page"] { color: var(--hm-ink); }
 
 /* header */
-.pr-head { margin-bottom: 44px; }
-.pr-head .so-h2 { margin-bottom: 14px; }
-.pr-head .so-lead { margin: 0 auto; }
+.pr-head { margin-bottom: 48px; text-align: center; }
+.pr-head .hm-h2 { margin-bottom: 16px; }
+.pr-head .hm-lead { margin: 0 auto; }
 
 /* cards */
 .pr-grid {
   display: grid;
   /* one column per plan on sale (--plans, set by PricingCards) */
   grid-template-columns: repeat(var(--plans, 4), minmax(0, 1fr));
-  gap: 14px;
+  gap: 8px;
   align-items: stretch;
 }
 .pr-card {
@@ -78,70 +39,70 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 24px 22px 26px;
-  border-radius: 18px;
-  border: 1px solid var(--so-line);
+  padding: 24px;
+  border-radius: var(--hm-r-card);
   background: var(--so-surface);
+  box-shadow: var(--hm-key-soft);
   scroll-margin-top: 96px;
 }
-.pr-card.popular { border-color: rgba(42, 98, 245, 0.45); background: #f4f7ff; }
-.pr-card.highlight { border-color: var(--so-blue-bright); }
+.pr-card.popular, .pr-card.highlight { box-shadow: 0 0 0 1.5px var(--hm-ink), var(--hm-key-soft); }
 .pr-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
-.pr-card-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--so-text); }
+.pr-card-name { font-size: var(--hm-fs-sub); font-weight: 500; letter-spacing: 0.01em; color: var(--so-text); margin: 0; }
 .pr-popular {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-family: var(--hm-mono);
+  font-size: var(--hm-fs-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.073em;
   text-transform: uppercase;
-  color: var(--so-cyan);
-  border: 1px solid rgba(42, 98, 245, 0.35);
-  border-radius: 999px;
-  padding: 3px 8px;
+  color: var(--hm-ink);
+  background: var(--hm-badge);
+  border-radius: var(--hm-r-badge);
+  padding: 3px 7px;
   white-space: nowrap;
 }
 .pr-price { display: flex; align-items: baseline; gap: 4px; margin-bottom: 10px; }
 .pr-price-amount {
-  font-family: var(--font-display), var(--font);
   font-size: 34px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1;
   color: var(--so-text);
   font-variant-numeric: tabular-nums;
 }
-.pr-price-per { font-size: 13px; color: var(--so-dimmer); }
-.pr-tagline { font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--so-text); margin-bottom: 6px; }
+.pr-price-per { font-family: var(--hm-mono); font-size: var(--hm-fs-mono); color: var(--so-dimmer); }
+.pr-tagline { font-size: 15px; font-weight: 500; line-height: 1.4; color: var(--so-text); margin-bottom: 6px; }
 .pr-audience { font-size: 12.5px; line-height: 1.5; color: var(--so-dim); min-height: 2.9em; margin-bottom: 18px; }
 .pr-everything { font-size: 12px; font-weight: 600; color: var(--so-dim); margin: 16px 0 8px; }
 .pr-cta { margin-bottom: 20px; }
-.pr-cta .so-btn { width: 100%; justify-content: center; }
+.pr-cta .hm-btn { width: 100%; }
 .pr-cta-current, .pr-cta-muted {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
-  border-radius: 999px;
-  font-size: 13.5px;
-  font-weight: 600;
+  min-height: 40px;
+  border-radius: var(--hm-r-btn);
+  font-size: var(--hm-fs-sm);
+  font-weight: 500;
 }
-.pr-cta-current { border: 1px dashed rgba(23, 25, 29, 0.28); color: var(--so-text); }
+.pr-cta-current { border: 1px dashed var(--hm-iron); color: var(--so-text); }
 .pr-cta-muted { color: var(--so-dimmer); }
 .pr-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
 .pr-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; line-height: 1.45; color: var(--so-text); }
-.pr-list li svg { flex-shrink: 0; margin-top: 3px; color: var(--so-blue-bright); }
+.pr-list li svg { flex-shrink: 0; margin-top: 3px; color: var(--hm-mist); }
 .pr-list li > span:first-of-type { min-width: 0; }
 
 /* "Soon" tag, shared by cards and table */
 .pr-soon {
   display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-family: var(--hm-mono);
+  font-size: var(--hm-fs-eyebrow);
+  font-weight: 500;
+  letter-spacing: 0.073em;
   text-transform: uppercase;
   line-height: 1;
   color: var(--so-dimmer);
-  border: 1px solid rgba(23, 25, 29, 0.16);
-  border-radius: 999px;
+  background: var(--hm-badge);
+  border-radius: var(--hm-r-badge);
   padding: 3px 7px;
   white-space: nowrap;
 }
@@ -156,15 +117,16 @@
 
 /* sections */
 .pr-compare { margin-top: 80px; }
-.pr-section-title { font-size: clamp(20px, 2.4vw, 26px); color: var(--so-text); margin-bottom: 6px; }
-.pr-section-lead { font-size: 14px; color: var(--so-dim); margin-bottom: 22px; }
-.pr-custom { margin-top: 64px; padding: 26px 28px; border: 1px solid var(--so-line); border-radius: 18px; background: var(--so-surface); }
+.pr-section-title { font-size: var(--hm-fs-h3); font-weight: 500; line-height: 1.15; color: var(--so-text); margin: 0 0 8px; }
+.pr-section-lead { font-size: var(--hm-fs-sm); color: var(--so-dim); margin: 0 0 24px; }
+.pr-custom-wrap { margin-top: 64px; }
+.pr-custom { padding: 24px; border-radius: var(--hm-r-card); background: var(--so-surface); box-shadow: var(--hm-key-soft); }
 .pr-custom p { font-size: 14.5px; line-height: 1.6; color: var(--so-dim); max-width: 560px; }
 
 /* comparison table */
 /* Contained scroll so the plan header (and the category header under it) can
    stick while the long table scrolls inside the card. */
-.pr-table-wrap { position: relative; border: 1px solid var(--so-line); border-radius: 18px; overflow: auto; max-height: 74vh; background: var(--so-surface); }
+.pr-table-wrap { position: relative; border-radius: var(--hm-r-card); box-shadow: var(--hm-key-soft); overflow: auto; max-height: 74vh; background: var(--so-surface); }
 .pr-table { width: 100%; border-collapse: collapse; font-size: 13.5px; color: var(--so-text); }
 .pr-table th, .pr-table td { padding: 11px 14px; border-bottom: 1px solid var(--so-line); text-align: left; vertical-align: top; }
 .pr-table thead th { background: var(--so-surface); padding-top: 14px; padding-bottom: 14px; position: sticky; top: 0; z-index: 6; }
@@ -172,7 +134,7 @@
 .pr-table thead th.pr-th-feature { text-align: left; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--so-dimmer); font-weight: 700; }
 .pr-th-name { display: block; font-size: 14px; font-weight: 600; color: var(--so-text); }
 .pr-th-price { display: block; font-size: 12px; color: var(--so-dimmer); margin-top: 2px; font-variant-numeric: tabular-nums; }
-.pr-table thead th.popular, .pr-table td.popular { background: #f4f7ff; }
+.pr-table thead th.popular, .pr-table td.popular { background: var(--hm-recessed); }
 .pr-table tbody th[scope="row"] { font-weight: 500; color: var(--so-text); min-width: 200px; }
 .pr-table th[scope="row"] { text-align: left; }
 .pr-table .pr-cat th {
@@ -193,9 +155,9 @@
 .pr-cat-btn:hover { color: var(--so-text); }
 .pr-cat-chev { transition: transform 180ms var(--ease, ease); flex-shrink: 0; }
 .pr-table tbody.collapsed .pr-cat-chev { transform: rotate(-90deg); }
-.pr-cat-count { margin-left: auto; font-size: 10px; letter-spacing: 0; color: var(--so-dimmer); background: rgba(23, 25, 29, 0.05); border-radius: 999px; padding: 1px 7px; }
+.pr-cat-count { margin-left: auto; font-size: 10px; letter-spacing: 0; color: var(--so-dimmer); background: var(--hm-badge); border-radius: var(--hm-r-badge); padding: 1px 7px; }
 .pr-table tbody tr:not(.pr-cat):hover th[scope="row"], .pr-table tbody tr:not(.pr-cat):hover td { background: rgba(23, 25, 29, 0.025); }
-.pr-table tbody tr:not(.pr-cat):hover td.popular { background: #ecf1ff; }
+.pr-table tbody tr:not(.pr-cat):hover td.popular { background: var(--hm-badge); }
 .pr-table tbody:last-child tr:last-child th, .pr-table tbody:last-child tr:last-child td { border-bottom: none; }
 
 .pr-row-label { display: inline-flex; align-items: center; gap: 6px; }
@@ -224,7 +186,7 @@
   .pr-tagline { min-height: 0; }
 }
 @media (max-width: 860px) {
-  .pr-main { padding-top: 104px; }
+  .pr-main { padding-top: 112px; }
 }
 .pr-scroll-hint { display: none; margin: 0 0 10px; font-size: 13px; color: var(--so-dimmer); }
 @media (max-width: 760px) {
@@ -238,7 +200,6 @@
   .pr-table tbody th[scope="row"] { min-width: 170px; max-width: 200px; }
 }
 @media (max-width: 640px) {
-  .pr-main { padding-left: 16px; padding-right: 16px; }
   .pr-grid { grid-template-columns: 1fr; }
   .pr-custom { padding: 22px 18px; }
   .pr-table th, .pr-table td { padding: 10px 12px; }

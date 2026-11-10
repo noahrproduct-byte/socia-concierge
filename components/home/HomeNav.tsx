@@ -6,7 +6,8 @@ import { Menu, X } from "lucide-react";
 import BrandMark from "@/components/BrandMark";
 
 // The homepage's top bar: brand, section links, log in and the one primary
-// action. On phones the section links fold into a menu under the bar.
+// action. On phones the section links fold into a menu under the bar. Other
+// public pages (pricing) use it too, with the section links pointing home.
 
 const LINKS = [
   { href: "#screens", label: "Product" },
@@ -15,8 +16,9 @@ const LINKS = [
   { href: "/pricing", label: "Pricing" },
 ];
 
-export default function HomeNav({ signedIn }: { signedIn: boolean }) {
+export default function HomeNav({ signedIn, current = "/" }: { signedIn: boolean; current?: string }) {
   const [open, setOpen] = useState(false);
+  const links = LINKS.map((l) => ({ ...l, href: current !== "/" && l.href.startsWith("#") ? `/${l.href}` : l.href }));
   return (
     <header className="hm-nav">
       <div className="hm-wrap">
@@ -25,8 +27,8 @@ export default function HomeNav({ signedIn }: { signedIn: boolean }) {
             <BrandMark size={32} /> SOCIA
           </Link>
           <nav className="hm-nav-links" aria-label="Sections">
-            {LINKS.map((l) => (
-              <Link key={l.href} href={l.href}>
+            {links.map((l) => (
+              <Link key={l.href} href={l.href} aria-current={l.href === current ? "page" : undefined}>
                 {l.label}
               </Link>
             ))}
@@ -59,8 +61,8 @@ export default function HomeNav({ signedIn }: { signedIn: boolean }) {
           </div>
         </div>
         <nav id="hm-nav-menu" className={`hm-nav-menu${open ? " is-open" : ""}`} aria-label="Sections" hidden={!open}>
-          {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} onClick={() => setOpen(false)}>
+          {links.map((l) => (
+            <Link key={l.href} href={l.href} aria-current={l.href === current ? "page" : undefined} onClick={() => setOpen(false)}>
               {l.label}
             </Link>
           ))}

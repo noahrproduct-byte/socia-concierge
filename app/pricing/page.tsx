@@ -1,18 +1,22 @@
-import { Geist } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements";
 import { recordEvent } from "@/lib/planGuard";
 import { PLANS, checkoutAvailable, contactHref, isPlanId, type PlanId } from "@/lib/plans";
-import { Nav, Footer } from "@/components/MarketingChrome";
+import HomeNav from "@/components/home/HomeNav";
+import HomeFooter from "@/components/home/HomeFooter";
 import PricingCards from "@/components/pricing/PricingCards";
 import ComparisonTable from "@/components/pricing/ComparisonTable";
+import "@/components/home/home.css";
 import "./pricing.css";
 
 // Public pricing page. Everything on it is generated from lib/plans.ts and
 // lib/pricingTable.ts; this file only lays it out. Reading the visitor is
-// optional: signed out, the page renders the same cards with sign-up CTAs.
+// optional: signed out, the page renders the same cards with sign-up CTAs. It
+// wears the homepage's look (components/home/home.css): its top bar, footer,
+// type, black actions and cards.
 
-const geist = Geist({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-display" });
+const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono" });
 
 export const metadata = {
   title: "Pricing | SOCIA",
@@ -40,14 +44,14 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   const pro = PLANS.pro.limits;
 
   return (
-    <div className={`${geist.variable} so pr-page`}>
-      <Nav signedIn={signedIn} current="/pricing" />
+    <div className={`${geistMono.variable} hm pr-page`}>
+      <HomeNav signedIn={signedIn} current="/pricing" />
 
       <main className="pr-main">
-        <header className="so-wrap center pr-head">
-          <span className="so-label">Plans</span>
-          <h1 className="so-h2">Know what to do next.</h1>
-          <p className="so-lead">
+        <header className="hm-wrap pr-head">
+          <span className="hm-eyebrow">Plans</span>
+          <h1 className="hm-h2 is-center">Know what to do next.</h1>
+          <p className="hm-lead">
             Start free with one brand, then choose the plan that matches how many brands you run and how much you want SOCIA to do each month.
           </p>
           {!checkout && (
@@ -66,26 +70,28 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
           )}
         </header>
 
-        <section className="so-wrap" aria-label="Plans">
+        <section className="hm-wrap" aria-label="Plans">
           <PricingCards currentPlan={plan} signedIn={signedIn} checkout={checkout} highlight={highlight} />
         </section>
 
-        <section className="so-wrap pr-compare" aria-labelledby="compare-heading">
-          <h3 id="compare-heading" className="pr-section-title">Compare plans</h3>
+        <section className="hm-wrap pr-compare" aria-labelledby="compare-heading">
+          <h2 id="compare-heading" className="pr-section-title">Compare plans</h2>
           <p className="pr-section-lead">Everything each plan includes today, and what is on the way.</p>
           <ComparisonTable />
         </section>
 
-        <section id="custom" className="so-wrap pr-custom" aria-labelledby="custom-heading">
-          <h3 id="custom-heading" className="pr-section-title">Need more?</h3>
-          <p>
-            Need more than {pro.workspaces} Brand Workspaces, {pro.team_members} team members or larger usage limits?{" "}
-            <a href={contactHref("SOCIA custom pricing")}>Contact us</a> for custom pricing.
-          </p>
+        <section id="custom" className="hm-wrap pr-custom-wrap" aria-labelledby="custom-heading">
+          <div className="pr-custom">
+            <h2 id="custom-heading" className="pr-section-title">Need more?</h2>
+            <p>
+              Need more than {pro.workspaces} Brand Workspaces, {pro.team_members} team members or larger usage limits?{" "}
+              <a href={contactHref("SOCIA custom pricing")}>Contact us</a> for custom pricing.
+            </p>
+          </div>
         </section>
       </main>
 
-      <Footer />
+      <HomeFooter onHome={false} />
     </div>
   );
 }
