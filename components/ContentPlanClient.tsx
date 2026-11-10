@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   AtSign,
   Compass,
@@ -24,6 +25,7 @@ import {
   PenSquare,
   Plus,
   Clapperboard,
+  Film,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { AskDrawer } from "@/components/AskSocia";
@@ -48,6 +50,9 @@ import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
+
+// Loaded on demand: the video preview and renderer are large and only needed once someone presses Make it with AI.
+const MakeWithAi = dynamic(() => import("@/components/animated/MakeWithAi"), { ssr: false });
 import { PlanTaskRow, usePlanTasks } from "@/components/plan/PlanTasks";
 import { reasonLabel } from "@/lib/planItems";
 import { Tabs, TabList, Tab, TabPanel } from "@/components/system";
@@ -589,6 +594,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
   const [itemBusy, setItemBusy] = useState<number | null>(null);
   const [rejecting, setRejecting] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | "new" | null>(null);
+  const [making, setMaking] = useState<number | null>(null);
   const persist = async (weeklyPlan: Deliverable["weeklyPlan"], ok: string): Promise<boolean> => {
     onUpdate({ ...data, weeklyPlan });
     if (!planId) { setSaveNote("Changed on screen. Generate or open a saved plan to keep changes."); return false; }
@@ -910,6 +916,10 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
                       <Link href={`/studio?mode=guide&plan=${planId}&i=${i}`} className="ov-link" title="Hooks, script and shot list for this post">
                         <Clapperboard size={11} /> {post.guide ? "Open its production guide" : "Open in Studio"}
                       </Link>
+                      {" "}
+                      <button type="button" className="ov-link" onClick={() => setMaking(i)} title="SOCIA writes this post as an animated video you can edit, then saves it as a draft">
+                        <Film size={11} /> Make it with AI
+                      </button>
                     </>
                   )}
                 </div>
@@ -929,6 +939,9 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
             ); })}
           </div>
           <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
+          {planId && making != null && data.weeklyPlan[making] && (
+            <MakeWithAi key={making} open onOpenChange={(o) => { if (!o) setMaking(null); }} planId={planId} index={making} day={data.weeklyPlan[making].day} />
+          )}
           <RejectDialog open={rejecting != null} day={rejecting != null ? data.weeklyPlan[rejecting]?.day ?? "" : ""} onClose={() => setRejecting(null)} onConfirm={(r, n, replace) => rejecting != null && reject(rejecting, r, n, replace)} />
           {editing != null && (
             <ItemDialog
