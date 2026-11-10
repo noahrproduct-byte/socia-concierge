@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CREDIT_USD, MARGIN, MONTHLY_CREDITS, GENERATION_MODELS, DEFAULT_MODEL, clipCredits, generationCredits, formatCredits, modelById } from "./config";
+import { CREDIT_USD, MARGIN, MONTHLY_CREDITS, GENERATION_MODELS, DEFAULT_MODEL, clipCredits, creditsForUsd, formatCredits, modelById } from "./config";
 import { PLAN_ORDER, PLANS } from "@/lib/plans";
 
 describe("credits config", () => {
@@ -15,24 +15,28 @@ describe("credits config", () => {
     expect(clipCredits(0)).toBe(clipCredits(1));
   });
 
-  it("prices video by the second and images each, and refuses a kind the model lacks", () => {
-    const fast = modelById(DEFAULT_MODEL.text_to_video)!;
-    expect(generationCredits(fast.id, "text_to_video", 6)).toBe(Math.ceil((6 * fast.usdPerSecond! * MARGIN) / CREDIT_USD));
-    expect(generationCredits(fast.id, "text_to_image")).toBeNull();
-    const img = modelById(DEFAULT_MODEL.text_to_image)!;
-    expect(generationCredits(img.id, "text_to_image")).toBe(Math.ceil((img.usdPerImage! * MARGIN) / CREDIT_USD));
-    expect(generationCredits("no-such-model", "text_to_video", 5)).toBeNull();
+  it("turns a dollar cost into credits with the margin, never zero", () => {
+    expect(creditsForUsd(1)).toBe(Math.ceil((1 * MARGIN) / CREDIT_USD));
+    expect(creditsForUsd(0.094)).toBe(15);
+    expect(creditsForUsd(0)).toBe(1);
   });
 
-  it("keeps the curated list consistent: every kind has an endpoint and a price, every default exists", () => {
+  it("keeps the curated list consistent: every kind has an endpoint, video has lengths, every default exists", () => {
     for (const m of GENERATION_MODELS) {
-      for (const k of m.kinds) {
-        expect(m.endpoints[k], `${m.id} ${k} endpoint`).toBeTruthy();
-        expect(generationCredits(m.id, k, m.durations?.[0] ?? 0), `${m.id} ${k} price`).not.toBeNull();
-      }
+      for (const k of m.kinds) expect(m.endpoints[k], `${m.id} ${k} endpoint`).toBeTruthy();
       if (m.kinds.some((k) => k !== "text_to_image")) expect(m.durations?.length).toBeGreaterThan(0);
     }
     for (const [kind, id] of Object.entries(DEFAULT_MODEL)) expect(modelById(id)?.kinds).toContain(kind);
+  });
+
+  it("offers vertical video by default and never offers a vertical shape a model can't make", () => {
+    expect(modelById(DEFAULT_MODEL.text_to_video)?.aspectRatios?.[0]).toBe("9:16");
+    // Hailuo 2.3 Standard has a fixed 768p output with no shape setting.
+    const hailuo = modelById("hailuo-2.3-standard")!;
+    expect(hailuo.kinds).not.toContain("text_to_video");
+    expect(hailuo.aspectRatios).toBeUndefined();
+    // SOUL 2 takes 9:16, 16:9, 4:3, 3:4, 1:1, 2:3 and 3:2 (no 4:5).
+    expect(modelById("soul-2-standard")!.aspectRatios).not.toContain("4:5");
   });
 
   it("formats credits", () => {

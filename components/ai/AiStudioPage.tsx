@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Film, Lightbulb, Loader2 } from "lucide-react";
-import { DEFAULT_MODEL, GENERATION_MODELS, generationCredits, modelById, type GenerationKind } from "@/lib/credits/config";
+import { DEFAULT_MODEL, GENERATION_MODELS, modelById, type GenerationKind } from "@/lib/credits/config";
 import { ConfirmDialog } from "@/components/system";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, CreditsLine, StatusChip, MediaCard } from "./shared";
 
@@ -23,7 +23,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
   const [kind, setKind] = useState<GenerationKind>("text_to_video");
   const [modelId, setModelId] = useState<string>(DEFAULT_MODEL.text_to_video);
   const [prompt, setPrompt] = useState("");
-  const [duration, setDuration] = useState<number>(6);
+  const [duration, setDuration] = useState<number>(5);
   const [aspect, setAspect] = useState<string>("9:16");
   const [image, setImage] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
@@ -43,8 +43,28 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
   const models = useMemo(() => GENERATION_MODELS.filter((m) => m.kinds.includes(kind)), [kind]);
   const model = modelById(modelId) ?? models[0];
   useEffect(() => { if (!model || !model.kinds.includes(kind)) setModelId(DEFAULT_MODEL[kind]); }, [kind, model]);
-  useEffect(() => { if (model?.durations && !model.durations.includes(duration)) setDuration(model.durations[0]); if (model?.aspectRatios && !model.aspectRatios.includes(aspect)) setAspect(model.aspectRatios[0]); }, [model, duration, aspect]);
-  const price = model ? generationCredits(model.id, kind, duration) : null;
+  useEffect(() => { if (model?.durations && !model.durations.includes(duration)) setDuration(model.durations[0]); }, [model, duration]);
+  // Image to video takes its shape from the start image.
+  const shapes = kind === "image_to_video" ? [] : (model?.aspectRatios ?? []);
+  const shape = shapes.length ? (shapes.includes(aspect) ? aspect : shapes[0]) : undefined;
+  const lengthSec = kind === "text_to_image" ? undefined : duration;
+
+  // The price of exactly this request, from the provider's live estimate.
+  const [price, setPrice] = useState<number | null>(null);
+  const [pricing, setPricing] = useState(false);
+  const [priceErr, setPriceErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!model || (lengthSec != null && !(model.durations ?? []).includes(lengthSec))) return;
+    let stale = false;
+    setPrice(null); setPriceErr(null); setPricing(true);
+    const t = setTimeout(() => {
+      api<{ credits: number }>("/api/studio-ai/quote", { method: "POST", body: JSON.stringify({ kind, modelId: model.id, durationSec: lengthSec, aspectRatio: shape }) })
+        .then((r) => { if (!stale) setPrice(r.credits); })
+        .catch((e) => { if (!stale) setPriceErr(errorText(e)); })
+        .finally(() => { if (!stale) setPricing(false); });
+    }, 250);
+    return () => { stale = true; clearTimeout(t); };
+  }, [kind, model, lengthSec, shape]);
 
   const loadJob = useCallback(async (id: string) => {
     const r = await api<{ job: Job; outputs: Output[] }>(`/api/studio-ai/jobs/${id}`);
@@ -93,7 +113,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
       setBusy("Starting");
       const r = await api<{ job: Job; balance: number | null }>("/api/studio-ai/jobs", {
         method: "POST",
-        body: JSON.stringify({ kind, modelId: model.id, prompt, durationSec: kind === "text_to_image" ? undefined : duration, aspectRatio: aspect, inputImagePath, idea, caption: caption || null, hashtags: hashtags.split(/[\s,]+/).filter(Boolean) }),
+        body: JSON.stringify({ kind, modelId: model.id, prompt, durationSec: lengthSec, aspectRatio: shape, inputImagePath, idea, caption: caption || null, hashtags: hashtags.split(/[\s,]+/).filter(Boolean) }),
       });
       setJobs((js) => [r.job, ...js]); setBalance(r.balance);
     } catch (e) {
@@ -146,7 +166,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
         </div>
         <label className="ai-field"><span>Model</span>
           <select value={model?.id ?? ""} onChange={(e) => setModelId(e.target.value)}>
-            {models.map((m) => <option key={m.id} value={m.id}>{m.name}: {m.usdPerSecond != null ? `${generationCredits(m.id, kind, m.durations?.[0] ?? 5)} credits for ${m.durations?.[0] ?? 5} s` : `${generationCredits(m.id, "text_to_image")} credits an image`}</option>)}
+            {models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
           {model && <small>{model.note}</small>}
         </label>
@@ -162,14 +182,17 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
               <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>{model.durations.map((d) => <option key={d} value={d}>{d} s</option>)}</select>
             </label>
           )}
-          {model?.aspectRatios && (
+          {shapes.length > 0 && (
             <label className="ai-field ai-field-short"><span>Shape</span>
-              <select value={aspect} onChange={(e) => setAspect(e.target.value)}>{model.aspectRatios.map((a) => <option key={a} value={a}>{a}{a === "9:16" ? " (Reels)" : ""}</option>)}</select>
+              <select value={shape} onChange={(e) => setAspect(e.target.value)}>{shapes.map((a) => <option key={a} value={a}>{a}{a === "9:16" ? " (Reels)" : ""}</option>)}</select>
             </label>
           )}
+          {kind === "image_to_video" && <small className="ai-note">The video keeps your start image&apos;s shape.</small>}
         </div>
         <label className="ai-field"><span>Caption (optional)</span><textarea value={caption} rows={2} maxLength={2200} onChange={(e) => setCaption(e.target.value)} /></label>
         <label className="ai-field"><span>Hashtags (optional)</span><input type="text" value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="coffee smallbusiness" /></label>
+        {pricing && <p className="ai-note" role="status">Checking the price for this request.</p>}
+        {priceErr && <p className="ai-err" role="alert">The price couldn&apos;t be read, so nothing can be generated yet. {priceErr}</p>}
         <CreditsLine balance={balance} price={price} />
         {err && <p className="ai-err" role="alert">{err}</p>}
         <div className="ai-submit">

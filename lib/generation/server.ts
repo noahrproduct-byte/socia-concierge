@@ -5,7 +5,7 @@
 // checked. Server only.
 import { createServiceClient } from "@/lib/supabase/service";
 import type { Ctx } from "@/lib/context";
-import { generationCredits, modelById, type GenerationKind } from "@/lib/credits/config";
+import { creditsForUsd, modelById, type GenerationKind, type GenerationModel } from "@/lib/credits/config";
 import { spendCredits, refundCredits } from "@/lib/credits/ledger";
 import { generationProvider } from "./higgsfield";
 import { GenerationError, type GenerationOutput, type GenerationStatus } from "./provider";
@@ -16,7 +16,7 @@ type Supa = any;
 
 export type GenerationJobRow = {
   id: string; user_id: string; workspace_id: string | null; kind: GenerationKind; model: string; prompt: string;
-  input_image_path: string | null; input: { durationSec?: number; aspectRatio?: string; statusUrl?: string | null };
+  input_image_path: string | null; input: { durationSec?: number; aspectRatio?: string; statusUrl?: string | null; quotedUsd?: number };
   idea: Record<string, unknown> | null; provider: string; provider_request_id: string | null;
   status: "queued" | "processing" | "done" | "failed" | "cancelled";
   credits_reserved: number; credits_charged: number | null; error: string | null;
@@ -55,27 +55,54 @@ export type CreateGenerationInput = {
   hashtags?: string[];
 };
 
-/** Credits a request would cost, or null when the model and kind don't go together. Pure. */
-export function priceGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "durationSec">): number | null {
-  const m = modelById(input.modelId);
-  if (!m || !m.kinds.includes(input.kind)) return null;
-  const seconds = input.kind === "text_to_image" ? 0 : (input.durationSec ?? m.durations?.[0] ?? 5);
-  if (input.kind !== "text_to_image" && m.durations && !m.durations.includes(seconds)) return null;
-  return generationCredits(m.id, input.kind, seconds);
+export type GenerationShape = { model: GenerationModel; durationSec?: number; aspectRatio?: string };
+
+/** The model, length and shape a request will run with, or the sentence that says what's wrong. Pure. */
+export function checkGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "durationSec" | "aspectRatio">): GenerationShape | { error: string } {
+  const model = modelById(input.modelId);
+  if (!model || !model.kinds.includes(input.kind)) return { error: "Pick a model that does this kind of generation." };
+  const durationSec = input.kind === "text_to_image" ? undefined : (input.durationSec ?? model.durations?.[0]);
+  if (input.kind !== "text_to_image" && (!durationSec || !(model.durations ?? []).includes(durationSec))) {
+    return { error: `Pick a length this model offers: ${(model.durations ?? []).join(", ")} seconds.` };
+  }
+  // Image to video takes its shape from the start image.
+  const shapes = input.kind === "image_to_video" ? [] : (model.aspectRatios ?? []);
+  const aspectRatio = shapes.length ? (input.aspectRatio && shapes.includes(input.aspectRatio) ? input.aspectRatio : shapes[0]) : undefined;
+  return { model, durationSec, aspectRatio };
+}
+
+/**
+ * What a request costs, from the provider's live estimate for exactly this
+ * request: SOCIA's dollar cost and the credits charged for it (with the margin).
+ * Throws when the price can't be read, so nothing runs at a guessed price.
+ */
+export async function quoteGeneration(input: Pick<CreateGenerationInput, "kind" | "modelId" | "prompt" | "durationSec" | "aspectRatio"> & { imageUrl?: string }): Promise<{ credits: number; usd: number; shape: GenerationShape }> {
+  const shape = checkGeneration(input);
+  if ("error" in shape) throw new GenerationError(shape.error, "bad_model");
+  const provider = generationProvider();
+  if (!provider) throw new GenerationError("AI Studio's generation service is not configured.", "not_configured");
+  const usd = await provider.estimate({
+    kind: input.kind, model: shape.model, prompt: (input.prompt || "price check").slice(0, 2500),
+    durationSec: shape.durationSec, aspectRatio: shape.aspectRatio,
+    // Before an image is uploaded, a price check uses SOCIA's own icon as the start image.
+    imageUrl: input.kind === "image_to_video" ? (input.imageUrl ?? "https://sociaos.com/icon.png") : undefined,
+  });
+  return { credits: creditsForUsd(usd), usd, shape };
 }
 
 export async function createGenerationJob(ctx: Ctx, input: CreateGenerationInput): Promise<GenerationJobRow> {
   const svc = svcOrThrow();
-  const model = modelById(input.modelId);
-  const credits = priceGeneration(input);
-  if (!model || credits == null) throw new GenerationError("Pick a model that does this kind of generation.", "bad_model");
   if (input.kind === "image_to_video" && !input.inputImagePath) throw new GenerationError("Image to video needs a start image.", "no_image");
   const prompt = input.prompt.replace(/\s+/g, " ").trim().slice(0, 2500);
   if (!prompt) throw new GenerationError("Write what the video or image should show.", "no_prompt");
+  const imageUrl = input.kind === "image_to_video" ? (await signedUrl(svc, input.inputImagePath ?? null, 3600)) ?? undefined : undefined;
+  if (input.kind === "image_to_video" && !imageUrl) throw new GenerationError("The start image could not be read.", "no_image");
+  const { credits, usd, shape } = await quoteGeneration({ ...input, prompt, imageUrl });
+  const model = shape.model;
   const { data, error } = await svc.from("generation_jobs").insert({
     user_id: ctx.ownerId, workspace_id: ctx.workspace?.id ?? null, kind: input.kind, model: model.id, prompt,
     input_image_path: input.inputImagePath ?? null,
-    input: { durationSec: input.kind === "text_to_image" ? undefined : (input.durationSec ?? model.durations?.[0]), aspectRatio: input.aspectRatio, caption: input.caption ?? null, hashtags: input.hashtags ?? [] },
+    input: { durationSec: shape.durationSec, aspectRatio: shape.aspectRatio, quotedUsd: usd, caption: input.caption ?? null, hashtags: input.hashtags ?? [] },
     idea: input.idea ?? null, provider: generationProvider()?.name ?? "higgsfield", status: "queued", credits_reserved: credits,
   }).select(JOB_COLS).single();
   if (error) throw new GenerationError(error.message, "db");
