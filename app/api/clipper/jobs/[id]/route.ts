@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const r = await aiRequest("ai_clipper");
   if (!r.ok) return r.res;
   try {
-    let job = await loadClipJob(r.ctx.client, r.ctx.ownerId, id);
+    let job = await loadClipJob(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     job = await refreshClipJob(job);
     const clips = job.status === "done" ? await loadClips(r.ctx.client, r.ctx.ownerId, job.id, job) : [];
@@ -29,7 +29,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const r = await aiRequest("ai_clipper", { mutate: true });
   if (!r.ok) return r.res;
   try {
-    const job = await loadClipJob(r.ctx.client, r.ctx.ownerId, id);
+    const job = await loadClipJob(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     const ok = await deleteClipJob(r.ctx.ownerId, job);
     if (!ok) return NextResponse.json({ error: "This video is still being clipped. It can be removed once it finishes." }, { status: 409 });

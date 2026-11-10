@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const r = await aiRequest("ai_studio");
   if (!r.ok) return r.res;
   try {
-    let job = await loadGenerationJob(r.ctx.client, r.ctx.ownerId, id);
+    let job = await loadGenerationJob(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     job = await refreshGenerationJob(job);
     const outputs = job.status === "done" ? await loadGenerations(r.ctx.client, r.ctx.ownerId, job.id) : [];
@@ -27,7 +27,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const r = await aiRequest("ai_studio", { mutate: true });
   if (!r.ok) return r.res;
   try {
-    const job = await loadGenerationJob(r.ctx.client, r.ctx.ownerId, id);
+    const job = await loadGenerationJob(r.ctx.client, r.ctx.ownerId, r.ctx.workspace?.id ?? null, id);
     if (!job) return NextResponse.json({ error: "That job does not exist." }, { status: 404 });
     const ok = await deleteGenerationJob(r.ctx.ownerId, job);
     if (!ok) return NextResponse.json({ error: "This one is already generating and can't be cancelled. It can be removed once it finishes." }, { status: 409 });

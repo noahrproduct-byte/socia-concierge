@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const r = await aiRequest("ai_studio");
   if (!r.ok) return r.res;
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: AI_UNAVAILABLE_COPY.no_key, kind: "no_key" }, { status: 503 });
-  const limited = await perUserLimit(r.viewerId, "studio_ideas", 20, "AI Studio ideas");
+  const limited = await perUserLimit(r.ctx.ownerId, "studio_ideas", 20, "AI Studio ideas");
   if (limited) return limited;
   const body = (await req.json().catch(() => null)) as { about?: unknown } | null;
   const about = typeof body?.about === "string" ? body.about.replace(/\s+/g, " ").trim().slice(0, 200) || null : null;
