@@ -31,6 +31,7 @@ import { fileLabel } from "@/lib/publishing/postLabel";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 import StudioEmpty from "./StudioEmpty";
+import { SHRINK_ABOVE, shrinkForUpload } from "@/lib/studioClips/shrink";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
@@ -115,6 +116,12 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       const inflight = cur.filter((l) => l.phase !== "done" && l.phase !== "duplicate" && !l.clip);
       const fromServer: LocalClip[] = p.clips.map((c) => {
         const prev = cur.find((l) => l.clip?.id === c.id);
+        // Still uploading in this tab: keep its progress. Registered but never finished (closed tab, a refused
+        // upload): it isn't usable, so it says so instead of "Ready".
+        if (c.status === "registered") {
+          if (prev && prev.phase !== "done" && prev.phase !== "error") return prev;
+          return { key: c.id, name: c.name, phase: "error", progress: 0, stageNote: null, error: "This clip didn't finish uploading. Remove it and add it again.", thumb: prev?.thumb ?? null, clip: c, durationSec: c.durationSec, reused: c.reused };
+        }
         return {
           key: c.id, name: c.name, phase: c.status === "failed" ? "error" : "done", progress: 1, stageNote: null,
           error: c.status === "failed" ? c.error : null, thumb: c.frames[0]?.url ?? prev?.thumb ?? null, clip: c,
@@ -190,7 +197,7 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       patchLocal(key, { phase: "registering", progress: 0.3, durationSec: probe.durationSec });
       const reg = await fetch("/api/studio/clips", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId: p.id, fingerprint, name: file.name, mime: file.type || null, bytes: file.size, durationSec: probe.durationSec, width: probe.width, height: probe.height, recordedAt: file.lastModified ? new Date(file.lastModified).toISOString() : null, ext: file.name.split(".").pop() }),
+        body: JSON.stringify({ projectId: p.id, fingerprint, name: file.name, mime: file.type || null, bytes: file.size, durationSec: probe.durationSec, width: probe.width, height: probe.height, recordedAt: file.lastModified ? new Date(file.lastModified).toISOString() : null, ext: file.size > SHRINK_ABOVE ? "mp4" : file.name.split(".").pop() }),
       });
       const rj = await reg.json().catch(() => null);
       if (reg.status === 409 && rj?.duplicate) { patchLocal(key, { phase: "duplicate", progress: 1 }); return null; }
@@ -215,8 +222,16 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       const first = ingest.frames[0];
       if (first) patchLocal(key, { thumb: URL.createObjectURL(first.blob) });
 
+      // Storage takes 50 MB a file: a bigger phone clip is made smaller on this device first (lib/studioClips/shrink.ts).
+      let send = file;
+      if (file.size > SHRINK_ABOVE) {
+        patchLocal(key, { phase: "analyzing", progress: 0, stageNote: "Making it small enough to upload" });
+        const small = await shrinkForUpload(file, probe, (p) => patchLocal(key, { progress: p }));
+        if (!small) throw new Error(`This clip is ${Math.round(file.size / 1048576)} MB, over the 50 MB upload limit, and this browser couldn't make it smaller. Export it at 1080p (or a shorter part of it) and add it again.`);
+        send = small;
+      }
       patchLocal(key, { phase: "uploading", progress: 0, stageNote: "Uploading" });
-      await uploadMedia(supabase, STUDIO_BUCKET, paths.source, file, (sent, total) => patchLocal(key, { progress: total ? sent / total : 0 }));
+      await uploadMedia(supabase, STUDIO_BUCKET, paths.source, send, (sent, total) => patchLocal(key, { progress: total ? sent / total : 0 }));
       const framePaths: { t: number; path: string }[] = [];
       for (let i = 0; i < ingest.frames.length; i++) {
         const path = `${paths.frames}${i}.jpg`;

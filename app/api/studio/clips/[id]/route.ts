@@ -4,6 +4,7 @@ import { completeClip, deleteClip, type CompleteInput } from "@/lib/studioClips/
 import type { ClipFacts } from "@/lib/studioClips/types";
 import { isOwnPath } from "@/lib/storagePaths";
 import { errorResponse } from "@/lib/dbError";
+import { MAX_KEYFRAMES } from "@/lib/studioClips/types";
 
 export const runtime = "nodejs";
 
@@ -28,7 +29,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const clip = await completeClip(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, {
       sourcePath: body.sourcePath,
-      frames: body.frames.filter((f) => typeof f?.t === "number").map((f) => ({ t: Number(f.t), path: String(f.path) })).slice(0, 12),
+      frames: body.frames.filter((f) => typeof f?.t === "number").map((f) => ({ t: Number(f.t), path: String(f.path) })).slice(0, MAX_KEYFRAMES),
       audioPath: typeof body.audioPath === "string" ? body.audioPath : null,
       facts: (body.facts as ClipFacts | undefined) ?? null,
     });
