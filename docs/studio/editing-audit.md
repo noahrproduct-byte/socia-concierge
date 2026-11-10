@@ -41,7 +41,7 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 | 10 Niche-aware editing | missing | One rule set for everything; the niche only reaches the prompt | Pacing and join profiles per kind of video |
 | 11 Editorial plan (EDL) | real | Source in and out, transitions, sound, colour, text, notes; validated in code; undo and redo | No confidence per decision |
 | 12 Rendering | real | Same composition for preview and export, in the browser | None found in this audit |
-| 13 Quality assurance | partial | Before phase 1: the pacing report only. **Phase 1:** `cutCheck.ts` checks every cut for stutters, repeats, sentences cut off, transitions over speech, too-short shots, black frames and overlapping text; safe fixes are applied to SOCIA's own cuts, the rest shown in the editor | The rendered file itself is not inspected yet |
+| 13 Quality assurance | partial | Before phase 1: the pacing report only. **Phase 1:** `cutCheck.ts` checks every cut for stutters, repeats, sentences cut off, transitions over speech, too-short shots, black frames and overlapping text; safe fixes are applied to SOCIA's own cuts, the rest shown in the editor. **Phase 2:** `renderCheck.ts` + `inspectRender.ts` watch the finished file (length, size, black and frozen frames at every join, missing or dropped sound, clipping, level); a render fault gets one more try, then asks before saving | Loudness is an average level in dB, not a true LUFS measure |
 | 14 Performance learning | real | `learn.ts` compares the account's own Studio posts with its median, with sample sizes; rater outlook stays Low confidence until results exist | None in scope |
 
 ## Known problems carried in
@@ -65,9 +65,7 @@ EDL, and the preview and the export render the same EDL (`components/studio/remo
 
 ## Proposed next phases
 
-1. **Check the rendered file**: after export, decode the MP4, look at frames on both sides of every
-   join for black, frozen or repeated frames, and measure loudness and true peak; fix or warn
-   before the draft is saved.
+1. ~~Check the rendered file~~ (done in phase 2, branch `render-check`).
 2. **Speech editing**: classify pauses, find repeated sentences and false starts, L-cuts when a
    voice runs over the next shot.
 3. **Niche profiles**: food and process, talking to camera, product demo; each sets pacing
