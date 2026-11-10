@@ -22,6 +22,7 @@ import {
 import BrandMark from "@/components/BrandMark";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { WEEK } from "./exampleWeek";
+import { OPEN_PLATFORMS, openPlatformsText } from "@/lib/platformStatus";
 
 // Sections carried over from the live sociaos.com homepage (CinematicLanding on
 // main), rebuilt in this page's system: the four "problem" mini-charts, the
@@ -315,7 +316,7 @@ const STAGES: Stage[] = [
     Icon: Send,
     head: "Posts go out when your audience is there.",
     feats: [
-      [Clock, "Schedules to Instagram, Facebook and YouTube", "From one Calendar."],
+      [Clock, `Schedules to ${openPlatformsText()}`, "From one Calendar."],
       [Users, "Approvals for teams and clients", "Members submit; owners and admins approve, and approving schedules."],
       [Check, "Nothing publishes by accident", "Only what is on your Calendar goes out."],
     ],
@@ -554,7 +555,7 @@ const WITHOUT = [
 ];
 const WITH = [
   "Know what to post next, and why",
-  "Instagram, Facebook and YouTube in one place",
+  `${openPlatformsText()} in one place`,
   "Competitor patterns found for you",
   "Post in your own best window",
   "See each result against your median in two days",
@@ -628,9 +629,9 @@ export function Steps() {
           <li style={{ "--i": 0 } as CSSProperties}>
             <span className="hmx-step-n">01</span>
             <h3>Connect your accounts</h3>
-            <p>Instagram, Facebook and YouTube connect in a minute. SOCIA keeps a daily record from then on.</p>
+            <p>{openPlatformsText()} connect in a minute. SOCIA keeps a daily record from then on.</p>
             <div className="hmx-step-vis hmx-connect">
-              {(["instagram", "facebook", "youtube"] as const).map((p, i) => (
+              {OPEN_PLATFORMS.map((p, i) => (
                 <div key={p} style={{ "--j": i } as CSSProperties}>
                   <PlatformMark platform={p} brand />
                   <span>{p === "instagram" ? "Instagram" : p === "facebook" ? "Facebook" : "YouTube"}</span>

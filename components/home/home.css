@@ -573,7 +573,7 @@ html:has(.hm) { background: #f7f6f3; }
    ========================================================================= */
 .hm { --hm-gold: #8a6a2c; --hm-gold-line: rgba(138, 106, 44, 0.4); --hm-gold-tint: #f8f3e9; --hm-warm: #17191d; }
 
-.hm-cine { position: relative; isolation: isolate; overflow: hidden; min-height: clamp(760px, 90svh, 860px); padding: clamp(108px, 13vh, 124px) 0 0; align-content: start; border-bottom: 1px solid var(--hm-rule); }
+.hm-cine { position: relative; isolation: isolate; overflow: hidden; min-height: clamp(840px, 94svh, 900px); padding: clamp(108px, 13vh, 124px) 0 0; align-content: start; border-bottom: 1px solid var(--hm-rule); }
 .hm-cine-scrim { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
 .hm-cine .hm-hero-copy { z-index: 2; gap: 16px; max-width: 980px; }
 .hm-cine .hm-hero-cta { margin-top: 4px; }
