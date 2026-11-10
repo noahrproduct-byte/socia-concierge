@@ -25,6 +25,7 @@ import { schedulePost } from "@/lib/publishing/scheduleClient";
 import { batchOrder, MAX_PER_DAY, scheduleBatch, tomorrowIn, type BatchItem, type CalendarPost } from "@/lib/studioClips/batch";
 import { clipLabel, type BuildPlayerData, type StudioBuild, type StudioProject } from "@/lib/studioClips/types";
 import { renderBlocker, renderBuild, spokenText } from "./renderBuild";
+import { renderFaults } from "@/lib/studioClips/renderCheck";
 import { autoLook, wantsAutoLook } from "@/lib/studioClips/autoLook";
 import { Bar } from "@/components/dashboard/motion";
 import "@/app/(app)/dashboard/dashboard.css";
@@ -209,6 +210,9 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
     if (!path) {
       patch(key, { step: "render", progress: 0 });
       const out = await renderBuild(player, { signal, onProgress: (f) => patch(key, { progress: f }) });
+      // Made twice and the same fault both times: not saved, so nothing broken gets scheduled.
+      const fault = renderFaults(out.report)[0];
+      if (fault) throw new Error(`SOCIA made this video twice and found the same problem both times: ${fault.detail} Open it in the editor to look.`);
       blob = out.blob; durationSec = out.durationSec;
       patch(key, { step: "upload", progress: 0 });
       const ex = await fetch(`/api/studio/builds/${build.id}/export`, { method: "POST", signal });
