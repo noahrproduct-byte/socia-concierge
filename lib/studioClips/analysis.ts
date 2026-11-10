@@ -278,8 +278,9 @@ const EDL_SCHEMA = {
     cta: { type: "string" }, music: { type: "string" }, caption: { type: "string" },
     endCard: { type: "object", additionalProperties: false, properties: { location: { type: "string" }, cta: { type: "string" } }, required: ["location", "cta"] },
     notes: { type: "array", items: { type: "string" } },
+    emphasis: { type: "array", items: { type: "string" } },
   },
-  required: ["targetSec", "segments", "text", "enhance", "cta", "music", "caption", "endCard", "notes"],
+  required: ["targetSec", "segments", "text", "enhance", "cta", "music", "caption", "endCard", "notes", "emphasis"],
 } as const;
 
 const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
@@ -336,7 +337,8 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
 - enhance: only for clips whose MEASUREMENTS say they are darker, brighter, cooler or warmer than the others, or low in contrast. These are checked against the numbers afterwards; unsupported ones are dropped.
 - cta: a closing ask that fits the goal, or "". caption: a post caption in the brand's voice (with the ask when there is one).
 - music: one sentence recommending a style, tempo range and level ("keep it low under speech"); NEVER a specific song or artist. When a measured note on what sound has worked for this account is given, the recommendation must agree with it.
-- notes: anything the editor must know (e.g. "cut away before the pan shakes at 7s").`;
+- notes: anything the editor must know (e.g. "cut away before the pan shakes at 7s").
+- emphasis: the words in the speech you used that carry the point, highlighted in the captions: about one for every six words spoken in the cut, each copied exactly as a single word from the transcript. Numbers, names, the product, the contrast ("300" then "12,000"), a strong claim. Never "the", "your", "but", "this", "really". [] when nobody talks in the cut.`;
   const content: Content = [
     { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}
 

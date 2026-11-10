@@ -321,6 +321,8 @@ export type Edl = {
   lookAuto?: string;
   /** The editing style the cut was made in (lib/studioClips/profiles.ts): its pacing, joins and speech trimming. Absent = food and process. */
   editStyle?: EditStyleId;
+  /** Words highlighted in the captions, one at most a line (lib/studioClips/emphasis.ts), normalised. Absent = no highlight. */
+  emphasis?: string[];
 };
 
 export type EndCard = { location: string; cta: string; site: string };

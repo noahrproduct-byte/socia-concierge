@@ -10,6 +10,10 @@ import { cleanVolume, sanitizeStyle } from "./style";
 import { cutSpeaks } from "../music/taste";
 import { cleanEndCard } from "./teach";
 import { isEditStyle } from "./profiles";
+import { readEmphasis } from "@/lib/clipper/emphasis";
+
+/** The most highlighted words a cut keeps. */
+const MAX_EMPHASIS = 40;
 
 /** The longest a voice may carry over the next shot (an L-cut). */
 export const MAX_VOICE_TAIL_SEC = 3;
@@ -50,6 +54,8 @@ export type RawEdl = {
   notes?: string[];
   /** The ending the model proposes; the site and whether a place may be named are decided from the brand (lib/studioClips/teach.ts). */
   endCard?: { location?: unknown; cta?: unknown; site?: unknown } | null;
+  /** The words the model marked as the point of a line; checked against what was said (lib/studioClips/emphasis.ts). */
+  emphasis?: unknown;
 };
 
 export const EDL_DEFAULTS = {
@@ -278,6 +284,8 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   if (card) r.edl.endCard = card;
   if (edited.actionSound === true) r.edl.actionSound = true;
   if (isEditStyle(edited.editStyle)) r.edl.editStyle = edited.editStyle;
+  const emphasis = readEmphasis(edited.emphasis).slice(0, MAX_EMPHASIS);
+  if (emphasis.length) r.edl.emphasis = emphasis;
   if (typeof edited.lookAuto === "string" && !Number.isNaN(Date.parse(edited.lookAuto))) r.edl.lookAuto = new Date(edited.lookAuto).toISOString();
   return r;
 }
