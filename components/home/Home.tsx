@@ -1,11 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
-import BrandMark from "@/components/BrandMark";
 import { PlatformMark } from "@/components/system/PlatformMark";
-import { CONTACT_EMAIL, PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
+import { PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
 import { offlineReason, openPlatformsText } from "@/lib/platformStatus";
 import HomeNav from "./HomeNav";
+import HomeFooter from "./HomeFooter";
 import HomeFaq from "./HomeFaq";
 import HomeMotion from "./HomeMotion";
 import HomeWindow from "./HomeWindow";
@@ -555,46 +555,7 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
         </section>
       </main>
 
-      <footer className="hm-footer">
-        <div className="hm-wrap">
-          <div className="hm-footer-grid">
-            <div className="hm-footer-brand">
-              <Link href="/" className="hm-brand">
-                <BrandMark size={22} /> SOCIA
-              </Link>
-              <p className="hm-small">
-                SOCIA studies your content, audience and competitors, then tells you what to post, why it should work and
-                when to publish.
-              </p>
-            </div>
-            <div>
-              <h4>Product</h4>
-              <ul>
-                <li><Link href="/pricing">Pricing</Link></li>
-                <li><a href="#how">How it works</a></li>
-                <li><a href="#platforms">Platforms</a></li>
-                <li><a href="#assistants">AI assistants</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4>Company</h4>
-              <ul>
-                <li><a href={`mailto:${CONTACT_EMAIL}`}>Contact</a></li>
-                <li><Link href="/privacy">Privacy</Link></li>
-                <li><Link href="/terms">Terms</Link></li>
-                <li><Link href="/login">Log in</Link></li>
-              </ul>
-            </div>
-          </div>
-          <div className="hm-footer-foot">
-            <p className="hm-meta">
-              <span>&copy; 2026 SOCIA</span>
-              <span>sociaos.com</span>
-              <span>Instagram, Facebook, YouTube and TikTok are trademarks of their owners</span>
-            </p>
-          </div>
-        </div>
-      </footer>
+      <HomeFooter />
     </div>
   );
 }
