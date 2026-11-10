@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 5, 2026</p>
+      <p className="legal-date">Last updated: November 10, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -193,6 +193,12 @@ export default function PrivacyPage() {
           playlist. Only a description of how each track should sound (genre,
           mood, tempo, instruments, length) is sent; no video, voice or personal
           details. The tracks are stored privately with the project&apos;s clips.
+        </li>
+        <li>
+          <b>Higgsfield</b>: makes the videos and images in AI Studio. The
+          written description of the scene is sent, and for image to video the
+          start image you upload. The finished file is copied into our storage;
+          Higgsfield keeps its copy of the request&apos;s files for seven days.
         </li>
         <li>
           <b>Stripe and Link</b>: payments, sales tax and receipts.

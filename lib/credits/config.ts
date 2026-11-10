@@ -3,11 +3,11 @@
 // Credits exist because Vizard and Higgsfield charge SOCIA per use. Each plan
 // gets a monthly allowance; every action costs credits set from what it costs
 // SOCIA (CREDIT_USD is what one credit is worth to us), with a margin. Tune the
-// numbers here; nothing else in the code knows a price.
+// numbers here.
 //
-// Provider prices are NOT published in their docs (Higgsfield shows them in
-// console.higgsfield.ai, Vizard bills in plan minutes), so the USD figures
-// below are placeholders to confirm against the consoles after the first live
+// AI Studio generations are priced from Higgsfield's live estimate for the
+// exact request (lib/generation/server.ts), so no generation price lives here.
+// The clipper figures below are placeholders to confirm after the first live
 // test (docs/ai-studio-test-plan.md). Client-safe: no server imports.
 import type { PlanId } from "@/lib/plans";
 
@@ -64,62 +64,67 @@ export type GenerationKind = "text_to_video" | "image_to_video" | "text_to_image
 
 /**
  * The curated Higgsfield models people can pick from (not the whole catalogue).
- * `usdPerSecond` for video, `usdPerImage` for images: SOCIA's cost before the
- * margin. Placeholders until confirmed in the console.
+ * Field names and allowed values follow docs.higgsfield.ai (checked 2026-11-10).
+ * There are no prices here: Higgsfield doesn't publish them, so every job is
+ * priced from its live estimate (lib/generation/server.ts quoteGeneration).
  */
 export type GenerationModel = {
   id: string;
   name: string;
-  tier: "fast" | "premium";
   kinds: GenerationKind[];
   /** Higgsfield endpoint path per kind, under https://api.higgsfield.ai/ */
   endpoints: Partial<Record<GenerationKind, string>>;
-  usdPerSecond?: number;
-  usdPerImage?: number;
-  /** Allowed output lengths in seconds (video only). */
+  /** Output lengths in seconds SOCIA offers (video only), within what the model allows. */
   durations?: number[];
+  /** Shapes the model takes for text to video and images. Image to video follows the start image. */
   aspectRatios?: string[];
+  /** The model makes its own sound (video only). */
+  sound?: boolean;
   note: string;
 };
 
 export const GENERATION_MODELS: GenerationModel[] = [
   {
-    id: "hailuo-2.3-standard",
-    name: "Hailuo 2.3 (fast)",
-    tier: "fast",
-    kinds: ["text_to_video", "image_to_video"],
-    endpoints: { text_to_video: "minimax/hailuo-2.3/standard/text-to-video", image_to_video: "minimax/hailuo-2.3/standard/image-to-video" },
-    usdPerSecond: 0.05,
-    durations: [6, 10],
-    aspectRatios: ["9:16", "16:9", "1:1"],
-    note: "Quick drafts at 768p. Good for testing an idea before spending more.",
+    id: "seedance-2.5",
+    name: "Seedance 2.5",
+    kinds: ["text_to_video"],
+    endpoints: { text_to_video: "bytedance/seedance-2.5/text-to-video" },
+    durations: [5, 10, 15],
+    aspectRatios: ["9:16", "1:1", "16:9"],
+    sound: true,
+    note: "Vertical video with its own sound, 720p.",
   },
   {
     id: "kling-3.0-standard",
-    name: "Kling 3.0 (premium)",
-    tier: "premium",
+    name: "Kling 3.0",
     kinds: ["text_to_video", "image_to_video"],
     endpoints: { text_to_video: "kling-video/v3.0/std/text-to-video", image_to_video: "kling-video/v3.0/std/image-to-video" },
-    usdPerSecond: 0.112,
-    durations: [5, 8, 10],
-    aspectRatios: ["9:16", "16:9", "1:1"],
-    note: "Sharper motion and sound, 3 to 15 seconds.",
+    durations: [5, 10, 15],
+    aspectRatios: ["9:16", "1:1", "16:9"],
+    sound: true,
+    note: "Sharp motion with its own sound. Animates a start image too.",
+  },
+  {
+    id: "hailuo-2.3-standard",
+    name: "Hailuo 2.3",
+    kinds: ["image_to_video"],
+    endpoints: { image_to_video: "minimax/hailuo-2.3/standard/image-to-video" },
+    durations: [6, 10],
+    note: "Animates a start image at 768p, without sound.",
   },
   {
     id: "soul-2-standard",
-    name: "SOUL 2 (images)",
-    tier: "fast",
+    name: "SOUL 2",
     kinds: ["text_to_image"],
     endpoints: { text_to_image: "higgsfield-ai/soul/v2/standard" },
-    usdPerImage: 0.04,
-    aspectRatios: ["9:16", "1:1", "4:5", "16:9"],
-    note: "Still images for covers and carousels.",
+    aspectRatios: ["9:16", "1:1", "3:4", "16:9"],
+    note: "Still images at 1080p for covers and carousels.",
   },
 ];
 
 export const DEFAULT_MODEL: Record<GenerationKind, string> = {
-  text_to_video: "hailuo-2.3-standard",
-  image_to_video: "hailuo-2.3-standard",
+  text_to_video: "seedance-2.5",
+  image_to_video: "kling-3.0-standard",
   text_to_image: "soul-2-standard",
 };
 
@@ -127,13 +132,14 @@ export function modelById(id: string): GenerationModel | null {
   return GENERATION_MODELS.find((m) => m.id === id) ?? null;
 }
 
-const toCredits = (usd: number) => Math.max(1, Math.ceil((usd * MARGIN) / CREDIT_USD));
+/** Credits for something that costs SOCIA `usd`, with the margin. At least 1. */
+export const creditsForUsd = (usd: number): number => Math.max(1, Math.ceil((usd * MARGIN) / CREDIT_USD));
 
 /** Credits to clip a source video of `minutes` minutes. Rounded up to the whole minute, as Vizard bills. */
 export function clipCredits(minutes: number, model: "clip_v1" | "clip_v2" = "clip_v1", provider: ClipProviderName = "vizard"): number {
   const whole = Math.max(1, Math.ceil(minutes));
-  if (provider === "socia") return toCredits(SOCIA_CLIP_USD_PER_JOB + whole * SOCIA_CLIP_USD_PER_MINUTE);
-  return toCredits(whole * CLIP_SOURCE_USD_PER_MINUTE * CLIP_MODEL_FACTOR[model]);
+  if (provider === "socia") return creditsForUsd(SOCIA_CLIP_USD_PER_JOB + whole * SOCIA_CLIP_USD_PER_MINUTE);
+  return creditsForUsd(whole * CLIP_SOURCE_USD_PER_MINUTE * CLIP_MODEL_FACTOR[model]);
 }
 
 /** What transcribing one minute of source costs SOCIA (lib/aiSpend.ts TRANSCRIBE_USD_PER_HOUR, per minute). */
@@ -156,16 +162,7 @@ export function clipWorkDone(job: { status: string; stage?: string | null; provi
 export function clipCreditsKept(minutes: number, reserved: number, done: ClipWorkDone): number {
   if (done === "none" || !(reserved > 0)) return 0;
   if (done === "all") return reserved;
-  return Math.min(reserved, toCredits(Math.max(1, Math.ceil(minutes)) * CLIP_TRANSCRIBE_USD_PER_MINUTE));
-}
-
-/** Credits for one generation. null when the model does not do that kind. */
-export function generationCredits(modelId: string, kind: GenerationKind, seconds = 0): number | null {
-  const m = modelById(modelId);
-  if (!m || !m.kinds.includes(kind)) return null;
-  if (kind === "text_to_image") return m.usdPerImage == null ? null : toCredits(m.usdPerImage);
-  if (m.usdPerSecond == null) return null;
-  return toCredits(Math.max(1, seconds) * m.usdPerSecond);
+  return Math.min(reserved, creditsForUsd(Math.max(1, Math.ceil(minutes)) * CLIP_TRANSCRIBE_USD_PER_MINUTE));
 }
 
 /** "12 credits" / "1 credit". */

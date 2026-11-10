@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { cleanOptions, measureSourceMinutes, YOUTUBE_RE } from "./server";
-import { priceGeneration } from "@/lib/generation/server";
+import { checkGeneration } from "@/lib/generation/server";
 import { transcriptionLanguage } from "./provider";
 
 describe("clipper options", () => {
@@ -56,12 +56,14 @@ describe("pricing a clip job from the video's real length", () => {
   });
 });
 
-describe("generation pricing", () => {
-  it("prices only lengths the model offers", () => {
-    expect(priceGeneration({ kind: "text_to_video", modelId: "hailuo-2.3-standard", durationSec: 6 })).toBeGreaterThan(0);
-    expect(priceGeneration({ kind: "text_to_video", modelId: "hailuo-2.3-standard", durationSec: 7 })).toBeNull();
-    expect(priceGeneration({ kind: "text_to_video", modelId: "hailuo-2.3-standard" })).toBe(priceGeneration({ kind: "text_to_video", modelId: "hailuo-2.3-standard", durationSec: 6 }));
-    expect(priceGeneration({ kind: "text_to_image", modelId: "soul-2-standard" })).toBeGreaterThan(0);
-    expect(priceGeneration({ kind: "text_to_image", modelId: "hailuo-2.3-standard" })).toBeNull();
+describe("generation checks", () => {
+  it("accepts only lengths and shapes the model offers, and image to video keeps the image's shape", () => {
+    expect(checkGeneration({ kind: "text_to_video", modelId: "seedance-2.5", durationSec: 10, aspectRatio: "9:16" })).toMatchObject({ durationSec: 10, aspectRatio: "9:16" });
+    expect(checkGeneration({ kind: "text_to_video", modelId: "seedance-2.5", durationSec: 7 })).toHaveProperty("error");
+    expect(checkGeneration({ kind: "text_to_video", modelId: "seedance-2.5" })).toMatchObject({ durationSec: 5, aspectRatio: "9:16" });
+    expect(checkGeneration({ kind: "text_to_video", modelId: "seedance-2.5", durationSec: 5, aspectRatio: "4:5" })).toMatchObject({ aspectRatio: "9:16" });
+    expect(checkGeneration({ kind: "image_to_video", modelId: "kling-3.0-standard", durationSec: 5, aspectRatio: "9:16" })).toMatchObject({ aspectRatio: undefined });
+    expect(checkGeneration({ kind: "text_to_image", modelId: "soul-2-standard" })).toMatchObject({ durationSec: undefined, aspectRatio: "9:16" });
+    expect(checkGeneration({ kind: "text_to_video", modelId: "hailuo-2.3-standard", durationSec: 6 })).toHaveProperty("error");
   });
 });

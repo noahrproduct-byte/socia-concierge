@@ -27,6 +27,8 @@ export type GenerationStatus =
 
 export interface GenerationProvider {
   readonly name: string;
+  /** What this exact request would cost SOCIA in US dollars, without running it. */
+  estimate(req: GenerationRequest): Promise<number>;
   submit(req: GenerationRequest): Promise<{ providerRequestId: string; statusUrl: string | null }>;
   status(providerRequestId: string, statusUrl?: string | null): Promise<GenerationStatus>;
   cancel(providerRequestId: string): Promise<boolean>;

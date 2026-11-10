@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { aiRequest, aiErrorResponse, publicOrigin } from "@/lib/aiStudio/auth";
 import { perUserLimit } from "@/lib/rateLimit";
 import { recordEvent } from "@/lib/planGuard";
-import { cleanIdea, createGenerationJob, listGenerationJobs, priceGeneration } from "@/lib/generation/server";
+import { checkGeneration, cleanIdea, createGenerationJob, listGenerationJobs } from "@/lib/generation/server";
 import { modelById, type GenerationKind } from "@/lib/credits/config";
 import { creditBalance } from "@/lib/credits/ledger";
 import { isOwnPath } from "@/lib/storagePaths";
@@ -42,10 +42,11 @@ export async function POST(req: Request) {
   if (!model || !model.kinds.includes(kind)) return NextResponse.json({ error: "Pick a model that does this kind of generation." }, { status: 400 });
   const prompt = typeof b?.prompt === "string" ? b.prompt : "";
   const durationSec = typeof b?.durationSec === "number" ? Math.round(b.durationSec) : undefined;
-  const aspectRatio = typeof b?.aspectRatio === "string" && (model.aspectRatios ?? []).includes(b.aspectRatio) ? b.aspectRatio : model.aspectRatios?.[0];
+  const aspectRatio = typeof b?.aspectRatio === "string" ? b.aspectRatio : undefined;
   const inputImagePath = typeof b?.inputImagePath === "string" ? b.inputImagePath : null;
   if (inputImagePath && (!isOwnPath(inputImagePath, [r.ctx.ownerId, r.viewerId]) || inputImagePath.split("/")[1] !== "studio-inputs")) return NextResponse.json({ error: "That image is not yours." }, { status: 403 });
-  if (priceGeneration({ kind, modelId: model.id, durationSec }) == null) return NextResponse.json({ error: `Pick a length this model offers: ${(model.durations ?? []).join(", ")} seconds.` }, { status: 400 });
+  const checked = checkGeneration({ kind, modelId: model.id, durationSec, aspectRatio });
+  if ("error" in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
   const idea = cleanIdea(b?.idea);
   const origin = publicOrigin(req);
   try {
