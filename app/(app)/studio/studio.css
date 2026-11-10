@@ -383,6 +383,52 @@
 .sd-parts li.is-off b {
   color: var(--warning-ink);
 }
+/* The cut check under the pacing ring (lib/studioClips/cutCheck.ts) */
+.sd-check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+.sd-check-line {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.sd-check-line svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.sd-check-line.is-off {
+  color: var(--warning-ink);
+}
+.sd-check .sd-parts span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sd-check-go {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.sd-check-go:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .sd-check .sd-parts li {
+    flex-direction: column;
+    gap: 0;
+  }
+}
 .sd-progress {
   display: flex;
   flex-direction: column;

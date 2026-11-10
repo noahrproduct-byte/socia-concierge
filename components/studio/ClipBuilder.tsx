@@ -35,6 +35,7 @@ import { beatOfTrack } from "@/lib/studioClips/beatClient";
 import { clipsForEdl } from "@/lib/studioClips/clientClips";
 import type { Beat } from "@/lib/audio/features";
 import { pacingReport } from "@/lib/studioClips/pacing";
+import { checkCut, CHECK_LABEL } from "@/lib/studioClips/cutCheck";
 import { bestMomentFor } from "@/lib/studioClips/rank";
 import "@/app/(app)/studio/studio.css";
 import "@/app/(app)/studio/studio-motion.css";
@@ -245,6 +246,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     return () => { alive = false; };
   }, [edl?.soundtrack?.trackId, musicUrl, trackBpm]);
   const pace = useMemo(() => (edl ? pacingReport(edl, clipsForEdl(sources), beat) : null), [edl, sources, beat]);
+  // What a viewer would notice, checked again after every change (lib/studioClips/cutCheck.ts).
+  const check = useMemo(() => (edl ? checkCut(edl, clipsForEdl(sources)) : null), [edl, sources]);
   const snapToBeat = useCallback((b: Beat, note = true) => {
     const cur = edlRef.current;
     if (!cur || cur.segments.length < 2) return;
@@ -544,6 +547,26 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                       <p className="ov-source">The share of these rules the cut meets: start on the action, 1 to 4 s cuts on average, no cut over 5 s without speech (10 s with), 1.5 s to land the ending, each line up long enough to read{beat ? ", and cuts on the track's beat" : ""}.</p>
                     </Details>
                   </div>
+                </div>
+              )}
+              {check && (
+                <div className="sd-check">
+                  {check.findings.length ? (
+                    <>
+                      <small className="sd-check-line is-off"><AlertTriangle size={12} aria-hidden /> {check.line}</small>
+                      <ul className="sd-parts">
+                        {check.findings.map((f, i) => {
+                          const shot = f.segmentId ? tl.segments.find((s) => s.id === f.segmentId) : null;
+                          return (
+                            <li key={`${f.id}-${i}`} className="is-off">
+                              <b>{CHECK_LABEL[f.id]}</b>
+                              <span>{f.detail}{shot && <> <button type="button" className="sd-check-go" onClick={() => { const p = player.current; if (p) { p.pause(); p.seekTo(shot.startFrame + 1); } }}>Show me</button></>}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  ) : <small className="sd-check-line"><Check size={12} aria-hidden /> {check.line}</small>}
                 </div>
               )}
               {edl.finish && (

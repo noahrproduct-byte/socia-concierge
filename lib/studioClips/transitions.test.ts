@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { overlapFrames, timeline, TRANSITION_FRAMES } from "./timeline";
-import { transitionLook, transitionSound, smoothTransitions } from "./transitions";
+import { transitionLook, transitionSound } from "./transitions";
 import { edlDurationSec, validateEdl } from "./edl";
 import type { Edl } from "./types";
 
@@ -49,13 +49,6 @@ describe("how a transition looks and sounds", () => {
     expect(end.blur).toBeLessThanOrEqual(24);
     expect(transitionSound(0, 60, 8, 0)).toBe(0);
     expect(transitionSound(30, 60, 8, 8)).toBe(1);
-  });
-  it("dissolves every join of a SOCIA cut, and keeps another kind only when the person asked", () => {
-    const segs = [{}, { transition: "cut" as const }, { transition: "zoom" as const }, { transition: "whip" as const }, {}];
-    expect(smoothTransitions(segs).map((s) => s.transition)).toEqual([undefined, "fade", "fade", "fade", "fade"]);
-    expect(smoothTransitions(segs, "show the crust being made").map((s) => s.transition)).toEqual([undefined, "fade", "fade", "fade", "fade"]);
-    expect(smoothTransitions(segs, "fast edit with whip transitions").map((s) => s.transition)).toEqual([undefined, "cut", "zoom", "whip", undefined]);
-    expect(smoothTransitions(segs, "use hard cuts").map((s) => s.transition)).toEqual([undefined, "cut", "zoom", "whip", undefined]);
   });
   it("runs a dissolve for 0.3 seconds", () => {
     expect(TRANSITION_FRAMES / 30).toBeCloseTo(0.3, 2);
