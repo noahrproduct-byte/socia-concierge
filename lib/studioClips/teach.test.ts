@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CARD_DETAIL, cardIsCurrent, cleanEndCard, editFrames, endLineSize, ENDING_MIN_SEC, QUIET_ROOM_VOLUME, siteName, teachEdit } from "./teach";
+import { CARD_DETAIL, cardIsCurrent, cleanEndCard, editFrames, endLineSize, ENDING_MIN_SEC, joinContinuous, QUIET_ROOM_VOLUME, siteName, teachEdit } from "./teach";
 import { denseKeyframes } from "./facts";
 import { revalidateEdl, type ClipForEdl } from "./edl";
 import type { Edl } from "./types";
@@ -103,5 +103,32 @@ describe("the action's own sound", () => {
     expect(out.actionSound).toBeUndefined();
     expect(out.segments.every((s) => s.sound === undefined && s.volume === undefined)).toBe(true);
     expect(teachEdit(edl({ segments: [seg("s1", 1, 5)] }), brand, clips, null).actionSound).toBeUndefined();
+  });
+});
+
+describe("one continuous stretch stays one shot", () => {
+  it("joins the near-touching pieces of a single take Noah called not smooth", () => {
+    const made = [[2, 4.5], [4.7, 6.1], [6.2, 8.4], [8.8, 12.4], [12.7, 14.5], [15, 16.8], [19.8, 21], [21.2, 22.4], [22.6, 25]]
+      .map(([a, b], i) => seg(`s${i + 1}`, a, b, i ? { transition: "fade" } : {}));
+    const out = joinContinuous(made);
+    expect(out.map((s) => [s.in, s.out])).toEqual([[2, 16.8], [19.8, 25]]);
+  });
+  it("keeps shots that are really apart, and dissolves only there", () => {
+    const out = teachEdit(edl({ segments: [seg("s1", 1, 5.8), seg("s2", 12.4, 13.6, { transition: "fade" }), seg("s3", 14.5, 15.7, { transition: "fade" }), seg("s4", 16, 17, { transition: "fade" })] }), brand, clips, null);
+    expect(out.segments.map((s) => [s.in, s.out, s.transition])).toEqual([[1, 5.8, undefined], [12.4, 13.6, "fade"], [14.5, 17, "fade"]]);
+    expect(out.segments.map((s) => s.id)).toEqual(["s1", "s2", "s3"]);
+  });
+  it("never lets the footage run backwards between two shots", () => {
+    expect(joinContinuous([seg("a", 3, 6), seg("b", 5.5, 8)]).map((s) => [s.in, s.out])).toEqual([[3, 8]]);
+  });
+  it("keeps the action's sound up for the whole joined shot, without a flip in the middle", () => {
+    const out = joinContinuous([seg("a", 1, 3, { volume: 0.08 }), seg("b", 3.2, 5, { sound: true })]);
+    expect(out).toHaveLength(1);
+    expect(out[0].sound).toBe(true);
+    expect(out[0].volume).toBeUndefined();
+  });
+  it("leaves different clips alone, however close their times", () => {
+    const out = joinContinuous([seg("a", 1, 3), { ...seg("b", 3.1, 5), clipId: "other" }]);
+    expect(out).toHaveLength(2);
   });
 });
