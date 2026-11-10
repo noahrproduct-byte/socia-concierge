@@ -210,6 +210,8 @@ export type EdlSegment = {
   sound?: boolean;
   /** What this shot does for the viewer in SOCIA's plan for the cut: the hook, context, development, the payoff or the close. */
   purpose?: SegmentPurpose;
+  /** An L-cut: this shot's voice keeps playing this many seconds over the start of the next shot, so a sentence finishes without the picture running long (lib/studioClips/cutCheck.ts). */
+  voiceTail?: number;
 };
 
 export const SEGMENT_PURPOSES = ["hook", "context", "development", "payoff", "close"] as const;

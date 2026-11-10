@@ -59,9 +59,17 @@ describe("repairing SOCIA's own cut", () => {
     expect(r.edl.segments.map((s) => s.id)).toEqual(["s1", "s2", "s3", "s4"]);
     expect(r.edl.segments[3].role).toBe("ending");
   });
-  it("lets a sentence finish, and makes a dissolve over speech a hard cut", () => {
+  it("lets a sentence finish over the next quiet shot (an L-cut), or by running on when the next shot talks", () => {
     const r = repairCut(edl([seg("s1", "p", 5, 8), seg("s2", "t", 1, 2.55, { transition: "fade" }), seg("s3", "p", 12, 15, { transition: "fade" })]), [pizza, speaker]);
-    expect(r.edl.segments[1].out).toBe(4.52);
+    expect(r.edl.segments[1].out).toBe(2.55);
+    expect(r.edl.segments[1].voiceTail).toBe(1.97);
+    expect(r.fixed).toContain("Clip 3 finishes its sentence over the next shot");
+    const last = repairCut(edl([seg("s1", "p", 5, 8), seg("s2", "t", 1, 2.55, { transition: "fade" })]), [pizza, speaker]);
+    expect(last.edl.segments[1].out).toBe(4.52);
+    expect(last.edl.segments[1].voiceTail).toBeUndefined();
+  });
+  it("makes a dissolve over speech a hard cut", () => {
+    const r = repairCut(edl([seg("s1", "p", 5, 8), seg("s2", "t", 1, 2.55, { transition: "fade" }), seg("s3", "p", 12, 15, { transition: "fade" })]), [pizza, speaker]);
     expect(r.edl.segments[1].transition).toBeUndefined();
     expect(r.edl.segments[2].transition).toBeUndefined();
     expect(checkCut(r.edl, [pizza, speaker]).findings).toEqual([]);

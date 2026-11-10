@@ -58,13 +58,14 @@ export function editFrames<T extends { t: number }>(clips: { id: string; frames:
 export const CONTINUOUS_GAP_SEC = 0.75;
 
 /** Neighbouring shots that are really one stretch of the same clip, joined back into one: no skip, no dissolve, no change of sound in the middle of it. */
-export function joinContinuous<S extends { clipId: string; in: number; out: number; sound?: boolean; volume?: number; transition?: Edl["segments"][number]["transition"]; role?: string; note?: string }>(segments: S[]): S[] {
+export function joinContinuous<S extends { clipId: string; in: number; out: number; sound?: boolean; volume?: number; transition?: Edl["segments"][number]["transition"]; role?: string; note?: string }>(segments: S[], keepApart?: (prev: S, s: S) => boolean): S[] {
   const out: S[] = [];
   for (const s of segments) {
     const prev = out[out.length - 1];
     const gap = prev ? s.in - prev.out : Infinity;
     // Same clip, and either a skip too small to read as a new shot or the footage running backwards.
-    if (prev && prev.clipId === s.clipId && gap < CONTINUOUS_GAP_SEC && s.out > prev.in) {
+    // A deliberate jump cut in someone's speech (a pause or a mistake taken out) stays apart.
+    if (prev && prev.clipId === s.clipId && gap < CONTINUOUS_GAP_SEC && s.out > prev.in && !(gap > 0 && keepApart?.(prev, s))) {
       const sound = Boolean(prev.sound || s.sound);
       const merged = { ...prev, out: Math.max(prev.out, s.out), role: s.role === "ending" ? "ending" : prev.role } as S;
       if (sound) { merged.sound = true; delete merged.volume; }

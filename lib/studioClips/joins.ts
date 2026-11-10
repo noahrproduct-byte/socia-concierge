@@ -27,7 +27,7 @@ export const JOIN_WHY: Record<JoinWhy, string> = {
 /** The words a person named that mean they chose the joins themselves. */
 const ASKED = /\b(whip|zoom|hard cuts?|jump cuts?|no transitions?|dissolves?|crossfades?)\b/i;
 
-type Seg = { clipId: string; in: number; out: number; transition?: TransitionKind };
+type Seg = { clipId: string; in: number; out: number; transition?: TransitionKind; voiceTail?: number };
 
 /** Whether a word of this clip is being said within `pad` seconds of time `t`. */
 function talkingAt(clip: Pick<ClipForEdl, "words"> | undefined, t: number, side: "before" | "after", pad = SPEECH_AT_JOIN_SEC): boolean {
@@ -48,7 +48,7 @@ export function decideJoins<T extends Seg>(segments: T[], clips: Pick<ClipForEdl
   const out = segments.map((s, i) => {
     if (!i) { const { transition: _t, ...rest } = s; void _t; return rest as T; }
     const prev = segments[i - 1];
-    const speech = talkingAt(byId.get(prev.clipId), prev.out, "before") || talkingAt(byId.get(s.clipId), s.in, "after");
+    const speech = Boolean(prev.voiceTail) || talkingAt(byId.get(prev.clipId), prev.out, "before") || talkingAt(byId.get(s.clipId), s.in, "after");
     if (speech) {
       joins.push({ index: i, transition: "cut", why: "speech" });
       const { transition: _t, ...rest } = s; void _t;

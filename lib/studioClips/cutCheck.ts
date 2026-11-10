@@ -19,6 +19,7 @@ import { EDL_DEFAULTS } from "./edl";
 import { timeline } from "./timeline";
 import { joinContinuous, CONTINUOUS_GAP_SEC, END_CARD_SEC } from "./teach";
 import { SPEECH_AT_JOIN_SEC } from "./joins";
+import { speechJump } from "./speech";
 import { TEXT_PRESETS, presetForRole, isTextPresetId } from "@/lib/textPresets";
 import type { Edl, EdlSegment, EdlText } from "./types";
 import { clipLabel, fmtClock } from "./types";
@@ -107,7 +108,7 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
 
   segs.forEach((s, i) => {
     const prev = segs[i - 1];
-    if (prev && prev.clipId === s.clipId && s.in - prev.out < CONTINUOUS_GAP_SEC && s.out > prev.in) {
+    if (prev && prev.clipId === s.clipId && s.in - prev.out < CONTINUOUS_GAP_SEC && s.out > prev.in && !speechJump(byId.get(s.clipId)?.words, prev.out, s.in)) {
       const skip = s.in - prev.out;
       findings.push({ id: "stutter", segmentId: s.id, detail: skip >= 0
         ? `At ${at(i)} ${label(s.clipId)} skips only ${skip.toFixed(1)} s ahead, so the picture jumps. Join the two into one shot.`
@@ -130,7 +131,7 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
     segs.forEach((s, i) => {
       if (!i || !s.transition || s.transition === "cut") return;
       const prev = segs[i - 1];
-      if (talking(byId.get(prev.clipId), prev.out, "before") || talking(byId.get(s.clipId), s.in, "after")) {
+      if (prev.voiceTail || talking(byId.get(prev.clipId), prev.out, "before") || talking(byId.get(s.clipId), s.in, "after")) {
         findings.push({ id: "voice", segmentId: s.id, detail: `The ${s.transition === "fade" ? "dissolve" : s.transition} at ${at(i)} runs over someone talking, so two voices play at once. A hard cut keeps the words clear.` });
       }
     });
@@ -138,7 +139,7 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
   if (segs.some((s) => punctuated(byId.get(s.clipId)))) {
     ran.push("sentence");
     segs.forEach((s, i) => {
-      const end = sentenceEnd(byId.get(s.clipId), s);
+      const end = sentenceEnd(byId.get(s.clipId), { in: s.in, out: s.out + (s.voiceTail ?? 0) });
       if (end != null) findings.push({ id: "sentence", segmentId: s.id, detail: `The shot at ${at(i)} ends mid-sentence; the sentence finishes at ${fmtClock(end)} in ${label(s.clipId)}.` });
     });
   }
@@ -181,7 +182,7 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
   const min = EDL_DEFAULTS.minSegmentSec;
 
   let segments = edl.segments.map((s) => ({ ...s }));
-  const joined = joinContinuous(segments);
+  const joined = joinContinuous(segments, (prev, s) => speechJump(byId.get(s.clipId)?.words, prev.out, s.in));
   if (joined.length < segments.length) {
     fixed.push(`joined ${segments.length - joined.length} piece${segments.length - joined.length === 1 ? "" : "s"} of the same shot back together so the picture doesn't stutter`);
     segments = joined;
@@ -200,11 +201,22 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
   });
   segments = keep;
 
-  // Let a sentence finish, inside the clip and short of the next showing of the same clip.
-  segments.forEach((s) => {
+  // Let a sentence finish. Before a quiet shot from another clip, the voice carries over it (an
+  // L-cut) and the picture moves on; otherwise the shot runs on, inside its clip and short of
+  // the next showing of the same clip.
+  segments.forEach((s, i) => {
     const c = byId.get(s.clipId);
-    const end = sentenceEnd(c, s);
+    const end = sentenceEnd(c, { in: s.in, out: s.out + (s.voiceTail ?? 0) });
     if (end == null || end - s.out > CHECK.sentenceReachSec) return;
+    const next = segments[i + 1];
+    const tail = r2(end - s.out);
+    const nextWords = next ? byId.get(next.clipId)?.words : null;
+    const nextQuiet = next && next.clipId !== s.clipId && !nextWords?.some((w) => w.endMs / 1000 > next.in && w.startMs / 1000 < next.in + tail + 0.2);
+    if (next && nextQuiet && next.out - next.in >= tail + 0.3) {
+      s.voiceTail = tail;
+      fixed.push(`${label(s.clipId)} finishes its sentence over the next shot`);
+      return;
+    }
     const nextSame = segments.filter((o) => o !== s && o.clipId === s.clipId && o.in >= s.out).sort((a, b) => a.in - b.in)[0];
     if (nextSame && end > nextSame.in) return;
     fixed.push(`${label(s.clipId)} runs to ${fmtClock(end)} so its sentence isn't cut off`);
@@ -215,7 +227,7 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
   segments.forEach((s, i) => {
     if (!i || opts.keepTransitions || !s.transition || s.transition === "cut") return;
     const prev = segments[i - 1];
-    if (talking(byId.get(prev.clipId), prev.out, "before") || talking(byId.get(s.clipId), s.in, "after")) {
+    if (prev.voiceTail || talking(byId.get(prev.clipId), prev.out, "before") || talking(byId.get(s.clipId), s.in, "after")) {
       delete s.transition;
       fixed.push(`a dissolve over speech at ${label(s.clipId)} is now a hard cut`);
     }
