@@ -5,7 +5,8 @@ import { markCutCounted } from "@/lib/studioClips/cutMeter";
 import { perUserLimit } from "@/lib/rateLimit";
 import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
-import { accountContext, buildFromBrief, getProjectRow, listBriefBuilds, guideOnly } from "@/lib/studioClips/server";
+import { accountContext, buildFromBrief, getProjectRow, listBriefBuilds, guideOnly, wholeFromBrief } from "@/lib/studioClips/server";
+import { briefIntent } from "@/lib/studioClips/briefIntent";
 import { breakDownReference } from "@/lib/studioClips/analysis";
 import { cleanBreakdown, cleanPrompt, referenceBrief, sanitizeReference, shotStats } from "@/lib/studioClips/reference";
 import { readPresets } from "@/lib/studioClips/styleStore";
@@ -58,6 +59,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (limited) return limited;
     const project = await getProjectRow(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id);
     if (!project) return NextResponse.json({ error: "That project does not exist." }, { status: 404 });
+    // "add captions" and other finishing-only prompts keep the whole video and
+    // only do that: no model call, nothing counted (lib/studioClips/briefIntent.ts).
+    const intent = briefIntent(prompt, Boolean(reference));
+    if (intent.keepWhole && prompt) {
+      const preset = (await readPresets(ctx).catch(() => null))?.brand ?? null;
+      const build = await wholeFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, prompt, music: intent.music, preset });
+      return NextResponse.json({ build: guideOnly(build), breakdown: null, whole: true });
+    }
     // A video from a brief is made by AI on the spot, so it counts one AI-made
     // video now (given back if it fails), not only when the cut is opened.
     const u = await requireUsage(ctx.client, ctx.ownerId, "video_builds", { feature: "auto_build" });

@@ -631,6 +631,43 @@ export async function listVideos(client: Supa, ownerId: string, wsId: string | n
  * understood clip in the project. The reference's text style is applied to
  * the cut; the brand preset gives the size. Saved as a new build.
  */
+/**
+ * The whole footage, finished as asked and nothing more (lib/studioClips/briefIntent.ts):
+ * every clip in order and in full, captions from the real words when there's
+ * speech, the sound cleaned. No model call, no text, no ending card, and music
+ * only when the prompt asked for it. Saved as a new build from the brief.
+ */
+export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; music: boolean; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
+  const { ownerId, wsId, project, prompt, music, preset } = args;
+  const rows = await clipRows(client, project.id);
+  const usable = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
+  if (!usable.length) throw new Error("Add a clip first.");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const existing = await selectBuilds(client, ownerId, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
+  const idx = nextBriefIdx(existing.map((b) => b.opportunity_idx));
+  const total = usable.reduce((a, r) => a + (r.duration_s ?? 0), 0);
+  const forEdl = usable.map(toClipForEdl);
+  const { edl } = validateEdl({
+    targetSec: { min: 1, max: Math.ceil(total) + 1 },
+    segments: usable.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
+    text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
+  }, forEdl);
+  if (!edl.segments.length) throw new Error("These clips are too short to post.");
+  edl.segments = smoothTransitions(edl.segments, prompt);
+  edl.captions = usable.some((r) => r.transcript?.words?.length) ? { source: "transcript" } : null;
+  edl.cleanSound = true;
+  edl.brief = { prompt, reference: null, referenceName: null };
+  // Music wasn't asked for: SOCIA doesn't add a track on its own to this one.
+  if (!music) edl.musicAuto = now();
+  const guide = guideFromEdl(edl, forEdl);
+  const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: null, model: "manual", updated_at: now() };
+  if (wsId) row.workspace_id = wsId;
+  const { data, error } = await client.from("studio_builds").insert(row).select(BUILD_COLS).single();
+  if (error) throw error;
+  return rowToBuild(data as BuildRow, rows);
+}
+
 export async function buildFromBrief(client: Supa, args: {
   ownerId: string; wsId: string | null; project: ProjectRow; acct: AccountContext;
   prompt: string | null;
