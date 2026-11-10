@@ -5,7 +5,7 @@ import { Loader2, Scissors } from "lucide-react";
 import { CLIP_LANGUAGES, CLIP_LENGTHS, CLIP_TYPES, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipType, type ClipperOptions } from "@/lib/clipper/provider";
 import { RANKING_SIZE, TRAILER_SIZE } from "@/lib/clipper/ranking";
 import RankingRenderCard from "./RankingRenderCard";
-import { clipCredits } from "@/lib/credits/config";
+import { clipCredits, clipCreditsKept, clipWorkDone, formatCredits } from "@/lib/credits/config";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinutes, CreditsLine, StatusChip, MediaCard } from "./shared";
 import type { ClipRender } from "@/lib/clipper/server";
 import ClipRenderCard from "./ClipRenderCard";
@@ -20,7 +20,20 @@ const stageLabel = (stage: string | null | undefined): string | undefined =>
   stage === "transcribing" ? "Transcribing" : stage ? "Picking the moments" : undefined;
 
 const fmtDur = (ms: number | null) => (ms == null ? "" : `${Math.round(ms / 1000)} s`);
-const when = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/** What came back from a stopped job: all of it, or all but what the work already done cost. */
+const creditsBackLine = (j: Job): string => {
+  const kept = j.credits_charged ?? 0;
+  return kept > 0 ? `${formatCredits(j.credits_reserved - kept)} came back. ${formatCredits(kept)} paid for the work already done.` : "Your credits are back.";
+};
+const cancelBody = (j: Job | null): string => {
+  if (!j) return "";
+  const kept = clipCreditsKept(j.source_minutes, j.credits_reserved, clipWorkDone(j));
+  return kept > 0
+    ? `SOCIA stops working on it and the uploaded video is deleted. The work already done cost ${formatCredits(kept)}, so ${formatCredits(j.credits_reserved - kept)} of your ${formatCredits(j.credits_reserved)} come back. To clip it later, you'd upload it again.`
+    : `SOCIA stops working on it, your ${formatCredits(j.credits_reserved)} come back, and the uploaded video is deleted. To clip it later, you'd upload it again.`;
+};
+const when =(iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /**
  * sociaReady: SOCIA's own clipper takes uploads (transcribed, picked, made in
@@ -249,8 +262,8 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
                 <span className="ai-job-meta">{j.options?.clipType && j.options.clipType !== "best" ? `${CLIP_TYPES.find((t) => t.id === j.options.clipType)?.label} · ` : ""}{j.source_minutes} min · {j.credits_charged ?? j.credits_reserved} credits · {when(j.created_at)}</span>
                 <StatusChip status={j.status} working={stageLabel(j.stage)} />
               </button>
-              {j.status === "cancelled" && <p className="ai-note">Cancelled. Your credits are back.</p>}
-              {j.status === "failed" && <p className="ai-err">{j.error ?? "Clipping failed."} {j.credits_charged === 0 && "Your credits are back."}</p>}
+              {j.status === "cancelled" && <p className="ai-note">Cancelled. {creditsBackLine(j)}</p>}
+              {j.status === "failed" && <p className="ai-err">{j.error ?? "Clipping failed."} {j.credits_charged != null && j.credits_charged < j.credits_reserved && creditsBackLine(j)}</p>}
               {j.status === "done" && j.error && <p className="ai-note">{j.error}</p>}
               {open === j.id && j.status === "done" && <MakeAll clips={clipsByJob[j.id] ?? []} canMutate={canMutate} queue={queue} queueSize={queueSize} onStart={(ids) => { setQueue(ids); setQueueSize(ids.length); }} />}
               {open === j.id && j.status === "done" && (
@@ -283,7 +296,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
       </section>
       <ConfirmDialog open={Boolean(cancelling)} onOpenChange={(o) => { if (!o) setCancelling(null); }} danger busy={cancelBusy}
         title="Cancel this job?" confirmLabel="Cancel job" cancelLabel="Keep it running"
-        body={cancelErr ?? `SOCIA stops working on it, your ${cancelling?.credits_reserved ?? ""} credits come back, and the uploaded video is deleted. To clip it later, you'd upload it again.`}
+        body={cancelErr ?? cancelBody(cancelling)}
         onConfirm={() => { if (cancelling) return cancelJob(cancelling); }} />
       <ConfirmDialog open={Boolean(removing)} onOpenChange={(o) => { if (!o) setRemoving(null); }} danger busy={removeBusy}
         title="Remove this job?" confirmLabel="Remove job"

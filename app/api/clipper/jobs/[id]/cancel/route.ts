@@ -5,7 +5,8 @@ import { creditBalance } from "@/lib/credits/ledger";
 
 export const runtime = "nodejs";
 
-// POST -> { job, balance }: stop a job that is still running; its credits come back.
+// POST -> { job, balance }: stop a job that is still running; its credits come
+// back, less what the work already sent out cost (job.credits_charged).
 // 409 when it can't be stopped any more (finished, or already with an outside provider).
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

@@ -273,30 +273,41 @@ export async function POST(req: Request) {
   const enc = new TextEncoder();
   const streamBody = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (o: unknown) => controller.enqueue(enc.encode(`${JSON.stringify(o)}\n`));
+      // A reader that has gone away (tab closed, request aborted) must not stop
+      // the answer: the model is already paid for, so it finishes and is counted.
+      let open = true;
+      const send = (o: unknown) => {
+        if (!open) return;
+        try { controller.enqueue(enc.encode(`${JSON.stringify(o)}\n`)); } catch { open = false; }
+      };
+      const close = () => { if (!open) return; open = false; try { controller.close(); } catch { /* already closed */ } };
       let res: Message | null = null;
+      let stream: { currentMessage?: Message } | null = null;
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const stream = anthropic.messages.stream(params as any);
+        const s = anthropic.messages.stream(params as any);
+        stream = s;
         let json = "", shown = "";
-        stream.on("text", (delta: string) => {
+        s.on("text", (delta: string) => {
           json += delta;
           const t = partialStringField(json, "text");
           if (t != null && t.length > shown.length) { shown = t; send({ type: "text", text: t }); }
         });
-        res = await stream.finalMessage();
+        res = await s.finalMessage();
       } catch (err) {
+        // A stream that broke part-way was billed for what it had read and written.
+        if (stream?.currentMessage) recordAiUsage(ctx.ownerId, "ask", stream.currentMessage);
         await u.release();
         const kind = aiFailureKind(err);
         logAskFailure("stream", kind, err);
         send({ type: "error", status: kind === "rate_limited" ? 429 : 502, error: AI_UNAVAILABLE_COPY[kind], kind });
-        controller.close();
+        close();
         return;
       }
       const out = await answerFrom(res);
       const j = await out.json().catch(() => ({ error: "SOCIA couldn't answer right now." }));
       send(out.ok ? { type: "answer", ...j } : { type: "error", status: out.status, ...j });
-      controller.close();
+      close();
     },
   });
   return new Response(streamBody, { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store" } });

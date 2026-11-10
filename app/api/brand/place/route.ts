@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { resolveContext, brandWorkspace, can, forbiddenCopy, type Ctx } from "@/lib/context";
 import { anthropic, FAST_MODEL, effortFor, aiFailureKind, AI_UNAVAILABLE_COPY } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
-import { aiBudgetDenied } from "@/lib/aiSpend";
+import { perUserLimit } from "@/lib/rateLimit";
 import { updateWorkspace } from "@/lib/workspaces";
 import { currentDetail, freshDetail } from "@/lib/intel/understandLoad";
 import type { BrandDetail } from "@/lib/profile";
@@ -68,8 +68,9 @@ export async function POST(req: Request) {
   const photos = sent.map(photoBlock);
   if (photos.some((p) => !p)) return NextResponse.json({ error: "Each photo must be a JPEG, PNG or WebP under 1.5 MB." }, { status: 400 });
 
-  const over = await aiBudgetDenied(ctx.ownerId);
-  if (over) return over;
+  // Each scan is a model call on up to PLACE_MAX_PHOTOS photos: an hourly ceiling per account, then the monthly AI ceiling.
+  const limited = await perUserLimit(ctx.ownerId, "place_scan", 10, "place scans");
+  if (limited) return limited;
 
   try {
     const params = {

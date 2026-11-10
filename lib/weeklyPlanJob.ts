@@ -17,6 +17,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getActiveWorkspace, competitorScopeId, type Workspace } from "./workspaces";
 import { brandWorkspace } from "./context";
 import { getEntitlements, canUseFeature, consumeUsage, releaseUsage } from "./entitlements";
+import { aiBudgetDenied } from "./aiSpend";
 import { getIgSnapshot, type IgSnapshot } from "./instagramSync";
 import { getProfile, type BrandDetail } from "./profile";
 import { loadEvidence, type Evidence } from "./planEvidence";
@@ -41,7 +42,7 @@ export type WeeklyPlanRun = {
   owners: number;
   due: number;
   generated: number;
-  skipped: Record<"not_due" | "not_entitled" | "already_this_week" | "no_account" | "too_few_posts" | "no_credit" | "out_of_time", number>;
+  skipped: Record<"not_due" | "not_entitled" | "already_this_week" | "no_account" | "too_few_posts" | "no_credit" | "over_budget" | "out_of_time", number>;
   errors: number;
 };
 
@@ -166,6 +167,8 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
   const ent = await getEntitlements(svc, ownerId);
   // Free has one plan a month to use by hand; the automatic plan is for paid plans.
   if (ent.plan === "free" || !canUseFeature(ent, "content_plan")) return "not_entitled";
+  // The plan is a model call: the owner's month must be under its plan's AI ceiling, as for a plan made by hand.
+  if (await aiBudgetDenied(ownerId, ent, now)) return "over_budget";
 
   const snap = await getIgSnapshot(svc, ownerId, wsId).catch(() => null);
   if (!snap) return "no_account";
@@ -197,7 +200,7 @@ export async function generateWeeklyPlanFor(svc: Supa, ownerId: string, now: Dat
 
 /** One cron call: every owner whose Sunday plan is due now. `force` builds for everyone eligible, on any day (manual trigger). */
 export async function runWeeklyPlans(svc: Supa, now: Date = new Date(), budgetMs = 280_000, force = false): Promise<WeeklyPlanRun> {
-  const run: WeeklyPlanRun = { owners: 0, due: 0, generated: 0, skipped: { not_due: 0, not_entitled: 0, already_this_week: 0, no_account: 0, too_few_posts: 0, no_credit: 0, out_of_time: 0 }, errors: 0 };
+  const run: WeeklyPlanRun = { owners: 0, due: 0, generated: 0, skipped: { not_due: 0, not_entitled: 0, already_this_week: 0, no_account: 0, too_few_posts: 0, no_credit: 0, over_budget: 0, out_of_time: 0 }, errors: 0 };
   const deadline = Date.now() + budgetMs;
   const ids = await owners(svc);
   run.owners = ids.length;
