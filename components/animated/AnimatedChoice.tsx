@@ -54,7 +54,7 @@ export default function AnimatedChoice({ autoScan = false, canEdit = true }: { a
       <div className="anc-row">
         <div className="anc-text">
           <b>Post animated videos</b>
-          <span>Short animated vertical videos, such as side-by-side comparisons or words on screen, made by SOCIA from your content plan. You see each week&apos;s videos before they&apos;re scheduled.</span>
+          <span>Short animated vertical videos, such as side-by-side comparisons, counters or words on screen, made by SOCIA from your content plan. You see each week&apos;s videos before they&apos;re scheduled.</span>
         </div>
         {on != null && <Switch checked={on} disabled={!canEdit || saving} onCheckedChange={(v) => void choose(v)} label="Post animated videos" />}
       </div>

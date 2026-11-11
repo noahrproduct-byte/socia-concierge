@@ -21,7 +21,7 @@ const SCHEMA = {
   },
 } as const;
 
-const SYSTEM = `You judge whether animated videos suit one social media account. An animated video is a short vertical video drawn in code with no footage, no people and no photos: either a comparison (2 to 4 options side by side whose numbers count up, like three grind sizes and their shot times) or words on screen (an opening line, a few points or a list, an ending).
+const SYSTEM = `You judge whether animated videos suit one social media account. An animated video is a short vertical video drawn in code with no footage, no people and no photos: a comparison (2 to 4 options side by side whose numbers count up, like three grind sizes and their shot times), a counter (one number counting up in rounds that grow) or words on screen (an opening line, a few points or a list, an ending).
 They tend to suit accounts that share tips, comparisons, how-it-works, lists, opinions, explanations, announcements or offers, and people who don't want to be on camera. They tend not to suit accounts whose appeal is visual (food, fashion, places, products, faces, before and after), where real footage does the work.
 Answer with:
 - verdict: "suits" when the evidence clearly points that way, "test" when it is mixed or there is little evidence, "unlikely" when the account's appeal is clearly visual.

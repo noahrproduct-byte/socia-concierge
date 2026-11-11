@@ -51,6 +51,30 @@ export type AnimatedCompare = {
   illustrative: boolean;
 };
 
+/** One round of the counter: what changed (title), where the count ends, and the headline it leaves. */
+export type CounterRound = { label: string; title: string; value: number; result: CompareHeadline };
+
+/**
+ * The counter template (after the π-collisions reference): one fixed frame, a
+ * big number that counts up in 2 to 4 rounds that escalate. Each round counts
+ * with an ease in and out, holds, the headline swaps hard to its result, and
+ * a scoreboard of finished rounds builds up. Ends on a summary and a question.
+ */
+export type AnimatedCounter = {
+  hook: CompareHeadline;
+  close: CompareHeadline;
+  /** Small line under the headline: the setup, or empty. */
+  setup: string;
+  /** What the big number counts, shown under it ("Collisions", "Cups poured"). */
+  measure: string;
+  format: "clock" | "number";
+  unit: string;
+  rounds: CounterRound[];
+  note: string;
+  question: string;
+  illustrative: boolean;
+};
+
 export type AnimatedSpec = {
   version: 1;
   theme: AnimatedTheme;
@@ -58,6 +82,8 @@ export type AnimatedSpec = {
   scenes: AnimatedScene[];
   /** When set, the video is the comparison template and `scenes` is empty. */
   compare?: AnimatedCompare | null;
+  /** When set, the video is the counter template and `scenes` is empty. */
+  counter?: AnimatedCounter | null;
   /** Shown small at the end, e.g. the brand's name. Never invented. */
   signoff: string | null;
   caption: string;
@@ -114,6 +140,10 @@ export function cleanSpec(raw: unknown, sourceText: string, opts: { signoff?: st
     const compare = cleanCompare(r.compare, source);
     // The comparison is drawn on a dark or light ground only: green and red have to read on it.
     if (compare) return { version: 1, theme: r.theme === "light" ? "light" : "ink", accent, scenes: [], compare, caption: safeCaption, ...extras };
+  }
+  if (r.format === "counter") {
+    const counter = cleanCounter(r.counter, source);
+    if (counter) return { version: 1, theme: r.theme === "light" ? "light" : "ink", accent, scenes: [], counter, caption: safeCaption, ...extras };
   }
   const scenes: AnimatedScene[] = [];
   for (const s of Array.isArray(r.scenes) ? (r.scenes as Record<string, unknown>[]) : []) {
@@ -213,6 +243,72 @@ export function cleanCompare(v: unknown, source: Set<string>): AnimatedCompare |
   };
 }
 
+/**
+ * The model's counter, made safe: 2 to 4 rounds with a label, a title and a
+ * value above zero. A round's result line may use its own value (that's the
+ * point of the round); every other line follows the no-invented-numbers rule.
+ * Values the plan didn't contain mark the video "Example numbers".
+ */
+export function cleanCounter(v: unknown, source: Set<string>): AnimatedCounter | null {
+  const c = (v ?? {}) as Record<string, unknown>;
+  const hook = cleanHeadline(c.hook, source);
+  const close = cleanHeadline(c.close, source);
+  if (!hook || !close) return null;
+  const format = c.format === "clock" ? "clock" : "number";
+  const unit = format === "clock" ? "" : clean(c.unit, 6);
+  const rounds: CounterRound[] = [];
+  for (const r of Array.isArray(c.rounds) ? (c.rounds as Record<string, unknown>[]) : []) {
+    const value = typeof r?.value === "number" ? Math.round(r.value * 100) / 100 : NaN;
+    const title = capWords(clean(r?.title, 60), 5);
+    if (!title || !Number.isFinite(value) || value <= 0 || value > MAX_VALUE || inventsNumbers(title, source)) continue;
+    const label = capWords(clean(r.label, 24), 3);
+    // The round's own value may appear in its result ("313 collisions").
+    const own = new Set([...source, ...valueTokens(value, format, unit), compareValueText(value, format, unit).toLowerCase()]);
+    const result = cleanHeadline(r.result, own);
+    if (!result) continue;
+    rounds.push({ label: label && !inventsNumbers(label, new Set([...source, String(rounds.length + 1)])) ? label : "", title, value, result });
+    if (rounds.length >= 4) break;
+  }
+  if (rounds.length < 2) return null;
+  return {
+    hook, close, format, unit, rounds,
+    setup: safeLine(c.setup, COMPARE_WORDS.setup, source),
+    measure: safeLine(c.measure, 3, source),
+    note: safeLine(c.note, COMPARE_WORDS.note, source),
+    question: safeLine(c.question, COMPARE_WORDS.question, source),
+    illustrative: rounds.some((x) => !valueTokens(x.value, format, unit).some((t) => source.has(t))),
+  };
+}
+
+/** Round lengths in seconds: later rounds run longer as the numbers grow (the reference: 2.6, 4, 5.5, 5.7 s). */
+const ROUND_SECONDS: Record<number, number[]> = { 2: [4, 6], 3: [3, 4.5, 6], 4: [2.6, 4, 5.5, 5.7] };
+/** Between rounds only the round's content fades: out 0.4 s, 0.1 s empty, in 0.3 s. */
+export const COUNTER_GAP = { out: 0.4, empty: 0.1, in: 0.3 } as const;
+/** The last 0.5 s of a round holds its final value. */
+export const COUNTER_HOLD = 0.5;
+
+/** Where each round starts and ends, when the summary, note and question come in, and the length (seconds). */
+export function counterTimeline(counter: Pick<AnimatedCounter, "rounds">): { rounds: { start: number; end: number }[]; close: number; question: number; total: number } {
+  const lens = ROUND_SECONDS[Math.min(4, Math.max(2, counter.rounds.length))];
+  const gap = COUNTER_GAP.out + COUNTER_GAP.empty + COUNTER_GAP.in;
+  const rounds: { start: number; end: number }[] = [];
+  let at = 0.3;
+  for (let i = 0; i < counter.rounds.length; i++) {
+    rounds.push({ start: at, end: at + lens[i] });
+    at += lens[i] + gap;
+  }
+  const last = rounds[rounds.length - 1].end;
+  return { rounds, close: last + 0.6, question: last + 2.2, total: Math.ceil(last + 6.5) };
+}
+
+/** The count shown during a round at `t` seconds: eases in and out from 0 to `value`, then holds. */
+export function roundCount(t: number, round: { start: number; end: number }, value: number): number {
+  const run = round.end - COUNTER_HOLD - round.start;
+  const p = Math.min(1, Math.max(0, (t - round.start) / run));
+  const e = p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
+  return value * e;
+}
+
 /** A count of seconds as m:ss. */
 export function clockText(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -265,6 +361,7 @@ export function sceneFrames(s: AnimatedScene): number {
 /** Where each scene starts, and the whole length, in frames. The sign-off adds a short end card. */
 export function specTimeline(spec: AnimatedSpec): { starts: number[]; frames: number[]; end: number; total: number } {
   if (spec.compare) return { starts: [], frames: [], end: 0, total: Math.round(COMPARE_TIMES.total * ANIMATED_FPS) };
+  if (spec.counter) return { starts: [], frames: [], end: 0, total: Math.round(counterTimeline(spec.counter).total * ANIMATED_FPS) };
   const frames = spec.scenes.map(sceneFrames);
   const starts: number[] = [];
   let at = 0;

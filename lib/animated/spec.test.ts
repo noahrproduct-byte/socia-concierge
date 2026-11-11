@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ACCENTS, COMPARE_TIMES, cleanSpec, compareCounter, compareStopAt, compareValueText, inkOn, inventsNumbers, numberTokens, palette, sceneFrames, specTimeline } from "./spec";
+import { ACCENTS, COMPARE_TIMES, cleanSpec, counterTimeline, roundCount, compareCounter, compareStopAt, compareValueText, inkOn, inventsNumbers, numberTokens, palette, sceneFrames, specTimeline } from "./spec";
 
 const SOURCE = "Hook: Three things to order on your first visit. Concept: our 3 house drinks under $5, open 7am.";
 
@@ -168,5 +168,62 @@ describe("comparison template", () => {
     expect(compareValueText(95, "clock", "")).toBe("1:35");
     expect(compareValueText(4.5, "number", "$", 2)).toBe("$4.50");
     expect(compareValueText(1200, "number", "g")).toBe("1,200 g");
+  });
+});
+
+describe("counter template", () => {
+  const SRC = "Hook: One coffee a day adds up. Concept: our loyalty card, every 10th coffee free.";
+  const H = (a: string, b: string, key = "") => ({ lines: [a, b], key });
+  const base = {
+    format: "counter", theme: "light", accent: ACCENTS[0],
+    counter: {
+      hook: H("One coffee a day.", "How much is that?", "How much"),
+      close: H("Small habits", "add up fast.", "fast"),
+      setup: "", measure: "Cups", format: "number", unit: "",
+      rounds: [
+        { label: "Round 1", title: "One week", value: 7, result: H("One week:", "7 cups.", "7 cups") },
+        { label: "Round 2", title: "One month", value: 30, result: H("One month:", "30 cups.") },
+        { label: "Round 3", title: "One year", value: 365, result: H("One year:", "365 cups.") },
+      ],
+      note: "", question: "How many did you have this week?",
+    },
+    scenes: [], caption: "", hashtags: [],
+  };
+
+  it("builds a counter whose results may use their own round's value", () => {
+    const s = cleanSpec(base, SRC)!;
+    expect(s.counter).toBeTruthy();
+    expect(s.theme).toBe("light");
+    expect(s.counter!.rounds.map((r) => r.value)).toEqual([7, 30, 365]);
+    expect(s.counter!.rounds[0].result.key).toBe("7 cups");
+    expect(s.counter!.illustrative).toBe(true);
+  });
+
+  it("drops a round whose result uses another round's number, and refuses fewer than 2 rounds", () => {
+    const bad = { ...base, counter: { ...base.counter, rounds: [base.counter.rounds[0], { ...base.counter.rounds[1], result: H("One month:", "365 cups.") }] } };
+    expect(cleanSpec(bad, SRC)).toBeNull();
+    const one = cleanSpec({ ...base, counter: { ...base.counter, rounds: base.counter.rounds.slice(0, 2).concat([{ ...base.counter.rounds[2], value: 0 }]) } }, SRC)!;
+    expect(one.counter!.rounds).toHaveLength(2);
+  });
+
+  it("is not illustrative when every value is in the plan", () => {
+    const real = cleanSpec({ ...base, counter: { ...base.counter, rounds: [{ label: "", title: "Every visit", value: 1, result: H("One stamp", "per coffee.") }, { label: "", title: "Card full", value: 10, result: H("Ten stamps:", "one free coffee.") }] } }, "Collect 10 stamps for a free coffee, 1 stamp per coffee.")!;
+    expect(real.counter!.illustrative).toBe(false);
+  });
+
+  it("times rounds longer as they go and counts with an ease in and out, then holds", () => {
+    const tl = counterTimeline({ rounds: base.counter.rounds as never });
+    const lens = tl.rounds.map((r) => r.end - r.start);
+    expect(lens[0]).toBeLessThan(lens[1]);
+    expect(lens[1]).toBeLessThan(lens[2]);
+    expect(tl.rounds[1].start - tl.rounds[0].end).toBeCloseTo(0.8, 5);
+    const r = tl.rounds[2];
+    expect(roundCount(r.start, r, 365)).toBe(0);
+    expect(roundCount(r.end - 0.5, r, 365)).toBeCloseTo(365, 5);
+    expect(roundCount(r.end, r, 365)).toBeCloseTo(365, 5);
+    const quarter = roundCount(r.start + (r.end - 0.5 - r.start) * 0.25, r, 365);
+    expect(quarter).toBeLessThan(365 * 0.25);
+    const spec = cleanSpec(base, SRC)!;
+    expect(specTimeline(spec).total).toBe(Math.round(tl.total * 30));
   });
 });
