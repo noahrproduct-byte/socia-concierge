@@ -1,5 +1,5 @@
-// Which days of a content plan suit an animated video (a comparison or words on
-// screen, no footage) and which need real filming. One model call over the week; the
+// Which days of a content plan suit an animated video (a comparison, a counter
+// or words on screen, no footage) and which need real filming. One model call over the week; the
 // person sees each day's reason and can change the choice. Server only.
 import { anthropic, MODEL, effortFor } from "@/lib/anthropic";
 import { recordAiUsage } from "@/lib/aiUsage";
@@ -21,8 +21,8 @@ const SCHEMA = {
   },
 } as const;
 
-const SYSTEM = `For each planned social media post, decide whether it works as an animated video drawn in code, with no footage, no people and no photos: either a comparison (2 to 4 options side by side whose numbers count up, like three grind sizes and their shot times) or words on screen (an opening line, points or a list, an ending).
-Yes for tips, comparisons, "this vs that", mistakes, lists, opinions, explanations, myths, announcements, offers and questions. No when the idea needs real footage to work: showing a place, food, a product in hand, a person, a process, behind the scenes, before and after, or a trend that needs filming.
+const SYSTEM = `For each planned social media post, decide whether it works as an animated video drawn in code, with no footage, no people and no photos: a comparison (2 to 4 options side by side whose numbers count up, like three grind sizes and their shot times), a counter (one number counting up in rounds that grow, like one coffee a day for a week, a month, a year) or words on screen (an opening line, points or a list, an ending).
+Yes for tips, comparisons, "this vs that", growth over time, totals that add up, mistakes, lists, opinions, explanations, myths, announcements, offers and questions. No when the idea needs real footage to work: showing a place, food, a product in hand, a person, a process, behind the scenes, before and after, or a trend that needs filming.
 For every post give "animated" and one short reason in plain words, sentence case, no em dashes.`;
 
 /** The model's picks, made safe: one per known day, in the order given, with a short reason. Days it skipped are not animated. Pure. */

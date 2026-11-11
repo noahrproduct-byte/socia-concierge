@@ -19,9 +19,9 @@ const HEADLINE = {
 } as const;
 
 const SCHEMA = {
-  type: "object", additionalProperties: false, required: ["format", "theme", "accent", "compare", "scenes", "caption", "hashtags"],
+  type: "object", additionalProperties: false, required: ["format", "theme", "accent", "compare", "counter", "scenes", "caption", "hashtags"],
   properties: {
-    format: { type: "string", enum: ["compare", "words"] },
+    format: { type: "string", enum: ["compare", "counter", "words"] },
     compare: {
       type: "object", additionalProperties: false,
       required: ["hook", "turn", "close", "setup", "format", "unit", "columns", "note", "question"],
@@ -35,6 +35,25 @@ const SCHEMA = {
           items: {
             type: "object", additionalProperties: false, required: ["label", "value", "stamp", "tone"],
             properties: { label: { type: "string" }, value: { type: "number" }, stamp: { type: "string" }, tone: { type: "string", enum: ["win", "lose", "neutral"] } },
+          },
+        },
+        note: { type: "string" },
+        question: { type: "string" },
+      },
+    },
+    counter: {
+      type: "object", additionalProperties: false,
+      required: ["hook", "close", "setup", "measure", "format", "unit", "rounds", "note", "question"],
+      properties: {
+        hook: HEADLINE, close: HEADLINE,
+        setup: { type: "string" }, measure: { type: "string" },
+        format: { type: "string", enum: ["clock", "number"] },
+        unit: { type: "string" },
+        rounds: {
+          type: "array",
+          items: {
+            type: "object", additionalProperties: false, required: ["label", "title", "value", "result"],
+            properties: { label: { type: "string" }, title: { type: "string" }, value: { type: "number" }, result: HEADLINE },
           },
         },
         note: { type: "string" },
@@ -59,9 +78,9 @@ const SCHEMA = {
   },
 } as const;
 
-const SYSTEM = `You turn one planned social media post into a short animated vertical video drawn in code: no footage, no people, no photos. There are two formats.
+const SYSTEM = `You turn one planned social media post into a short animated vertical video drawn in code: no footage, no people, no photos. There are three formats. Prefer "compare" or "counter" over "words" whenever one of them honestly fits.
 
-FORMAT "compare" (prefer it whenever it honestly fits): 2 to 4 options side by side, measured on ONE number that counts up in every column at once (time, price, steps, minutes, grams, cups, kilometres, days). Each column stops at its value, turns green (tone "win"), red ("lose") or grey ("neutral") and gets a stamp of one or two words (for example SOUR, BALANCED, BITTER; TOO SLOW; BEST VALUE). It fits tips, mistakes, myths, "this vs that", options, before and after told as numbers, and anything where choosing differently changes a number.
+FORMAT "compare": 2 to 4 options side by side, measured on ONE number that counts up in every column at once (time, price, steps, minutes, grams, cups, kilometres, days). Each column stops at its value, turns green (tone "win"), red ("lose") or grey ("neutral") and gets a stamp of one or two words (for example SOUR, BALANCED, BITTER; TOO SLOW; BEST VALUE). It fits tips, mistakes, myths, "this vs that", options, before and after told as numbers, and anything where choosing differently changes a number.
 - hook: the opening headline, two short lines (at most 7 words each) that state the surprising setup, e.g. "Same beans. Same machine." / "Three different coffees." "key" is one or two words copied exactly from the second line to set in italics.
 - turn: the second headline (at 2 seconds), naming the one thing that differs, e.g. "Only one thing changed:" / "the grind."
 - close: the last headline, the lesson in two lines, e.g. "Grind sets the time." / "Time sets the taste."
@@ -72,7 +91,13 @@ FORMAT "compare" (prefer it whenever it honestly fits): 2 to 4 options side by s
 - Values: use numbers written in the post or the brand details whenever they exist. Otherwise only well-established general facts or clearly typical examples; never results, sales, ratings or anything about the brand's own performance. When a value is not written in the post the video says "Example numbers" by itself.
 - Headlines, setup, note and question must not contain any number that isn't written in the post or brand details.
 
-FORMAT "words": a few scenes of words on screen, each one idea a viewer reads in two or three seconds. Always write these scenes too, even when you choose "compare": they are the fallback.
+FORMAT "counter": one big number counting up in 2 to 4 rounds that escalate, each round changing one thing (bigger, longer, more often, later). It fits growth over time (week 1, week 4, week 12), the same thing at a bigger scale, "how many X in Y", habits that add up, and surprising totals. Example: rounds "One coffee a day" 1, "For a month" 30, "For a year" 365, measure "Cups".
+- hook and close: two-line headlines like in "compare". hook states the setup; close is the lesson.
+- rounds: label (at most 3 words, e.g. "Round 1", "Week 4", "Year 1"), title (at most 5 words, what changed), value (the number this round ends on), result (the headline shown after this round, two short lines; it may use this round's value, no other numbers). Values should grow round to round.
+- measure: what the big number counts, at most 3 words ("Cups", "Collisions", "Minutes saved"). format and unit as in "compare".
+- setup, note, question: as in "compare". The same rules for values and numbers apply.
+
+FORMAT "words": a few scenes of words on screen, each one idea a viewer reads in two or three seconds. Always write these scenes too, even when you choose "compare" or "counter": they are the fallback.
 Scene types:
 - hook: the first scene, the line that stops the scroll. At most 9 words. Usually the post's hook, tightened.
 - point: one statement, at most 16 words.
@@ -86,7 +111,7 @@ Rules you never break:
 - Fill the fields a type doesn't use with an empty string or an empty list.
 - Sentence case, plain words, no hashtags or emoji on screen, no em dashes, no marketing clichés.
 - theme: "ink" (dark), "light" or "accent" (the accent colour as background; words format only). Pick what suits the brand; "ink" when unsure.
-- When you choose "words", fill compare with empty strings, an empty columns list and format "number".
+- Fill the template you don't use (compare or counter) with empty strings, empty lists and format "number".
 - accent: one of the listed colours, the one closest to the brand's feel.
 - caption: one or two sentences in the brand's voice for the post itself. hashtags: 3 to 5, without the # sign.`;
 

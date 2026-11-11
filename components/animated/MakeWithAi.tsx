@@ -12,7 +12,7 @@ import { Loader2 } from "lucide-react";
 import { Dialog, Button, ButtonLink, SegmentedControl, Field, Input, Textarea, Checkbox } from "@/components/system";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
-import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedCompare, type AnimatedScene, type AnimatedSpec, type AnimatedTheme, type CompareHeadline } from "@/lib/animated/spec";
+import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedCompare, type AnimatedCounter, type AnimatedScene, type AnimatedSpec, type AnimatedTheme, type CompareHeadline } from "@/lib/animated/spec";
 import { AnimatedComposition } from "./AnimatedComposition";
 
 type Phase =
@@ -71,6 +71,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
 
   const setScene = (i: number, next: AnimatedScene) => setSpec((s) => (s ? { ...s, scenes: s.scenes.map((x, j) => (j === i ? next : x)) } : s));
   const setCompare = (patch: Partial<AnimatedCompare>) => setSpec((s) => (s?.compare ? { ...s, compare: { ...s.compare, ...patch } } : s));
+  const setCounter = (patch: Partial<AnimatedCounter>) => setSpec((s) => (s?.counter ? { ...s, counter: { ...s.counter, ...patch } } : s));
 
   async function save() {
     if (!spec) return;
@@ -150,16 +151,17 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
               autoPlay
               acknowledgeRemotionLicense
             />
-            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, no sound.{spec.compare ? " Comparison style." : ""}</small>
+            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, no sound.{spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
           </div>
           <div className="mwa-edit">
-            <SegmentedControl label="Background" options={spec.compare ? THEMES.filter((x) => x.value !== "accent") : THEMES} value={spec.theme} onChange={(theme) => setSpec((s) => (s ? { ...s, theme } : s))} />
+            <SegmentedControl label="Background" options={spec.compare || spec.counter ? THEMES.filter((x) => x.value !== "accent") : THEMES} value={spec.theme} onChange={(theme) => setSpec((s) => (s ? { ...s, theme } : s))} />
             <div className="mwa-swatches" role="radiogroup" aria-label="Highlight colour">
               {ACCENTS.map((c) => (
                 <button key={c} type="button" role="radio" aria-checked={spec.accent === c} aria-label={`Colour ${c}`} className={`mwa-swatch${spec.accent === c ? " is-on" : ""}`} style={{ background: c }} disabled={busy} onClick={() => setSpec((s) => (s ? { ...s, accent: c } : s))} />
               ))}
             </div>
             {spec.compare && <CompareFields compare={spec.compare} busy={busy} onChange={setCompare} />}
+            {spec.counter && <CounterFields counter={spec.counter} busy={busy} onChange={setCounter} />}
             {spec.scenes.map((s, i) => (
               <Field key={i} label={SCENE_LABEL[s.type]} hint={s.type === "list" ? "First line is the title, then one item per line." : undefined}>
                 {s.type === "list" ? (
@@ -215,6 +217,48 @@ function CompareFields({ compare, busy, onChange }: { compare: AnimatedCompare; 
         label={"Show \u201cExample numbers\u201d on the video"} />
       <Field label="Question at the end">
         <Input maxLength={60} disabled={busy} value={compare.question} onChange={(e) => onChange({ question: e.target.value })} />
+      </Field>
+    </>
+  );
+}
+
+/** Edit the counter: headlines, each round's label, title and value, what it counts, the end question. */
+function CounterFields({ counter, busy, onChange }: { counter: AnimatedCounter; busy: boolean; onChange: (patch: Partial<AnimatedCounter>) => void }) {
+  const setHeadline = (k: "hook" | "close", text: string) => {
+    const [a = "", b = ""] = text.split("\n");
+    onChange({ [k]: { lines: [a, b], key: counter[k].key } as CompareHeadline });
+  };
+  const setRound = (i: number, patch: Partial<AnimatedCounter["rounds"][number]>) => onChange({ rounds: counter.rounds.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
+  return (
+    <>
+      <Field label="Opening headline" hint="Two lines.">
+        <Textarea rows={2} maxLength={120} disabled={busy} value={counter.hook.lines.join("\n")} onChange={(e) => setHeadline("hook", e.target.value)} />
+      </Field>
+      {counter.rounds.map((r, i) => (
+        <div key={i} className="mwa-col">
+          <Field label={r.label || `Round ${i + 1}`}>
+            <Input maxLength={40} disabled={busy} value={r.title} onChange={(e) => setRound(i, { title: e.target.value })} />
+          </Field>
+          <Field label={counter.format === "clock" ? "Seconds" : counter.unit ? `Value (${counter.unit})` : "Value"}>
+            <Input type="number" min={0} step="any" disabled={busy} value={String(r.value)}
+              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v > 0) setRound(i, { value: v }); }} />
+          </Field>
+          <Field label="Headline after">
+            <Input maxLength={60} disabled={busy} value={r.result.lines.join(" / ")}
+              onChange={(e) => { const [a = "", b = ""] = e.target.value.split(" / "); setRound(i, { result: { lines: [a, b], key: r.result.key } }); }} />
+          </Field>
+        </div>
+      ))}
+      <Field label="What it counts">
+        <Input maxLength={30} disabled={busy} value={counter.measure} onChange={(e) => onChange({ measure: e.target.value })} />
+      </Field>
+      <Field label="Last headline" hint="Two lines.">
+        <Textarea rows={2} maxLength={120} disabled={busy} value={counter.close.lines.join("\n")} onChange={(e) => setHeadline("close", e.target.value)} />
+      </Field>
+      <Checkbox checked={counter.illustrative} disabled={busy} onChange={(e) => onChange({ illustrative: e.target.checked })}
+        label={"Show \u201cExample numbers\u201d on the video"} />
+      <Field label="Question at the end">
+        <Input maxLength={60} disabled={busy} value={counter.question} onChange={(e) => onChange({ question: e.target.value })} />
       </Field>
     </>
   );
