@@ -282,3 +282,25 @@
   .mwa-preview { position: static; max-width: 220px; margin: 0 auto; }
   .mwa-edit { max-height: none; overflow: visible; }
 }
+
+/* "Post animated videos" (components/animated/AnimatedChoice.tsx): the choice beside SOCIA's read of the account. */
+.anc { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--border); }
+.anc-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); width: 100%; }
+.anc-text { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; font-size: var(--fs-body); line-height: var(--lh-body); }
+.anc-text span { color: var(--ink-2); }
+.anc-note { display: flex; align-items: center; gap: var(--sp-2); margin: 0; color: var(--ink-2); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.anc-note.is-error { color: var(--danger-text); }
+.anc-fit { width: 100%; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); font-size: var(--fs-body); line-height: var(--lh-body); }
+.anc-fit ul { margin: var(--sp-1) 0 var(--sp-2); padding-left: var(--sp-4); }
+.anc-fit small { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); }
+
+/* "Generate animated videos" (components/animated/WeekAnimator.tsx). */
+.wka-lead { margin: 0 0 var(--sp-3); color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.wka-days { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.wka-days li { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); }
+.wka-days small { color: var(--ink-3); font-size: var(--fs-meta); line-height: var(--lh-meta); padding-left: var(--sp-5); }
+.wka-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); margin: 0; padding: 0; list-style: none; max-height: 60vh; overflow-y: auto; }
+.wka-grid li { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); }
+.wka-grid li > div:first-child { border-radius: var(--r-card); overflow: hidden; border: 1px solid var(--border); }
+.wka-grid li.is-off > div:first-child { opacity: 0.4; }
+.wka-grid small { color: var(--ink-3); }

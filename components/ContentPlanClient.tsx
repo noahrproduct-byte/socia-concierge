@@ -53,6 +53,7 @@ import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from
 
 // Loaded on demand: the video preview and renderer are large and only needed once someone presses Make it with AI.
 const MakeWithAi = dynamic(() => import("@/components/animated/MakeWithAi"), { ssr: false });
+const WeekAnimator = dynamic(() => import("@/components/animated/WeekAnimator"), { ssr: false });
 import { PlanTaskRow, usePlanTasks } from "@/components/plan/PlanTasks";
 import { reasonLabel } from "@/lib/planItems";
 import { Tabs, TabList, Tab, TabPanel } from "@/components/system";
@@ -77,6 +78,8 @@ export type PlanContext = {
   evidence: { posts: number; competitors: number; winning: number };
   /** The brand's Growth Strategy, for the report's Growth strategy section; null before one is written. */
   strategy: GrowthStrategy | null;
+  /** The brand chose "Post animated videos" (Settings): the plan offers Generate animated videos. */
+  animatedOn?: boolean;
 };
 
 // Soft guidance limits — counters only, never truncation.
@@ -414,7 +417,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
               </div>
             </div>
           ) : result ? (
-            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
+            <Report data={result.data} planId={result.id} posts={context.posts} canSchedule={canSchedule} strategy={context.strategy} goal={context.profile.goal} animatedOn={Boolean(context.animatedOn)} onUpdate={(data) => setResult((r) => (r ? { ...r, data } : r))} />
           ) : (
             <div className="cpl-empty">
               <div className="cpl-empty-ico">
@@ -563,7 +566,7 @@ function OutcomeTags({ o }: { o: ItemOutcome | null }) {
   );
 }
 
-function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; strategy: GrowthStrategy | null; goal: string | null; onUpdate: (d: Deliverable) => void }) {
+function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn = false, onUpdate }: { data: Deliverable; planId: string | null; posts: CalPost[]; canSchedule: boolean; strategy: GrowthStrategy | null; goal: string | null; animatedOn?: boolean; onUpdate: (d: Deliverable) => void }) {
   const [section, setSection] = useState<PlanSectionId>("week");
   const team = usePlanTasks(planId);
   // Times are SOCIA's, from the audience data, never the model's guess. The
@@ -595,6 +598,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
   const [rejecting, setRejecting] = useState<number | null>(null);
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [making, setMaking] = useState<number | null>(null);
+  const [animatingWeek, setAnimatingWeek] = useState(false);
   const persist = async (weeklyPlan: Deliverable["weeklyPlan"], ok: string): Promise<boolean> => {
     onUpdate({ ...data, weeklyPlan });
     if (!planId) { setSaveNote("Changed on screen. Generate or open a saved plan to keep changes."); return false; }
@@ -696,6 +700,18 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
   // Days still waiting for a decision: not turned down, not approved, not already on the Calendar.
   const pendingDays = (data.weeklyPlan ?? []).filter((d, i) => !d.decision && !onCalendar(i)).length;
   const anyApproved = (data.weeklyPlan ?? []).some((d) => d.decision?.status === "approved");
+
+  // When a plan day would post if placed now: the same week and audience hour
+  // Approve week uses. null when that day has already passed.
+  const whenFor = (i: number): string | null => {
+    const item = data.weeklyPlan?.[i];
+    if (!item) return null;
+    const now = new Date();
+    const d = draftsFromPlan([item], planWeekStart(now), (wd) => suggestedHour(aud, (wd + 6) % 7)).drafts[0];
+    return d && new Date(d.scheduled_at).getTime() > now.getTime() ? d.scheduled_at : null;
+  };
+  // Days already scheduled or posted are not offered for animated videos.
+  const animatedSkip = (data.weeklyPlan ?? []).map((_, i) => i).filter((i) => ["scheduled", "publishing", "published"].includes(itemOutcome(i)?.state ?? ""));
 
   // Approve week: every day not turned down goes on the Calendar as a draft
   // (the same drafts "Schedule this week" made), and each day it placed is
@@ -817,6 +833,11 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
             >
               <CalendarDays size={14} aria-hidden /> {sched.ok || (pendingDays === 0 && anyApproved) ? "Week approved" : pendingDays === 0 ? "Nothing to approve" : "Approve week"}
             </Button>
+            {animatedOn && planId && (
+              <Button size="sm" onClick={() => setAnimatingWeek(true)} title="SOCIA makes an animated video for each day that suits one; you review them before they're scheduled">
+                <Film size={14} aria-hidden /> Generate animated videos
+              </Button>
+            )}
           </div>
           <p className="cpl-approve-note">
             {pendingDays === 0
@@ -939,6 +960,9 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
             ); })}
           </div>
           <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
+          {planId && animatingWeek && (
+            <WeekAnimator open onOpenChange={(o) => { if (!o) setAnimatingWeek(false); }} planId={planId} skip={animatedSkip} whenFor={whenFor} canSchedule={canSchedule} onDone={() => setOutcomeTick((t) => t + 1)} />
+          )}
           {planId && making != null && data.weeklyPlan[making] && (
             <MakeWithAi key={making} open onOpenChange={(o) => { if (!o) setMaking(null); }} source={{ kind: "plan", planId, index: making, day: data.weeklyPlan[making].day }} />
           )}

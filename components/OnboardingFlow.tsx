@@ -25,6 +25,7 @@ import { Choices } from "./growth/GrowthFields";
 import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 import ReadReveal from "./ReadReveal";
+import AnimatedChoice from "@/components/animated/AnimatedChoice";
 
 /** A platform's ?<key>= return code from its OAuth callback, in words. */
 const RETURN_ERRORS: Record<string, string> = {
@@ -460,6 +461,7 @@ export default function OnboardingFlow({
                     </>
                   )}
                 </div>
+                <AnimatedChoice autoScan />
                 {nav("Finish setup")}
               </>
             )}
