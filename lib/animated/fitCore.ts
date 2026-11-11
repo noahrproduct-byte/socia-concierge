@@ -16,7 +16,11 @@ export type AnimatedFit = {
 };
 
 /** The brand's choice, and the last scan, saved in brand_detail.animated. */
-export type AnimatedPref = { on?: boolean; fit?: AnimatedFit };
+/** "Post animated videos": the brand's choice, how many a day the plan adds (default one), and SOCIA's read of the account. */
+export type AnimatedPref = { on?: boolean; perDay?: 1 | 2; fit?: AnimatedFit };
+
+/** How many animated videos a day the plan adds: 0 when animated videos are off, else 1 or 2 (default 1). */
+export const animatedPerDay = (pref: AnimatedPref | null | undefined): 0 | 1 | 2 => (pref?.on ? (pref.perDay === 2 ? 2 : 1) : 0);
 
 export const VERDICT_LABEL: Record<AnimatedVerdict, string> = {
   suits: "Suits this account",

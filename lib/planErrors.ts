@@ -42,6 +42,7 @@ export const METER_PHRASE: Record<MeterKey, string> = {
   content_studio: "Content Studio analyses",
   content_build: "footage analyses",
   video_builds: "AI-made videos",
+  animated_videos: "animated videos",
   music_tracks: "music tracks",
   content_generation: "hook and caption generations",
   account_audit: "account audits",

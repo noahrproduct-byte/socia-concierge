@@ -1,11 +1,12 @@
 "use client";
 
-// "Post animated videos": the brand's choice, beside SOCIA's honest read of
-// whether it suits the account (lib/animated/fit.ts). Used in sign-up and in
-// Settings. When on, every content plan offers "Generate animated videos".
+// "Post animated videos": the brand's choice and how many a day, beside SOCIA's
+// honest read of whether it suits the account (lib/animated/fit.ts). Used in
+// sign-up and in Settings. When on, every content plan gets that many animated
+// posts a day on top of the filmed ones, and "Generate animated videos" makes them.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Button, Switch } from "@/components/system";
+import { Button, SegmentedControl, Switch } from "@/components/system";
 import { VERDICT_LABEL, type AnimatedFit } from "@/lib/animated/fitCore";
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
@@ -17,6 +18,7 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
 
 export default function AnimatedChoice({ autoScan = false, canEdit = true }: { autoScan?: boolean; canEdit?: boolean }) {
   const [on, setOn] = useState<boolean | null>(null);
+  const [perDay, setPerDay] = useState<1 | 2>(1);
   const [fit, setFit] = useState<AnimatedFit | null>(null);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -32,20 +34,21 @@ export default function AnimatedChoice({ autoScan = false, canEdit = true }: { a
   }, []);
 
   useEffect(() => {
-    call<{ on: boolean; fit: AnimatedFit | null }>("/api/animated/fit")
+    call<{ on: boolean; perDay?: 1 | 2; fit: AnimatedFit | null }>("/api/animated/fit")
       .then((r) => {
-        setOn(r.on); setFit(r.fit);
+        setOn(r.on); setFit(r.fit); setPerDay(r.perDay === 2 ? 2 : 1);
         // In sign-up, check the account once when nothing has been checked yet.
         if (autoScan && canEdit && !r.fit && !asked.current) { asked.current = true; void scan(); }
       })
       .catch((e) => setErr((e as Error).message));
   }, [autoScan, canEdit, scan]);
 
-  async function choose(next: boolean) {
+  async function save(patch: { on?: boolean; perDay?: 1 | 2 }) {
     setSaving(true); setErr(null);
     try {
-      await call("/api/profile", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ brand_detail: { animated: { on: next } } }) });
-      setOn(next);
+      await call("/api/profile", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ brand_detail: { animated: patch } }) });
+      if (patch.on != null) setOn(patch.on);
+      if (patch.perDay) setPerDay(patch.perDay);
     } catch (e) { setErr((e as Error).message); } finally { setSaving(false); }
   }
 
@@ -54,10 +57,15 @@ export default function AnimatedChoice({ autoScan = false, canEdit = true }: { a
       <div className="anc-row">
         <div className="anc-text">
           <b>Post animated videos</b>
-          <span>Short animated vertical videos, such as side-by-side comparisons, counters or words on screen, made by SOCIA from your content plan. You see each week&apos;s videos before they&apos;re scheduled.</span>
+          <span>Short animated vertical videos, such as side-by-side comparisons, counters or words on screen. No filming: SOCIA writes them into every content plan, on top of your filmed posts, and makes them in your browser. You see each week&apos;s videos before they&apos;re scheduled.</span>
         </div>
-        {on != null && <Switch checked={on} disabled={!canEdit || saving} onCheckedChange={(v) => void choose(v)} label="Post animated videos" />}
+        {on != null && <Switch checked={on} disabled={!canEdit || saving} onCheckedChange={(v) => void save({ on: v })} label="Post animated videos" />}
       </div>
+      {on && (
+        <SegmentedControl label="How many a day" value={String(perDay)}
+          options={[{ value: "1", label: "One a day", disabled: !canEdit || saving }, { value: "2", label: "Two a day", disabled: !canEdit || saving }]}
+          onChange={(v) => void save({ perDay: v === "2" ? 2 : 1 })} />
+      )}
       {scanning && <p className="anc-note" role="status"><Loader2 size={13} className="spin" aria-hidden /> Checking whether they suit your account.</p>}
       {!scanning && fit && (
         <div className={`anc-fit is-${fit.verdict}`}>

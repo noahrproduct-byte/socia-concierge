@@ -49,6 +49,10 @@ export type Deliverable = {
     reference?: string;
     /** The niche Reel this post is built on, with the numbers SOCIA read for it (lib/trendSignals.ts ReelRef). Set by SOCIA from `reference`, never by the model. */
     ref?: import("./trendSignals").ReelRef;
+    /** An animated post SOCIA added because the brand posts animated videos (lib/animated/planPosts.ts); its day reads "Monday (animated)". Not part of the model's schema. */
+    animated?: boolean;
+    /** Which of the day's animated posts this is, when there are two a day. Not part of the model's schema. */
+    slot?: 1 | 2;
     /** Who makes the video: the person ("you") or their own Claude ("claude", lib/claudeWeek). Older plans lack it: "you". */
     maker?: "you" | "claude";
     /** The post's own id, assigned by SOCIA when the plan is saved (lib/planItems.ts withItemIds). Not part of the model's schema. */

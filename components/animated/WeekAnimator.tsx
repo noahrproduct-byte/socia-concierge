@@ -3,7 +3,7 @@
 // "Generate animated videos" for a whole content plan week:
 // 1. SOCIA reads the week and says which days suit an animated video (and why);
 //    the person can change the choice.
-// 2. It writes each chosen day's video (one AI-made video each) and makes it in
+// 2. It writes each chosen day's video (one animated video each) and makes it in
 //    this browser.
 // 3. The person reviews all of them together and presses Schedule all: each
 //    goes onto its day at the audience's hour. Nothing posts before that press.
@@ -16,8 +16,9 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedSpec } from "@/lib/animated/spec";
 import { AnimatedComposition } from "./AnimatedComposition";
+import { readableDay } from "@/lib/animated/day";
 
-type Pick = { index: number; day: string; animated: boolean; reason: string };
+type Pick = { index: number; day: string; animated: boolean; planned?: boolean; reason: string };
 type Made = { index: number; day: string; spec: AnimatedSpec; blob: Blob; keep: boolean };
 type Phase =
   | { kind: "picking" }
@@ -59,7 +60,12 @@ export default function WeekAnimator({ open, onOpenChange, planId, skip, whenFor
     if (!open || started.current) return;
     started.current = true;
     post<{ days: Pick[] }>("/api/animated/week/pick", { planId, skip })
-      .then((r) => { setPicks(r.days.map((d) => ({ ...d, animated: d.animated && whenFor(d.index) != null }))); setPhase({ kind: "choose" }); })
+      .then((r) => {
+        // A plan with its own animated posts makes those; filmed days stay unticked unless the person ticks them.
+        const planned = r.days.some((d) => d.planned);
+        setPicks(r.days.map((d) => ({ ...d, animated: d.animated && whenFor(d.index) != null && (!planned || Boolean(d.planned)) })));
+        setPhase({ kind: "choose" });
+      })
       .catch((e) => setPhase({ kind: "error", message: (e as Error).message }));
   }, [open, planId, skip, whenFor]);
   useEffect(() => () => abort.current?.abort(), []);
@@ -82,8 +88,8 @@ export default function WeekAnimator({ open, onOpenChange, planId, skip, whenFor
         out.push({ index: p.index, day: p.day, spec, blob, keep: true });
       } catch (e) {
         if (ctrl.signal.aborted) return;
-        // Out of AI-made videos, or a day that failed: keep what was made and say why.
-        setNote(`${p.day} wasn't made: ${(e as Error).message}`);
+        // Out of animated videos, or a day that failed: keep what was made and say why.
+        setNote(`${readableDay(p.day)} wasn't made: ${(e as Error).message}`);
         if ((e as { status?: number }).status === 402 || (e as { status?: number }).status === 403) break;
       }
     }
@@ -126,13 +132,13 @@ export default function WeekAnimator({ open, onOpenChange, planId, skip, whenFor
   } else if (phase.kind === "choose") {
     body = (
       <>
-        <p className="wka-lead">SOCIA picked the days that work as an animated video. Days that need real footage are left for filming. Change any of them.</p>
+        <p className="wka-lead">{picks.some((p) => p.planned) ? "Your plan's animated posts are ticked. You can also tick a filmed day to make it animated instead." : "SOCIA picked the days that work as an animated video. Days that need real footage are left for filming. Change any of them."}</p>
         <ul className="wka-days">
           {picks.map((p) => {
             const when = whenFor(p.index);
             return (
               <li key={p.index}>
-                <Checkbox checked={p.animated} disabled={!when} onChange={(e) => { const v = e.target.checked; setPicks((ps) => ps.map((x) => (x.index === p.index ? { ...x, animated: v } : x))); }} label={`${p.day}: ${when ? whenLabel(when) : "this day has passed"}`} />
+                <Checkbox checked={p.animated} disabled={!when} onChange={(e) => { const v = e.target.checked; setPicks((ps) => ps.map((x) => (x.index === p.index ? { ...x, animated: v } : x))); }} label={`${readableDay(p.day)}: ${when ? whenLabel(when) : "this day has passed"}`} />
                 {p.reason && <small>{p.reason}</small>}
               </li>
             );
@@ -141,9 +147,9 @@ export default function WeekAnimator({ open, onOpenChange, planId, skip, whenFor
         {!picks.length && <p className="wka-lead">Every day of this plan is already scheduled, posted or turned down.</p>}
       </>
     );
-    actions = <Button variant="primary" disabled={!chosen.length} onClick={() => void make()} title="Each video counts as one AI-made video">{chosen.length ? `Make ${chosen.length} video${chosen.length === 1 ? "" : "s"}` : "Choose a day"}</Button>;
+    actions = <Button variant="primary" disabled={!chosen.length} onClick={() => void make()} title="Each video counts as one animated video">{chosen.length ? `Make ${chosen.length} video${chosen.length === 1 ? "" : "s"}` : "Choose a day"}</Button>;
   } else if (phase.kind === "making") {
-    body = <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> {phase.step === "writing" ? "Writing" : "Making"} {phase.current} ({phase.done + 1} of {phase.total}). Keep this window open.</p>;
+    body = <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> {phase.step === "writing" ? "Writing" : "Making"} {readableDay(phase.current)} ({phase.done + 1} of {phase.total}). Keep this window open.</p>;
   } else if (phase.kind === "review" || phase.kind === "scheduling") {
     const n = made.filter((m) => m.keep).length;
     body = (
@@ -153,7 +159,7 @@ export default function WeekAnimator({ open, onOpenChange, planId, skip, whenFor
           {made.map((m) => (
             <li key={m.index} className={m.keep ? "" : "is-off"}>
               <Player component={AnimatedComposition} inputProps={{ spec: m.spec }} durationInFrames={specTimeline(m.spec).total} initialFrame={45} fps={ANIMATED_FPS} compositionWidth={ANIMATED_SIZE.width} compositionHeight={ANIMATED_SIZE.height} style={{ width: "100%", aspectRatio: "9 / 16" }} controls loop acknowledgeRemotionLicense />
-              <b>{m.day}</b>
+              <b>{readableDay(m.day)}</b>
               <small>{whenLabel(whenFor(m.index))}</small>
               <Checkbox checked={m.keep} disabled={phase.kind === "scheduling"} onChange={(e) => { const v = e.target.checked; setMade((ms) => ms.map((x) => (x.index === m.index ? { ...x, keep: v } : x))); }} label="Include" />
             </li>
@@ -167,7 +173,7 @@ export default function WeekAnimator({ open, onOpenChange, planId, skip, whenFor
     const parts = [phase.scheduled ? `${phase.scheduled} scheduled` : null, phase.drafts ? `${phase.drafts} saved as drafts` : null].filter(Boolean).join(", ");
     body = (
       <p className="mwa-status" role="status">
-        {parts || "Nothing new was added"}.{phase.skipped.length ? ` Left alone because they already had a video or were scheduled: ${phase.skipped.join(", ")}.` : ""}
+        {parts || "Nothing new was added"}.{phase.skipped.length ? ` Left alone because they already had a video or were scheduled: ${phase.skipped.map(readableDay).join(", ")}.` : ""}
       </p>
     );
     actions = <Link href="/plan/calendar" className="s-btn s-btn--primary">Open the Calendar</Link>;

@@ -38,12 +38,12 @@ export async function POST(req: Request) {
   const { data: plan } = await scopeToWorkspace(ctx.client.from("plans").select("id").eq("id", planId).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null).maybeSingle();
   if (!plan) return NextResponse.json({ error: "That plan no longer exists." }, { status: 404 });
   const items: Item[] = [];
-  for (const r of (Array.isArray(b?.items) ? b.items : []).slice(0, 7) as Record<string, unknown>[]) {
+  for (const r of (Array.isArray(b?.items) ? b.items : []).slice(0, 21) as Record<string, unknown>[]) {
     const path = typeof r?.path === "string" ? r.path : "";
     if (!isOwnPath(path, [user.id]) || path.split("/")[1] !== "animated" || !/\.mp4$/.test(path)) return NextResponse.json({ error: "That media file is not yours." }, { status: 403 });
     const at = typeof r.scheduledAt === "string" ? new Date(r.scheduledAt) : null;
     if (!at || Number.isNaN(at.getTime())) return NextResponse.json({ error: "Each video needs a valid time." }, { status: 400 });
-    items.push({ index: Number(r.index), day: String(r.day ?? "").slice(0, 20), path, caption: typeof r.caption === "string" ? r.caption.slice(0, 2200) : "", scheduledAt: at.toISOString() });
+    items.push({ index: Number(r.index), day: String(r.day ?? "").slice(0, 32), path, caption: typeof r.caption === "string" ? r.caption.slice(0, 2200) : "", scheduledAt: at.toISOString() });
   }
   if (!items.length) return NextResponse.json({ error: "There are no videos to schedule." }, { status: 400 });
 

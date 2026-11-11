@@ -85,3 +85,27 @@ describe("buildPlanOutcome", () => {
     expect(o.summary.line).toBe("1 of 4 posted · results still arriving · 3 skipped");
   });
 });
+
+describe("animated posts in a plan", () => {
+  const withAnimated = {
+    ...plan,
+    data: { weeklyPlan: [
+      ...plan.data.weeklyPlan,
+      { day: "Monday (animated)", concept: "c", hook: "h", format: "Animated video", rationale: "", evidence: "", predictedPerformance: "", animated: true, slot: 1 },
+      { day: "Monday (animated 2)", concept: "c", hook: "h", format: "Animated video", rationale: "", evidence: "", predictedPerformance: "", animated: true, slot: 2 },
+    ] } as unknown as Deliverable,
+  };
+
+  it("never lets an animated post stand in for the filmed post of the same day, or the other way round", () => {
+    const anim = [post({ id: "anim1", plan_day: "Monday (animated)", status: "scheduled", scheduled_at: ago(-10), created_at: ago(5) })];
+    const o = buildPlanOutcome(withAnimated, anim, [], sources, NOW);
+    expect(o.items[0].state).toBe("unscheduled"); // filmed Monday
+    expect(o.items[4].postId).toBe("anim1");
+    expect(o.items[5].state).toBe("unscheduled"); // the second animated post that day
+
+    const filmed = [post({ id: "film", plan_day: "Monday", status: "scheduled", scheduled_at: ago(-10) })];
+    const o2 = buildPlanOutcome(withAnimated, filmed, [], sources, NOW);
+    expect(o2.items[0].postId).toBe("film");
+    expect(o2.items[4].state).toBe("unscheduled");
+  });
+});

@@ -12,9 +12,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // "Generate animated videos", step one: which of a saved plan's days suit an
-// animated video. Days turned down, or listed in `skip` (already on the
-// Calendar with media), are left out. Nothing is counted against the video allowance.
-//   POST { planId, skip?: number[] } -> { days: [{ index, day, animated, reason }] }
+// animated video. The plan's own animated posts are picked without asking;
+// days turned down, or listed in `skip` (already on the Calendar with
+// media), are left out. Nothing is counted against the video allowance.
+//   POST { planId, skip?: number[] } -> { days: [{ index, day, animated, planned?, reason }] }
 export async function POST(req: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -32,15 +33,19 @@ export async function POST(req: Request) {
   const { data } = await scopeToWorkspace(ctx.client.from("plans").select("id, data").eq("id", planId).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null).maybeSingle();
   const week = (data as { data: Deliverable } | null)?.data?.weeklyPlan;
   if (!week) return NextResponse.json({ error: "That plan no longer exists." }, { status: 404 });
-  const days: PlanDay[] = week
+  const open = week
     .map((p, index) => ({ p, index }))
-    .filter(({ p, index }) => p.decision?.status !== "rejected" && !skip.has(index) && (p.hook?.trim() || p.concept?.trim()))
+    .filter(({ p, index }) => p.decision?.status !== "rejected" && !skip.has(index) && (p.hook?.trim() || p.concept?.trim()));
+  // The plan's animated posts were written for this: picked without asking the model.
+  const planned = open.filter(({ p }) => p.animated).map(({ p, index }) => ({ index, day: p.day, animated: true, planned: true, reason: "Planned as an animated video." }));
+  const days: PlanDay[] = open
+    .filter(({ p }) => !p.animated)
     .slice(0, 7)
     .map(({ p, index }) => ({ index, day: p.day, title: p.title, hook: p.hook ?? "", concept: p.concept ?? "", format: p.format, direction: p.direction }));
-  if (!days.length) return NextResponse.json({ days: [] });
+  if (!days.length) return NextResponse.json({ days: planned });
   try {
     const picks = await pickAnimatedDays(ctx, days);
-    return NextResponse.json({ days: picks.map((x) => ({ ...x, day: week[x.index].day })) });
+    return NextResponse.json({ days: [...planned, ...picks.map((x) => ({ ...x, day: week[x.index].day }))] });
   } catch (e) {
     console.error("[animated/week/pick]", (e as Error)?.message ?? e);
     const kind = aiFailureKind(e);

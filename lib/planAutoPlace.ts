@@ -18,7 +18,7 @@ type Supa = SupabaseClient<any, any, any>;
 
 export const PLACEHOLDER_HOUR = 12;
 
-type Item = { day: string; concept: string; hook: string; format: string; maker?: "you" | "claude"; decision?: { status: string } };
+type Item = { day: string; concept: string; hook: string; format: string; maker?: "you" | "claude"; animated?: boolean; decision?: { status: string } };
 
 /** The calendar date and weekday at `now` in `tz`. */
 function localDate(now: Date, tz: string): { y: number; m: number; d: number; weekday: number } {
@@ -48,14 +48,15 @@ export function comingWeek(now: Date, tz: string): { start: Date; end: Date; mon
 /**
  * The plan's posts as drafts for that week, at noon local on each post's day.
  * Left out: a post whose day isn't a weekday, one that is already past, one
- * the person turned down, and one their own Claude makes (that flow places
- * its own video).
+ * the person turned down, one their own Claude makes (that flow places
+ * its own video), and an animated post (placed with its video when made).
  */
 export function comingWeekDrafts(items: Item[], now: Date, tz: string): DraftInput[] {
   const { monday } = comingWeek(now, tz);
   const out: DraftInput[] = [];
   for (const it of items) {
-    if (it.maker === "claude" || it.decision?.status === "rejected") continue;
+    // Animated posts go on the Calendar with their video, from "Generate animated videos".
+    if (it.maker === "claude" || it.animated || it.decision?.status === "rejected") continue;
     const wd = weekdayIndex(it.day);
     if (wd == null) continue;
     const at = zonedInstant(monday.y, monday.m, monday.d + ((wd + 6) % 7), PLACEHOLDER_HOUR, tz);

@@ -120,7 +120,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
           <ButtonLink href={phase.href} variant="primary">Open the draft</ButtonLink>
         ) : (
           <>
-            {spec && <Button onClick={() => void write()} disabled={busy || phase.kind === "writing"} title="Counts as another AI-made video">Write it again</Button>}
+            {spec && <Button onClick={() => void write()} disabled={busy || phase.kind === "writing"} title="Counts as another animated video">Write it again</Button>}
             <Button variant="primary" onClick={() => void save()} disabled={!spec || busy || phase.kind === "writing"} busy={busy}>{source.kind === "plan" ? "Save as draft" : "Add to the draft"}</Button>
           </>
         )

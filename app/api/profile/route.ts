@@ -106,9 +106,13 @@ export async function POST(req: Request) {
     const sentStrategist = sent.strategist && typeof sent.strategist === "object" ? (sent.strategist as Record<string, unknown>) : {};
     const strategist: Record<string, unknown> = {};
     for (const k of ["aggressiveness", "formats", "frequency", "prioritize"]) if (k in sentStrategist) strategist[k] = sentStrategist[k];
-    // "Post animated videos": only the choice is taken from here; the scan of whether it suits the account is SOCIA's (/api/animated/fit).
+    // "Post animated videos": only the choice (on, and how many a day) is taken from here; the scan of whether it suits the account is SOCIA's (/api/animated/fit).
     const sentAnimated = sent.animated && typeof sent.animated === "object" ? (sent.animated as Record<string, unknown>) : null;
-    const animated = sentAnimated && typeof sentAnimated.on === "boolean" ? { animated: { ...(existing.animated ?? {}), on: sentAnimated.on } } : {};
+    const choice = {
+      ...(typeof sentAnimated?.on === "boolean" ? { on: sentAnimated.on } : {}),
+      ...(sentAnimated?.perDay === 1 || sentAnimated?.perDay === 2 ? { perDay: sentAnimated.perDay } : {}),
+    };
+    const animated = Object.keys(choice).length ? { animated: { ...(existing.animated ?? {}), ...choice } } : {};
     brand.brand_detail = {
       ...existing,
       ...filled,
