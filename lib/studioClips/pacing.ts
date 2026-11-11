@@ -4,7 +4,9 @@
 //   - the opener starts on the action (never inside a silent lead-in) and runs
 //     1 to 5 seconds unless speech carries it longer (one unbroken move can hold it);
 //   - no cut drags: a cut without speech stops at 5 seconds, one with speech
-//     at 10, both at a word or pause boundary;
+//     at 10, both at a word or pause boundary; the silent shot straight after
+//     the opening stops at 3, trimmed from its start so the move's end stays
+//     (Noah's pizza cut, 2026-11-11: a 4.1 s oven pull right after the hook);
 //   - the ending has room to land (1.5 seconds or more);
 //   - a text line stays up long enough to read (0.8 s plus 45 ms a character,
 //     1 to 4 seconds), and an opening line is on screen from the start.
@@ -17,12 +19,18 @@ import { charCount } from "@/lib/textPresets";
 import type { Edl, EdlSegment, EdlText } from "./types";
 import { clipLabel } from "./types";
 import { styleOf } from "./profiles";
+import type { CutCheck } from "./cutCheck";
+
+/** The highest score a cut gets while the cut check has found something; each further finding takes 10 more. */
+export const MAX_WITH_FINDINGS = 80;
 
 export const PACING = {
   openerMinSec: 1,
   openerMaxSec: 5,
   /** a cut with no words inside it stops here */
   silentMaxSec: 5,
+  /** the silent shot straight after the opening stops here: the viewer has just been hooked */
+  followMaxSec: 3,
   /** a cut carrying speech stops here */
   speechMaxSec: 10,
   endingMinSec: 1.5,
@@ -106,7 +114,14 @@ export function applyPacing(edl: Edl, clips: ClipForEdl[]): { edl: Edl; changes:
     const cap = hasSpeech(clip, s) ? P.speechMaxSec : P.silentMaxSec;
     const isOpener = i === 0;
     const openerCap = isOpener && !hasSpeech(clip, s) ? Math.min(cap, P.openerMaxSec) : cap;
-    if (s.out - s.in > openerCap + 0.05) {
+    // The silent shot right after the hook keeps the viewer moving: it gives up its start, so the move still lands.
+    const follow = i === 1 && last >= 2 && !hasSpeech(clip, s);
+    if (follow && s.out - s.in > P.followMaxSec + 0.05) {
+      const target = snapTime(s.out - P.followMaxSec, clip, "in");
+      const inT = target < s.out - MIN && s.out - target <= P.followMaxSec + 0.05 ? target : r2(s.out - P.followMaxSec);
+      changes.push({ segmentId: s.id, what: `${label} starts at ${inT.toFixed(1)}s so the shot after the opening runs ${(s.out - inT).toFixed(1)}s and keeps the pace.` });
+      s.in = inT;
+    } else if (!follow && s.out - s.in > openerCap + 0.05) {
       const target = snapTime(s.in + openerCap, clip, "out");
       const out = target > s.in + MIN ? target : r2(s.in + openerCap);
       changes.push({ segmentId: s.id, what: `${label} shortened to ${(out - s.in).toFixed(1)}s so it doesn't drag.` });
@@ -146,7 +161,7 @@ export type PacingReport = { score: number; line: string; parts: PacingPart[]; a
  * one plain sentence and the parts behind it. Deterministic: the same cut
  * always gets the same report. `beat` is only judged when a tempo is known.
  */
-export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number; offsetSec: number } | null): PacingReport {
+export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number; offsetSec: number } | null, check?: Pick<CutCheck, "findings"> | null): PacingReport {
   const byId = new Map(clips.map((c) => [c.id, c]));
   const P = pacingRules(edl);
   const tl = timeline(edl);
@@ -166,7 +181,8 @@ export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number
   if (segs.length) {
     const ok = avg >= P.averageCutSec[0] - 0.05 && avg <= P.averageCutSec[1] + 0.05;
     parts.push({ id: "pace", label: "Short-form pace", ok, detail: `${segs.length} cut${segs.length === 1 ? "" : "s"} averaging ${avg.toFixed(1)}s.` });
-    const dragging = segs.filter((s) => s.out - s.in > (hasSpeech(byId.get(s.clipId), s) ? P.speechMaxSec : P.silentMaxSec) + 0.05);
+    const capFor = (s: EdlSegment, i: number) => hasSpeech(byId.get(s.clipId), s) ? P.speechMaxSec : i === 1 && segs.length >= 3 ? Math.min(P.silentMaxSec, P.followMaxSec) : P.silentMaxSec;
+    const dragging = segs.filter((s, i) => s.out - s.in > capFor(s, i) + 0.05);
     parts.push({ id: "drag", label: "No cut drags", ok: !dragging.length, detail: dragging.length ? `${dragging.map((s) => `${clipLabel(byId.get(s.clipId)?.position ?? 0)} (${(s.out - s.in).toFixed(1)}s)`).join(", ")} run${dragging.length === 1 ? "s" : ""} longer than a viewer waits.` : `The longest cut is ${Math.max(...lens).toFixed(1)}s.` });
     const ending = segs[segs.length - 1];
     const endLen = ending.out - ending.in;
@@ -184,12 +200,17 @@ export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number
     parts.push({ id: "beat", label: "On the beat", ok: on === bounds.length, detail: `${on} of ${bounds.length} cuts land on the music's beat (${Math.round(beat.bpm)} BPM).` });
   }
   const met = parts.filter((p) => p.ok).length;
-  const score = parts.length ? Math.round((met / parts.length) * 100) : 0;
   const failing = parts.filter((p) => !p.ok);
+  // What the cut check found (lib/studioClips/cutCheck.ts) is something a viewer sees: the score can't read as finished while it's there.
+  const found = check?.findings.length ?? 0;
+  const held = Math.max(0, MAX_WITH_FINDINGS + 10 - found * 10);
+  const raw = parts.length ? Math.round((met / parts.length) * 100) : 0;
+  const score = found ? Math.min(raw, held) : raw;
+  const heldLine = found && score < raw ? ` Held at ${score} until the ${found === 1 ? "thing" : `${found} things`} below ${found === 1 ? "is" : "are"} fixed.` : "";
   const line = !parts.length
     ? "No cuts to pace yet."
     : !failing.length
-      ? `Paced like a good short-form edit: ${segs.length} cut${segs.length === 1 ? "" : "s"} averaging ${avg.toFixed(1)}s, a ${(lens[0] ?? 0).toFixed(1)}s opening${edl.text.length ? ", every line readable" : ""}${beat ? ", on the beat" : ""}.`
-      : `${met} of ${parts.length} pacing rules met. ${failing.map((p) => p.detail).join(" ")}`;
+      ? `${found ? "Paced well" : "Paced like a good short-form edit"}: ${segs.length} cut${segs.length === 1 ? "" : "s"} averaging ${avg.toFixed(1)}s, a ${(lens[0] ?? 0).toFixed(1)}s opening${edl.text.length ? ", every line readable" : ""}${beat ? ", on the beat" : ""}.${heldLine}`
+      : `${met} of ${parts.length} pacing rules met. ${failing.map((p) => p.detail).join(" ")}${heldLine}`;
   return { score, line, parts, averageCutSec: r2(avg), cuts: segs.length };
 }

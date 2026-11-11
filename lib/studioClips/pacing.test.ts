@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PACING, applyPacing, minReadSec, pacingReport } from "./pacing";
+import { MAX_WITH_FINDINGS, PACING, applyPacing, minReadSec, pacingReport } from "./pacing";
 import type { ClipForEdl } from "./edl";
 import type { Edl, EdlSegment, EdlText } from "./types";
 
@@ -32,9 +32,31 @@ describe("pacing SOCIA's cut", () => {
   });
 
   it("caps a silent cut at five seconds and a spoken one at ten", () => {
-    const { edl: out } = applyPacing(edl([seg("s1", "b", 0, 9, "opener"), seg("s2", "b", 2, 14), seg("s3", "a", 1.5, 6, "ending")]), [talking, silent]);
+    const { edl: out } = applyPacing(edl([seg("s1", "b", 0, 9, "opener"), seg("s2", "a", 1.5, 6), seg("s3", "b", 2, 14), seg("s4", "a", 1.5, 6, "ending")]), [talking, silent]);
     expect(out.segments[0].out - out.segments[0].in).toBeCloseTo(PACING.openerMaxSec, 2);
-    expect(out.segments[1].out - out.segments[1].in).toBeCloseTo(PACING.silentMaxSec, 2);
+    expect(out.segments[2].out - out.segments[2].in).toBeCloseTo(PACING.silentMaxSec, 2);
+  });
+
+  it("keeps the silent shot after the opening short, trimming its start so the move still lands (Noah's pizza cut, 2026-11-11)", () => {
+    // The oven pull ran 4.1 s straight after the hook.
+    const { edl: out, changes } = applyPacing(edl([seg("s1", "b", 6.2, 8.6, "opener"), seg("s2", "b", 1.8, 5.9), seg("s3", "b", 9.7, 11.6, "ending")]), [talking, silent]);
+    expect(out.segments[1].out).toBe(5.9);
+    expect(out.segments[1].out - out.segments[1].in).toBeCloseTo(PACING.followMaxSec, 2);
+    expect(changes.some((c) => /shot after the opening runs 3\.0s/.test(c.what))).toBe(true);
+    // A calm cut lets it run.
+    const calm = applyPacing({ ...edl([seg("s1", "b", 6.2, 8.6, "opener"), seg("s2", "b", 1.8, 5.9), seg("s3", "b", 9.7, 11.6, "ending")]), editStyle: "calm" }, [talking, silent]).edl;
+    expect(calm.segments[1].in).toBe(1.8);
+  });
+
+  it("won't score a cut 100 while the cut check has found something", () => {
+    const cut = edl([seg("s1", "b", 0, 2, "opener"), seg("s2", "b", 4, 6), seg("s3", "b", 8, 10, "ending")]);
+    const clean = pacingReport(cut, [talking, silent]);
+    expect(clean.score).toBe(100);
+    const one = pacingReport(cut, [talking, silent], null, { findings: [{ id: "text", segmentId: null, detail: "x" }] });
+    expect(one.score).toBe(MAX_WITH_FINDINGS);
+    expect(one.line).toMatch(/Held at 80 until the thing below is fixed\./);
+    const three = pacingReport(cut, [talking, silent], null, { findings: [1, 2, 3].map(() => ({ id: "ghost" as const, segmentId: null, detail: "x" })) });
+    expect(three.score).toBe(60);
   });
 
   it("gives the ending room to land", () => {

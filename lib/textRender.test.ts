@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ASPECTS } from "./studioClips/types";
 import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapParagraph, type Measure } from "./textRender";
-import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, defaultTiming, frameScale, presetForRole, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
+import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, clampWords, fitLine, defaultTiming, frameScale, presetForRole, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
 import { CAPCUT_FONTS } from "./studioClips/style";
 
 /** A fake canvas: every character is 0.55 em wide (emoji 1 em), whatever the face. */
@@ -78,6 +78,22 @@ describe("presets", () => {
     expect(charCount("héllo 🔥")).toBe(7);
     expect(clampChars("abcdef", 3)).toBe("abc");
     expect(clampChars("ab 🔥🔥", 4)).toBe("ab 🔥");
+  });
+  it("shorten a line at a whole word and never leave it hanging (Noah's pizza cut, 2026-11-11)", () => {
+    // Cut at a character, this came out as "when the pizza comes out looking like th".
+    expect(clampWords("when the pizza comes out looking like this 🔥", 40)).toBe("when the pizza comes out looking");
+    expect(clampWords("Fresh out of the oven", 40)).toBe("Fresh out of the oven");
+    expect(clampWords("Supercalifragilistic", 5)).toBe("Super");
+    expect(clampWords("Open late, every night of the week", 12)).toBe("Open late");
+  });
+  it("move a line too long for its look to the roomier Caption in the same place, shortening only past that", () => {
+    const hook = fitLine("when the pizza comes out looking like this 🔥", TEXT_PRESETS.hook_title);
+    expect([hook.preset.id, hook.slot, hook.text, hook.shortened]).toEqual(["caption_bar", "top", "when the pizza comes out looking like this 🔥", false]);
+    expect(fitLine("Fresh out of the oven", TEXT_PRESETS.hook_title)).toEqual({ text: "Fresh out of the oven", preset: TEXT_PRESETS.hook_title, shortened: false });
+    const long = fitLine("word ".repeat(30), TEXT_PRESETS.hook_title);
+    expect(long.shortened).toBe(true);
+    expect(charCount(long.text)).toBeLessThanOrEqual(TEXT_PRESETS.caption_bar.maxChars);
+    expect(long.text.endsWith("word")).toBe(true);
   });
   it("default timing fits the video", () => {
     expect(defaultTiming(TEXT_PRESETS.hook_title, 20)).toEqual({ at: 0, end: 3 });

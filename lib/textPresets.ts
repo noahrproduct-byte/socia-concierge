@@ -188,6 +188,45 @@ export function clampChars(s: string, max: number): string {
   return chars.length <= max ? s : chars.slice(0, max).join("").trimEnd();
 }
 
+/** Words a shortened line never ends on: they promise a word that isn't there ("looking like"). */
+const DANGLING = new Set(["a", "an", "the", "and", "or", "but", "so", "to", "of", "with", "for", "in", "on", "at", "by", "from", "like", "as", "is", "are", "was", "be", "your", "my", "our", "their", "this", "that", "these", "those", "when", "if", "than", "then", "into", "onto", "about", "just", "very"]);
+
+/**
+ * Shorten a line to a limit at a whole word, never inside one, and drop a
+ * dangling word at the end ("comes out looking like th" becomes "comes out
+ * looking"). A single word longer than the limit is the one case cut at a
+ * character. Trailing commas and dashes go too.
+ */
+export function clampWords(s: string, max: number): string {
+  const t = s.trim();
+  if (charCount(t) <= max) return t;
+  const words = t.split(/\s+/);
+  const kept: string[] = [];
+  for (const w of words) {
+    if (charCount([...kept, w].join(" ")) > max) break;
+    kept.push(w);
+  }
+  if (!kept.length) return clampChars(t, max);
+  while (kept.length > 1 && DANGLING.has(kept[kept.length - 1].toLowerCase().replace(/[^\p{L}]/gu, ""))) kept.pop();
+  return kept.join(" ").replace(/[\s,;:–-]+$/u, "");
+}
+
+/**
+ * The look a line SOCIA wrote goes in, and its words. The asked-for preset
+ * when the words fit; otherwise the roomier Caption, kept in the asked-for
+ * preset's place on screen (a long hook stays at the top); only when even
+ * that is too small is the line shortened, at a whole word. `shortened` says
+ * so, for the cut check.
+ */
+export function fitLine(text: string, preset: TextPreset): { text: string; preset: TextPreset; slot?: TextSlot; shortened: boolean } {
+  const t = text.trim();
+  if (charCount(t) <= preset.maxChars) return { text: t, preset, shortened: false };
+  const roomy = TEXT_PRESETS.caption_bar;
+  const slot = roomy.slot !== preset.slot ? preset.slot : undefined;
+  if (charCount(t) <= roomy.maxChars) return { text: t, preset: roomy, slot, shortened: false };
+  return { text: clampWords(t, roomy.maxChars), preset: roomy, slot, shortened: true };
+}
+
 /** Default timing for a new line of this preset inside a video of this length. */
 export function defaultTiming(preset: TextPreset, durationSec: number, atSec?: number | null): { at: number; end: number } {
   const r2 = (n: number) => Math.round(n * 100) / 100;

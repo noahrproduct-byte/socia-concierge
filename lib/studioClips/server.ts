@@ -16,7 +16,7 @@ import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForE
 import { sanitizeFinish } from "./finish";
 import { applyPacing } from "./pacing";
 import { decideJoins, joinsNote } from "./joins";
-import { repairCut } from "./cutCheck";
+import { endOpeningWithShot, repairCut } from "./cutCheck";
 import { pickEmphasis } from "./emphasis";
 import { editSpeech, speechNote } from "./speech";
 import { pickStyle, speechShare, styleNote, styleOf, type EditStyleId, type StylePick } from "./profiles";
@@ -792,6 +792,9 @@ function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: 
   replace(SPEECH_NOTE, speechNote(spoken.removed));
   const joinLine = joinsNote(joins);
   if (joinLine) notes.push(joinLine);
+  // An opening line ends with its shot rather than flashing onto the next one.
+  const opening = endOpeningWithShot(out);
+  if (opening.fixed) { out = opening.edl; fixed.push(opening.fixed); }
   replace(CHECK_NOTE, fixed.length ? `SOCIA checked the cut before showing it: ${[...new Set(fixed)].join("; ")}.` : "");
   return { ...out, notes };
 }

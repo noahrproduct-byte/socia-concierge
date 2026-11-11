@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Minus, Plus, Trash2, ArrowUp, ArrowDown, Type, X } from "lucide-react";
 import { PresetThumb } from "./TextOverlay";
 import { fmtClock, type EdlText } from "@/lib/studioClips/types";
-import { MAX_TEXT_LAYERS, TEXT_PRESETS, TEXT_PRESET_IDS, TEXT_SLOTS, charCount, clampChars, defaultTiming, presetOf, type TextPresetId, type TextSlot } from "@/lib/textPresets";
+import { MAX_TEXT_LAYERS, TEXT_PRESETS, TEXT_PRESET_IDS, TEXT_SLOTS, charCount, clampChars, clampWords, defaultTiming, presetOf, type TextPresetId, type TextSlot } from "@/lib/textPresets";
 import { canvasMeasure, fitMessage, layoutTextLayer, presetFonts } from "@/lib/textRender";
 import { ensureTextFonts } from "@/lib/textFonts";
 
@@ -29,7 +29,7 @@ export function roleForTiming(at: number, end: number, durationSec: number): Edl
 export function newTextLayer(presetId: TextPresetId, durationSec: number, atSec?: number | null, text = ""): EdlText {
   const preset = TEXT_PRESETS[presetId];
   const { at, end } = defaultTiming(preset, durationSec, atSec);
-  return { id: `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, end, text: clampChars(text, preset.maxChars), role: roleForTiming(at, end, durationSec), presetId };
+  return { id: `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at, end, text: clampWords(text, preset.maxChars), role: roleForTiming(at, end, durationSec), presetId };
 }
 
 export type TextLayersPanelProps = {
@@ -107,7 +107,7 @@ export default function TextLayersPanel({ layers, onChange, durationSec, frame, 
     const cur = layers.find((l) => l.id === id);
     if (!cur) return;
     const preset = TEXT_PRESETS[presetId];
-    update(id, { presetId, slot: undefined, text: clampChars(cur.text, preset.maxChars) });
+    update(id, { presetId, slot: undefined, text: clampWords(cur.text, preset.maxChars) });
     setPicking(null);
   };
   const openRow = (l: EdlText) => { const next = open === l.id ? null : l.id; setOpen(next); if (next) onOpen?.(l); };
@@ -163,7 +163,7 @@ export default function TextLayersPanel({ layers, onChange, durationSec, frame, 
                       autoFocus={!l.text}
                       placeholder={preset.lead ? "200+\nthe line under the number" : preset.sample}
                       aria-invalid={Boolean(problem)}
-                      onChange={(e) => update(l.id, { text: clampChars(e.target.value, preset.maxChars) })}
+                      onChange={(e) => update(l.id, { text: clampChars(e.target.value, preset.maxChars), shortened: undefined })}
                     />
                   </label>
                   {preset.lead && <small className="ov-source">First line is the number, the next line sits under it.</small>}

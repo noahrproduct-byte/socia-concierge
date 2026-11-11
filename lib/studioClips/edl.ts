@@ -2,7 +2,7 @@
 // then rendered as a plain-language edit guide. The same EDL feeds the Player
 // in Phase B, so the guide and the preview can never disagree.
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
-import { MAX_TEXT_LAYERS, TEXT_PRESETS, clampChars, isTextPresetId, isTextSlot, presetForRole } from "@/lib/textPresets";
+import { MAX_TEXT_LAYERS, TEXT_PRESETS, fitLine, isTextPresetId, isTextSlot, presetForRole } from "@/lib/textPresets";
 import { aspectOf, clipLabel, fmtClock, isSegmentPurpose, isTransition } from "./types";
 import { overlapFrames, secToFrames } from "./timeline";
 import { finishSteps, sanitizeFinish } from "./finish";
@@ -46,7 +46,7 @@ export type RawEdl = {
   height?: number;
   segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string; voiceTail?: number }[];
   style?: unknown;
-  text?: { at: number; end?: number; text: string; role?: string; presetId?: string; slot?: string }[];
+  text?: { at: number; end?: number; text: string; role?: string; presetId?: string; slot?: string; shortened?: boolean }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
   cta?: string | null;
   music?: string | null;
@@ -211,8 +211,10 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
   if (total < target.min) notes.push(`This cut runs ${total}s, under the recommended ${target.min}s. Add another moment or let a clip breathe longer.`);
 
   // Text layers inside the output: at most MAX_TEXT_LAYERS, each on a known
-  // preset (an old role-only line gets the preset for its role), its words cut
-  // to the preset's limit, its slot kept only when it differs from the preset's.
+  // preset (an old role-only line gets the preset for its role). Words that
+  // don't fit move to the roomier Caption in the same place, and are only ever
+  // shortened at a whole word (lib/textPresets.ts fitLine). The slot is kept
+  // only when it differs from the preset's.
   const ROLES = new Set(["opening", "mid", "cta"]);
   const text: EdlText[] = (raw.text ?? [])
     .filter((t) => typeof t.text === "string" && t.text.trim())
@@ -221,9 +223,12 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
       const at = r2(clamp(t.at ?? 0, 0, Math.max(0, total - 0.5)));
       const end = r2(clamp(t.end ?? at + 2.5, at + 0.5, total || at + 2.5));
       const role = (ROLES.has(t.role ?? "") ? t.role : at < 1 ? "opening" : "mid") as EdlText["role"];
-      const preset = isTextPresetId(t.presetId) ? TEXT_PRESETS[t.presetId] : presetForRole(role);
-      const slot = isTextSlot(t.slot) && t.slot !== preset.slot ? t.slot : undefined;
-      return { id: `t${i + 1}`, at, end, text: clampChars(t.text.trim(), preset.maxChars), role, presetId: preset.id, ...(slot ? { slot } : {}) };
+      const fit = fitLine(t.text, isTextPresetId(t.presetId) ? TEXT_PRESETS[t.presetId] : presetForRole(role));
+      const preset = fit.preset;
+      const asked = isTextSlot(t.slot) ? t.slot : fit.slot;
+      const slot = asked && asked !== preset.slot ? asked : undefined;
+      const shortened = fit.shortened || t.shortened === true;
+      return { id: `t${i + 1}`, at, end, text: fit.text, role, presetId: preset.id, ...(slot ? { slot } : {}), ...(shortened ? { shortened: true as const } : {}) };
     });
 
   const inCut = clips.filter((c) => segments.some((s) => s.clipId === c.id));
@@ -267,7 +272,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     height: edited.height,
     segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition, sound: s.sound, purpose: s.purpose, voiceTail: s.voiceTail })),
     style: edited.style,
-    text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, presetId: t.presetId, slot: t.slot })),
+    text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, presetId: t.presetId, slot: t.slot, shortened: t.shortened })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
     cta: edited.cta, music: edited.music, caption: edited.caption,
     notes: edited.notes.filter((n) => !/^This cut runs/.test(n)),
