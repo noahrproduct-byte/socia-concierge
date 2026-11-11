@@ -14,7 +14,7 @@ export type EditStyle = {
   /** what the style does, in one line for the editor */
   summary: string;
   /** pacing numbers that differ from the defaults (lib/studioClips/pacing.ts PACING) */
-  pacing: { openerMaxSec: number; silentMaxSec: number; speechMaxSec: number; endingMinSec: number; averageCutSec: readonly [number, number] };
+  pacing: { openerMaxSec: number; silentMaxSec: number; followMaxSec: number; speechMaxSec: number; endingMinSec: number; averageCutSec: readonly [number, number] };
   /** how two shots join when nobody is talking across the join */
   joins: "dissolve" | "cut";
   /** how much of each pause is kept (lib/studioClips/speech.ts) */
@@ -26,36 +26,36 @@ export type EditStyle = {
 export const EDIT_STYLES: Record<EditStyleId, EditStyle> = {
   process: {
     id: "process", label: "Food and process",
-    summary: "The making in order, the real sound of the work, soft dissolves, the finished thing at the end.",
-    pacing: { openerMaxSec: 5, silentMaxSec: 5, speechMaxSec: 10, endingMinSec: 1.5, averageCutSec: [1, 4] },
+    summary: "The making in order, the real sound of the work, hard cuts on the action, the finished thing at the end.",
+    pacing: { openerMaxSec: 5, silentMaxSec: 5, followMaxSec: 3, speechMaxSec: 10, endingMinSec: 1.5, averageCutSec: [1, 4] },
     joins: "dissolve", speech: "tight",
     prompt: "Food and process: open on the most satisfying moment, then show the making in the order it happens, keep the real sound of the work, and end on the finished thing and the brand.",
   },
   talking: {
     id: "talking", label: "Talking to camera",
     summary: "The words carry it: whole sentences, hard cuts between thoughts, pauses tightened, captions.",
-    pacing: { openerMaxSec: 5, silentMaxSec: 4, speechMaxSec: 15, endingMinSec: 1.5, averageCutSec: [1.5, 8] },
+    pacing: { openerMaxSec: 5, silentMaxSec: 4, followMaxSec: 3, speechMaxSec: 15, endingMinSec: 1.5, averageCutSec: [1.5, 8] },
     joins: "cut", speech: "tight",
     prompt: "Talking to camera: the words carry the video. Open on the strongest line, keep whole sentences, cut between thoughts, drop repeated points, and use other footage only to show what is being said. No reaction text: the captions carry the words.",
   },
   demo: {
     id: "demo", label: "Product demo or how-to",
     summary: "The problem, then each step held long enough to see what changed; hard cuts, natural pauses.",
-    pacing: { openerMaxSec: 5, silentMaxSec: 7, speechMaxSec: 15, endingMinSec: 2, averageCutSec: [2, 7] },
+    pacing: { openerMaxSec: 5, silentMaxSec: 7, followMaxSec: 3, speechMaxSec: 15, endingMinSec: 2, averageCutSec: [2, 7] },
     joins: "cut", speech: "natural",
     prompt: "Product demo or how-to: open on the result or the problem, never a logo; then show it working step by step, holding each step 2 to 5 seconds so the viewer can see what changed; end on the result. Text names the step, in a few words.",
   },
   energetic: {
     id: "energetic", label: "Fast and energetic",
     summary: "Quick hard cuts on the action, peak motion first, building to the biggest moment.",
-    pacing: { openerMaxSec: 3, silentMaxSec: 3, speechMaxSec: 8, endingMinSec: 1.5, averageCutSec: [0.6, 2.5] },
+    pacing: { openerMaxSec: 3, silentMaxSec: 3, followMaxSec: 2.5, speechMaxSec: 8, endingMinSec: 1.5, averageCutSec: [0.6, 2.5] },
     joins: "cut", speech: "tight",
     prompt: "Fast and energetic: cut quickly, 0.6 to 2 seconds a shot, always on the action; open on peak motion, build to the biggest moment, and end on a strong frame.",
   },
   calm: {
     id: "calm", label: "Calm and premium",
-    summary: "Fewer, longer shots with slow reveals and soft dissolves; restrained text.",
-    pacing: { openerMaxSec: 6, silentMaxSec: 7, speechMaxSec: 12, endingMinSec: 2.5, averageCutSec: [2.5, 6] },
+    summary: "Fewer, longer shots with slow reveals, a soft dissolve where time passes; restrained text.",
+    pacing: { openerMaxSec: 6, silentMaxSec: 7, followMaxSec: 7, speechMaxSec: 12, endingMinSec: 2.5, averageCutSec: [2.5, 6] },
     joins: "dissolve", speech: "natural",
     prompt: "Calm and premium: fewer, longer shots of 2.5 to 6 seconds, slow reveals, no hype words, at most one short line of text, and end on the most beautiful frame.",
   },

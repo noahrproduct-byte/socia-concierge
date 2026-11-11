@@ -13,6 +13,8 @@ export const FONTS = [
   { id: "poppins", label: "Poppins" },
   { id: "playfair", label: "Playfair Display" },
   { id: "bebas", label: "Bebas Neue" },
+  // The italic serif half of a paired hook (Hook Pair's small line). Not a font a whole video is set in.
+  { id: "serif", label: "Instrument Serif" },
 ] as const;
 export type FontId = (typeof FONTS)[number]["id"];
 
@@ -22,9 +24,9 @@ export type FontId = (typeof FONTS)[number]["id"];
  * these are the bold fonts creators' guides name for it, plus TikTok's own.
  * The others stay valid only so older cuts keep their look.
  */
-export const CAPCUT_FONTS = FONTS.filter((f) => f.id !== "inter" && f.id !== "playfair");
+export const CAPCUT_FONTS = FONTS.filter((f) => f.id !== "inter" && f.id !== "playfair" && f.id !== "serif");
 
-/** "outline": CapCut's Classic look, white text with a black outline and no box behind it. */
+/** "outline": CapCut's Classic look, white text with a black outline and no box behind it. "none": white text with a soft shadow, the clean look. */
 export type TextBox = "outline" | "dark" | "light" | "accent" | "none";
 export type CaptionPosition = "top" | "middle" | "bottom" | "lower";
 export type CaptionSize = "s" | "m" | "l";
@@ -43,6 +45,15 @@ export const DEFAULT_STYLE: EdlStyle = { font: "inter", accent: "#5b4bd6", textB
 /** New cuts start in CapCut's Classic look (Noah, 2026-11-02): Montserrat, outlined, no boxes. A brand preset replaces it. */
 export const CAPCUT_STYLE: EdlStyle = { font: "montserrat", accent: "#5b4bd6", textBox: "outline", captions: { position: "bottom", size: "m", box: false, uppercase: false } };
 
+/**
+ * New cuts start in the clean look (Noah, 2026-11-11, "make the text on screen
+ * look more professional", after a study of 27 successful edits in
+ * docs/studio/edit-references.md): white bold type with a soft shadow and no
+ * outline, captions a few words at a time just under the middle of the frame.
+ * The outline look stays one click away. A brand preset replaces it.
+ */
+export const CLEAN_STYLE: EdlStyle = { font: "montserrat", accent: "#5b4bd6", textBox: "none", captions: { position: "lower", size: "l", box: false, uppercase: false } };
+
 export type VideoTemplate = { id: string; name: string; style: EdlStyle; width: number; height: number };
 export type VideoPresets = { brand: { style: EdlStyle; width: number; height: number } | null; templates: VideoTemplate[] };
 
@@ -59,7 +70,7 @@ export function sanitizeStyle(v: unknown): EdlStyle | undefined {
   const s = v as Record<string, unknown>;
   const c = (s.captions && typeof s.captions === "object" ? s.captions : {}) as Record<string, unknown>;
   return {
-    font: pick(s.font, FONTS.map((f) => f.id), DEFAULT_STYLE.font),
+    font: pick(s.font, FONTS.filter((f) => f.id !== "serif").map((f) => f.id), DEFAULT_STYLE.font),
     accent: isHex(s.accent) ? s.accent.toLowerCase() : DEFAULT_STYLE.accent,
     textBox: pick<TextBox>(s.textBox, ["outline", "dark", "light", "accent", "none"], DEFAULT_STYLE.textBox),
     captions: {

@@ -261,6 +261,8 @@ export type EdlText = {
   presetId?: TextPresetId;
   /** Top, middle or bottom of the safe zone when the person moved it; absent = the preset's own slot. */
   slot?: TextSlot;
+  /** SOCIA had to shorten the words to fit (at a whole word); the cut check says so until the person rewrites it. */
+  shortened?: true;
 };
 
 export type EdlEnhance = {

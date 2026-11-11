@@ -7,24 +7,29 @@
 //   repeat    the same moment of footage plays twice
 //   sentence  a shot ends while someone is still mid-sentence
 //   voice     a dissolve over someone talking: two voices at once
+//   ghost     a dissolve between the same shot a moment apart: the same
+//             picture twice, one ghosted over the other
 //   short     a shot too short for anyone to see what it is
 //   black     a measured frame inside a shot is black
-//   text      two lines of text on top of each other, or text over the ending
-// repairCut fixes the first four when it can without inventing anything: it
+//   text      two lines of text on top of each other, text over the ending,
+//             words SOCIA had to shorten or that don't fit their look, or an
+//             opening line that spills a moment into the next shot
+// repairCut fixes the first five when it can without inventing anything: it
 // only joins, trims or lengthens a shot inside its own clip, or turns a
-// dissolve into a hard cut. The rest are reported for the person to decide.
+// dissolve into a hard cut; it also ends an opening line with its shot. The
+// rest are reported for the person to decide.
 // Pure, unit-tested (cutCheck.test.ts).
 import type { ClipForEdl } from "./edl";
 import { EDL_DEFAULTS } from "./edl";
 import { timeline } from "./timeline";
 import { joinContinuous, CONTINUOUS_GAP_SEC, END_CARD_SEC } from "./teach";
-import { SPEECH_AT_JOIN_SEC } from "./joins";
+import { SPEECH_AT_JOIN_SEC, DISSOLVE_MIN_SKIP_SEC } from "./joins";
 import { speechJump } from "./speech";
-import { TEXT_PRESETS, presetForRole, isTextPresetId } from "@/lib/textPresets";
+import { TEXT_PRESETS, presetForRole, presetOf, isTextPresetId, charCount } from "@/lib/textPresets";
 import type { Edl, EdlSegment, EdlText } from "./types";
 import { clipLabel, fmtClock } from "./types";
 
-export type CheckId = "stutter" | "repeat" | "sentence" | "voice" | "short" | "black" | "text";
+export type CheckId = "stutter" | "repeat" | "sentence" | "voice" | "ghost" | "short" | "black" | "text";
 export type CutFinding = { id: CheckId; segmentId: string | null; detail: string };
 export type CutCheck = { ran: CheckId[]; findings: CutFinding[]; line: string };
 
@@ -39,6 +44,8 @@ export const CHECK = {
   sentenceReachSec: 3,
   /** a measured frame this dark is black */
   blackLuma: 0.03,
+  /** an opening line still up this little after the first cut flashes onto the next shot */
+  spillSec: 0.6,
 } as const;
 
 /** The name of each check, as the editor lists what it found. */
@@ -47,9 +54,10 @@ export const CHECK_LABEL: Record<CheckId, string> = {
   repeat: "Plays twice",
   sentence: "Cut off mid-sentence",
   voice: "Transition over speech",
+  ghost: "Dissolve doubles the picture",
   short: "Too short to see",
   black: "Black frame",
-  text: "Text overlaps",
+  text: "Text",
 };
 
 /** What the person sees for each check that ran with nothing found. */
@@ -58,9 +66,10 @@ const CLEAN: Record<CheckId, string> = {
   repeat: "nothing plays twice",
   sentence: "no one is cut off mid-sentence",
   voice: "no dissolve runs over speech",
+  ghost: "no dissolve doubles the picture",
   short: "every shot is long enough to see",
   black: "no black frames",
-  text: "no text overlaps",
+  text: "every line fits and nothing overlaps",
 };
 
 const SENTENCE_END = /[.!?…]["')\]]?$/;
@@ -95,6 +104,29 @@ export function sentenceEnd(c: ClipForEdl | undefined, s: Pick<EdlSegment, "in" 
 }
 
 const slotOf = (t: EdlText) => t.slot ?? (isTextPresetId(t.presetId) ? TEXT_PRESETS[t.presetId].slot : presetForRole(t.role).slot);
+
+/** Where the first cut lands in the output, in seconds (the middle of a dissolve); Infinity with one shot. */
+export function firstCutSec(edl: Edl): number {
+  const tl = timeline(edl);
+  const second = tl.segments[1];
+  return second ? r2(second.startSec + second.overlapIn / 2 / edl.fps) : Infinity;
+}
+
+/**
+ * An opening line that stays up a moment past the first cut (under
+ * CHECK.spillSec) flashes onto the next shot: it ends with its shot instead.
+ * A line placed well across the cut is left alone.
+ */
+export function endOpeningWithShot(edl: Edl): { edl: Edl; fixed: string | null } {
+  const cut = firstCutSec(edl);
+  let fixed: string | null = null;
+  const text = edl.text.map((t) => {
+    if (t.role !== "opening" || t.at >= cut - 0.5 || t.end <= cut + 0.05 || t.end - cut >= CHECK.spillSec) return t;
+    fixed = `“${t.text}” now ends with the first shot instead of flashing over the second`;
+    return { ...t, end: cut };
+  });
+  return fixed ? { edl: { ...edl, text }, fixed } : { edl, fixed };
+}
 
 /** What a viewer would notice in this cut, from measurements and the transcript only. */
 export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
@@ -136,6 +168,14 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
       }
     });
   }
+  if (segs.some((s, i) => i && s.transition && s.transition !== "cut")) {
+    ran.push("ghost");
+    segs.forEach((s, i) => {
+      const prev = segs[i - 1];
+      if (!i || s.transition !== "fade" || prev.clipId !== s.clipId || Math.abs(s.in - prev.out) > DISSOLVE_MIN_SKIP_SEC) return;
+      findings.push({ id: "ghost", segmentId: s.id, detail: `The dissolve at ${at(i)} joins ${label(s.clipId)} to itself ${Math.abs(s.in - prev.out).toFixed(1)} s later, so the same picture shows twice, one over the other. A hard cut is cleaner.` });
+    });
+  }
   if (segs.some((s) => punctuated(byId.get(s.clipId)))) {
     ran.push("sentence");
     segs.forEach((s, i) => {
@@ -153,10 +193,15 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
   if (edl.text.length) {
     ran.push("text");
     const cardAt = edl.endCard ? tl.durationSec - END_CARD_SEC : Infinity;
+    const firstCut = firstCutSec(edl);
     edl.text.forEach((t, i) => {
       const clash = edl.text.slice(0, i).find((o) => slotOf(o) === slotOf(t) && Math.min(o.end, t.end) - Math.max(o.at, t.at) > 0.1);
+      const max = presetOf(t).maxChars;
       if (clash) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” and “${clash.text}” are on screen at the same time in the same place.` });
       else if (t.end > cardAt + 0.1) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” is still up when the ending comes in at ${fmtClock(cardAt)}.` });
+      else if (charCount(t.text) > max) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” is ${charCount(t.text)} characters; its look holds ${max}, so words fall off. Shorten it or pick a roomier look.` });
+      else if (t.shortened) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” was shortened to fit. Read it, and rewrite it if it lost its point.` });
+      else if (t.role === "opening" && t.at < firstCut && t.end > firstCut + 0.05 && t.end - firstCut < CHECK.spillSec) findings.push({ id: "text", segmentId: null, detail: `“${t.text}” stays up ${(t.end - firstCut).toFixed(1)} s into the second shot, so it flashes over it. End it with the first shot.` });
     });
   }
 

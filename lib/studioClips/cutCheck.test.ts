@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCut, repairCut, sentenceEnd } from "./cutCheck";
+import { checkCut, endOpeningWithShot, repairCut, sentenceEnd } from "./cutCheck";
 import type { ClipForEdl } from "./edl";
 import type { Edl } from "./types";
 
@@ -19,7 +19,8 @@ const pizza = clip("p", 1, { lumaSamples: [{ t: 0, luma: 0.01 }, { t: 1.5, luma:
 describe("the cut check", () => {
   it("finds the stutter from Noah's 'worst video': one take cut into slivers", () => {
     const r = checkCut(edl([seg("s1", "p", 2, 4.5), seg("s2", "p", 4.7, 6.1, { transition: "fade" }), seg("s3", "p", 19.8, 25, { transition: "fade" })]), [pizza]);
-    expect(r.findings.map((f) => f.id)).toEqual(["stutter"]);
+    // The dissolve across that 0.2 s skip also doubles the picture.
+    expect(r.findings.map((f) => f.id)).toEqual(["stutter", "ghost"]);
     expect(r.findings[0].detail).toMatch(/skips only 0\.2 s/);
   });
   it("finds the same moment shown twice, a black frame and a shot too short to see", () => {
@@ -43,7 +44,21 @@ describe("the cut check", () => {
   it("says what it checked when the cut is clean, naming only checks it could run", () => {
     const r = checkCut(edl([seg("s1", "p", 1.5, 4), seg("s2", "p", 10, 13, { transition: "fade" })]), [pizza]);
     expect(r.findings).toEqual([]);
-    expect(r.line).toBe("Checked: no shot stutters, nothing plays twice, every shot is long enough to see, no black frames.");
+    expect(r.line).toBe("Checked: no shot stutters, nothing plays twice, every shot is long enough to see, no dissolve doubles the picture, no black frames.");
+  });
+  it("finds a dissolve that joins a shot to itself a moment later (Noah's pizza cut, 2026-11-11)", () => {
+    const r = checkCut(edl([seg("s1", "p", 6.2, 8.7), seg("s2", "p", 9.7, 11.7, { transition: "fade" }), seg("s3", "p", 15.4, 17, { transition: "fade" })]), [pizza]);
+    expect(r.findings.map((f) => [f.id, f.segmentId])).toEqual([["ghost", "s2"]]);
+    expect(r.findings[0].detail).toMatch(/same picture shows twice/);
+  });
+  it("finds text SOCIA had to shorten, text too long for its look, and an opening line that spills onto the next shot", () => {
+    const shots = [seg("s1", "p", 1.5, 3.9), seg("s2", "p", 10, 13)];
+    const found = (text: Edl["text"]) => checkCut(edl(shots, { text }), [pizza]).findings.map((f) => f.detail);
+    expect(found([{ id: "t1", at: 0, end: 2.2, text: "when the pizza comes out looking", role: "opening", presetId: "caption_bar", slot: "top", shortened: true }])[0]).toMatch(/was shortened to fit/);
+    expect(found([{ id: "t1", at: 0, end: 2.2, text: "this line is far too long for a hook title to hold", role: "opening", presetId: "hook_title" }])[0]).toMatch(/its look holds 40/);
+    expect(found([{ id: "t1", at: 0, end: 2.6, text: "Fresh out of the oven", role: "opening", presetId: "hook_title" }])[0]).toMatch(/stays up 0\.2 s into the second shot/);
+    // Placed well across the cut on purpose, it's left alone.
+    expect(found([{ id: "t1", at: 0, end: 4, text: "Fresh out of the oven", role: "opening", presetId: "hook_title" }])).toEqual([]);
   });
 });
 
@@ -79,5 +94,18 @@ describe("repairing SOCIA's own cut", () => {
     expect(repairCut(chosen, [pizza, speaker], { keepTransitions: true }).fixed).toEqual([]);
     const clean = edl([seg("s1", "p", 1.5, 4), seg("s2", "p", 10, 13, { transition: "fade" })]);
     expect(repairCut(clean, [pizza]).edl).toBe(clean);
+  });
+});
+
+describe("ending an opening line with its shot", () => {
+  it("ends a line that would flash onto the second shot at the cut, and leaves other lines alone", () => {
+    const cut = edl([seg("s1", "p", 6.2, 8.6), seg("s2", "p", 1.8, 5.8)], { text: [
+      { id: "t1", at: 0, end: 2.6, text: "Fresh out of the oven", role: "opening", presetId: "hook_title" },
+      { id: "t2", at: 3, end: 5, text: "Straight into the box", role: "mid", presetId: "caption_bar" },
+    ] });
+    const r = endOpeningWithShot(cut);
+    expect(r.edl.text.map((t) => t.end)).toEqual([2.4, 5]);
+    expect(r.fixed).toMatch(/ends with the first shot/);
+    expect(endOpeningWithShot(r.edl).fixed).toBeNull();
   });
 });

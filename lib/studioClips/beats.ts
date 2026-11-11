@@ -8,6 +8,7 @@ import type { ClipForEdl } from "./edl";
 import { EDL_DEFAULTS, snapTime } from "./edl";
 import { overlapFrames, timeline } from "./timeline";
 import { PACING } from "./pacing";
+import { endOpeningWithShot } from "./cutCheck";
 import type { Edl, EdlSegment } from "./types";
 
 export type Beat = { bpm: number; /** seconds from the start of the cut to the first beat */ offsetSec: number };
@@ -68,7 +69,8 @@ export function alignToBeats(edl: Edl, clips: ClipForEdl[], beat: Beat, maxMoveS
     prev.out = out;
     moved++;
   }
-  return { edl: { ...edl, segments }, moved, total: segments.length - 1, bpm: beat.bpm };
+  // An opening line still ends with its shot after the cut moved (lib/studioClips/cutCheck.ts).
+  return { edl: endOpeningWithShot({ ...edl, segments }).edl, moved, total: segments.length - 1, bpm: beat.bpm };
 }
 
 /** Whether the overlap of a transition would be wider than the beat allows; exported for the report. */

@@ -5,7 +5,7 @@
 // is always what is made. Layout (wrapping, shrinking to fit, position in the
 // safe zone) is pure and tested; only drawTextLayer() touches a canvas.
 import { canvasFont, ensureTextFonts } from "./textFonts";
-import { TEXT_PRESETS, frameScale, safeZoneFor, type SafeZone, type TextFont, type TextPreset, type TextSlot, presetInFont } from "./textPresets";
+import { TEXT_PRESETS, frameScale, safeZoneFor, type SafeZone, type TextFont, type TextPreset, type TextSlot, presetInStyle } from "./textPresets";
 import type { FontId } from "./studioClips/style";
 
 /** Width of a string in a canvas font; the tests pass a fake, the renderer a 2D context. */
@@ -15,6 +15,8 @@ export type LaidLine = { text: string; width: number; font: string; fontSize: nu
 
 export type TextLayout = {
   fits: boolean;
+  /** The first line is the preset's lead (Big Stat's number, Hook Pair's small line). */
+  lead?: boolean;
   /** Why it doesn't fit: too many lines or too tall for the zone even at the smallest size, or nothing to draw. */
   reason: "ok" | "too_long" | "empty";
   frame: { width: number; height: number };
@@ -103,9 +105,10 @@ export function layoutTextLayer({ preset, text, slot, width, height, measure }: 
   const raw = normalizeText(preset.uppercase ? text.toUpperCase() : text);
   if (!raw.some(Boolean)) return empty();
 
-  const lead = preset.lead ? raw[0] : null;
-  const body = preset.lead ? raw.slice(1) : raw;
-  const bodyMax = preset.lead ? Math.max(1, preset.maxLines - 1) : preset.maxLines;
+  const hasLead = !!preset.lead && !(preset.lead.needsBody && raw.filter(Boolean).length < 2);
+  const lead = hasLead ? raw[0] : null;
+  const body = hasLead ? raw.slice(1) : raw;
+  const bodyMax = hasLead ? Math.max(1, preset.maxLines - 1) : preset.maxLines;
 
   // The lead (Big Stat's number) is one line; it shrinks on its own.
   let leadLine: LaidLine | null = null;
@@ -144,7 +147,7 @@ export function layoutTextLayer({ preset, text, slot, width, height, measure }: 
   const x = preset.align === "left" ? zone.x : Math.round(zone.x + (zone.width - bw) / 2);
   const s = slot ?? preset.slot;
   const y = s === "top" ? zone.y : s === "middle" ? Math.round(zone.y + (zone.height - bh) / 2) : zone.y + zone.height - bh;
-  return { ...base, fits: true, reason: "ok", box: { x, y, width: bw, height: bh }, lines, fontSize };
+  return { ...base, fits: true, reason: "ok", lead: !!leadLine, box: { x, y, width: bw, height: bh }, lines, fontSize };
 }
 
 /** A person-readable reason a line doesn't fit its preset. */
@@ -189,7 +192,7 @@ export function drawTextLayer(ctx: Ctx, preset: TextPreset, layout: TextLayout):
   }
   ctx.textBaseline = "alphabetic";
   const lsp = (ctx as unknown as { letterSpacing?: string });
-  const leadGap = preset.lead && lines.length > 1 ? Math.round(preset.lead.gap * scale) : 0;
+  const leadGap = preset.lead && layout.lead && lines.length > 1 ? Math.round(preset.lead.gap * scale) : 0;
   let y = box.y + pad.y;
   lines.forEach((l, i) => {
     const lh = l.fontSize * l.lineHeight;
@@ -214,6 +217,14 @@ export function drawTextLayer(ctx: Ctx, preset: TextPreset, layout: TextLayout):
         ctx.restore();
       } else if (b.kind === "shadow" && b.shadow) {
         ctx.shadowColor = b.shadow.color; ctx.shadowBlur = b.shadow.blur * scale; ctx.shadowOffsetY = b.shadow.offsetY * scale;
+        if (b.halo) {
+          // A tight dark halo first, so white letters stay readable on bright footage; the wide soft shadow goes on top.
+          ctx.save();
+          ctx.shadowColor = b.halo; ctx.shadowBlur = Math.max(2, l.fontSize * 0.06); ctx.shadowOffsetY = 0;
+          ctx.fillStyle = l.color;
+          ctx.fillText(l.text, x, baseline);
+          ctx.restore();
+        }
       }
       ctx.fillStyle = l.color;
       ctx.fillText(l.text, x, baseline);
@@ -224,12 +235,12 @@ export function drawTextLayer(ctx: Ctx, preset: TextPreset, layout: TextLayout):
   ctx.restore();
 }
 
-export type RenderArgs = { presetId: TextPreset["id"]; text: string; slot?: TextSlot | null; width: number; height: number; /** the video's font (its Style); the preset's own when absent */ font?: FontId | null };
+export type RenderArgs = { presetId: TextPreset["id"]; text: string; slot?: TextSlot | null; width: number; height: number; /** the video's font (its Style); the preset's own when absent */ font?: FontId | null; /** the video's text background (its Style): "outline" or the clean shadow */ textBox?: string | null };
 export type RenderedText = { url: string; width: number; height: number; layout: TextLayout };
 
 const cache = new Map<string, Promise<RenderedText>>();
 const CACHE_MAX = 48;
-export const renderKey = (a: RenderArgs): string => JSON.stringify([a.presetId, a.text, a.slot ?? null, a.width, a.height, a.font ?? null]);
+export const renderKey = (a: RenderArgs): string => JSON.stringify([a.presetId, a.text, a.slot ?? null, a.width, a.height, a.font ?? null, a.textBox ?? null]);
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 /** Text widths from a shared 2D context, for live fit checks in the UI. Null where there is no canvas. */
@@ -254,7 +265,7 @@ export function renderTextLayer(a: RenderArgs): Promise<RenderedText> {
   const hit = cache.get(key);
   if (hit) return hit;
   const p = (async () => {
-    const preset = presetInFont(TEXT_PRESETS[a.presetId], a.font);
+    const preset = presetInStyle(TEXT_PRESETS[a.presetId], a.font, a.textBox);
     await ensureTextFonts(presetFonts(preset));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(a.width)); canvas.height = Math.max(1, Math.round(a.height));

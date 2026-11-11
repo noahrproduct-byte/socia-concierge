@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ASPECTS } from "./studioClips/types";
 import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapParagraph, type Measure } from "./textRender";
-import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, defaultTiming, frameScale, presetForRole, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
+import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, clampWords, fitLine, defaultTiming, frameScale, presetForRole, presetForLine, presetInStyle, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
 import { CAPCUT_FONTS } from "./studioClips/style";
 
 /** A fake canvas: every character is 0.55 em wide (emoji 1 em), whatever the face. */
@@ -51,8 +51,8 @@ describe("the CapCut look (Noah, 2026-11-06)", () => {
 });
 
 describe("presets", () => {
-  it("are the six from the brief, each with a size range, limits and a default time", () => {
-    expect(TEXT_PRESET_IDS).toEqual(["hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"]);
+  it("are the six from the brief plus Hook Pair, each with a size range, limits and a default time", () => {
+    expect(TEXT_PRESET_IDS).toEqual(["hook_pair", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"]);
     for (const id of TEXT_PRESET_IDS) {
       const p = TEXT_PRESETS[id];
       expect(p.size.min).toBeLessThanOrEqual(p.size.max);
@@ -74,16 +74,65 @@ describe("presets", () => {
     expect(presetOf({ presetId: "nope", role: "cta" }).id).toBe("callout_box");
     expect(presetOf({}).id).toBe("caption_bar");
   });
+  it("set an opening written as two lines as a Hook Pair, and keep old cuts on their look (2026-11-11 study)", () => {
+    expect(presetForLine("opening", "straight from\nTHE DECK").id).toBe("hook_pair");
+    expect(presetForLine("opening", "Fresh out of the oven").id).toBe("hook_title");
+    expect(presetForLine("mid", "the first\ncut").id).toBe("caption_bar");
+    expect(presetForRole("opening").id).toBe("hook_title");
+  });
+  it("draw outlined looks with the clean shadow unless the video is set to the outline, and the other way round", () => {
+    expect(presetInStyle(TEXT_PRESETS.hook_title, "montserrat", "none").box.kind).toBe("shadow");
+    expect(presetInStyle(TEXT_PRESETS.hook_title, "montserrat", "outline").box.kind).toBe("outline");
+    expect(presetInStyle(TEXT_PRESETS.hook_pair, "montserrat", "outline").box.kind).toBe("outline");
+    expect(presetInStyle(TEXT_PRESETS.hook_pair, "montserrat", "none").box.kind).toBe("shadow");
+    // Labels and tags keep their own boxes.
+    expect(presetInStyle(TEXT_PRESETS.callout_box, "montserrat", "none").box.kind).toBe("fill");
+    // The serif is never a whole video's font.
+    expect(presetInStyle(TEXT_PRESETS.caption_bar, "serif", "none").font.family).toBe("montserrat");
+  });
   it("count characters as people do and clamp at one", () => {
     expect(charCount("héllo 🔥")).toBe(7);
     expect(clampChars("abcdef", 3)).toBe("abc");
     expect(clampChars("ab 🔥🔥", 4)).toBe("ab 🔥");
+  });
+  it("shorten a line at a whole word and never leave it hanging (Noah's pizza cut, 2026-11-11)", () => {
+    // Cut at a character, this came out as "when the pizza comes out looking like th".
+    expect(clampWords("when the pizza comes out looking like this 🔥", 40)).toBe("when the pizza comes out looking");
+    expect(clampWords("Fresh out of the oven", 40)).toBe("Fresh out of the oven");
+    expect(clampWords("Supercalifragilistic", 5)).toBe("Super");
+    expect(clampWords("Open late, every night of the week", 12)).toBe("Open late");
+  });
+  it("move a line too long for its look to the roomier Caption in the same place, shortening only past that", () => {
+    const hook = fitLine("when the pizza comes out looking like this 🔥", TEXT_PRESETS.hook_title);
+    expect([hook.preset.id, hook.slot, hook.text, hook.shortened]).toEqual(["caption_bar", "top", "when the pizza comes out looking like this 🔥", false]);
+    expect(fitLine("Fresh out of the oven", TEXT_PRESETS.hook_title)).toEqual({ text: "Fresh out of the oven", preset: TEXT_PRESETS.hook_title, shortened: false });
+    const long = fitLine("word ".repeat(30), TEXT_PRESETS.hook_title);
+    expect(long.shortened).toBe(true);
+    expect(charCount(long.text)).toBeLessThanOrEqual(TEXT_PRESETS.caption_bar.maxChars);
+    expect(long.text.endsWith("word")).toBe(true);
   });
   it("default timing fits the video", () => {
     expect(defaultTiming(TEXT_PRESETS.hook_title, 20)).toEqual({ at: 0, end: 3 });
     expect(defaultTiming(TEXT_PRESETS.caption_bar, 2)).toEqual({ at: 0, end: 2 });
     expect(defaultTiming(TEXT_PRESETS.callout_box, 20, 7.25)).toEqual({ at: 7.25, end: 10.25 });
     expect(defaultTiming(TEXT_PRESETS.callout_box, 8, 7.9)).toEqual({ at: 7.5, end: 8 });
+  });
+});
+
+describe("Hook Pair", () => {
+  it("sets the first line small in the italic serif and the rest big in the heavy sans", () => {
+    const l = lay("hook_pair", "straight from\nTHE DECK");
+    expect(l.fits).toBe(true);
+    expect(l.lead).toBe(true);
+    expect(l.lines.map((x) => x.text)).toEqual(["straight from", "THE DECK"]);
+    expect(l.lines[0].font).toMatch(/^italic 400 .*Instrument Serif/);
+    expect(l.lines[1].fontSize).toBeGreaterThan(l.lines[0].fontSize);
+  });
+  it("sets a single line big, never as a lone small line", () => {
+    const l = lay("hook_pair", "THE DECK");
+    expect(l.fits).toBe(true);
+    expect(l.lead).toBe(false);
+    expect(l.lines[0].font).not.toMatch(/italic/);
   });
 });
 
@@ -125,7 +174,7 @@ describe("layout inside the safe zone", () => {
     for (const [w, h] of SIZES) {
       for (const id of TEXT_PRESET_IDS) {
         const p = TEXT_PRESETS[id];
-        const words = p.lead ? `12\n${"word ".repeat(10).trim()}` : "word ".repeat(Math.ceil(p.maxChars / 5)).trim().slice(0, p.maxChars).trim();
+        const words = p.lead ? `12\n${"word ".repeat(Math.min(10, Math.floor((p.maxChars - 3) / 5))).trim()}` : "word ".repeat(Math.ceil(p.maxChars / 5)).trim().slice(0, p.maxChars).trim();
         const l = lay(id, words, w, h);
         expect(l.fits, `${id} ${w}x${h}: ${l.reason}`).toBe(true);
         expect(inside(l.box, safeZoneFor(w, h))).toBe(true);

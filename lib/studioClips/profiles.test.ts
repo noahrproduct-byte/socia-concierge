@@ -48,8 +48,9 @@ describe("what a style changes", () => {
     const clip: ClipForEdl = { id: "c", position: 0, durationSec: 30, words: null, silences: null, medianLuma: null, warmth: null, brightness: null, contrastLevel: null, rmsDb: null, audioLevel: null, hasSpeech: false };
     const edl = (editStyle?: Edl["editStyle"]): Edl => ({ version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 5, max: 30 }, text: [], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [], editStyle,
       segments: [{ id: "s1", clipId: "c", in: 0, out: 3, role: "opener", note: "" }, { id: "s2", clipId: "c", in: 10, out: 16.5, role: "body", note: "" }, { id: "s3", clipId: "c", in: 20, out: 23, role: "ending", note: "" }] });
-    expect(applyPacing(edl(), [clip]).edl.segments[1].out).toBe(15);
-    expect(applyPacing(edl("calm"), [clip]).edl.segments[1].out).toBe(16.5);
+    // Straight after the opening, a food cut keeps 3 s of it, its end; a calm cut lets all 6.5 s run.
+    expect([applyPacing(edl(), [clip]).edl.segments[1].in, applyPacing(edl(), [clip]).edl.segments[1].out]).toEqual([13.5, 16.5]);
+    expect([applyPacing(edl("calm"), [clip]).edl.segments[1].in, applyPacing(edl("calm"), [clip]).edl.segments[1].out]).toEqual([10, 16.5]);
   });
   it("joins with hard cuts where the style does, and still dissolves food", () => {
     const segs = [{ clipId: "a", in: 0, out: 3 }, { clipId: "b", in: 0, out: 3 }];

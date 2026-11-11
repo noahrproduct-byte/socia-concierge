@@ -34,7 +34,7 @@ import { alignToBeats } from "@/lib/studioClips/beats";
 import { beatOfTrack } from "@/lib/studioClips/beatClient";
 import { clipsForEdl } from "@/lib/studioClips/clientClips";
 import type { Beat } from "@/lib/audio/features";
-import { pacingReport, pacingRules } from "@/lib/studioClips/pacing";
+import { MAX_WITH_FINDINGS, pacingReport, pacingRules } from "@/lib/studioClips/pacing";
 import { EDIT_STYLES, EDIT_STYLE_IDS, isEditStyle, type EditStyleId } from "@/lib/studioClips/profiles";
 import { checkCut, CHECK_LABEL } from "@/lib/studioClips/cutCheck";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
@@ -250,12 +250,13 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     });
     return () => { alive = false; };
   }, [edl?.soundtrack?.trackId, musicUrl, trackBpm]);
-  const pace = useMemo(() => (edl ? pacingReport(edl, clipsForEdl(sources), beat) : null), [edl, sources, beat]);
+  // What a viewer would notice, checked again after every change (lib/studioClips/cutCheck.ts).
+  const check = useMemo(() => (edl ? checkCut(edl, clipsForEdl(sources)) : null), [edl, sources]);
+  // The pacing score, held down while the check has found something.
+  const pace = useMemo(() => (edl ? pacingReport(edl, clipsForEdl(sources), beat, check) : null), [edl, sources, beat, check]);
   const rules = pacingRules(edl ?? {});
   // Regenerate in another editing style (lib/studioClips/profiles.ts).
   const [restyle, setRestyle] = useState<EditStyleId | null>(null);
-  // What a viewer would notice, checked again after every change (lib/studioClips/cutCheck.ts).
-  const check = useMemo(() => (edl ? checkCut(edl, clipsForEdl(sources)) : null), [edl, sources]);
   const snapToBeat = useCallback((b: Beat, note = true) => {
     const cur = edlRef.current;
     if (!cur || cur.segments.length < 2) return;
@@ -610,7 +611,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                       <ul className="sd-parts">
                         {pace.parts.map((p) => <li key={p.id} className={p.ok ? "" : "is-off"}><b>{p.label}</b><span>{p.detail}</span></li>)}
                       </ul>
-                      <p className="ov-source">The share of these rules the cut meets{isEditStyle(edl.editStyle) ? ` for ${EDIT_STYLES[edl.editStyle].label.toLowerCase()}` : ""}: start on the action, {rules.averageCutSec[0]} to {rules.averageCutSec[1]} s cuts on average, no cut over {rules.silentMaxSec} s without speech ({rules.speechMaxSec} s with), {rules.endingMinSec} s to land the ending, each line up long enough to read{beat ? ", and cuts on the track's beat" : ""}.</p>
+                      <p className="ov-source">The share of these rules the cut meets{isEditStyle(edl.editStyle) ? ` for ${EDIT_STYLES[edl.editStyle].label.toLowerCase()}` : ""}: start on the action, {rules.averageCutSec[0]} to {rules.averageCutSec[1]} s cuts on average, no cut over {rules.silentMaxSec} s without speech ({rules.speechMaxSec} s with) and the shot after the opening at most {rules.followMaxSec} s, {rules.endingMinSec} s to land the ending, each line up long enough to read{beat ? ", and cuts on the track's beat" : ""}. While the check below finds something, the score stays at {MAX_WITH_FINDINGS} or under.</p>
                     </Details>
                   </div>
                 </div>
@@ -776,7 +777,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 </label>
                 <small>Used for the call to action, and for text boxes set to Brand colour.</small>
                 <div className="cal2-seg" role="radiogroup" aria-label="Text background">
-                  {([["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"], ["none", "No box"]] as const).map(([id, label]) => (
+                  {([["none", "Clean shadow"], ["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"]] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={st.textBox === id} className={st.textBox === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setStyle({ textBox: id })}>{label}</button>
                   ))}
                 </div>
@@ -784,7 +785,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <div className="ov-card">
                 <b><Captions size={14} /> Captions</b>
                 <div className="cal2-seg" role="radiogroup" aria-label="Caption position">
-                  {([["top", "Top"], ["middle", "Middle"], ["bottom", "Bottom"]] as const).map(([id, label]) => (
+                  {([["top", "Top"], ["middle", "Middle"], ["lower", "Lower"], ["bottom", "Bottom"]] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={st.captions.position === id} className={st.captions.position === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setCaptionStyle({ position: id })}>{label}</button>
                   ))}
                 </div>
