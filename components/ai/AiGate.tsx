@@ -20,7 +20,7 @@ export default function AiGate({ feature, plan, currentPlan, what }: { feature: 
       <span className="ai-gate-ico" aria-hidden><Lock size={20} /></span>
       <h2>{name} is on {PLANS[plan].name}</h2>
       <p>{what}</p>
-      <p className="ai-gate-note">{PLANS[plan].name} includes {MONTHLY_CREDITS[plan].toLocaleString("en-US")} AI credits a month for the Clipper and AI Studio; every action shows its price before it runs.</p>
+      <p className="ai-gate-note">{PLANS[plan].name} includes {MONTHLY_CREDITS[plan].toLocaleString("en-US")} credits a month for {feature === "ai_clipper" ? "the Clipper" : "the Clipper and AI Studio"}; every action shows its price before it runs.</p>
       <Link href={pricingHref(plan)} className="btn-primary">Upgrade to {PLANS[plan].name} <ArrowRight size={14} /></Link>
     </div>
   );

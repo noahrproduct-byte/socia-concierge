@@ -13,7 +13,7 @@ import "../ai/ai.css";
 
 export const metadata = { title: "AI Clipper | SOCIA" };
 
-// The AI Clipper (Scale): a long video in, captioned vertical clips out. The
+// The AI Clipper (Starter and up): a long video in, captioned vertical clips out. The
 // server decides what this person may do; the routes enforce it again.
 export default async function Clipper() {
   const { supabase, user } = await getViewer();
@@ -33,7 +33,7 @@ export default async function Clipper() {
   return (
     <>
       <PageHeader title="AI Clipper" sub="Turn a long video into short clips with captions." />
-      <ClipperPage initialBalance={balance} canMutate={can(ctx, "publish")} sociaReady={sociaClipperReady()} vizardReady={Boolean(clipperProvider())} />
+      <ClipperPage initialBalance={balance} canMutate={can(ctx, "publish")} sociaReady={sociaClipperReady()} vizardReady={Boolean(clipperProvider()) && ent.plan === "scale"} />
     </>
   );
 }

@@ -126,11 +126,14 @@ export type CreateClipJobInput = {
   /** The minutes the page showed a price for. The job is priced from the measured length; when that is longer, nothing is spent and PriceCheckError says the real price. */
   minutes: number | null;
   options: ClipperOptions;
+  /** YouTube and direct links go to Vizard, which bills SOCIA per minute: Scale only. Other plans upload. */
+  links?: boolean;
 };
 
 /** Price, spend and save a job, then try to submit it at once. Throws ClipperError or CreditsError. */
 export async function createClipJob(ctx: Ctx, input: CreateClipJobInput): Promise<ClipJobRow> {
   const svc = svcOrThrow();
+  if (input.source.kind !== "upload" && !input.links) throw new ClipperError("SOCIA clips uploaded files. Download the video and upload it here.", "upload_only");
   const provider = providerFor(input.source.kind);
   if (!provider) {
     throw new ClipperError(input.source.kind === "upload"

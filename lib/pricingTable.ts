@@ -11,7 +11,7 @@ import {
   formatHistory,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
 } from "./plans";
-import { MONTHLY_CREDITS } from "./credits/config";
+import { MONTHLY_CREDITS, clipMinutesFor } from "./credits/config";
 
 export type Cell =
   | { kind: "yes" }
@@ -134,10 +134,10 @@ export const COMPARISON: ComparisonCategory[] = [
       { label: "AI-made videos", cells: meterCell("video_builds") },
       { label: "Music tracks", note: "Made for your videos from your brand's taste.", cells: meterCell("music_tracks") },
       { label: "Account audits", cells: meterCell("account_audit") },
-      // Scale's rows, once Scale is on sale (lib/credits/config.ts CREDIT_PRICES_CONFIRMED).
-      ...(SCALE_ON_SALE ? [feature("ai_clipper", "Paste a YouTube link or upload a video; SOCIA returns vertical clips with captions, a title, a score and a caption. Only clip videos you own or have rights to."),
-      feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images on a curated set of models."),
-      { label: "AI credits per month", note: "Spent by the Clipper and AI Studio; every action shows its price first. Top-up packs available.", cells: perPlan((p) => (MONTHLY_CREDITS[p.id] > 0 ? text(MONTHLY_CREDITS[p.id].toLocaleString("en-US")) : NO)) }] : []),
+      feature("ai_clipper", "Upload a long video; SOCIA returns vertical clips with captions, a title, a score and a caption. Only clip videos you own or have rights to."),
+      { label: "Clipper credits per month", note: "Every video shows its price before anything is spent. In brackets: about how many minutes of video that clips.", cells: perPlan((p) => (MONTHLY_CREDITS[p.id] > 0 ? text(`${MONTHLY_CREDITS[p.id].toLocaleString("en-US")} (about ${clipMinutesFor(MONTHLY_CREDITS[p.id])} min)`) : NO)) },
+      // Scale's row, once Scale is on sale (lib/credits/config.ts CREDIT_PRICES_CONFIRMED).
+      ...(SCALE_ON_SALE ? [feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images on a curated set of models.")] : []),
     ],
   },
   {

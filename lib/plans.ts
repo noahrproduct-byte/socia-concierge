@@ -379,7 +379,7 @@ export const FEATURE_MIN_PLAN: Record<FeatureKey, PlanId> = {
   approval_workflow: "pro",
   dedicated_onboarding: "pro",
   developer_api: "pro",
-  ai_clipper: "scale",
+  ai_clipper: "starter",
   ai_studio: "scale",
 };
 
