@@ -36,7 +36,7 @@ function billingLine(b: BillingInfo, cfg: PlanConfig): string | null {
   return null;
 }
 
-const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_build", "video_builds", "animated_videos", "music_tracks", "content_ideas", "content_plan", "content_generation", "account_audit"];
+const METER_ORDER: MeterKey[] = ["ask_socia", "content_studio", "content_build", "video_builds", "animated_videos", "music_tracks", "voiceovers", "content_ideas", "content_plan", "content_generation", "account_audit"];
 
 function Meter({
   label,

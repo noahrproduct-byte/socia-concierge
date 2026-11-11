@@ -35,6 +35,7 @@ import { viewAt, viewBox } from "@/lib/clipper/reframe";
 import type { SegmentFrame } from "@/lib/studioClips/types";
 import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, underVoice, voiceTailEnvelope, videoBox, EDGE_FADE_FRAMES, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
 import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
+import { UNDER_VOICEOVER, voiceSpans } from "@/lib/studioClips/voiceover";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
 import type { TransitionKind } from "@/lib/studioClips/types";
 import { gainAtDb } from "@/lib/studioClips/sound";
@@ -69,6 +70,8 @@ export type ClipCompositionProps = {
   finishOn?: boolean;
   /** a playable link to the cut's soundtrack (edl.soundtrack), when it has one */
   musicUrl?: string | null;
+  /** playable links to the voiceover's voiced lines, by storage path (edl.voiceover) */
+  voiceUrls?: Record<string, string>;
   /** each clip's sound with the background noise reduced (lib/studioClips/cleanSound.ts), played instead of its own when edl.cleanSound is on */
   cleanAudio?: Record<string, string>;
   /** draw the text safe zone over the picture (preview check only; the export never sets it) */
@@ -157,6 +160,9 @@ function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
 }
 
 const EMPHASIS_COLOR = "#ffd400";
+/** A voiced line fades in and out over this many frames, and keeps this many after its last word, so it never clicks or clips a breath. */
+const VOICE_FADE_FRAMES = 3;
+const VOICE_TAIL_FRAMES = 6;
 /** Words on screen at once in the clean caption look. */
 const CLEAN_CAPTION_WORDS = 3;
 /** The clean look: no outline and no box. Its key word is set bigger rather than yellow. */
@@ -222,7 +228,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, cleanAudio, safeZoneGuide }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
@@ -252,6 +258,12 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps, undefined, pageWords) : []), [edl, words, captionsOn, fps, pageWords]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
+  // A voiceover (lib/studioClips/voiceover.ts): its voiced lines play where they sit, and the
+  // clips' own sound and the music dip under it.
+  const voice = edl.voiceover?.on && voiceUrls ? edl.voiceover : null;
+  const voiced = useMemo(() => (voice ? voice.lines.filter((l) => l.path && voiceUrls?.[l.path] && l.dur && l.at < tl.durationSec) : []), [voice, voiceUrls, tl.durationSec]);
+  const voiceSp = useMemo(() => (voiced.length ? voiceSpans(voice, tl.durationSec) : []), [voiced, voice, tl.durationSec]);
+  const underVoiceover = (t: number) => (voiceSp.length ? duckLevel(t, voiceSp, UNDER_VOICEOVER) : 1);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily }}>
@@ -269,7 +281,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         const underFrames = prevTail?.voiceTail ? Math.min(secToFrames(prevTail.voiceTail), s.durationFrames) : 0;
         const envelope = (f: number) => (tailFrames ? Math.min(1, (f + 1) / EDGE_FADE_FRAMES) : edgeEnvelope(f, s.durationFrames));
         const gainAt = (t: number) => (sound ? dbToGain(gainAtDb(sound, t)) : Math.min(1, gain)) * (s.volume ?? 1) * original;
-        const level = (f: number) => gainAt(s.in + f / FPS) * envelope(f) * underVoice(f, underFrames) * transitionSound(f, s.durationFrames, s.overlapIn, s.overlapOut);
+        const level = (f: number) => gainAt(s.in + f / FPS) * envelope(f) * underVoice(f, underFrames) * transitionSound(f, s.durationFrames, s.overlapIn, s.overlapOut) * underVoiceover(s.startSec + f / FPS);
         // premountFor: the Player loads the next shot before it is on screen. Without it the shot started
         // loading as the transition began, so it arrived late and the join stuttered. A render ignores it.
         return (
@@ -309,10 +321,19 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         <Sequence from={0} durationInFrames={tl.durationFrames} name="soundtrack">
           <Audio
             src={musicUrl!}
-            volume={(f) => music.musicVolume * (spoken.length ? duckLevel(f / fps, spoken) : 1) * Math.min(1, f / MUSIC_FADE_IN, (tl.durationFrames - f) / MUSIC_FADE_OUT)}
+            volume={(f) => music.musicVolume * Math.min(spoken.length ? duckLevel(f / fps, spoken) : 1, underVoiceover(f / fps)) * Math.min(1, f / MUSIC_FADE_IN, (tl.durationFrames - f) / MUSIC_FADE_OUT)}
           />
         </Sequence>
       )}
+      {voice && voiced.map((l) => {
+        const from = secToFrames(l.at);
+        const frames = Math.max(1, Math.min(secToFrames(l.dur ?? 0) + VOICE_TAIL_FRAMES, tl.durationFrames - from));
+        return (
+          <Sequence key={l.id} from={from} durationInFrames={frames} premountFor={PREMOUNT_FRAMES} name={`voiceover · ${l.id}`}>
+            <Audio src={voiceUrls![l.path!]} volume={(f) => voice.volume * Math.min(1, (f + 1) / VOICE_FADE_FRAMES, (frames - f) / VOICE_FADE_FRAMES)} />
+          </Sequence>
+        );
+      })}
       {edl.text.filter((t) => t.text.trim()).map((t) => (
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} name={`text · ${presetOf(t).label}`}>
           <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} />

@@ -84,6 +84,19 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
       });
     }
   }
+  // A voiceover's words caption like anyone's (lib/studioClips/voiceover.ts), while it is on.
+  const vo = edl.voiceover;
+  if (vo?.on) {
+    const endMs = timeline(edl).durationSec * 1000;
+    for (const l of vo.lines) {
+      if (!l.path || !l.words) continue;
+      for (const w of l.words) {
+        const startMs = Math.round((l.at + w.start) * 1000), wEnd = Math.round((l.at + w.end) * 1000);
+        if (startMs >= endMs) continue;
+        out.push({ text: ` ${w.text}`, startMs, endMs: Math.min(wEnd, Math.round(endMs)), timestampMs: Math.round((startMs + wEnd) / 2), confidence: 1 });
+      }
+    }
+  }
   return out.sort((a, b) => a.startMs - b.startMs);
 }
 

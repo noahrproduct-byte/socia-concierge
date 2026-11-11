@@ -193,6 +193,10 @@ export default function PrivacyPage() {
           playlist. Only a description of how each track should sound (genre,
           mood, tempo, instruments, length) is sent; no video, voice or personal
           details. The tracks are stored privately with the project&apos;s clips.
+          It also reads out a video&apos;s voiceover: only the words of each
+          line and the chosen stock voice are sent, never your footage or your
+          own voice. The voiced lines are stored privately with the
+          project&apos;s clips and deleted with them.
         </li>
         <li>
           <b>Higgsfield</b>: makes the videos and images in AI Studio. The

@@ -19,6 +19,7 @@ import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { ClipComposition } from "./remotion/ClipComposition";
 import AudioPanel from "./AudioPanel";
 import MusicPlaylist from "./MusicPlaylist";
+import VoiceoverCard from "./VoiceoverCard";
 import FinishPanel from "./FinishPanel";
 import TextLayersPanel from "./TextLayersPanel";
 import { useSafeZoneGuide } from "./TextOverlay";
@@ -178,6 +179,38 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.canEdit, edl == null]);
 
+  // Once the cut is loaded: a cut nobody talks in that wants a voice gets a voiceover, once per cut
+  // (lib/studioClips/voiceover.ts needsVoiceover; the server decides and stamps the cut).
+  const [autoVoice, setAutoVoice] = useState<{ state: "adding" | "added" | "skipped" | "failed"; note: string | null } | null>(null);
+  const voiceTried = useRef(false);
+  useEffect(() => {
+    if (fixture || !data?.canEdit || !edl || voiceTried.current) return;
+    voiceTried.current = true;
+    if (edl.voiceover || edl.voiceAuto) return;
+    let alive = true;
+    setAutoVoice({ state: "adding", note: null });
+    (async () => {
+      const res = await fetch(`/api/studio/builds/${buildId}/voiceover`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ auto: true }) }).catch(() => null);
+      const j = res ? ((await res.json().catch(() => null)) as { state?: string; why?: string; voiceover?: Edl["voiceover"]; urls?: Record<string, string>; error?: string; notConfigured?: boolean } | null) : null;
+      if (!alive) return;
+      const stamp = new Date().toISOString();
+      if (res?.ok && j?.state === "added" && j.voiceover) {
+        if (j.urls) setVoiceUrls((u) => ({ ...u, ...j.urls }));
+        // The server saved it, and turned captions on so the words can be read.
+        setEdl((e) => (e ? { ...e, voiceover: j.voiceover, voiceAuto: stamp, captions: e.captions ?? { source: "transcript" } } : e));
+        setAutoVoice({ state: "added", note: null });
+        return;
+      }
+      if (res?.ok && j?.state === "not_needed") { setAutoVoice({ state: "skipped", note: j.why ? `SOCIA didn't add one because ${j.why}. You can still write one.` : null }); return; }
+      if (res?.ok || isPlanError(j) || j?.notConfigured) { setAutoVoice({ state: "skipped", note: null }); return; }
+      setEdl((e) => (e ? { ...e, voiceAuto: e.voiceAuto ?? stamp } : e));
+      setAutoVoice({ state: "failed", note: `${j?.error ?? "SOCIA couldn't add a voiceover this time."} Nothing was counted.` });
+    })();
+    return () => { alive = false; };
+    // Once per opened cut, after it loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.canEdit, edl == null]);
+
   // Once the cut is loaded: colour it on its own, once per cut (lib/studioClips/autoLook.ts).
   // It goes in as one edit, so Undo takes it back and Look can change it or switch it off.
   const [lookState, setLookState] = useState<{ state: "working" | "done"; corrected: number; done: number; total: number } | null>(null);
@@ -235,6 +268,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [trackUrls, setTrackUrls] = useState<Record<string, string>>({});
   useEffect(() => { if (data?.music) setTrackUrls((u) => ({ ...data.music, ...u })); }, [data?.music]);
   const musicUrl = edl?.soundtrack ? trackUrls[edl.soundtrack.trackId] ?? null : null;
+  // The voiceover's voiced lines, signed URL by storage path (lib/studioClips/voiceover.ts).
+  const [voiceUrls, setVoiceUrls] = useState<Record<string, string>>({});
+  useEffect(() => { if (data?.voice) setVoiceUrls((u) => ({ ...data.voice, ...u })); }, [data?.voice]);
+  const voiceOn = Boolean(edl?.voiceover?.on && edl.voiceover.lines.some((l) => l.path && voiceUrls[l.path]));
   // The track's beat, measured here from the track itself; the tempo it was made at when that fails.
   const [beat, setBeat] = useState<(Beat & { trackId: string }) | null>(null);
   const trackBpm = edl?.soundtrack ? edl.playlist?.tracks.find((t) => t.id === edl.soundtrack!.trackId)?.bpm ?? null : null;
@@ -450,7 +487,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       }
       // The export waits for the cleaned sound, so the video sounds like the preview.
       const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
-      const props = { edl, sources, captionsOn, musicUrl, cleanAudio: cleaned };
+      const props = { edl, sources, captionsOn, musicUrl, voiceUrls, cleanAudio: cleaned };
       const render = async (message: string | null) => {
         setExp({ phase: "rendering", progress: 0, message, postId: null });
         const { getBlob } = await renderMediaOnWeb({
@@ -465,7 +502,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         return getBlob();
       };
       // SOCIA watches the file it made (lib/studioClips/renderCheck.ts); a render fault gets one more try.
-      const expect = { sound: Boolean(musicUrl) || anySpeech, music: Boolean(musicUrl) };
+      const expect = { sound: Boolean(musicUrl) || anySpeech || voiceOn, music: Boolean(musicUrl) };
       const inspect = async (b: Blob, message: string | null) => {
         setExp({ phase: "inspecting", progress: 1, message, postId: null });
         return inspectRender(b, edl, expect, ctrl.signal);
@@ -588,7 +625,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <Player
                 ref={player}
                 component={ClipComposition}
-                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl, cleanAudio, safeZoneGuide: guide }}
+                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl, voiceUrls, cleanAudio, safeZoneGuide: guide }}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={edl.width}
@@ -713,7 +750,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             <button type="button" role="tab" className={panel === "style" ? "on" : ""} onClick={() => setPanel("style")}>Style</button>
             <button type="button" role="tab" className={panel === "text" ? "on" : ""} onClick={() => setPanel("text")}>Text &amp; captions</button>
             <button type="button" role="tab" className={panel === "finish" ? "on" : ""} onClick={() => setPanel("finish")}>Look &amp; sound</button>
-            <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Music</button>
+            <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Voice &amp; music</button>
             {!data.manual && <button type="button" role="tab" className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>}
           </div>
 
@@ -736,6 +773,18 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
 
           {panel === "audio" && (
             <div className="cbb-audio">
+              <VoiceoverCard
+                buildId={buildId}
+                edl={edl}
+                canEdit={data.canEdit && !busy && !fixture}
+                adding={autoVoice?.state === "adding"}
+                autoNote={autoVoice?.note ?? null}
+                // The server already saved these: the cut takes them without becoming "unsaved".
+                onVoiceover={(vo) => setEdl((e) => { if (!e) return e; if (vo) return { ...e, voiceover: vo, captions: e.captions ?? (e.voiceover ? e.captions : { source: "transcript" }) }; const { voiceover: _drop, ...rest } = e; void _drop; return rest; })}
+                onUrls={(urls) => setVoiceUrls((u) => ({ ...u, ...urls }))}
+                onLevel={(volume) => { setEdl((e) => (e?.voiceover ? { ...e, voiceover: { ...e.voiceover, volume } } : e)); setDirty(true); }}
+                onSwitch={(on) => { setEdl((e) => (e?.voiceover ? { ...e, voiceover: { ...e.voiceover, on } } : e)); setDirty(true); }}
+              />
               <div className="ov-card cba-current">
                 <b><Music size={14} /> Music in this video</b>
                 {autoMusic?.state === "adding" ? <p><Loader2 size={12} className="spin" /> SOCIA is adding a track from your taste (about a minute).</p>
@@ -943,9 +992,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <div className="ov-card cbb-captions">
                 <div>
                   <b><Captions size={14} /> Captions</b>
-                  <small>{anySpeech ? "From the real transcript, word by word." : "No speech was detected in these clips, so there is nothing to caption."}</small>
+                  <small>{anySpeech ? "From the real transcript, word by word." : voiceOn ? "From the voiceover, word by word as it's read." : "No speech was detected in these clips, so there is nothing to caption."}</small>
                 </div>
-                <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!anySpeech || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
+                <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!(anySpeech || voiceOn) || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
               </div>
               {captionsOn && (
                 <div className="ov-card cbb-captions">

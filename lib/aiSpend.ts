@@ -27,6 +27,8 @@ const FALLBACK = { input: 4, output: 20 };
 const WEB_SEARCH_USD = 0.01;
 export const TRANSCRIBE_USD_PER_HOUR = 0.21;
 export const MUSIC_USD_PER_MINUTE = 0.15;
+/** ElevenLabs text to speech, per 1,000 characters (Multilingual v2 and v3; elevenlabs.io/pricing/api, 2026-11-11). */
+export const VOICE_USD_PER_1K_CHARS = 0.08;
 
 type Usage = {
   input_tokens?: number | null; output_tokens?: number | null;
@@ -51,6 +53,7 @@ export function claudeMicros(model: string | null | undefined, usage: Usage | nu
 
 export const transcriptionMicros = (seconds: number) => Math.round(Math.max(0, seconds) / 3600 * TRANSCRIBE_USD_PER_HOUR * 1_000_000);
 export const musicMicros = (seconds: number) => Math.round(Math.max(0, seconds) / 60 * MUSIC_USD_PER_MINUTE * 1_000_000);
+export const voiceMicros = (chars: number) => Math.round(Math.max(0, chars) / 1000 * VOICE_USD_PER_1K_CHARS * 1_000_000);
 
 /** The first day of `now`'s month (UTC), as the counter's key. */
 export const monthKey = (now = new Date()) => `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;

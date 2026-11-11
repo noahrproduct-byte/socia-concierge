@@ -22,7 +22,7 @@ import { trackEvent, type ProductEventName } from "./events";
 import { aiBudgetDenied } from "./aiSpend";
 
 /** Allowances whose use costs SOCIA AI money: they also stop at the plan's monthly AI ceiling. */
-const AI_METERS = new Set<MeterKey>(["ask_socia", "content_studio", "content_generation", "account_audit", "content_plan", "content_ideas", "content_build", "music_tracks"]);
+const AI_METERS = new Set<MeterKey>(["ask_socia", "content_studio", "content_generation", "account_audit", "content_plan", "content_ideas", "content_build", "music_tracks", "voiceovers"]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;

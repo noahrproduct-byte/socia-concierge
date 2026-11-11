@@ -25,6 +25,7 @@ import { cardIsCurrent, QUIET_ROOM_VOLUME, teachEdit } from "./teach";
 import { studioLearnedLine } from "./learnLoad";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
+import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
 import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
 import { videoKind, videoTitle, type VideoSummary } from "./videos";
@@ -143,8 +144,9 @@ export async function deleteProject(client: Supa, ownerId: string, wsId: string 
     const folder = !c.purged_at ? clipFolderOf(c) : null;
     if (folder) await removeFolder(client, folder);
   }
-  // The project's music tracks (lib/music/taste.ts musicPath) go with it.
+  // The project's music tracks (lib/music/taste.ts musicPath) and voiced lines (lib/studioClips/voiceover.ts voicePath) go with it.
   await removeFolder(client, `${ownerId}/${id}/music`);
+  await removeFolder(client, `${ownerId}/${id}/voice`);
   const { error } = await client.from("studio_projects").delete().eq("id", id).eq("user_id", ownerId);
   if (error) throw error;
   return true;
@@ -332,7 +334,9 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
       words: r.transcript?.words?.length ? r.transcript.words : null,
       moments: r.card?.moments ?? [],
     }));
-  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx), music: await madeTracks(client, ownerId, row.project_id, buildId) };
+  const voicePaths = (row.edl?.voiceover?.lines ?? []).map((l) => l.path).filter((p): p is string => Boolean(p) && ownsVoicePath(ownerId, row.project_id, buildId)(p!));
+  const [music, voice] = await Promise.all([madeTracks(client, ownerId, row.project_id, buildId), voicePaths.length ? signUrls(client, voicePaths).catch(() => ({})) : Promise.resolve({})]);
+  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx), music, voice };
 }
 
 /** The tracks already made for a cut, as signed URLs by track id (files are named <buildId>-<trackId>.mp3). */
@@ -454,6 +458,11 @@ export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string |
   if (row.edl?.musicAuto) edl.musicAuto = row.edl.musicAuto;
   const soundtrack = sanitizeSoundtrack(edited.soundtrack, row.edl?.playlist, (trackId) => musicPath(ownerId, row.project_id, buildId, trackId));
   if (soundtrack) edl.soundtrack = soundtrack;
+  // The voiceover's lines and audio are the server's (only voicing changes them); the person's switch and level come through.
+  const stored = sanitizeVoiceover(row.edl?.voiceover, ownsVoicePath(ownerId, row.project_id, buildId));
+  const voiceover = mergeVoiceover(stored, (edited as { voiceover?: unknown }).voiceover ?? {});
+  if (voiceover) edl.voiceover = voiceover;
+  if (row.edl?.voiceAuto) edl.voiceAuto = row.edl.voiceAuto;
   if (!edl.segments.length) throw new Error("A cut needs at least one clip.");
   const history = [...(row.edl_history ?? []), row.edl].slice(-HISTORY_MAX);
   const guide = guideFromEdl(edl, forEdl);
@@ -498,6 +507,9 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   if (row.edl.soundtrack) edl.soundtrack = row.edl.soundtrack;
   if (row.edl.musicAuto) edl.musicAuto = row.edl.musicAuto;
   if (row.edl.lookAuto) edl.lookAuto = row.edl.lookAuto;
+  // The voiceover was paid for: it stays, and "Write it again" fits it to the new cut.
+  if (row.edl.voiceover) edl.voiceover = row.edl.voiceover;
+  if (row.edl.voiceAuto) edl.voiceAuto = row.edl.voiceAuto;
   // Picture and sound corrections are per clip, so they still hold for the clips the new cut keeps;
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));
