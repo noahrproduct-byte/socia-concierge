@@ -5,6 +5,7 @@
 import { AbsoluteFill, Easing, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { loadFont } from "@remotion/google-fonts/Inter";
 import { palette, specTimeline, type AnimatedScene, type AnimatedSpec } from "@/lib/animated/spec";
+import { CompareScene } from "./CompareScene";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700", "800"], subsets: ["latin"] });
 
@@ -137,6 +138,9 @@ function Signoff({ text, colors }: { text: string; colors: Colors }) {
 
 export function AnimatedComposition({ spec }: { spec: AnimatedSpec }) {
   const colors = palette(spec);
+  if (spec.compare) {
+    return <CompareScene compare={spec.compare} signoff={spec.signoff} colors={{ bg: colors.bg, fg: colors.fg, dim: colors.dim, accent: spec.accent, light: spec.theme === "light" }} />;
+  }
   const t = specTimeline(spec);
   return (
     <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily }}>

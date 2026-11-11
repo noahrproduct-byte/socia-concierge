@@ -126,7 +126,7 @@ export default function WeekAnimator({ open, onOpenChange, planId, skip, whenFor
   } else if (phase.kind === "choose") {
     body = (
       <>
-        <p className="wka-lead">SOCIA picked the days that work as words on screen. Days that need real footage are left for filming. Change any of them.</p>
+        <p className="wka-lead">SOCIA picked the days that work as an animated video. Days that need real footage are left for filming. Change any of them.</p>
         <ul className="wka-days">
           {picks.map((p) => {
             const when = whenFor(p.index);
