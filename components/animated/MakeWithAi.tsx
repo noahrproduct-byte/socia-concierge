@@ -9,10 +9,10 @@ import type { ScheduledPost } from "@/lib/scheduling";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player } from "@remotion/player";
 import { Loader2 } from "lucide-react";
-import { Dialog, Button, ButtonLink, SegmentedControl, Field, Textarea } from "@/components/system";
+import { Dialog, Button, ButtonLink, SegmentedControl, Field, Input, Textarea, Checkbox } from "@/components/system";
 import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
-import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedScene, type AnimatedSpec, type AnimatedTheme } from "@/lib/animated/spec";
+import { ACCENTS, ANIMATED_FPS, ANIMATED_SIZE, specTimeline, type AnimatedCompare, type AnimatedScene, type AnimatedSpec, type AnimatedTheme, type CompareHeadline } from "@/lib/animated/spec";
 import { AnimatedComposition } from "./AnimatedComposition";
 
 type Phase =
@@ -70,6 +70,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
   const busy = phase.kind === "rendering" || phase.kind === "uploading" || phase.kind === "saving";
 
   const setScene = (i: number, next: AnimatedScene) => setSpec((s) => (s ? { ...s, scenes: s.scenes.map((x, j) => (j === i ? next : x)) } : s));
+  const setCompare = (patch: Partial<AnimatedCompare>) => setSpec((s) => (s?.compare ? { ...s, compare: { ...s.compare, ...patch } } : s));
 
   async function save() {
     if (!spec) return;
@@ -111,8 +112,8 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
       width={760}
       className="mwa"
       description={source.kind === "plan"
-        ? "SOCIA writes the words from this plan post and animates them. Check the video and edit any line, then save it as a draft. Nothing posts until you schedule it."
-        : "SOCIA writes the words from this draft's text and animates them. Check the video and edit any line, then add it to the draft. The draft keeps its day, time and caption, and nothing posts until you schedule it."}
+        ? "SOCIA writes an animated video from this plan post. Check it and edit any line or number, then save it as a draft. Nothing posts until you schedule it."
+        : "SOCIA writes an animated video from this draft's text. Check it and edit any line or number, then add it to the draft. The draft keeps its day, time and caption, and nothing posts until you schedule it."}
       actions={
         phase.kind === "done" ? (
           <ButtonLink href={phase.href} variant="primary">Open the draft</ButtonLink>
@@ -124,7 +125,7 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
         )
       }
     >
-      {phase.kind === "writing" && <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> Writing the scenes from this post.</p>}
+      {phase.kind === "writing" && <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> Writing the video from this post.</p>}
       {phase.kind === "error" && (
         <div className="mwa-status is-error" role="alert">
           <p>{phase.message}</p>
@@ -149,15 +150,16 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
               autoPlay
               acknowledgeRemotionLicense
             />
-            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, no sound.</small>
+            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, no sound.{spec.compare ? " Comparison style." : ""}</small>
           </div>
           <div className="mwa-edit">
-            <SegmentedControl label="Background" options={THEMES} value={spec.theme} onChange={(theme) => setSpec((s) => (s ? { ...s, theme } : s))} />
+            <SegmentedControl label="Background" options={spec.compare ? THEMES.filter((x) => x.value !== "accent") : THEMES} value={spec.theme} onChange={(theme) => setSpec((s) => (s ? { ...s, theme } : s))} />
             <div className="mwa-swatches" role="radiogroup" aria-label="Highlight colour">
               {ACCENTS.map((c) => (
                 <button key={c} type="button" role="radio" aria-checked={spec.accent === c} aria-label={`Colour ${c}`} className={`mwa-swatch${spec.accent === c ? " is-on" : ""}`} style={{ background: c }} disabled={busy} onClick={() => setSpec((s) => (s ? { ...s, accent: c } : s))} />
               ))}
             </div>
+            {spec.compare && <CompareFields compare={spec.compare} busy={busy} onChange={setCompare} />}
             {spec.scenes.map((s, i) => (
               <Field key={i} label={SCENE_LABEL[s.type]} hint={s.type === "list" ? "First line is the title, then one item per line." : undefined}>
                 {s.type === "list" ? (
@@ -176,5 +178,44 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
         </div>
       )}
     </Dialog>
+  );
+}
+
+const HEADLINE_LABEL: [keyof Pick<AnimatedCompare, "hook" | "turn" | "close">, string][] = [["hook", "Opening headline"], ["turn", "Second headline"], ["close", "Last headline"]];
+
+/** Edit the comparison: headlines, each column's label, value and stamp, the end question. */
+function CompareFields({ compare, busy, onChange }: { compare: AnimatedCompare; busy: boolean; onChange: (patch: Partial<AnimatedCompare>) => void }) {
+  const setHeadline = (k: "hook" | "turn" | "close", text: string) => {
+    const [a = "", b = ""] = text.split("\n");
+    const h: CompareHeadline = { lines: [a, b], key: compare[k].key };
+    onChange({ [k]: h });
+  };
+  return (
+    <>
+      {HEADLINE_LABEL.map(([k, label]) => (
+        <Field key={k} label={label} hint="Two lines.">
+          <Textarea rows={2} maxLength={120} disabled={busy} value={compare[k].lines.join("\n")} onChange={(e) => setHeadline(k, e.target.value)} />
+        </Field>
+      ))}
+      {compare.columns.map((c, i) => (
+        <div key={i} className="mwa-col">
+          <Field label={`Column ${i + 1}`}>
+            <Input maxLength={30} disabled={busy} value={c.label} onChange={(e) => onChange({ columns: compare.columns.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
+          </Field>
+          <Field label={compare.format === "clock" ? "Seconds" : compare.unit ? `Value (${compare.unit})` : "Value"}>
+            <Input type="number" min={0} step="any" disabled={busy} value={String(c.value)}
+              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v) && v >= 0) onChange({ columns: compare.columns.map((x, j) => (j === i ? { ...x, value: v } : x)) }); }} />
+          </Field>
+          <Field label="Stamp">
+            <Input maxLength={20} disabled={busy} value={c.stamp} onChange={(e) => onChange({ columns: compare.columns.map((x, j) => (j === i ? { ...x, stamp: e.target.value.toUpperCase() } : x)) })} />
+          </Field>
+        </div>
+      ))}
+      <Checkbox checked={compare.illustrative} disabled={busy} onChange={(e) => onChange({ illustrative: e.target.checked })}
+        label={"Show \u201cExample numbers\u201d on the video"} />
+      <Field label="Question at the end">
+        <Input maxLength={60} disabled={busy} value={compare.question} onChange={(e) => onChange({ question: e.target.value })} />
+      </Field>
+    </>
   );
 }

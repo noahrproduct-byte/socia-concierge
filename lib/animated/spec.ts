@@ -19,11 +19,45 @@ export type AnimatedScene =
   | { type: "quote"; text: string }
   | { type: "cta"; text: string; sub?: string };
 
+/** Two lines of headline; `key` (words copied from the second line) is set in the italic accent. */
+export type CompareHeadline = { lines: [string, string]; key: string };
+
+/** How a column ends: the winner turns green, a bad result red, the others grey. */
+export type CompareTone = "win" | "lose" | "neutral";
+
+export type CompareColumn = { label: string; value: number; stamp: string; tone: CompareTone };
+
+/**
+ * The comparison template (after the reference study, scratchpad animref/fbf/timing.md):
+ * one fixed frame, 2 to 4 columns measured on one number that count up together;
+ * each stops at its value, snaps to its colour and gets a stamp. The headline
+ * swaps hard three times (hook, turn, close) and it ends on a comment question.
+ */
+export type AnimatedCompare = {
+  hook: CompareHeadline;
+  turn: CompareHeadline;
+  close: CompareHeadline;
+  /** Small line under the headline: what was kept the same. */
+  setup: string;
+  /** "clock" shows the value as m:ss (value in seconds); "number" shows it with `unit`. */
+  format: "clock" | "number";
+  unit: string;
+  columns: CompareColumn[];
+  /** One line under the columns at the end. */
+  note: string;
+  /** The comment question at the end. */
+  question: string;
+  /** True when any value isn't written in the plan or brand details: the video then says "Example numbers". */
+  illustrative: boolean;
+};
+
 export type AnimatedSpec = {
   version: 1;
   theme: AnimatedTheme;
   accent: string;
   scenes: AnimatedScene[];
+  /** When set, the video is the comparison template and `scenes` is empty. */
+  compare?: AnimatedCompare | null;
   /** Shown small at the end, e.g. the brand's name. Never invented. */
   signoff: string | null;
   caption: string;
@@ -69,6 +103,18 @@ function sceneText(s: AnimatedScene): string {
 export function cleanSpec(raw: unknown, sourceText: string, opts: { signoff?: string | null } = {}): AnimatedSpec | null {
   const r = (raw ?? {}) as Record<string, unknown>;
   const source = numberTokens(sourceText);
+  const extras = {
+    signoff: opts.signoff ? clean(opts.signoff, 40) || null : null,
+    hashtags: (Array.isArray(r.hashtags) ? r.hashtags : []).filter((t): t is string => typeof t === "string").map((t) => t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 40)).filter(Boolean).slice(0, 5),
+  };
+  const accent = ACCENTS.includes(r.accent as (typeof ACCENTS)[number]) ? (r.accent as string) : ACCENTS[0];
+  const caption = clean(r.caption, 2200);
+  const safeCaption = inventsNumbers(caption, source) ? "" : caption;
+  if (r.format === "compare") {
+    const compare = cleanCompare(r.compare, source);
+    // The comparison is drawn on a dark or light ground only: green and red have to read on it.
+    if (compare) return { version: 1, theme: r.theme === "light" ? "light" : "ink", accent, scenes: [], compare, caption: safeCaption, ...extras };
+  }
   const scenes: AnimatedScene[] = [];
   for (const s of Array.isArray(r.scenes) ? (r.scenes as Record<string, unknown>[]) : []) {
     if (!s || typeof s !== "object") continue;
@@ -102,14 +148,111 @@ export function cleanSpec(raw: unknown, sourceText: string, opts: { signoff?: st
   if (hook > 0) scenes.unshift(...scenes.splice(hook, 1));
   if (scenes.length < 2) return null;
   const theme: AnimatedTheme = r.theme === "light" || r.theme === "accent" ? r.theme : "ink";
-  const accent = ACCENTS.includes(r.accent as (typeof ACCENTS)[number]) ? (r.accent as string) : ACCENTS[0];
-  const caption = clean(r.caption, 2200);
+  return { version: 1, theme, accent, scenes, caption: safeCaption, ...extras };
+}
+
+const COMPARE_WORDS = { line: 7, setup: 10, label: 3, stamp: 2, note: 10, question: 8 } as const;
+const MAX_VALUE = 1e7;
+
+function cleanHeadline(v: unknown, source: Set<string>): CompareHeadline | null {
+  const h = (v ?? {}) as Record<string, unknown>;
+  const raw = Array.isArray(h.lines) ? h.lines : [];
+  const a = capWords(clean(raw[0], 80), COMPARE_WORDS.line);
+  const b = capWords(clean(raw[1], 80), COMPARE_WORDS.line);
+  if (!a || !b || inventsNumbers(`${a} ${b}`, source)) return null;
+  const key = clean(h.key, 40);
+  return { lines: [a, b], key: key && b.toLowerCase().includes(key.toLowerCase()) ? key : "" };
+}
+
+/** Plain text a line may show: short, and dropped when it uses a number the plan didn't contain. */
+const safeLine = (v: unknown, n: number, source: Set<string>) => {
+  const t = capWords(clean(v, 120), n);
+  return t && !inventsNumbers(t, source) ? t : "";
+};
+
+/** The ways a value could be written in the plan ("28", "0:28", "36g", "$4.50"). */
+function valueTokens(value: number, format: "clock" | "number", unit: string): string[] {
+  const u = unit.toLowerCase();
+  const out = [String(value), value.toFixed(2)].flatMap((n) => [n, `${n}${u}`, `${u}${n}`]);
+  if (format === "clock") out.push(clockText(value));
+  if (value >= 1000) out.push(value.toLocaleString("en-US"));
+  return out;
+}
+
+/**
+ * The model's comparison, made safe: 2 to 4 columns with a label, a value of
+ * zero or more and a short stamp; headlines without invented numbers. Values
+ * the plan didn't contain are allowed only as an illustration, and then the
+ * video says so ("Example numbers"). null when it can't be drawn honestly.
+ */
+export function cleanCompare(v: unknown, source: Set<string>): AnimatedCompare | null {
+  const c = (v ?? {}) as Record<string, unknown>;
+  const hook = cleanHeadline(c.hook, source);
+  const turn = cleanHeadline(c.turn, source);
+  const close = cleanHeadline(c.close, source);
+  if (!hook || !turn || !close) return null;
+  const format = c.format === "clock" ? "clock" : "number";
+  const unit = format === "clock" ? "" : clean(c.unit, 6);
+  const columns: CompareColumn[] = [];
+  for (const col of Array.isArray(c.columns) ? (c.columns as Record<string, unknown>[]) : []) {
+    const label = capWords(clean(col?.label, 40), COMPARE_WORDS.label);
+    const value = typeof col?.value === "number" ? Math.round(col.value * 100) / 100 : NaN;
+    if (!label || !Number.isFinite(value) || value < 0 || value > MAX_VALUE) continue;
+    const stamp = capWords(clean(col.stamp, 24), COMPARE_WORDS.stamp).toUpperCase();
+    const tone: CompareTone = col.tone === "win" || col.tone === "lose" ? col.tone : "neutral";
+    columns.push({ label, value, stamp: inventsNumbers(stamp, source) ? "" : stamp, tone });
+    if (columns.length >= 4) break;
+  }
+  if (columns.length < 2 || Math.max(...columns.map((x) => x.value)) <= 0) return null;
+  const illustrative = columns.some((col) => !valueTokens(col.value, format, unit).some((t) => source.has(t)));
   return {
-    version: 1, theme, accent, scenes,
-    signoff: opts.signoff ? clean(opts.signoff, 40) || null : null,
-    caption: inventsNumbers(caption, source) ? "" : caption,
-    hashtags: (Array.isArray(r.hashtags) ? r.hashtags : []).filter((t): t is string => typeof t === "string").map((t) => t.replace(/^#/, "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 40)).filter(Boolean).slice(0, 5),
+    hook, turn, close, format, unit, columns, illustrative,
+    setup: safeLine(c.setup, COMPARE_WORDS.setup, source),
+    note: safeLine(c.note, COMPARE_WORDS.note, source),
+    question: safeLine(c.question, COMPARE_WORDS.question, source),
   };
+}
+
+/** A count of seconds as m:ss. */
+export function clockText(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** A column's value as shown: m:ss, or the number with its unit (currency before, others after). */
+export function compareValueText(value: number, format: "clock" | "number", unit: string, decimals = 0): string {
+  if (format === "clock") return clockText(value);
+  const n = value.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  if (!unit) return n;
+  return /^[$£€]$/.test(unit) ? `${unit}${n}` : `${n} ${unit}`;
+}
+
+/**
+ * The comparison's timeline, in seconds (the template is a fixed 20 s): the
+ * shared counter runs steadily to 40/45 of the top value by RUN_STEADY, then
+ * slows into the top value by RUN_END, like the clock in the reference.
+ */
+export const COMPARE_TIMES = { runStart: 0.3, runSteady: 11, runEnd: 12.6, turn: 2, close: 13.8, question: 15.4, total: 20 } as const;
+
+/** The shared counter's value at `t` seconds, for a comparison whose top value is `max`. */
+export function compareCounter(t: number, max: number): number {
+  const { runStart, runSteady, runEnd } = COMPARE_TIMES;
+  const steady = (40 / 45) * max;
+  if (t <= runStart) return 0;
+  if (t <= runSteady) return ((t - runStart) / (runSteady - runStart)) * steady;
+  const p = Math.min(1, (t - runSteady) / (runEnd - runSteady));
+  return steady + (max - steady) * (1 - (1 - p) ** 3);
+}
+
+/** When (seconds) the counter reaches `value`: the moment that column stops. */
+export function compareStopAt(value: number, max: number): number {
+  const { runStart, runSteady, runEnd } = COMPARE_TIMES;
+  const steady = (40 / 45) * max;
+  if (value <= 0) return runStart;
+  if (value <= steady) return runStart + (value / steady) * (runSteady - runStart);
+  // Invert the ease-out part.
+  const p = 1 - Math.cbrt(1 - Math.min(1, (value - steady) / (max - steady)));
+  return runSteady + p * (runEnd - runSteady);
 }
 
 /** How long a scene stays up: long enough to read it twice at a relaxed pace. */
@@ -121,6 +264,7 @@ export function sceneFrames(s: AnimatedScene): number {
 
 /** Where each scene starts, and the whole length, in frames. The sign-off adds a short end card. */
 export function specTimeline(spec: AnimatedSpec): { starts: number[]; frames: number[]; end: number; total: number } {
+  if (spec.compare) return { starts: [], frames: [], end: 0, total: Math.round(COMPARE_TIMES.total * ANIMATED_FPS) };
   const frames = spec.scenes.map(sceneFrames);
   const starts: number[] = [];
   let at = 0;

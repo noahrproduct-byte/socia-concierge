@@ -1,4 +1,4 @@
-// Whether animated videos (words on screen, built in code) suit an account:
+// Whether animated videos (comparisons or words on screen, built in code) suit an account:
 // the evidence SOCIA shows the model and the check on its answer. Pure and
 // client-safe; lib/animated/fit.ts runs the scan.
 import type { IgMediaItem } from "@/lib/instagramSync";
