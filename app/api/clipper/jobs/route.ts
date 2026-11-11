@@ -6,11 +6,12 @@ import { createClipJob, listClipJobs, cleanOptions, PriceCheckError, YOUTUBE_RE 
 import { clipCredits } from "@/lib/credits/config";
 import { creditBalance } from "@/lib/credits/ledger";
 import { isOwnPath } from "@/lib/storagePaths";
+import { aiBudgetDenied } from "@/lib/aiSpend";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// The AI Clipper's jobs (Scale).
+// The AI Clipper's jobs (Starter and up; links on Scale).
 //   GET  -> { jobs, balance }
 //   POST { source: { kind, url | path }, minutes?, options } -> the job
 //        SOCIA measures the video and prices it from that length. When it is
@@ -44,6 +45,11 @@ export async function POST(req: Request) {
   const path = typeof body?.source?.path === "string" ? body.source.path : null;
   const minutes = typeof body?.minutes === "number" && body.minutes > 0 ? Math.ceil(body.minutes) : null;
   const options = cleanOptions(body?.options);
+  // Scale pays for its provider costs in credits; the other plans' clipping also counts against their monthly AI ceiling.
+  if (r.ent.plan !== "scale") {
+    const over = await aiBudgetDenied(r.ctx.ownerId, r.ent);
+    if (over) return over;
+  }
   let source: Parameters<typeof createClipJob>[1]["source"];
   if (kind === "youtube") {
     if (!YOUTUBE_RE.test(url)) return NextResponse.json({ error: "Paste a YouTube video link." }, { status: 400 });
@@ -57,7 +63,7 @@ export async function POST(req: Request) {
     source = { kind: "url", url };
   } else return NextResponse.json({ error: "Choose a YouTube link, a direct video link or an upload." }, { status: 400 });
   try {
-    const job = await createClipJob(r.ctx, { source, minutes, options });
+    const job = await createClipJob(r.ctx, { source, minutes, options, links: r.ent.plan === "scale" });
     recordEvent(r.ctx.client, r.ctx.ownerId, "ai_usage", { feature: "clipper_job", minutes: job.source_minutes, credits: job.credits_reserved });
     const balance = await creditBalance(r.ctx.ownerId, r.ent.plan).catch(() => null);
     return NextResponse.json({ job, balance, price: clipCredits(job.source_minutes, options.clipModel, job.provider === "socia" ? "socia" : "vizard") });

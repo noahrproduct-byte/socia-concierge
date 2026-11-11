@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { openPlatformsText } from "@/lib/platformStatus";
 import { PLANS, SALE_ORDER, FEATURE_LABEL, FEATURE_STATUS, formatPrice, formatHistory, type PlanId, type PlanConfig } from "@/lib/plans";
-import { MONTHLY_CREDITS } from "@/lib/credits/config";
+import { MONTHLY_CREDITS, clipMinutesFor } from "@/lib/credits/config";
 import { comingSoonFor } from "@/lib/pricingTable";
 import PlanCta from "./PlanCta";
 
@@ -44,6 +44,7 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
     case "starter":
       return [
         workspaces,
+        `AI Clipper: about ${clipMinutesFor(MONTHLY_CREDITS.starter)} minutes of video a month`,
         `${formatHistory(L.analytics_history_days)} of analytics, posting-time and growth analysis`,
         "What Changed, What's Working, What's Missing, What To Do Next",
         `${M.content_plan} weekly Content Plans/month`,
@@ -58,6 +59,7 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
     case "growth":
       return [
         workspaces,
+        `AI Clipper: about ${clipMinutesFor(MONTHLY_CREDITS.growth)} minutes of video a month`,
         `${formatHistory(L.analytics_history_days)} of analytics`,
         "Cross-platform analytics",
         "AI comment replies",
@@ -72,6 +74,7 @@ function highlightsFor(p: PlanConfig): (string | null)[] {
     case "pro":
       return [
         workspaces,
+        `AI Clipper: about ${clipMinutesFor(MONTHLY_CREDITS.pro)} minutes of video a month`,
         formatHistory(L.analytics_history_days),
         "Cross-brand analytics, client reports and approvals",
         `${M.video_builds} AI-made videos and ${M.music_tracks} music tracks/month`,

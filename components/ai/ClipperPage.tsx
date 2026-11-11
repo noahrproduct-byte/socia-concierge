@@ -5,7 +5,7 @@ import { Loader2, Scissors } from "lucide-react";
 import { CLIP_LANGUAGES, CLIP_LENGTHS, CLIP_TYPES, DEFAULT_CLIPPER_OPTIONS, MAX_CLIPS, type ClipLength, type ClipType, type ClipperOptions } from "@/lib/clipper/provider";
 import { RANKING_SIZE, TRAILER_SIZE } from "@/lib/clipper/ranking";
 import RankingRenderCard from "./RankingRenderCard";
-import { clipCredits, clipCreditsKept, clipWorkDone, formatCredits } from "@/lib/credits/config";
+import { CREDITS_SHORT_COPY, clipCredits, clipCreditsKept, clipWorkDone, formatCredits } from "@/lib/credits/config";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, videoMinutes, CreditsLine, StatusChip, MediaCard } from "./shared";
 import type { ClipRender } from "@/lib/clipper/server";
 import ClipRenderCard from "./ClipRenderCard";
@@ -134,7 +134,7 @@ export default function ClipperPage({ initialBalance, canMutate, sociaReady, viz
       // SOCIA measured the video: show its real price and let the person press again.
       const measured = (e as { code?: string; minutes?: number }).code === "confirm_price" ? (e as { minutes?: number }).minutes : undefined;
       if (typeof measured === "number") { setMinutes(measured); setPriceNote(errorText(e)); return; }
-      setErr(isCreditsShort(e) ? "Not enough credits for this video. Buy a top-up in Settings or wait for next month's allowance." : errorText(e));
+      setErr(isCreditsShort(e) ? CREDITS_SHORT_COPY : errorText(e));
     } finally { setBusy(null); setProgress(null); }
   }
 

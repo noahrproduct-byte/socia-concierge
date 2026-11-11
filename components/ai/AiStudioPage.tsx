@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Film, Lightbulb, Loader2 } from "lucide-react";
-import { DEFAULT_MODEL, GENERATION_MODELS, modelById, type GenerationKind } from "@/lib/credits/config";
+import { DEFAULT_MODEL, GENERATION_MODELS, modelById, type GenerationKind, CREDITS_SHORT_COPY } from "@/lib/credits/config";
 import { ConfirmDialog } from "@/components/system";
 import { api, errorText, isCreditsShort, usePolling, uploadToSigned, CreditsLine, StatusChip, MediaCard } from "./shared";
 
@@ -117,7 +117,7 @@ export default function AiStudioPage({ initialBalance, canMutate, aiReady }: { i
       });
       setJobs((js) => [r.job, ...js]); setBalance(r.balance);
     } catch (e) {
-      setErr(isCreditsShort(e) ? "Not enough credits for this. Buy a top-up in Settings or wait for next month's allowance." : errorText(e));
+      setErr(isCreditsShort(e) ? CREDITS_SHORT_COPY : errorText(e));
     } finally { setBusy(null); }
   }
 

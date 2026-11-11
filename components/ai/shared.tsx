@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Check, Copy, Download, Loader2, Send, Trash2 } from "lucide-react";
-import { formatCredits } from "@/lib/credits/config";
+import { formatCredits, CREDIT_PRICES_CONFIRMED } from "@/lib/credits/config";
 
 export type ApiError = { error: string; code?: string; balance?: number | null; migration?: boolean; minutes?: number };
 
@@ -34,7 +34,9 @@ export function CreditsLine({ balance, price, label }: { balance: number | null;
     <p className={`ai-credits${short ? " is-short" : ""}`} role="status">
       {price != null && <span>{label ?? "This will use"} <b>{formatCredits(price)}</b>. </span>}
       {balance == null ? <span>Credits could not be read.</span> : <span>Balance: <b>{formatCredits(balance)}</b>.</span>}
-      {short && <span> <Link href="/settings#plan">Buy a top-up</Link> or wait for next month&apos;s allowance.</span>}
+      {short && (CREDIT_PRICES_CONFIRMED
+        ? <span> <Link href="/settings#plan">Buy a top-up</Link> or wait for next month&apos;s allowance.</span>
+        : <span> Your credits refill on the 1st of next month.</span>)}
     </p>
   );
 }

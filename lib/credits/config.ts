@@ -26,12 +26,16 @@ export const CREDIT_USD = 0.01;
 /** Margin over SOCIA's cost, applied to every price below. 1.5 = cost plus half. */
 export const MARGIN = 1.5;
 
-/** Credits a plan gets on the first of every month. Plans without the features get none. */
+/**
+ * Credits a plan gets on the first of every month. Starter, Growth and Pro
+ * spend theirs on SOCIA's own clipper (Noah, 2026-11-11); Scale also on AI
+ * Studio. Free gets none.
+ */
 export const MONTHLY_CREDITS: Record<PlanId, number> = {
   free: 0,
-  starter: 0,
-  growth: 0,
-  pro: 0,
+  starter: 150,
+  growth: 400,
+  pro: 800,
   // $79.99 a month: about $40 of provider cost at the margin above.
   scale: 6000,
 };
@@ -169,3 +173,13 @@ export function clipCreditsKept(minutes: number, reserved: number, done: ClipWor
 export function formatCredits(n: number): string {
   return `${n.toLocaleString("en-US")} ${n === 1 ? "credit" : "credits"}`;
 }
+
+/** About how many minutes of video a month of credits clips with SOCIA's own clipper, counted in 15-minute videos. */
+export function clipMinutesFor(credits: number): number {
+  return Math.floor(credits / clipCredits(15, "clip_v1", "socia")) * 15;
+}
+
+/** What to say when credits run short: top-ups only while they are on sale. */
+export const CREDITS_SHORT_COPY = CREDIT_PRICES_CONFIRMED
+  ? "Not enough credits for this. Buy a top-up in Settings or wait for next month's allowance."
+  : "Not enough credits for this. Your credits refill on the 1st of next month.";
