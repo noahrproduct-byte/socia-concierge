@@ -81,19 +81,21 @@ export function normalizePlanItem(p: PlanItem): PlanItem {
     // The model's cited id never reaches a saved plan; the Reel it named does, bounded.
     reference: undefined,
     ref: sanitizeRef(p.ref) ?? undefined,
+    animated: p.animated === true ? true : undefined,
+    slot: p.animated === true && (p.slot === 1 || p.slot === 2) ? p.slot : undefined,
   };
 }
 
-const CORE: Record<string, number> = { day: 20, concept: 1200, hook: 400, format: 200, rationale: 800, evidence: 800, predictedPerformance: 200 };
+const CORE: Record<string, number> = { day: 32, concept: 1200, hook: 400, format: 200, rationale: 800, evidence: 800, predictedPerformance: 200 };
 
-/** Plan days sent back by the browser (an edit, a decision, an added idea): known fields only, each bounded, at most 21; anything else is dropped. */
+/** Plan days sent back by the browser (an edit, a decision, an added idea): known fields only, each bounded, at most 28 (7 filmed, up to 14 animated, ideas the person added); anything else is dropped. */
 export function sanitizePlanItems(items: unknown[]): PlanItem[] {
-  return items.slice(0, 21).flatMap((raw) => {
+  return items.slice(0, 28).flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const r = raw as Record<string, unknown>;
     const core = Object.fromEntries(Object.entries(CORE).map(([k, n]) => [k, typeof r[k] === "string" ? (r[k] as string).slice(0, n) : ""])) as Pick<PlanItem, "day" | "concept" | "hook" | "format" | "rationale" | "evidence" | "predictedPerformance">;
     if (!core.day || !core.concept) return [];
-    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"] });
+    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
     const decision = cleanDecision(r.decision);
     const guide = sanitizeGuide(r.guide, new Date());
     return [{ ...item, ...(isItemId(r.id) ? { id: r.id } : {}), ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];

@@ -50,6 +50,7 @@ import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
 import { Button, ReelRefNote } from "@/components/system";
 import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
+import { animatedHour, weekdayOf } from "@/lib/animated/day";
 
 // Loaded on demand: the video preview and renderer are large and only needed once someone presses Make it with AI.
 const MakeWithAi = dynamic(() => import("@/components/animated/MakeWithAi"), { ssr: false });
@@ -658,9 +659,14 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   };
   const onCalendar = (i: number) => (itemOutcome(i)?.state ?? "unscheduled") !== "unscheduled";
 
-  const timeFor = (day: string): string | null => {
-    const wd = weekdayIndex(day);
-    return wd == null ? null : hourLabel(suggestedHour(aud, (wd + 6) % 7));
+  // The hour a post goes out on its weekday: the audience's best hour; an animated post a few hours either side of it.
+  const hourFor = (item: { animated?: boolean; slot?: 1 | 2 }) => (wd: number) => {
+    const best = suggestedHour(aud, (wd + 6) % 7);
+    return item.animated ? animatedHour(best, item.slot ?? 1) : best;
+  };
+  const timeFor = (item: { day: string; animated?: boolean; slot?: 1 | 2 }): string | null => {
+    const wd = weekdayIndex(item.day);
+    return wd == null ? null : hourLabel(hourFor(item)(wd));
   };
   // One plan item into Create Post: the hook as the first line, the concept
   // under it, both as the plan wrote them. planId only when the plan is saved.
@@ -675,6 +681,9 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   const ev = data.evidenceUsed;
   // Shown Monday first; actions keep each post's index in the saved plan.
   const weekIdx = useMemo(() => (data.weeklyPlan ?? []).map((_, i) => i).sort((a, b) => weekOrder(data.weeklyPlan[a].day) - weekOrder(data.weeklyPlan[b].day) || a - b), [data.weeklyPlan]);
+  // Filmed posts are the plan's main list; the animated ones (brands that post animated videos) get their own section.
+  const filmedIdx = weekIdx.filter((i) => !data.weeklyPlan[i].animated);
+  const animatedIdx = weekIdx.filter((i) => data.weeklyPlan[i].animated);
   // What became of this plan: each day's state on the Calendar and, once
   // published, the result against the account's own median. Re-read after
   // "Schedule this week" so the chips update at once.
@@ -698,8 +707,9 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   });
 
   // Days still waiting for a decision: not turned down, not approved, not already on the Calendar.
-  const pendingDays = (data.weeklyPlan ?? []).filter((d, i) => !d.decision && !onCalendar(i)).length;
-  const anyApproved = (data.weeklyPlan ?? []).some((d) => d.decision?.status === "approved");
+  // Animated posts go on the Calendar with their video ("Generate animated videos"), not through Approve week.
+  const pendingDays = (data.weeklyPlan ?? []).filter((d, i) => !d.animated && !d.decision && !onCalendar(i)).length;
+  const anyApproved = (data.weeklyPlan ?? []).some((d) => !d.animated && d.decision?.status === "approved");
 
   // When a plan day would post if placed now: the same week and audience hour
   // Approve week uses. null when that day has already passed.
@@ -707,7 +717,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
     const item = data.weeklyPlan?.[i];
     if (!item) return null;
     const now = new Date();
-    const d = draftsFromPlan([item], planWeekStart(now), (wd) => suggestedHour(aud, (wd + 6) % 7)).drafts[0];
+    const d = draftsFromPlan([item], planWeekStart(now), hourFor(item)).drafts[0];
     return d && new Date(d.scheduled_at).getTime() > now.getTime() ? d.scheduled_at : null;
   };
   // Days already scheduled or posted are not offered for animated videos.
@@ -724,7 +734,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
       const nextWeek = now.getDay() === 0 || now.getDay() >= 4;
       const weekStart = new Date(mondayOf(now).getTime() + (nextWeek ? 7 : 0) * DAY_MS);
       // Ideas the person turned down never go on the Calendar.
-      const { drafts, skipped } = draftsFromPlan((data.weeklyPlan ?? []).filter((d) => d.decision?.status !== "rejected"), weekStart, (wd) =>
+      const { drafts, skipped } = draftsFromPlan((data.weeklyPlan ?? []).filter((d) => !d.animated && d.decision?.status !== "rejected"), weekStart, (wd) =>
         suggestedHour(aud, (wd + 6) % 7)
       );
       const usable = drafts.filter((d) => new Date(d.scheduled_at).getTime() > now.getTime());
@@ -881,16 +891,16 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
             </div>
           )}
           <div className="cpl-posts">
-            {weekIdx.map((i) => { const post = data.weeklyPlan[i]; return (
+            {filmedIdx.map((i) => { const post = data.weeklyPlan[i]; return (
               <article className={`cpl-post${applied === post.day ? " applied" : ""}${post.decision?.status === "rejected" ? " pi-rejected" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>
                 <div className="cpl-post-tags">
                   <span className="cpl-tag day">{post.day}</span>
                   <DecisionTag item={post} />
                   <OutcomeTags o={itemOutcome(i)} />
                   <button type="button" className="cpl-improve" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to film.`, day: post.day })}><Sparkles size={11} /> Improve</button>
-                  {timeFor(post.day) && (
+                  {timeFor(post) && (
                     <span className="cpl-tag time" title={aud.enough ? "When your own posts got the most likes and comments" : "No posting history yet, so this is noon by default"}>
-                      <Clock size={10} /> {timeFor(post.day)}{aud.enough ? "" : " (default)"}
+                      <Clock size={10} /> {timeFor(post)}{aud.enough ? "" : " (default)"}
                     </span>
                   )}
                   {post.platform && <span className="cpl-tag fmt">{post.platform}</span>}
@@ -960,6 +970,39 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
             ); })}
           </div>
           <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
+          {animatedIdx.length > 0 && (
+            <section className="cpl-anim" aria-labelledby="cpl-anim-h">
+              <div className="cpl-anim-head">
+                <h3 id="cpl-anim-h">Animated videos this week</h3>
+                {planId && (
+                  <Button size="sm" variant="primary" onClick={() => setAnimatingWeek(true)} title="SOCIA makes each animated video in this browser; you check them all before they're scheduled">
+                    <Film size={14} aria-hidden /> Make all {animatedIdx.length}
+                  </Button>
+                )}
+              </div>
+              <p className="cpl-approve-note">No filming: SOCIA writes each one as a comparison, a counter or words on screen and makes it in this browser. You check them all, then schedule them together, at times around your audience&apos;s best hour.</p>
+              <ul className="cpl-anim-list">
+                {animatedIdx.map((i) => { const post = data.weeklyPlan[i]; const when = timeFor(post); return (
+                  <li key={i} className={post.decision?.status === "rejected" ? "pi-rejected" : ""}>
+                    <div className="cpl-anim-when">
+                      <b>{weekdayOf(post.day)}</b>
+                      {when && <span><Clock size={10} aria-hidden /> {when}</span>}
+                    </div>
+                    <div className="cpl-anim-body">
+                      <span className="cpl-anim-title">{post.title ?? post.hook}</span>
+                      {post.title && <span className="cpl-anim-hook">{post.hook}</span>}
+                      <OutcomeTags o={itemOutcome(i)} />
+                    </div>
+                    {planId && post.decision?.status !== "rejected" && !onCalendar(i) && (
+                      <button type="button" className="ov-link" onClick={() => setMaking(i)} title="Make just this one and save it as a draft">
+                        <Film size={11} /> Make this one
+                      </button>
+                    )}
+                  </li>
+                ); })}
+              </ul>
+            </section>
+          )}
           {planId && animatingWeek && (
             <WeekAnimator open onOpenChange={(o) => { if (!o) setAnimatingWeek(false); }} planId={planId} skip={animatedSkip} whenFor={whenFor} canSchedule={canSchedule} onDone={() => setOutcomeTick((t) => t + 1)} />
           )}

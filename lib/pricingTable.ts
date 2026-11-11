@@ -132,6 +132,7 @@ export const COMPARISON: ComparisonCategory[] = [
       { label: "Upload per project", cells: limitCell("studio_upload_mb", (mb) => (mb >= 1000 ? `${mb / 1000} GB` : `${mb} MB`)) },
       feature("auto_build", "SOCIA cuts and renders the video from your clips or a prompt; you can change anything after."),
       { label: "AI-made videos", cells: meterCell("video_builds") },
+      { label: "Animated videos", note: "Comparisons, counters and words on screen, written by SOCIA from your plan and made in your browser.", cells: meterCell("animated_videos") },
       { label: "Music tracks", note: "Made for your videos from your brand's taste.", cells: meterCell("music_tracks") },
       { label: "Account audits", cells: meterCell("account_audit") },
       feature("ai_clipper", "Upload a long video; SOCIA returns vertical clips with captions, a title, a score and a caption. Only clip videos you own or have rights to."),

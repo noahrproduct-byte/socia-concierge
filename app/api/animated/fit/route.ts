@@ -10,15 +10,15 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // "Post animated videos": the brand's choice and SOCIA's scan of whether it suits the account.
-//   GET  -> { on, fit }
+//   GET  -> { on, perDay, fit }
 //   POST -> runs the scan and saves it -> { on, fit }
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const ctx = await resolveContext(supabase, user.id);
-  const a = (await freshDetail(ctx).catch(() => ({}))) as { animated?: { on?: boolean; fit?: unknown } };
-  return NextResponse.json({ on: a.animated?.on ?? false, fit: a.animated?.fit ?? null });
+  const a = (await freshDetail(ctx).catch(() => ({}))) as { animated?: { on?: boolean; perDay?: number; fit?: unknown } };
+  return NextResponse.json({ on: a.animated?.on ?? false, perDay: a.animated?.perDay === 2 ? 2 : 1, fit: a.animated?.fit ?? null });
 }
 
 export async function POST() {

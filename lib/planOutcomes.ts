@@ -3,6 +3,7 @@
 // median. Pure functions over rows SOCIA already stores, plus one loader that
 // gathers those rows. This is the "did it work?" half of the loop; the next
 // plan reads these outcomes as evidence.
+import { isAnimatedDay } from "./animated/day";
 import type { Deliverable } from "./schema";
 import type { ScheduledPost } from "./scheduling";
 import { weekdayIndex } from "./scheduling";
@@ -60,14 +61,20 @@ export type PlanOutcome = {
 
 const isLive = (p: Pick<ScheduledPost, "status">) => p.status !== "cancelled";
 
-/** The post created for a plan item: same plan, same day (free-text day matched by weekday, else exact). */
+/**
+ * The post created for a plan item: same plan, same day (free-text day matched
+ * by weekday, else exact). An animated post ("Monday (animated)") matches only
+ * its own day exactly, and never stands in for that day's filmed post.
+ */
 function postForItem(item: { day: string }, posts: ScheduledPost[]): ScheduledPost | null {
   const want = item.day.trim().toLowerCase();
   const wd = weekdayIndex(item.day);
+  const animated = isAnimatedDay(item.day);
   const matches = posts.filter((p) => {
     const have = (p.plan_day ?? "").trim().toLowerCase();
     if (!have) return false;
     if (have === want) return true;
+    if (animated || isAnimatedDay(have)) return false;
     const pw = weekdayIndex(p.plan_day);
     return wd != null && pw != null && pw === wd;
   });

@@ -12,6 +12,8 @@ import { deliverableSchema, type Deliverable, type GenerateInput, type SavedPlan
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
 import { isMissingColumnError } from "./workspaces";
+import { writeAnimatedPosts } from "./animated/planPosts";
+import { platformName } from "./planItems";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -71,6 +73,19 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   // A post's "reference" is an id from the Reels the strategist was shown: SOCIA swaps it for that Reel's own link and numbers.
   const proven = evidence?.proven ?? [];
   data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map((p) => normalizePlanItem({ ...p, ref: pickRef(p.reference, proven) ?? undefined })));
+  // A brand that posts animated videos gets one or two a day on top of the filmed posts (lib/animated/planPosts.ts).
+  if (brand?.animated?.on) {
+    const brandLine = [
+      input.clientHandle && `Account: ${input.clientHandle}`,
+      input.niche && `Niche: ${input.niche}`,
+      brand.description && `About: ${brand.description.slice(0, 500)}`,
+      brand.location && `Location: ${brand.location.slice(0, 120)}`,
+      brand.voice && `Voice: ${brand.voice}`,
+      brand.avoid && `Avoid: ${brand.avoid.slice(0, 200)}`,
+    ].filter(Boolean).join("\n");
+    const animated = await writeAnimatedPosts({ brand, brandLine, filmed: data.weeklyPlan, platform: platformName(input.platform) ?? undefined, ownerId });
+    if (animated.length) data.weeklyPlan = [...data.weeklyPlan, ...withItemIds(animated)];
+  }
   // Record what the plan was built from, so the report and history can say so.
   if (evidence) data.evidenceUsed = { ...evidence.used, references: data.weeklyPlan.filter((p) => p.ref).length };
   return data;

@@ -13,8 +13,8 @@ export const maxDuration = 60;
 
 // "Make it with AI", animated style: the scenes for one post of a saved
 // content plan, or for a Calendar draft that is waiting for its video (written
-// from the draft's own caption). Counts one AI-made video (given back if
-// writing fails); the person then previews it, edits the words, and renders it
+// from the draft's own caption). Counts one animated video, its own monthly
+// allowance so a daily animated plan fits (given back if writing fails); the person then previews it, edits the words, and renders it
 // in the browser.
 //   POST { planId, index } | { postId } -> { spec }
 export async function POST(req: Request) {
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const postId = uuid(b?.postId);
   const index = typeof b?.index === "number" && Number.isInteger(b.index) && b.index >= 0 ? b.index : null;
   if (!postId && (!planId || index == null)) return NextResponse.json({ error: "Say which post to make." }, { status: 400 });
-  const limited = await perUserLimit(ctx.ownerId, "animated_script", 30, "AI-made videos");
+  const limited = await perUserLimit(ctx.ownerId, "animated_script", 30, "animated videos");
   if (limited) return limited;
   let source: AnimatedSource;
   if (postId) {
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     if (!post.hook?.trim() && !post.concept?.trim()) return NextResponse.json({ error: "This post has no hook or concept to make a video from." }, { status: 400 });
     source = { title: post.title, hook: post.hook ?? "", concept: post.concept ?? "", direction: post.direction, purpose: post.purpose, audience: post.audience };
   }
-  const u = await requireUsage(ctx.client, ctx.ownerId, "video_builds", { feature: "auto_build" });
+  const u = await requireUsage(ctx.client, ctx.ownerId, "animated_videos", { feature: "auto_build" });
   if (u.denied) return u.denied;
   try {
     const spec = await writeAnimatedSpec(ctx, source);
