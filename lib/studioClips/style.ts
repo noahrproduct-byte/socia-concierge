@@ -98,7 +98,7 @@ export function captionLayout(c: EdlStyle["captions"]): { top: string | null; bo
   const fontSize = c.size === "s" ? 44 : c.size === "l" ? 66 : 54;
   if (c.position === "top") return { top: "12%", bottom: null, fontSize };
   if (c.position === "middle") return { top: "44%", bottom: null, fontSize };
-  if (c.position === "lower") return { top: "60%", bottom: null, fontSize };
+  if (c.position === "lower") return { top: "52%", bottom: null, fontSize };
   return { top: null, bottom: "27%", fontSize };
 }
 

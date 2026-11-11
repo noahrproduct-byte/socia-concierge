@@ -4,13 +4,18 @@
 // moment, drag the 9:16 frame over the speaker, then make the clip in this
 // browser (./renderClip.ts) and save it. The frame's position is the same
 // `x` the renderer crops with (lib/studioClips/timeline.ts videoBox), so what
-// is inside the frame is what the clip shows.
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+// is inside the frame is what the clip shows. Before it is made, a live
+// preview lets the person pick a version: headline and captions, captions
+// only, or no text. Only the chosen one is rendered.
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { Player } from "@remotion/player";
+import { ClipComposition } from "@/components/studio/remotion/ClipComposition";
+import { OUTPUT } from "@/lib/studioClips/types";
 import { Loader2, Pause, Play, Scissors } from "lucide-react";
 import type { ClipRender } from "@/lib/clipper/server";
 import { renderBlocker } from "@/components/studio/renderBuild";
 import { api, errorText, uploadToSigned } from "./shared";
-import { renderClip } from "./renderClip";
+import { CLIP_LOOKS, clipProps, defaultLook, renderClip, type ClipLook } from "./renderClip";
 import { findShots } from "./findShots";
 import { sourceFrame, sourceSize, type SourceSize } from "./sourceMedia";
 import { viewAt, type CropKey } from "@/lib/clipper/reframe";
@@ -44,6 +49,9 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Choosing a version: the shots are known, the preview is showing, nothing is made yet.
+  const [choosing, setChoosing] = useState(false);
+  const [look, setLook] = useState<ClipLook>(() => defaultLook(headline, render.captions));
 
   // How much of the source's width the vertical frame covers (1 = the source is already vertical or narrower).
   const share = size ? Math.min(1, (size.height * OUT_RATIO) / size.width) : null;
@@ -134,38 +142,73 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
     if (e.key === "ArrowRight") { e.preventDefault(); setFixed(true); setCropX(Math.min(1, shownX + 0.05)); }
   }
 
+  /** The shots for this clip: where they were put, the ones already chosen, or Claude's choice now. */
+  async function shotsFor(): Promise<CropKey[] | null> {
+    if (fixed) return null;
+    if (path || !movable || !size) return path;
+    setBusy("Choosing the shots"); setNote(null);
+    const chosen = await findShots(id, render.sourceUrl, size, render.startMs, render.endMs);
+    setPath(chosen);
+    if (!chosen) setNote("SOCIA couldn't work out the shots for this one, so the frame stays where it is.");
+    return chosen;
+  }
+
+  /** Render one version and save it as the clip. */
+  async function save(chosenLook: ClipLook, usePath: CropKey[] | null) {
+    setBusy("Making the clip"); setProgress(0);
+    const { blob } = await renderClip({ ...render, cropX, cropPath: usePath }, {
+      title, headline, look: chosenLook, size: { width: size?.width ?? null, height: size?.height ?? null }, sourceSec: size?.duration ?? render.endMs / 1000,
+      onProgress: (f) => setProgress(f),
+    });
+    setBusy("Saving"); setProgress(null);
+    const up = await api<{ path: string; signedUrl: string }>(`/api/clipper/clips/${id}`, { method: "POST" });
+    await uploadToSigned(up.signedUrl, new File([blob], "clip.mp4", { type: "video/mp4" }), (p) => setProgress(p));
+    await api(`/api/clipper/clips/${id}`, { method: "PATCH", body: JSON.stringify({ path: up.path, cropX, cropPath: usePath }) });
+    setChoosing(false);
+    onRendered();
+  }
+
+  /** "Make this clip": choose the shots, then show the versions. In "Make all" it makes the clip's own version straight away. */
   async function make() {
     setErr(null);
     try {
       const blocked = await renderBlocker(1080, 1920);
       if (blocked) throw new Error(blocked);
-      let usePath = fixed ? null : path;
-      if (!fixed && !usePath && movable && size) {
-        setBusy("Choosing the shots"); setNote(null);
-        usePath = await findShots(id, render.sourceUrl, size, render.startMs, render.endMs);
-        setPath(usePath);
-        if (!usePath) setNote("SOCIA couldn't work out the shots for this one, so the frame stays where it is.");
-      }
-      setBusy("Making the clip"); setProgress(0);
-      const { blob } = await renderClip({ ...render, cropX, cropPath: usePath }, {
-        title, headline, size: { width: size?.width ?? null, height: size?.height ?? null }, sourceSec: size?.duration ?? render.endMs / 1000,
-        onProgress: (f) => setProgress(f),
-      });
-      setBusy("Saving"); setProgress(null);
-      const up = await api<{ path: string; signedUrl: string }>(`/api/clipper/clips/${id}`, { method: "POST" });
-      await uploadToSigned(up.signedUrl, new File([blob], "clip.mp4", { type: "video/mp4" }), (p) => setProgress(p));
-      await api(`/api/clipper/clips/${id}`, { method: "PATCH", body: JSON.stringify({ path: up.path, cropX, cropPath: usePath }) });
-      onRendered();
+      const usePath = await shotsFor();
+      if (autoStart) await save(look, usePath);
+      else setChoosing(true);
     } catch (e) {
       setErr(errorText(e));
     } finally { setBusy(null); setProgress(null); started.current = false; onSettled?.(); }
   }
+
+  async function makeChosen() {
+    setErr(null);
+    try {
+      await save(look, fixed ? null : path);
+    } catch (e) {
+      setErr(errorText(e));
+    } finally { setBusy(null); setProgress(null); }
+  }
+
+  // The live preview of the version being looked at: the same composition and props the render uses.
+  const preview = useMemo(
+    () => (choosing && size ? clipProps({ ...render, cropX, cropPath: fixed ? null : path }, { title, headline, look, size: { width: size.width, height: size.height }, sourceSec: size.duration }) : null),
+    [choosing, size, render, cropX, fixed, path, title, headline, look],
+  );
+
   makeRef.current = make;
 
   const left = winShare != null ? shownX * winFree * 100 : 0;
   return (
     <article className="ai-card ai-cropcard">
-      <div className="ai-crop" ref={box} style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      {preview && (
+        <div className="ai-version-preview">
+          <Player component={ClipComposition} inputProps={preview.props} durationInFrames={preview.tl.durationFrames} fps={OUTPUT.fps} compositionWidth={OUTPUT.width} compositionHeight={OUTPUT.height}
+            style={{ width: "100%", aspectRatio: "9 / 16" }} controls acknowledgeRemotionLicense />
+        </div>
+      )}
+      <div className="ai-crop" hidden={choosing} ref={box} style={size ? { aspectRatio: `${size.width} / ${size.height}` } : undefined} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
         <video ref={video} playsInline preload="none" onPlaying={() => setShowVideo(true)} onPause={() => setPlaying(false)} />
         {/* eslint-disable-next-line @next/next/no-img-element -- a still made in this browser; next/image cannot optimise it */}
         {still && !showVideo && <img className="ai-crop-still" src={still} alt="" draggable={false} />}
@@ -184,19 +227,31 @@ export default function ClipRenderCard({ id, title, sub, why, render, headline, 
         <b>{title}</b>
         <small>{sub}</small>
         {sizeFailed && <p className="ai-err" role="alert">SOCIA couldn&apos;t read this video. Reload the page to try again.</p>}
-        {movable && !fixed && <small>{path ? "SOCIA chose the shots. Press play to watch them, or drag the frame to keep one shot." : "SOCIA chooses the shots when it makes this clip, cutting to whoever is talking. Drag the frame to keep one shot instead."}</small>}
-        {movable && fixed && <small>One shot, where you put it. <button type="button" className="ai-linkish" disabled={Boolean(busy)} onClick={() => setFixed(false)}>Let SOCIA move it</button></small>}
+        {movable && !fixed && !choosing && <small>{path ? "SOCIA chose the shots. Press play to watch them, or drag the frame to keep one shot." : "SOCIA chooses the shots when it makes this clip, cutting to whoever is talking. Drag the frame to keep one shot instead."}</small>}
+        {movable && fixed && !choosing && <small>One shot, where you put it. <button type="button" className="ai-linkish" disabled={Boolean(busy)} onClick={() => setFixed(false)}>Let SOCIA move it</button></small>}
         {note && <small>{note}</small>}
         {movable ? null : size && <small>This video is already vertical, so the whole frame is used.</small>}
         {why && <details className="ai-why"><summary>Why this moment</summary><p>{why}</p></details>}
+        {choosing && (
+          <div className="ai-field">
+            <span>Choose a version</span>
+            <div className="ai-chips" role="group" aria-label="Versions">
+              {CLIP_LOOKS.map((l) => (
+                <button key={l.id} type="button" className={`ai-chip${look === l.id ? " is-on" : ""}`} aria-pressed={look === l.id} disabled={Boolean(busy)} onClick={() => setLook(l.id)}>{l.label}</button>
+              ))}
+            </div>
+            <small>Press play to watch it. Only the version you make is made.</small>
+          </div>
+        )}
         {progress != null && <progress className="ai-progress" value={progress} max={1} />}
         {err && <p className="ai-err" role="alert">{err}</p>}
         <div className="ai-actions">
           {canMutate && (
-            <button type="button" className="ai-act is-primary" onClick={make} disabled={Boolean(busy) || !size} aria-busy={Boolean(busy) || undefined}>
-              {busy ? <><Loader2 size={14} className="spin" aria-hidden /> {busy}</> : <><Scissors size={14} aria-hidden /> Make this clip</>}
+            <button type="button" className="ai-act is-primary" onClick={choosing ? makeChosen : make} disabled={Boolean(busy) || !size} aria-busy={Boolean(busy) || undefined}>
+              {busy ? <><Loader2 size={14} className="spin" aria-hidden /> {busy}</> : <><Scissors size={14} aria-hidden /> {choosing ? "Make this version" : "Make this clip"}</>}
             </button>
           )}
+          {choosing && !busy && <button type="button" className="ai-act is-quiet" onClick={() => setChoosing(false)}>Back</button>}
           {onCancel && !busy && <button type="button" className="ai-act is-quiet" onClick={onCancel}>Keep the current clip</button>}
           {!canMutate && <small>Only the brand&apos;s owner or an admin can make clips.</small>}
         </div>
