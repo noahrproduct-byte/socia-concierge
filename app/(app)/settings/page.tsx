@@ -20,6 +20,7 @@ import { getViewer } from "@/lib/supabase/server";
 import PageHeader from "@/components/PageHeader";
 import BrandSettings from "@/components/BrandSettings";
 import StrategistSettings from "@/components/StrategistSettings";
+import AnimatedChoice from "@/components/animated/AnimatedChoice";
 import IntelligenceCard, { type IntelState } from "@/components/IntelligenceCard";
 import SecurityCard from "@/components/SecurityCard";
 import SettingsNav from "@/components/SettingsNav";
@@ -569,6 +570,7 @@ export default async function SettingsPage({
                 <span className="st2-card-note">Written into every plan and conversation</span>
               </div>
               <StrategistSettings />
+              <AnimatedChoice canEdit={connCtx.role !== "member"} />
             </section>
 
             {/* 6 — Notifications & Reports (planned; no fake toggles) */}

@@ -75,6 +75,7 @@ export default async function ContentPlanPage() {
   let nicheDetected = false;
   let goal: string | null = null;
   let voice: string | null = null;
+  let animatedOn = false;
   let platform: string | null = null;
   const brandWs = brandWorkspace(ctx);
   try {
@@ -88,7 +89,9 @@ export default async function ContentPlanPage() {
     niche = brandWs ? brandWs.niche : (prof?.niche ?? null);
     nicheDetected = Boolean(brandWs ? brandWs.niche_detail : prof?.niche_detail);
     goal = brandWs ? brandWs.goals : (prof?.goals ?? null);
-    voice = ((brandWs ? brandWs.brand_detail : prof?.brand_detail) as { voice?: string } | null)?.voice ?? null;
+    const detail = (brandWs ? brandWs.brand_detail : prof?.brand_detail) as { voice?: string; animated?: { on?: boolean } } | null;
+    voice = detail?.voice ?? null;
+    animatedOn = detail?.animated?.on === true;
     platform = (Array.isArray(prof?.platforms) && prof.platforms[0]) || null;
   } catch {
     // profile columns may be mid-migration; the form still works blank
@@ -145,6 +148,7 @@ export default async function ContentPlanPage() {
     posts: media.filter((m) => m.timestamp).map((m) => ({ t: m.timestamp!, e: engOf(m) })),
     evidence,
     strategy,
+    animatedOn,
   };
 
   return (

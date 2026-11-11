@@ -1,3 +1,4 @@
+import type { AnimatedPref } from "@/lib/animated/fitCore";
 import type { GrowthProfile } from "./growth";
 import type { GrowthStrategy } from "./strategy";
 import type { Place } from "./place";
@@ -18,6 +19,8 @@ export type BrandDetail = {
   location?: string;
   /** What SOCIA saw in photos of the place (lib/place.ts), written by /api/brand/place only. */
   place?: Place;
+  /** "Post animated videos": the person's choice, and SOCIA's last scan of whether it suits the account (lib/animated/fit.ts). */
+  animated?: AnimatedPref;
   description?: string;
   voice?: string; // Professional | Casual | Bold | Funny | Educational
   avoid?: string; // words/topics the AI must avoid
