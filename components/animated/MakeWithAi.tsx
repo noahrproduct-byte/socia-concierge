@@ -1,8 +1,11 @@
 "use client";
 
-// "Make it with AI" for one content plan post. Animated style: SOCIA writes
-// the scenes, the person previews and edits them, and this browser renders the
-// video and saves it as a draft in Create Post. Nothing is posted from here.
+// "Make it with AI" for one content plan post, or for a Calendar draft that is
+// waiting for its video. Animated style: SOCIA writes the scenes, the person
+// previews and edits them, and this browser renders the video and saves it as a
+// draft in Create Post (or onto that Calendar draft, which keeps its day, time
+// and caption). Nothing is posted from here.
+import type { ScheduledPost } from "@/lib/scheduling";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Player } from "@remotion/player";
 import { Loader2 } from "lucide-react";
@@ -36,7 +39,12 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   return j as T;
 }
 
-export default function MakeWithAi({ open, onOpenChange, planId, index, day }: { open: boolean; onOpenChange: (o: boolean) => void; planId: string; index: number; day: string }) {
+/** Where the video comes from: a plan post (a new draft is made) or a Calendar draft (the video goes onto it). */
+export type MakeSource = { kind: "plan"; planId: string; index: number; day: string } | { kind: "draft"; postId: string; label: string };
+
+export default function MakeWithAi({ open, onOpenChange, source, onAttached }: { open: boolean; onOpenChange: (o: boolean) => void; source: MakeSource; onAttached?: (post: ScheduledPost) => void }) {
+  const ask = source.kind === "plan" ? { planId: source.planId, index: source.index } : { postId: source.postId };
+  const askKey = JSON.stringify(ask);
   const [phase, setPhase] = useState<Phase>({ kind: "writing" });
   const [spec, setSpec] = useState<AnimatedSpec | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -44,12 +52,12 @@ export default function MakeWithAi({ open, onOpenChange, planId, index, day }: {
   const write = useCallback(async () => {
     setPhase({ kind: "writing" }); setSpec(null);
     try {
-      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", { planId, index });
+      const r = await post<{ spec: AnimatedSpec }>("/api/animated/script", JSON.parse(askKey));
       setSpec(r.spec); setPhase({ kind: "ready" });
     } catch (e) {
       setPhase({ kind: "error", message: (e as Error).message, canRetry: true });
     }
-  }, [planId, index]);
+  }, [askKey]);
 
   // Write once when the dialog opens; closing it stops a render in progress.
   const started = useRef(false);
@@ -79,7 +87,9 @@ export default function MakeWithAi({ open, onOpenChange, planId, index, day }: {
       await uploadMedia(supabase, "scheduled-media", path, new File([blob], "video.mp4", { type: "video/mp4" }), (sent, all) => setPhase({ kind: "uploading", progress: all ? sent / all : 0 }));
       setPhase({ kind: "saving" });
       const caption = [spec.caption, spec.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n");
-      const r = await post<{ href: string }>("/api/animated/draft", { path, caption, planId, planDay: day });
+      const r = await post<{ href: string; post?: ScheduledPost }>("/api/animated/draft",
+        source.kind === "plan" ? { path, caption, planId: source.planId, planDay: source.day } : { path, postId: source.postId });
+      if (r.post) onAttached?.(r.post);
       setPhase({ kind: "done", href: r.href });
     } catch (e) {
       if (ctrl.signal.aborted) return;
@@ -97,17 +107,19 @@ export default function MakeWithAi({ open, onOpenChange, planId, index, day }: {
     <Dialog
       open={open}
       onOpenChange={(o) => { if (!busy) onOpenChange(o); }}
-      title={`Make it with AI: ${day}`}
+      title={`Make it with AI: ${source.kind === "plan" ? source.day : source.label}`}
       width={760}
       className="mwa"
-      description="SOCIA writes the words from this plan post and animates them. Check the video and edit any line, then save it as a draft. Nothing posts until you schedule it."
+      description={source.kind === "plan"
+        ? "SOCIA writes the words from this plan post and animates them. Check the video and edit any line, then save it as a draft. Nothing posts until you schedule it."
+        : "SOCIA writes the words from this draft's text and animates them. Check the video and edit any line, then add it to the draft. The draft keeps its day, time and caption, and nothing posts until you schedule it."}
       actions={
         phase.kind === "done" ? (
           <ButtonLink href={phase.href} variant="primary">Open the draft</ButtonLink>
         ) : (
           <>
             {spec && <Button onClick={() => void write()} disabled={busy || phase.kind === "writing"} title="Counts as another AI-made video">Write it again</Button>}
-            <Button variant="primary" onClick={() => void save()} disabled={!spec || busy || phase.kind === "writing"} busy={busy}>Save as draft</Button>
+            <Button variant="primary" onClick={() => void save()} disabled={!spec || busy || phase.kind === "writing"} busy={busy}>{source.kind === "plan" ? "Save as draft" : "Add to the draft"}</Button>
           </>
         )
       }
@@ -120,7 +132,7 @@ export default function MakeWithAi({ open, onOpenChange, planId, index, day }: {
         </div>
       )}
       {status && <p className="mwa-status" role="status"><Loader2 size={14} className="spin" aria-hidden /> {status}</p>}
-      {phase.kind === "done" && <p className="mwa-status" role="status">Saved as a draft. Open it to pick a time and schedule it.</p>}
+      {phase.kind === "done" && <p className="mwa-status" role="status">{source.kind === "plan" ? "Saved as a draft. Open it to pick a time and schedule it." : "The video is on the draft. Open it to check it and schedule it."}</p>}
       {spec && (
         <div className="mwa-body">
           <div className="mwa-preview">
@@ -156,10 +168,10 @@ export default function MakeWithAi({ open, onOpenChange, planId, index, day }: {
                 )}
               </Field>
             ))}
-            <Field label="Caption" hint="Goes with the post, not on screen.">
+            {source.kind === "plan" && <Field label="Caption" hint="Goes with the post, not on screen.">
               <Textarea rows={3} maxLength={2200} disabled={busy} value={[spec.caption, spec.hashtags.map((t) => `#${t}`).join(" ")].filter(Boolean).join("\n\n")}
                 onChange={(e) => setSpec((x) => (x ? { ...x, caption: e.target.value, hashtags: [] } : x))} />
-            </Field>
+            </Field>}
           </div>
         </div>
       )}

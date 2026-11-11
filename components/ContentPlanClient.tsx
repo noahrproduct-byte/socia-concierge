@@ -940,7 +940,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
           </div>
           <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
           {planId && making != null && data.weeklyPlan[making] && (
-            <MakeWithAi key={making} open onOpenChange={(o) => { if (!o) setMaking(null); }} planId={planId} index={making} day={data.weeklyPlan[making].day} />
+            <MakeWithAi key={making} open onOpenChange={(o) => { if (!o) setMaking(null); }} source={{ kind: "plan", planId, index: making, day: data.weeklyPlan[making].day }} />
           )}
           <RejectDialog open={rejecting != null} day={rejecting != null ? data.weeklyPlan[rejecting]?.day ?? "" : ""} onClose={() => setRejecting(null)} onConfirm={(r, n, replace) => rejecting != null && reject(rejecting, r, n, replace)} />
           {editing != null && (
