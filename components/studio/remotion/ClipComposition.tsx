@@ -49,6 +49,8 @@ const FONT_LOADERS: Record<FontId, () => string> = {
   poppins: () => loadPoppins("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily,
   playfair: () => loadPlayfair("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily,
   bebas: () => loadBebas("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily,
+  // Never a whole video's font (sanitizeStyle keeps it out); only Hook Pair's small line uses it, through lib/textFonts.ts.
+  serif: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin"] }).fontFamily,
 };
 const loaded = new Map<FontId, string>();
 const familyFor = (id: FontId) => { if (!loaded.has(id)) loaded.set(id, FONT_LOADERS[id]()); return loaded.get(id)!; };
@@ -94,11 +96,11 @@ const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === 
  * so neither path ever paints a fallback face. Only the way in and out is
  * animated here: a fade or a small pop, as the preset says.
  */
-function TextLayer({ line, width, height, font }: { line: EdlText; width: number; height: number; font: FontId }) {
+function TextLayer({ line, width, height, font, textBox }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"] }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const preset = presetOf(line);
-  const args = useMemo(() => ({ presetId: preset.id, text: line.text, slot: line.slot, width, height, font }), [preset.id, line.text, line.slot, width, height, font]);
+  const args = useMemo(() => ({ presetId: preset.id, text: line.text, slot: line.slot, width, height, font, textBox }), [preset.id, line.text, line.slot, width, height, font, textBox]);
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -155,6 +157,10 @@ function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
 }
 
 const EMPHASIS_COLOR = "#ffd400";
+/** Words on screen at once in the clean caption look. */
+const CLEAN_CAPTION_WORDS = 3;
+/** The clean look: no outline and no box. Its key word is set bigger rather than yellow. */
+const cleanCaptions = (style: EdlStyle) => style.textBox !== "outline" && !style.captions.box;
 
 function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; style: EdlStyle; fontFamily: string; emphasis?: string[] }) {
   const frame = useCurrentFrame();
@@ -162,6 +168,7 @@ function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; 
   const nowMs = page.startMs + (frame / fps) * 1000;
   const l = captionLayout(style.captions);
   const outline = style.textBox === "outline";
+  const clean = cleanCaptions(style);
   const marked = emphasis ? emphasisIndex(page.tokens.map((t) => t.text), emphasis) : -1;
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
@@ -171,13 +178,15 @@ function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; 
             display: "inline-block", fontFamily, fontWeight: 700, fontSize: l.fontSize, lineHeight: 1.2, whiteSpace: "pre-wrap",
             textTransform: style.captions.uppercase ? "uppercase" : "none",
             padding: "10px 18px", borderRadius: 16, backgroundColor: style.captions.box ? "rgba(0,0,0,0.42)" : "transparent",
-            textShadow: style.captions.box || outline ? "none" : "0 2px 14px rgba(0,0,0,0.8)",
+            textShadow: style.captions.box || outline ? "none" : "0 0 4px rgba(0,0,0,0.55), 0 2px 18px rgba(0,0,0,0.75)",
             ...(outline && !style.captions.box ? { fontWeight: outlineWeight(style.font), WebkitTextStroke: `${Math.max(9, Math.round(l.fontSize * 0.18))}px #000`, paintOrder: "stroke fill" } : {}),
           }}
         >
           {page.tokens.map((t, i) => {
             const active = t.fromMs <= nowMs && t.toMs > nowMs;
-            return <span key={`${t.fromMs}-${i}`} style={{ color: i === marked ? EMPHASIS_COLOR : active ? "#fff" : "rgba(255,255,255,0.72)" }}>{t.text}</span>;
+            if (i === marked && clean) return <span key={`${t.fromMs}-${i}`} style={{ color: "#fff", fontSize: "1.3em" }}>{t.text}</span>;
+            // Three words at a time need no karaoke dimming, and dimmed white disappears on bright footage.
+            return <span key={`${t.fromMs}-${i}`} style={{ color: i === marked ? EMPHASIS_COLOR : active || clean ? "#fff" : "rgba(255,255,255,0.72)" }}>{t.text}</span>;
           })}
         </span>
       </div>
@@ -238,7 +247,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
     return Object.fromEntries(Object.entries(finish.grades).map(([id, g]) => [id, [colorCorrection(g.params)]]));
   }, [finish]);
-  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps, undefined, captionWords) : []), [edl, words, captionsOn, fps, captionWords]);
+  // The clean look shows a few words at a time, as the polished Reels do (docs/studio/edit-references.md).
+  const pageWords = captionWords ?? (cleanCaptions(style) ? CLEAN_CAPTION_WORDS : undefined);
+  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps, undefined, pageWords) : []), [edl, words, captionsOn, fps, pageWords]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
 
@@ -304,7 +315,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       )}
       {edl.text.filter((t) => t.text.trim()).map((t) => (
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} name={`text · ${presetOf(t).label}`}>
-          <TextLayer line={t} width={width} height={height} font={style.font} />
+          <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} />
         </Sequence>
       ))}
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}

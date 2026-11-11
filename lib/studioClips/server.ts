@@ -2,7 +2,7 @@
 // uses, clip registration under the plan's limits, and building one
 // opportunity's EDL + guide. Everything is scoped to the workspace owner and
 // the active Brand Workspace, like the rest of SOCIA.
-import { CAPCUT_STYLE, type EdlStyle } from "./style";
+import { CAPCUT_STYLE, CLEAN_STYLE, type EdlStyle } from "./style";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getLimit, type Entitlements } from "@/lib/entitlements";
 import { getProfile } from "@/lib/profile";
@@ -396,7 +396,7 @@ export async function manualBuild(client: Supa, args: { ownerId: string; wsId: s
     targetSec: { min: 1, max: Math.ceil(ready.reduce((a, r) => a + (r.duration_s ?? 0), 0)) + 1 },
     segments: ready.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
-    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CLEAN_STYLE,
   }, forEdl);
   // Captions only when the person turns them on.
   edl.captions = null;
@@ -428,7 +428,7 @@ export async function clipBuild(client: Supa, args: { ownerId: string; wsId: str
     targetSec: { min: 1, max: Math.ceil(dur) + 1 },
     segments: [{ clipId: clip.id, in: 0, out: dur }],
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
-    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CLEAN_STYLE,
   }, [toClipForEdl(clip)]);
   edl.captions = clip.transcript?.words?.length ? { source: "transcript" } : null;
   edl.cleanSound = true;
@@ -488,7 +488,7 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   const forEdl = rows.map(toClipForEdl);
   const edl = shaped(raw, forEdl, acct, brief?.prompt, style, pick);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut with that change. Try another option.");
-  // A new version keeps the look the cut had.
+  // A new version keeps the look the cut had (cuts saved before styles were stored had the CapCut look).
   edl.style = row.edl.style ?? CAPCUT_STYLE;
   edl.cleanSound = row.edl.cleanSound ?? true;
   // A brief's cut keeps its size, its look and the brief itself.
@@ -660,7 +660,7 @@ export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId
     targetSec: { min: 1, max: Math.ceil(total) + 1 },
     segments: usable.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
     text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
-    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CAPCUT_STYLE,
+    ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CLEAN_STYLE,
   }, forEdl);
   if (!edl.segments.length) throw new Error("These clips are too short to post.");
   // Its joins follow the footage's editing style (hard cuts for someone talking).
@@ -711,7 +711,7 @@ export async function buildFromBrief(client: Supa, args: {
   Object.assign(edl, finishCut({ ...edl, segments: filled.segments }, forEdl, prompt));
   edl.segments = edl.segments.map((s) => (edl.actionSound && !s.sound ? { ...s, volume: QUIET_ROOM_VOLUME } : s));
   if (preset) { edl.width = preset.width; edl.height = preset.height; }
-  edl.style = preset?.style ?? CAPCUT_STYLE;
+  edl.style = preset?.style ?? CLEAN_STYLE;
   edl.cleanSound = true;
   if (reference) {
     edl.style = referenceStyle(reference.breakdown, edl.style);
@@ -835,7 +835,7 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   const pick = styleFor(used, acct, null);
   const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry, pick.id), forEdl, footageSec, acct, pick);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from these clips.");
-  edl.style = edl.style ?? CAPCUT_STYLE;
+  edl.style = edl.style ?? CLEAN_STYLE;
   edl.cleanSound = true;
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: edl.caption || null, model, updated_at: now() };

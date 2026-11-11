@@ -777,7 +777,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 </label>
                 <small>Used for the call to action, and for text boxes set to Brand colour.</small>
                 <div className="cal2-seg" role="radiogroup" aria-label="Text background">
-                  {([["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"], ["none", "No box"]] as const).map(([id, label]) => (
+                  {([["none", "Clean shadow"], ["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"]] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={st.textBox === id} className={st.textBox === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setStyle({ textBox: id })}>{label}</button>
                   ))}
                 </div>
@@ -785,7 +785,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <div className="ov-card">
                 <b><Captions size={14} /> Captions</b>
                 <div className="cal2-seg" role="radiogroup" aria-label="Caption position">
-                  {([["top", "Top"], ["middle", "Middle"], ["bottom", "Bottom"]] as const).map(([id, label]) => (
+                  {([["top", "Top"], ["middle", "Middle"], ["lower", "Lower"], ["bottom", "Bottom"]] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={st.captions.position === id} className={st.captions.position === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setCaptionStyle({ position: id })}>{label}</button>
                   ))}
                 </div>

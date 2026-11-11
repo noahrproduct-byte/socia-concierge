@@ -2,7 +2,7 @@
 // then rendered as a plain-language edit guide. The same EDL feeds the Player
 // in Phase B, so the guide and the preview can never disagree.
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
-import { MAX_TEXT_LAYERS, TEXT_PRESETS, fitLine, isTextPresetId, isTextSlot, presetForRole } from "@/lib/textPresets";
+import { MAX_TEXT_LAYERS, TEXT_PRESETS, fitLine, isTextPresetId, isTextSlot, presetForLine } from "@/lib/textPresets";
 import { aspectOf, clipLabel, fmtClock, isSegmentPurpose, isTransition } from "./types";
 import { overlapFrames, secToFrames } from "./timeline";
 import { finishSteps, sanitizeFinish } from "./finish";
@@ -223,7 +223,7 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
       const at = r2(clamp(t.at ?? 0, 0, Math.max(0, total - 0.5)));
       const end = r2(clamp(t.end ?? at + 2.5, at + 0.5, total || at + 2.5));
       const role = (ROLES.has(t.role ?? "") ? t.role : at < 1 ? "opening" : "mid") as EdlText["role"];
-      const fit = fitLine(t.text, isTextPresetId(t.presetId) ? TEXT_PRESETS[t.presetId] : presetForRole(role));
+      const fit = fitLine(t.text, isTextPresetId(t.presetId) ? TEXT_PRESETS[t.presetId] : presetForLine(role, t.text));
       const preset = fit.preset;
       const asked = isTextSlot(t.slot) ? t.slot : fit.slot;
       const slot = asked && asked !== preset.slot ? asked : undefined;

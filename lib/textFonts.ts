@@ -11,6 +11,7 @@ import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
 import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
 import { loadFont as loadTikTok } from "@remotion/google-fonts/TikTokSans";
+import { loadFont as loadSerif } from "@remotion/google-fonts/InstrumentSerif";
 import type { FontId } from "./studioClips/style";
 import type { TextFont } from "./textPresets";
 
@@ -24,17 +25,21 @@ const LOADERS: Partial<Record<FontId, () => Loaded>> = {
   poppins: () => loadPoppins("normal", { weights: ["800"], subsets: [...SUBSETS] }),
   bebas: () => loadBebas("normal", { weights: ["400"], subsets: [...SUBSETS] }),
   tiktok: () => loadTikTok("normal", { weights: ["800"], subsets: [...SUBSETS] }),
+  // Instrument Serif is only used italic: the small line of a paired hook.
+  serif: () => loadSerif("italic", { weights: ["400"], subsets: [...SUBSETS] }),
 };
 
 /** CSS family names, by font id, once loaded. */
-const FAMILY: Partial<Record<FontId, string>> = { inter: "Inter", montserrat: "Montserrat", anton: "Anton", poppins: "Poppins", bebas: "Bebas Neue", tiktok: "TikTok Sans" };
+const FAMILY: Partial<Record<FontId, string>> = { inter: "Inter", montserrat: "Montserrat", anton: "Anton", poppins: "Poppins", bebas: "Bebas Neue", tiktok: "TikTok Sans", serif: "Instrument Serif" };
 const loaded = new Map<FontId, Promise<string>>();
 
 /** The CSS font-family stack for a preset font (usable before the face arrives; the browser falls back until then). */
-export const fontStack = (f: TextFont): string => `"${FAMILY[f.family] ?? "Inter"}", "Helvetica Neue", Helvetica, Arial, sans-serif`;
+export const fontStack = (f: TextFont): string => (f.family === "serif"
+  ? `"${FAMILY.serif}", Georgia, "Times New Roman", serif`
+  : `"${FAMILY[f.family] ?? "Inter"}", "Helvetica Neue", Helvetica, Arial, sans-serif`);
 
 /** A canvas font string for a preset font at a size in px. */
-export const canvasFont = (f: TextFont, px: number): string => `${f.weight} ${Math.max(1, Math.round(px))}px ${fontStack(f)}`;
+export const canvasFont = (f: TextFont, px: number): string => `${f.italic ? "italic " : ""}${f.weight} ${Math.max(1, Math.round(px))}px ${fontStack(f)}`;
 
 function load(id: FontId): Promise<string> {
   const cur = loaded.get(id);
@@ -59,7 +64,7 @@ function load(id: FontId): Promise<string> {
 export async function ensureTextFonts(fonts: TextFont[]): Promise<void> {
   if (typeof document === "undefined") return;
   const seen = new Set<string>();
-  const want = fonts.filter((f) => { const k = `${f.family}/${f.weight}`; if (seen.has(k)) return false; seen.add(k); return true; });
+  const want = fonts.filter((f) => { const k = `${f.family}/${f.weight}/${f.italic ? "i" : ""}`; if (seen.has(k)) return false; seen.add(k); return true; });
   await Promise.all(want.map((f) => load(f.family)));
   try {
     await Promise.all(want.map((f) => document.fonts.load(canvasFont(f, 40))));
