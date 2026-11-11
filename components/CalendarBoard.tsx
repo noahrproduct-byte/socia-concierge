@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Plus,
   ChevronLeft,
@@ -58,6 +59,9 @@ import { aggregateStatus, summarize, firstError } from "@/lib/publishing/status"
 import { PLATFORM_LABEL, type ContentItem, type Destination, type Platform, type TrialShare } from "@/lib/publishing/types";
 import { trialLine } from "@/lib/publishing/trial";
 import { firstLineOf } from "@/lib/publishing/postLabel";
+
+// Loaded on demand: the video preview and renderer are large and only needed once someone presses Make it with AI.
+const MakeWithAi = dynamic(() => import("@/components/animated/MakeWithAi"), { ssr: false });
 import "./calendar-destinations.css";
 import "./teamwork.css";
 import { StatusPill } from "@/components/system";
@@ -466,7 +470,10 @@ export default function CalendarBoard({
       setBusyId(null);
     }
   };
-  const drafts_ = { dragId, setDragId, busyId, move: moveItem, del: deleteItem };
+  // "Make it with AI" for a draft waiting for its video: the video goes onto that draft.
+  const [making, setMaking] = useState<CalItem | null>(null);
+  const attached = (post: ScheduledPost) => setItems((xs) => xs.map((x) => (x.id === post.id ? { ...x, ...post } : x)));
+  const drafts_ = { dragId, setDragId, busyId, move: moveItem, del: deleteItem, make: (p: CalItem) => setMaking(p) };
 
   // While Instagram is processing a video, refresh so the grid shows the outcome.
   const anyPublishing = items.some((p) => p.status === "publishing");
@@ -621,6 +628,10 @@ export default function CalendarBoard({
           </>
         )}
       </div>
+
+      {making && (
+        <MakeWithAi key={making.id} open onOpenChange={(o) => { if (!o) setMaking(null); }} source={{ kind: "draft", postId: making.id, label: titleOf(making) }} onAttached={attached} />
+      )}
 
       {/* intelligence bar */}
       <div className="cal2-insight">
@@ -880,6 +891,8 @@ type DraftOps = {
   busyId: string | null;
   move: (p: CalItem, day: Date) => void;
   del: (p: CalItem) => void;
+  /** Open "Make it with AI" for a draft that is waiting for its video. */
+  make?: (p: CalItem) => void;
 };
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -924,6 +937,9 @@ function DraftActions({ p, ops }: { p: CalItem; ops: DraftOps }) {
       <GripVertical size={12} className="cal2-grip" aria-hidden />
       <button type="button" onClick={() => setMode("move")} aria-label={`Move ${titleOf(p)} to another day`}><CalendarDays size={12} aria-hidden /> Move</button>
       <button type="button" onClick={() => setMode("delete")} aria-label={`Delete ${titleOf(p)}`}><Trash2 size={12} aria-hidden /> Delete</button>
+      {ops.make && !p.media_url && p.media_type !== "IMAGE" && (
+        <button type="button" onClick={() => ops.make?.(p)} aria-label={`Make a video for ${titleOf(p)} with AI`} title="SOCIA writes this draft as an animated video you can edit, then adds it to the draft"><Film size={12} aria-hidden /> Make it with AI</button>
+      )}
     </span>
   );
 }
