@@ -1,10 +1,35 @@
 // Pieces shared by the animated templates (CompareScene, CounterScene), drawn
 // to the timing from the reference study: headlines that swap hard with ~100 ms
 // of blur, a comment question at the end, one brighten at the payoff.
-import { AbsoluteFill, Easing, interpolate, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Easing, Sequence, interpolate, useCurrentFrame } from "remotion";
+import { Audio } from "@remotion/media";
 import { loadFont as loadSans } from "@remotion/google-fonts/Inter";
 import { loadFont as loadSerif } from "@remotion/google-fonts/InstrumentSerif";
 import type { CompareHeadline } from "@/lib/animated/spec";
+
+/**
+ * The sound effects, all synthesised by scripts/animated-sfx.py (nothing to
+ * license): ticks that follow the counting curves, a stamp thud, a whoosh on
+ * each headline swap, a hit at the payoff, a pop and comment-box typing.
+ */
+export type SfxName = "stamp" | "whoosh" | "hit" | "pop" | "typing" | "compare-run" | `round-${string}`;
+export type SfxCue = { at: number; name: SfxName; volume: number; frames?: number };
+
+/** A counter round's tick track: one file per round length in ROUND_SECONDS. */
+export const roundSfx = (seconds: number): SfxName => `round-${String(seconds).replace(".", "_")}`;
+
+/** Plays each cue from its frame. A handful of files per video, never one per tick. */
+export function SoundTrack({ cues }: { cues: SfxCue[] }) {
+  return (
+    <>
+      {cues.map((c, i) => (
+        <Sequence key={i} from={Math.max(0, Math.round(c.at))} durationInFrames={c.frames} layout="none">
+          <Audio src={`/animated/sfx/${c.name}.mp3`} volume={c.volume} />
+        </Sequence>
+      ))}
+    </>
+  );
+}
 
 export const { fontFamily: SANS } = loadSans("normal", { weights: ["500", "700", "800"], subsets: ["latin"] });
 export const { fontFamily: SERIF } = loadSerif("italic", { subsets: ["latin"] });

@@ -6,8 +6,8 @@
 // ring fills on a log scale, so rounds that grow by orders of magnitude still
 // read as growth. One brighten at the last round, then a summary and a question.
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
-import { COUNTER_GAP, compareValueText, counterTimeline, roundCount, type AnimatedCounter } from "@/lib/animated/spec";
-import { CommentPrompt, Flash, SANS, SwapHeadline, interpolateEnd, lineOf, type TemplateColors } from "./parts";
+import { COUNTER_GAP, ROUND_SECONDS, compareValueText, counterTimeline, roundCount, type AnimatedCounter } from "@/lib/animated/spec";
+import { CommentPrompt, Flash, SANS, SoundTrack, SwapHeadline, interpolateEnd, lineOf, roundSfx, type SfxCue, type TemplateColors } from "./parts";
 import { decimalsOf } from "./CompareScene";
 
 const CX = 540, CY = 930, R = 250, STROKE = 26;
@@ -47,8 +47,20 @@ export function CounterScene({ counter, colors, signoff }: { counter: AnimatedCo
     { at: at(tl.close), h: counter.close },
   ];
 
+  // Sound: each round's ticks follow its count, a whoosh on each headline swap, a pop as each
+  // scoreboard line joins, a hit at the last round, a pop for the comment box.
+  const lens = ROUND_SECONDS[Math.min(4, Math.max(2, n))];
+  const cues: SfxCue[] = [
+    ...tl.rounds.map((r, k): SfxCue => ({ at: r.start * fps, name: roundSfx(lens[k]), volume: 0.35 })),
+    ...steps.slice(1).map((s): SfxCue => ({ at: s.at, name: "whoosh", volume: 0.4 })),
+    ...tl.rounds.slice(0, -1).map((r): SfxCue => ({ at: r.end * fps, name: "pop", volume: 0.35 })),
+    { at: (tl.rounds[n - 1].end - 0.5) * fps, name: "hit", volume: 0.55 },
+    ...(counter.question ? [{ at: tl.question * fps, name: "pop", volume: 0.4 } as SfxCue] : []),
+  ];
+
   return (
     <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily: SANS }}>
+      <SoundTrack cues={cues} />
       <SwapHeadline steps={steps} colors={colors} />
       <div style={{ position: "absolute", left: 60, right: 60, top: 410, display: "flex", justifyContent: "center", alignItems: "center", gap: 18, flexWrap: "wrap", fontWeight: 500, fontSize: 30, color: colors.dim }}>
         {counter.setup && <span>{counter.setup}</span>}

@@ -281,7 +281,7 @@ export function cleanCounter(v: unknown, source: Set<string>): AnimatedCounter |
 }
 
 /** Round lengths in seconds: later rounds run longer as the numbers grow (the reference: 2.6, 4, 5.5, 5.7 s). */
-const ROUND_SECONDS: Record<number, number[]> = { 2: [4, 6], 3: [3, 4.5, 6], 4: [2.6, 4, 5.5, 5.7] };
+export const ROUND_SECONDS: Record<number, number[]> = { 2: [4, 6], 3: [3, 4.5, 6], 4: [2.6, 4, 5.5, 5.7] };
 /** Between rounds only the round's content fades: out 0.4 s, 0.1 s empty, in 0.3 s. */
 export const COUNTER_GAP = { out: 0.4, empty: 0.1, in: 0.3 } as const;
 /** The last 0.5 s of a round holds its final value. */

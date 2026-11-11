@@ -149,9 +149,10 @@ export default function MakeWithAi({ open, onOpenChange, source, onAttached }: {
               controls
               loop
               autoPlay
+              initiallyMuted
               acknowledgeRemotionLicense
             />
-            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, no sound.{spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
+            <small>{Math.round(total / ANIMATED_FPS)} seconds, 9:16, with sound effects (unmute the preview to hear them).{spec.compare ? " Comparison style." : spec.counter ? " Counter style." : ""}</small>
           </div>
           <div className="mwa-edit">
             <SegmentedControl label="Background" options={spec.compare || spec.counter ? THEMES.filter((x) => x.value !== "accent") : THEMES} value={spec.theme} onChange={(theme) => setSpec((s) => (s ? { ...s, theme } : s))} />

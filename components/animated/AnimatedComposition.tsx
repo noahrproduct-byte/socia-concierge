@@ -1,5 +1,5 @@
 // The animated style of "Make it with AI": a vertical video of words on
-// screen, drawn in code from an AnimatedSpec (lib/animated/spec.ts). Used by
+// screen with light sound effects, drawn in code from an AnimatedSpec (lib/animated/spec.ts). Used by
 // the preview (@remotion/player) and by the browser render
 // (components/animated/renderAnimated.ts), so both show the same frames.
 import { AbsoluteFill, Easing, Sequence, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
@@ -7,6 +7,7 @@ import { loadFont } from "@remotion/google-fonts/Inter";
 import { palette, specTimeline, type AnimatedScene, type AnimatedSpec } from "@/lib/animated/spec";
 import { CompareScene } from "./CompareScene";
 import { CounterScene } from "./CounterScene";
+import { SoundTrack, type SfxCue } from "./parts";
 
 const { fontFamily } = loadFont("normal", { weights: ["500", "700", "800"], subsets: ["latin"] });
 
@@ -143,8 +144,14 @@ export function AnimatedComposition({ spec }: { spec: AnimatedSpec }) {
   if (spec.compare) return <CompareScene compare={spec.compare} signoff={spec.signoff} colors={template} />;
   if (spec.counter) return <CounterScene counter={spec.counter} signoff={spec.signoff} colors={template} />;
   const t = specTimeline(spec);
+  // Sound: a whoosh as each scene after the first comes in, a pop for the sign-off.
+  const cues: SfxCue[] = [
+    ...t.starts.slice(1).map((at): SfxCue => ({ at, name: "whoosh", volume: 0.4 })),
+    ...(spec.signoff ? [{ at: t.total - t.end, name: "pop", volume: 0.4 } as SfxCue] : []),
+  ];
   return (
     <AbsoluteFill style={{ background: colors.bg, color: colors.fg, fontFamily }}>
+      <SoundTrack cues={cues} />
       {spec.scenes.map((s, i) => (
         <Sequence key={i} from={t.starts[i]} durationInFrames={t.frames[i]} layout="none">
           <Scene scene={s} frames={t.frames[i]} colors={colors} />

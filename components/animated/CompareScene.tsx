@@ -6,7 +6,7 @@
 // short blur; one brighten at the last stop; it ends on a comment question.
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { COMPARE_TIMES, compareCounter, compareStopAt, compareValueText, type AnimatedCompare, type CompareTone } from "@/lib/animated/spec";
-import { CommentPrompt, Flash, SANS, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type TemplateColors } from "./parts";
+import { CommentPrompt, Flash, SANS, SoundTrack, SwapHeadline, TONES, interpolateEnd, lineOf, stampScale, surfaceOf, type SfxCue, type TemplateColors } from "./parts";
 
 export type CompareColors = TemplateColors;
 
@@ -27,6 +27,18 @@ export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCo
   const tubeW = Math.min(200, span - 70);
   const tubeTop = 680, tubeH = 470;
   const lastStop = Math.round(COMPARE_TIMES.runEnd * fps);
+  const qStart = Math.round(COMPARE_TIMES.question * fps);
+  const answer = compare.columns[0].label.toLowerCase();
+  // Sound: ticks that follow the shared counter, a whoosh on each headline swap, a thud with each stamp,
+  // a hit at the last stop, then a pop and typing for the comment box.
+  const cues: SfxCue[] = [
+    { at: 0, name: "compare-run", volume: 0.35, frames: lastStop + 6 },
+    { at: COMPARE_TIMES.turn * fps, name: "whoosh", volume: 0.45 },
+    { at: COMPARE_TIMES.close * fps, name: "whoosh", volume: 0.45 },
+    ...compare.columns.filter((c) => c.stamp).map((c): SfxCue => ({ at: compareStopAt(c.value, max) * fps + 6, name: "stamp", volume: 0.8 })),
+    { at: lastStop, name: "hit", volume: 0.55 },
+    ...(compare.question ? [{ at: qStart, name: "pop", volume: 0.4 }, { at: qStart + 18, name: "typing", volume: 0.3, frames: answer.length * 2 + 2 }] as SfxCue[] : []),
+  ];
   const endIn = interpolateEnd(t, COMPARE_TIMES.close);
   const valueSize = Math.min(n <= 2 ? 140 : n === 3 ? 112 : 88, ...compare.columns.map((c) => (span - 24) / (0.62 * compareValueText(c.value, compare.format, compare.unit, decimalsOf(c.value)).length)));
   const surface = surfaceOf(colors);
@@ -84,12 +96,13 @@ export function CompareScene({ compare, colors, signoff }: { compare: AnimatedCo
       )}
 
       {/* The comment box types the first column's label: an option, not a made-up person's comment. */}
-      <CommentPrompt question={compare.question} startFrame={Math.round(COMPARE_TIMES.question * fps)} answer={compare.columns[0].label.toLowerCase()} colors={colors} />
+      <CommentPrompt question={compare.question} startFrame={qStart} answer={answer} colors={colors} />
 
       {signoff && (
         <div style={{ position: "absolute", left: 0, right: 0, bottom: 44, textAlign: "center", fontWeight: 700, fontSize: 32, color: colors.dim, opacity: endIn }}>{signoff}</div>
       )}
       <Flash atFrame={lastStop} colors={colors} />
+      <SoundTrack cues={cues} />
     </AbsoluteFill>
   );
 }
