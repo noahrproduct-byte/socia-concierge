@@ -34,11 +34,32 @@ describe("which cuts get a voice", () => {
     expect(needsVoiceover(edl({ editStyle: "demo" }), {}).need).toBe(true);
     expect(needsVoiceover(edl(), {}, "show how we make our pizza dough").need).toBe(true);
   });
-  it("for every cut nobody talks in, food and calm included (Noah, 2026-11-12), unless the prompt says no", () => {
-    expect(needsVoiceover(edl(), {}, "make this post ready with music and good on screen text")).toEqual({ need: true, why: "nobody talks in it, so a voice carries the story" });
-    expect(needsVoiceover(edl({ editStyle: "calm" }), {}, "show how the room looks at night").need).toBe(true);
-    expect(needsVoiceover(edl(), {}, "music only, no voiceover").need).toBe(false);
-    expect(needsVoiceover(edl(), {}, "just music, keep it music only").need).toBe(false);
+  it("only for the kinds of video a voice carries (Noah, 2026-11-12: not automatic)", () => {
+    const yes = (brief: string) => needsVoiceover(edl(), {}, brief);
+    expect(yes("how to fold a pizza like a pro").need).toBe(true);
+    expect(yes("show how we make our dough from scratch").need).toBe(true);
+    expect(yes("the story of how we started the shop").need).toBe(true);
+    expect(yes("3 mistakes people make ordering pizza").need).toBe(true);
+    expect(yes("explain why we ferment the dough for 48 hours").need).toBe(true);
+    expect(needsVoiceover(edl({ editStyle: "demo" }), {}, "show the new booking page").need).toBe(true);
+  });
+  it("not for a satisfying moment, a trend, a montage, an aesthetic video or a gag, unless the prompt asks", () => {
+    const no = (brief: string) => needsVoiceover(edl(), {}, brief);
+    expect(no("the most satisfying cheese pull").need).toBe(false);
+    expect(no("put this to a trending audio").need).toBe(false);
+    expect(no("a hype montage of friday night").need).toBe(false);
+    expect(no("aesthetic cafe vibes").need).toBe(false);
+    expect(no("a funny skit with the delivery guy").need).toBe(false);
+    expect(no("the most satisfying cheese pull with a voiceover").need).toBe(true);
+  });
+  it("not by default, and not for one moment shown whole; the editor can still add one", () => {
+    // The improved prompt from the 2026-11-12 pizza test: music, real sound, no ask to explain.
+    const pizza = "Make a 15 second Instagram Reel from Clip 1 only. Open on the pizza pulled out on the peel, then the box, the first cut and the cut pizza. Use the real sound of the peel and the wheel with smooth, steady, upbeat background music.";
+    expect(needsVoiceover(edl(), {}, pizza)).toEqual({ need: false, why: "the footage and music carry it; add a voiceover in the editor if you want one" });
+    const two = edl({ segments: edl().segments.slice(0, 2) });
+    expect(needsVoiceover(two, {}, "how we make it").need).toBe(false);
+    // A recipe prompt that mentions the real sound still gets its voice.
+    expect(needsVoiceover(edl(), {}, "our recipe for the dough, keep the real sound of the mixer").need).toBe(true);
   });
 });
 
