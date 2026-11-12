@@ -63,3 +63,20 @@ export function sanitizeEnhanced(raw: unknown): { prompt: string; added: string[
   const added = (Array.isArray(r.added) ? r.added : []).map((a) => clean(a, 80)).filter(Boolean).slice(0, 5);
   return { prompt, added };
 }
+
+/** How long Make the video waits for the improver before cutting from the person's own words. */
+export const AUTO_IMPROVE_TIMEOUT_MS = 8000;
+
+/**
+ * Whether Make the video improves the prompt first (Noah, 2026-11-11: "for
+ * every prompt there has to be an AI enhancer"). Not for an empty or very short
+ * prompt, not when the words in the field are already SOCIA's improved version,
+ * and not after the person chose "Use my words" for this text.
+ */
+export function shouldAutoImprove(a: { prompt: string; improvedText?: string | null; ownWords?: string | null }): boolean {
+  const p = a.prompt.trim();
+  if (p.length < 3) return false;
+  if (a.improvedText != null && a.improvedText.trim() === p) return false;
+  if (a.ownWords != null && a.ownWords.trim() === p) return false;
+  return true;
+}
