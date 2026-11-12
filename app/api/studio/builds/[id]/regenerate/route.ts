@@ -12,7 +12,7 @@ import { publicMessage } from "@/lib/dbError";
 import { handOverCut } from "@/lib/studioClips/cutMeter";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // POST { directive } — a new cut for the same post with one change asked for
 // (faster, more energetic, more professional, shorter, different hook, use

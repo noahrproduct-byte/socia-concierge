@@ -14,7 +14,7 @@ import { readPresets } from "@/lib/studioClips/styleStore";
 import { errorResponse, publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // Make a video from a prompt or a reference (Growth/Pro, like Make This Video).
 //   GET  -> the project's cuts made from a brief: [{ id, title, referenceName, createdAt }]
