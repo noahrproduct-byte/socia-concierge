@@ -361,7 +361,25 @@ export type Voiceover = {
 
 export type EndCard = { location: string; cta: string; site: string };
 
-export type EdlBrief = { prompt: string | null; reference: string | null; referenceName: string | null };
+export type EdlBrief = {
+  prompt: string | null; reference: string | null; referenceName: string | null;
+  /** The person turned on "Add a voiceover" when making it, with what it should say (Noah, 2026-11-12). */
+  voiceover?: VoiceoverAsk;
+};
+
+/** A voiceover the person asked for: on, and their notes on what it should say (the business, the offer, the story, the tone). */
+export type VoiceoverAsk = { on: true; notes: string | null };
+
+/** The most a person's voiceover notes may run. */
+export const VOICE_NOTES_MAX = 800;
+
+/** A voiceover ask from anywhere (the browser, stored JSON), bounded; undefined when it isn't on. */
+export function sanitizeVoiceAsk(v: unknown): VoiceoverAsk | undefined {
+  if (!v || typeof v !== "object" || (v as { on?: unknown }).on !== true) return undefined;
+  const n = (v as { notes?: unknown }).notes;
+  const notes = typeof n === "string" ? n.replace(/\u2014/g, ",").replace(/[ \t]+/g, " ").trim().slice(0, VOICE_NOTES_MAX) : "";
+  return { on: true, notes: notes || null };
+}
 
 /**
  * The colorCorrection() parameters SOCIA chose for one clip (same names and

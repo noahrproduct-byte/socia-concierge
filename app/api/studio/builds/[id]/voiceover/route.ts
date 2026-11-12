@@ -11,6 +11,7 @@ import { makeVoiceover, voiceNeedFor } from "@/lib/voiceover/server";
 import { VoiceError, voiceConfigured } from "@/lib/voiceover/elevenlabs";
 import { publicMessage } from "@/lib/dbError";
 import { perUserLimit } from "@/lib/rateLimit";
+import { VOICE_NOTES_MAX } from "@/lib/studioClips/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -27,7 +28,7 @@ export const maxDuration = 180;
 //   PATCH { on?, volume? } -> switch it on or off, set its level (nothing counted)
 //   DELETE                 -> take it out of the cut
 
-type Body = { auto?: unknown; rewrite?: unknown; voiceId?: unknown; edits?: unknown };
+type Body = { auto?: unknown; rewrite?: unknown; voiceId?: unknown; edits?: unknown; notes?: unknown };
 
 function voiceErr(e: VoiceError) {
   return NextResponse.json({ error: e.message, kind: e.kind, notConfigured: e.kind === "not_configured" }, { status: e.kind === "busy" ? 429 : e.kind === "not_configured" ? 503 : e.kind === "rejected" ? 400 : 502 });
@@ -78,6 +79,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         ownerId: ctx.ownerId, wsId, buildId: id, acct, auto, why,
         voiceId: typeof body.voiceId === "string" ? body.voiceId.slice(0, 64) : null,
         rewrite: body.rewrite === true, edits,
+        notes: typeof body.notes === "string" ? body.notes.replace(/\u2014/g, ",").trim().slice(0, VOICE_NOTES_MAX) || null : null,
       });
       if (!out.made) await u.release();
       return NextResponse.json({ state: auto ? "added" : "voiced", ...out, usage: out.made ? u.usage : null });

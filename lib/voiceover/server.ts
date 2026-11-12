@@ -38,11 +38,13 @@ async function cutWords(client: Supa, projectId: string) {
 
 /** Whether this cut wants a voice, from its own speech and brief. */
 export async function voiceNeedFor(client: Supa, edl: Edl, projectId: string): Promise<VoiceNeed> {
-  return needsVoiceover(edl, await cutWords(client, projectId), edl.brief?.prompt ?? null);
+  return needsVoiceover(edl, await cutWords(client, projectId), edl.brief?.prompt ?? null, edl.brief?.voiceover?.on === true);
 }
 
 /** The model's script for the cut, fitted to its shots. */
-export async function writeScript(edl: Edl, acct: AccountContext, ownerId: string): Promise<VoiceLine[]> {
+export async function writeScript(edl: Edl, acct: AccountContext, ownerId: string, notes?: string | null): Promise<VoiceLine[]> {
+  // What the person wrote the voiceover should say, from the editor or from when they made it.
+  const said = (notes ?? edl.brief?.voiceover?.notes ?? "").trim();
   const total = edlDurationSec(edl);
   const shots = timeline(edl).segments.map((s, i) => `Shot ${i + 1}, ${s.startSec.toFixed(1)}s to ${(s.startSec + s.durationFrames / 30).toFixed(1)}s${s.purpose ? ` (${s.purpose})` : ""}: ${s.note || "no note"}`);
   const onScreen = edl.text.filter((t) => t.text.trim()).map((t) => `"${t.text.replace(/\n/g, " ")}" from ${t.at}s`);
@@ -55,6 +57,7 @@ export async function writeScript(edl: Edl, acct: AccountContext, ownerId: strin
 ${acct.niche ? `The account's niche: ${acct.niche}.` : ""}
 ${brand ? `Brand facts:\n${brand}` : "No brand facts are set: name no place, product or offer the shots don't show."}
 ${edl.brief?.prompt ? `The person's prompt: ${edl.brief.prompt}` : ""}
+${said ? `What the owner wants the voiceover to say (their own words and facts about their business; build the script on these, keep their facts exactly, and add no fact beyond these, the brand facts and the shots):\n${said}` : ""}
 ${onScreen.length ? `On-screen text: ${onScreen.join("; ")}` : ""}
 The shots, in order on the video's own timeline:
 ${shots.join("\n")}
@@ -122,6 +125,8 @@ export type MakeArgs = {
   rewrite?: boolean;
   /** the person's own words for some lines, by line id */
   edits?: { id: string; text: string }[];
+  /** the person's notes on what the voiceover should say (the editor's Write a voiceover) */
+  notes?: string | null;
   /** SOCIA adding it on its own: the cut is stamped so it's tried once */
   auto?: boolean;
   why?: string;
@@ -144,7 +149,7 @@ export async function makeVoiceover(client: Supa, args: MakeArgs): Promise<MakeR
     ?? pickDefaultVoice(voices, edl.editStyle)!;
 
   let lines: VoiceLine[];
-  if (!cur || args.rewrite) lines = await writeScript(edl, args.acct, ownerId);
+  if (!cur || args.rewrite) lines = await writeScript(edl, args.acct, ownerId, args.notes);
   else {
     const edits = new Map((args.edits ?? []).map((e) => [e.id, cleanLine(String(e.text ?? "")).slice(0, 400)]));
     lines = cur.lines.map((l) => (edits.has(l.id) && edits.get(l.id) ? { ...l, text: edits.get(l.id)! } : l));
