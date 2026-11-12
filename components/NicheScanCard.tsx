@@ -137,7 +137,7 @@ export default function NicheScanCard({ compact = false }: { compact?: boolean }
     return (
       <Card className="s-niche" aria-live="polite">
         <CardHeader title={`Researching what goes viral in ${niche}`} />
-        <p className="s-niche-lead">SOCIA is reading public Reels and Shorts in your niche and studying the ones that took off. This takes about 5 to 10 minutes; you can leave this page.</p>
+        <p className="s-niche-lead">SOCIA is reading public Reels and Shorts in your niche and studying the ones that took off. This takes a few minutes; you can leave this page.</p>
         <ol className="s-niche-steps">
           {p.steps.map((s) => (
             <li key={s.id} className={`s-niche-step is-${s.state}`}>
@@ -171,7 +171,7 @@ export default function NicheScanCard({ compact = false }: { compact?: boolean }
       <p className="s-niche-lead">
         {p?.status === "failed"
           ? "The last research run stopped before it finished. Start it again and SOCIA picks up the public Reels in your niche from the beginning."
-          : "SOCIA reads public Reels and Shorts in your niche, studies the ones that took off and writes a playbook its editor and plans follow. It takes about 5 to 10 minutes."}
+          : "SOCIA reads public Reels and Shorts in your niche, studies the ones that took off and writes a playbook its editor and plans follow. It takes a few minutes."}
       </p>
       <div>
         <Button size="sm" onClick={start} disabled={starting}>{starting ? "Starting" : "Research my niche"}</Button>

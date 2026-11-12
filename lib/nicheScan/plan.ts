@@ -18,7 +18,8 @@ export type ScanSize = "full" | "lite";
 
 /** How much one scan reads. Full on plans with niche intelligence (Starter and up); a smaller one on Free. */
 export const SCAN_SIZES: Record<ScanSize, { igAccounts: number; ytAccounts: number; watch: number; weak: number; batch: number }> = {
-  full: { igAccounts: 12, ytAccounts: 6, watch: 24, weak: 6, batch: 4 },
+  // Noah, 2026-11-12: study more, so lines like "send this to…" that sit past the cover get caught.
+  full: { igAccounts: 20, ytAccounts: 8, watch: 40, weak: 6, batch: 4 },
   lite: { igAccounts: 6, ytAccounts: 3, watch: 8, weak: 3, batch: 4 },
 };
 
@@ -173,7 +174,7 @@ export function pickReels(reels: TrendingReel[], size: ScanSize): ScanReel[] {
   const cfg = SCAN_SIZES[size];
   // A thin niche is filled with the best of the rest, never with Reels that did badly: those are read as what not to do.
   const notWeak = reels.filter((r) => r.multiplier == null || r.multiplier > WEAK_AT);
-  const best = provenReels(notWeak, { max: cfg.watch, perAccount: 3, fill: true });
+  const best = provenReels(notWeak, { max: cfg.watch, perAccount: 4, fill: true });
   const chosen = new Set(best.map((r) => r.url));
   const out: ScanReel[] = best.map((r, i) => toScanReel(r, `R${i + 1}`, r.proven));
   const weak = reels

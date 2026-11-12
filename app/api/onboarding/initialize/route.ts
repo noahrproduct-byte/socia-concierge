@@ -38,7 +38,7 @@ export async function POST() {
     }
     // Research what goes viral in the brand's niche (lib/nicheScan): five to ten minutes, on its own.
     const scan = await startNicheScan(ctx, "onboarding").catch(() => null);
-    if (scan) out.outcomes.push({ label: "Research what goes viral in your niche", status: "done", detail: "Started. It takes about 5 to 10 minutes; the playbook appears on your Dashboard and in Studio." });
+    if (scan) out.outcomes.push({ label: "Research what goes viral in your niche", status: "done", detail: "Started. It takes a few minutes; the playbook appears on your Dashboard and in Studio." });
     return NextResponse.json(out);
   } catch {
     return NextResponse.json({ error: "Couldn't read your accounts just now. Try again in a minute." }, { status: 502 });
