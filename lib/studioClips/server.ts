@@ -280,6 +280,7 @@ export function toClipForEdl(r: ClipRow): ClipForEdl {
     rmsDb: a?.rmsDb ?? null, audioLevel: a?.level ?? null,
     hasSpeech: Boolean(r.card?.speech.present && r.transcript?.words?.length),
     lumaSamples: v?.sampled.length ? v.sampled.map((s) => ({ t: s.t, luma: s.luma })) : null,
+    sceneCuts: v?.sceneCuts ?? null,
   };
 }
 

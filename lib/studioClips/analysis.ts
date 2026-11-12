@@ -325,8 +325,8 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
 - Edit the way the owner taught you, from a cut they approved:
   - Choose shots from what you can see happening in the frames and the moments, with exact in and out points. Each segment starts when its action starts and ends when it's done. Leave out anything where nothing happens, a hand or arm covers the subject, or a shadow falls across half of it.
   - Open on the best unbroken move, already moving, with the subject in frame from the first frame. Don't chop it: one move can run up to 5 seconds, longer than the other shots.
-  - A repeated action becomes several short hits of 1 to 2 seconds, each showing it further along, taken from moments at least 1 second apart in the footage.
-  - Never split one continuous stretch of footage into several segments: when two moments you want follow each other in the same clip, use them as one segment. Two segments from the same clip next to each other are always at least 1 second apart in the footage, or they jump and stutter.
+  - A repeated action becomes several short hits of 1 to 2 seconds, each showing it further along, taken from moments at least 3 seconds apart in the footage.
+  - Never split one continuous stretch of footage into several segments: when two moments you want follow each other in the same clip, use them as one segment. Two segments from the same clip next to each other are either one continuous stretch or at least 3 seconds apart in the footage: in a moving shot a skip of a second or two looks like a glitch, the picture and the sound jump.
   - Then a clean look at the finished thing for 1.5 to 2 seconds.
   - End on the brand: a logo, sign or shop name readable straight on, 2.5 to 3.5 seconds. Without one, end on the finished thing.
   - sound: true on segments where the real sound of the action should be heard over the music (cutting, sizzling, pouring). false everywhere else.

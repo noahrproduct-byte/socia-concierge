@@ -36,6 +36,8 @@ export type ClipForEdl = {
   hasSpeech: boolean;
   /** Measured brightness of the frames sampled through the clip (the cut check looks for black ones). Absent in the browser. */
   lumaSamples?: { t: number; luma: number }[] | null;
+  /** Where the picture changes sharply inside the clip (a new shot in the same file). Absent in the browser. */
+  sceneCuts?: number[] | null;
 };
 
 /** What pass 3 hands over, before validation. */

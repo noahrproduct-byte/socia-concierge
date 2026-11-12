@@ -99,8 +99,16 @@ export function teachEdit(edl: Edl, brand: Brand, clips: { id: string; durationS
     out.endCard = shown;
     const src = clips.find((c) => c.id === last.clipId);
     if (src && last.out - last.in < ENDING_MIN_SEC) {
-      const room = src.durationSec - last.in;
-      last.out = Math.round(Math.min(src.durationSec, last.in + Math.min(room, ENDING_MIN_SEC)) * 100) / 100;
+      // Start the last shot earlier rather than run it past where it was chosen to end: that end was
+      // picked before a hand or a tool crossed the subject (Noah, 2026-11-12, the wheel over the slices).
+      const prev = out.segments[out.segments.length - 2];
+      const floor = prev && prev.clipId === last.clipId ? prev.out : 0;
+      const need = ENDING_MIN_SEC - (last.out - last.in);
+      last.in = Math.round(Math.max(floor, last.in - need) * 100) / 100;
+      if (last.out - last.in < ENDING_MIN_SEC) {
+        const room = src.durationSec - last.in;
+        last.out = Math.round(Math.min(src.durationSec, last.in + Math.min(room, ENDING_MIN_SEC)) * 100) / 100;
+      }
     }
     out.text = out.text.filter((t) => t.role !== "cta");
     const cardAt = timeline(out).durationSec - END_CARD_SEC;

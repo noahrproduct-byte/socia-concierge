@@ -29,7 +29,7 @@ import { TEXT_PRESETS, presetForRole, presetOf, isTextPresetId, charCount } from
 import type { Edl, EdlSegment, EdlText } from "./types";
 import { clipLabel, fmtClock } from "./types";
 
-export type CheckId = "stutter" | "repeat" | "sentence" | "voice" | "ghost" | "short" | "black" | "text";
+export type CheckId = "stutter" | "jump" | "repeat" | "sentence" | "voice" | "ghost" | "short" | "black" | "text";
 export type CutFinding = { id: CheckId; segmentId: string | null; detail: string };
 export type CutCheck = { ran: CheckId[]; findings: CutFinding[]; line: string };
 
@@ -46,11 +46,30 @@ export const CHECK = {
   blackLuma: 0.03,
   /** an opening line still up this little after the first cut flashes onto the next shot */
   spillSec: 0.6,
+  /**
+   * Two pieces of one moving shot this close in the footage: the picture and the
+   * sound jump forward mid-motion and read as a glitch, not a cut (Noah,
+   * 2026-11-12: "repeated parts/glitches in the video and audio"). Either one
+   * continuous stretch, or this far apart.
+   */
+  sameTakeGapSec: 2.5,
+  /** Two pieces joined into one continuous stretch may run this long; past it the later piece goes. */
+  joinMaxSec: 7,
 } as const;
+
+/** Whether the clip changes shot (a sharp scene change) between two moments: then a short skip is a real cut. */
+const sceneBetween = (c: ClipForEdl | undefined, a: number, b: number): boolean => Boolean(c?.sceneCuts?.some((t) => t > a - 0.05 && t < b + 0.05));
+
+/** A skip inside one moving shot that reads as a glitch: same clip, a little ahead, no change of shot, nobody's speech edited there. */
+export function jumpsInTake(prev: { clipId: string; out: number }, s: { clipId: string; in: number }, c: ClipForEdl | undefined): boolean {
+  const gap = s.in - prev.out;
+  return prev.clipId === s.clipId && gap >= CONTINUOUS_GAP_SEC && gap < CHECK.sameTakeGapSec && !sceneBetween(c, prev.out, s.in) && !speechJump(c?.words, prev.out, s.in);
+}
 
 /** The name of each check, as the editor lists what it found. */
 export const CHECK_LABEL: Record<CheckId, string> = {
   stutter: "Stutters",
+  jump: "Jumps inside one shot",
   repeat: "Plays twice",
   sentence: "Cut off mid-sentence",
   voice: "Transition over speech",
@@ -63,6 +82,7 @@ export const CHECK_LABEL: Record<CheckId, string> = {
 /** What the person sees for each check that ran with nothing found. */
 const CLEAN: Record<CheckId, string> = {
   stutter: "no shot stutters",
+  jump: "no skip inside a moving shot",
   repeat: "nothing plays twice",
   sentence: "no one is cut off mid-sentence",
   voice: "no dissolve runs over speech",
@@ -136,7 +156,7 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
   const at = (i: number) => fmtClock(tl.segments[i]?.startSec ?? 0);
   const segs = edl.segments;
   const findings: CutFinding[] = [];
-  const ran: CheckId[] = ["stutter", "repeat", "short"];
+  const ran: CheckId[] = ["stutter", "jump", "repeat", "short"];
 
   segs.forEach((s, i) => {
     const prev = segs[i - 1];
@@ -154,6 +174,9 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
         findings.push({ id: "repeat", segmentId: s.id, detail: `${label(s.clipId)} ${fmtClock(Math.max(o.in, s.in))} to ${fmtClock(Math.min(o.out, s.out))} plays twice, at ${at(j)} and again at ${at(i)}.` });
         break;
       }
+    }
+    if (prev && jumpsInTake(prev, s, byId.get(s.clipId))) {
+      findings.push({ id: "jump", segmentId: s.id, detail: `At ${at(i)} ${label(s.clipId)} skips ${(s.in - prev.out).toFixed(1)} s inside one moving shot, so the picture and sound jump like a glitch. Play it through, or skip further.` });
     }
     if (s.out - s.in < CHECK.shortSec) findings.push({ id: "short", segmentId: s.id, detail: `The shot at ${at(i)} lasts ${(s.out - s.in).toFixed(1)} s, too short to see what it is.` });
   });
@@ -245,6 +268,35 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
     keep.push(s);
   });
   segments = keep;
+
+  // A skip of a second or two inside one moving shot reads as a glitch. In order of what keeps most:
+  // start the later piece far enough on; play the two through as one stretch; or leave the later piece out.
+  const smooth: EdlSegment[] = [];
+  segments.forEach((s, idx) => {
+    const isLast = idx === segments.length - 1;
+    const prev = smooth[smooth.length - 1];
+    const c = byId.get(s.clipId);
+    if (!prev || !jumpsInTake(prev, s, c)) { smooth.push(s); return; }
+    const later = r2(prev.out + CHECK.sameTakeGapSec);
+    if (s.out - later >= Math.max(min, 1)) {
+      s.in = later;
+      fixed.push(`${label(s.clipId)} skips further on at ${fmtClock(later)}, so one moving shot doesn't jump like a glitch`);
+      smooth.push(s);
+    } else if (isLast && s.in - CHECK.sameTakeGapSec - prev.in >= Math.max(min, 1)) {
+      // The ending stays: the shot before it ends sooner instead.
+      prev.out = r2(s.in - CHECK.sameTakeGapSec);
+      fixed.push(`${label(prev.clipId)} ends at ${fmtClock(prev.out)}, so the last shot doesn't jump a second inside one moving shot`);
+      smooth.push(s);
+    } else if (isLast || s.out - prev.in <= CHECK.joinMaxSec) {
+      const sound = Boolean(prev.sound || s.sound);
+      smooth[smooth.length - 1] = { ...prev, out: s.out, role: s.role === "ending" ? "ending" : prev.role, ...(sound ? { sound: true } : {}) };
+      if (sound) delete smooth[smooth.length - 1].volume;
+      fixed.push(`played ${label(s.clipId)} ${fmtClock(prev.in)} to ${fmtClock(s.out)} through as one shot instead of skipping a second inside it`);
+    } else {
+      fixed.push(`left out ${label(s.clipId)} ${fmtClock(s.in)} to ${fmtClock(s.out)}, which sat a second after the shot before it and would jump like a glitch`);
+    }
+  });
+  segments = smooth;
 
   // Let a sentence finish. Before a quiet shot from another clip, the voice carries over it (an
   // L-cut) and the picture moves on; otherwise the shot runs on, inside its clip and short of
