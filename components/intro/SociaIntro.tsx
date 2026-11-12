@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Instrument_Serif } from "next/font/google";
+import { Volume2, VolumeX } from "lucide-react";
 import { MARK_SIZE, S_LOWER, S_UPPER, STAR, alongOutline, type Pt } from "./logoShape";
 import "./intro.css";
 
@@ -18,7 +19,13 @@ import "./intro.css";
 // strand reads as a narrow ribbon turning in space), no shaders, no
 // particles. Time is accumulated frame by frame, so a hidden tab resumes
 // where it was. Reduced motion gets the finished mark and the words, faded,
-// no movement. "Skip intro" is there from the first frame, and Escape too.
+// no movement and no sound. "Skip intro" is there from the first frame, and
+// Escape too.
+//
+// Sound (public/intro/intro-sound.mp3, made by scripts/intro-sound.py, timed
+// to T below) starts with the film when the browser allows it, which it
+// does once the person has clicked on the site. When it doesn't, the film
+// plays muted and "Sound on" picks the sound up at the film's current time.
 
 const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: "italic", variable: "--font-intro-serif" });
 
@@ -221,13 +228,43 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
   const [phase, setPhase] = useState<"title" | "film" | "words" | "leaving">("title");
   const [reduced, setReduced] = useState(false);
   const leaving = useRef(false);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  const filmTime = useRef(0);
+  const [sound, setSound] = useState<"none" | "off" | "on">("none");
 
   const leave = useCallback(() => {
     if (leaving.current) return;
     leaving.current = true;
     setPhase("leaving");
+    // The sound fades with the picture.
+    const a = audio.current;
+    if (a && !a.paused) {
+      const from = a.volume;
+      const started = performance.now();
+      const step = () => {
+        const f = Math.min(1, (performance.now() - started) / LEAVE_MS);
+        a.volume = from * (1 - f);
+        if (f < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
     window.setTimeout(onDone, LEAVE_MS);
   }, [onDone]);
+
+  const toggleSound = () => {
+    const a = audio.current;
+    if (!a) return;
+    if (sound === "on") {
+      a.pause();
+      setSound("off");
+      return;
+    }
+    a.currentTime = filmTime.current;
+    a.play().then(
+      () => setSound("on"),
+      () => setSound("off"),
+    );
+  };
 
   // The page under the film doesn't scroll while it plays; Escape skips.
   useEffect(() => {
@@ -251,6 +288,17 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     if (!el || !ctx) return;
     const still = !motion && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setReduced(still);
+    if (!still) {
+      const a = new Audio("/intro/intro-sound.mp3");
+      a.preload = "auto";
+      a.volume = 0.85;
+      audio.current = a;
+      setSound("off");
+      a.play().then(
+        () => setSound("on"),
+        () => setSound("off"),
+      );
+    }
 
     const mark = new Image();
     mark.src = "/brand/socia-mark.png";
@@ -368,7 +416,11 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     const tick = (now: number) => {
       t += Math.min(0.05, (now - last) / 1000);
       last = now;
+      filmTime.current = t;
       frame(t);
+      // Keeps the sound on the picture, e.g. after the tab was in the background.
+      const a = audio.current;
+      if (a && !a.paused && Math.abs(a.currentTime - t) > 0.2) a.currentTime = t;
       const next = t < T.arrive ? "title" : t < T.words ? "film" : "words";
       const nextPhase = still ? (t < 0.6 ? "film" : "words") : next;
       if (nextPhase !== shown && !leaving.current) {
@@ -385,6 +437,8 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", size);
+      audio.current?.pause();
+      audio.current = null;
     };
   }, [leave, motion]);
 
@@ -407,9 +461,17 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
         <p>Create, analyze, edit, and grow. All with SOCIA.</p>
       </div>
       <p className="intro-sr">Analytics, competitor intelligence, competitor-based strategy, content planning, content generation, video editor, AI Clipper, voiceover, audio and music, reel rater and publishing, in one platform.</p>
-      <button ref={skipRef} type="button" className="intro-skip" onClick={leave}>
-        Skip intro
-      </button>
+      <div className="intro-controls">
+        {sound !== "none" && (
+          <button type="button" className="intro-skip" onClick={toggleSound}>
+            {sound === "on" ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
+            {sound === "on" ? "Mute" : "Sound on"}
+          </button>
+        )}
+        <button ref={skipRef} type="button" className="intro-skip" onClick={leave}>
+          Skip intro
+        </button>
+      </div>
     </div>
   );
 }
