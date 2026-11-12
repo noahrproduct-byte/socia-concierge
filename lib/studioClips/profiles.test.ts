@@ -65,36 +65,18 @@ describe("what a style changes", () => {
   });
 });
 
-describe("on-screen words by style (2026-11-11 food study)", () => {
+describe("on-screen words by style (Noah's caption taste, 2026-11-12)", () => {
   const text = [
-    { id: "t1", at: 0, end: 2, text: "tossed in\nTHE PAN", role: "opening" as const, presetId: "hook_pair" as const },
-    { id: "t2", at: 4, end: 6, text: "spinach and cream", role: "mid" as const, presetId: "caption_bar" as const, slot: "bottom" as const },
+    { id: "t1", at: 0, end: 2, text: "tossed in\nthe pan", role: "opening" as const, presetId: "hook_pair" as const },
     { id: "t3", at: 9, end: 11, text: "Come before 10", role: "cta" as const, presetId: "callout_box" as const },
   ];
-  it("sets food and calm edits in small step labels, and keeps the call to action", () => {
-    const out = textForStyle({ editStyle: "process", text });
-    expect(out.text.map((t) => [t.presetId, t.text])).toEqual([["step_label", "tossed in the pan"], ["step_label", "spinach and cream"], ["callout_box", "Come before 10"]]);
-    expect(out.text[1]).not.toHaveProperty("slot");
-    expect(textForStyle({ editStyle: "calm", text }).text[0].presetId).toBe("step_label");
+  it("keeps the designed hook on every style, food and calm included", () => {
+    for (const id of ["process", "calm", "talking", "demo", "energetic"] as const) expect(textForStyle({ editStyle: id, text }).text).toEqual(text);
   });
-  it("leaves the designed hook on talking, demo and energetic edits", () => {
-    for (const id of ["talking", "demo", "energetic"] as const) expect(textForStyle({ editStyle: id, text }).text).toEqual(text);
-  });
-  it("tells the model no big title on food", () => {
-    expect(EDIT_STYLES.process.prompt).toMatch(/no big title/);
+  it("tells the model at most two text moments on food, never a label on every shot", () => {
+    expect(EDIT_STYLES.process.prompt).toMatch(/at most two text moments/);
+    expect(EDIT_STYLES.process.prompt).toMatch(/never a label on every shot/);
     expect(EDIT_STYLES.process.prompt).toMatch(/finished thing for 1 to 2 seconds/);
-    expect(EDIT_STYLES.process.prompt).not.toMatch(/—/);
-  });
-});
-
-describe("a prompt that rules talking out (2026-11-12 launch test)", () => {
-  it("doesn't read 'no speech' as a request for talking to camera", () => {
-    const brief = "Make a 15 second Reel from Clip 1. No speech in the clips, so use the real sound of the peel and the wheel with upbeat music.";
-    expect(pickStyle({ brief, niche: "pizza restaurant", speechShare: 0 }).id).toBe("process");
-    expect(pickStyle({ brief: "nobody talks, just the oven sounds", niche: null, speechShare: 0 }).id).toBe("process");
-  });
-  it("never cuts silent footage as talking to camera, but still does when someone talks", () => {
-    expect(pickStyle({ brief: "a talking head about our menu", niche: null, speechShare: 0 }).id).not.toBe("talking");
-    expect(pickStyle({ brief: "a talking head about our menu", niche: null, speechShare: 0.6 }).id).toBe("talking");
+    expect(EDIT_STYLES.process.prompt).not.toMatch(/\u2014/);
   });
 });

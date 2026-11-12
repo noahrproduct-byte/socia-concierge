@@ -35,10 +35,10 @@ export type EditStyle = {
 export const EDIT_STYLES: Record<EditStyleId, EditStyle> = {
   process: {
     id: "process", label: "Food and process",
-    summary: "The finished thing first, the making in order with small step labels, the real sound of the work, the finished thing again.",
+    summary: "The finished thing first, the making in order, the real sound of the work, one designed line of text, the finished thing again.",
     pacing: { openerMaxSec: 5, silentMaxSec: 5, followMaxSec: 3, speechMaxSec: 10, endingMinSec: 1.5, averageCutSec: [1, 4] },
-    joins: "dissolve", speech: "tight", text: "labels",
-    prompt: "Food and process, the way the food Reels that work are cut. Either ONE satisfying action shown whole (a slice pulled, a cheese pull, the knife through a crust: one or two shots, never chopped up), or a process: open on the finished thing for 1 to 2 seconds, then the making in the order it happens, one step a shot, slow steps may hold while the end speeds up, and close on the finished thing again from a different moment. Steps filmed from a camera that doesn't move can follow each other as jump cuts at least 1 second apart, so the dish builds up like stop motion. Keep the real sound of the work. Text: no big title and no reaction line. Instead 0 to 4 small step labels, each 1 to 4 lowercase words naming the dish, the ingredient or the step on screen at that moment (\"fresh basil\", \"into the oven\"), each over the shot it names, role \"mid\" (the first may be \"opening\" and name the dish); none at all when the action speaks for itself. This text rule replaces the general one.",
+    joins: "dissolve", speech: "tight", text: "hook",
+    prompt: "Food and process, the way the food Reels that work are cut. Either ONE satisfying action shown whole (a slice pulled, a cheese pull, the knife through a crust: one or two shots, never chopped up), or a process: open on the finished thing for 1 to 2 seconds, then the making in the order it happens, one step a shot, slow steps may hold while the end speeds up, and close on the finished thing again from a different moment. Steps filmed from a camera that doesn't move can follow each other as jump cuts at least 1 second apart, so the dish builds up like stop motion. Keep the real sound of the work. Text: at most two text moments in the whole video, never a label on every shot and no reaction line: the hook in the shape the text rule gives, naming the dish or the moment, and optionally one closing line on the payoff.",
   },
   talking: {
     id: "talking", label: "Talking to camera",
@@ -65,8 +65,8 @@ export const EDIT_STYLES: Record<EditStyleId, EditStyle> = {
     id: "calm", label: "Calm and premium",
     summary: "Fewer, longer shots with slow reveals, a soft dissolve where time passes; restrained text.",
     pacing: { openerMaxSec: 6, silentMaxSec: 7, followMaxSec: 7, speechMaxSec: 12, endingMinSec: 2.5, averageCutSec: [2.5, 6] },
-    joins: "dissolve", speech: "natural", text: "labels",
-    prompt: "Calm and premium: fewer, longer shots of 2.5 to 6 seconds, slow reveals, no hype words, and end on the most beautiful frame. Text: at most one small lowercase line naming the place or the dish, set as a step label; no big title. This text rule replaces the general one.",
+    joins: "dissolve", speech: "natural", text: "hook",
+    prompt: "Calm and premium: fewer, longer shots of 2.5 to 6 seconds, slow reveals, no hype words, at most one line of text in the hook shape the text rule gives, and end on the most beautiful frame.",
   },
 };
 
