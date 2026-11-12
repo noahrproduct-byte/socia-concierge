@@ -10,6 +10,7 @@ import HomeFaq from "./HomeFaq";
 import HomeMotion from "./HomeMotion";
 import HomeWindow from "./HomeWindow";
 import HeroStage from "./HeroStage";
+import Converge from "./Converge";
 import { AskDemo, BeforeAfter, Engine, Orbit, Problem, Results, Steps } from "./HomeStory";
 import ReelDemo from "./ReelDemo";
 import { WEEK } from "./exampleWeek";
@@ -134,6 +135,9 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
             </p>
           </div>
         </section>
+
+        {/* ---- everything comes together: eight tools become one workspace ---- */}
+        <Converge />
 
         {/* ---- the problem: four signals, from the live site ---- */}
         <Problem />
