@@ -24,7 +24,7 @@ export const MAX_VOICE_VOLUME = 1.5;
 /** Someone talks in at least this much of the cut: the voice there is theirs, not SOCIA's. */
 export const TALKS_SHARE = 0.25;
 
-const NO_VOICE = /\b(no|without|skip|don'?t (?:add|want)(?: a| any)?)\s+(voice ?-?over|narration|narrator|voice)\b/i;
+const NO_VOICE = /\b(no|without|skip|don'?t (?:add|want)(?: a| any)?)\s+(voice ?-?over|narration|narrator|voice)\b|\bmusic only\b|\bjust (?:the )?music\b/i;
 const ASKS_VOICE = /\b(voice ?-?over|narrat\w*|voiced|talk (?:it|me|them|us) through|walk (?:it|me|them|us) through)\b/i;
 const EXPLAINS = /\b(how (?:to|we|i|it)|why|recipe|steps?|tutorial|explain\w*|guide|process|behind the scenes|what goes into)\b/i;
 
@@ -43,7 +43,8 @@ export function needsVoiceover(edl: Edl, words: Record<string, TranscriptWord[] 
   if (ASKS_VOICE.test(b)) return { need: true, why: "you asked for a voiceover" };
   if (edl.editStyle === "demo") return { need: true, why: "a demo is easier to follow with a voice" };
   if ((edl.editStyle ?? "process") === "process" && EXPLAINS.test(b)) return { need: true, why: "your prompt sets out to explain how it's done" };
-  return { need: false, why: "the footage and music carry it" };
+  // Noah, 2026-11-12: "add the AI voiceover too". Every cut nobody talks in gets a voice, unless the prompt says otherwise.
+  return { need: true, why: "nobody talks in it, so a voice carries the story" };
 }
 
 export const SCRIPT_SCHEMA = {
