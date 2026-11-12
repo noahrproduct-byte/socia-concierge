@@ -12,6 +12,7 @@ import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { MAX_VOICE_VOLUME, type VoiceChoice } from "@/lib/studioClips/voiceover";
 import type { Edl, Voiceover } from "@/lib/studioClips/types";
+import { VOICE_NOTES_MAX } from "@/lib/studioClips/types";
 
 type Result = { voiceover?: Voiceover; urls?: Record<string, string>; overrunSec?: number; voices?: VoiceChoice[]; error?: string; notConfigured?: boolean };
 
@@ -36,6 +37,8 @@ export default function VoiceoverCard({ buildId, edl, canEdit, adding, autoNote,
   const [notReady, setNotReady] = useState(false);
   const [busy, setBusy] = useState<null | "voicing" | "writing" | "removing">(null);
   const [error, setError] = useState<string | null>(null);
+  // What the person wants the voiceover to say: their business, the offer, the story, the tone (Noah, 2026-11-12).
+  const [notes, setNotes] = useState(edl.brief?.voiceover?.notes ?? "");
   const [planError, setPlanError] = useState<PlanError | null>(null);
   const [overrun, setOverrun] = useState(0);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -99,8 +102,15 @@ export default function VoiceoverCard({ buildId, edl, canEdit, adding, autoNote,
         : adding ? <p className="cbm-muted"><Loader2 size={12} className="spin" /> SOCIA is writing and voicing a voiceover for this video (under a minute).</p>
         : !vo ? (
           <>
-            <p className="cbm-muted">{autoNote ?? "SOCIA writes a short voiceover from what your shots show, your brand details and your prompt, times each line to its shot, and voices it. Each voicing counts as one voiceover on your plan."}</p>
-            {canEdit && <button type="button" className="ov-btn small" disabled={off} onClick={() => void post("writing", {})}>{busy === "writing" ? <><Loader2 size={12} className="spin" /> Writing and voicing</> : "Write a voiceover"}</button>}
+            {autoNote && <p className="cbm-muted">{autoNote}</p>}
+            <p className="cbm-muted">SOCIA writes a short voiceover from your notes, what your shots show and your brand details, times each line to its shot, and voices it. It adds nothing you didn&apos;t say. Each voicing counts as one voiceover on your plan.</p>
+            {canEdit && (
+              <label className="cba-cap">
+                <span>What should it say? (optional)</span>
+                <textarea className="sd-voice-line" rows={3} maxLength={VOICE_NOTES_MAX} value={notes} disabled={off} placeholder="Details about your business, the offer, the story or the tone." onChange={(e) => setNotes(e.target.value)} />
+              </label>
+            )}
+            {canEdit && <button type="button" className="ov-btn small" disabled={off} onClick={() => void post("writing", notes.trim() ? { notes: notes.trim() } : {})}>{busy === "writing" ? <><Loader2 size={12} className="spin" /> Writing and voicing</> : "Write a voiceover"}</button>}
           </>
         ) : (
           <>
@@ -137,7 +147,7 @@ export default function VoiceoverCard({ buildId, edl, canEdit, adding, autoNote,
                   <button type="button" className="ov-btn small" disabled={off || (!changed.length && !voiceChanged)} onClick={() => void post("voicing", { edits: changed.map((l) => ({ id: l.id, text: draft[l.id] })), ...(voiceChanged ? { voiceId } : {}) })}>
                     {busy === "voicing" ? <><Loader2 size={12} className="spin" /> Voicing</> : "Voice it again"}
                   </button>
-                  <button type="button" className="ov-btn ghost small" disabled={off} onClick={() => void post("writing", { rewrite: true, ...(voiceId ? { voiceId } : {}) })}>
+                  <button type="button" className="ov-btn ghost small" disabled={off} onClick={() => void post("writing", { rewrite: true, ...(voiceId ? { voiceId } : {}), ...(notes.trim() ? { notes: notes.trim() } : {}) })}>
                     {busy === "writing" ? <><Loader2 size={12} className="spin" /> Writing</> : <><RefreshCw size={12} /> Write it again</>}
                   </button>
                   <button type="button" className="ov-btn ghost small" disabled={off} onClick={() => void remove()}><X size={12} /> Take it out</button>

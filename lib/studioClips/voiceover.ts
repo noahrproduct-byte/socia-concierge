@@ -27,52 +27,23 @@ export const TALKS_SHARE = 0.25;
 const NO_VOICE = /\b(no|without|skip|don'?t (?:add|want)(?: a| any)?)\s+(voice ?-?over|narration|narrator|voice)\b|\bmusic only\b|\bjust (?:the )?music\b/i;
 const ASKS_VOICE = /\b(voice ?-?over|narrat\w*|voiced|talk (?:it|me|them|us) through|walk (?:it|me|them|us) through)\b/i;
 
-/**
- * The kinds of video a voice carries (Noah, 2026-11-12: "it shouldn't be
- * automatic, we should create a specific system for specific videos"):
- * the ones that tell or explain something in order.
- */
-export const VOICE_KINDS: { kind: string; why: string; re: RegExp }[] = [
-  { kind: "how-to", why: "it's a how-to, and a voice walks people through it", re: /\b(how to|how-to|tutorial|guide|step[- ]by[- ]step|steps|walkthrough|teach\w*|learn)\b/i },
-  { kind: "recipe or process", why: "it shows how something is made, and a voice explains each step", re: /\b(recipe|how (?:we|i) make|how it'?s made|process|behind the scenes|what goes into|from scratch|step)\b/i },
-  { kind: "story", why: "it tells a story, and a voice carries a story", re: /\b(story|storytime|how (?:we|i) (?:started|began|got)|our journey|my journey|day in the life|a day at|why (?:we|i) (?:started|opened|built))\b/i },
-  { kind: "tips or list", why: "it's a list of tips, and a voice reads them out", re: /\b(tips?|tricks?|hacks?|mistakes|reasons|ways to|things (?:to|you|i|we)|top \d+|\d+ (?:things|tips|ways|reasons|mistakes|steps))\b/i },
-  { kind: "explainer", why: "it explains something, and a voice explains best", re: /\b(explain\w*|why (?:you|it|this|we)|what is|what are|the difference between|myth|truth about)\b/i },
-];
-
-/** Kinds that are better without a voice: the picture, the sound or the music carries them. */
-export const NO_VOICE_KINDS: { kind: string; why: string; re: RegExp }[] = [
-  { kind: "satisfying moment", why: "it's one satisfying moment, and its real sound carries it", re: /\b(satisfying|asmr|cheese pull|slice (?:pull|lift))\b/i },
-  { kind: "trend or music", why: "it rides a trend or the music, and a voice would fight it", re: /\b(trend|trends|trending|audio trend|music video|lip ?sync|dance)\b/i },
-  { kind: "montage or promo", why: "it's a montage, and the cuts and music carry it", re: /\b(montage|hype|promo|teaser|highlights?|recap|sizzle reel|cinematic)\b/i },
-  { kind: "aesthetic", why: "it's an aesthetic video, and quiet suits it", re: /\b(aesthetic|vibes?|relaxing|ambien\w*)\b/i },
-  { kind: "gag or loop", why: "it's a gag or a loop, and the joke lands without a voice", re: /\b(gag|prank|loop|meme|funny|joke|skit)\b/i },
-];
-
 export type VoiceNeed = { need: boolean; why: string };
 
 /**
- * Whether a cut gets a voice on its own. Only some kinds of video do: a
- * how-to, a recipe or process explained, a story, tips or a list, an
- * explainer, a product demo. Never when someone already talks in it or the
- * prompt says no; never for a satisfying moment, a trend or music video, a
- * montage, an aesthetic video or a gag, unless the prompt asks for a voice;
- * a cut of one or two shots (one moment shown whole) doesn't get one either.
- * Everything else stays without, and the person can add one in the editor.
+ * Whether a cut gets a voice. Only when the person asks (Noah, 2026-11-12:
+ * "instead of making it automatic, add an option to add a voiceover"): the
+ * "Add a voiceover" option when they made it, or a prompt that asks for one.
+ * Never when someone already talks in it or the prompt says no. Any other cut
+ * stays without, and the editor's Write a voiceover adds one.
  */
-export function needsVoiceover(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, brief?: string | null): VoiceNeed {
+export function needsVoiceover(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, brief?: string | null, opted?: boolean): VoiceNeed {
   const b = brief?.trim() ?? "";
-  if (NO_VOICE.test(b)) return { need: false, why: "you asked for no voiceover" };
+  if (NO_VOICE.test(b) && !opted) return { need: false, why: "you asked for no voiceover" };
   const total = timeline(edl).durationSec;
   if (speechShare(speechSpans(edl, words), total) >= TALKS_SHARE) return { need: false, why: "someone already talks in it" };
+  if (opted) return { need: true, why: "you turned on Add a voiceover" };
   if (ASKS_VOICE.test(b)) return { need: true, why: "you asked for a voiceover" };
-  const against = NO_VOICE_KINDS.find((k) => k.re.test(b));
-  if (against) return { need: false, why: against.why };
-  if (edl.segments.length <= 2) return { need: false, why: "it shows one moment whole, and its real sound carries it" };
-  const kind = VOICE_KINDS.find((k) => k.re.test(b));
-  if (kind) return { need: true, why: kind.why };
-  if (edl.editStyle === "demo") return { need: true, why: "it's a product demo, and a voice makes it easy to follow" };
-  return { need: false, why: "the footage and music carry it; add a voiceover in the editor if you want one" };
+  return { need: false, why: "you didn't ask for one; turn on Add a voiceover, or write one in the editor" };
 }
 
 export const SCRIPT_SCHEMA = {

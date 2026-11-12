@@ -7,6 +7,7 @@ import { brandWorkspace } from "@/lib/context";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { accountContext, buildFromBrief, getProjectRow, listBriefBuilds, guideOnly, wholeFromBrief } from "@/lib/studioClips/server";
 import { briefIntent } from "@/lib/studioClips/briefIntent";
+import { sanitizeVoiceAsk } from "@/lib/studioClips/types";
 import { breakDownReference } from "@/lib/studioClips/analysis";
 import { cleanBreakdown, cleanPrompt, referenceBrief, sanitizeReference, shotStats } from "@/lib/studioClips/reference";
 import { readPresets } from "@/lib/studioClips/styleStore";
@@ -46,7 +47,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { ctx } = r;
   const forbidden = requireMutate(ctx);
   if (forbidden) return forbidden;
-  const body = (await req.json().catch(() => null)) as { prompt?: unknown; reference?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { prompt?: unknown; reference?: unknown; voiceover?: unknown } | null;
+  // "Add a voiceover" and what it should say: a voice only when the person asks (Noah, 2026-11-12).
+  const voiceover = sanitizeVoiceAsk(body?.voiceover);
   const prompt = cleanPrompt(body?.prompt);
   const reference = body?.reference != null ? sanitizeReference(body.reference) : null;
   if (body?.reference != null && !reference) return NextResponse.json({ error: "SOCIA couldn't read that reference video. Try an MP4 under 3 minutes." }, { status: 400 });
@@ -65,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (intent.keepWhole && prompt) {
       const preset = (await readPresets(ctx).catch(() => null))?.brand ?? null;
       const acct = await accountContext(ctx.client, ctx.ownerId, brandWorkspace(ctx), ctx.workspace?.id ?? null).catch(() => undefined);
-      const build = await wholeFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, prompt, music: intent.music, tighten: intent.tighten, acct, preset });
+      const build = await wholeFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, prompt, music: intent.music, tighten: intent.tighten, acct, preset, voiceover });
       return NextResponse.json({ build: guideOnly(build), breakdown: null, whole: true });
     }
     // A video from a brief is made by AI on the spot, so it counts one AI-made
@@ -85,7 +88,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ref = { name: reference.name, breakdown, brief: referenceBrief(breakdown, reference.durationSec, shotStats(reference)) };
     }
     const preset = (await readPresets(ctx).catch(() => null))?.brand ?? null;
-    const build = await buildFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, acct, prompt, reference: ref, preset });
+    const build = await buildFromBrief(ctx.client, { ownerId: ctx.ownerId, wsId: ctx.workspace?.id ?? null, project, acct, prompt, reference: ref, preset, voiceover });
     release = null;
     // Already counted: opening it in the editor doesn't count it again (lib/studioClips/cutMeter.ts).
     await markCutCounted(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, build.id);

@@ -14,6 +14,7 @@ import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
 import { REF_MAX_SEC, PROMPT_MAX } from "@/lib/studioClips/reference";
 import { AUTO_IMPROVE_TIMEOUT_MS, shouldAutoImprove } from "@/lib/studioClips/enhancePrompt";
 import { STUDIO_BUCKET, type StudioBuild } from "@/lib/studioClips/types";
+import { VOICE_NOTES_MAX } from "@/lib/studioClips/types";
 
 type Reference = {
   name: string; durationSec: number; width: number | null; height: number | null;
@@ -61,6 +62,9 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   const [improved, setImproved] = useState<{ before: string; after: string; added: string[]; auto?: boolean } | null>(null);
   // "Use my words": the text the person chose to keep as written, so Make the video doesn't improve it again.
   const [ownWords, setOwnWords] = useState<string | null>(null);
+  // "Add a voiceover" and what it should say (Noah, 2026-11-12): a voice only when the person asks.
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceNotes, setVoiceNotes] = useState("");
 
   const loadPast = useCallback(async () => {
     if (!projectId) { setPast([]); return; }
@@ -169,7 +173,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         }
         setStep(null);
       }
-      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: brief.trim() || null, reference: ref }) });
+      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: brief.trim() || null, reference: ref, ...(voiceOn ? { voiceover: { on: true, notes: voiceNotes.trim() || null } } : {}) }) });
       const j = (await res.json().catch(() => null)) as { build?: StudioBuild; error?: string } | null;
       if (!res.ok || !j?.build) { setError(j?.error ?? "SOCIA couldn't make that cut. Try again."); return; }
       void loadPast();
@@ -213,6 +217,17 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
             ) : (
               <small>{!projectId ? "Add clips first, so SOCIA can use what's in them." : ownWords != null && ownWords === prompt ? "SOCIA will use your words as written." : "SOCIA improves every prompt when you make the video, from what's in your clips: the length, the first shot, the order and the ending. It doesn't count as a video."}</small>
             )}
+          </div>
+
+          <div className="cbr-voice">
+            <label className="cbb-check"><input type="checkbox" checked={voiceOn} disabled={busy} onChange={(e) => setVoiceOn(e.target.checked)} /> Add a voiceover</label>
+            {voiceOn && (
+              <label className="cba-cap">
+                <span>What should the voiceover say? (optional)</span>
+                <textarea value={voiceNotes} rows={3} maxLength={VOICE_NOTES_MAX} disabled={busy} placeholder="Details about your business, the offer, the story or the tone. For example: family run since 1998, dough stretched by hand every morning, open till 10 on Fridays." onChange={(e) => setVoiceNotes(e.target.value)} />
+              </label>
+            )}
+            {voiceOn && <p className="cbp-muted">SOCIA writes the voiceover from these notes and what&apos;s in your clips, and adds nothing you didn&apos;t say. Counts one voiceover on your plan.</p>}
           </div>
 
           <div className="cbr-ref">

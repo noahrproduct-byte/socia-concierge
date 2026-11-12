@@ -31,7 +31,7 @@ import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
 import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
 import { videoKind, videoTitle, type VideoSummary } from "./videos";
-import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult } from "./types";
+import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult, VoiceoverAsk } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -662,7 +662,7 @@ export async function listVideos(client: Supa, ownerId: string, wsId: string | n
  * speech, the sound cleaned. No model call, no text, no ending card, and music
  * only when the prompt asked for it. Saved as a new build from the brief.
  */
-export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; music: boolean; tighten?: boolean; acct?: AccountContext; preset?: { style: EdlStyle; width: number; height: number } | null }): Promise<StudioBuild> {
+export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; music: boolean; tighten?: boolean; acct?: AccountContext; preset?: { style: EdlStyle; width: number; height: number } | null; voiceover?: VoiceoverAsk }): Promise<StudioBuild> {
   const { ownerId, wsId, project, prompt, music, tighten, preset } = args;
   const rows = await clipRows(client, project.id);
   const usable = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
@@ -685,7 +685,7 @@ export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId
   Object.assign(edl, finishCut(edl, forEdl, prompt, { tighten: Boolean(tighten) }));
   edl.captions = usable.some((r) => r.transcript?.words?.length) ? { source: "transcript" } : null;
   edl.cleanSound = true;
-  edl.brief = { prompt, reference: null, referenceName: null };
+  edl.brief = { prompt, reference: null, referenceName: null, ...(args.voiceover ? { voiceover: args.voiceover } : {}) };
   // Music wasn't asked for: SOCIA doesn't add a track on its own to this one.
   if (!music) edl.musicAuto = now();
   const guide = guideFromEdl(edl, forEdl);
@@ -701,6 +701,7 @@ export async function buildFromBrief(client: Supa, args: {
   prompt: string | null;
   reference: { name: string; breakdown: ReferenceBreakdown; brief: string } | null;
   preset?: { style: EdlStyle; width: number; height: number } | null;
+  voiceover?: VoiceoverAsk;
 }): Promise<StudioBuild> {
   const { ownerId, wsId, project, acct, prompt, reference, preset } = args;
   const rows = await clipRows(client, project.id);
@@ -712,7 +713,7 @@ export async function buildFromBrief(client: Supa, args: {
   const title = titleFor(prompt, reference?.breakdown ?? null);
   const opp = opportunityFromBrief(title, prompt ?? reference?.breakdown.summary ?? title, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, card: r.card })), idx);
   if (!opp.clipIds.length) throw new Error("None of the clips has a usable moment to cut from.");
-  const brief = { prompt, reference: reference?.brief ?? null, referenceName: reference?.name ?? null };
+  const brief = { prompt, reference: reference?.brief ?? null, referenceName: reference?.name ?? null, ...(args.voiceover ? { voiceover: args.voiceover } : {}) };
   const urls = await frameUrls(client, usable);
   const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
   const forEdl = rows.map(toClipForEdl);
