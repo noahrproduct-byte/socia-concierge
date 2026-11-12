@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Instrument_Serif } from "next/font/google";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2 } from "lucide-react";
 import { MARK_SIZE, S_LOWER, S_UPPER, STAR, alongOutline, type Pt } from "./logoShape";
 import "./intro.css";
 
@@ -26,6 +26,7 @@ import "./intro.css";
 // to T below) starts with the film when the browser allows it, which it
 // does once the person has clicked on the site. When it doesn't, the film
 // plays muted and "Sound on" picks the sound up at the film's current time.
+// There is no mute (Noah, 2026-11-12); "Skip intro" ends the film and its sound.
 
 const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: "italic", variable: "--font-intro-serif" });
 
@@ -251,14 +252,9 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     window.setTimeout(onDone, LEAVE_MS);
   }, [onDone]);
 
-  const toggleSound = () => {
+  const soundOn = () => {
     const a = audio.current;
     if (!a) return;
-    if (sound === "on") {
-      a.pause();
-      setSound("off");
-      return;
-    }
     // The button answers at once; the sound may take a moment to load, and
     // only a refusal from the browser turns it back.
     setSound("on");
@@ -291,7 +287,7 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     if (!still) {
       const a = new Audio("/intro/intro-sound.mp3");
       a.preload = "auto";
-      a.volume = 0.85;
+      a.volume = 1;
       audio.current = a;
       setSound("off");
       a.play().then(
@@ -468,10 +464,10 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
       </div>
       <p className="intro-sr">Analytics, competitor intelligence, competitor-based strategy, content planning, content generation, video editor, AI Clipper, voiceover, audio and music, reel rater and publishing, in one platform.</p>
       <div className="intro-controls">
-        {sound !== "none" && (
-          <button type="button" className="intro-skip" onClick={toggleSound}>
-            {sound === "on" ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
-            {sound === "on" ? "Mute" : "Sound on"}
+        {sound === "off" && (
+          <button type="button" className="intro-skip" onClick={soundOn}>
+            <Volume2 aria-hidden />
+            Sound on
           </button>
         )}
         <button ref={skipRef} type="button" className="intro-skip" onClick={leave}>
