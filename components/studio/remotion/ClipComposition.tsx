@@ -34,7 +34,7 @@ import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
 import { viewAt, viewBox } from "@/lib/clipper/reframe";
 import type { SegmentFrame } from "@/lib/studioClips/types";
-import { timeline, captionPages, dbToGain, edgeEnvelope, secToFrames, underVoice, voiceTailEnvelope, videoBox, EDGE_FADE_FRAMES, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
+import { timeline, captionPages, clearOfText, dbToGain, edgeEnvelope, secToFrames, underVoice, voiceTailEnvelope, videoBox, EDGE_FADE_FRAMES, FPS, type TimelineSegment } from "@/lib/studioClips/timeline";
 import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
 import { UNDER_VOICEOVER, voiceSpans } from "@/lib/studioClips/voiceover";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
@@ -287,7 +287,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   }, [finish]);
   // The clean look shows a few words at a time, as the polished Reels do (docs/studio/edit-references.md).
   const pageWords = captionWords ?? (cleanCaptions(style) ? CLEAN_CAPTION_WORDS : undefined);
-  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps, undefined, pageWords) : []), [edl, words, captionsOn, fps, pageWords]);
+  // One text at a time: the captions step aside while a designed line or the ending card is up.
+  const cardFrom = edl.endCard ? tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES : Infinity;
+  const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, undefined, pageWords), edl, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageWords, cardFrom]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
   // A voiceover (lib/studioClips/voiceover.ts): its voiced lines play where they sit, and the

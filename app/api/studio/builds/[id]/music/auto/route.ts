@@ -63,7 +63,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const track = playlist.tracks[0];
 
     const u = await requireUsage(ctx.client, ctx.ownerId, "music_tracks", { feature: "auto_build" });
-    if (u.denied) return u.denied;
+    if (u.denied) {
+      // The month's tracks are used up: take the stamp back off, so this cut gets its track (and says why it has none until then).
+      const cur = await loadBuildRow(ctx.client, ctx.ownerId, wsId, id).catch(() => null);
+      if (cur?.edl?.musicAuto) { const { musicAuto: _drop, ...rest } = cur.edl; void _drop; await save(rest).catch(() => null); }
+      return u.denied;
+    }
     let path: string;
     try {
       const made = await makeTrack(ctx.client, { ownerId: ctx.ownerId, wsId, buildId: id, trackId: track.id });

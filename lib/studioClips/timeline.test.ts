@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { timeline, captionsForEdl, captionPages, edgeEnvelope, dbToGain, EDGE_FADE_FRAMES, FPS } from "./timeline";
+import { timeline, captionsForEdl, captionPages, clearOfText, edgeEnvelope, dbToGain, EDGE_FADE_FRAMES, FPS } from "./timeline";
 import type { Edl } from "./types";
 
 const edl: Edl = {
@@ -86,5 +86,18 @@ describe("caption pages", () => {
     expect(pages[0].durationInFrames).toBe(Math.round(1.2 * 30));
     expect(captionPages({ ...spoken, captions: null }, words, 30)).toEqual([]);
     expect(captionPages(spoken, { a: [] }, 30)).toEqual([]);
+  });
+});
+
+describe("one text at a time", () => {
+  const page = (from: number, durationInFrames: number) => ({ page: { text: "x", startMs: (from / 30) * 1000, durationMs: 1000, tokens: [] }, from, durationInFrames }) as unknown as ReturnType<typeof captionPages>[number];
+  const text = (at: number, end: number) => ({ id: `t${at}`, at, end, text: "sliced to order", role: "mid", presetId: "caption_bar" }) as unknown as Edl["text"][number];
+  it("leaves out spoken captions that start under a designed line, and ends the ones that run into it", () => {
+    const out = clearOfText([page(0, 30), page(60, 40), page(270, 30), page(330, 30)], { text: [text(3, 4), text(9, 10.5)] }, 30);
+    expect(out.map((p) => [p.from, p.durationInFrames])).toEqual([[0, 30], [60, 30], [330, 30]]);
+  });
+  it("clears the ending card too, and keeps everything when nothing else is on screen", () => {
+    expect(clearOfText([page(0, 30), page(320, 40)], { text: [] }, 30, 339).map((p) => [p.from, p.durationInFrames])).toEqual([[0, 30], [320, 19]]);
+    expect(clearOfText([page(0, 30)], { text: [] }, 30)).toHaveLength(1);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   alignmentToWords, cleanLine, fitScript, linesToVoice, mergeVoiceover, needsVoiceover, ownsVoicePath, pickDefaultVoice,
-  placeLines, sanitizeVoiceover, trimToWords, voiceKey, voicePath, voiceSpans, wordBudget, LINE_GAP, MAX_LINES, UNDER_VOICEOVER, VOICE_WPS,
+  placeLines, sanitizeVoiceover, speakingEndSec, trimToWords, voiceKey, voicePath, voiceSpans, wordBudget, LINE_GAP, MAX_LINES, UNDER_VOICEOVER, VOICE_WPS,
 } from "./voiceover";
 import { duckLevel, DUCK } from "./musicDuck";
 import { captionsForEdl } from "./timeline";
@@ -52,6 +52,16 @@ describe("the script", () => {
     expect(trimToWords("Pulled from the deck and boxed hot", 5)).toBe("Pulled from the deck");
     expect(trimToWords("Pulled from the deck and boxed hot", 3)).toBe("Pulled");
     expect(trimToWords("Pulled hot", 5)).toBe("Pulled hot");
+  });
+  it("never leaves half a thought: back to the last comma or stop, never on a word like 'around'", () => {
+    // Build 9d78cf7f (2026-11-12) said "Find us all around" and lost "Nashville".
+    expect(trimToWords("Find us all around Nashville", 4)).toBe("Find us");
+    expect(trimToWords("Salvo's Pizza, family owned and local", 5)).toBe("Salvo's Pizza");
+    expect(trimToWords("Fresh dough. Baked in the deck every morning", 6)).toBe("Fresh dough.");
+  });
+  it("finishes the voice before the ending card", () => {
+    expect(speakingEndSec({ endCard: { cta: "ORDER NOW", site: "", location: "" } }, 13)).toBeCloseTo(13 - 1.7);
+    expect(speakingEndSec({}, 13)).toBe(13);
   });
   it("fits each line into the time before the next one, first on the opening shot", () => {
     const lines = fitScript({ lines: [{ at: 4.8, text: "Then the wheel goes through, eight clean slices, still steaming, every single time we make one" }, { at: 1.2, text: "Straight off the deck" }, { at: 12.5, text: "Come tonight" }] }, 14);

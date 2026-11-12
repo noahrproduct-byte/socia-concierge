@@ -15,7 +15,7 @@ import { timeline } from "@/lib/studioClips/timeline";
 import { STUDIO_BUCKET, type Edl, type Voiceover, type VoiceLine } from "@/lib/studioClips/types";
 import {
   alignmentToWords, cleanLine, fitScript, linesToVoice, needsVoiceover, pickDefaultVoice, placeLines,
-  SCRIPT_SCHEMA, voicePath, wordBudget, MAX_LINES, type VoiceChoice, type VoiceNeed,
+  SCRIPT_SCHEMA, speakingEndSec, voicePath, wordBudget, MAX_LINES, type VoiceChoice, type VoiceNeed,
 } from "@/lib/studioClips/voiceover";
 import { listVoices, speakLine, VoiceError } from "./elevenlabs";
 
@@ -46,6 +46,7 @@ export async function writeScript(edl: Edl, acct: AccountContext, ownerId: strin
   // What the person wrote the voiceover should say, from the editor or from when they made it.
   const said = (notes ?? edl.brief?.voiceover?.notes ?? "").trim();
   const total = edlDurationSec(edl);
+  const speakEnd = speakingEndSec(edl, total);
   const shots = timeline(edl).segments.map((s, i) => `Shot ${i + 1}, ${s.startSec.toFixed(1)}s to ${(s.startSec + s.durationFrames / 30).toFixed(1)}s${s.purpose ? ` (${s.purpose})` : ""}: ${s.note || "no note"}`);
   const onScreen = edl.text.filter((t) => t.text.trim()).map((t) => `"${t.text.replace(/\n/g, " ")}" from ${t.at}s`);
   const brand = brandContext(acct.brand);
@@ -53,7 +54,7 @@ export async function writeScript(edl: Edl, acct: AccountContext, ownerId: strin
   const res = await anthropic.messages.create({
     model, max_tokens: 900, system: SYSTEM,
     output_config: { format: { type: "json_schema", schema: SCRIPT_SCHEMA }, ...effortFor(model) },
-    messages: [{ role: "user", content: `The video runs ${total.toFixed(1)} seconds. Room for at most ${wordBudget(total)} words in all, at most ${MAX_LINES} lines.
+    messages: [{ role: "user", content: `The video runs ${total.toFixed(1)} seconds.${speakEnd < total ? ` The ending card comes in at ${speakEnd.toFixed(1)}s: every line is finished by then, and the last one is a whole sentence.` : ""} Room for at most ${wordBudget(speakEnd)} words in all, at most ${MAX_LINES} lines.
 ${acct.niche ? `The account's niche: ${acct.niche}.` : ""}
 ${brand ? `Brand facts:\n${brand}` : "No brand facts are set: name no place, product or offer the shots don't show."}
 ${edl.brief?.prompt ? `The person's prompt: ${edl.brief.prompt}` : ""}
@@ -70,7 +71,7 @@ Write the lines, each with "at" in seconds on the video's timeline.` }],
   const text = block && "text" in block ? block.text : "";
   let raw: unknown = null;
   try { raw = JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); } catch { raw = null; }
-  const lines = fitScript(raw, total);
+  const lines = fitScript(raw, speakEnd);
   if (!lines.length) throw new Error("SOCIA couldn't write a voiceover for this cut just now. Try again.");
   return lines;
 }
