@@ -6,7 +6,8 @@ import { resolveContext, brandWorkspace } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
 import { readOnboarding } from "@/lib/growthStore";
 import { needsOnboarding } from "@/lib/onboarding";
-import { introDue } from "@/lib/intro";
+import { INTRO_COOKIE, introDue } from "@/lib/intro";
+import { cookies } from "next/headers";
 import IntroGate from "@/components/intro/IntroGate";
 
 // Every signed-in section shares this shell. As a layout it stays mounted
@@ -35,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <TimezoneSync />
       {children}
       {/* the first-run film, once per account, over the page it leads into */}
-      {user && introDue(user) && <IntroGate userId={user.id} />}
+      {user && introDue(user) && <IntroGate userId={user.id} seen={Boolean((await cookies()).get(INTRO_COOKIE))} />}
     </AppShell>
   );
 }
