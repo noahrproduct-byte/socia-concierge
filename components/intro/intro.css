@@ -70,10 +70,17 @@
 .intro-words p { margin: 0; font-size: clamp(14px, 1.4vw, 17px); line-height: 1.45; color: rgba(255, 255, 255, 0.66); }
 .intro.is-words .intro-words, .intro.is-leaving .intro-words { opacity: 1; transform: none; }
 
-.intro-skip {
+.intro-controls {
   position: absolute;
   top: calc(16px + env(safe-area-inset-top, 0px));
   right: 16px;
+  display: flex;
+  gap: 8px;
+}
+.intro-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 32px;
   padding: 6px 14px;
   border: 1px solid rgba(255, 255, 255, 0.24);
@@ -88,6 +95,7 @@
   transition: color 150ms, border-color 150ms;
 }
 .intro-skip:hover { color: #fff; border-color: rgba(255, 255, 255, 0.5); }
+.intro-skip svg { width: 14px; height: 14px; }
 .intro-skip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 .intro-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
