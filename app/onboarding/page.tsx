@@ -14,6 +14,8 @@ import OnboardingFlow from "@/components/OnboardingFlow";
 import type { ConnectState } from "@/components/ConnectAccounts";
 import { offlineFor } from "@/lib/platformAccess";
 import { isAdminEmail } from "@/lib/admin";
+import { introDue } from "@/lib/intro";
+import IntroGate from "@/components/intro/IntroGate";
 
 export const metadata = { title: "Welcome to SOCIA" };
 
@@ -92,12 +94,16 @@ export default async function OnboardingPage({
   };
 
   return (
-    <OnboardingFlow
-      initial={initial}
-      brands={brands}
-      connections={connections}
-      igStatus={ig ?? ""}
-      returned={returned}
-    />
+    <>
+      <OnboardingFlow
+        initial={initial}
+        brands={brands}
+        connections={connections}
+        igStatus={ig ?? ""}
+        returned={returned}
+      />
+      {/* a new owner lands here first, so the first-run film plays here */}
+      {introDue(user) && <IntroGate userId={user.id} />}
+    </>
   );
 }
