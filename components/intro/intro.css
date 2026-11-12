@@ -15,21 +15,43 @@
 }
 .intro-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: transform 600ms cubic-bezier(0.4, 0, 0.2, 1); }
 
+/* "Introducing" in an italic serif over a large SOCIA whose letters rise into
+   place, a hairline drawing out beneath. Keyframes, not transitions, since the
+   film's first frame comes from the server with nothing to transition from. */
 .intro-title {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  margin: 0;
-  text-align: center;
-  font-size: clamp(18px, 2.2vw, 24px);
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  opacity: 0;
-  transform: translateY(calc(-50% + 6px));
-  transition: opacity 900ms cubic-bezier(0.4, 0, 0.2, 1), transform 1400ms cubic-bezier(0.16, 1, 0.3, 1), letter-spacing 1400ms cubic-bezier(0.16, 1, 0.3, 1);
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  padding: 0 16px;
+  margin-top: -4vh;
+  transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1), transform 700ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-.intro.is-title .intro-title { opacity: 1; transform: translateY(-50%); letter-spacing: 0.02em; transition-delay: 350ms; }
+.intro-kicker {
+  font-family: var(--font-intro-serif), "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  font-size: clamp(30px, 4.4vw, 60px);
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.8);
+  animation: intro-kicker 1100ms cubic-bezier(0.16, 1, 0.3, 1) 250ms both;
+}
+.intro-name {
+  display: flex;
+  margin-top: 0.02em;
+  font-size: clamp(78px, 15vw, 196px);
+  font-weight: 600;
+  line-height: 0.92;
+  letter-spacing: -0.05em;
+  color: #fff;
+}
+.intro-name > span { display: block; overflow: hidden; padding: 0.02em 0.015em 0.08em; }
+.intro-name > span > span { display: block; animation: intro-letter 1000ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: calc(560ms + var(--i) * 75ms); }
+.intro-rule { display: block; width: min(52vw, 520px); height: 1px; margin-top: 18px; background: rgba(255, 255, 255, 0.34); transform-origin: center; animation: intro-rule 1200ms cubic-bezier(0.16, 1, 0.3, 1) 1050ms both; }
+@keyframes intro-kicker { from { opacity: 0; transform: translateY(14px); letter-spacing: 0.08em; } }
+@keyframes intro-letter { from { transform: translateY(108%); } }
+@keyframes intro-rule { from { transform: scaleX(0); opacity: 0; } }
+.intro:not(.is-title) .intro-title { opacity: 0; transform: scale(0.97); pointer-events: none; }
 
 .intro-words {
   position: absolute;
@@ -75,6 +97,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .intro:not(.is-chosen) .intro-title { display: none; }
+  .intro:not(.is-chosen) .intro-title * { animation: none; }
   .intro:not(.is-chosen) .intro-words { transform: none; }
   .intro.is-leaving:not(.is-chosen) .intro-canvas { transform: none; }
 }

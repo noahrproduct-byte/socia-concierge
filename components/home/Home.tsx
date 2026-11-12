@@ -11,6 +11,7 @@ import HomeMotion from "./HomeMotion";
 import HomeWindow from "./HomeWindow";
 import HeroStage from "./HeroStage";
 import FeatureExplorer from "./FeatureExplorer";
+import IntroGate from "@/components/intro/IntroGate";
 import { AskDemo, BeforeAfter, Engine, Orbit, Problem, Results, Steps } from "./HomeStory";
 import ReelDemo from "./ReelDemo";
 import { WEEK } from "./exampleWeek";
@@ -66,7 +67,7 @@ const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
   }),
 ) as Record<PlanId, string[]>;
 
-export default function Home({ signedIn }: { signedIn: boolean }) {
+export default function Home({ signedIn, intro = false }: { signedIn: boolean; intro?: boolean }) {
   const startHref = signedIn ? "/dashboard" : "/signup";
   const startLabel = signedIn ? "Open your dashboard" : "Get started free";
 
@@ -560,6 +561,8 @@ export default function Home({ signedIn }: { signedIn: boolean }) {
       </main>
 
       <HomeFooter />
+      {/* the intro film, once, for a first-time visitor (lib/intro.ts) */}
+      {intro && <IntroGate />}
     </div>
   );
 }

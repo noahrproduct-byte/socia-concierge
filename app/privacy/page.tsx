@@ -363,9 +363,10 @@ export default function PrivacyPage() {
           TikTok.
         </li>
         <li>
-          SOCIA uses cookies only to keep you signed in and to complete a
-          connection with a platform, and your browser&apos;s storage for
-          display preferences. There are no advertising or analytics cookies:
+          SOCIA uses cookies only to keep you signed in, to complete a
+          connection with a platform, and to remember for a year that you have
+          seen the short intro film so it does not play again. Your
+          browser&apos;s storage holds display preferences. There are no advertising or analytics cookies:
           the page-view counts from Vercel Web Analytics don&apos;t use cookies.
         </li>
       </ul>
