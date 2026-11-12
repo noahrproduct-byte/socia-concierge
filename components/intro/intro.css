@@ -74,7 +74,16 @@
 .intro.is-leaving .intro-canvas { transform: scale(1.05); }
 
 @media (prefers-reduced-motion: reduce) {
-  .intro-title { display: none; }
-  .intro-words { transform: none; }
-  .intro.is-leaving .intro-canvas { transform: none; }
+  .intro:not(.is-chosen) .intro-title { display: none; }
+  .intro:not(.is-chosen) .intro-words { transform: none; }
+  .intro.is-leaving:not(.is-chosen) .intro-canvas { transform: none; }
 }
+
+/* /intro on a device set to reduce motion: the still, and a choice to play it */
+.intro-ask { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 20px; padding: 24px; background: #000; color: #fff; text-align: center; font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.intro-ask img { width: min(220px, 50vw); height: auto; border-radius: 22%; }
+.intro-ask p { margin: 0; max-width: 40ch; font-size: 15px; line-height: 1.5; color: rgba(255, 255, 255, 0.72); }
+.intro-ask div { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.intro-ask button { min-height: 40px; padding: 8px 18px; border-radius: 9999px; border: 1px solid rgba(255, 255, 255, 0.28); background: transparent; color: #fff; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.intro-ask button.is-primary { background: #fff; color: #000; border-color: #fff; }
+.intro-ask button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

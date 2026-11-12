@@ -140,7 +140,8 @@ function strand(g: Geo, i: number, t: number): Pt[] {
   return out;
 }
 
-export default function SociaIntro({ onDone }: { onDone: () => void }) {
+/** `motion` plays the moving film even when the device asks for reduced motion: only when the person chose to watch it (/intro). */
+export default function SociaIntro({ onDone, motion = false }: { onDone: () => void; motion?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const skipRef = useRef<HTMLButtonElement>(null);
   const [phase, setPhase] = useState<"title" | "film" | "words" | "leaving">("title");
@@ -174,7 +175,7 @@ export default function SociaIntro({ onDone }: { onDone: () => void }) {
     const el = canvas.current;
     const ctx = el?.getContext("2d");
     if (!el || !ctx) return;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const still = !motion && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setReduced(still);
 
     const mark = new Image();
@@ -306,10 +307,10 @@ export default function SociaIntro({ onDone }: { onDone: () => void }) {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", size);
     };
-  }, [leave]);
+  }, [leave, motion]);
 
   return (
-    <div className={`intro is-${phase}${reduced ? " is-still" : ""}`} role="dialog" aria-modal="true" aria-label="Introducing SOCIA">
+    <div className={`intro is-${phase}${reduced ? " is-still" : ""}${motion ? " is-chosen" : ""}`} role="dialog" aria-modal="true" aria-label="Introducing SOCIA">
       <canvas ref={canvas} className="intro-canvas" aria-hidden />
       <p className="intro-title">Introducing SOCIA</p>
       <div className="intro-words">
