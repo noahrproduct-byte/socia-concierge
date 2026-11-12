@@ -8,7 +8,7 @@ import type { ClipForEdl } from "./edl";
 import { EDL_DEFAULTS, snapTime } from "./edl";
 import { overlapFrames, timeline } from "./timeline";
 import { PACING } from "./pacing";
-import { endOpeningWithShot } from "./cutCheck";
+import { endOpeningWithShot, jumpsInTake } from "./cutCheck";
 import type { Edl, EdlSegment } from "./types";
 
 export type Beat = { bpm: number; /** seconds from the start of the cut to the first beat */ offsetSec: number };
@@ -66,6 +66,9 @@ export function alignToBeats(edl: Edl, clips: ClipForEdl[], beat: Beat, maxMoveS
     const after = cutPoint({ segments: trial, fps: edl.fps }, i);
     if (Math.abs(after - nearestBeat(after, beat)) > beatTolerance(beat.bpm)) continue;
     if (Math.abs(out - prev.out) < 0.02) continue;
+    // Never move a cut so that one moving shot skips a second or two inside itself (a glitch, 2026-11-12).
+    const next = segments[i];
+    if (next && jumpsInTake({ clipId: prev.clipId, out }, next, clip) && !jumpsInTake(prev, next, clip)) continue;
     prev.out = out;
     moved++;
   }

@@ -44,12 +44,13 @@ describe("the cut check", () => {
   it("says what it checked when the cut is clean, naming only checks it could run", () => {
     const r = checkCut(edl([seg("s1", "p", 1.5, 4), seg("s2", "p", 10, 13, { transition: "fade" })]), [pizza]);
     expect(r.findings).toEqual([]);
-    expect(r.line).toBe("Checked: no shot stutters, nothing plays twice, every shot is long enough to see, no dissolve doubles the picture, no black frames.");
+    expect(r.line).toBe("Checked: no shot stutters, no skip inside a moving shot, nothing plays twice, every shot is long enough to see, no dissolve doubles the picture, no black frames.");
   });
   it("finds a dissolve that joins a shot to itself a moment later (Noah's pizza cut, 2026-11-11)", () => {
     const r = checkCut(edl([seg("s1", "p", 6.2, 8.7), seg("s2", "p", 9.7, 11.7, { transition: "fade" }), seg("s3", "p", 15.4, 17, { transition: "fade" })]), [pizza]);
-    expect(r.findings.map((f) => [f.id, f.segmentId])).toEqual([["ghost", "s2"]]);
-    expect(r.findings[0].detail).toMatch(/same picture shows twice/);
+    // It also skips a second inside one moving shot (2026-11-12): both are found.
+    expect(r.findings.map((f) => [f.id, f.segmentId])).toEqual([["jump", "s2"], ["ghost", "s2"]]);
+    expect(r.findings[1].detail).toMatch(/same picture shows twice/);
   });
   it("finds text SOCIA had to shorten, text too long for its look, and an opening line that spills onto the next shot", () => {
     const shots = [seg("s1", "p", 1.5, 3.9), seg("s2", "p", 10, 13)];
@@ -107,5 +108,23 @@ describe("ending an opening line with its shot", () => {
     expect(r.edl.text.map((t) => t.end)).toEqual([2.4, 5]);
     expect(r.fixed).toMatch(/ends with the first shot/);
     expect(endOpeningWithShot(r.edl).fixed).toBeNull();
+  });
+});
+
+describe("skips inside one moving shot (Noah, 2026-11-12: \"repeated parts/glitches in the video and audio\")", () => {
+  // The cut from the 2026-11-12 test: four pieces of one handheld take, about a second apart.
+  const take = edl([seg("s1", "p", 2, 6), seg("s2", "p", 7, 9.4), seg("s3", "p", 10.6, 11.6), seg("s4", "p", 12.6, 15.2)]);
+  it("finds every skip of a second or two", () => {
+    expect(checkCut(take, [pizza]).findings.filter((f) => f.id === "jump").map((f) => f.segmentId)).toEqual(["s2", "s3", "s4"]);
+  });
+  it("repairs them so none is left: skip further, play through, or leave the piece out; the ending stays", () => {
+    const { edl: fixed, fixed: notes } = repairCut(take, [pizza]);
+    expect(checkCut(fixed, [pizza]).findings.filter((f) => f.id === "jump")).toEqual([]);
+    expect(fixed.segments[fixed.segments.length - 1].out).toBe(15.2);
+    expect(notes.join(" ")).toMatch(/glitch|through as one shot/);
+  });
+  it("leaves a real change of shot inside the clip alone", () => {
+    const cut = { ...pizza, sceneCuts: [6.5] };
+    expect(checkCut(edl([seg("s1", "p", 2, 6), seg("s2", "p", 7, 9.4)]), [cut]).findings.filter((f) => f.id === "jump")).toEqual([]);
   });
 });

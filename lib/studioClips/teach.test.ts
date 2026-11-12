@@ -63,7 +63,9 @@ describe("the ending card", () => {
       text: [{ id: "t1", at: 0, end: 40, text: "when it comes out", role: "opening" }, { id: "t2", at: 4, end: 6, text: "order now", role: "cta" }],
     }), brand, clips, { location: "Nashville, Tennessee", cta: "ORDER NOW" });
     const last = out.segments[out.segments.length - 1];
-    expect(last.out - last.in).toBeCloseTo(Math.min(ENDING_MIN_SEC, 2), 1);
+    // The last shot starts earlier rather than running past where it was chosen to end (2026-11-12).
+    expect(last.out).toBe(34);
+    expect(last.out - last.in).toBeCloseTo(ENDING_MIN_SEC, 1);
     expect(out.text.map((t) => t.text)).toEqual(["when it comes out"]);
     expect(out.text[0].end).toBeLessThan(5);
   });
