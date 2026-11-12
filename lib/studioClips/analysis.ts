@@ -24,7 +24,12 @@ export type AccountContext = {
   learned?: string | null;
   /** The workspace owner whose plan pays for these calls (AI usage records). */
   ownerId?: string;
+  /** What goes viral in this niche, from the niche scan's studied Reels (lib/nicheScan/playbook.ts playbookPrompt). */
+  playbook?: string | null;
 };
+
+/** The niche playbook block for the cut and the plan, when the niche scan has written one. */
+export const playbookText = (acct: AccountContext): string => (acct.playbook ? `\n\n# ${acct.playbook}` : "");
 
 /** The Learn block for passes 2 and 3, with how to use it. */
 const learnedText = (acct: AccountContext): string => (acct.learned
@@ -248,7 +253,7 @@ Group clips that belong together — same subject, same story, same session (fil
 Do not force a number of posts: if the footage only supports one post, propose one; if none, propose none. Rank the strongest post first. Titles are short and concrete ("Making a pepperoni pizza"), angles one sentence. opener: the single best moment to open with and why (clipId "" when there is none). cta: a natural closing ask that fits the account's goal, or "".
 unusable: clips that should not be used at all, with a plain reason.`;
   const content: Content = [
-    { type: "text", text: `${accountText(acct)}${learnedText(acct)}
+    { type: "text", text: `${accountText(acct)}${learnedText(acct)}${playbookText(acct)}
 
 ${withCards.length} clips, ${Math.round(withCards.reduce((a, c) => a + c.durationSec, 0))} seconds in total:
 
@@ -340,7 +345,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
 - notes: anything the editor must know (e.g. "cut away before the pan shakes at 7s").
 - emphasis: the words in the speech you used that carry the point, highlighted in the captions: about one for every six words spoken in the cut, each copied exactly as a single word from the transcript. Numbers, names, the product, the contrast ("300" then "12,000"), a strong claim. Never "the", "your", "but", "this", "really". [] when nobody talks in the cut.`;
   const content: Content = [
-    { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}
+    { type: "text", text: `${accountText(acct)}${acct.audio ? `\nWhat sound has worked for this account (measured from its past posts): ${acct.audio}` : ""}${learnedText(acct)}${playbookText(acct)}
 
 ${style ? `This video's editing style: ${EDIT_STYLES[style].label}. ${EDIT_STYLES[style].prompt} Where the general pace rules disagree, this style wins; the brief still wins over both.\n\n` : ""}${brief ? `${BRIEF_CUT_RULES}\n\n` : ""}${brief ? `The brief for this video. Follow it closely: its length, order, pace, on-screen lines and ending win over the general rules below, except the honesty rules. Where it asks for footage the clips don't have, say so in notes and use the nearest real moment.\n"""\n${brief.trim()}\n"""\n\n` : ""}The post: "${opp.title}" — ${opp.angle}${opp.cta ? ` Suggested ask: "${opp.cta}".` : ""}
 Chosen moments: ${opp.moments.map((m) => `${clipLabel(used.find((c) => c.id === m.clipId)?.position ?? 0)} ${m.start.toFixed(1)}–${m.end.toFixed(1)}s`).join("; ")}.

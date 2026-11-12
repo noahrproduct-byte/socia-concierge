@@ -1,0 +1,482 @@
+// The discovery pipeline, callable from a request (app/api/competitors/intel)
+// or from a background job (lib/nicheScan, with a service-role context):
+//   profile -> queries -> candidates -> normalize -> score -> dedupe -> store
+//
+// Sources are never blended. YouTube's Data API gives verified public metrics.
+// Web research finds Instagram/Facebook accounts and posts that no API exposes,
+// and those carry NO metrics at all — a handle and a reason, nothing invented.
+// One source failing never fails the run; each reports its own status.
+//
+// The run belongs to the ACTIVE Brand Workspace: the profile, the Instagram
+// connection and the stored results are the workspace owner's (lib/context).
+// Caching, refresh rights and rate limits stay with the caller. Server only.
+
+import { isSocialContentUrl } from "./fetchGuard";
+import { getActiveConnection } from "./instagramSync";
+import { isOwnAccount, ownAccounts, type OwnAccounts } from "./ownAccounts";
+import { anthropic, MODEL, effortFor, type AiUnavailable, aiFailure } from "./anthropic";
+import { recordAiUsage } from "./aiUsage";
+import { brandWorkspace, type Ctx } from "./context";
+import { competitorsScopedEnabled, ensureDefaultWorkspace } from "./workspaces";
+import { searchChannels, searchVideos, resolveChannel, channelMedianViews, ytConfigured, ytFormat } from "./youtube";
+import {
+  buildQueries, discoveryProfileFrom, locationMatters, scoreAccount, scoreContent, dedupeAccounts, dedupeContent,
+  rollUpTrends, canonicalUrl, nicheVetted,
+  type AccountCandidate, type ContentCandidate, type DiscoveryProfile,
+  type ScoredAccount, type ScoredContent, type TrendRollup,
+} from "./discovery";
+import { autoPickCompetitors, type Pick } from "./competitorAutoPick";
+import { checkNiche, type NicheCheckItem } from "./nicheCheck";
+
+const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL ?? MODEL;
+
+export type IntelSources = {
+  youtube: "ok" | "not_configured" | "failed";
+  web: "ok" | AiUnavailable;
+};
+
+export type IntelDoc = {
+  accounts: ScoredAccount[];
+  content: ScoredContent[];
+  trends: TrendRollup[];
+  ranAt: string | null;
+  sources: IntelSources;
+  profileGaps: string[];
+  /** Competitors SOCIA added to the roster on this run (fresh runs only). */
+  picked?: Pick[];
+};
+
+/** Who the brand is, what it owns, and where its discovery rows live. */
+export type DiscoveryInputs = {
+  profile: DiscoveryProfile;
+  own: OwnAccounts;
+  ownHandle: string | null;
+  profileGaps: string[];
+  /** The workspace discovery rows are scoped to; null keeps the pooled, pre-migration behaviour. */
+  wsId: string | null;
+};
+
+function parseJsonArray(text: string): unknown[] {
+  const m = /\[\s*\{[\s\S]*\}\s*\]/.exec(text);
+  if (!m) return [];
+  try {
+    const v = JSON.parse(m[0]);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function loadDiscoveryInputs(ctx: Ctx): Promise<DiscoveryInputs> {
+  // The Growth Profile (confirmed, then inferred) decides what is worth
+  // finding; lib/discovery.ts discoveryProfileFrom.
+  type StoredProfile = { niche: string | null; brand_name: string | null; goals: string | null; niche_detail: unknown; brand_detail: unknown };
+  let prof: StoredProfile | null = null;
+  const brandWs = brandWorkspace(ctx);
+  try {
+    prof = brandWs
+      ? { niche: brandWs.niche, brand_name: brandWs.brand_name, goals: brandWs.goals, niche_detail: brandWs.niche_detail, brand_detail: brandWs.brand_detail }
+      : ((await ctx.client
+          .from("profiles")
+          .select("niche, brand_name, goals, niche_detail, brand_detail")
+          .eq("user_id", ctx.ownerId)
+          .maybeSingle()).data as StoredProfile | null);
+  } catch {
+    /* gaps reported below */
+  }
+
+  // Every account the owner has connected, on any platform: none of them may
+  // come back as a competitor (lib/ownAccounts.ts).
+  const own = await ownAccounts(ctx.client, ctx.ownerId);
+  let ownHandle: string | null = null;
+  let ownFollowers: number | null = null;
+  let ownFormats: string[] = [];
+  try {
+    const conn = await getActiveConnection(ctx.client, ctx.ownerId, "username, followers_count, media", ctx.workspace?.id ?? null);
+    const c = conn as { username?: string; followers_count?: number; media?: unknown } | null;
+    ownHandle = c?.username ?? null;
+    ownFollowers = c?.followers_count ?? null;
+    const media = Array.isArray(c?.media) ? (c!.media as { media_type?: string }[]) : [];
+    ownFormats = [...new Set(media.map((m) => m.media_type ?? "IMAGE"))];
+  } catch {
+    /* discovery still works without a connected account */
+  }
+
+  const profile: DiscoveryProfile = discoveryProfileFrom({
+    niche: prof?.niche ?? null,
+    brandName: prof?.brand_name ?? null,
+    goals: prof?.goals ?? null,
+    nicheDetail: (prof?.niche_detail as { sub_niche?: string } | null) ?? null,
+    brandDetail: (prof?.brand_detail as Parameters<typeof discoveryProfileFrom>[0]["brandDetail"]) ?? null,
+    ownHandle, ownFollowers, ownFormats,
+  });
+
+  // Never silently assume missing profile information.
+  const profileGaps: string[] = [];
+  if (!profile.niche) profileGaps.push("niche");
+  if (!profile.location) profileGaps.push("location");
+  if (profile.goal === "unknown") profileGaps.push("goal");
+
+  // Discovery is per-workspace once the competitors migration has run; wsId null
+  // keeps the pooled, pre-migration behaviour. The cache read must use the
+  // same scope as the writes: unscoped, an owner with several brands matched
+  // several runs, read none, and every Refresh skipped the 6-hour reuse.
+  const scoped = await competitorsScopedEnabled(ctx.client);
+  const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
+  return { profile, own, ownHandle, profileGaps, wsId };
+}
+
+/**
+ * One fresh research run: YouTube search, the niche check, web research for
+ * Instagram and Facebook, scoring, storing and the competitor auto-pick. The
+ * caller has already decided the run is due and allowed (cache, plan, rate limit).
+ */
+export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Promise<IntelDoc> {
+  const { profile, own, ownHandle, profileGaps, wsId } = inputs;
+  const { brandName, location } = profile;
+  const queries = buildQueries(profile);
+  const sources: IntelSources = { youtube: "not_configured", web: "failed" };
+
+  // ---- YouTube: verified public metrics --------------------------------
+  const accountCandidates: AccountCandidate[] = [];
+  const contentCandidates: ContentCandidate[] = [];
+
+  if (ytConfigured()) {
+    try {
+      // Two channel searches and three video searches keep quota sane
+      // (search costs 100 units each against a 10k/day budget). Video
+      // results are what the niche patterns and trend direction are counted
+      // over, so they get the larger share.
+      const chQueries = queries.slice(0, 2);
+      const vidQueries = queries.slice(0, 3);
+
+      const chResults = await Promise.all(
+        // More than are kept: the search ranks by size, and the niche check below drops the ones that only share a word.
+        chQueries.map(async (q) => ({ q, list: await searchChannels(q.q, 8) })),
+      );
+      for (const { q, list } of chResults) {
+        for (const ch of list) {
+          accountCandidates.push({
+            platform: "youtube",
+            platformAccountId: ch.channelId ?? ch.handle,
+            handle: ch.handle,
+            displayName: ch.title ?? null,
+            profileImage: ch.avatar ?? null,
+            profileUrl: ch.url ?? null,
+            followers: ch.subscribers ?? null,
+            location: null,
+            category: null,
+            dataSource: "youtube_api",
+            matchedIntent: q.intent,
+            // The channel's own description: read by the niche check and the scorer, never stored.
+            note: ch.description ? ch.description.slice(0, 300) : null,
+          });
+        }
+      }
+
+      const vidResults = await Promise.all(
+        vidQueries.map(async (q) => ({ q, list: await searchVideos(q.q, 10, 90) })),
+      );
+      // A view count only becomes "N× normal" against that creator's own
+      // median, so fetch the median for the channels we actually surface.
+      const channelIds = [...new Set(vidResults.flatMap((r) => r.list.map((v) => v.channelId)))].slice(0, 16);
+      const medians = new Map<string, number | null>();
+      await Promise.all(
+        channelIds.map(async (id) => {
+          try {
+            const ch = await resolveChannel(id);
+            medians.set(id, ch?.uploadsPlaylist ? await channelMedianViews(ch.uploadsPlaylist) : null);
+          } catch {
+            medians.set(id, null);
+          }
+        }),
+      );
+
+      for (const { q, list } of vidResults) {
+        for (const v of list) {
+          const med = medians.get(v.channelId) ?? null;
+          contentCandidates.push({
+            platform: "youtube",
+            contentUrl: canonicalUrl(v.url),
+            accountHandle: v.channelTitle || null,
+            accountName: v.channelTitle || null,
+            accountImage: null,
+            thumbnailUrl: v.thumb,
+            title: v.title,
+            publishedAt: v.publishedAt || null,
+            // From the real duration: YouTube's Shorts limit is three minutes.
+            contentType: ytFormat(v.durationSec) === "Video" ? "video" : "short",
+            views: v.views,
+            likes: v.likes,
+            comments: v.comments,
+            multiplier: med && med > 0 && v.views != null ? v.views / med : null,
+            dataSource: "youtube_api",
+            why: null,
+            matchedIntent: q.intent,
+          });
+        }
+      }
+      sources.youtube = "ok";
+    } catch {
+      sources.youtube = "failed";
+    }
+  }
+
+  const who = profile.accountType === "creator" ? "creator" : profile.accountType === "personal_brand" ? "personal brand" : profile.accountType === "organization" ? "organisation" : "business";
+  const nicheLine = [profile.niche, profile.subNiche, profile.specific].filter(Boolean).join(" > ");
+  const facts = [
+    `Niche: ${nicheLine}.`,
+    profile.focus ? `What they offer or talk about: ${profile.focus}.` : "",
+    profile.audience ? `Their audience: ${profile.audience}.` : "",
+    location ? `Based in ${location}${locationMatters(profile) ? ", and their customers or audience are mostly nearby" : ""}.` : "",
+    profile.goalText ? `Their stated goal: "${profile.goalText}".` : "",
+  ].filter(Boolean).join("\n");
+
+  // ---- YouTube results must be in the niche before anything is kept ------
+  // A keyword search matches words, not meaning (lib/nicheCheck.ts). Only
+  // YouTube candidates exist at this point; the ones that fail are dropped,
+  // and when the check cannot run none are kept.
+  if (accountCandidates.length || contentCandidates.length) {
+    const items: NicheCheckItem[] = [
+      ...accountCandidates.map((c, i) => ({ id: `C${i + 1}`, kind: "channel" as const, name: c.displayName ?? c.handle ?? "", text: c.note ?? null })),
+      ...contentCandidates.map((c, i) => ({ id: `V${i + 1}`, kind: "video" as const, name: c.accountName ?? "", text: c.title })),
+    ];
+    const keep = await checkNiche(ctx.ownerId, `A ${who}${brandName ? ` called ${brandName}` : ""}.\n${facts}`, items);
+    const keptAccounts = accountCandidates.filter((_, i) => keep?.has(`C${i + 1}`)).map((c) => ({ ...c, nicheChecked: true }));
+    const keptContent = contentCandidates.filter((_, i) => keep?.has(`V${i + 1}`)).map((c) => ({ ...c, nicheChecked: true }));
+    accountCandidates.splice(0, accountCandidates.length, ...keptAccounts);
+    contentCandidates.splice(0, contentCandidates.length, ...keptContent);
+    if (!keep) sources.youtube = "failed";
+  }
+
+  // ---- Web research: Instagram / Facebook, no metrics -------------------
+  if (!process.env.ANTHROPIC_API_KEY) {
+    sources.web = "no_key";
+  } else {
+    const prompt = `A ${who}${brandName ? ` called ${brandName}` : ""} wants to know which Instagram and Facebook accounts to study, and which recent posts are worth learning from.
+${facts}
+
+Relevant does not mean biggest. Look for, in this order:
+- accounts like theirs: the same specific niche${locationMatters(profile) ? ", ideally competing for the same local customers" : ""}
+${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}- creators in this niche whose content formats they could adapt
+
+Search the web and return BOTH:
+1. Up to 6 real Instagram or Facebook ACCOUNTS from those groups.
+2. Up to 5 real recent Instagram Reels or Facebook videos in this niche.
+
+${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
+
+STRICT HONESTY RULES:
+- Only include accounts and URLs you actually found in search results. Never invent a handle or URL.
+- Do NOT provide follower counts, view counts, likes, or any metric. You cannot verify them and they will be discarded.
+- "why": ONE short sentence on why it is relevant to this specific ${who}, naming which group it belongs to.
+
+Output ONLY this JSON, no other text:
+[{"kind":"account","platform":"instagram"|"facebook","handle":"...","name":"...","why":"..."},
+ {"kind":"content","platform":"instagram"|"facebook","url":"...","creator":"...","title":"...","why":"..."}]`;
+
+    try {
+      type MsgParam = { role: "user" | "assistant"; content: unknown };
+      const messages: MsgParam[] = [{ role: "user", content: prompt }];
+      let text = "";
+      for (let i = 0; i < 3; i++) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const res: any = await (anthropic.messages.create as any)({
+          model: SEARCH_MODEL,
+          max_tokens: 4000,
+          output_config: effortFor(SEARCH_MODEL),
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 5 }],
+          messages,
+        });
+        recordAiUsage(ctx.ownerId, "competitor_research", res);
+        text = res.content
+          .filter((b: { type: string }) => b.type === "text")
+          .map((b: { text: string }) => b.text)
+          .join("\n");
+        if (res.stop_reason !== "pause_turn") break;
+        messages.push({ role: "assistant", content: res.content });
+      }
+
+      for (const raw of parseJsonArray(text)) {
+        const r = raw as Record<string, unknown>;
+        const platform = r.platform === "facebook" ? "facebook" : "instagram";
+        if (r.kind === "account") {
+          const handle = typeof r.handle === "string" ? r.handle.trim().replace(/^@/, "") : "";
+          if (!/^[a-zA-Z0-9._-]{1,40}$/.test(handle)) continue;
+          if ((ownHandle && handle.toLowerCase() === ownHandle.toLowerCase()) || isOwnAccount(own, { handle, name: typeof r.name === "string" ? r.name : null })) continue;
+          accountCandidates.push({
+            platform,
+            platformAccountId: handle.toLowerCase(),
+            handle: handle.toLowerCase(),
+            displayName: typeof r.name === "string" ? r.name : handle,
+            profileImage: null,
+            profileUrl: platform === "facebook"
+              ? `https://facebook.com/${handle}`
+              : `https://instagram.com/${handle}`,
+            // Neither platform publishes this to third parties.
+            followers: null,
+            location: null,
+            category: null,
+            dataSource: "web_research",
+            note: typeof r.why === "string" ? r.why : null,
+          });
+        } else if (r.kind === "content" && typeof r.url === "string") {
+          // Only real Instagram and Facebook links, over https: the URL comes
+          // from web research a page could steer, and it is shown as a link.
+          if (!isSocialContentUrl(r.url)) continue;
+          contentCandidates.push({
+            platform,
+            contentUrl: canonicalUrl(r.url),
+            accountHandle: typeof r.creator === "string" ? r.creator.replace(/^@/, "") : null,
+            accountName: typeof r.creator === "string" ? r.creator.replace(/^@/, "") : null,
+            accountImage: null,
+            thumbnailUrl: null,
+            title: typeof r.title === "string" ? r.title : null,
+            publishedAt: null,
+            contentType: "reel",
+            views: null, likes: null, comments: null, multiplier: null,
+            dataSource: "web_research",
+            why: typeof r.why === "string" ? r.why : null,
+          });
+        }
+      }
+      sources.web = "ok";
+    } catch (e) {
+      sources.web = aiFailure("competitors/intel", e);
+    }
+  }
+
+  // ---- score, classify, dedupe ------------------------------------------
+  // The user's own accounts never count, whichever source returned them (YouTube included).
+  const theirAccounts = accountCandidates.filter((c) => !isOwnAccount(own, { id: c.platformAccountId, handle: c.handle, name: c.displayName }));
+  const theirContent = contentCandidates.filter((c) => !isOwnAccount(own, { handle: c.accountHandle, name: c.accountName }));
+  const accounts = dedupeAccounts(theirAccounts.map((c) => scoreAccount(c, profile))).slice(0, 24);
+  const content = dedupeContent(theirContent.map((c) => scoreContent(c, profile))).slice(0, 40);
+  const trends = rollUpTrends(content);
+  const ranAt = new Date().toISOString();
+
+  // onConflict targets match the primary key in force (wsId: see the cache read).
+  const wsCol: Record<string, unknown> = wsId ? { workspace_id: wsId } : {};
+  const accConflict = wsId ? "user_id,workspace_id,platform,platform_account_id" : "user_id,platform,platform_account_id";
+  const conConflict = wsId ? "user_id,workspace_id,content_url" : "user_id,content_url";
+  const runConflict = wsId ? "user_id,workspace_id" : "user_id";
+
+  // ---- persist (best effort; a failure must not fail the run) -----------
+  if (accounts.length || content.length) {
+    try {
+      // Upsert, never replace. Web research returns a different slice of the
+      // market on every run, so deleting first meant a refresh could destroy
+      // the best finds — the four local pizzerias vanished exactly this way.
+      // Rows accumulate and last_checked carries their freshness; stale ones
+      // are pruned below by age, not by absence from one run.
+      if (accounts.length) {
+        await ctx.client.from("discovered_accounts").upsert(
+          accounts.map((a) => ({
+            user_id: ctx.ownerId, ...wsCol, platform: a.platform, platform_account_id: a.platformAccountId,
+            handle: a.handle, display_name: a.displayName, profile_image: a.profileImage,
+            profile_url: a.profileUrl, followers: a.followers, location: a.location,
+            category: a.category, classification: a.classification,
+            relevance_score: a.relevanceScore, relevance_reasons: a.relevanceReasons,
+            data_source: a.dataSource, last_checked: ranAt,
+          })),
+          { onConflict: accConflict },
+        );
+      }
+      if (content.length) {
+        await ctx.client.from("discovered_content").upsert(
+          content.map((c) => ({
+            user_id: ctx.ownerId, ...wsCol, content_url: c.contentUrl, platform: c.platform,
+            account_handle: c.accountHandle, account_name: c.accountName,
+            account_image: c.accountImage, thumbnail_url: c.thumbnailUrl, title: c.title,
+            published_at: c.publishedAt, content_type: c.contentType, views: c.views,
+            likes: c.likes, comments: c.comments, multiplier: c.multiplier,
+            relevance_score: c.relevanceScore, relevance_reasons: c.relevanceReasons,
+            trend_tags: c.trendTags, why_recommended: c.why, data_source: c.dataSource,
+            last_checked: ranAt,
+          })),
+          { onConflict: conConflict },
+        );
+      }
+
+      // Prune by age so the list stays current without a single unlucky run
+      // wiping good accounts. 30 days for accounts, 14 for content, since a
+      // "winning post" goes stale faster than a competitor does.
+      const accountCutoff = new Date(Date.now() - 30 * 86400000).toISOString();
+      const contentCutoff = new Date(Date.now() - 14 * 86400000).toISOString();
+      let pruneAcc = ctx.client.from("discovered_accounts").delete().eq("user_id", ctx.ownerId).lt("last_checked", accountCutoff);
+      let pruneCon = ctx.client.from("discovered_content").delete().eq("user_id", ctx.ownerId).lt("last_checked", contentCutoff);
+      if (wsId) { pruneAcc = pruneAcc.eq("workspace_id", wsId); pruneCon = pruneCon.eq("workspace_id", wsId); }
+      await pruneAcc;
+      await pruneCon;
+    } catch {
+      /* tables may not exist yet — the result below still serves */
+    }
+  }
+  // The run is recorded even when it found nothing: the next visit reuses it
+  // for six hours instead of paying for another run straight away.
+  try {
+    await ctx.client.from("discovery_runs").upsert(
+      {
+        user_id: ctx.ownerId, ...wsCol, ran_at: ranAt, accounts_found: accounts.length,
+        content_found: content.length, sources,
+      },
+      { onConflict: runConflict },
+    );
+  } catch {
+    /* tables may not exist yet */
+  }
+
+  // ---- SOCIA picks competitors into empty roster slots -------------------
+  // Only Instagram accounts that Business Discovery confirms, never more than
+  // the plan allows, never one the customer removed (lib/competitorAutoPick.ts).
+  const picked = await autoPickCompetitors({ client: ctx.client, ownerId: ctx.ownerId, wsId, accounts, own });
+
+  // Return everything SOCIA knows, not just what this run happened to find —
+  // otherwise a refresh visibly loses accounts it had already discovered.
+  const merged = await readStoredDiscovery(ctx.client, ctx.ownerId, wsId, own);
+  return merged
+    ? { ...merged, ranAt, sources, profileGaps, picked }
+    : { accounts, content, trends, ranAt, sources, profileGaps, picked };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function readStoredDiscovery(supabase: any, userId: string, workspaceId: string | null, own: OwnAccounts): Promise<IntelDoc | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scope = (q: any) => (workspaceId ? q.eq("workspace_id", workspaceId) : q);
+  try {
+    const [runRes, accRes, conRes] = await Promise.all([
+      scope(supabase.from("discovery_runs").select("ran_at, sources").eq("user_id", userId)).maybeSingle(),
+      scope(supabase.from("discovered_accounts").select("*").eq("user_id", userId)).order("relevance_score", { ascending: false }),
+      scope(supabase.from("discovered_content").select("*").eq("user_id", userId)).order("relevance_score", { ascending: false }),
+    ]);
+    if (!runRes.data?.ran_at) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accounts: ScoredAccount[] = (accRes.data ?? []).map((r: any) => ({
+      platform: r.platform, platformAccountId: r.platform_account_id, handle: r.handle,
+      displayName: r.display_name, profileImage: r.profile_image, profileUrl: r.profile_url,
+      followers: r.followers, location: r.location, category: r.category,
+      classification: r.classification, relevanceScore: r.relevance_score ?? 0,
+      relevanceReasons: r.relevance_reasons ?? [], dataSource: r.data_source,
+    }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const content: ScoredContent[] = (conRes.data ?? []).map((r: any) => ({
+      platform: r.platform, contentUrl: r.content_url, accountHandle: r.account_handle,
+      accountName: r.account_name, accountImage: r.account_image, thumbnailUrl: r.thumbnail_url,
+      title: r.title, publishedAt: r.published_at, contentType: r.content_type,
+      views: r.views, likes: r.likes, comments: r.comments,
+      multiplier: r.multiplier != null ? Number(r.multiplier) : null,
+      relevanceScore: r.relevance_score ?? 0, relevanceReasons: r.relevance_reasons ?? [],
+      trendTags: r.trend_tags ?? [], why: r.why_recommended, dataSource: r.data_source,
+    }));
+    // Rows stored before an account was connected may be the user's own; YouTube rows count only once niche-checked.
+    const vetted = <T extends { dataSource: unknown; relevanceReasons: unknown }>(x: T) => nicheVetted({ data_source: x.dataSource, relevance_reasons: x.relevanceReasons });
+    const theirs = accounts.filter(vetted).filter((a) => !isOwnAccount(own, { id: a.platformAccountId, handle: a.handle, name: a.displayName }));
+    const theirContent = content.filter(vetted).filter((c) => !isOwnAccount(own, { handle: c.accountHandle, name: c.accountName }));
+    return {
+      accounts: theirs, content: theirContent, trends: rollUpTrends(theirContent), ranAt: runRes.data.ran_at,
+      sources: runRes.data.sources ?? { youtube: "ok", web: "ok" }, profileGaps: [],
+    };
+  } catch {
+    return null;
+  }
+}

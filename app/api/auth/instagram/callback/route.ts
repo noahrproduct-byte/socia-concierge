@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { igAppSecret, igClientId, igConfigured, igRedirectUri } from "@/lib/instagram";
 import { syncInstagram } from "@/lib/instagramSync";
+import { startNicheScan } from "@/lib/nicheScan/run";
 import { createServiceClient } from "@/lib/supabase/service";
 import { activeAccounts, canConnectAnother, getEntitlements, getLimit, listConnectedAccounts } from "@/lib/entitlements";
 import { ensureDefaultWorkspace } from "@/lib/workspaces";
@@ -241,6 +242,10 @@ async function connect(req: Request, dest: ConnectDest): Promise<NextResponse> {
     } catch {
       // pages self-heal with a stale-triggered sync
     }
+
+    // Research what goes viral in the brand's niche, once it has no fresh
+    // playbook (lib/nicheScan): it runs on its own for five to ten minutes.
+    await startNicheScan(ctx, "onboarding").catch(() => null);
 
     // Success lands on the dashboard, where the sync cinematic plays over the
     // freshly-live data. The onboarding path keeps its own analysis sequence.

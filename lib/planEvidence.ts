@@ -17,6 +17,7 @@ import { experimentsEvidence } from "./experiments";
 import type { GrowthStrategy } from "./strategy";
 import type { Deliverable } from "./schema";
 import { loadNicheRead } from "./trendSignalsLoad";
+import { playbookTextFor } from "./nicheScan/run";
 import { nicheVetted } from "./discovery";
 import { provenEvidence, trendsEvidence, type ProvenReel } from "./trendSignals";
 
@@ -27,6 +28,8 @@ export type Evidence = {
   outcomesBlock: string;
   /** Formats that lead across other accounts' posts in the niche (lib/nicheFormats.ts, from the insights store). */
   formatsBlock: string;
+  /** What goes viral in the niche, from the Reels the niche scan studied (lib/nicheScan/playbook.ts playbookPrompt); "" without one. */
+  playbookBlock?: string;
   /** What the person approved, turned down (and why) and added themselves in their recent plans. */
   decisionsBlock: string;
   /** How the strategy's experiments are going: their test posts' results and verdicts. */
@@ -342,6 +345,8 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   // The niche's trends read live alongside the stored rows; null off the plan feature or on a slow platform.
   const trendsP = loadNicheRead(supabase, userId, workspaceId ?? null, { location: opts.location ?? null }).catch(() => null);
   const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
+  // What goes viral in the niche, from the Reels the niche scan studied (lib/nicheScan).
+  const playbook = await playbookTextFor(supabase, userId, workspaceId).catch(() => "");
   let recentPlans: PlanRow[] = [];
   try {
     const { data } = await scopeToWorkspace(supabase.from("plans").select("created_at, data").eq("user_id", userId), workspaceId)
@@ -368,6 +373,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     competitorsBlock: competitorsBlock_,
     outcomesBlock: outcomesBlock_,
     formatsBlock: formatsEvidence(formats),
+    playbookBlock: playbook,
     decisionsBlock: decisionsBlock(recentPlans),
     experimentsBlock: experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, opts.strategy).catch(() => [])),
     trendsBlock: trendsBlock_,

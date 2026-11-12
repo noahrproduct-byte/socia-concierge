@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 10, 2026</p>
+      <p className="legal-date">Last updated: November 12, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -94,6 +94,13 @@ export default function PrivacyPage() {
           otherwise through SOCIA&apos;s own Instagram account. SOCIA may add
           competitors it finds this way to your list; you can remove any of
           them, and SOCIA remembers the removal so it does not add them again.
+          When you connect an account, and then about once a week, SOCIA
+          researches what goes viral in your niche the same way: it reads
+          other accounts&apos; public Reels and Shorts (their captions, cover
+          images and published numbers), sends the ones that took off to
+          Anthropic to describe their format and on-screen text, and keeps a
+          playbook of the patterns with links to those posts. Each new
+          research run replaces the last playbook; cover images are not kept.
         </li>
         <li>
           <b>Comments on your posts</b>: for AI comment replies, we store the

@@ -15,6 +15,7 @@ import { trackEvent } from "@/lib/events";
 import { resolveContext, can } from "@/lib/context";
 import { clearLiveCache } from "@/lib/liveCache";
 import { createServiceClient } from "@/lib/supabase/service";
+import { startNicheScan } from "@/lib/nicheScan/run";
 
 export const runtime = "nodejs";
 
@@ -150,6 +151,10 @@ export async function GET(req: Request) {
     } catch {
       // platform list is cosmetic; ignore
     }
+
+    // Research what goes viral in the brand's niche, once it has no fresh
+    // playbook (lib/nicheScan): it runs on its own for five to ten minutes.
+    await startNicheScan(ctx, "onboarding").catch(() => null);
 
     return done("connected");
   } catch (e) {

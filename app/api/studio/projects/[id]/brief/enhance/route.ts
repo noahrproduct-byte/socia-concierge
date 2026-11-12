@@ -46,6 +46,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       `# What they wrote\n${prompt}`,
       `# The clips\n${clipLines(usable)}`,
       brand ? `# Brand notes\n${brand}` : null,
+      // What goes viral in the niche (lib/nicheScan): the improved prompt can ask for a proven on-screen line.
+      acct.playbook ? `# ${acct.playbook}` : null,
       body?.hasReference === true ? "# Reference video\nA reference video is attached. The editor copies its length, pace and text style." : null,
     ].filter(Boolean).join("\n\n");
     const params2 = {

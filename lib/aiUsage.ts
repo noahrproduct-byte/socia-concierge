@@ -13,7 +13,7 @@ export type AiFeature =
   | "competitor_research" | "content_plan" | "comment_reply"
   | "clip_card" | "clip_batch" | "clip_edl" | "transcribe" | "music_playlist" | "video_ideas" | "place_scan"
   | "clipper_captions" | "clipper_pick" | "clipper_frame" | "studio_ideas" | "brief_enhance" | "animated_script" | "animated_fit" | "animated_pick" | "animated_plan"
-  | "voiceover_script";
+  | "voiceover_script" | "niche_scan";
 
 type Usage = {
   input_tokens?: number; output_tokens?: number;
