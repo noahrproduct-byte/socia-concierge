@@ -361,6 +361,9 @@ Frames from the clips follow, each labelled with its clip and time. Use them to 
       { type: "image" as const, source: { type: "url" as const, url: f.url } },
     ])),
   ];
-  const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, brief ? 6000 : 4000, { ownerId: acct.ownerId, feature: "clip_edl" });
+  // Thinking shares this budget. A brief cut on Sonnet 5.5 thinks past 6000 tokens, and the
+  // retry with more room after that ran the request past its time limit (2026-11-12), so a
+  // brief starts with enough room to finish in one call.
+  const { data, model } = await structured<RawEdl>("studio_edl", system, content, EDL_SCHEMA, brief ? 16000 : 8000, { ownerId: acct.ownerId, feature: "clip_edl" });
   return { raw: data, model };
 }

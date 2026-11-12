@@ -9,7 +9,7 @@ import { perUserLimit } from "@/lib/rateLimit";
 import { errorResponse, publicMessage } from "@/lib/dbError";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // One post opportunity's build (EDL + edit guide).
 //   GET  -> StudioBuild | 404 when not built yet
