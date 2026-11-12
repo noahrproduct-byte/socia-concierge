@@ -33,7 +33,7 @@ export function igPosts(c: IgCompetitor): CompPost[] {
   return (c.media ?? []).map((m) => ({
     url: m.permalink ?? "", title: m.caption ? m.caption.split("\n")[0].slice(0, 140) : null, thumb: m.thumbnail,
     views: m.views ?? null, likes: m.likes, comments: m.comments, publishedAt: m.timestamp,
-    format: m.mediaType ? IG_FORMAT[m.mediaType] ?? null : null, durationSec: null, multiplier: null,
+    format: m.mediaType ? IG_FORMAT[m.mediaType] ?? null : null, durationSec: null, multiplier: null, video: m.video ?? null,
   })).filter((p) => p.url);
 }
 

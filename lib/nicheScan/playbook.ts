@@ -64,7 +64,7 @@ export type WatchedReel = ScanReel & {
   textStyle: string | null;
   framing: string | null;
   /** What the study could read: the cover image and the caption, or the caption only. */
-  read: "cover" | "caption";
+  read: "frames" | "cover" | "caption";
 };
 
 export type Evidence = { id: string; url: string; account: string; platform: string; multiplier: number | null; views: number | null; basis: string; publishedAt: string | null };
@@ -283,19 +283,20 @@ export const PLAYBOOK_FRESH_DAYS = 7;
 export const isFresh = (p: Playbook | null, now: Date): boolean => Boolean(p && now.getTime() - Date.parse(p.builtAt) < PLAYBOOK_FRESH_DAYS * 86_400_000);
 
 /** One studied Reel from a model's answer, checked: only known enums, words trimmed, never a number. */
-export function cleanWatched(reel: ScanReel, raw: Record<string, unknown> | null | undefined, read: "cover" | "caption"): WatchedReel {
+export function cleanWatched(reel: ScanReel, raw: Record<string, unknown> | null | undefined, read: "frames" | "cover" | "caption"): WatchedReel {
   const str = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.replace(EM_DASH, ",").replace(/\s+/g, " ").trim().slice(0, max) : null);
   const format = REEL_FORMATS.includes(raw?.format as ReelFormat) ? (raw!.format as ReelFormat) : "other";
   const ctaKind = CTA_KINDS.includes(raw?.cta_kind as CtaKind) ? (raw!.cta_kind as CtaKind) : "none";
-  const onScreen = read === "cover" ? str(raw?.on_screen_text, 140) : null;
+  const seen = read !== "caption";
+  const onScreen = seen ? str(raw?.on_screen_text, 140) : null;
   return {
     ...reel, format,
     onScreenText: onScreen,
     textSeen: Boolean(onScreen),
     hook: str(raw?.hook, 140),
     cta: { kind: ctaKind, text: str(raw?.cta_text, 120) },
-    textStyle: read === "cover" ? str(raw?.text_style, 120) : null,
-    framing: read === "cover" ? str(raw?.framing, 120) : null,
+    textStyle: seen ? str(raw?.text_style, 120) : null,
+    framing: seen ? str(raw?.framing, 120) : null,
     read,
   };
 }

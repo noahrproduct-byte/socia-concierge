@@ -42,6 +42,8 @@ export type TrendingReel = {
   /** The measure the multiplier compares. */
   basis: "views" | "likes and comments";
   format: string;
+  /** The video file, when official data gives one (the niche scan reads frames from it). */
+  video?: string | null;
 };
 
 /** An account on the Discover page with the posts SOCIA read for it. */
@@ -90,6 +92,7 @@ export function rankTrendingReels(accounts: TrendAccount[], content: NichePost[]
         url: p.url, platform: r.platform, accountName: r.name, accountHandle: r.handle, accountAvatar: r.avatar,
         title: p.title, thumb: p.thumb, publishedAt: p.publishedAt, views: p.views, likes: p.likes, comments: p.comments,
         multiplier, basis: r.platform === "instagram" && !byViews ? "likes and comments" : "views", format: p.format!,
+        ...(p.video ? { video: p.video } : {}),
       });
     }
   }
