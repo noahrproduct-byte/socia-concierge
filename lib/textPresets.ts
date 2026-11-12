@@ -34,8 +34,8 @@ export const frameScale = (width: number, height: number): number => Math.min(wi
 export type TextSlot = "top" | "middle" | "bottom";
 export const TEXT_SLOTS: { id: TextSlot; label: string }[] = [{ id: "top", label: "Top" }, { id: "middle", label: "Middle" }, { id: "bottom", label: "Bottom" }];
 
-export type TextPresetId = "hook_pair" | "hook_title" | "caption_bar" | "callout_box" | "lower_third" | "big_stat" | "subtitle" | "clip_headline";
-export const TEXT_PRESET_IDS: TextPresetId[] = ["hook_pair", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"];
+export type TextPresetId = "hook_pair" | "step_label" | "hook_title" | "caption_bar" | "callout_box" | "lower_third" | "big_stat" | "subtitle" | "clip_headline";
+export const TEXT_PRESET_IDS: TextPresetId[] = ["hook_pair", "step_label", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"];
 
 export type TextAnimation = "fade" | "pop";
 
@@ -118,6 +118,17 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
     align: "center", widthPct: 0.94, slot: "top", time: { start: 0, end: 2.6 }, animation: "pop",
     lead: { font: SERIF_ITALIC, size: { min: 64, max: 108 }, color: BRAND.white, gap: 0, needsBody: true },
   },
+  // How the food Reels that work set their words (2026-11-11 food study,
+  // docs/studio/edit-references.md): no big title, a small lowercase label in
+  // the middle of the frame naming the dish, the ingredient or the step
+  // ("butter", "green onions").
+  step_label: {
+    id: "step_label", label: "Step Label", hint: "A small label in the middle naming the dish, the ingredient or the step.", sample: "fresh basil",
+    font: { family: "montserrat", weight: 600 }, size: { min: 42, max: 58 }, lineHeight: 1.15, letterSpacing: 0,
+    maxLines: 2, maxChars: 32, color: BRAND.white,
+    box: SHADOW,
+    align: "center", widthPct: 0.86, slot: "middle", time: { start: 0, end: 2 }, animation: "fade",
+  },
   hook_title: {
     id: "hook_title", label: "Hook Title", hint: "Big and bold at the top. The first thing they read.", sample: "Wait for it",
     font: BOLD, size: { min: 56, max: 84 }, lineHeight: 1.12, letterSpacing: -0.01,
@@ -174,7 +185,8 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
 /** A preset in the video's own font, so every line matches. Older cuts set to a dropped font keep Montserrat. */
 export function presetInFont(p: TextPreset, font?: FontId | null): TextPreset {
   if (!font || font === "inter" || font === "playfair" || font === "serif") return p;
-  return { ...p, font: { family: font, weight: font === "anton" || font === "bebas" ? 400 : 800 } };
+  // Anton and Bebas come in one weight; the others keep a lighter preset weight (Step Label) and are bold otherwise.
+  return { ...p, font: { family: font, weight: font === "anton" || font === "bebas" ? 400 : p.font.weight < 800 ? p.font.weight : 800 } };
 }
 
 /**
@@ -272,3 +284,20 @@ export function defaultTiming(preset: TextPreset, durationSec: number, atSec?: n
   const start = typeof atSec === "number" && Number.isFinite(atSec) ? Math.max(0, Math.min(atSec, dur - 0.5)) : Math.min(preset.time.start, Math.max(0, dur - 0.5));
   return { at: r2(start), end: r2(Math.min(dur, Math.max(start + 0.5, start + len))) };
 }
+
+/** Looks a label-style edit (food and process, calm) swaps for a Step Label. */
+const TO_LABEL = new Set<TextPresetId>(["hook_pair", "hook_title", "caption_bar", "subtitle", "clip_headline"]);
+
+/**
+ * A line as a Step Label: on one line, and with words written all in capitals
+ * (a Hook Pair's big words) set in lowercase, as the food Reels label their
+ * steps. Shortened only at a whole word.
+ */
+export function asStepLabel(text: string): { text: string; shortened: boolean } {
+  const t = text.replace(/\s*\n+\s*/g, " ").split(" ").map((w) => (/\p{Lu}{2,}/u.test(w) && w === w.toUpperCase() ? w.toLowerCase() : w)).join(" ").trim();
+  const max = TEXT_PRESETS.step_label.maxChars;
+  return charCount(t) <= max ? { text: t, shortened: false } : { text: clampWords(t, max), shortened: true };
+}
+
+/** Whether a line on this look becomes a Step Label in a label-style edit (calls to action keep their label). */
+export const becomesStepLabel = (presetId: string | undefined): boolean => !!presetId && TO_LABEL.has(presetId as TextPresetId);

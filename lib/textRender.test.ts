@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ASPECTS } from "./studioClips/types";
 import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapParagraph, type Measure } from "./textRender";
-import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, clampWords, fitLine, defaultTiming, frameScale, presetForRole, presetForLine, presetInStyle, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
+import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, clampWords, fitLine, defaultTiming, frameScale, presetForRole, presetForLine, presetInStyle, asStepLabel, becomesStepLabel, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
 import { CAPCUT_FONTS } from "./studioClips/style";
 
 /** A fake canvas: every character is 0.55 em wide (emoji 1 em), whatever the face. */
@@ -51,8 +51,8 @@ describe("the CapCut look (Noah, 2026-11-06)", () => {
 });
 
 describe("presets", () => {
-  it("are the six from the brief plus Hook Pair, each with a size range, limits and a default time", () => {
-    expect(TEXT_PRESET_IDS).toEqual(["hook_pair", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"]);
+  it("are the six from the brief plus Hook Pair and Step Label, each with a size range, limits and a default time", () => {
+    expect(TEXT_PRESET_IDS).toEqual(["hook_pair", "step_label", "hook_title", "caption_bar", "callout_box", "lower_third", "big_stat", "subtitle"]);
     for (const id of TEXT_PRESET_IDS) {
       const p = TEXT_PRESETS[id];
       expect(p.size.min).toBeLessThanOrEqual(p.size.max);
@@ -116,6 +116,27 @@ describe("presets", () => {
     expect(defaultTiming(TEXT_PRESETS.caption_bar, 2)).toEqual({ at: 0, end: 2 });
     expect(defaultTiming(TEXT_PRESETS.callout_box, 20, 7.25)).toEqual({ at: 7.25, end: 10.25 });
     expect(defaultTiming(TEXT_PRESETS.callout_box, 8, 7.9)).toEqual({ at: 7.5, end: 8 });
+  });
+});
+
+describe("Step Label (2026-11-11 food study)", () => {
+  it("is small, in the middle, and keeps its lighter weight in the video's font", () => {
+    const l = lay("step_label", "green onions");
+    expect(l.fits).toBe(true);
+    expect(l.lines[0].fontSize).toBeLessThanOrEqual(58);
+    expect(TEXT_PRESETS.step_label.slot).toBe("middle");
+    expect(presetInStyle(TEXT_PRESETS.step_label, "montserrat", "none").font.weight).toBe(600);
+    expect(presetInStyle(TEXT_PRESETS.step_label, "anton", "none").font.weight).toBe(400);
+    expect(presetInStyle(TEXT_PRESETS.hook_title, "tiktok", "none").font.weight).toBe(800);
+  });
+  it("turns a hook into one lowercase line, shortened only at a whole word", () => {
+    expect(asStepLabel("tossed in\nTHE PAN")).toEqual({ text: "tossed in the pan", shortened: false });
+    expect(asStepLabel("Salvo's margherita")).toEqual({ text: "Salvo's margherita", shortened: false });
+    const long = asStepLabel("the slowest most careful hand stretched dough in the whole city");
+    expect(long.shortened).toBe(true);
+    expect(charCount(long.text)).toBeLessThanOrEqual(TEXT_PRESETS.step_label.maxChars);
+    expect(becomesStepLabel("hook_pair")).toBe(true);
+    expect(becomesStepLabel("callout_box")).toBe(false);
   });
 });
 

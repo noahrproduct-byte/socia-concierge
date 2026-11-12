@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EDIT_STYLES, pickStyle, speechShare, styleNote, styleOf, TALKING_SHARE } from "./profiles";
+import { EDIT_STYLES, pickStyle, speechShare, styleNote, styleOf, textForStyle, TALKING_SHARE } from "./profiles";
 import { PACING, applyPacing, pacingRules } from "./pacing";
 import { decideJoins } from "./joins";
 import { classifyPauses } from "./speech";
@@ -62,5 +62,27 @@ describe("what a style changes", () => {
     const words = [w("Then", 0, 0.3), w("press", 0.3, 0.7), w("save.", 0.7, 1.1), w("Now", 3, 3.2), w("it", 3.2, 3.3), w("syncs", 3.3, 3.7), w("to", 3.7, 3.8), w("everything.", 3.8, 4.5)];
     const tight = classifyPauses(words)[0], natural = classifyPauses(words, "natural")[0];
     expect(tight.end - tight.start).toBeGreaterThan(natural.end - natural.start);
+  });
+});
+
+describe("on-screen words by style (2026-11-11 food study)", () => {
+  const text = [
+    { id: "t1", at: 0, end: 2, text: "tossed in\nTHE PAN", role: "opening" as const, presetId: "hook_pair" as const },
+    { id: "t2", at: 4, end: 6, text: "spinach and cream", role: "mid" as const, presetId: "caption_bar" as const, slot: "bottom" as const },
+    { id: "t3", at: 9, end: 11, text: "Come before 10", role: "cta" as const, presetId: "callout_box" as const },
+  ];
+  it("sets food and calm edits in small step labels, and keeps the call to action", () => {
+    const out = textForStyle({ editStyle: "process", text });
+    expect(out.text.map((t) => [t.presetId, t.text])).toEqual([["step_label", "tossed in the pan"], ["step_label", "spinach and cream"], ["callout_box", "Come before 10"]]);
+    expect(out.text[1]).not.toHaveProperty("slot");
+    expect(textForStyle({ editStyle: "calm", text }).text[0].presetId).toBe("step_label");
+  });
+  it("leaves the designed hook on talking, demo and energetic edits", () => {
+    for (const id of ["talking", "demo", "energetic"] as const) expect(textForStyle({ editStyle: id, text }).text).toEqual(text);
+  });
+  it("tells the model no big title on food", () => {
+    expect(EDIT_STYLES.process.prompt).toMatch(/no big title/);
+    expect(EDIT_STYLES.process.prompt).toMatch(/finished thing for 1 to 2 seconds/);
+    expect(EDIT_STYLES.process.prompt).not.toMatch(/—/);
   });
 });

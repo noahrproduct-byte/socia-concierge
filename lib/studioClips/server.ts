@@ -19,7 +19,7 @@ import { decideJoins, joinsNote } from "./joins";
 import { endOpeningWithShot, repairCut } from "./cutCheck";
 import { pickEmphasis } from "./emphasis";
 import { editSpeech, speechNote } from "./speech";
-import { pickStyle, speechShare, styleNote, styleOf, type EditStyleId, type StylePick } from "./profiles";
+import { pickStyle, speechShare, styleNote, styleOf, textForStyle, type EditStyleId, type StylePick } from "./profiles";
 import { varyJumpCuts } from "./jumpCuts";
 import { cardIsCurrent, QUIET_ROOM_VOLUME, teachEdit } from "./teach";
 import { studioLearnedLine } from "./learnLoad";
@@ -769,7 +769,7 @@ const STYLE_NOTE = /^SOCIA edited this as/;
 
 /** The model's cut made real, in its editing style: validated, paced, held to what Noah taught, then finished. `pick` adds the note saying which style and why. */
 function shaped(raw: RawEdl, forEdl: ClipForEdl[], acct: AccountContext, asked: string | null | undefined, style: EditStyleId, pick: StylePick | null): Edl {
-  const edl = finishCut(taught(paced({ ...validateEdl(raw, forEdl).edl, editStyle: style }, forEdl, asked), raw, acct, forEdl), forEdl, asked);
+  const edl = finishCut(taught(paced(textForStyle({ ...validateEdl(raw, forEdl).edl, editStyle: style }), forEdl, asked), raw, acct, forEdl), forEdl, asked);
   // The words the captions highlight: the model's marks that were really said, then numbers and names (lib/studioClips/emphasis.ts).
   const emphasis = pickEmphasis(edl, Object.fromEntries(forEdl.map((c) => [c.id, c.words])), raw.emphasis);
   if (emphasis.length) edl.emphasis = emphasis;
