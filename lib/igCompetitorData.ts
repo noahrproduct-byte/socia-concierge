@@ -24,9 +24,17 @@ export function hasViewsField(media: unknown): boolean {
   return media.every((m) => m && typeof m === "object" && "views" in m);
 }
 
+/** Rows read before Reels kept their video link are read again once, so the niche scan can study frames inside them. */
+export function hasVideoField(media: unknown): boolean {
+  if (!Array.isArray(media)) return true;
+  return media.every((m) => !m || typeof m !== "object" || (m as { mediaType?: unknown }).mediaType !== "VIDEO" || "video" in m);
+}
+
 export type IgCompetitorPost = {
   permalink: string | null; caption: string | null; thumbnail: string | null;
   likes: number | null; comments: number | null; timestamp: string | null; mediaType: string | null;
+  /** The video file Meta's Business Discovery returns for a Reel (a signed CDN link that expires); absent on older rows. */
+  video?: string | null;
   /** Views as Meta reports them; null when not returned (and on rows cached before views were read). */
   views?: number | null;
 };
@@ -108,7 +116,7 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
     try {
       const { data } = await supabase.from("ig_competitor_snapshots").select("*").eq("user_id", userId).in("handle", wanted);
       for (const r of data ?? []) {
-        if (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media)) {
+        if (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media) && hasVideoField(r.media)) {
           cached.set(r.handle, {
             handle: r.handle, found: true, displayName: r.display_name, biography: r.biography, profilePicture: r.profile_picture,
             followers: r.followers, mediaCount: r.media_count,
@@ -140,6 +148,7 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
       const media: IgCompetitorPost[] = a.media.map((m) => ({
         permalink: m.permalink, caption: m.caption, thumbnail: m.thumbnailUrl ?? m.mediaUrl,
         likes: m.likes, comments: m.comments, timestamp: m.timestamp, mediaType: m.mediaType, views: m.views,
+        video: m.mediaType === "VIDEO" ? m.mediaUrl ?? null : null,
       }));
       const fetchedAt = new Date().toISOString();
       try {

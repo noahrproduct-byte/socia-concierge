@@ -24,6 +24,8 @@ export type CompPost = {
   durationSec: number | null;
   /** views ÷ the account's own median across the posts read; null unless real. */
   multiplier: number | null;
+  /** The video file, when the platform's official data gives one (Instagram Business Discovery). */
+  video?: string | null;
 };
 
 export type PostsGate = "connection_needed" | "not_business" | "not_found" | "no_permission" | "unavailable" | "failed";

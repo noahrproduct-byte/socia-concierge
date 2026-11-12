@@ -57,6 +57,8 @@ export type ScanReel = {
   account: string;
   handle: string | null;
   thumb: string | null;
+  /** The video file from official data (Instagram), for reading frames inside the Reel; absent when there is none. */
+  video?: string | null;
   /** The caption or title, trimmed. */
   caption: string | null;
   publishedAt: string | null;
@@ -158,6 +160,7 @@ export function toScanReel(r: TrendingReel, id: string, proven: boolean): ScanRe
     id, url: r.url, platform: r.platform, account: r.accountName, handle: r.accountHandle, thumb: r.thumb,
     caption: compactCaption(r.title), publishedAt: r.publishedAt, views: r.views, likes: r.likes, comments: r.comments,
     multiplier: r.multiplier != null ? r1(r.multiplier) : null, basis: r.basis, proven,
+    ...(r.video ? { video: r.video } : {}),
   };
 }
 

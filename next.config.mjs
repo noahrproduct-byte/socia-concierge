@@ -46,6 +46,13 @@ const reportOnlyCsp = [
 
 const nextConfig = {
   reactStrictMode: true,
+  // The niche scan reads frames inside Reels with ffmpeg on the server (lib/nicheScan/frames.ts):
+  // keep the package's native binary out of the bundle and ship it with the routes that study Reels.
+  serverExternalPackages: ["ffmpeg-static"],
+  outputFileTracingIncludes: {
+    "/api/niche-scan": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/jobs/niche-scan": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
   // No "X-Powered-By: Next.js": nothing to fingerprint.
   poweredByHeader: false,
   async headers() {
