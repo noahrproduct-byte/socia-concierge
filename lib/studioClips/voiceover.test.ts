@@ -34,9 +34,11 @@ describe("which cuts get a voice", () => {
     expect(needsVoiceover(edl({ editStyle: "demo" }), {}).need).toBe(true);
     expect(needsVoiceover(edl(), {}, "show how we make our pizza dough").need).toBe(true);
   });
-  it("not for a food cut the music carries, or a calm one", () => {
-    expect(needsVoiceover(edl(), {}, "make this post ready with music and good on screen text")).toEqual({ need: false, why: "the footage and music carry it" });
-    expect(needsVoiceover(edl({ editStyle: "calm" }), {}, "show how the room looks at night").need).toBe(false);
+  it("for every cut nobody talks in, food and calm included (Noah, 2026-11-12), unless the prompt says no", () => {
+    expect(needsVoiceover(edl(), {}, "make this post ready with music and good on screen text")).toEqual({ need: true, why: "nobody talks in it, so a voice carries the story" });
+    expect(needsVoiceover(edl({ editStyle: "calm" }), {}, "show how the room looks at night").need).toBe(true);
+    expect(needsVoiceover(edl(), {}, "music only, no voiceover").need).toBe(false);
+    expect(needsVoiceover(edl(), {}, "just music, keep it music only").need).toBe(false);
   });
 });
 
