@@ -6,6 +6,8 @@ import { resolveContext, brandWorkspace } from "@/lib/context";
 import { getProfile } from "@/lib/profile";
 import { readOnboarding } from "@/lib/growthStore";
 import { needsOnboarding } from "@/lib/onboarding";
+import { introDue } from "@/lib/intro";
+import IntroGate from "@/components/intro/IntroGate";
 
 // Every signed-in section shares this shell. As a layout it stays mounted
 // while the person moves between sections: the sidebar and top bar are not
@@ -14,6 +16,8 @@ import { needsOnboarding } from "@/lib/onboarding";
 //
 // Onboarding is required (Noah, 2026-10-29): a brand's owner who hasn't
 // finished setting it up is sent to /onboarding first (lib/onboarding.ts).
+// A new account sees the intro film once, on whichever page it lands on first
+// (here or /onboarding).
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user } = await getViewer();
   if (user) {
@@ -30,6 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppShell>
       <TimezoneSync />
       {children}
+      {/* the first-run film, once per account, over the page it leads into */}
+      {user && introDue(user) && <IntroGate userId={user.id} />}
     </AppShell>
   );
 }
