@@ -165,3 +165,119 @@ Caveat: this search returns mostly talking-head editing portfolios. No food or p
 3. Hook: 2 to 6 words, a pairing of a small italic serif line with a big heavy sans word, top third, first 2 to 3 s.
 4. One accent colour at most, sampled from the footage.
 5. Text never covers a face and never sits in the bottom 20% of the frame.
+
+
+# Food edit study, 2026-11-11 (Instagram searches: food reels, pizza, restaurant, cooking, burger, chef; 17 Reels)
+
+## F1. DdDfKyMtrJN xijqtontt, 4.7M likes, 15.8 s, ONE static shot, 0 cuts
+- A skit at a fast-food table (two people, a Happy Meal box); phone propped on the table, overhead restaurant light, warm (0.23). No text, no edit. The joke carries it: people, not food craft.
+
+## F2. C_n9hCjoief byolyvv, 2.3M likes, 8.5 s: one-pot pasta
+- Opens on the FINISHED dish for 1.25 s (payoff first), then the whole recipe in 7 s.
+- Locked-off overhead camera on the pan; every ingredient going in is its own beat (onion, bacon, chilli, paste, stock, cream, pasta); same framing, so the jumps read as a stop-motion build rather than cuts. Shots 0.4-2.9 s.
+- Very warm, saturated grade (warm 0.43, sat 0.64): the sauce glows orange. No on-screen text at all; the caption holds the recipe.
+
+## F3. DCNCxuRNE2W ajeatworld, 580K likes, 14.1 s: pulling one slice of cheese pizza
+- Two shots (5 s + 9 s). Tight macro, phone flash on a dark counter so the cheese glistens; warm 0.31.
+- The whole video is one satisfying action shown in full: the slice lifted slowly, the underside, the fold. No cut interrupts the action; the cut only changes angle at the lift.
+- No on-screen text. Sound (crunch) carries it.
+
+## F4. DMiqek8umIw motekcafe (restaurant), 15.6K likes, 10.6 s, 13 shots avg 0.82 s
+- Restaurant promo montage: 2.4 s establishing kitchen shot, then 0.4-1.0 s shots on the beat. EVERY shot is a finishing-touch action (salt sprinkle, butter brush, lemon squeeze, flame, cheese grate, a hand lifting bread).
+- Low-key, moody: dark background, single warm key on the plate, black pans and plates (luma 0.29). Same look across all shots.
+- Text: ONE tiny line in small tracked capitals, centred mid-frame, the whole video, swapping halfway: "WE MAKE" then "YOU ENJOY". Restraint: the food is the headline.
+
+## F5. DP3fo_vkhsn (restaurant), 769 likes, 18.9 s, 13 shots avg 1.46 s
+- Agency-style restaurant montage: table spread, dish after dish, hands tearing and lifting, slow-motion pours; soft moody side light, matte ceramics. Shots open fast (0.75 s x4) then slow to 2-3 s holds; ends on a white logo card for 3.4 s.
+- No text. Low reach: a pretty montage with no single moment or reason to watch (compare F3/F4).
+
+## F6. C6y80DUtC-r (burger shop, "behind the scenes of how we make our buns"), 268K likes, 3.3 s loop, one locked shot
+- A staged gag: the cook "shoots" the empty buns and they become finished burgers (a hidden cut/swap at 2.4 s on the same locked frame). A loop under 4 s, so it replays.
+- Dark kitchen, cook centred behind a wooden counter of buns; symmetric, locked-off. No text; the caption tells the joke.
+- Lesson: a magic cut on a locked camera (same framing before and after) is a transition idea that suits shops.
+
+## F7. DXpSDLTAqfr (home cook, one-pot French onion pasta), 414K likes, 32.9 s, 15 shots avg 2.2 s
+- Finished dish first (2 s, small caption text "full recipe in bio" style), then the cook as a person (wide, smiling, tossing an onion) alternating with overhead pan shots of each step.
+- Long holds on the slow steps (6-7 s of onions caramelising), then a fast run of 0.3-1 s cuts as the dish comes together at the end: slow middle, fast finish.
+- Bright daylight kitchen, natural colour (warm 0.14). Personality shots between process shots give the viewer someone to follow.
+
+## F8. DepqsjEOk72 ifoodwithu, 1.1M likes, 18.9 s: honey garlic chicken
+- Finished dish first (1.5 s), then locked overhead steps (cut, marinate, coat, fry, sauce, toss), ending on the finished dish again with green onions going on.
+- TEXT IS THE KEY FINDING: every step gets a SMALL lowercase label in plain white medium-weight sans, centred in the middle of the frame, no box, faint shadow: "honey garlic chicken", "refrigerate for 15 mins", "butter", "green onions". The words NAME the ingredient or the step. Small (about 4% of frame height), never big titles.
+- Warm (0.25), glossy food, close top-down framing; soft daylight.
+
+(DQW32A0jcGK: Instagram served a different, non-food Reel in its place; skipped.)
+
+# Restaurant Reels (Noah: "look for specific restaurant videos too"). Searches: pizzeria, restaurant reels, restaurant marketing; 95 found, the 13 most-liked restaurant ones studied.
+
+## R1. DcBWdXMOB7s pinhastudio x pizzaria_bigitalia, 1.2M likes, 41.4 s, 12 shots
+- A concept, not a montage: "POV: you are the pizza". Opens behind the scenes (9 s: the crew rigging a camera lens-up under glass), then the camera's view as sauce, cheese and toppings fall onto the lens in slow motion, shot against a dark backdrop with bokeh lights.
+- Text: one small Instagram-native label, black text on a white rounded box, mid-frame, during the setup only ("POV: VOCÊ É A PIZZA").
+- Shots are long (2.5-8 s) because the slow-motion action is the show; quick 0.4 s cuts only at the very end.
+
+## R2. C59v-fSotoq cvlpizza (Neapolitan pizzeria), 474K likes, 9 s
+- Raw phone footage, no grade, no text: 2 s of dough being pulled from the mixer (stretchy, satisfying), then a fast handheld pass over a counter of finished pizzas, one after another with leopard-spotted crusts.
+- The cuts between pizzas are quick jump cuts on similar framing (the detector reads them as camera movement): many finished products in under 7 s. Cheap to shoot, very appetising.
+
+## R3. C7o_hScJvvw grecospizzeria, 269K likes, 4,228 comments, 6.4 s, ONE overhead shot
+- A slice on a tray, a sauce bottle draws a letter on it. The caption: "Tag that friend whose name starts with this letter". A participation hook drives the comments (4.2K).
+- Native Instagram text, small, top of frame, pink box. Loops in 6 s.
+
+## R4. C2cPD_zoaSt pino_wuerzburg (pizzeria), 139K likes, 6.6 s
+- Suspense then payoff: 5 s of a man balancing a tall teetering stack of pizza boxes (will it fall?), then a burst of 0.3-0.4 s cuts of open boxes, a different pizza in each. Caption "Oh no.., oh, OH - oh yes please".
+- Small watermark-style logo text on every frame; no other text. Warm kitchen light.
+
+## R5. DWO5BVaDJde pizzeria_assaje, 122K likes, 9.5 s: a pizza "goes to bed"
+- Real footage then an edited gag: the pizzaiolo launches a pizza off the peel at the oven (3.4 s), match-cut on the flying pizza into a staged bed scene where the pizza is tucked in under a blanket, a pineapple "sleeping" next to it (the pineapple-on-pizza joke).
+- Transition: a MATCH CUT on motion (the pizza flies out of frame in one shot and lands in the next). Humour + one clever transition beats polish.
+
+## R6. DcHh43jIykZ palermopizza_si, 126K likes, 8 s, ONE handheld shot
+- "Half classic, half calzone": a novelty product, shown once, close, in the box, while a pizza wheel slices it; the camera eases back at the end to show the whole thing. No text, no cuts. The idea is the hook.
+
+## R7. DchE3IGNUJw pizzeria_litalia, 95.5K likes, 24.9 s: "30 seconds, 1 minute, 1 minute 30..." in the wood oven
+- An experiment/series format on ONE locked shot in front of the oven: the same pizza goes in for longer each round and comes out more burnt, until it is on fire.
+- The spine is a persistent row of small labels at the top (30s / 1min / 1min30 / ... with emoji), each lighting up as its round happens, colour going from green to red. Same "counter" idea as the animation study (socia-animation-references).
+- No cuts needed: the rounds ARE the structure. Text small, top of frame, the whole video.
+
+## R8. DUfHbHbDvHt osteriarenata, 49.3K likes, 10.9 s, 6 shots avg 1.8 s
+- Designed overhead: every shot is top-down with the plate in the same spot of the frame; hands slide plates in and out from the edges, so each cut is a "plate swap" that reads as one continuous move (a consistent-framing transition). Surfaces change behind the plate (wood, sauce, pasta sheets).
+- Moody, warm, saturated (sat 0.54); ends on the restaurant name, small, centred, on the wood table for 3 s. No other text.
+
+## R9. DObczjOACMz decadentdepictions (restaurant videographer), 39.8K likes, 11.8 s
+- Premium restaurant promo: about 18 shots in 12 s (~0.65 s each) joined by WHIP / motion-blur transitions (the camera moves fast at the end of one shot and the start of the next, so the detector sees motion, not hard cuts).
+- Very dark, moody, warm practicals (luma 0.25, sat 0.51): dining room, grill flames, wok toss, food levitating in slow motion, cocktail pours, a guest taking a bite, the guest's face at the end.
+- No text. Shot list: room, fire, cooking action, plate, menu, table spread, drinks, people eating.
+
+## R10. DC4nWkwI7vW frankmeatdxb, 30.3K likes, 5 s loop: ring the bell, the dish builds
+- Locked overhead camera on the pass: each tap of the service bell adds a layer to the tray (chips, sauce, guacamole, sour cream, herbs). Stop-motion jump cuts synced to the bell sound.
+- Same "magic cut on a locked camera" idea as F6 and F2: the framing never changes, only the food does, so every cut feels like a reveal.
+
+## R11. DcRgQbRvF59 lucatellispizzeria, 25.7K likes, 14.1 s, ONE shot
+- A Sicilian square pie in its branded box: cut with a pizza wheel (the crunch), then a corner square lifted slowly with a long cheese pull, held at the end. The whole video builds to the cheese pull; the box logo is visible throughout.
+- Warm, glossy (warm 0.27). No text.
+
+## R12. DIcOQmtuGab beyond.creator (for a restaurant), 25K likes, 14.7 s: "we attached a fork to the camera"
+- Behind-the-scenes setup (3.5 s, a guy taping a fork to a phone; native text in a white box at the top: "We hired this guy... he has no idea what he is doing"), then the FORK'S POV: a wide-angle glide through the dining room, into the dishes, stabbing a dessert, ending on the neon logo.
+- One continuous moving shot after the setup: the camera move is the transition. Warm, dark, saturated restaurant interior (sat 0.54).
+
+## R13. DQR2eMcinJ0 pizzeria_gennarorallo, 52.3K likes, 6.3 s, ONE handheld shot: how to fold a pizza "a portafoglio"
+- A useful micro-tutorial: hands fold a Neapolitan pizza into quarters inside paper, fast and close. Caption explains; no text on screen.
+
+# What the food and restaurant Reels do (30 studied, 2026-11-11)
+
+Over 100K likes: F1 4.7M skit, F2 2.3M one-pot pasta, R1 1.2M POV pizza, F8 1.1M honey garlic chicken, F3 580K slice pull, R2 474K pizzeria pass, F7 414K cook-along, R3 269K tag-a-friend letter, F6 268K bun gag, R4 139K box stack, R6 126K half calzone, R5 122K pizza goes to bed, R7 95K oven-time experiment.
+
+1. The idea beats the edit. Most top restaurant Reels are one shot or two or three: a single satisfying action shown in full (slice pull, cheese pull, cutting), a gag (magic cut, the pizza goes to bed), a participation hook (tag the friend whose name starts with this letter), an experiment with rounds (30 s, 1 min, 1 min 30), a POV stunt (camera under the toppings, fork on the camera).
+2. Recipes and process: finished dish FIRST for 1.2 to 2 s, then each step on a locked (often overhead) camera as jump cuts, ending on the finished dish again. Slow middle, fast finish. 8 to 33 s.
+3. Text: usually none. When there is text it is SMALL: lowercase white step labels in the middle of the frame naming the ingredient or step ("butter", "green onions", "refrigerate for 15 mins"), a small native label box (POV, tag-a-friend), or one tiny tracked line for a premium restaurant ("WE MAKE" / "YOU ENJOY"). Big designed titles never appeared in a food Reel.
+4. Transitions: hard cuts and jump cuts on a locked frame (stop-motion builds, plate swaps, bell-ring layers), match cuts on a moving object, whip pans in premium promos. Still no dissolves.
+5. Sound: the action is the sound (crunch, sizzle, bell); music sits under it.
+6. Light: either warm, glossy daylight (phone flash for macro) or dark, moody restaurant light with warm practicals. Warmth +0.13 to +0.43, saturation 0.3 to 0.64.
+7. Short loops: many are 3 to 10 s (3.3, 5, 6.3, 6.4, 9) and replay.
+
+## What this means for SOCIA's food/process style
+- Do NOT use the big Hook Pair on food. Use small step labels (lowercase, mid-frame, 1 to 4 words, the ingredient or step), and at most a small opening label naming the dish.
+- Structure: payoff first (finished dish 1.2 to 2 s), steps in order, payoff again; let slow steps hold, speed up at the end.
+- Allow short cuts (6 to 12 s) for single-action footage, and keep a single satisfying action whole rather than chopping it.
+- Jump cuts on the same locked framing are a feature in process videos (stop-motion build), not a stutter.
+- Offer formats, not just cuts: experiment rounds with a counter, tag-a-friend, magic cut on a locked frame.
