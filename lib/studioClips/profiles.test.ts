@@ -86,3 +86,15 @@ describe("on-screen words by style (2026-11-11 food study)", () => {
     expect(EDIT_STYLES.process.prompt).not.toMatch(/—/);
   });
 });
+
+describe("a prompt that rules talking out (2026-11-12 launch test)", () => {
+  it("doesn't read 'no speech' as a request for talking to camera", () => {
+    const brief = "Make a 15 second Reel from Clip 1. No speech in the clips, so use the real sound of the peel and the wheel with upbeat music.";
+    expect(pickStyle({ brief, niche: "pizza restaurant", speechShare: 0 }).id).toBe("process");
+    expect(pickStyle({ brief: "nobody talks, just the oven sounds", niche: null, speechShare: 0 }).id).toBe("process");
+  });
+  it("never cuts silent footage as talking to camera, but still does when someone talks", () => {
+    expect(pickStyle({ brief: "a talking head about our menu", niche: null, speechShare: 0 }).id).not.toBe("talking");
+    expect(pickStyle({ brief: "a talking head about our menu", niche: null, speechShare: 0.6 }).id).toBe("talking");
+  });
+});

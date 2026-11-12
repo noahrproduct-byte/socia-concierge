@@ -328,7 +328,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   - Use every clip given unless one truly has nothing usable, and tell a small story in order: arriving or the setup, the work, then the payoff.
   - Start each segment when its action starts and end it before the camera drifts onto nothing (skip the second of plain wall or closed door before the reveal).
   - Pace to the brief: for a POV, a rush, "how busy", a day in the life or anything energetic, 6 to 10 segments of 0.8 to 2.5 seconds each; calmer posts, fewer and longer.
-  - End on the strongest, most satisfying image and let it run 2.5 to 4 seconds.
+  - End on the strongest, most satisfying image and let it run 2.5 to 4 seconds. The last frame is clean and steady: end the shot before a hand, a tool or anything else moves in front of the subject, and before the camera swings, swoops or blurs. Never end mid-motion.
   - Handheld movement is fine; it's how short-form looks.
 - transition: "cut". SOCIA chooses each join itself: hard cuts between quick shots and where someone is talking, a short soft dissolve only between two longer shots of different moments. Use "fade", "zoom" or "whip" only when the brief asks for them by name.
 - targetSec: a sensible length for this footage, typically 10–30 seconds; never longer than the footage supports, and never much shorter than it allows when the clips are good.
