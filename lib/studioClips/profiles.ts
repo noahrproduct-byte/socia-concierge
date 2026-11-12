@@ -92,6 +92,11 @@ export const EDIT_STYLE_IDS = Object.keys(EDIT_STYLES) as EditStyleId[];
 export const isEditStyle = (v: unknown): v is EditStyleId => typeof v === "string" && v in EDIT_STYLES;
 export const styleOf = (id: unknown): EditStyle => EDIT_STYLES[isEditStyle(id) ? id : "process"];
 
+/** Footage this quiet has nobody talking in it. */
+const SILENT_SHARE = 0.1;
+/** Words a prompt uses to rule something out ("no speech", "nobody talks", "without a voiceover"). */
+const NEGATED = /\b(no|without|not any|zero)\s+(speech|talking|talk|dialogue|voice ?over|narration|words spoken)\b|\b(nobody|no one|no-one)\s+(talks|speaks|is talking|is speaking)\b/g;
+
 /** Footage that is mostly someone talking: this share of it has words. */
 export const TALKING_SHARE = 0.4;
 
@@ -118,8 +123,14 @@ export type StylePick = { id: EditStyleId; why: string };
  * process (how most of SOCIA's small businesses film).
  */
 export function pickStyle(a: { brief?: string | null; niche?: string | null; speechShare: number }): StylePick {
-  const brief = (a.brief ?? "").toLowerCase();
-  for (const [id, re] of ASKED) if (re.test(brief)) return { id, why: "your prompt asked for it" };
+  // "No speech in the clips" names speech to rule it out (the prompt improver writes it): negations don't count.
+  const brief = (a.brief ?? "").toLowerCase().replace(NEGATED, " ");
+  for (const [id, re] of ASKED) {
+    if (!re.test(brief)) continue;
+    // Footage nobody talks in is never cut as talking to camera, whatever word the prompt used (2026-11-12 launch test).
+    if (id === "talking" && a.speechShare < SILENT_SHARE) continue;
+    return { id, why: "your prompt asked for it" };
+  }
   const niche = (a.niche ?? "").toLowerCase();
   const nicheStyle = NICHE.find(([, re]) => re.test(niche))?.[0];
   if (a.speechShare >= TALKING_SHARE) return nicheStyle === "demo" ? { id: "demo", why: "someone explains a product in most of the footage" } : { id: "talking", why: "someone is talking in most of the footage" };
