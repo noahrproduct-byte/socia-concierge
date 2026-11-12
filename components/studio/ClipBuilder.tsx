@@ -170,6 +170,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         return;
       }
       setEdl((e) => (e ? { ...e, musicAuto: e.musicAuto ?? stamp } : e));
+      // The month's music tracks are used up: say so, never a silent "no track yet".
+      if (isPlanError(j) && j.code === "usage_exhausted") { setAutoMusic({ state: "skipped", note: `${j.error} This video has no music until they reset.` }); return; }
       // Not on the plan, not switched on, or turned off: the Music tab says so; nothing else changes.
       if (res?.ok || isPlanError(j) || j?.notConfigured) { setAutoMusic({ state: "skipped", note: null }); return; }
       setAutoMusic({ state: "failed", note: j?.error ?? "SOCIA couldn't add music this time. Pick a track in Music." });

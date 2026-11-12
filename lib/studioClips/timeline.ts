@@ -192,3 +192,22 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
   });
   return out;
 }
+
+/**
+ * One text at a time (Noah, 2026-11-12): spoken captions step aside while a
+ * designed line or the ending card is on screen. A page that starts under one
+ * is left out; a page that runs into one ends where it comes in.
+ * `cardFrom` is the frame the ending card comes in (Infinity when there is none).
+ */
+export function clearOfText(pages: CaptionPageSpan[], edl: Pick<Edl, "text">, fps: number = FPS, cardFrom: number = Infinity): CaptionPageSpan[] {
+  const busy = edl.text
+    .filter((t) => t.text.trim())
+    .map((t) => ({ from: Math.round(t.at * fps), to: Math.round(t.end * fps) }))
+    .concat(Number.isFinite(cardFrom) ? [{ from: Math.round(cardFrom), to: Infinity }] : []);
+  if (!busy.length) return pages;
+  return pages.flatMap((p) => {
+    if (busy.some((b) => p.from >= b.from && p.from < b.to)) return [];
+    const end = Math.min(p.from + p.durationInFrames, ...busy.filter((b) => b.from > p.from).map((b) => b.from));
+    return end - p.from >= Math.round(fps * 0.3) ? [{ ...p, durationInFrames: end - p.from }] : [];
+  });
+}

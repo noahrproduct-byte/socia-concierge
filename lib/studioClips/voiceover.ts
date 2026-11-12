@@ -7,6 +7,7 @@
 // rest. Pure, unit-tested; the voicing itself is lib/voiceover/server.ts.
 import { DUCK, speechShare, speechSpans, type Span } from "./musicDuck";
 import { timeline } from "./timeline";
+import { END_CARD_SEC } from "./teach";
 import type { Edl, TranscriptWord, VoiceLine, Voiceover, VoiceWord } from "./types";
 import type { EditStyleId } from "./profiles";
 
@@ -55,19 +56,28 @@ export const SCRIPT_SCHEMA = {
   required: ["lines"],
 } as const;
 
-// Small words a trimmed line must not end on.
-const DANGLING = new Set(["a", "an", "the", "and", "or", "but", "so", "to", "of", "in", "on", "at", "for", "with", "from", "by", "that", "this", "your", "our", "my", "its", "is", "are", "was", "it", "as", "into", "like"]);
+// Words a trimmed line must not end on: they promise more ("Find us all around" lost "Nashville", 2026-11-12).
+const DANGLING = new Set([
+  "a", "an", "the", "and", "or", "but", "so", "to", "of", "in", "on", "at", "for", "with", "from", "by", "that", "this", "your", "our", "my", "its", "is", "are", "was", "it", "as", "into", "like",
+  "around", "about", "across", "through", "near", "over", "under", "after", "before", "between", "toward", "towards", "inside", "outside", "all", "every", "each", "some", "any", "more", "most", "very", "just", "only", "then", "when", "where", "which", "who", "if", "than", "because", "while", "we", "you", "they", "their", "his", "her",
+]);
 
 /** Tidies a model's line: no dashes standing in for punctuation, no wrapping quotes, single spaces. */
 export function cleanLine(s: string): string {
   return s.replace(/\s*[—–]\s*/g, ", ").replace(/^["'“‘]+|["'”’]+$/g, "").replace(/\s+/g, " ").trim();
 }
 
-/** The first `max` words, never ending on a word like "the" or "and". */
+/**
+ * The first `max` words as a line that still says something whole: back to the
+ * last full stop or comma when there is one, and never ending on a word like
+ * "the", "and" or "around".
+ */
 export function trimToWords(text: string, max: number): string {
   const words = text.split(" ").filter(Boolean);
   if (words.length <= max) return words.join(" ");
-  const kept = words.slice(0, Math.max(0, max));
+  let kept = words.slice(0, Math.max(0, max));
+  const clause = kept.slice(0, -1).map((w) => /[.!?,;:]$/.test(w)).lastIndexOf(true);
+  if (clause >= MIN_WORDS - 1) kept = kept.slice(0, clause + 1);
   while (kept.length && DANGLING.has(kept[kept.length - 1].toLowerCase().replace(/[^\p{L}']/gu, ""))) kept.pop();
   return kept.join(" ").replace(/[,;:]+$/, "");
 }
@@ -233,6 +243,9 @@ export function pickDefaultVoice(voices: VoiceChoice[], style: EditStyleId | nul
   }
   return best;
 }
+
+/** Where the voice has to be finished: before the ending card comes in, so the card and the voice never talk over each other. */
+export const speakingEndSec = (edl: Pick<Edl, "endCard">, totalSec: number): number => (edl.endCard ? Math.max(0, totalSec - END_CARD_SEC) : totalSec);
 
 /** How much speaking a cut of this length has room for, in words, for the script prompt. */
 export const wordBudget = (totalSec: number): number => Math.max(0, Math.floor((totalSec - 0.6) * VOICE_WPS * 0.85));
