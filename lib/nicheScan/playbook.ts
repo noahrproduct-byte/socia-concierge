@@ -30,11 +30,11 @@ export const FORMAT_LABEL: Record<ReelFormat, string> = {
   tag_a_friend: "a tag-a-friend prompt",
   experiment: "an experiment in rounds",
   list: "a list or ranking",
-  reaction: "a reaction or first bite",
+  reaction: "a reaction",
   before_after: "before and after",
   talking: "someone talking to camera",
   behind_the_scenes: "behind the scenes",
-  taste_test: "a taste test or review",
+  taste_test: "a test or review",
   comparison: "a side-by-side comparison",
   other: "other",
 };
@@ -138,6 +138,14 @@ const byStrength = (a: Pattern, b: Pattern) => b.accounts - a.accounts || b.reel
 export type RawTemplate = { template?: unknown; reel_ids?: unknown };
 
 const EM_DASH = /—/g;
+// Words that only carry a number ("161 million"): a template made of these and blanks is not a line anyone can reuse.
+const NUMBER_WORDS = new Set(["million", "millions", "billion", "billions", "thousand", "thousands", "hundred", "k", "m", "percent", "x", "times", "dollars", "usd"]);
+
+/** A template someone could write their own words into: at least one real word that isn't a number or a blank (2026-11-12 scan review). */
+export function reusable(template: string): boolean {
+  const words = template.toLowerCase().replace(/_+/g, " ").match(/\p{L}[\p{L}']*/gu) ?? [];
+  return words.some((w) => w.length >= 2 && !NUMBER_WORDS.has(w));
+}
 
 /**
  * Keep a proposed text template only when the Reels it cites are real,
@@ -151,7 +159,7 @@ export function keepTemplates(raw: RawTemplate[], watched: WatchedReel[], kind: 
   for (const t of raw) {
     if (typeof t.template !== "string") continue;
     const template = t.template.replace(EM_DASH, ",").replace(/\s+/g, " ").trim().slice(0, 90);
-    if (template.length < 4 || seen.has(template.toLowerCase())) continue;
+    if (template.length < 4 || seen.has(template.toLowerCase()) || !reusable(template)) continue;
     const ids = Array.isArray(t.reel_ids) ? t.reel_ids.filter((x): x is string => typeof x === "string") : [];
     const reels = [...new Set(ids)].map((id) => byId.get(id)).filter((w): w is WatchedReel => {
       if (!w || w.weak) return false;
@@ -199,7 +207,8 @@ export function buildPlaybook(input: {
   return {
     v: 1, niche: input.niche, builtAt: input.now.toISOString(),
     scanned: { accounts: input.accountsRead, reels: input.read.length, studied: input.watched.length, from: dates[0] ?? null, to: dates[dates.length - 1] ?? null },
-    formats, ctas, texts: input.texts, hooks: input.hooks, avoid, notes: input.notes ?? [],
+    // A template that is the opening line already shows under hooks; it isn't listed twice.
+    formats, ctas, texts: input.texts.filter((t) => !input.hooks.some((h) => h.template.toLowerCase() === t.template.toLowerCase())), hooks: input.hooks, avoid, notes: input.notes ?? [],
   };
 }
 

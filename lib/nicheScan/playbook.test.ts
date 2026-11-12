@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPlaybook, cleanWatched, isFresh, keepTemplates, patternCount, patternOf, playbookInsights, playbookKey, playbookPrompt, readPlaybook, type WatchedReel } from "./playbook";
+import { reusable, FORMAT_LABEL as LABELS } from "./playbook";
 import type { ScanReel } from "./plan";
 
 const NOW = new Date("2026-11-12T12:00:00Z");
@@ -96,5 +97,18 @@ describe("the playbook", () => {
     expect(readPlaybook({ v: 2 })).toBeNull();
     expect(isFresh(p, new Date(NOW.getTime() + 6 * 86_400_000))).toBe(true);
     expect(isFresh(p, new Date(NOW.getTime() + 8 * 86_400_000))).toBe(false);
+  });
+});
+
+describe("scan review fixes (2026-11-12)", () => {
+  it("drops a template nobody could reuse, like a bare number", () => {
+    expect(reusable("___ million")).toBe(false);
+    expect(reusable("___")).toBe(false);
+    expect(reusable("pov: ___")).toBe(true);
+    expect(reusable("send this to someone you'd ___ with")).toBe(true);
+  });
+  it("uses neutral labels for formats every niche shares", () => {
+    expect(LABELS.reaction).toBe("a reaction");
+    expect(LABELS.taste_test).not.toMatch(/taste|bite/);
   });
 });
