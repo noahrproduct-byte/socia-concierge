@@ -1,7 +1,10 @@
-# Makes the intro film's sound (public/intro/intro-sound.mp3). Everything is
-# synthesised here, so there is nothing to license. Each sound sits on a beat
-# of the film: rerun this when T, the stagger or the name timing in
-# components/intro/SociaIntro.tsx change.
+# Makes the intro film's sound (public/intro/intro-sound.mp3). The musical
+# parts (drone, plucked notes, bell chord, pad) are synthesised here; the
+# recorded textures under them (air, the letters landing, whooshes, the riser,
+# the bloom after the hit, the shimmer at the end) are sound effects made for
+# this film with Higgsfield (Mirelo SFX) and kept in scripts/intro-sound/.
+# Each sound sits on a beat of the film: rerun this when T, the stagger or the
+# name timing in components/intro/SociaIntro.tsx change.
 #   python3 scripts/intro-sound.py   (needs numpy, and ffmpeg on the PATH)
 #
 # The score, in the film's seconds:
@@ -14,7 +17,7 @@
 #   7.0         the mark fills: a deep hit and a bell chord
 #   7.3 to 9.5  a soft pad under "Everything. One platform.", fading with the film
 #
-# Mastered loud (compressor, then a limiter at -1 dB), about -10 LUFS.
+# Mastered loud: raised, then a limiter, about -10 LUFS with peaks under -1 dB.
 import math, os, subprocess, tempfile, wave
 
 import numpy as np
@@ -29,7 +32,7 @@ ARRIVE, STAGGER, GROW = 2.2, 0.11, 0.95
 NAME_AT = GROW * 0.7  # a name fades in this long after its strand starts
 BRAID, FORM, FILL, WORDS, END = 5.0, 6.3, 7.0, 7.45, 8.9
 PARTS = 11
-MAKEUP = 6  # dB raised before the limiter
+MAKEUP = 7.5  # dB raised before the limiter
 
 n = int(SR * LENGTH)
 dry = np.zeros((2, n))
@@ -168,6 +171,65 @@ pad *= env(pad_sec, 0.7, 1.0, curve=1.5)
 pad = np.vstack([one_pole(pad[0], 1800), one_pole(pad[1], 1800)])
 place(pad, 7.3, gain=0.07, send=0.4)
 
+# ---- 6. recorded layers, under the synthesised ones --------------------------------
+SFX = os.path.join(os.path.dirname(__file__), "intro-sound")
+
+
+def load(name):
+    """A recorded effect as float stereo at SR, peak-normalised to 1."""
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-i", os.path.join(SFX, name + ".mp3"), "-ac", "2", "-ar", str(SR), "-f", "f32le", "-"], capture_output=True, check=True).stdout
+    x = np.frombuffer(raw, np.float32).reshape(-1, 2).T.astype(float)
+    return x / (np.max(np.abs(x)) or 1)
+
+
+def rate(x, r):
+    """Plays x at r times the speed (pitch moves with it), so repeats don't sound identical."""
+    idx = np.arange(0, x.shape[1] - 1, r)
+    return np.vstack([np.interp(idx, np.arange(x.shape[1]), c) for c in x])
+
+
+def fade_in(x, sec):
+    k = min(x.shape[1], int(sec * SR))
+    x = x.copy()
+    x[:, :k] *= np.linspace(0, 1, k) ** 2
+    return x
+
+
+def fade_out(x, sec):
+    k = min(x.shape[1], int(sec * SR))
+    x = x.copy()
+    x[:, -k:] *= np.linspace(1, 0, k) ** 2
+    return x
+
+
+def lowpass2(x, cutoff):
+    return np.vstack([one_pole(one_pole(c, cutoff), cutoff) for c in x])
+
+
+# air under the title: the recorded swell, darkened and brought in slowly
+place(fade_out(fade_in(lowpass2(load("swell"), 2500), 1.0), 0.8), 0.0, gain=0.12, send=0.3)
+# SOCIA lands: the recorded hit (its peak 0.12 s in) on the synthesised thump
+place(fade_out(load("land"), 0.6), 1.1 - 0.12, gain=0.35, send=0.2)
+# a recorded whoosh per strand, cresting as its name appears, each at its own speed
+whoosh = load("whoosh")
+for i in range(PARTS):
+    theta = -math.pi / 2 + i * 2 * math.pi / PARTS + math.pi / (2 * PARTS)
+    r = 0.9 + 0.22 * ((i * 7) % PARTS) / (PARTS - 1)
+    w = fade_out(rate(whoosh, r), 0.08)
+    peak = 0.98 / r
+    pan = 0.6 * math.cos(theta)
+    side = np.array([[math.cos((pan + 1) * math.pi / 4) * math.sqrt(2)], [math.sin((pan + 1) * math.pi / 4) * math.sqrt(2)]])
+    place(w * side, ARRIVE + i * STAGGER + NAME_AT - peak, gain=0.06, send=0.3)
+# the riser: the recorded one is silent for its first 0.5 s, then builds to the cut just before the hit
+riser_rec = load("riser")
+k_start, k_cut = int(0.5 * SR), int(2.5 * SR)
+riser_rec = riser_rec[:, k_start:k_cut] * np.linspace(0.35, 1, k_cut - k_start) ** 1.5
+place(fade_in(riser_rec, 0.4), FILL - 0.05 - riser_rec.shape[1] / SR, gain=0.22, send=0.25)
+# after the hit, the recorded impact's slow bloom carries the bell chord out
+place(fade_out(load("impact"), 1.2), FILL, gain=0.3, send=0.35)
+# a little shimmer under the closing words
+place(fade_out(fade_in(lowpass2(load("tail"), 7000), 0.6), 1.0), WORDS, gain=0.06, send=0.5)
+
 # ---- reverb: a 2.6 s hall, made of decaying noise ---------------------------------------
 ir_len = int(SR * 2.6)
 it = np.arange(ir_len) / SR
@@ -194,6 +256,6 @@ with tempfile.TemporaryDirectory() as tmp:
     # Loud on purpose (Noah, 2026-11-12: "make the sound louder"): the quiet
     # parts are mixed up above, then the whole is raised and a limiter catches
     # only the loudest moments, so the hit still lands harder than the rest.
-    master = "volume=MAKEUPdB,alimiter=limit=0.79:attack=2:release=80:level=disabled"
+    master = "volume=MAKEUPdB,alimiter=limit=0.82:attack=2:release=80:level=disabled,volume=-0.6dB"
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav, "-af", master.replace("MAKEUP", str(MAKEUP)), "-c:a", "libmp3lame", "-b:a", "160k", OUT], check=True)
 print("wrote", os.path.normpath(OUT))

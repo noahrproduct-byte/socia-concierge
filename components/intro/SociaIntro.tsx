@@ -237,6 +237,8 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     if (leaving.current) return;
     leaving.current = true;
     setPhase("leaving");
+    // The page shows again under the fade.
+    delete document.documentElement.dataset.introPlaying;
     // The sound fades with the picture.
     const a = audio.current;
     if (a && !a.paused) {
@@ -262,11 +264,13 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     a.play().catch(() => setSound("off"));
   };
 
-  // The page under the film doesn't scroll while it plays; Escape skips.
+  // The page under the film doesn't scroll while it plays, and isn't drawn
+  // (intro.css), so the film has the machine to itself; Escape skips.
   useEffect(() => {
     const root = document.documentElement;
     const before = root.style.overflow;
     root.style.overflow = "hidden";
+    root.dataset.introPlaying = "";
     skipRef.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") leave();
@@ -274,6 +278,7 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
     window.addEventListener("keydown", onKey);
     return () => {
       root.style.overflow = before;
+      delete root.dataset.introPlaying;
       window.removeEventListener("keydown", onKey);
     };
   }, [leave]);
@@ -407,22 +412,19 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
 
     let t = 0;
     let last = performance.now();
-    let lastSync = 0;
     let raf = 0;
     let shown: "title" | "film" | "words" = "title";
     const tick = (now: number) => {
-      t += Math.min(0.05, (now - last) / 1000);
+      const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+      // While the sound plays, it is the clock and the picture follows it: the
+      // sound is never moved (moving it is an audible skip), and the picture
+      // never runs ahead of it. Without sound, the frames keep the time.
+      const a = audio.current;
+      if (a && !a.paused && !a.seeking && a.readyState >= 3) t = Math.max(t, a.currentTime);
+      else t += dt;
       filmTime.current = t;
       frame(t);
-      // Keeps the sound on the picture, e.g. after the tab was in the background.
-      // Only once the sound is actually playing, and at most twice a second:
-      // moving it while it is still loading restarts the load, and it never plays.
-      const a = audio.current;
-      if (a && !a.paused && !a.seeking && a.readyState >= 3 && now - lastSync > 500 && Math.abs(a.currentTime - t) > 0.25) {
-        lastSync = now;
-        a.currentTime = t;
-      }
       const next = t < T.arrive ? "title" : t < T.words ? "film" : "words";
       const nextPhase = still ? (t < 0.6 ? "film" : "words") : next;
       if (nextPhase !== shown && !leaving.current) {
