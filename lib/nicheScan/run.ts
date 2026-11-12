@@ -241,6 +241,7 @@ async function step(ctx: Ctx, state: ScanState, now: Date): Promise<ScanState> {
       const watched = await studyBatch(ctx.ownerId, state.niche, batch);
       for (const w of watched) state.watched[w.id] = w;
       state.counts.watched = Object.keys(state.watched).length;
+      state.counts.withFrames = Object.values(state.watched).filter((w) => (w as { read?: string }).read === "frames").length;
       if (!nextBatch(state).length) state.phase = "write";
       return state;
     }
