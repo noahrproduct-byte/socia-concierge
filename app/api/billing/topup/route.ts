@@ -6,7 +6,7 @@ import { checkoutAvailable } from "@/lib/plans";
 import { getEntitlements, canUseFeature } from "@/lib/entitlements";
 import { saveCustomerId } from "@/lib/billing";
 import { recordEvent } from "@/lib/planGuard";
-import { TOPUP_PACKS, type TopupKey } from "@/lib/credits/config";
+import { CREDIT_PRICES_CONFIRMED, TOPUP_PACKS, type TopupKey } from "@/lib/credits/config";
 
 export const runtime = "nodejs";
 
@@ -21,7 +21,8 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Sign in to buy credits." }, { status: 401 });
   const stripe = getStripe();
   const svc = createServiceClient();
-  if (!stripe || !svc || !checkoutAvailable()) return NextResponse.json({ error: "Top-ups are not available yet." }, { status: 503 });
+  // Closed until the credit prices are confirmed (lib/credits/config.ts).
+  if (!stripe || !svc || !checkoutAvailable() || !CREDIT_PRICES_CONFIRMED) return NextResponse.json({ error: "Top-ups are not available yet." }, { status: 503 });
   const body = (await req.json().catch(() => null)) as { pack?: unknown } | null;
   const pack = TOPUP_PACKS.find((p) => p.key === body?.pack);
   if (!pack) return NextResponse.json({ error: "Choose a credit pack." }, { status: 400 });

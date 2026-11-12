@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getStripe, isBillingInterval, isPaidPlan, resolvePriceId } from "@/lib/stripe";
 import { hasLiveSubscription, readBillingInfo, saveCustomerId } from "@/lib/billing";
-import { PLANS, checkoutAvailable } from "@/lib/plans";
+import { PLANS, checkoutAvailable, onSale } from "@/lib/plans";
 import { recordEvent } from "@/lib/planGuard";
 
 export const runtime = "nodejs";
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
   if (!isPaidPlan(plan) || !isBillingInterval(interval)) {
     return NextResponse.json({ error: "Choose a paid plan and a billing period." }, { status: 400 });
   }
+  if (!onSale(plan)) return NextResponse.json({ error: `The ${PLANS[plan].name} plan is not on sale yet.` }, { status: 503 });
   const price = await resolvePriceId(stripe, plan, interval).catch(() => null);
   if (!price) return NextResponse.json({ error: `The ${PLANS[plan].name} price is not configured yet.` }, { status: 503 });
 

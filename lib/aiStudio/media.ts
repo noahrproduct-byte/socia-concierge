@@ -13,6 +13,9 @@ export const MAX_COPY_BYTES = 500 * 1024 * 1024;
 type Svc = any;
 
 export const EXT_FOR: Record<string, string> = { "video/mp4": "mp4", "video/quicktime": "mov", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+const TYPE_FOR_EXT: Record<string, string> = { mp4: "video/mp4", mov: "video/quicktime", "3gp": "video/3gpp", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+/** The stored type comes from the path SOCIA chose, not the provider's header: the bucket only takes these types. */
+export const typeForPath = (path: string, fallback: string): string => TYPE_FOR_EXT[(path.split(".").pop() ?? "").toLowerCase()] ?? fallback;
 export const extOf = (contentType: string | null | undefined, fallback = "bin"): string => EXT_FOR[(contentType ?? "").split(";")[0].trim().toLowerCase()] ?? fallback;
 
 /** `<owner>/<area>/<uuid>.<ext>`: the owner's folder, as the bucket policies require. */
@@ -26,7 +29,7 @@ export async function copyUrlToBucket(svc: Svc, url: string, path: string, fallb
   if (!res.ok) throw new Error(`download failed (${res.status})`);
   const len = Number(res.headers.get("content-length") ?? 0);
   if (len > MAX_COPY_BYTES) throw new Error("file too large to copy");
-  const contentType = (res.headers.get("content-type") ?? fallbackType).split(";")[0].trim() || fallbackType;
+  const contentType = typeForPath(path, fallbackType);
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.byteLength > MAX_COPY_BYTES) throw new Error("file too large to copy");
   const { error } = await svc.storage.from(AI_BUCKET).upload(path, buf, { contentType, upsert: true });

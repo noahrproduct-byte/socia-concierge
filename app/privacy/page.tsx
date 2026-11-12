@@ -119,7 +119,11 @@ export default function PrivacyPage() {
         </li>
         <li>
           <b>Brand and profile details you provide</b>: your niche, goals,
-          location and brand settings, used to personalize analysis.
+          location and brand settings, used to personalize analysis. If you
+          add photos of your place, they are resized in your browser and sent
+          to Anthropic once so SOCIA can describe the spots worth filming; the
+          photos are not stored, only that written description, which you can
+          remove in Settings at any time.
         </li>
         <li>
           <b>Teams and workspaces</b>: the people you invite, their roles, and

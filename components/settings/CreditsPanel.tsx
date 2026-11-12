@@ -8,7 +8,7 @@ import { formatCredits, type TopupKey } from "@/lib/credits/config";
 import "@/app/(app)/ai/ai.css";
 
 type Entry = { id: number; kind: string; amount: number; balance_after: number; note: string | null; created_at: string };
-type Data = { balance: number | null; monthly: number; packs: readonly { key: TopupKey; credits: number; usd: number }[]; ledger: Entry[]; enabled: boolean };
+type Data = { balance: number | null; monthly: number; packs: readonly { key: TopupKey; credits: number; usd: number }[]; ledger: Entry[]; enabled: boolean; topups: boolean };
 
 const KIND: Record<string, string> = { grant: "Monthly allowance", spend: "Spent", refund: "Refunded", topup: "Top-up", adjust: "Adjustment" };
 const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -37,14 +37,14 @@ export default function CreditsPanel({ checkout }: { checkout: boolean }) {
         <b>{data.balance == null ? "–" : formatCredits(data.balance)}</b>
         <span>AI credits for the Clipper and AI Studio. {data.monthly > 0 ? `${data.monthly.toLocaleString("en-US")} come with your plan each month.` : ""}</span>
       </div>
-      <div className="ai-packs">
+      {data.topups ? <div className="ai-packs">
         {data.packs.map((p) => (
           <button key={p.key} type="button" className="btn-secondary" disabled={!checkout || Boolean(busy)} onClick={() => buy(p.key)} aria-busy={busy === p.key || undefined}>
             {busy === p.key ? <Loader2 size={14} className="spin" aria-hidden /> : null} {p.credits.toLocaleString("en-US")} credits for ${p.usd}
           </button>
         ))}
         {!checkout && <small>Top-ups open with checkout.</small>}
-      </div>
+      </div> : <p className="ai-note">Top-ups are not on sale yet.</p>}
       {err && <p className="ai-err" role="alert">{err}</p>}
       {data.ledger.length > 0 && (
         <ul className="ai-ledger">

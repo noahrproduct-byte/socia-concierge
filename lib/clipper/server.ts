@@ -14,6 +14,7 @@ import { clipperProvider } from "./vizard";
 import { ClipperError, MAX_CLIPS, isClipLength, type ClipperOptions, type ClipperSource, type ProviderClip, DEFAULT_CLIPPER_OPTIONS } from "./provider";
 import { AI_BUCKET, copyUrlToBucket, mediaPath, removePaths, signedUrl } from "@/lib/aiStudio/media";
 import { brandLine, writeClipCaptions } from "@/lib/aiStudio/captions";
+import { fileSeconds, isReadableLink, youtubeSeconds, MAX_SOURCE_MINUTES } from "./sourceLength";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
@@ -52,18 +53,41 @@ const svcOrThrow = (): Supa => {
 
 export const YOUTUBE_RE = /^(https?:\/\/)?(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|live\/)|youtu\.be\/)[\w-]{6,}/i;
 
-/** Minutes of a YouTube video, read from the watch page; null when it can't be read. */
-export async function youtubeMinutes(url: string, fetchImpl: typeof fetch = fetch): Promise<number | null> {
-  try {
-    const res = await fetchImpl(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; SOCIA clipper)", "Accept-Language": "en" } });
-    if (!res.ok) return null;
-    const html = await res.text();
-    const m = /"lengthSeconds"\s*:\s*"(\d+)"/.exec(html) ?? /<meta itemprop="duration" content="PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?"/.exec(html);
-    if (!m) return null;
-    const seconds = m.length === 2 ? Number(m[1]) : Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
-    return seconds > 0 ? Math.ceil(seconds / 60) : null;
-  } catch {
-    return null;
+/**
+ * The source's real length in whole minutes, measured by SOCIA: the price is
+ * never taken from what the person typed. Throws ClipperError when it can't be
+ * measured or is longer than MAX_SOURCE_MINUTES.
+ */
+export async function measureSourceMinutes(svc: Supa, source: CreateClipJobInput["source"], measure: Measure = defaultMeasure): Promise<number> {
+  let seconds: number | null = null;
+  if (source.kind === "youtube") seconds = await measure.youtube(source.url);
+  else if (source.kind === "upload") {
+    const url = await signedUrl(svc, source.path, 600);
+    seconds = url ? await measure.file(url) : null;
+  } else {
+    if (!(await measure.readable(source.url))) throw new ClipperError("SOCIA can only read public https links to a video file. Upload the file instead.", "bad_link");
+    seconds = await measure.file(source.url);
+  }
+  if (!seconds) {
+    throw new ClipperError(
+      source.kind === "youtube"
+        ? "SOCIA couldn't read how long this YouTube video is. Check that it is public, or download it and upload the file."
+        : "SOCIA couldn't read how long this video is. Save it as an .mp4 or .mov and upload it.",
+      "no_length",
+    );
+  }
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes > MAX_SOURCE_MINUTES) throw new ClipperError(`This video is ${minutes} minutes long. The Clipper takes videos up to ${MAX_SOURCE_MINUTES / 60} hours.`, "too_long");
+  return minutes;
+}
+
+type Measure = { youtube: (url: string) => Promise<number | null>; file: (url: string) => Promise<number | null>; readable: (url: string) => Promise<boolean> };
+const defaultMeasure: Measure = { youtube: youtubeSeconds, file: fileSeconds, readable: isReadableLink };
+
+/** The page priced the job at fewer minutes than the video has: nothing is spent until the person sees the real price. */
+export class PriceCheckError extends ClipperError {
+  constructor(public minutes: number, public price: number) {
+    super(`This video is ${minutes} ${minutes === 1 ? "minute" : "minutes"} long, so clipping it uses ${price.toLocaleString("en-US")} credits. Press Make clips again to go ahead.`, "confirm_price");
   }
 }
 
@@ -84,7 +108,7 @@ export function cleanOptions(raw: unknown): ClipperOptions {
 
 export type CreateClipJobInput = {
   source: { kind: "youtube" | "url" | "upload"; url: string; path?: string | null; ext?: string };
-  /** Minutes of source video, when the server cannot measure it (uploads and remote files). */
+  /** The minutes the page showed a price for. The job is priced from the measured length; when that is longer, nothing is spent and PriceCheckError says the real price. */
   minutes: number | null;
   options: ClipperOptions;
 };
@@ -92,11 +116,9 @@ export type CreateClipJobInput = {
 /** Price, spend and save a job, then try to submit it at once. Throws ClipperError or CreditsError. */
 export async function createClipJob(ctx: Ctx, input: CreateClipJobInput): Promise<ClipJobRow> {
   const svc = svcOrThrow();
-  let minutes = input.minutes;
-  if (input.source.kind === "youtube") minutes = (await youtubeMinutes(input.source.url)) ?? minutes;
-  if (!minutes || !(minutes > 0)) throw new ClipperError("SOCIA could not tell how long the video is. Enter its length in minutes.", "no_length");
-  minutes = Math.min(600, Math.ceil(minutes));
+  const minutes = await measureSourceMinutes(svc, input.source);
   const credits = clipCredits(minutes, input.options.clipModel);
+  if (!input.minutes || input.minutes < minutes) throw new PriceCheckError(minutes, credits);
   const { data, error } = await svc.from("clip_jobs").insert({
     user_id: ctx.ownerId, workspace_id: ctx.workspace?.id ?? null,
     source_kind: input.source.kind, source_url: input.source.url, source_path: input.source.path ?? null,

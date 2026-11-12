@@ -7,7 +7,7 @@
 // Client-safe: no server imports.
 
 import {
-  PLANS, PLAN_ORDER, FEATURE_STATUS, FEATURE_LABEL, METER_PERIOD, PLATFORM_NAME, WORKSPACE_PLATFORMS,
+  PLANS, SALE_ORDER, SCALE_ON_SALE, FEATURE_STATUS, FEATURE_LABEL, METER_PERIOD, PLATFORM_NAME, WORKSPACE_PLATFORMS,
   formatHistory,
   type PlanId, type PlanConfig, type FeatureKey, type LimitKey, type MeterKey,
 } from "./plans";
@@ -40,7 +40,7 @@ export function featureSoon(key: FeatureKey): boolean {
 
 function perPlan(fn: (p: PlanConfig) => Cell): Record<PlanId, Cell> {
   const out = {} as Record<PlanId, Cell>;
-  for (const id of PLAN_ORDER) out[id] = fn(PLANS[id]);
+  for (const id of SALE_ORDER) out[id] = fn(PLANS[id]);
   return out;
 }
 
@@ -134,9 +134,10 @@ export const COMPARISON: ComparisonCategory[] = [
       { label: "AI-made videos", cells: meterCell("video_builds") },
       { label: "Music tracks", note: "Made for your videos from your brand's taste.", cells: meterCell("music_tracks") },
       { label: "Account audits", cells: meterCell("account_audit") },
-      feature("ai_clipper", "Paste a YouTube link or upload a video; SOCIA returns vertical clips with captions, a title, a score and a caption. Only clip videos you own or have rights to."),
+      // Scale's rows, once Scale is on sale (lib/credits/config.ts CREDIT_PRICES_CONFIRMED).
+      ...(SCALE_ON_SALE ? [feature("ai_clipper", "Paste a YouTube link or upload a video; SOCIA returns vertical clips with captions, a title, a score and a caption. Only clip videos you own or have rights to."),
       feature("ai_studio", "Ideas from your brand and niche, turned into AI videos and images on a curated set of models."),
-      { label: "AI credits per month", note: "Spent by the Clipper and AI Studio; every action shows its price first. Top-up packs available.", cells: perPlan((p) => (MONTHLY_CREDITS[p.id] > 0 ? text(MONTHLY_CREDITS[p.id].toLocaleString("en-US")) : NO)) },
+      { label: "AI credits per month", note: "Spent by the Clipper and AI Studio; every action shows its price first. Top-up packs available.", cells: perPlan((p) => (MONTHLY_CREDITS[p.id] > 0 ? text(MONTHLY_CREDITS[p.id].toLocaleString("en-US")) : NO)) }] : []),
     ],
   },
   {

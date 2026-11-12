@@ -5,6 +5,7 @@
 // concept is assembled here from SOCIA's own records; only the guide is
 // written by the model, and it is bounded here before anyone sees it. Pure.
 
+import { FILMING_DIRECTION_RULE } from "./place";
 import type { PlanItem } from "./planItems";
 import type { NicheFormat } from "./nicheFormats";
 import { formatBasis } from "./nicheFormats";
@@ -128,7 +129,8 @@ Rules:
 - structure: the story beats in order, 3 to 5 short names (for example "Hook", "Problem", "Reveal", "Call to action").
 - hooks: exactly 3 opening lines in the account's voice, each a different style (for example curiosity, direct, story). Original lines, never copied from a creator.
 - script: one entry per beat with what is said or shown on screen and its seconds; the seconds add up to about length_sec.
-- shots: the shot list in order: what is in frame, the framing (for example "overhead", "close-up at counter height", "handheld walk-in"), seconds and one practical note.
+- shots: the shot list in order: what is in frame and where (a named spot of their place when "Your place" is given), the framing and camera move (for example "overhead", "close-up at counter height", "handheld walk-in through the front door"), seconds and one practical note.
+- ${FILMING_DIRECTION_RULE}
 - filming: 2 to 4 practical instructions (light, sound, stability, takes).
 - editing: 2 to 4 editing directions (cuts, text on screen, pacing, music only as a suggestion).
 - caption: the post caption in their voice, with at most 5 hashtags at the end, never words or topics they asked to avoid.

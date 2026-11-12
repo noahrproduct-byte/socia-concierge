@@ -26,10 +26,24 @@
 // (per plan) and profiles.entitlement_overrides (per user, for custom deals)
 // on top, so limits can be tuned from the database without touching code.
 
+import { CREDIT_PRICES_CONFIRMED } from "./credits/config";
+
 export type PlanId = "free" | "starter" | "growth" | "pro" | "scale";
 
 /** Ascending order; used for "requires Growth or higher" comparisons. */
 export const PLAN_ORDER: PlanId[] = ["free", "starter", "growth", "pro", "scale"];
+
+/**
+ * Scale is sold once its credit prices are confirmed (lib/credits/config.ts).
+ * Until then it is left off pricing, upgrade offers and checkout; a plan set
+ * by hand still works.
+ */
+export const SCALE_ON_SALE = CREDIT_PRICES_CONFIRMED;
+
+/** The plans offered for sale, ascending: PLAN_ORDER without Scale until it is on sale. */
+export const SALE_ORDER: PlanId[] = SCALE_ON_SALE ? PLAN_ORDER : PLAN_ORDER.filter((p) => p !== "scale");
+
+export const onSale = (p: PlanId): boolean => SALE_ORDER.includes(p);
 
 /** A plan's place in the hierarchy. Access is always `rank(current) >= rank(required)`. */
 export const PLAN_RANK: Record<PlanId, number> = { free: 0, starter: 1, growth: 2, pro: 3, scale: 4 };
@@ -448,7 +462,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
   scale: {
     id: "scale",
     name: "Scale",
-    priceMonthly: 80,
+    priceMonthly: 79.99,
     // Scale's AI budget is Pro's; the Clipper and AI Studio are paid for in
     // credits on top (lib/credits/config.ts), priced from what they cost SOCIA.
     aiSpendCapUsd: 32,
@@ -486,20 +500,19 @@ export function minPlanWithFeature(key: FeatureKey): PlanId {
 
 /** The cheapest plan whose limit for `key` is at least `n`, or null when none reaches it (custom pricing). */
 export function minPlanWithLimit(key: LimitKey, n: number): PlanId | null {
-  for (const id of PLAN_ORDER) if (PLANS[id].limits[key] >= n) return id;
+  for (const id of SALE_ORDER) if (PLANS[id].limits[key] >= n) return id;
   return null;
 }
 
 /** The cheapest plan whose meter allows more than `n` uses per period. */
 export function minPlanWithMeter(key: MeterKey, n: number): PlanId | null {
-  for (const id of PLAN_ORDER) if (PLANS[id].meters[key] > n) return id;
+  for (const id of SALE_ORDER) if (PLANS[id].meters[key] > n) return id;
   return null;
 }
 
-/** The plan one step up, or null on Scale (where the answer is custom pricing). */
+/** The plan one step up that is on sale, or null on the top plan (where the answer is custom pricing). */
 export function nextPlan(p: PlanId): PlanId | null {
-  const i = planRank(p);
-  return i >= 0 && i < PLAN_ORDER.length - 1 ? PLAN_ORDER[i + 1] : null;
+  return SALE_ORDER.find((id) => planRank(id) > planRank(p)) ?? null;
 }
 
 export function formatPrice(p: PlanConfig): string {

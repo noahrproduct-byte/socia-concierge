@@ -34,7 +34,12 @@ function mock(url: string, init?: RequestInit): Response | null {
   const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { "Content-Type": "application/json" } });
   const u = url.replace(/^https?:\/\/[^/]+/, "");
   if (u === "/api/clipper/jobs" && (!init?.method || init.method === "GET")) return json({ jobs: clipJobs, balance: 5550 });
-  if (u === "/api/clipper/jobs" && init?.method === "POST") return json({ error: "Not enough credits for this. Buy a top-up or wait for next month's allowance.", code: "insufficient_credits", balance: 5550 }, 402);
+  if (u === "/api/clipper/jobs" && init?.method === "POST") {
+    // As the server answers: the measured length (14 min here) is priced first; then the credits.
+    const sent = (JSON.parse(String(init.body ?? "{}")) as { minutes?: number }).minutes;
+    if (!sent || sent < 14) return json({ error: "This video is 14 minutes long, so clipping it uses 105 credits. Press Make clips again to go ahead.", code: "confirm_price", minutes: 14, price: 105 }, 409);
+    return json({ error: "Not enough credits for this. Buy a top-up or wait for next month's allowance.", code: "insufficient_credits", balance: 5550 }, 402);
+  }
   const cj = /^\/api\/clipper\/jobs\/([^/?]+)/.exec(u);
   if (cj) return json({ job: clipJobs.find((j) => j.id === cj[1]) ?? clipJobs[0], clips: cj[1] === "j1" ? clips : [] });
   if (u === "/api/studio-ai/jobs" && (!init?.method || init.method === "GET")) return json({ jobs: genJobs, balance: 5550 });

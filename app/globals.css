@@ -9882,6 +9882,10 @@ button.ov-evidence-row { width: 100%; border: none; background: none; font-famil
 .ask-msg.assistant > p { font-size: 13px; line-height: 1.5; color: var(--text-primary); }
 .ask-answer { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .ask-text { font-size: 13.5px; line-height: 1.5; color: var(--text-primary); }
+.ask-draft { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin: 10px 0; background: var(--surface-muted); }
+.ask-draft-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ask-draft-head small { font-size: 12px; font-weight: 650; color: var(--text-secondary); }
+.ask-draft pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13.5px; line-height: 1.55; color: var(--text-primary); }
 .ask-answer .ov-why-block { margin: 0; }
 .ask-post { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-muted); text-decoration: none; color: var(--text-primary); }
 .ask-post img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
@@ -11479,6 +11483,33 @@ p.cbm-muted { display: block; }
 .cx3-audio-btn { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-primary); cursor: pointer; }
 .cx3-audio-btn:hover { border-color: var(--primary-text); color: var(--primary-text); }
 .cx3-audio-btn:focus-visible { outline: 2px solid var(--primary-text); outline-offset: 2px; }
+.cx4-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.cx4-col { min-width: 0; }
+.cx4-col h3, .cx4-lines h3 { margin: 0 0 8px; font-size: 13px; font-weight: 650; color: var(--text-secondary); }
+.cx4-col ul, .cx4-lines ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.cx4-col li { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--border); }
+.cx4-col li:first-child { border-top: 0; padding-top: 2px; }
+.cx4-col li > small { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cx4-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.cx4-row b { font-size: 13.5px; font-weight: 650; }
+.cx4-leads { flex: none; font-size: 12px; font-weight: 650; color: var(--success-text); }
+.cx4-flat { flex: none; font-size: 12px; color: var(--text-muted); }
+.cx4-example { display: grid; gap: 2px; margin-top: 2px; padding: 8px 10px; border-radius: 10px; background: var(--primary-subtle); text-decoration: none; color: inherit; }
+.cx4-example span { font-size: 12.5px; line-height: 1.4; color: var(--text-primary); overflow-wrap: anywhere; }
+.cx4-example small { font-size: 11.5px; color: var(--text-muted); }
+.cx4-example:hover span { text-decoration: underline; }
+.cx4-example:focus-visible { outline: 2px solid var(--primary-text); outline-offset: 2px; }
+.cx4-lines { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.cx4-lines li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+.cx4-lines li:first-child { border-top: 0; }
+.cx4-lines li > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.cx4-lines li p { margin: 0; font-size: 13.5px; line-height: 1.4; color: var(--text-primary); overflow-wrap: anywhere; }
+.cx4-lines li small { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cx4-lines li .ov-btn { flex: none; }
+@media (max-width: 560px) {
+  .cx4-lines li { flex-wrap: wrap; }
+  .cx4-lines li > div { flex-basis: 100%; }
+}
 .cx3-card { display: grid; grid-template-rows: auto 1fr; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); overflow: hidden; }
 .cx3-thumb { position: relative; display: block; aspect-ratio: 9 / 13; background: var(--border); }
 .cx3-thumb img, .cx3-thumb .cx3-noimg { width: 100%; height: 100%; object-fit: cover; }

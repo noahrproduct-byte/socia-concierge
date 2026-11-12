@@ -26,9 +26,12 @@ alter table public.plan_config_overrides
 -- ---------------------------------------------------------------------------
 -- 2. Storage: sources people upload and copies of every output
 -- ---------------------------------------------------------------------------
-insert into storage.buckets (id, name, public)
-  values ('ai-media', 'ai-media', false)
-  on conflict (id) do nothing;
+-- Capped by size (2 GB, the Clipper's largest source; it can't exceed the
+-- project's own file-size limit) and by type: the video and image formats the
+-- Clipper and AI Studio take in and put out, nothing else.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('ai-media', 'ai-media', false, 2097152000, array['video/mp4', 'video/quicktime', 'video/3gpp', 'image/jpeg', 'image/png', 'image/webp'])
+  on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 do $$
 begin
@@ -311,3 +314,27 @@ grant execute on function public.socia_credit_grant(uuid, integer, date) to serv
 grant execute on function public.socia_credit_spend(uuid, integer, text, text, text) to service_role;
 grant execute on function public.socia_credit_refund(uuid, text, text, text) to service_role;
 grant execute on function public.socia_credit_topup(uuid, integer, text, text) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Unused uploads: Clipper sources and AI Studio start images older than a day
+-- that no open job needs (a finished job no longer reads its source). The
+-- minute job (/api/jobs/ai-poll) removes them through the storage API.
+-- ---------------------------------------------------------------------------
+create or replace function public.socia_ai_media_stale_uploads(p_older_than interval default interval '1 day', p_limit integer default 100)
+returns setof text
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select o.name from storage.objects o
+  where o.bucket_id = 'ai-media'
+    and (o.name like '%/clipper-sources/%' or o.name like '%/studio-inputs/%')
+    and o.created_at < now() - p_older_than
+    and not exists (select 1 from public.clip_jobs j where j.source_path = o.name and j.status in ('queued', 'processing'))
+    and not exists (select 1 from public.generation_jobs g where g.input_image_path = o.name and g.status in ('queued', 'processing'))
+  order by o.created_at
+  limit greatest(1, least(p_limit, 500));
+$$;
+revoke all on function public.socia_ai_media_stale_uploads(interval, integer) from public, anon, authenticated;
+grant execute on function public.socia_ai_media_stale_uploads(interval, integer) to service_role;

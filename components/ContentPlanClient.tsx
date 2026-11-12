@@ -765,6 +765,7 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, onUpdate }: 
             <b>{ev.winning > 0 ? `${ev.winning} winning videos` : "no winning content"}</b>
             <b>{ev.windows ? "your audience windows" : "no timing data"}</b>
             {ev.outcomes != null && ev.outcomes > 0 && <b>{`what became of ${ev.outcomes} planned post${ev.outcomes === 1 ? "" : "s"}`}</b>}
+            {ev.trends != null && ev.trends > 0 && <b>{`trends from ${ev.trends} recent niche Reel${ev.trends === 1 ? "" : "s"}`}</b>}
           </>
         ) : (
           <span>Built from the brief you typed. No account data was attached to this plan.</span>

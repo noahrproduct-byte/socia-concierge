@@ -8,13 +8,13 @@ import Link from "next/link";
 import { Check, Copy, Download, Loader2, Send, Trash2 } from "lucide-react";
 import { formatCredits } from "@/lib/credits/config";
 
-export type ApiError = { error: string; code?: string; balance?: number | null; migration?: boolean };
+export type ApiError = { error: string; code?: string; balance?: number | null; migration?: boolean; minutes?: number };
 
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
   const j = (await res.json().catch(() => null)) as (T & Partial<ApiError>) | null;
   if (!res.ok) {
-    const err = Object.assign(new Error(j?.error || `SOCIA could not complete that (${res.status}). Try again in a moment.`), { status: res.status, code: j?.code, balance: j?.balance });
+    const err = Object.assign(new Error(j?.error || `SOCIA could not complete that (${res.status}). Try again in a moment.`), { status: res.status, code: j?.code, balance: j?.balance, minutes: j?.minutes });
     throw err;
   }
   return j as T;
