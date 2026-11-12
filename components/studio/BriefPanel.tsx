@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadMedia } from "@/lib/supabase/uploadMedia";
 import { probeClip, ingestClip } from "@/lib/studioClips/ingest";
 import { REF_MAX_SEC, PROMPT_MAX } from "@/lib/studioClips/reference";
+import { AUTO_IMPROVE_TIMEOUT_MS, shouldAutoImprove } from "@/lib/studioClips/enhancePrompt";
 import { STUDIO_BUCKET, type StudioBuild } from "@/lib/studioClips/types";
 
 type Reference = {
@@ -57,7 +58,9 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
   const [step, setStep] = useState<string | null>(null);
   // Improve the prompt: what it replaced (for Undo) and what it added.
   const [improving, setImproving] = useState(false);
-  const [improved, setImproved] = useState<{ before: string; after: string; added: string[] } | null>(null);
+  const [improved, setImproved] = useState<{ before: string; after: string; added: string[]; auto?: boolean } | null>(null);
+  // "Use my words": the text the person chose to keep as written, so Make the video doesn't improve it again.
+  const [ownWords, setOwnWords] = useState<string | null>(null);
 
   const loadPast = useCallback(async () => {
     if (!projectId) { setPast([]); return; }
@@ -104,6 +107,22 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
     }
   }, [viewerId]);
 
+  // One call to the improver, with an optional time limit; null when it can't be reached or is too slow.
+  const fetchImproved = async (text: string, timeoutMs?: number): Promise<{ prompt?: string; added?: string[]; error?: string; ok: boolean } | null> => {
+    if (!projectId) return null;
+    const ctl = new AbortController();
+    const timer = timeoutMs ? setTimeout(() => ctl.abort(), timeoutMs) : null;
+    try {
+      const res = await fetch(`/api/studio/projects/${projectId}/brief/enhance`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: text.trim(), hasReference: Boolean(ref) }), signal: ctl.signal });
+      const j = (await res.json().catch(() => null)) as { prompt?: string; added?: string[]; error?: string } | null;
+      return { ...(j ?? {}), ok: res.ok && Boolean(j?.prompt) };
+    } catch {
+      return null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+
   // Rewrites the prompt from what SOCIA saw in the clips. New clips are understood
   // first, as Make the video does, so the brief can name real shots.
   const improve = async () => {
@@ -116,13 +135,12 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         if (err) { setError(err); return; }
       }
       const before = prompt;
-      const res = await fetch(`/api/studio/projects/${projectId}/brief/enhance`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: before.trim(), hasReference: Boolean(ref) }) });
-      const j = (await res.json().catch(() => null)) as { prompt?: string; added?: string[]; error?: string } | null;
-      if (!res.ok || !j?.prompt) { setError(j?.error ?? "SOCIA couldn't improve that prompt. Try again."); return; }
+      const j = await fetchImproved(before);
+      if (!j) { setError("Couldn't reach SOCIA. Try again."); return; }
+      if (!j.ok || !j.prompt) { setError(j.error ?? "SOCIA couldn't improve that prompt. Try again."); return; }
       setPrompt(j.prompt);
+      setOwnWords(null);
       setImproved({ before, after: j.prompt, added: j.added ?? [] });
-    } catch {
-      setError("Couldn't reach SOCIA. Try again.");
     } finally {
       setImproving(false);
     }
@@ -137,7 +155,21 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         setStep(null);
         if (err) { setError(err); return; }
       }
-      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: prompt.trim() || null, reference: ref }) });
+      // Every prompt is improved first, from what is in the clips (the length, the first
+      // shot, the order, the ending). If the improver fails or is slow, the cut is made
+      // from the person's own words and nothing more is said.
+      let brief = prompt;
+      if (shouldAutoImprove({ prompt, improvedText: improved?.after, ownWords })) {
+        setStep("Improving the prompt");
+        const better = await fetchImproved(prompt, AUTO_IMPROVE_TIMEOUT_MS);
+        if (better?.ok && better.prompt) {
+          setImproved({ before: prompt, after: better.prompt, added: better.added ?? [], auto: true });
+          setPrompt(better.prompt);
+          brief = better.prompt;
+        }
+        setStep(null);
+      }
+      const res = await fetch(`/api/studio/projects/${projectId}/brief`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: brief.trim() || null, reference: ref }) });
       const j = (await res.json().catch(() => null)) as { build?: StudioBuild; error?: string } | null;
       if (!res.ok || !j?.build) { setError(j?.error ?? "SOCIA couldn't make that cut. Try again."); return; }
       void loadPast();
@@ -167,7 +199,7 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
         <>
           <label className="cba-cap">
             <span>What you want (optional with a reference)</span>
-            <textarea value={prompt} rows={Math.min(10, Math.max(3, Math.ceil(prompt.length / 90) + 1))} maxLength={PROMPT_MAX} disabled={busy || improving} placeholder="For example: 20 seconds, open on the cheese pull, three quick cuts of the oven, end on the menu board with 'Open till 10'." onChange={(e) => setPrompt(e.target.value)} />
+            <textarea value={prompt} rows={Math.min(10, Math.max(3, Math.ceil(prompt.length / 90) + 1))} maxLength={PROMPT_MAX} disabled={busy || improving} placeholder="For example: 20 seconds, open on the cheese pull, three quick cuts of the oven, end on the menu board with 'Open till 10'." onChange={(e) => { setPrompt(e.target.value); setOwnWords(null); }} />
           </label>
           <div className="cbr-improve">
             <button type="button" className="ov-btn ghost small" disabled={!canImprove} onClick={() => void improve()}>
@@ -175,11 +207,11 @@ export default function BriefPanel({ projectId, viewerId, canMake, onOpen, befor
             </button>
             {improved && improved.after === prompt ? (
               <>
-                <button type="button" className="ov-btn ghost small" onClick={() => { setPrompt(improved.before); setImproved(null); }}><Undo2 size={13} /> Undo</button>
-                <small>{improved.added.length ? `Added ${improved.added.join(", ")}. ` : ""}Change anything before you make it.</small>
+                <button type="button" className="ov-btn ghost small" onClick={() => { setPrompt(improved.before); setOwnWords(improved.before); setImproved(null); }}><Undo2 size={13} /> Use my words</button>
+                <small>{improved.auto ? "Improved by SOCIA. " : ""}{improved.added.length ? `Added ${improved.added.join(", ")}. ` : ""}{improved.auto ? "Use my words brings yours back for the next cut." : "Change anything before you make it."}</small>
               </>
             ) : (
-              <small>{projectId ? "SOCIA rewrites it from what's in your clips, so the editor knows the length, the first shot, the order and the ending. It doesn't count as a video." : "Add clips first, so SOCIA can use what's in them."}</small>
+              <small>{!projectId ? "Add clips first, so SOCIA can use what's in them." : ownWords != null && ownWords === prompt ? "SOCIA will use your words as written." : "SOCIA improves every prompt when you make the video, from what's in your clips: the length, the first shot, the order and the ending. It doesn't count as a video."}</small>
             )}
           </div>
 

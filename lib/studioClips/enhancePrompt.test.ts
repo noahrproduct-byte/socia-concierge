@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipLines, ENHANCE_SYSTEM, sanitizeEnhanced } from "./enhancePrompt";
+import { clipLines, ENHANCE_SYSTEM, sanitizeEnhanced, shouldAutoImprove } from "./enhancePrompt";
 import type { ClipCard } from "./types";
 
 const card = (over: Partial<ClipCard> = {}): ClipCard => ({
@@ -53,5 +53,22 @@ describe("ENHANCE_SYSTEM", () => {
     expect(ENHANCE_SYSTEM).toMatch(/big ending of its own/);
     expect(ENHANCE_SYSTEM).toMatch(/throwaway speech/);
     expect(ENHANCE_SYSTEM).not.toMatch(/—/);
+  });
+});
+
+describe("improving every prompt before the cut", () => {
+  it("improves what the person wrote", () => {
+    expect(shouldAutoImprove({ prompt: "make this post ready with music" })).toBe(true);
+  });
+  it("never improves an empty or one-word prompt", () => {
+    expect(shouldAutoImprove({ prompt: "  " })).toBe(false);
+    expect(shouldAutoImprove({ prompt: "ok" })).toBe(false);
+  });
+  it("doesn't improve SOCIA's own improved words again", () => {
+    expect(shouldAutoImprove({ prompt: "A 15 second cut.", improvedText: "A 15 second cut. " })).toBe(false);
+  });
+  it("keeps the person's words after they chose them, until they write something else", () => {
+    expect(shouldAutoImprove({ prompt: "my words", ownWords: "my words" })).toBe(false);
+    expect(shouldAutoImprove({ prompt: "my new words", ownWords: "my words" })).toBe(true);
   });
 });
