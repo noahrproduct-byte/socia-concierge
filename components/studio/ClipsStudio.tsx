@@ -31,6 +31,7 @@ import { fileLabel } from "@/lib/publishing/postLabel";
 import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 import StudioEmpty from "./StudioEmpty";
+import NicheScanCard from "@/components/NicheScanCard";
 import { SHRINK_ABOVE, shrinkForUpload } from "@/lib/studioClips/shrink";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
@@ -491,6 +492,8 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
         }
       />
       {modeTabs}
+      {/* What goes viral in the niche: the cuts follow it (lib/nicheScan). Only while researching or once there is a playbook. */}
+      {!audio && <NicheScanCard compact />}
 
       {migration && (
         <div className="ov-card st-error cb-notice"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Build from Clips isn&apos;t set up in the database yet</b><p>{migration}</p></div></div>

@@ -49,7 +49,7 @@ export async function writeIdeas(ctx: Ctx, args: { styles: IdeaStyle[]; about: s
     `Account: ${profile?.niche ?? "niche not set"}${profile?.brand_detail?.location ? `, ${profile.brand_detail.location}` : ""}${profile?.goals ? `; goal: ${profile.goals}` : ""}.`,
     brandContext(profile?.brand_detail) || "",
   ].filter(Boolean).join("\n");
-  const ev = evidence ? [evidence.postsBlock, evidence.provenBlock ? `Proven Reels in the niche (build on these):\n${evidence.provenBlock}` : "", evidence.formatsBlock, evidence.trendsBlock ? `Trending in the niche now:\n${evidence.trendsBlock}` : "", evidence.decisionsBlock, evidence.outcomesBlock].filter(Boolean).join("\n\n") : "";
+  const ev = evidence ? [evidence.postsBlock, evidence.provenBlock ? `Proven Reels in the niche (build on these):\n${evidence.provenBlock}` : "", evidence.formatsBlock, evidence.playbookBlock ?? "", evidence.trendsBlock ? `Trending in the niche now:\n${evidence.trendsBlock}` : "", evidence.decisionsBlock, evidence.outcomesBlock].filter(Boolean).join("\n\n") : "";
   const task = `Write ${IDEA_COUNT} video ideas in these styles, spread across them: ${styles.map((s) => STYLE_NOTE[s]).join("; ")}.${args.about ? `\nThe person wants them to be about: ${args.about}` : ""}`;
 
   const res = await anthropic.messages.create({

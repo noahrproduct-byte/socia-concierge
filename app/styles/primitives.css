@@ -1206,3 +1206,98 @@
 .s-reelref-track p {
   color: var(--ink-3);
 }
+
+/* The niche scan card (components/NicheScanCard.tsx): progress with real counts, then the playbook. */
+.s-niche {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.s-niche-lead {
+  color: var(--ink-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  max-width: 68ch;
+}
+.s-niche-note {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-niche-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.s-niche-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.s-niche-step.is-waiting {
+  color: var(--ink-3);
+}
+.s-niche-mark {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+}
+.s-niche-step.is-done .s-niche-mark {
+  border-color: var(--good);
+  color: var(--good);
+}
+.s-niche-group h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+.s-niche-group ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.s-niche-group li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+.s-niche-group li:last-child {
+  border-bottom: 0;
+}
+.s-niche-what {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.s-niche-basis {
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-niche-proof {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+.s-niche-proof a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ink-2);
+}

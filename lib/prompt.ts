@@ -126,6 +126,11 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     parts.push(`You may build planned posts on these formats, adapted to this account and never copied. When a post uses one, name the format and its basis in that post's evidence field (for example "Uses the one-take build format: median 2.1x across 4 niche examples").`);
   }
 
+  if (evidence?.playbookBlock) {
+    parts.push(`\n# ${evidence.playbookBlock}`);
+    parts.push(`Build planned posts on these where they fit this account, adapted and never copied, and name the pattern and its basis in that post's evidence field.`);
+  }
+
   if (evidence?.trendsBlock) {
     parts.push(`\n# Trending in this niche now`);
     parts.push(evidence.trendsBlock);

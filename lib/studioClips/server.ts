@@ -23,6 +23,8 @@ import { pickStyle, speechShare, styleNote, styleOf, textForStyle, type EditStyl
 import { varyJumpCuts } from "./jumpCuts";
 import { cardIsCurrent, QUIET_ROOM_VOLUME, teachEdit } from "./teach";
 import { studioLearnedLine } from "./learnLoad";
+import { createServiceClient } from "@/lib/supabase/service";
+import { playbookText as nichePlaybookText } from "@/lib/nicheScan/run";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
 import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
@@ -250,11 +252,13 @@ export async function deleteClip(client: Supa, ownerId: string, wsId: string | n
  * posts did once published (Learn); undefined skips that read.
  */
 export async function accountContext(client: Supa, ownerId: string, brandWs: Workspace | null, wsId?: string | null): Promise<AccountContext> {
-  const [p, learned] = await Promise.all([
+  const [p, learned, playbook] = await Promise.all([
     getProfile(client, ownerId, brandWs).catch(() => null) as Promise<{ niche?: string | null; goals?: string | null; brand_detail?: AccountContext["brand"] } | null>,
     wsId === undefined ? Promise.resolve(null) : studioLearnedLine(client, ownerId, wsId),
+    // What goes viral in the niche (lib/nicheScan), read with the service role so a team member's cut gets the owner's playbook.
+    nichePlaybookText(createServiceClient() ?? client, brandWs ? `${ownerId}:${brandWs.id}` : ownerId).catch(() => ""),
   ]);
-  return { niche: p?.niche ?? null, location: p?.brand_detail?.location ?? null, goals: p?.goals ?? null, brand: p?.brand_detail ?? null, learned, ownerId };
+  return { niche: p?.niche ?? null, location: p?.brand_detail?.location ?? null, goals: p?.goals ?? null, brand: p?.brand_detail ?? null, learned, ownerId, playbook: playbook || null };
 }
 
 export function toClipInputs(rows: ClipRow[], urls: Record<string, string>): ClipInput[] {

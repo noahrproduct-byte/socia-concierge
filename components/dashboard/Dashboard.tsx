@@ -26,6 +26,7 @@ import UpdatedAgo from "@/components/UpdatedAgo";
 import TodayCard, { useTodaySummary, type TodayCardProps } from "@/components/TodayCard";
 import RepurposeCard from "@/components/RepurposeCard";
 import VideoIdeasCard from "@/components/VideoIdeasCard";
+import NicheScanCard from "@/components/NicheScanCard";
 import { ButtonLink, Card, CardHeader, Empty, PlatformMark, SegmentedControl, Skeleton, TableWrap, Unavailable, type Platform } from "@/components/system";
 import type { Candidate } from "@/lib/repurpose";
 import type { PlatformSummary } from "@/lib/metrics/allPlatforms";
@@ -372,6 +373,13 @@ export default function Dashboard({ d }: { d: DashboardData }) {
         </div>
       </section>
       </Reveal>
+
+      {/* ---- what goes viral in the niche (lib/nicheScan) ------------------------- */}
+      {!nothingConnected && (
+        <Reveal index={next()}>
+          <NicheScanCard />
+        </Reveal>
+      )}
 
       {/* ---- plan posts handed to you ---------------------------------------------- */}
       {(d.tasks?.length ?? 0) > 0 && (
