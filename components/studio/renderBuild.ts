@@ -34,7 +34,7 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
   const { renderMediaOnWeb } = await import("@remotion/web-renderer");
   // Background noise reduced first, as in the editor (clips that can't be cleaned keep their own sound).
   const cleanAudio = edl.cleanSound ? await cleanSounds(Array.from(new Set(edl.segments.map((s) => s.clipId))).map((id) => ({ clipId: id, url: sources[id].url }))) : {};
-  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null, cleanAudio };
+  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null, voiceUrls: data.voice ?? {}, cleanAudio };
   const once = async () => {
     const { getBlob } = await renderMediaOnWeb({
       composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
@@ -48,7 +48,8 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
     return getBlob();
   };
   const speaks = edl.segments.some((s) => sources[s.clipId]?.words?.length);
-  const expect = { sound: Boolean(props.musicUrl) || speaks, music: Boolean(props.musicUrl) };
+  const voiced = Boolean(edl.voiceover?.on && edl.voiceover.lines.some((l) => l.path && props.voiceUrls[l.path]));
+  const expect = { sound: Boolean(props.musicUrl) || speaks || voiced, music: Boolean(props.musicUrl) };
   let blob = await once();
   let report = await inspectRender(blob, edl, expect, opts.signal);
   if (renderFaults(report).length) {

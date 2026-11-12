@@ -45,7 +45,7 @@ type BatchData = {
 
 type Source = { kind: "idea"; idx: number } | { kind: "clip"; clipId: string };
 type Candidate = BatchItem & { source: Source; done: string | null };
-type Step = "waiting" | "cut" | "music" | "look" | "render" | "upload" | "caption" | "ready" | "failed" | "skipped";
+type Step = "waiting" | "cut" | "music" | "voice" | "look" | "render" | "upload" | "caption" | "ready" | "failed" | "skipped";
 type Made = {
   key: string;
   title: string;
@@ -73,7 +73,7 @@ type Made = {
 /** TikTok asks who may see each post and, until it audits SOCIA, allows only private posts: Create Post handles it one by one. */
 const BATCH_PLATFORMS: Platform[] = ["instagram", "youtube", "facebook"];
 const STEP_COPY: Record<Step, string> = {
-  waiting: "Waiting", cut: "Writing the cut", music: "Adding music from your taste", look: "Correcting the colour", render: "Making the video", upload: "Saving the video", caption: "Writing the caption",
+  waiting: "Waiting", cut: "Writing the cut", music: "Adding music from your taste", voice: "Adding a voiceover", look: "Correcting the colour", render: "Making the video", upload: "Saving the video", caption: "Writing the caption",
   ready: "Ready", failed: "Didn't finish", skipped: "Skipped",
 };
 
@@ -186,6 +186,9 @@ export default function BatchPanel({ project, autoBuild }: { project: StudioProj
     if (!path) {
       patch(key, { step: "music", progress: 0 });
       await fetch(`/api/studio/builds/${build.id}/music/auto`, { method: "POST", signal }).catch((e) => { if ((e as Error)?.name === "AbortError") throw e; return null; });
+      // A voiceover, on its own, when the cut needs one (lib/studioClips/voiceover.ts); a video that can't get one is made without it.
+      patch(key, { step: "voice", progress: 0 });
+      await fetch(`/api/studio/builds/${build.id}/voiceover`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ auto: true }), signal }).catch((e) => { if ((e as Error)?.name === "AbortError") throw e; return null; });
     }
     const pres = await fetch(`/api/studio/builds/${build.id}`, { signal });
     const pj = await readJson(pres);

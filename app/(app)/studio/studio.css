@@ -436,6 +436,29 @@
 .sd-render-found {
   margin-block: var(--sp-2);
 }
+/* The voiceover card in the editor's Voice & music tab (components/studio/VoiceoverCard.tsx) */
+.sd-voice-line {
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  resize: vertical;
+}
+.sd-voice-line:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.sd-voice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
 .sd-render-actions {
   display: flex;
   flex-wrap: wrap;

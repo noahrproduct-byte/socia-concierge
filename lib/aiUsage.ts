@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { trackEvent } from "./events";
-import { addSpend, claudeMicros, musicMicros, transcriptionMicros } from "./aiSpend";
+import { addSpend, claudeMicros, musicMicros, transcriptionMicros, voiceMicros } from "./aiSpend";
 
 // What each AI call actually cost, from the response's own usage numbers, so
 // plan allowances can be set from real data instead of estimates. One
@@ -12,7 +12,8 @@ export type AiFeature =
   | "niche_analyze" | "niche_opportunity" | "niche_formats" | "growth_strategy" | "content_guide" | "account_audit" | "niche_describe"
   | "competitor_research" | "content_plan" | "comment_reply"
   | "clip_card" | "clip_batch" | "clip_edl" | "transcribe" | "music_playlist" | "video_ideas" | "place_scan"
-  | "clipper_captions" | "clipper_pick" | "clipper_frame" | "studio_ideas" | "brief_enhance" | "animated_script" | "animated_fit" | "animated_pick" | "animated_plan";
+  | "clipper_captions" | "clipper_pick" | "clipper_frame" | "studio_ideas" | "brief_enhance" | "animated_script" | "animated_fit" | "animated_pick" | "animated_plan"
+  | "voiceover_script";
 
 type Usage = {
   input_tokens?: number; output_tokens?: number;
@@ -66,4 +67,10 @@ export function recordTranscription(ownerId: string | null | undefined, purpose:
 export function recordMusic(ownerId: string | null | undefined, seconds: number): void {
   if (!(seconds > 0)) return;
   write(ownerId, { feature: "music_track", provider: "elevenlabs", audio_seconds: Math.round(seconds) }, musicMicros(seconds));
+}
+
+/** Record characters voiced for a voiceover (ElevenLabs text to speech, billed per character). */
+export function recordVoice(ownerId: string | null | undefined, chars: number): void {
+  if (!(chars > 0)) return;
+  write(ownerId, { feature: "voiceover", provider: "elevenlabs", characters: Math.round(chars) }, voiceMicros(chars));
 }

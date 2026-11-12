@@ -45,15 +45,15 @@ export function speechSpans(edl: Edl, words: Record<string, TranscriptWord[] | n
   return out;
 }
 
-/** The music's level at time t (seconds), 0..1 of the level the person chose: low under speech, full away from it. */
-export function duckLevel(t: number, spans: Span[]): number {
+/** The music's level at time t (seconds), 0..1 of the level the person chose: low under speech (`under`), full away from it. */
+export function duckLevel(t: number, spans: Span[], under: number = DUCK.under): number {
   let level = 1;
   for (const s of spans) {
     const holdEnd = s.end + DUCK.tailSec;
     let l = 1;
-    if (t >= s.start && t <= holdEnd) l = DUCK.under;
-    else if (t < s.start && t > s.start - DUCK.fallSec) l = DUCK.under + (1 - DUCK.under) * ((s.start - t) / DUCK.fallSec);
-    else if (t > holdEnd && t < holdEnd + DUCK.riseSec) l = DUCK.under + (1 - DUCK.under) * ((t - holdEnd) / DUCK.riseSec);
+    if (t >= s.start && t <= holdEnd) l = under;
+    else if (t < s.start && t > s.start - DUCK.fallSec) l = under + (1 - under) * ((s.start - t) / DUCK.fallSec);
+    else if (t > holdEnd && t < holdEnd + DUCK.riseSec) l = under + (1 - under) * ((t - holdEnd) / DUCK.riseSec);
     if (l < level) level = l;
   }
   return level;

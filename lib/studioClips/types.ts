@@ -325,6 +325,38 @@ export type Edl = {
   editStyle?: EditStyleId;
   /** Words highlighted in the captions, one at most a line (lib/studioClips/emphasis.ts), normalised. Absent = no highlight. */
   emphasis?: string[];
+  /** A voice SOCIA wrote and voiced for a cut nobody talks in (lib/studioClips/voiceover.ts). The lines and their audio are the server's; the person switches it on or off and sets its level. */
+  voiceover?: Voiceover;
+  /** When SOCIA tried adding a voiceover on its own (once per cut, whatever happened). Server-owned. */
+  voiceAuto?: string;
+};
+
+/** One spoken word of a voiceover line, seconds from the line's start. */
+export type VoiceWord = { text: string; start: number; end: number };
+
+export type VoiceLine = {
+  id: string;
+  /** when the line starts on the cut's own timeline, seconds */
+  at: number;
+  text: string;
+  /** the voiced audio (studio bucket), once made */
+  path?: string;
+  /** how long the voiced line runs, seconds */
+  dur?: number;
+  words?: VoiceWord[];
+  /** the text and voice the audio was made from: a line whose text or voice changed is voiced again */
+  voiced?: { text: string; voiceId: string };
+};
+
+export type Voiceover = {
+  on: boolean;
+  voiceId: string;
+  voiceName: string;
+  /** the voice's level, 0 to 1.5 */
+  volume: number;
+  lines: VoiceLine[];
+  /** why SOCIA voiced this cut, in a few plain words */
+  why?: string;
 };
 
 export type EndCard = { location: string; cta: string; site: string };
@@ -476,6 +508,8 @@ export type BuildPlayerData = {
   canManageBrand?: boolean;
   /** Tracks already made for this cut's playlist: signed URL by track id. */
   music?: Record<string, string>;
+  /** The voiceover's voiced lines: signed URL by storage path. */
+  voice?: Record<string, string>;
 };
 
 /** Output canvas for every build (vertical, Reels/TikTok/Shorts). */
