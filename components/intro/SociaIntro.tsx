@@ -259,11 +259,11 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
       setSound("off");
       return;
     }
+    // The button answers at once; the sound may take a moment to load, and
+    // only a refusal from the browser turns it back.
+    setSound("on");
     a.currentTime = filmTime.current;
-    a.play().then(
-      () => setSound("on"),
-      () => setSound("off"),
-    );
+    a.play().catch(() => setSound("off"));
   };
 
   // The page under the film doesn't scroll while it plays; Escape skips.
@@ -411,6 +411,7 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
 
     let t = 0;
     let last = performance.now();
+    let lastSync = 0;
     let raf = 0;
     let shown: "title" | "film" | "words" = "title";
     const tick = (now: number) => {
@@ -419,8 +420,13 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
       filmTime.current = t;
       frame(t);
       // Keeps the sound on the picture, e.g. after the tab was in the background.
+      // Only once the sound is actually playing, and at most twice a second:
+      // moving it while it is still loading restarts the load, and it never plays.
       const a = audio.current;
-      if (a && !a.paused && Math.abs(a.currentTime - t) > 0.2) a.currentTime = t;
+      if (a && !a.paused && !a.seeking && a.readyState >= 3 && now - lastSync > 500 && Math.abs(a.currentTime - t) > 0.25) {
+        lastSync = now;
+        a.currentTime = t;
+      }
       const next = t < T.arrive ? "title" : t < T.words ? "film" : "words";
       const nextPhase = still ? (t < 0.6 ? "film" : "words") : next;
       if (nextPhase !== shown && !leaving.current) {
