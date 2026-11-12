@@ -182,7 +182,8 @@
   background: var(--accent);
 }
 /* a hard cut shows both panes side by side; the others settle on pane B after their join */
-.sd-tthumb.is-cut .is-b {
+.sd-tthumb.is-cut .is-b,
+.sd-tthumb.is-flash .is-b {
   left: 50%;
 }
 

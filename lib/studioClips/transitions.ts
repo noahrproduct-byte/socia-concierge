@@ -6,6 +6,8 @@
 //   zoom  the outgoing cut zooms in and blurs outward; the incoming one starts
 //         zoomed and blurred and settles sharp ("zoom blur")
 //   whip  both slide sideways with a horizontal blur, like a fast pan ("whip blur")
+//   flash a hard cut whose first two frames are washed to white (the sports-edit
+//         flash frame measured in the viral-reels study); no overlap
 // The blur values are pixels for @remotion/effects' WebGL blur and zoom-blur,
 // which run in the Player and in the browser render alike. Pure.
 import type { TransitionKind } from "./types";
@@ -20,6 +22,8 @@ export type TransitionLook = {
   /** straight blur radius, px (horizontal only on a whip) */
   blur: number;
   whip: boolean;
+  /** white wash over the frame, 0..1 (a flash transition's first frames) */
+  flash: number;
   /** the cut's sound level through its transitions, 0..1 */
   sound: number;
 };
@@ -43,12 +47,13 @@ export function transitionSound(frame: number, frames: number, overlapIn: number
 
 export function transitionLook(a: { frame: number; frames: number; into?: TransitionKind; overlapIn: number; out?: TransitionKind; overlapOut: number }): TransitionLook {
   const { inP, outP } = progress(a.frame, a.frames, a.into ? a.overlapIn : 0, a.out ? a.overlapOut : 0);
-  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, zoomBlur: 0, blur: 0, whip: false, sound: Math.min(1 - inP, 1 - outP) };
+  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, zoomBlur: 0, blur: 0, whip: false, flash: 0, sound: Math.min(1 - inP, 1 - outP) };
   switch (a.into) {
     case "fade": look.opacity = 1 - inP; break;
     case "zoom": look.opacity = 1 - inP; look.scale *= 1 + 0.25 * inP; look.zoomBlur += 60 * inP; break;
     // The incoming whip is opaque for most of the move, so the frame never looks empty.
     case "whip": look.opacity = clamp01((1 - inP) / 0.4); look.x += 35 * inP; look.blur += 40 * inP; look.whip = true; break;
+    case "flash": look.flash = a.frame === 0 ? 1 : a.frame === 1 ? 0.55 : 0; break;
   }
   switch (a.out) {
     case "zoom": look.scale *= 1 + 0.25 * outP; look.zoomBlur += 60 * outP; break;

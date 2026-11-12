@@ -191,7 +191,7 @@ export function referenceStyle(b: ReferenceBreakdown, base: EdlStyle | undefined
     font: b.text.font,
     accent: b.text.accent || s.accent,
     textBox: b.text.box,
-    captions: { position: b.text.position === "none" ? s.captions.position : b.text.position, size: b.text.size, box: b.text.box !== "none", uppercase: b.text.uppercase },
+    captions: { ...s.captions, position: b.text.position === "none" ? s.captions.position : b.text.position, size: b.text.size, box: b.text.box !== "none", uppercase: b.text.uppercase },
   };
 }
 

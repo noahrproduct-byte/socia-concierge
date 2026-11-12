@@ -13,6 +13,7 @@ import { clipLabel, fmtClock } from "./types";
 import type { ProposedGroup } from "./yield";
 import type { RawEdl } from "./edl";
 import { BREAKDOWN_SCHEMA, shotStats, timedSpeech, type ReferenceInput } from "./reference";
+import { HOUSE_STYLE, HOUSE_GENRES } from "./houseStyle";
 
 export type AccountContext = {
   niche: string | null; location: string | null; goals: string | null; brand: BrandDetail | null;
@@ -239,9 +240,11 @@ const cardText = (c: ClipInput): string => {
 export async function batchGroups(clips: ClipInput[], acct: AccountContext): Promise<{ summary: string; groups: ProposedGroup[]; unusable: { clipId: string; reason: string }[]; model: string }> {
   const withCards = clips.filter((c) => c.card);
   const system = `You plan short-form posts (vertical video, 8–60 seconds) from a batch of raw clips, each described by a card. ${HONESTY}
+${HOUSE_GENRES}
 Group clips that belong together — same subject, same story, same session (file times help) — into posts. A clip belongs to at most ONE post. Reference moments by clip id with start/end seconds copied from the cards; do not invent ranges. Skip weak moments.
 Do not force a number of posts: if the footage only supports one post, propose one; if none, propose none. Rank the strongest post first. Titles are short and concrete ("Making a pepperoni pizza"), angles one sentence. opener: the single best moment to open with and why (clipId "" when there is none). cta: a natural closing ask that fits the account's goal, or "".
-unusable: clips that should not be used at all, with a plain reason.`;
+unusable: clips that should not be used at all, with a plain reason.
+summary: two or three plain sentences on what the batch supports, then a line starting "Film next:" with up to three specific things to shoot that would unlock a one_take_skit or a before_after_match for this account (a locked shot of the counter with a POV line; the same angle of the car interior before and after), each in one sentence. These come from the clips' real settings and subjects, never invented facts.`;
   const content: Content = [
     { type: "text", text: `${accountText(acct)}${learnedText(acct)}
 
@@ -267,13 +270,14 @@ const EDL_SCHEMA = {
   type: "object", additionalProperties: false,
   properties: {
     targetSec: { type: "object", additionalProperties: false, properties: { min: { type: "number" }, max: { type: "number" } }, required: ["min", "max"] },
-    segments: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, in: { type: "number" }, out: { type: "number" }, role: { type: "string", enum: ["opener", "body", "ending"] }, note: { type: "string" }, transition: { type: "string", enum: ["cut", "fade", "zoom", "whip"] } }, required: ["clipId", "in", "out", "role", "note", "transition"] } },
+    segments: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, in: { type: "number" }, out: { type: "number" }, role: { type: "string", enum: ["opener", "body", "ending"] }, note: { type: "string" }, transition: { type: "string", enum: ["cut", "fade", "zoom", "whip", "flash"] } }, required: ["clipId", "in", "out", "role", "note", "transition"] } },
+    genre: { type: "string", enum: ["one_take_skit", "before_after_match", "sports_montage", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel", "saas_demo"] },
     text: { type: "array", items: { type: "object", additionalProperties: false, properties: { at: { type: "number" }, end: { type: "number" }, text: { type: "string" }, role: { type: "string", enum: ["opening", "mid", "cta"] } }, required: ["at", "end", "text", "role"] } },
     enhance: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, kind: { type: "string", enum: ["brighten", "darken", "warm", "cool", "contrast"] }, amount: { type: "string", enum: ["slight", "moderate"] }, why: { type: "string" } }, required: ["clipId", "kind", "amount", "why"] } },
     cta: { type: "string" }, music: { type: "string" }, caption: { type: "string" },
     notes: { type: "array", items: { type: "string" } },
   },
-  required: ["targetSec", "segments", "text", "enhance", "cta", "music", "caption", "notes"],
+  required: ["targetSec", "segments", "text", "enhance", "cta", "music", "caption", "notes", "genre"],
 } as const;
 
 const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
@@ -306,6 +310,11 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
     ? `\n\nThe previous cut (${variant.previous.segments.reduce((a, s) => a + (s.out - s.in), 0).toFixed(1)}s): ${variant.previous.segments.map((s) => `${clipLabel(used.find((c) => c.id === s.clipId)?.position ?? 0)} ${s.in.toFixed(1)}–${s.out.toFixed(1)}s`).join("; ")}${variant.previous.text[0] ? `; opening line "${variant.previous.text[0].text}"` : ""}.\nChange requested: ${DIRECTIVE_TEXT[variant.directive]}`
     : "";
   const system = `You are cutting ONE short-form vertical post (1080×1920) from the clips given, as an edit decision list another editor could follow exactly. ${HONESTY}
+
+${HOUSE_STYLE}
+
+The house style above sets the genre, length, pace and text density; the format rules below say how to express that in the fields. A brief from the person wins over the house style; the honesty rules win over both.
+- genre: the house-style genre you cut this as (one of the ids above). A one_take_skit is ONE segment of 7 to 12 seconds; a before_after_match is 2 or 3; the pacing rules allow those long holds only when the genre says so.
 - segments: in order; each has a clip id and clip-relative in/out seconds inside that clip, preferring the chosen moments; the first segment is the opener (the strongest attention-holding moment or the spoken hook); the last is the ending. 3 to 10 segments.
 - Edit like a creator cutting their own Reel:
   - Use every clip given unless one truly has nothing usable, and tell a small story in order: arriving or the setup, the work, then the payoff.
@@ -313,7 +322,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   - Pace to the brief: for a POV, a rush, "how busy", a day in the life or anything energetic, 6 to 10 segments of 0.8 to 2.5 seconds each; calmer posts, fewer and longer.
   - End on the strongest, most satisfying image and let it run 2.5 to 4 seconds.
   - Handheld movement is fine; it's how short-form looks.
-- transition: how each segment comes in from the one before (the first segment's is ignored). "zoom" (zoom blur) for a change of place or scene, "whip" (whip blur) between moving shots and pans, "fade" for calm or slow moments, "cut" on a hard beat or between two still shots. Mix them to suit the footage; don't put the same one on every cut, and leave none abrupt in a POV or energetic edit.
+- transition: how each segment comes in from the one before (the first segment's is ignored). "cut" is the default everywhere; "flash" (a hard cut with two white frames) only in sports_montage on the biggest hits, at most one in four cuts; "zoom" (zoom blur) for a change of place or scene and "whip" (whip blur) between moving shots only when the brief asks for a cinematic or showreel look; "fade" for calm or slow moments. The top-liked reels in every business niche use plain cuts.
 - targetSec: a sensible length for this footage, typically 10–30 seconds; never longer than the footage supports, and never much shorter than it allows when the clips are good.
 - text: 1 to 3 on-screen lines (opening line, optional mid-point line, optional CTA line) with output-relative at/end seconds. Short and plain, the way a person types their own on-screen text (lowercase is fine, a "POV:" opener stays as written), in the brand's voice; never ad copy. The opening line stays up through the opener; a later line describes only what is on screen.
 - enhance: only for clips whose MEASUREMENTS say they are darker, brighter, cooler or warmer than the others, or low in contrast. These are checked against the numbers afterwards; unsupported ones are dropped.

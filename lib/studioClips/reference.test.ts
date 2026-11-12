@@ -60,7 +60,7 @@ describe("the breakdown", () => {
   });
   it("sets the cut's text style from the reference, keeping the brand colour when none is visible", () => {
     const b = cleanBreakdown(raw, 12)!;
-    expect(referenceStyle(b, undefined)).toEqual({ font: "bebas", accent: "#ff3300", textBox: "accent", captions: { position: "top", size: "l", box: true, uppercase: true } });
+    expect(referenceStyle(b, undefined)).toEqual({ font: "bebas", accent: "#ff3300", textBox: "accent", captions: { position: "top", size: "l", box: true, uppercase: true, preset: "classic", highlight: "#ffd60a" } });
     const plain = cleanBreakdown({ ...raw, text: { ...raw.text, accent: "", box: "none", position: "none" } }, 12)!;
     expect(referenceStyle(plain, { ...DEFAULT_STYLE, accent: "#00c853" })).toMatchObject({ accent: "#00c853", textBox: "none", captions: { position: "bottom", box: false } });
   });

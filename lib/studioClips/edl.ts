@@ -4,6 +4,7 @@
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
 import { MAX_TEXT_LAYERS, TEXT_PRESETS, clampChars, isTextPresetId, isTextSlot, presetForRole } from "@/lib/textPresets";
 import { aspectOf, clipLabel, fmtClock, isTransition } from "./types";
+import { isHouseGenre } from "./houseStyle";
 import { overlapFrames, secToFrames } from "./timeline";
 import { finishSteps, sanitizeFinish } from "./finish";
 import { cleanVolume, sanitizeStyle } from "./style";
@@ -37,6 +38,8 @@ export type RawEdl = {
   music?: string | null;
   caption?: string;
   notes?: string[];
+  /** house-style genre the model classified the post as */
+  genre?: string;
 };
 
 export const EDL_DEFAULTS = {
@@ -152,6 +155,25 @@ export const edlDurationSec = (edl: Pick<Edl, "segments">): number => {
   return r2(frames / EDL_DEFAULTS.fps);
 };
 
+/**
+ * Shorten body segments from the end (never the opener) until the cut runs no
+ * longer than `maxSec`, each new out-point snapped to a word or pause. Mutates
+ * the segments; returns the new length.
+ */
+export function trimToMax(segments: EdlSegment[], byId: Map<string, ClipForEdl>, maxSec: number): number {
+  let total = edlDurationSec({ segments });
+  for (let i = segments.length - 1; i >= 0 && total > maxSec; i--) {
+    const s = segments[i];
+    if (s.role === "opener") continue;
+    const clip = byId.get(s.clipId);
+    if (!clip) continue;
+    const canCut = s.out - s.in - EDL_DEFAULTS.minSegmentSec;
+    const cut = Math.min(canCut, total - maxSec);
+    if (cut > 0) { s.out = snapTime(s.out - cut, clip, "out"); total = edlDurationSec({ segments }); }
+  }
+  return total;
+}
+
 export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?: { min: number; max: number } } = {}): { edl: Edl; warnings: string[] } {
   const byId = new Map(clips.map((c) => [c.id, c]));
   const warnings: string[] = [];
@@ -179,13 +201,7 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
   // Length: shorten body segments from the end until the cut fits the target.
   let total = edlDurationSec({ segments });
   if (total > target.max) {
-    for (let i = segments.length - 1; i >= 0 && total > target.max; i--) {
-      const s = segments[i];
-      if (s.role === "opener") continue;
-      const canCut = s.out - s.in - EDL_DEFAULTS.minSegmentSec;
-      const cut = Math.min(canCut, total - target.max);
-      if (cut > 0) { s.out = snapTime(s.out - cut, byId.get(s.clipId)!, "out"); total = edlDurationSec({ segments }); }
-    }
+    total = trimToMax(segments, byId, target.max);
     warnings.push(`trimmed to ${total}s to fit the ${target.max}s target`);
   }
   const notes = [...(raw.notes ?? []).map((n) => n.trim()).filter(Boolean)];
@@ -230,6 +246,7 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
   };
   const style = sanitizeStyle(raw.style);
   if (style) edl.style = style;
+  if (isHouseGenre(raw.genre)) edl.genre = raw.genre;
   return { edl, warnings };
 }
 

@@ -10,7 +10,7 @@
 // corrections use @remotion/effects' colorCorrection(), a WebGL pass that
 // the Player, the browser render and Safari all support.
 import React, { useEffect, useMemo, useState } from "react";
-import { AbsoluteFill, Img, Sequence, continueRender, delayRender, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, Sequence, continueRender, delayRender, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { Audio, Video } from "@remotion/media";
 import { colorCorrection } from "@remotion/effects/color-correction";
 import { zoomBlur } from "@remotion/effects/zoom-blur";
@@ -22,7 +22,7 @@ import { loadFont as loadPlayfair } from "@remotion/google-fonts/PlayfairDisplay
 import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
 import { loadFont as loadTikTok } from "@remotion/google-fonts/TikTokSans";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
-import { DEFAULT_STYLE, captionLayout, type EdlStyle, type FontId } from "@/lib/studioClips/style";
+import { DEFAULT_STYLE, captionLayout, captionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
@@ -112,27 +112,87 @@ function SafeZoneLayer({ width, height }: { width: number; height: number }) {
   );
 }
 
-function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: EdlStyle; fontFamily: string }) {
+/**
+ * One caption page in the cut's caption style (lib/studioClips/style.ts
+ * CAPTION_STYLES): the words of the page, the spoken word marked the style's
+ * way (brighter, filled, coloured, boxed or underlined with a marker), and
+ * the page coming in with the style's motion. Everything is driven by the
+ * frame, so the Player and the browser render agree.
+ */
+export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: EdlStyle; fontFamily: string }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
-  const l = captionLayout(style.captions);
+  const spec = captionStyle(style.captions.preset);
+  const base = captionLayout(style.captions);
+  // One word at a time reads at half again the size.
+  const l = spec.maxWords === 1 ? { ...base, fontSize: Math.round(base.fontSize * 1.5) } : base;
   const outline = style.textBox === "outline";
+  const hi = style.captions.highlight;
+  const vox = spec.id === "vox";
+  // The page's entrance: a spring pop, a short rise, a fade, or nothing.
+  const enter = spring({ frame, fps, config: { damping: 14, stiffness: 220, mass: 0.6 }, durationInFrames: 10 });
+  const pageStyle: React.CSSProperties =
+    spec.animation === "pop" ? { transform: `scale(${interpolate(enter, [0, 1], [0.6, 1])})`, opacity: Math.min(1, frame / 2) }
+    : spec.animation === "rise" ? { transform: `translateY(${interpolate(enter, [0, 1], [18, 0])}px)`, opacity: Math.min(1, frame / 3) }
+    : spec.animation === "fade" ? { opacity: Math.min(1, frame / 4) }
+    : {};
+  const stroke = outline && !style.captions.box ? { fontWeight: outlineWeight(style.font), WebkitTextStroke: `${Math.max(9, Math.round(l.fontSize * 0.18))}px #000`, paintOrder: "stroke fill" as const } : {};
+  const tokens = page.tokens.filter((t) => t.text.trim());
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
-      <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: "6%", right: "6%", textAlign: "center" }}>
+      <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: vox ? "8%" : "6%", right: vox ? "14%" : "6%", textAlign: vox ? "left" : "center", ...pageStyle }}>
         <span
           style={{
-            display: "inline-block", fontFamily, fontWeight: 700, fontSize: l.fontSize, lineHeight: 1.2, whiteSpace: "pre-wrap",
+            display: "inline-block", fontFamily, fontWeight: 700, fontSize: l.fontSize, lineHeight: vox ? 1.35 : 1.2, whiteSpace: "pre-wrap",
             textTransform: style.captions.uppercase ? "uppercase" : "none",
             padding: "10px 18px", borderRadius: 16, backgroundColor: style.captions.box ? "rgba(0,0,0,0.42)" : "transparent",
             textShadow: style.captions.box || outline ? "none" : "0 2px 14px rgba(0,0,0,0.8)",
-            ...(outline && !style.captions.box ? { fontWeight: outlineWeight(style.font), WebkitTextStroke: `${Math.max(9, Math.round(l.fontSize * 0.18))}px #000`, paintOrder: "stroke fill" } : {}),
+            ...stroke,
           }}
         >
-          {page.tokens.map((t, i) => {
+          {tokens.map((t, i) => {
             const active = t.fromMs <= nowMs && t.toMs > nowMs;
-            return <span key={`${t.fromMs}-${i}`} style={{ color: active ? "#fff" : "rgba(255,255,255,0.72)" }}>{t.text}</span>;
+            const spoken = t.toMs <= nowMs;
+            // How far the marker or fill has swept across this word, 0..1.
+            const sweep = active ? Math.min(1, Math.max(0, (nowMs - t.fromMs) / Math.max(80, t.toMs - t.fromMs))) : spoken ? 1 : 0;
+            const text = i === 0 ? t.text.trimStart() : t.text;
+            if (spec.mark === "marker") {
+              // Vox: a highlighter bar grows under the word as it is said and stays.
+              return (
+                <span key={`${t.fromMs}-${i}`} style={{ position: "relative", color: "#fff", zIndex: 1 }}>
+                  <span style={{ position: "absolute", left: 0, bottom: "8%", height: "38%", width: `${sweep * 100}%`, background: hi, opacity: 0.85, zIndex: -1, borderRadius: 4 }} />
+                  {text}
+                </span>
+              );
+            }
+            if (spec.mark === "box") {
+              return (
+                <span key={`${t.fromMs}-${i}`} style={{ display: "inline-block", color: "#fff", padding: "0 0.18em", margin: "0 0.1em", borderRadius: Math.round(l.fontSize * 0.18), backgroundColor: active ? hi : "transparent", transform: active ? "scale(1.06)" : "scale(1)" }}>
+                  {t.text.trim()}
+                </span>
+              );
+            }
+            if (spec.mark === "fill") {
+              // Karaoke: a coloured copy of the word, clipped to how much of it has been said, over the white one.
+              return (
+                <span key={`${t.fromMs}-${i}`} style={{ position: "relative", display: "inline-block", color: "#fff", whiteSpace: "pre" }}>
+                  {text}
+                  <span aria-hidden style={{ position: "absolute", left: 0, top: 0, width: `${sweep * 100}%`, overflow: "hidden", whiteSpace: "pre", color: hi }}>{text}</span>
+                </span>
+              );
+            }
+            if (spec.mark === "colour") {
+              return (
+                <span key={`${t.fromMs}-${i}`} style={{ display: "inline-block", color: active ? hi : "#fff", transform: active ? "scale(1.12)" : "scale(1)" }}>
+                  {text}
+                </span>
+              );
+            }
+            if (spec.mark === "bright") {
+              return <span key={`${t.fromMs}-${i}`} style={{ color: active ? "#fff" : "rgba(255,255,255,0.72)" }}>{text}</span>;
+            }
+            return <span key={`${t.fromMs}-${i}`} style={{ color: "#fff" }}>{text}</span>;
           })}
         </span>
       </div>
@@ -159,6 +219,7 @@ function SegmentLayer({ s, into, out, effects, children }: {
   return (
     <AbsoluteFill style={{ opacity: look.opacity, transform: look.scale !== 1 || look.x !== 0 ? `translateX(${look.x}%) scale(${look.scale})` : undefined }}>
       {children({ effects: fx.length ? fx : undefined })}
+      {look.flash > 0 ? <AbsoluteFill style={{ background: "#fff", opacity: look.flash, pointerEvents: "none" }} /> : null}
     </AbsoluteFill>
   );
 }
@@ -181,7 +242,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
     return Object.fromEntries(Object.entries(finish.grades).map(([id, g]) => [id, [colorCorrection(g.params)]]));
   }, [finish]);
-  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps) : []), [edl, words, captionsOn, fps]);
+  const capSpec = captionStyle(style.captions.preset);
+  const pages = useMemo(() => (captionsOn ? captionPages(edl, words, fps, capSpec.pageMs, capSpec.maxWords) : []), [edl, words, captionsOn, fps, capSpec]);
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily }}>
