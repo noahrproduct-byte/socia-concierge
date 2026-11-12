@@ -77,6 +77,9 @@ describe("what the card shows", () => {
     expect(v.steps[1].detail).toBe("96 Reels read from 11 accounts");
     expect(v.steps[3].detail).toBe("8 of 24 studied");
     expect(v.steps[4].detail).toBeNull();
+    // With the frames count, the card says how many were read from inside the video (2026-11-12).
+    s.counts = { ...s.counts, withFrames: 6 };
+    expect(progressView(s, "running", s.startedAt).steps[3].detail).toBe("8 of 24 studied, 6 with frames from inside the video");
   });
   it("marks nothing active when the run failed, and everything done when finished", () => {
     const s = initialState("lite", null, NOW);

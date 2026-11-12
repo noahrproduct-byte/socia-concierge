@@ -86,6 +86,8 @@ export type ScanCounts = {
   /** Reels picked to study, and how many have been studied. */
   toWatch: number;
   watched: number;
+  /** Of the studied ones, how many were read from frames inside the video (not just the cover); absent on scans before frames. */
+  withFrames?: number;
   /** Patterns the playbook kept. */
   patterns: number;
 };
@@ -221,7 +223,7 @@ export function progressView(state: ScanState | null, status: ScanStatus, starte
     discover: c.accounts ? `${plural(c.accounts, "account")} found` : null,
     read: c.accountsRead || c.reelsRead ? `${plural(c.reelsRead, "Reel")} read from ${plural(c.accountsRead, "account")}` : null,
     pick: c.toWatch ? `${c.proven} took off; ${c.toWatch} to study` : null,
-    watch: c.toWatch ? `${c.watched} of ${c.toWatch} studied` : null,
+    watch: c.toWatch ? `${c.watched} of ${c.toWatch} studied${c.withFrames != null && c.watched ? `, ${c.withFrames} with frames from inside the video` : ""}` : null,
     write: phase === "done" ? `${plural(c.patterns, "pattern")} kept` : null,
   };
   const steps = (Object.keys(PHASE_LABEL) as Exclude<ScanPhase, "done">[]).map((id, i) => ({
