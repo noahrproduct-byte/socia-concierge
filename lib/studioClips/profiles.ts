@@ -6,6 +6,9 @@
 // told (analysis.ts). They are starting points: the person can make the cut
 // again in another style. Pure, unit-tested (profiles.test.ts).
 
+import { asStepLabel, becomesStepLabel } from "@/lib/textPresets";
+import type { EdlText } from "./types";
+
 export type EditStyleId = "process" | "talking" | "demo" | "energetic" | "calm";
 
 export type EditStyle = {
@@ -21,45 +24,69 @@ export type EditStyle = {
   speech: "tight" | "natural";
   /** what the editing model is told, on top of its general rules */
   prompt: string;
+  /**
+   * How on-screen words are set: "hook" (a designed opening line, the Hook
+   * Pair) or "labels" (small step labels, as the food Reels that work do:
+   * 2026-11-11 food study, docs/studio/edit-references.md).
+   */
+  text: "hook" | "labels";
 };
 
 export const EDIT_STYLES: Record<EditStyleId, EditStyle> = {
   process: {
     id: "process", label: "Food and process",
-    summary: "The making in order, the real sound of the work, hard cuts on the action, the finished thing at the end.",
+    summary: "The finished thing first, the making in order with small step labels, the real sound of the work, the finished thing again.",
     pacing: { openerMaxSec: 5, silentMaxSec: 5, followMaxSec: 3, speechMaxSec: 10, endingMinSec: 1.5, averageCutSec: [1, 4] },
-    joins: "dissolve", speech: "tight",
-    prompt: "Food and process: open on the most satisfying moment, then show the making in the order it happens, keep the real sound of the work, and end on the finished thing and the brand.",
+    joins: "dissolve", speech: "tight", text: "labels",
+    prompt: "Food and process, the way the food Reels that work are cut. Either ONE satisfying action shown whole (a slice pulled, a cheese pull, the knife through a crust: one or two shots, never chopped up), or a process: open on the finished thing for 1 to 2 seconds, then the making in the order it happens, one step a shot, slow steps may hold while the end speeds up, and close on the finished thing again from a different moment. Steps filmed from a camera that doesn't move can follow each other as jump cuts at least 1 second apart, so the dish builds up like stop motion. Keep the real sound of the work. Text: no big title and no reaction line. Instead 0 to 4 small step labels, each 1 to 4 lowercase words naming the dish, the ingredient or the step on screen at that moment (\"fresh basil\", \"into the oven\"), each over the shot it names, role \"mid\" (the first may be \"opening\" and name the dish); none at all when the action speaks for itself. This text rule replaces the general one.",
   },
   talking: {
     id: "talking", label: "Talking to camera",
     summary: "The words carry it: whole sentences, hard cuts between thoughts, pauses tightened, captions.",
     pacing: { openerMaxSec: 5, silentMaxSec: 4, followMaxSec: 3, speechMaxSec: 15, endingMinSec: 1.5, averageCutSec: [1.5, 8] },
-    joins: "cut", speech: "tight",
+    joins: "cut", speech: "tight", text: "hook",
     prompt: "Talking to camera: the words carry the video. Open on the strongest line, keep whole sentences, cut between thoughts, drop repeated points, and use other footage only to show what is being said. No reaction text: the captions carry the words.",
   },
   demo: {
     id: "demo", label: "Product demo or how-to",
     summary: "The problem, then each step held long enough to see what changed; hard cuts, natural pauses.",
     pacing: { openerMaxSec: 5, silentMaxSec: 7, followMaxSec: 3, speechMaxSec: 15, endingMinSec: 2, averageCutSec: [2, 7] },
-    joins: "cut", speech: "natural",
+    joins: "cut", speech: "natural", text: "hook",
     prompt: "Product demo or how-to: open on the result or the problem, never a logo; then show it working step by step, holding each step 2 to 5 seconds so the viewer can see what changed; end on the result. Text names the step, in a few words.",
   },
   energetic: {
     id: "energetic", label: "Fast and energetic",
     summary: "Quick hard cuts on the action, peak motion first, building to the biggest moment.",
     pacing: { openerMaxSec: 3, silentMaxSec: 3, followMaxSec: 2.5, speechMaxSec: 8, endingMinSec: 1.5, averageCutSec: [0.6, 2.5] },
-    joins: "cut", speech: "tight",
+    joins: "cut", speech: "tight", text: "hook",
     prompt: "Fast and energetic: cut quickly, 0.6 to 2 seconds a shot, always on the action; open on peak motion, build to the biggest moment, and end on a strong frame.",
   },
   calm: {
     id: "calm", label: "Calm and premium",
     summary: "Fewer, longer shots with slow reveals, a soft dissolve where time passes; restrained text.",
     pacing: { openerMaxSec: 6, silentMaxSec: 7, followMaxSec: 7, speechMaxSec: 12, endingMinSec: 2.5, averageCutSec: [2.5, 6] },
-    joins: "dissolve", speech: "natural",
-    prompt: "Calm and premium: fewer, longer shots of 2.5 to 6 seconds, slow reveals, no hype words, at most one short line of text, and end on the most beautiful frame.",
+    joins: "dissolve", speech: "natural", text: "labels",
+    prompt: "Calm and premium: fewer, longer shots of 2.5 to 6 seconds, slow reveals, no hype words, and end on the most beautiful frame. Text: at most one small lowercase line naming the place or the dish, set as a step label; no big title. This text rule replaces the general one.",
   },
 };
+
+/**
+ * On-screen words as this edit's style sets them: in a label style (food and
+ * process, calm) the opening and middle lines become small Step Labels, on one
+ * line and shortened only at a whole word; calls to action keep their label.
+ */
+export function textForStyle<E extends { editStyle?: unknown; text: EdlText[] }>(edl: E): E {
+  if (styleOf(edl.editStyle).text !== "labels") return edl;
+  const text = edl.text.map((t) => {
+    if (!becomesStepLabel(t.presetId ?? (t.role === "cta" ? "callout_box" : "caption_bar"))) return t;
+    const l = asStepLabel(t.text);
+    // A label sits in the middle, its own place, so a slot meant for the old look goes.
+    const rest: EdlText = { ...t };
+    delete rest.slot;
+    return { ...rest, text: l.text, presetId: "step_label" as const, ...(l.shortened || t.shortened ? { shortened: true as const } : {}) };
+  });
+  return { ...edl, text };
+}
 
 export const EDIT_STYLE_IDS = Object.keys(EDIT_STYLES) as EditStyleId[];
 export const isEditStyle = (v: unknown): v is EditStyleId => typeof v === "string" && v in EDIT_STYLES;

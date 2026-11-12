@@ -20,11 +20,11 @@ type Loaded = { fontFamily: string; waitUntilDone: () => Promise<undefined> };
 const SUBSETS = ["latin", "latin-ext"] as const;
 const LOADERS: Partial<Record<FontId, () => Loaded>> = {
   inter: () => loadInter("normal", { weights: ["600", "700"], subsets: [...SUBSETS] }),
-  montserrat: () => loadMontserrat("normal", { weights: ["800"], subsets: [...SUBSETS] }),
+  montserrat: () => loadMontserrat("normal", { weights: ["600", "800"], subsets: [...SUBSETS] }),
   anton: () => loadAnton("normal", { weights: ["400"], subsets: [...SUBSETS] }),
-  poppins: () => loadPoppins("normal", { weights: ["800"], subsets: [...SUBSETS] }),
+  poppins: () => loadPoppins("normal", { weights: ["600", "800"], subsets: [...SUBSETS] }),
   bebas: () => loadBebas("normal", { weights: ["400"], subsets: [...SUBSETS] }),
-  tiktok: () => loadTikTok("normal", { weights: ["800"], subsets: [...SUBSETS] }),
+  tiktok: () => loadTikTok("normal", { weights: ["600", "800"], subsets: [...SUBSETS] }),
   // Instrument Serif is only used italic: the small line of a paired hook.
   serif: () => loadSerif("italic", { weights: ["400"], subsets: [...SUBSETS] }),
 };
