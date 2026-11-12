@@ -22,6 +22,7 @@ import { loadFont as loadPlayfair } from "@remotion/google-fonts/PlayfairDisplay
 import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
 import { loadFont as loadTikTok } from "@remotion/google-fonts/TikTokSans";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
+import { loadFont as loadSerif } from "@remotion/google-fonts/InstrumentSerif";
 import { DEFAULT_STYLE, captionLayout, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
@@ -42,6 +43,8 @@ import { gainAtDb } from "@/lib/studioClips/sound";
 
 // Inter is the default and loads at once; the others load only when an edit uses them.
 const { fontFamily: interFamily } = loadInter("normal", { weights: ["600", "700"], subsets: ["latin"] });
+// The italic serif the clean captions set their key word in.
+const { fontFamily: serifFamily } = loadSerif("italic", { weights: ["400"], subsets: ["latin"] });
 const FONT_LOADERS: Record<FontId, () => string> = {
   inter: () => interFamily,
   montserrat: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin"] }).fontFamily,
@@ -118,6 +121,19 @@ function TextLayer({ line, width, height, font, textBox }: { line: EdlText; widt
   const inF = Math.max(1, Math.round(fps * 0.25)), outF = Math.max(1, Math.round(fps * 0.25));
   const leave = interpolate(frame, [durationInFrames - outF, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const fadeIn = interpolate(frame, [0, inF], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  if (textBox !== "outline") {
+    // The clean look: the line arrives a little big and soft and settles sharp in WORD_SETTLE_FRAMES, then drifts
+    // up very slowly while it is on screen, so it is never static (Noah's picks, 2026-11-12).
+    const k = interpolate(frame, [0, WORD_SETTLE_FRAMES], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    const ease = 1 - (1 - k) * (1 - k);
+    const drift = interpolate(frame, [0, durationInFrames], [0, -0.6], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    const out3 = interpolate(frame, [durationInFrames - 3, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    return (
+      <AbsoluteFill style={{ opacity: Math.min(ease, out3), transform: `translateY(${drift + (1 - ease) * 1.2}%) scale(${1 + (1 - ease) * 0.08})`, filter: ease < 1 ? `blur(${(1 - ease) * 8}px)` : undefined }}>
+        <Img src={src} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} pauseWhenLoading />
+      </AbsoluteFill>
+    );
+  }
   const pop = preset.animation === "pop" ? interpolate(frame, [0, 5, 9], [0.9, 1.04, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 1;
   const appear = preset.animation === "pop" ? interpolate(frame, [0, 3], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : fadeIn;
   return (
@@ -160,6 +176,10 @@ function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
 }
 
 const EMPHASIS_COLOR = "#ffd400";
+/** How far every shot pushes in over its length: slow enough to feel like a camera move, never a zoom. */
+const PUSH_IN = 1.035;
+/** A caption word settles in this many frames: from a little big and soft to sharp (measured on Noah's picks, 2026-11-12). */
+const WORD_SETTLE_FRAMES = 5;
 /** A voiced line fades in and out over this many frames, and keeps this many after its last word, so it never clicks or clips a breath. */
 const VOICE_FADE_FRAMES = 3;
 const VOICE_TAIL_FRAMES = 6;
@@ -190,9 +210,19 @@ function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; 
         >
           {page.tokens.map((t, i) => {
             const active = t.fromMs <= nowMs && t.toMs > nowMs;
-            if (i === marked && clean) return <span key={`${t.fromMs}-${i}`} style={{ color: "#fff", fontSize: "1.3em" }}>{t.text}</span>;
+            if (clean) {
+              // The clean look builds the line as it is spoken: each word arrives on its word, a little big and soft, and
+              // settles sharp in WORD_SETTLE_FRAMES; the key word is set big in the italic serif on its own line.
+              const since = ((nowMs - t.fromMs) / 1000) * fps;
+              if (since < 0) return <span key={`${t.fromMs}-${i}`} style={{ visibility: "hidden" }}>{t.text}</span>;
+              const k = Math.min(1, since / WORD_SETTLE_FRAMES);
+              const ease = 1 - (1 - k) * (1 - k);
+              const settle: React.CSSProperties = { display: "inline-block", opacity: ease, transform: `translateY(${(1 - ease) * 0.14}em) scale(${1 + (1 - ease) * 0.08})`, filter: ease < 1 ? `blur(${(1 - ease) * 6}px)` : undefined };
+              if (i === marked) return <span key={`${t.fromMs}-${i}`} style={{ ...settle, display: "block", fontFamily: serifFamily, fontStyle: "italic", fontWeight: 400, fontSize: "2.7em", lineHeight: 0.95, letterSpacing: "-0.01em", color: "#fff" }}>{t.text}</span>;
+              return <span key={`${t.fromMs}-${i}`} style={{ ...settle, color: "#fff" }}>{t.text}</span>;
+            }
             // Three words at a time need no karaoke dimming, and dimmed white disappears on bright footage.
-            return <span key={`${t.fromMs}-${i}`} style={{ color: i === marked ? EMPHASIS_COLOR : active || clean ? "#fff" : "rgba(255,255,255,0.72)" }}>{t.text}</span>;
+            return <span key={`${t.fromMs}-${i}`} style={{ color: i === marked ? EMPHASIS_COLOR : active ? "#fff" : "rgba(255,255,255,0.72)" }}>{t.text}</span>;
           })}
         </span>
       </div>
@@ -216,12 +246,14 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   const f = useCurrentFrame();
   const soft = softenFrom == null ? 0 : interpolate(f, [softenFrom, softenFrom + END_SOFTEN_FRAMES], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const look = transitionLook({ frame: f, frames: s.durationFrames, into, overlapIn: s.overlapIn, out, overlapOut: s.overlapOut });
+  // The camera never stops: every shot pushes in slowly from its first frame to its last (Noah's picks, 2026-11-12).
+  const drift = interpolate(f, [0, Math.max(1, s.durationFrames)], [1, PUSH_IN], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const fx: Effects = [...(effects ?? [])];
   if (look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
   if (look.blur > 0.5) fx.push(blur({ radius: look.blur, vertical: look.whip ? false : true }));
   if (soft > 0) fx.push(blur({ radius: 40 * soft }));
   return (
-    <AbsoluteFill style={{ opacity: look.opacity, transform: look.scale !== 1 || look.x !== 0 ? `translateX(${look.x}%) scale(${look.scale})` : undefined }}>
+    <AbsoluteFill style={{ opacity: look.opacity, transform: `translateX(${look.x}%) scale(${look.scale * drift})`, transformOrigin: "50% 45%" }}>
       {children({ effects: fx.length ? fx : undefined, frame: f })}
       {soft > 0 && <AbsoluteFill style={{ backgroundColor: "#000", opacity: 0.42 * soft }} />}
     </AbsoluteFill>

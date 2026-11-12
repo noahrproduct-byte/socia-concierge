@@ -798,7 +798,8 @@ function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: 
   const { edl: repaired, fixed } = repairCut({ ...edl, segments: first.segments }, forEdl, { keepTransitions: first.joins.some((j) => j.why === "asked") });
   const { segments, joins } = decideJoins(repaired.segments, forEdl, asked, style.joins);
   let out: Edl = { ...repaired, segments };
-  if (spoken.removed.length) out = varyJumpCuts(out).edl;
+  // Every run of cuts from one shot alternates its framing, so each cut reads as a new angle (Noah's picks, 2026-11-12).
+  out = varyJumpCuts(out).edl;
   const notes = edl.notes.filter((n) => !JOIN_NOTE.test(n));
   const replace = (re: RegExp, line: string) => { if (!line) return; for (let i = notes.length - 1; i >= 0; i--) if (re.test(notes[i])) notes.splice(i, 1); notes.push(line); };
   replace(SPEECH_NOTE, speechNote(spoken.removed));
