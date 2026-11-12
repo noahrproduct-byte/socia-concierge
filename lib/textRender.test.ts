@@ -140,20 +140,25 @@ describe("Step Label (2026-11-11 food study)", () => {
   });
 });
 
-describe("Hook Pair", () => {
-  it("sets the first line small in the italic serif and the rest big in the heavy sans", () => {
-    const l = lay("hook_pair", "straight from\nTHE DECK");
+describe("Hook Pair (Noah's caption taste, 2026-11-12)", () => {
+  it("sets the first line in bold and the key words big in the italic serif", () => {
+    const l = lay("hook_pair", "wait for the\ncheese pull");
     expect(l.fits).toBe(true);
     expect(l.lead).toBe(true);
-    expect(l.lines.map((x) => x.text)).toEqual(["straight from", "THE DECK"]);
-    expect(l.lines[0].font).toMatch(/^italic 400 .*Instrument Serif/);
+    expect(l.lines[0].text).toBe("wait for the");
+    expect(l.lines.slice(1).map((x) => x.text).join(" ")).toBe("cheese pull");
+    expect(l.lines[0].font).not.toMatch(/italic/);
+    for (const x of l.lines.slice(1)) expect(x.font).toMatch(/^italic 400 .*Instrument Serif/);
     expect(l.lines[1].fontSize).toBeGreaterThan(l.lines[0].fontSize);
   });
-  it("sets a single line big, never as a lone small line", () => {
-    const l = lay("hook_pair", "THE DECK");
+  it("sets a single line big in the serif, and puts the video's font on the bold line only", () => {
+    const l = lay("hook_pair", "cheese");
     expect(l.fits).toBe(true);
     expect(l.lead).toBe(false);
-    expect(l.lines[0].font).not.toMatch(/italic/);
+    expect(l.lines[0].font).toMatch(/italic/);
+    const p = presetInStyle(TEXT_PRESETS.hook_pair, "tiktok", "none");
+    expect(p.font.family).toBe("serif");
+    expect(p.lead?.font.family).toBe("tiktok");
   });
 });
 

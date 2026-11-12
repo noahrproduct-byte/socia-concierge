@@ -90,6 +90,8 @@ export type TextPreset = {
    * Big Stat: the first line is the number, drawn with this font and size; the
    * lines after it are the subline in the preset's own font and size.
    */
+  /** the body keeps its own font (Hook Pair's italic serif); the video's font goes to the lead instead */
+  fixedBody?: boolean;
   lead?: { font: TextFont; size: { min: number; max: number }; color: string; gap: number; /** a single line is set as body, not as the lead (Hook Pair) */ needsBody?: boolean };
 };
 
@@ -111,12 +113,14 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
   // big heavy words ("the first slice" / "STRAIGHT OUT"). First line is the
   // small one; the lines after it are set big.
   hook_pair: {
-    id: "hook_pair", label: "Hook Pair", hint: "A small italic line over one or two big words. First line is the small one.", sample: "fresh from\nTHE DECK",
-    font: BOLD, size: { min: 84, max: 176 }, lineHeight: 0.98, letterSpacing: -0.02,
+    // Noah's caption taste (2026-11-12): a bold line, then the key word set big in the italic serif.
+    id: "hook_pair", label: "Hook Pair", hint: "A bold line over one or two big words in italic serif. First line is the bold one.", sample: "wait for the\ncheese pull",
+    font: SERIF_ITALIC, size: { min: 92, max: 200 }, lineHeight: 0.95, letterSpacing: -0.01,
     maxLines: 3, maxChars: 34, color: BRAND.white,
     box: SHADOW,
     align: "center", widthPct: 0.94, slot: "top", time: { start: 0, end: 2.6 }, animation: "pop",
-    lead: { font: SERIF_ITALIC, size: { min: 64, max: 108 }, color: BRAND.white, gap: 0, needsBody: true },
+    lead: { font: BOLD, size: { min: 56, max: 88 }, color: BRAND.white, gap: 6, needsBody: true },
+    fixedBody: true,
   },
   // How the food Reels that work set their words (2026-11-11 food study,
   // docs/studio/edit-references.md): no big title, a small lowercase label in
@@ -185,6 +189,7 @@ export const TEXT_PRESETS: Record<TextPresetId, TextPreset> = {
 /** A preset in the video's own font, so every line matches. Older cuts set to a dropped font keep Montserrat. */
 export function presetInFont(p: TextPreset, font?: FontId | null): TextPreset {
   if (!font || font === "inter" || font === "playfair" || font === "serif") return p;
+  if (p.fixedBody && p.lead) return { ...p, lead: { ...p.lead, font: { family: font, weight: font === "anton" || font === "bebas" ? 400 : 800 } } };
   // Anton and Bebas come in one weight; the others keep a lighter preset weight (Step Label) and are bold otherwise.
   return { ...p, font: { family: font, weight: font === "anton" || font === "bebas" ? 400 : p.font.weight < 800 ? p.font.weight : 800 } };
 }
