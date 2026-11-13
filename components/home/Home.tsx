@@ -145,7 +145,7 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
             <p className="hm-meta">
               <span>Free plan</span>
               <span>No card needed</span>
-              <span>{openPlatformsText()}</span>
+              <span>Instagram, Facebook, YouTube and TikTok</span>
             </p>
           </div>
         </section>

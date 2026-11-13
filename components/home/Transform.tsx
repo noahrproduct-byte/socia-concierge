@@ -79,7 +79,7 @@ const PANELS: Panel[] = [
     without: (
       <div className="tf-tabs">
         <span className="tf-tabstrip">
-          {["@coach.dan", "@liftwithmia", "@runclub", "@fitfoods", "+8"].map((t) => (
+          {["@theo.shoots", "@filmwithmaya", "@thecreatordesk", "@fitfoods", "+8"].map((t) => (
             <i key={t}>{t}</i>
           ))}
         </span>
@@ -90,11 +90,12 @@ const PANELS: Panel[] = [
       <div className="tf-rivals">
         <small>Competitors, last 30 days</small>
         {[
-          ["@liftwithmia", "3.1× her median", true],
-          ["@coach.dan", "2.2× his median", true],
-          ["@runclub", "0.8× their median", false],
-        ].map(([n, v, up]) => (
+          ["@filmwithmaya", "3.1× her median", true, "maya"],
+          ["@theo.shoots", "2.2× his median", true, "theo"],
+          ["@thecreatordesk", "0.8× their median", false, "creator-desk"],
+        ].map(([n, v, up, av]) => (
           <span key={n as string} className="tf-rival">
+            <Image className="tf-avatar" src={`/landing/avatars/${av}.jpg`} alt="" width={48} height={48} sizes="24px" />
             <b>{n}</b>
             <em className={up ? "is-up" : ""}>{v}</em>
           </span>
@@ -113,9 +114,9 @@ const PANELS: Panel[] = [
       <div className="tf-notes">
         <small>Notes</small>
         <ul>
-          <li>reel idea?? the squat thing</li>
+          <li>reel idea?? the lighting thing</li>
           <li>post more (how much?)</li>
-          <li>copy what @liftwithmia did</li>
+          <li>copy what @filmwithmaya did</li>
           <li>tuesday maybe</li>
         </ul>
       </div>
@@ -124,9 +125,9 @@ const PANELS: Panel[] = [
       <div className="tf-plan">
         <small>This week&apos;s plan</small>
         {[
-          ["Mon", "Three cues for a cleaner squat", "Reel, 6:30 PM"],
-          ["Wed", "What I eat before a 6 AM class", "Carousel, 12 PM"],
-          ["Fri", "Your first kettlebell: what to buy", "Reel, 6:30 PM"],
+          ["Mon", "Light a video with one lamp", "Reel, 6:30 PM"],
+          ["Wed", "My desk setup, honestly", "Carousel, 12 PM"],
+          ["Fri", "Your first mic: what to buy", "Reel, 6:30 PM"],
         ].map(([d, t, w]) => (
           <span key={d} className="tf-planrow">
             <i>{d}</i>
@@ -146,7 +147,7 @@ const PANELS: Panel[] = [
     mAfter: [52, 36, 44, 27],
     without: (
       <div className="tf-raw">
-        <Image src="/landing/creators/fitness-gym.jpg" alt="" fill sizes="240px" />
+        <Image src="/landing/creators/talking-camera.jpg" alt="" fill sizes="240px" />
         <span className="tf-rawmeta">
           <b>IMG_4821.MOV</b>
           <em>3:42 of raw footage</em>
@@ -156,8 +157,8 @@ const PANELS: Panel[] = [
     with: (
       <div className="tf-edit">
         <span className="tf-reel">
-          <Image src="/landing/creators/fitness-gym.jpg" alt="" fill sizes="120px" />
-          <i className="tf-cap">drive the hips</i>
+          <Image src="/landing/creators/talking-camera.jpg" alt="" fill sizes="120px" />
+          <i className="tf-cap">one lamp, 45°</i>
         </span>
         <span className="tf-cut">
           <small>First cut, 0:14</small>
@@ -191,7 +192,7 @@ const PANELS: Panel[] = [
     with: (
       <div className="tf-today">
         <small>Today</small>
-        <b>Post the squat Reel at 6:30 PM</b>
+        <b>Post the lighting Reel at 6:30 PM</b>
         <p>Your last 8 Reels after 6 PM had a median of 1.9× your usual views.</p>
         <span className="tf-evidence">From your own posts, 90 days</span>
       </div>

@@ -96,27 +96,27 @@ const FEATURES: Feature[] = [
       <div className="fx-ideas">
         <div className="fx-ideas-main">
           <span className="fx-panel-head">
-            <b>Three cues for a cleaner squat, part 2</b>
+            <b>Light a video with one lamp, part 2</b>
             <em>Fri, 6:30 PM, Reel</em>
           </span>
           <span className="fx-label">Hooks</span>
           <ol className="fx-hooks">
-            <li className="is-on" style={i(0)}>&ldquo;Your squat isn&apos;t the problem. Your feet are.&rdquo;</li>
-            <li style={i(1)}>&ldquo;Three cues I give every new client.&rdquo;</li>
-            <li style={i(2)}>&ldquo;Watch my knees, then watch yours.&rdquo;</li>
+            <li className="is-on" style={i(0)}>&ldquo;Your camera isn&apos;t the problem. Your light is.&rdquo;</li>
+            <li style={i(1)}>&ldquo;One lamp, three positions.&rdquo;</li>
+            <li style={i(2)}>&ldquo;Watch my face, then watch the wall.&rdquo;</li>
           </ol>
           <span className="fx-label">Shot list</span>
           <ol className="fx-shots">
-            <li style={i(0)}><b>1</b> Side angle, full squat, no talking</li>
-            <li style={i(1)}><b>2</b> Close on the feet: &ldquo;tripod foot&rdquo;</li>
-            <li style={i(2)}><b>3</b> Front angle: knees track the toes</li>
+            <li style={i(0)}><b>1</b> Wide: the lamp and the chair, no talking</li>
+            <li style={i(1)}><b>2</b> Close: the lamp at 45 degrees</li>
+            <li style={i(2)}><b>3</b> Front: before and after, side by side</li>
           </ol>
         </div>
         <div className="fx-ref">
-          <Thumb src={`${C}/fitness-gym.jpg`} className="is-tall" />
+          <Thumb src={`${C}/talking-camera.jpg`} className="is-tall" />
           <span>
             <span className="fx-label">Reference Reel</span>
-            <b>@liftwithmia</b>
+            <b>@filmwithmaya</b>
             <em>3.1× her median, 6 days ago</em>
           </span>
         </div>
@@ -145,16 +145,16 @@ const FEATURES: Feature[] = [
         <div className="fx-drop">
           <span className="fx-label">6 clips dropped</span>
           <span className="fx-drop-grid">
-            {["fitness-squat", "fitness-gym", "fitness-stretch", "fitness-run", "fitness-mealprep", "fitness-class"].map((p) => (
+            {["lighting", "talking-camera", "desk-edit", "vlog-street", "planning-wall", "studio-film"].map((p) => (
               <Thumb key={p} src={`${C}/${p}.jpg`} />
             ))}
           </span>
         </div>
         <ol className="fx-gen-list">
           {[
-            ["fitness-squat", "Three cues for a cleaner squat", "0:14"],
-            ["fitness-mealprep", "What I eat on a training day", "0:21"],
-            ["fitness-stretch", "Three warm-ups people skip", "0:11"],
+            ["lighting", "Light a video with one lamp", "0:14"],
+            ["planning-wall", "How I plan a month of posts", "0:21"],
+            ["desk-edit", "Three edits people skip", "0:11"],
           ].map(([src, title, len], n) => (
             <li key={title} style={i(n)}>
               <Thumb src={`${C}/${src}.jpg`} className="is-tall" />
@@ -522,16 +522,16 @@ const FEATURES: Feature[] = [
       <div className="fx-comp">
         <ul className="fx-accounts">
           {[
-            ["Glow Lab Skin", "3.1× their median", "Morning vs evening routine", "50% 30%", true],
-            ["Dr. Ana Sousa", "2.2× her median", "What SPF numbers mean", "50% 60%", true],
-            ["Simple Skin Co.", "0.8× their median", "New bottle design", "50% 85%", false],
-            ["The Serum Edit", "1.9× their median", "Three ingredients to skip", "50% 15%", true],
-          ].map(([name, vs, post, pos, up], n) => (
+            ["Glow Lab Skin", "3.1× their median", "Morning vs evening routine", true, "glow-lab"],
+            ["Dr. Ana Sousa", "2.2× her median", "What SPF numbers mean", true, "ana-sousa"],
+            ["Simple Skin Co.", "0.8× their median", "New bottle design", false, "simple-skin"],
+            ["The Serum Edit", "1.9× their median", "Three ingredients to skip", true, "serum-edit"],
+          ].map(([name, vs, post, up, av], n) => (
             <li key={name as string} style={i(n)}>
-              <Thumb src={`${C}/beauty.jpg`} className="is-tall" pos={pos as string} />
+              <Image className="fx-acct-avatar" src={`/landing/avatars/${av}.jpg`} alt="" width={80} height={80} sizes="40px" />
               <span>
                 <b>{name}</b>
-                <em>{post}</em>
+                <em>Top post: {post}</em>
               </span>
               <span className={`fx-vs${up ? " is-up" : ""}`}>{vs}</span>
             </li>
@@ -701,8 +701,8 @@ const FEATURES: Feature[] = [
     preview: (
       <ul className="fx-today">
         {[
-          ["Today's post goes out at 6:30 PM", "“Three warm-ups people skip”, inside your best window, 5 to 7 PM", "fitness-stretch.jpg"],
-          ["Your squat Reel is taking off", "2.4× your median views at the same age, two days in", "fitness-squat.jpg"],
+          ["Today's post goes out at 6:30 PM", "“Three edits people skip”, inside your best window, 5 to 7 PM", "desk-edit.jpg"],
+          ["Your lighting Reel is taking off", "2.4× your median views at the same age, two days in", "lighting.jpg"],
           ["3 comments waiting for a reply", "Each has a reply drafted, ready to review", ""],
         ].map(([t, s, img], n) => (
           <li key={t} style={i(n)}>
@@ -789,9 +789,9 @@ const FEATURES: Feature[] = [
           ))}
         </div>
         <div className="fx-post">
-          <Thumb src={`${C}/fitness-squat.jpg`} className="is-tall" />
+          <Thumb src={`${C}/lighting.jpg`} className="is-tall" />
           <div>
-            <b>Three cues for a cleaner squat, part 2</b>
+            <b>Light a video with one lamp, part 2</b>
             <em>Friday, 6:30 PM</em>
             <ul>
               <li>
@@ -868,13 +868,13 @@ const FEATURES: Feature[] = [
     preview: (
       <div className="fx-inbox">
         <div className="fx-comment" style={i(0)}>
-          <b>@jess.trains</b>
-          <p>Do the cues work for front squats too?</p>
-          <em>On &ldquo;Three cues for a cleaner squat&rdquo;, 2 h ago</em>
+          <b>@jess.films</b>
+          <p>Does this work with a ring light too?</p>
+          <em>On &ldquo;Light a video with one lamp&rdquo;, 2 h ago</em>
         </div>
         <div className="fx-reply" style={i(1)}>
           <span className="fx-label">Drafted reply</span>
-          <p>They do! Feet and knees are the same. Keep your elbows high and you&apos;re set.</p>
+          <p>It does! Same 45 degrees, just keep it off to one side so your glasses don&apos;t catch it.</p>
           <span className="fx-chips">
             <span className="fx-chip">Edit</span>
             <span className="fx-chip is-on">Send reply</span>
@@ -904,8 +904,8 @@ const FEATURES: Feature[] = [
         <div className="fx-chat-a" style={i(1)}>
           <span className="fx-label">Using SOCIA: top posts, last 30 days</span>
           <p>
-            Three beat your median: the squat Reel (2.4×), the training split (1.1×) and the rest-day meal (1.3×). The gym tour and
-            the park photo fell short (0.8× and 0.6×).
+            Three beat your median: the lighting Reel (2.4×), the week-in-a-day Reel (1.1×) and the desk tour (1.3×). The studio tour and
+            the city walk photo fell short (0.8× and 0.6×).
           </p>
         </div>
         <p className="fx-note">Read access on every plan. Drafting and scheduling on paid plans.</p>
@@ -983,6 +983,8 @@ const FEATURES: Feature[] = [
   },
 ];
 
+const AUTO_MS = 5000;
+
 const planOf = (f: Feature) => (f.gate && FEATURE_MIN_PLAN[f.gate] !== "free" ? PLANS[FEATURE_MIN_PLAN[f.gate]].name : null);
 
 export default function FeatureExplorer({ signedIn }: { signedIn: boolean }) {
@@ -991,6 +993,32 @@ export default function FeatureExplorer({ signedIn }: { signedIn: boolean }) {
     Object.fromEntries(GROUPS.map((g) => [g.key, FEATURES.find((f) => f.group === g.key)!.key])) as Record<Group, string>,
   );
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const section = useRef<HTMLElement>(null);
+  // The groups play through on their own, five seconds each, while the
+  // section is on screen (Noah, 2026-11-12). The first click, key press or
+  // tap inside the section hands control to the visitor for good. Reduced
+  // motion never plays them.
+  const [auto, setAuto] = useState(true);
+  const [inView, setInView] = useState(false);
+  const stopAuto = () => setAuto(false);
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setAuto(false);
+    const el = section.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0.35 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!auto || !inView) return;
+    const t = window.setTimeout(() => {
+      const n = GROUPS.findIndex((g) => g.key === group);
+      setGroup(GROUPS[(n + 1) % GROUPS.length].key);
+    }, AUTO_MS);
+    return () => window.clearTimeout(t);
+  }, [auto, inView, group]);
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const list = useRef<HTMLDivElement>(null);
   const items = FEATURES.filter((f) => f.group === group);
@@ -1006,6 +1034,15 @@ export default function FeatureExplorer({ signedIn }: { signedIn: boolean }) {
     const left = el.offsetLeft - row.offsetLeft - 16;
     if (left < row.scrollLeft || el.offsetLeft - row.offsetLeft + el.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollTo({ left, behavior: "smooth" });
   }, [current.key]);
+
+  // The group row scrolls sideways on a phone: keep the chosen group in view there too.
+  const cats = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = cats.current;
+    const el = tabRefs.current[group];
+    if (!row || !el || row.scrollWidth <= row.clientWidth) return;
+    row.scrollTo({ left: el.offsetLeft - row.offsetLeft - 16, behavior: "smooth" });
+  }, [group]);
 
   const pick = (key: string) => setActive((a) => ({ ...a, [group]: key }));
 
@@ -1028,7 +1065,7 @@ export default function FeatureExplorer({ signedIn }: { signedIn: boolean }) {
   };
 
   return (
-    <section className="hm-section fx" id="features" aria-labelledby="fx-h">
+    <section ref={section} className={`hm-section fx${auto && inView ? " is-auto" : ""}`} id="features" aria-labelledby="fx-h" onPointerDown={stopAuto} onKeyDown={stopAuto}>
       <div className="hm-wrap">
         <div className="hm-section-head fx-head">
           <span className="hm-eyebrow">Features</span>
@@ -1038,7 +1075,7 @@ export default function FeatureExplorer({ signedIn }: { signedIn: boolean }) {
           <p className="hm-lead">Research, plan, create, edit, analyze, and publish with tools that work together.</p>
         </div>
 
-        <div className="fx-cats" role="tablist" aria-label="Feature groups">
+        <div ref={cats} className="fx-cats" role="tablist" aria-label="Feature groups">
           {GROUPS.map((g, n) => {
             const on = g.key === group;
             return (
@@ -1060,6 +1097,7 @@ export default function FeatureExplorer({ signedIn }: { signedIn: boolean }) {
                 <b>{g.key}</b>
                 <span>{g.line}</span>
                 <small>{FEATURES.filter((f) => f.group === g.key).length}</small>
+                {on && auto && <i className="fx-cat-timer" aria-hidden style={{ animationDuration: `${AUTO_MS}ms` }} />}
               </button>
             );
           })}

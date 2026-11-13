@@ -617,7 +617,8 @@ html:has(.hm) { background: #f7f6f3; }
 
 .hx-comp { display: grid; gap: 18px; }
 .hx-comp > div { display: grid; grid-template-columns: 40px 1.7fr 1fr 52px; gap: 16px; align-items: center; font-size: 20px; color: var(--hm-ash); }
-.hx-comp i { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; background: var(--hm-badge); font-style: normal; font-size: 17px; color: var(--hm-ink); }
+.hx-comp i { display: grid; place-items: center; width: 40px; height: 40px; overflow: hidden; border-radius: 999px; background: var(--hm-badge); box-shadow: var(--hm-border) 0 0 0 1px; }
+.hx-comp i img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 25%; }
 .hx-comp b { justify-self: end; font-family: var(--hm-mono); font-size: 18px; font-weight: 500; color: var(--hm-ink); }
 .hx-track { display: block; height: 10px; border-radius: 99px; background: var(--hm-recessed); overflow: hidden; }
 .hx-track em { display: block; height: 100%; border-radius: 99px; background: var(--hm-accent); }
@@ -890,7 +891,8 @@ html:has(.hm) { background: #f7f6f3; }
 .hmx-engine.in .hmx-audit .hmx-track i { transform: scaleX(1); }
 .hmx-comps { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
 .hmx-comps li { display: grid; grid-template-columns: 32px 1fr 84px; gap: 12px; align-items: center; }
-.hmx-comps i { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 99px; background: var(--hm-badge); box-shadow: var(--hm-key); font-style: normal; font-size: var(--hm-fs-mono); color: var(--hm-ink); }
+.hmx-comps i { display: grid; place-items: center; width: 32px; height: 32px; overflow: hidden; border-radius: 99px; background: var(--hm-badge); box-shadow: var(--hm-key); }
+.hmx-comps i img { width: 100%; height: 100%; object-fit: cover; }
 .hmx-comps b { display: block; font-size: var(--hm-fs-sm); font-weight: 500; color: var(--hm-ink); }
 .hmx-comps span { font-size: var(--hm-fs-mono); color: var(--hm-smoke); }
 .hmx-spark { width: 84px; height: 30px; overflow: visible; }

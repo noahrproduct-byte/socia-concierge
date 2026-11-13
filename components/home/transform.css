@@ -162,8 +162,9 @@
 .tf-median { position: absolute; left: 0; right: 0; bottom: 48%; border-top: 1px dashed var(--hm-iron); }
 .tf-chart b { font-size: var(--hm-fs-label); font-weight: 500; color: var(--hm-ink); }
 .tf-rivals { display: grid; align-content: start; gap: 6px; }
-.tf-rival { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--hm-card); box-shadow: var(--hm-border) 0 0 0 1px; font-size: var(--hm-fs-label); }
-.tf-rival b { color: var(--hm-ink); font-weight: 500; }
+.tf-avatar { width: 22px; height: 22px; flex: none; border-radius: 50%; object-fit: cover; }
+.tf-rival { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--hm-card); box-shadow: var(--hm-border) 0 0 0 1px; font-size: var(--hm-fs-label); }
+.tf-rival b { flex: 1; min-width: 0; color: var(--hm-ink); font-weight: 500; }
 .tf-rival em { font-style: normal; font-family: var(--hm-mono); font-size: 11px; color: var(--hm-ash); }
 .tf-rival em.is-up { color: var(--hm-sky); }
 .tf-plan { display: grid; align-content: start; gap: 6px; }
@@ -209,7 +210,8 @@
   .tf-edit { grid-template-columns: 1fr; }
   .tf-cut { display: none; }
   .tf-today p { display: none; }
-  .tf-rival { flex-direction: column; gap: 0; padding: 6px 8px; }
+  .tf-rival { flex-wrap: wrap; gap: 2px 6px; padding: 6px 8px; }
+  .tf-rival em { flex-basis: 100%; }
   .tf-rival b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tf-rival em { font-size: 10px; }
   .tf-planrow b { font-size: 12px; }
