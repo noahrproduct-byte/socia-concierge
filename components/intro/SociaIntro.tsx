@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Instrument_Serif } from "next/font/google";
+import { instrumentSerif } from "@/components/fonts/instrumentSerif";
 import { Volume2 } from "lucide-react";
 import { MARK_SIZE, S_LOWER, S_UPPER, STAR, alongOutline, type Pt } from "./logoShape";
 import "./intro.css";
@@ -28,7 +28,6 @@ import "./intro.css";
 // plays muted and "Sound on" picks the sound up at the film's current time.
 // There is no mute (Noah, 2026-11-12); "Skip intro" ends the film and its sound.
 
-const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", style: "italic", variable: "--font-intro-serif" });
 
 /** In the order they arrive: understanding first, then making, then publishing. */
 export const INTRO_PARTS = [
@@ -451,7 +450,7 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
   }, [leave, motion]);
 
   return (
-    <div className={`intro ${serif.variable} is-${phase}${reduced ? " is-still" : ""}${motion ? " is-chosen" : ""}`} role="dialog" aria-modal="true" aria-label="Introducing SOCIA" style={{ "--intro-leave": `${leaveMs}ms` } as React.CSSProperties}>
+    <div className={`intro ${instrumentSerif.variable} is-${phase}${reduced ? " is-still" : ""}${motion ? " is-chosen" : ""}`} role="dialog" aria-modal="true" aria-label="Introducing SOCIA" style={{ "--intro-leave": `${leaveMs}ms` } as React.CSSProperties}>
       <canvas ref={canvas} className="intro-canvas" aria-hidden />
       <div className="intro-title">
         <span className="intro-kicker">Introducing</span>
