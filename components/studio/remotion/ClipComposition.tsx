@@ -43,6 +43,7 @@ import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
 import { punchScaleAt } from "@/lib/studioClips/punch";
 import type { TransitionKind } from "@/lib/studioClips/types";
 import { gainAtDb } from "@/lib/studioClips/sound";
+import { SPEECH_CUT_DB } from "@/lib/studioClips/edl";
 
 // Faces come from the site's own files (lib/editorFonts.ts); a face is registered the first time a cut asks for it.
 const familyFor = (id: FontId): string => { void loadEditorFont(id); return familyOf(id); };
@@ -479,8 +480,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   };
   const box = (s: { clipId: string; frame?: { zoom: number; x: number; y: number } }) => videoBox(sources[s.clipId]?.width ?? null, sources[s.clipId]?.height ?? null, width, height, s.frame);
   const tl = useMemo(() => timeline(edl), [edl]);
-  // Measured balance, expressed as attenuation so no clip is pushed above unity.
-  const maxGain = useMemo(() => Math.max(0, ...tl.segments.map((s) => s.gainDb)), [tl]);
+  // Measured balance, expressed as attenuation so no clip is pushed above unity; a raise larger than
+  // SPEECH_CUT_DB is not taken out of the others (that pulled a voice down 8 dB to lift a quiet clip).
+  const maxGain = useMemo(() => Math.min(SPEECH_CUT_DB, Math.max(0, ...tl.segments.map((s) => s.gainDb))), [tl]);
   const words = useMemo(() => Object.fromEntries(Object.values(sources).map((s) => [s.clipId, s.words])), [sources]);
   // With a soundtrack, the clips' own sound plays at the level the person chose for it.
   const music = edl.soundtrack && musicUrl ? edl.soundtrack : null;

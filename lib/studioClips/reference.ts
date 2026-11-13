@@ -266,13 +266,16 @@ export type FillClip = { id: string; position: number; durationSec: number; mome
  * then, while still short, each cut runs on into its clip. Nothing is
  * invented: every added second is real footage. Returns which clips were added.
  */
-export function fillCut(segments: EdlSegment[], clips: FillClip[], minSec: number): { segments: EdlSegment[]; added: string[] } {
+export function fillCut(segments: EdlSegment[], clips: FillClip[], minSec: number, opts: { /** never add past this length (the brief's own target) */ maxSec?: number; /** clips that are repeats of a take already available (lib/studioClips/takes.ts): never added */ skip?: Set<string> } = {}): { segments: EdlSegment[]; added: string[] } {
   const byId = new Map(clips.map((c) => [c.id, c]));
   const used = new Set(segments.map((s) => s.clipId));
   const out = segments.map((s) => ({ ...s }));
   const added: string[] = [];
+  const maxSec = opts.maxSec ?? Infinity;
   for (const c of [...clips].sort((a, b) => a.position - b.position)) {
-    if (used.has(c.id) || c.durationSec < MIN_CUT) continue;
+    if (used.has(c.id) || c.durationSec < MIN_CUT || opts.skip?.has(c.id)) continue;
+    // Room first: a cut already at its target takes no more clips (2026-11-13: nine added clips doubled a 25 s brief).
+    if (out.reduce((a, s) => a + (s.out - s.in), 0) + FILL_SEC.min > maxSec) break;
     const m = bestMoment(c.moments) ?? { start: 0, end: c.durationSec };
     const span = Math.max(0, Math.min(m.end, c.durationSec) - m.start);
     const len = Math.min(c.durationSec, Math.max(FILL_SEC.min, Math.min(FILL_SEC.max, span)));

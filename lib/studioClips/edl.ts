@@ -114,17 +114,37 @@ const median = (xs: number[]): number | null => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-/** Level balance from measured RMS: toward the median of the clips in the cut. */
+/** The most a talking clip is pulled down to match the others: the voice is the point of the cut. */
+export const SPEECH_CUT_DB = 3;
+/** Quiet footage (room tone, handheld noise) is never lifted: raising it raises the noise. */
+const LIFT_ONLY_SPEECH = true;
+
+/**
+ * Level balance from measured RMS: talking clips toward the median of the
+ * talking clips (a voice is never pulled down by more than SPEECH_CUT_DB), and
+ * quiet footage left alone unless it is louder than the voices, in which case
+ * it comes down under them. Before 2026-11-13 every clip went toward one
+ * median, so a quiet B-roll clip was raised 8 dB and the renderer, keeping
+ * everything under unity, pulled the voice down 8 dB instead.
+ */
 export function audioBalance(clips: ClipForEdl[]): EdlAudio[] {
   const measured = clips.filter((c) => c.rmsDb != null && c.audioLevel !== "silent");
-  const target = median(measured.map((c) => c.rmsDb as number));
+  const voices = measured.filter((c) => c.hasSpeech);
+  const target = median((voices.length ? voices : measured).map((c) => c.rmsDb as number));
   if (target == null) return [];
   const out: EdlAudio[] = [];
   for (const c of measured) {
     const diff = target - (c.rmsDb as number);
-    if (Math.abs(diff) < 2) continue;
-    const gainDb = clamp(Math.round(diff), -EDL_DEFAULTS.maxGainDb, EDL_DEFAULTS.maxGainDb);
-    out.push({ clipId: c.id, gainDb, why: gainDb > 0 ? "quieter than the other clips" : "louder than the other clips" });
+    if (c.hasSpeech) {
+      if (Math.abs(diff) < 2) continue;
+      const gainDb = clamp(Math.round(diff), -SPEECH_CUT_DB, EDL_DEFAULTS.maxGainDb);
+      out.push({ clipId: c.id, gainDb, why: gainDb > 0 ? "quieter than the other voices" : "louder than the other voices" });
+      continue;
+    }
+    // Footage nobody talks in: only brought down when it is louder than the voices.
+    if (LIFT_ONLY_SPEECH && voices.length && diff < -2) {
+      out.push({ clipId: c.id, gainDb: clamp(Math.round(diff - 3), -EDL_DEFAULTS.maxGainDb, 0), why: "louder than the voices" });
+    }
   }
   return out;
 }
@@ -223,7 +243,8 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     const outT = snapTime(Math.max(s.in, s.out), clip, "out");
     if (outT - inT < EDL_DEFAULTS.minSegmentSec) { warnings.push(`segment ${i + 1} is too short after snapping`); return; }
     const frame = cleanFrame(s.frame);
-    const volume = cleanVolume(s.volume);
+    // The model's note may say the shot plays without its own sound ("mute the chatter; music only"): then it does.
+    const volume = cleanVolume(s.volume) ?? (/\b(mute|muted|music only|no sound|without (its|the) sound)\b/i.test(s.note ?? "") ? 0 : undefined);
     // How it comes in from the cut before: kept when it's one the renderer has; a hard cut otherwise.
     const transition = segments.length && isTransition(s.transition) && s.transition !== "cut" ? s.transition : undefined;
     const motion = sanitizeMotion(s.motion, inT, outT);

@@ -51,7 +51,8 @@ describe("validateEdl", () => {
     expect(edl.enhance).toEqual([{ clipId: "c2", kind: "brighten", amount: "slight", why: "" }]);
     expect(edl.captions).toEqual({ source: "transcript" });
     expect(edl.text[1].end).toBeLessThanOrEqual(edlDurationSec(edl));
-    expect(edl.audio).toEqual([{ clipId: "c2", gainDb: 8, why: "quieter than the other clips" }]);
+    // Quiet footage nobody talks in is never lifted (2026-11-13): only voices are balanced.
+    expect(edl.audio).toEqual([]);
   });
 
   it("renders the same EDL as plain steps", () => {
@@ -63,7 +64,7 @@ describe("validateEdl", () => {
     expect(steps).toContainEqual(expect.stringMatching(/Put “200 people. One kitchen.” on screen as it opens/));
     expect(steps).toContainEqual("Add captions from the transcript (speech is in Clip 1).");
     expect(steps).toContainEqual("Brighten Clip 2 slightly — it's darker than the rest of the footage.");
-    expect(steps).toContainEqual("Raise Clip 2 by about 8 dB — quieter than the other clips.");
+    expect(steps.some((t) => /Raise Clip 2/.test(t))).toBe(false);
     expect(steps).toContainEqual("Music: Upbeat instrumental, 110–125 BPM, low under speech");
     expect(steps[steps.length - 1]).toMatch(/^Recommended length: 15–20 seconds \(this cut runs \d+(\.\d+)?s\)\.$/);
   });
@@ -77,9 +78,11 @@ describe("validateEdl", () => {
 });
 
 describe("measured corrections", () => {
-  it("balances levels toward the median and ignores silent clips", () => {
+  it("balances voices toward each other, never lifts quiet footage, and ignores silent clips", () => {
     const silent = clip({ id: "s", position: 3, rmsDb: -80, audioLevel: "silent" });
-    expect(audioBalance([talking, dark, bright, silent])).toEqual([{ clipId: "c2", gainDb: 8, why: "quieter than the other clips" }]);
+    expect(audioBalance([talking, dark, bright, silent])).toEqual([]);
+    const soft = clip({ id: "v", position: 4, hasSpeech: true, words: talking.words, rmsDb: -26 });
+    expect(audioBalance([talking, soft, dark, silent])).toEqual([{ clipId: "c1", gainDb: -3, why: "louder than the other voices" }, { clipId: "v", gainDb: 3, why: "quieter than the other voices" }]);
   });
   it("drops fixes the numbers do not support", () => {
     const r = gateEnhancements([{ clipId: "c3", kind: "brighten" }, { clipId: "c2", kind: "contrast" }], [talking, dark, bright]);

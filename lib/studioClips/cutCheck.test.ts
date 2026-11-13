@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCut, endOpeningWithShot, repairCut, sentenceEnd } from "./cutCheck";
+import { checkCut, endOpeningWithShot, repairCut, sentenceEnd, settleCut } from "./cutCheck";
 import type { ClipForEdl } from "./edl";
 import type { Edl } from "./types";
 
@@ -126,5 +126,24 @@ describe("skips inside one moving shot (Noah, 2026-11-12: \"repeated parts/glitc
   it("leaves a real change of shot inside the clip alone", () => {
     const cut = { ...pizza, sceneCuts: [6.5] };
     expect(checkCut(edl([seg("s1", "p", 2, 6), seg("s2", "p", 7, 9.4)]), [cut]).findings.filter((f) => f.id === "jump")).toEqual([]);
+  });
+});
+
+describe("settleCut (SOCIA listens to its own check)", () => {
+  const c = (id: string, position: number): ClipForEdl => ({ id, position, durationSec: 10, words: null, silences: null, medianLuma: 0.5, warmth: 0, brightness: "ok", contrastLevel: "ok", rmsDb: -20, audioLevel: "ok", hasSpeech: false });
+  const base: Edl = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 5, max: 20 }, segments: [], text: [], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [] };
+  it("drops a shot too short to see, lengthens a short ending, and ends with nothing left to find", () => {
+    const edl: Edl = { ...base, segments: [{ id: "s1", clipId: "a", in: 0, out: 3, role: "opener", note: "" }, { id: "s2", clipId: "b", in: 1, out: 1.3, role: "body", note: "" }, { id: "s3", clipId: "a", in: 6, out: 6.2, role: "ending", note: "" }] };
+    const r = settleCut(edl, [c("a", 0), c("b", 1)]);
+    expect(r.left).toEqual([]);
+    expect(r.edl.segments.map((s) => s.id)).toEqual(["s1", "s3"]);
+    expect(r.edl.segments[1].out - r.edl.segments[1].in).toBeGreaterThanOrEqual(0.8);
+    expect(r.fixed.join(" ")).toMatch(/too short to see/);
+  });
+  it("a clean cut comes back unchanged", () => {
+    const edl: Edl = { ...base, segments: [{ id: "s1", clipId: "a", in: 0, out: 3, role: "opener", note: "" }, { id: "s2", clipId: "b", in: 1, out: 4, role: "body", note: "" }, { id: "s3", clipId: "a", in: 6, out: 9, role: "ending", note: "" }] };
+    const r = settleCut(edl, [c("a", 0), c("b", 1)]);
+    expect(r.fixed).toEqual([]);
+    expect(r.edl.segments).toEqual(edl.segments);
   });
 });

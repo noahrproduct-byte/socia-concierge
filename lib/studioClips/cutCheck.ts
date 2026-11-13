@@ -340,3 +340,57 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
   });
   return { edl: { ...edl, segments }, fixed };
 }
+
+/**
+ * SOCIA listening to its own check: repair, check again, and keep going
+ * while something is still found and a pass still changes the cut (at most
+ * four). What repair cannot fix by itself is fixed here the blunt way: a shot
+ * too short to see is dropped (never the opener or the ending; the ending is
+ * lengthened inside its clip instead), a dissolve over speech becomes a cut.
+ * Returns the cut, every fix made and what is still left for the person.
+ */
+export function settleCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions?: boolean } = {}): { edl: Edl; fixed: string[]; left: CutFinding[] } {
+  const byId = new Map(clips.map((c) => [c.id, c]));
+  const label = (id: string) => clipLabel(byId.get(id)?.position ?? 0);
+  let cur = edl;
+  const fixed: string[] = [];
+  let left: CutFinding[] = [];
+  for (let pass = 0; pass < 4; pass++) {
+    const before = JSON.stringify(cur.segments);
+    const r = repairCut(cur, clips, opts);
+    cur = r.edl; fixed.push(...r.fixed);
+    left = checkCut(cur, clips).findings;
+    if (!left.length) break;
+    // Shots too short to see: the ending runs on inside its clip; any other one goes.
+    const shorts = left.filter((f) => f.id === "short").map((f) => f.segmentId);
+    if (shorts.length) {
+      const segments: EdlSegment[] = [];
+      cur.segments.forEach((s, i) => {
+        if (!shorts.includes(s.id)) { segments.push(s); return; }
+        const clip = byId.get(s.clipId);
+        const isEdge = i === 0 || i === cur.segments.length - 1;
+        if (isEdge && clip && clip.durationSec - s.in >= CHECK.shortSec + 0.3) { segments.push({ ...s, out: r2(Math.min(clip.durationSec, s.in + Math.max(CHECK.shortSec + 0.3, 1))) }); fixed.push(`${label(s.clipId)} runs on so it can be seen`); }
+        else if (cur.segments.length > 1) fixed.push(`left out a ${(s.out - s.in).toFixed(1)} s piece of ${label(s.clipId)}, too short to see`);
+        else segments.push(s);
+      });
+      cur = { ...cur, segments };
+    }
+    // A dissolve or a blur over speech becomes a hard cut, even when transitions were asked for: two voices at once is worse.
+    const voices = left.filter((f) => f.id === "voice" || f.id === "ghost").map((f) => f.segmentId);
+    if (voices.length) {
+      cur = { ...cur, segments: cur.segments.map((s) => (voices.includes(s.id) ? (({ transition: _t, ...rest }) => { void _t; return rest; })(s) : s)) };
+      fixed.push("made a join over speech a hard cut, so one voice plays at a time");
+    }
+    // A moment shown twice: the later showing goes (repair trims overlaps; a full repeat is dropped here).
+    const repeats = left.filter((f) => f.id === "repeat").map((f) => f.segmentId);
+    if (repeats.length && cur.segments.length > 1) {
+      cur = { ...cur, segments: cur.segments.filter((s, i) => !(repeats.includes(s.id) && i > 0)) };
+      fixed.push("took out a moment that was already shown");
+    }
+    left = checkCut(cur, clips).findings;
+    if (!left.length || JSON.stringify(cur.segments) === before) break;
+  }
+  // Roles follow the order that is left.
+  const segments = cur.segments.map((s, i, all) => ({ ...s, role: i === 0 ? ("opener" as const) : all.length >= 3 && i === all.length - 1 ? ("ending" as const) : s.role === "opener" || s.role === "ending" ? ("body" as const) : s.role }));
+  return { edl: { ...cur, segments }, fixed: [...new Set(fixed)], left };
+}

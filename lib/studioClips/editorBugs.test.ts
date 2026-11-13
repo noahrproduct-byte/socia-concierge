@@ -2,7 +2,7 @@
 // test names the bug it guards.
 import { describe, it, expect } from "vitest";
 import { CLEAN_STYLE, sanitizeStyle } from "./style";
-import { cleanFrame, revalidateEdl, validateEdl, type ClipForEdl, type RawEdl } from "./edl";
+import { audioBalance, cleanFrame, revalidateEdl, validateEdl, type ClipForEdl, type RawEdl } from "./edl";
 import { OUTPUT, type Edl } from "./types";
 import { can } from "@/lib/context";
 import { requireMutate } from "./auth";
@@ -83,5 +83,25 @@ describe("BUG-27 an export interrupted by a reload is made again on its reserved
     writeLocalExport("b1", { path: "u/studio/b1/x.mp4", quality: "high" });
     clearLocalExport("b1");
     expect(readLocalExport("b1")).toBeNull();
+  });
+});
+
+describe("BUG-32 the voice never gets pulled down to lift quiet B-roll", () => {
+  it("balances voices toward each other, leaves quiet footage alone, brings loud footage under the voices", () => {
+    const voice1 = clip({ id: "v1", position: 0, hasSpeech: true, words, rmsDb: -18 });
+    const voice2 = clip({ id: "v2", position: 1, hasSpeech: true, words, rmsDb: -24 });
+    const quiet = clip({ id: "q", position: 2, rmsDb: -30 });
+    const loud = clip({ id: "l", position: 3, rmsDb: -12 });
+    const out = audioBalance([voice1, voice2, quiet, loud]);
+    expect(out.find((a) => a.clipId === "q")).toBeUndefined();
+    expect(out.find((a) => a.clipId === "v1")?.gainDb).toBe(-3);
+    expect(out.find((a) => a.clipId === "v2")?.gainDb).toBe(3);
+    expect(out.find((a) => a.clipId === "l")?.gainDb).toBeLessThan(0);
+  });
+  it("a note that says mute mutes the shot", () => {
+    const raw: RawEdl = { segments: [{ clipId: "c1", in: 0, out: 5 }, { clipId: "c2", in: 0, out: 5, note: "Rug framed full-length. Mute the off-camera chatter; music only." }] };
+    const edl = validateEdl(raw, [short, silent], { targetSec: { min: 5, max: 30 } }).edl;
+    expect(edl.segments[1].volume).toBe(0);
+    expect(edl.segments[0].volume).toBeUndefined();
   });
 });

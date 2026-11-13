@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoEdit, detectHook, joinContiguous, overlayBroll, paceBroll, pullHookToFront, trimSilences } from "./autoEdit";
+import { autoEdit, detectHook, dropRepeatTakes, joinContiguous, overlayBroll, paceBroll, pullHookToFront, trimSilences } from "./autoEdit";
 import { themeById } from "./index";
 import type { ClipForEdl } from "../edl";
 import type { Edl, TranscriptWord } from "../types";
@@ -101,5 +101,23 @@ describe("joinContiguous", () => {
     const out = joinContiguous(e);
     expect(out.segments.map((s) => [s.id, s.in, s.out])).toEqual([["a", 0, 4], ["c", 5, 7], ["d", 7, 9]]);
     expect(joinContiguous(edl)).toBe(edl);
+  });
+});
+
+describe("dropRepeatTakes", () => {
+  const take = (id: string, position: number, text: string): ClipForEdl => ({ id, position, durationSec: 4, words: text.split(" ").map((t, i) => w(t, i * 0.3, i * 0.3 + 0.25)), silences: null, medianLuma: 0.5, warmth: 0, brightness: "ok", contrastLevel: "ok", rmsDb: -20, audioLevel: "ok", hasSpeech: true });
+  const a = take("ta", 14, "Come see this rug for yourself here at ZenRugs and Furniture.");
+  const b = take("tb", 16, "Come see this rug for yourself at Zane Rugs and Furniture.");
+  const c = take("tc", 13, "Come see this carpet for yourself here.");
+  const three: Edl = { ...edl, segments: [{ id: "x", clipId: "broll1", in: 0, out: 3, role: "opener", note: "" }, { id: "a", clipId: "ta", in: 0, out: 3, role: "body", note: "" }, { id: "b", clipId: "tb", in: 0, out: 3, role: "body", note: "" }, { id: "c", clipId: "tc", in: 0, out: 2, role: "ending", note: "" }] };
+  it("keeps one take of the line and drops the others, with the reason", () => {
+    const r = dropRepeatTakes(three, { clips: [...clips, a, b, c], words: { ...words } });
+    expect(r.edl.segments).toHaveLength(2);
+    expect(r.dropped.length).toBe(2);
+    expect(r.edl.segments[1].role).toBe("body");
+  });
+  it("a cut with one take of the line is left alone", () => {
+    const one: Edl = { ...three, segments: three.segments.slice(0, 2) };
+    expect(dropRepeatTakes(one, { clips: [...clips, a, b, c], words }).edl).toBe(one);
   });
 });

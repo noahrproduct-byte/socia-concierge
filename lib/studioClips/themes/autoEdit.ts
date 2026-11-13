@@ -16,6 +16,8 @@ import { sentences } from "../speech";
 import { alignToBeats, type Beat } from "../beats";
 import { varyJumpCuts } from "../jumpCuts";
 import { cleanPunches } from "../punch";
+import { findTakes } from "../takes";
+import { settleCut } from "../cutCheck";
 import type { BrollItem, BuildSource, Edl, EdlSegment, EdlText, TranscriptWord } from "../types";
 import { MIN_CUT_SEC } from "../tracks";
 import { TEXT_PRESETS, fitLine, isTextPresetId, type TextPresetId } from "@/lib/textPresets";
@@ -177,10 +179,33 @@ export function joinContiguous(edl: Edl): Edl {
   return segments.length === edl.segments.length ? edl : { ...edl, segments };
 }
 
+/**
+ * Takes of one line (lib/studioClips/takes.ts): when a cut has two or more takes of the same
+ * line, only the cleanest stays; the others' cuts go. A cut with just one take of a line is left alone.
+ */
+export function dropRepeatTakes(edl: Edl, ctx: AutoEditContext): { edl: Edl; dropped: string[] } {
+  const takes = findTakes(ctx.clips.map((c) => ({ id: c.id, position: c.position, durationSec: c.durationSec, words: c.words })));
+  const inCut = new Set(edl.segments.map((s) => s.clipId));
+  const drop = new Set<string>();
+  for (const g of takes.groups) if (g.clipIds.filter((id) => inCut.has(id)).length > 1) for (const id of g.clipIds) if (id !== g.keep && inCut.has(id)) drop.add(id);
+  // The kept take must itself be in the cut, else the best present take stays.
+  for (const g of takes.groups) {
+    if (!inCut.has(g.keep)) { const present = g.clipIds.filter((id) => inCut.has(id)); for (const id of present.slice(1)) drop.add(id); present.slice(0, 1).forEach((id) => drop.delete(id)); }
+  }
+  if (!drop.size) return { edl, dropped: [] };
+  const segments = edl.segments.filter((s) => !drop.has(s.clipId));
+  if (!segments.length) return { edl, dropped: [] };
+  const dropped = Array.from(drop).map((id) => takes.repeats.get(id)?.why ?? "a repeated take");
+  return { edl: { ...edl, segments: segments.map((s, i, all) => ({ ...s, role: i === 0 ? "opener" : all.length >= 3 && i === all.length - 1 ? "ending" : "body" })) }, dropped };
+}
+
 /** The theme's edit of the raw footage (see the file's header). */
 export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEditResult {
   const notes: string[] = [];
   let out: Edl = edl;
+  // Two takes of one line never both play: the cleanest stays.
+  const takes = dropRepeatTakes(out, ctx);
+  if (takes.dropped.length) { out = takes.edl; notes.push(`${takes.dropped.join("; ")}: only the cleanest take is in.`); }
   const anyWords = out.segments.some((s) => (ctx.words[s.clipId] ?? []).length);
   if (anyWords && !out.captions && !out.captionsOff) out = { ...out, captions: { source: "transcript" } };
   const dead = trimSilences(out, ctx.words, theme.pacing.silenceSec);
@@ -209,6 +234,10 @@ export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEdit
   // neighbours touching) are one shot again; pieces with a real gap read as a jump cut, and every other
   // one punches in a little so each cut reads as a change of shot (lib/studioClips/jumpCuts.ts).
   out = joinContiguous(out);
+  // SOCIA listens to its own check: repair and check again until the cut is clean (lib/studioClips/cutCheck.ts).
+  const settled = settleCut(out, ctx.clips);
+  out = settled.edl;
+  if (settled.fixed.length) notes.push(`Checked and fixed: ${settled.fixed.slice(0, 3).join("; ")}${settled.fixed.length > 3 ? ` and ${settled.fixed.length - 3} more` : ""}.`);
   const varied = varyJumpCuts(out);
   if (varied.changed) out = varied.edl;
   return { edl: out, notes };

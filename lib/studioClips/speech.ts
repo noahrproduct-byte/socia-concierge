@@ -28,6 +28,12 @@ export const SPEECH = {
   minCutSec: 0.25,
   /** no piece of a shot shorter than this is left behind */
   minPieceSec: 0.5,
+  /** a cut this close to the start of a shot trims its head instead of leaving a stub */
+  headSec: 0.35,
+  /** a hesitation gap inside a sentence shorter than this is left alone: a jump cut for a fraction of a second reads worse than the pause */
+  hesitationCutSec: 0.9,
+  /** a restarted phrase may be this many words long */
+  restartWords: 6,
   /** a last line this short (words) after a pause is a punchline */
   punchWords: 4,
   /** two sentences that start with the same two words and share this much are the same line said twice */
@@ -107,6 +113,7 @@ export function classifyPauses(words: TranscriptWord[], pace: SpeechPace = "tigh
       kind = "hesitation"; keep = SPEECH.keep.hesitation;
     }
     keep *= PACE_SCALE[pace];
+    if (kind === "hesitation" && gap < SPEECH.hesitationCutSec) continue;
     if (gap - keep < SPEECH.minCutSec) continue;
     // Keep half of what stays on each side, so the words never feel clipped.
     out.push({ start: r2(sec(a.endMs) + keep / 2), end: r2(sec(b.startMs) - keep / 2), why: "pause", kind });
@@ -149,7 +156,7 @@ export function findMistakes(words: TranscriptWord[]): SpeechCut[] {
     const t = ws.slice(a, b + 1).map((w) => norm(w.text));
     for (let i = 0; i < t.length; i++) {
       // A restart: words i..i+k-1 said again straight after (the longest run wins).
-      let k = Math.min(4, Math.floor((t.length - i) / 2));
+      let k = Math.min(SPEECH.restartWords, Math.floor((t.length - i) / 2));
       for (; k >= 1; k--) {
         const first = t.slice(i, i + k), again = t.slice(i + k, i + 2 * k);
         if (first.every(Boolean) && first.join(" ") === again.join(" ") && (k > 1 || !["very", "so", "really", "no", "yes", "ha"].includes(first[0]))) break;
@@ -162,7 +169,16 @@ export function findMistakes(words: TranscriptWord[]): SpeechCut[] {
       // A broken-off word ("es-") goes like a restart; a lone filler on its own.
       const next = ws[a + i + 1];
       if (!next) continue;
-      if (/[-—]$/.test(ws[a + i].text.trim()) && t[i]) cuts.push({ start: r2(sec(ws[a + i].startMs)), end: r2(sec(next.startMs)), why: "restart" });
+      if (/[-—]$/.test(ws[a + i].text.trim()) && t[i]) {
+        // "Come see this rug for— come see this rug for yourself": the words before the break said again after
+        // it make the whole first try the restart, from its first word to where the second try starts.
+        let from = i;
+        for (let n = Math.min(SPEECH.restartWords, i); n >= 1; n--) {
+          const before = t.slice(i - n, i), after = t.slice(i + 1, i + 1 + n);
+          if (before.every(Boolean) && before.join(" ") === after.join(" ")) { from = i - n; break; }
+        }
+        cuts.push({ start: r2(sec(ws[a + from].startMs)), end: r2(sec(next.startMs)), why: "restart" });
+      }
       else if (FILLER.has(t[i])) cuts.push({ start: r2(sec(ws[a + i].startMs)), end: r2(sec(next.startMs)), why: "filler" });
     }
   });
@@ -218,7 +234,7 @@ export function editSpeech<S extends Pick<EdlSegment, "id" | "clipId" | "in" | "
     for (const c of cuts) {
       if (c.start < pieceIn) continue;
       // A cut at the very start of the shot just trims its head; anywhere else it must leave real pieces either side.
-      const atHead = pieceIn === s.in && c.start - s.in < 0.05;
+      const atHead = pieceIn === s.in && c.start - s.in < SPEECH.headSec;
       if (!atHead && c.start - pieceIn < SPEECH.minPieceSec) continue;
       if (s.out - c.end < SPEECH.minPieceSec) continue;
       if (!atHead) pieces.push({ in: pieceIn, out: c.start });

@@ -146,3 +146,14 @@ describe("a brief cut uses all the footage and is long enough", () => {
     expect(briefFloorSec(60)).toBe(10);
   });
 });
+
+describe("fillCut with takes and a target (2026-11-13)", () => {
+  it("never adds a repeat take and stops adding once the cut is at its target", () => {
+    const seg = (id: string, clipId: string, out: number): EdlSegment => ({ id, clipId, in: 0, out, role: "body", note: "" });
+    const clips = [{ id: "a", position: 0, durationSec: 5, moments: [] }, { id: "b", position: 1, durationSec: 5, moments: [] }, { id: "rep", position: 2, durationSec: 5, moments: [] }, { id: "d", position: 3, durationSec: 5, moments: [] }];
+    const r = fillCut([seg("s1", "a", 4), seg("s2", "b", 4)], clips, 5, { maxSec: 10, skip: new Set(["rep"]) });
+    expect(r.added).toEqual(["d"]);
+    const full = fillCut([seg("s1", "a", 5), seg("s2", "b", 5)], clips, 5, { maxSec: 10, skip: new Set(["rep"]) });
+    expect(full.added).toEqual([]);
+  });
+});

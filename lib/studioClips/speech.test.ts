@@ -23,8 +23,11 @@ describe("what a pause is doing", () => {
   });
   it("cuts hesitation and dead air in the middle of a sentence down to a breath, and leaves breaths alone", () => {
     const ws = say("Most@0-0.3", "people@0.3-0.7", "um@1.5-1.7", "forget@2.3-2.7", "the@2.7-2.8", "sauce@2.8-3.2", "is@3.4-3.5", "the@3.5-3.6", "whole@4.9-5.2", "point.@5.2-5.6");
-    expect(kinds(ws)).toEqual(["hesitation", "hesitation", "hesitation"]);
-    // "the … whole" is a hesitant word before a gap; a 0.2 s breath ("sauce is") is never touched.
+    // Only the 1.3 s gap before "whole" is cut: a jump cut for a 0.6 or 0.8 s hesitation reads worse than the
+    // pause (the rug shop cut of 2026-11-13 jumped mid-sentence for 0.26 s). The filler "um" itself still goes.
+    expect(kinds(ws)).toEqual(["hesitation"]);
+    expect(speechCuts(ws).some((c) => c.why === "filler")).toBe(true);
+    // A 0.2 s breath ("sauce is") is never touched.
     expect(classifyPauses(ws).every((p) => p.end - p.start >= 0.25)).toBe(true);
   });
   it("without punctuation, only cuts long gaps, gently", () => {
@@ -97,5 +100,17 @@ describe("a voice carried over the next shot (L-cut)", () => {
     const caps = captionsForEdl(edl, { t: dough });
     expect(caps.map((c) => c.text.trim())).toEqual(["Our", "dough", "rests", "for", "three", "days."]);
     expect(caps[caps.length - 1].startMs).toBe(1200);
+  });
+});
+
+describe("the rug shop take (live, 2026-11-13)", () => {
+  const w = (text: string, a: number, b: number) => ({ text, startMs: Math.round(a * 1000), endMs: Math.round(b * 1000), confidence: 1 });
+  const words = [w("Come", 1.07, 1.16), w("see", 1.16, 1.26), w("this", 1.32, 1.55), w("rug", 1.55, 1.71), w("for—", 1.71, 2.08), w("come", 4.22, 4.37), w("see", 4.37, 4.47), w("this", 4.47, 4.63), w("rug", 4.63, 4.77), w("for", 4.77, 4.87), w("yourself", 4.87, 5.29), w("here", 5.67, 5.83), w("at", 5.83, 5.87), w("Zen", 5.87, 6.08), w("Rugs", 6.08, 6.32), w("and", 6.32, 6.38), w("Furniture.", 6.38, 6.72)];
+  it("the broken first try goes whole, from its first word to the second try; the 0.4 s breath before 'here' stays", () => {
+    const cuts = findMistakes(words);
+    expect(cuts).toEqual([{ start: 1.07, end: 4.22, why: "restart" }]);
+    const r = editSpeech([{ id: "s1", clipId: "c", in: 1, out: 6.8, role: "ending" as const }], { c: words });
+    expect(r.segments.map((s) => [s.in, s.out])).toEqual([[4.22, 6.8]]);
+    expect(r.segments[0].role).toBe("ending");
   });
 });

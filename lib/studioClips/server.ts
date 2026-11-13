@@ -27,6 +27,8 @@ import { studioLearnedLine } from "./learnLoad";
 import { createServiceClient } from "@/lib/supabase/service";
 import { playbookText as nichePlaybookText } from "@/lib/nicheScan/run";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
+import { findTakes, takesNote, type Takes } from "./takes";
+import { settleCut } from "./cutCheck";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
 import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
 import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
@@ -423,10 +425,14 @@ export async function manualBuild(client: Supa, args: { ownerId: string; wsId: s
   const ready = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
   if (!ready.length) throw new Error("Add at least one clip that finished uploading.");
   const forEdl = ready.map(toClipForEdl);
+  // Takes of one line: the cleanest one starts in the cut; the others stay in the clips to swap in.
+  const takes = takesOf(ready);
+  const inCut = ready.filter((r) => !takes.repeats.has(r.id));
+  const takeLine = takesNote(takes);
   const { edl } = validateEdl({
     targetSec: { min: 1, max: Math.ceil(ready.reduce((a, r) => a + (r.duration_s ?? 0), 0)) + 1 },
-    segments: ready.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
-    text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
+    segments: inCut.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
+    text: [], enhance: [], cta: null, music: null, caption: "", notes: takeLine ? [takeLine] : [],
     ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CLEAN_STYLE,
   }, forEdl);
   // Captions only when the person turns them on.
@@ -691,17 +697,21 @@ export async function listVideos(client: Supa, ownerId: string, wsId: string | n
 export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId: string | null; project: ProjectRow; prompt: string; music: boolean; tighten?: boolean; acct?: AccountContext; preset?: { style: EdlStyle; width: number; height: number } | null; voiceover?: VoiceoverAsk }): Promise<StudioBuild> {
   const { ownerId, wsId, project, prompt, music, tighten, preset } = args;
   const rows = await clipRows(client, project.id);
-  const usable = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
-  if (!usable.length) throw new Error("Add a clip first.");
+  const all = rows.filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && (r.duration_s ?? 0) > 0).sort((a, b) => a.position - b.position);
+  if (!all.length) throw new Error("Add a clip first.");
+  // Takes of one line: the cleanest one is in the whole video, the others stay in the clips.
+  const takes = takesOf(all);
+  const usable = all.filter((r) => !takes.repeats.has(r.id));
+  const takeLine = takesNote(takes);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const existing = await selectBuilds(client, ownerId, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
   const idx = nextBriefIdx(existing.map((b) => b.opportunity_idx));
   const total = usable.reduce((a, r) => a + (r.duration_s ?? 0), 0);
-  const forEdl = usable.map(toClipForEdl);
+  const forEdl = all.map(toClipForEdl);
   const { edl } = validateEdl({
     targetSec: { min: 1, max: Math.ceil(total) + 1 },
     segments: usable.map((r) => ({ clipId: r.id, in: 0, out: r.duration_s ?? 0 })),
-    text: [], enhance: [], cta: null, music: null, caption: "", notes: [],
+    text: [], enhance: [], cta: null, music: null, caption: "", notes: takeLine ? [takeLine] : [],
     ...(preset ? { width: preset.width, height: preset.height } : {}), style: preset?.style ?? CLEAN_STYLE,
   }, forEdl);
   if (!edl.segments.length) throw new Error("These clips are too short to post.");
@@ -731,8 +741,11 @@ export async function buildFromBrief(client: Supa, args: {
 }): Promise<StudioBuild> {
   const { ownerId, wsId, project, acct, prompt, reference, preset } = args;
   const rows = await clipRows(client, project.id);
-  const usable = rows.filter((r) => r.card && !r.purged_at && r.status !== "expired");
-  if (!usable.length) throw new Error("SOCIA hasn't understood these clips yet. Run Understand this footage first.");
+  const all = rows.filter((r) => r.card && !r.purged_at && r.status !== "expired");
+  if (!all.length) throw new Error("SOCIA hasn't understood these clips yet. Run Understand this footage first.");
+  // Takes of one line (lib/studioClips/takes.ts): the cleanest one is offered to the cut, the others stay in the clips.
+  const takes = takesOf(all);
+  const usable = all.filter((r) => !takes.repeats.has(r.id));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const existing = await selectBuilds(client, ownerId, (q: any) => q.eq("project_id", project.id).lte("opportunity_idx", -2));
   const idx = nextBriefIdx(existing.map((b) => b.opportunity_idx));
@@ -747,9 +760,11 @@ export async function buildFromBrief(client: Supa, args: {
   const pick = styleFor(usable.filter((r) => opp.clipIds.includes(r.id)), acct, prompt);
   const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(usable, urls), { ...acct, audio }, undefined, briefText(brief), retry, pick.id), forEdl, footageSec, acct, pick, prompt);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from that. Make the brief more specific, or add clips.");
-  // Every clip the person gave is in the cut, and the cut is long enough to be a post.
-  const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec));
-  if (filled.added.length) edl.notes.push(`SOCIA added ${filled.added.map((id) => clipLabel(rows.find((r) => r.id === id)?.position ?? 0)).join(", ")} so every clip you gave is in the cut.`);
+  // Every distinct clip the person gave is in the cut while there is room for it, and the cut is long enough to be a post.
+  const filled = fillCut(edl.segments, usable.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, moments: r.card?.moments ?? [] })), briefFloorSec(footageSec), { maxSec: edl.targetSec.max, skip: new Set(takes.repeats.keys()) });
+  if (filled.added.length) edl.notes.push(`SOCIA added ${filled.added.map((id) => clipLabel(rows.find((r) => r.id === id)?.position ?? 0)).join(", ")} so every clip you gave is in the cut, as far as the length allows.`);
+  const takeLine = takesNote(takes);
+  if (takeLine) edl.notes.push(takeLine);
   // Clips added so every one is in the cut join and sound like the rest of it.
   Object.assign(edl, finishCut({ ...edl, segments: filled.segments }, forEdl, prompt));
   edl.segments = edl.segments.map((s) => (edl.actionSound && !s.sound ? { ...s, volume: QUIET_ROOM_VOLUME } : s));
@@ -768,6 +783,11 @@ export async function buildFromBrief(client: Supa, args: {
   const { data, error } = await client.from("studio_builds").insert(row).select(BUILD_COLS).single();
   if (error) throw error;
   return rowToBuild(data as BuildRow, rows);
+}
+
+/** The takes among a project's clips, from their transcripts. */
+function takesOf(rows: ClipRow[]): Takes {
+  return findTakes(rows.map((r) => ({ id: r.id, position: r.position, durationSec: r.duration_s ?? 0, words: r.transcript?.words })));
 }
 
 /**
@@ -831,7 +851,9 @@ function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: 
   const style = styleOf(edl.editStyle);
   const spoken = opts.tighten === false ? { segments: edl.segments, removed: [] } : editSpeech(edl.segments, words, style.speech);
   const first = decideJoins(spoken.segments, forEdl, asked, style.joins);
-  const { edl: repaired, fixed } = repairCut({ ...edl, segments: first.segments }, forEdl, { keepTransitions: first.joins.some((j) => j.why === "asked") });
+  // SOCIA listens to its own check: repair, check, repair again until nothing is found or nothing changes (lib/studioClips/cutCheck.ts settleCut).
+  const settled = settleCut({ ...edl, segments: first.segments }, forEdl, { keepTransitions: first.joins.some((j) => j.why === "asked") });
+  const repaired = settled.edl, fixed = settled.fixed;
   const { segments, joins } = decideJoins(repaired.segments, forEdl, asked, style.joins);
   let out: Edl = { ...repaired, segments };
   // Every run of cuts from one shot alternates its framing, so each cut reads as a new angle (Noah's picks, 2026-11-12).
@@ -878,14 +900,19 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   const opp: Opportunity | undefined = project.yield?.opportunities.find((o) => o.idx === idx);
   if (!opp) throw new Error("That post is not in this project's results.");
   const rows = await clipRows(client, project.id);
-  const used = rows.filter((r) => opp.clipIds.includes(r.id));
+  const picked = rows.filter((r) => opp.clipIds.includes(r.id));
+  // Takes of one line among the post's clips: the cleanest one goes to the cut, the others stay in the clips.
+  const takes = takesOf(picked);
+  const used = picked.filter((r) => !takes.repeats.has(r.id));
   const urls = await frameUrls(client, used);
   const audio = acct.audio ?? (await audioLine(client, ownerId, wsId));
-  const forEdl = used.map(toClipForEdl);
+  const forEdl = picked.map(toClipForEdl);
   const footageSec = used.reduce((a, r) => a + (r.duration_s ?? 0), 0);
   const pick = styleFor(used, acct, null);
   const { edl, model } = await edlWithFloor((retry) => opportunityEdl(opp, toClipInputs(used, urls), { ...acct, audio }, undefined, null, retry, pick.id), forEdl, footageSec, acct, pick);
   if (!edl.segments.length) throw new Error("SOCIA couldn't build a usable cut from these clips.");
+  const takeLine = takesNote(takes);
+  if (takeLine) edl.notes.push(takeLine);
   edl.style = edl.style ?? CLEAN_STYLE;
   edl.cleanSound = true;
   const guide = guideFromEdl(edl, forEdl);
