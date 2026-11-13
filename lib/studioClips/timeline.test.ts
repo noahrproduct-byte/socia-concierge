@@ -101,3 +101,17 @@ describe("one text at a time", () => {
     expect(clearOfText([page(0, 30)], { text: [] }, 30)).toHaveLength(1);
   });
 });
+
+describe("caption pages by word count", () => {
+  it("cuts a page into runs of at most N words, each starting on its first word", async () => {
+    const { splitPages } = await import("./timeline");
+    const tok = (text: string, fromMs: number) => ({ text: ` ${text}`, fromMs, toMs: fromMs + 200 });
+    const page = { text: " a b c d e", startMs: 0, durationMs: 1000, tokens: [tok("a", 0), tok("b", 200), tok("c", 400), tok("d", 600), tok("e", 800)] };
+    const three = splitPages([page], 3);
+    expect(three.map((p) => p.tokens.length)).toEqual([3, 2]);
+    expect(three[1].startMs).toBe(600);
+    expect(three[1].text).toBe(" d e");
+    expect(splitPages([page], 1).map((p) => p.startMs)).toEqual([0, 200, 400, 600, 800]);
+    expect(splitPages([page], 5)).toEqual([page]);
+  });
+});

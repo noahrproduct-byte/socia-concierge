@@ -7,6 +7,7 @@ import type { EdlStyle, VideoPresets } from "./style";
 import type { TextPresetId, TextSlot } from "@/lib/textPresets";
 import type { Playlist, Soundtrack } from "@/lib/music/taste";
 import type { EditStyleId } from "./profiles";
+import type { HouseGenre } from "./houseStyle";
 
 export type { Transcript, TranscriptWord };
 
@@ -205,7 +206,7 @@ export type EdlSegment = {
   frame?: SegmentFrame;
   /** This clip's volume (Editor V2): 0 mutes it, 2 is twice as loud. Absent = as recorded. */
   volume?: number;
-  /** How this cut comes in from the one before (ignored on the first): a hard cut, a fade, or a CapCut-style zoom or whip blur. Absent = a hard cut. */
+  /** How this cut comes in from the one before (ignored on the first): a hard cut, a fade, a CapCut-style zoom or whip blur, or a flash (a hard cut with two white frames, sports-edit style). Absent = a hard cut. */
   transition?: TransitionKind;
   /** The real sound of what's happening here plays up front, over the music (lib/studioClips/teach.ts). */
   sound?: boolean;
@@ -230,6 +231,7 @@ export const TRANSITIONS = [
   { id: "fade", label: "Fade" },
   { id: "zoom", label: "Zoom blur" },
   { id: "whip", label: "Whip blur" },
+  { id: "flash", label: "Flash" },
 ] as const;
 export type TransitionKind = (typeof TRANSITIONS)[number]["id"];
 export const isTransition = (v: unknown): v is TransitionKind => TRANSITIONS.some((t) => t.id === v);
@@ -307,6 +309,8 @@ export type Edl = {
   music: string | null;
   caption: string;
   notes: string[];
+  /** The house-style genre the cut was made as (lib/studioClips/houseStyle.ts); pacing caps follow it. Absent = unclassified. */
+  genre?: HouseGenre;
   /** Phase C: measured picture and sound corrections (absent until measured). */
   finish?: EdlFinish;
   /** Reduce background noise in the clips' sound (lib/studioClips/cleanSound.ts), done in the browser. On for cuts made since 2026-11-02; absent = off. */

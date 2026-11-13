@@ -47,7 +47,7 @@ import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
 import { motion } from "framer-motion";
 import { Bar, Details, Reveal, Ring, useMotionOk } from "@/components/dashboard/motion";
-import { CAPCUT_FONTS, DEFAULT_STYLE, FONTS, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
+import { CAPCUT_FONTS, CAPTION_STYLES, DEFAULT_STYLE, FONTS, captionStyle, withCaptionStyle, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
@@ -60,15 +60,17 @@ const r2 = (n: number) => Number(n.toFixed(2));
  * reduced motion it only shows the finished state.
  */
 const THUMB_FROM: Record<TransitionKind, { opacity: number; scale: number; x: string }> = {
-  cut: { opacity: 0, scale: 1, x: "0%" }, fade: { opacity: 0, scale: 1, x: "0%" }, zoom: { opacity: 0, scale: 1.6, x: "0%" }, whip: { opacity: 1, scale: 1, x: "100%" },
+  cut: { opacity: 0, scale: 1, x: "0%" }, fade: { opacity: 0, scale: 1, x: "0%" }, zoom: { opacity: 0, scale: 1.6, x: "0%" }, whip: { opacity: 1, scale: 1, x: "100%" }, flash: { opacity: 0, scale: 1, x: "0%" },
 };
 function TransitionThumb({ kind, play }: { kind: TransitionKind; play: number }) {
   const ok = useMotionOk();
-  const t = kind === "cut" ? { duration: 0 } : { duration: 0.5, ease: [0.23, 1, 0.32, 1] as [number, number, number, number] };
+  const hard = kind === "cut" || kind === "flash";
+  const t = hard ? { duration: 0 } : { duration: 0.5, ease: [0.23, 1, 0.32, 1] as [number, number, number, number] };
   return (
     <span className={`sd-tthumb is-${kind}`} aria-hidden>
       <motion.i className="is-a" key={`a${play}`} initial={{ x: "0%" }} animate={{ x: kind === "whip" ? "-100%" : "0%" }} transition={ok ? t : { duration: 0 }} />
-      <motion.i className="is-b" key={`b${play}`} initial={ok ? THUMB_FROM[kind] : { opacity: 1, scale: 1, x: "0%" }} animate={{ opacity: 1, scale: 1, x: "0%" }} transition={ok ? (kind === "cut" ? { duration: 0, delay: 0.25 } : t) : { duration: 0 }} />
+      <motion.i className="is-b" key={`b${play}`} initial={ok ? THUMB_FROM[kind] : { opacity: 1, scale: 1, x: "0%" }} animate={{ opacity: 1, scale: 1, x: "0%" }} transition={ok ? (hard ? { duration: 0, delay: 0.25 } : t) : { duration: 0 }} />
+      {kind === "flash" && ok ? <motion.i key={`f${play}`} style={{ position: "absolute", inset: 0, background: "#fff", pointerEvents: "none" }} initial={{ opacity: 0 }} animate={{ opacity: [0, 1, 0] }} transition={{ duration: 0.2, delay: 0.25, times: [0, 0.3, 1] }} /> : null}
     </span>
   );
 }
@@ -393,6 +395,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const setStyle = (patch: Partial<EdlStyle>) => { if (edl) commit({ ...edl, style: { ...st, ...patch } }); };
   const setCaptionStyle = (patch: Partial<EdlStyle["captions"]>) => setStyle({ captions: { ...st.captions, ...patch } });
   const liveAccent = (accent: string) => { if (!edl) return; setEdl({ ...edl, style: { ...st, accent } }); setDirty(true); };
+  const liveHighlight = (highlight: string) => { if (!edl) return; setEdl({ ...edl, style: { ...st, captions: { ...st.captions, highlight } } }); setDirty(true); };
   const applyPreset = (p: { style: EdlStyle; width: number; height: number }, label: string) => { if (!edl) return; commit({ ...edl, style: p.style, width: p.width, height: p.height }); setStyleNote(`${label} applied.`); };
   const savePreset = async (body: Record<string, unknown>, ok: string) => {
     if (!edl) return;
@@ -835,6 +838,18 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </div>
               <div className="ov-card">
                 <b><Captions size={14} /> Captions</b>
+                <div className="cbb-capstyles" role="radiogroup" aria-label="Caption style">
+                  {CAPTION_STYLES.map((c) => (
+                    <button key={c.id} type="button" role="radio" aria-checked={st.captions.preset === c.id} className={`cbb-capstyle is-${c.id}${st.captions.preset === c.id ? " on" : ""}`} disabled={!data.canEdit || busy} onClick={() => { setStyle(withCaptionStyle(st, c.id)); setStyleNote(`${c.label} captions: ${c.hint}`); }}>
+                      <span className="cbb-capstyle-demo" aria-hidden style={{ "--cap-hi": st.captions.highlight } as React.CSSProperties}><i>know</i> <em>what</em> <i>to post</i></span>
+                      <span className="cbb-capstyle-name">{c.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <small>{captionStyle(st.captions.preset).hint} Picking a style sets its font, case and position; change any of them below.</small>
+                <label className="cbb-field">Highlight colour
+                  <input type="color" value={st.captions.highlight} disabled={!data.canEdit || busy} onPointerDown={beginLive} onFocus={beginLive} onChange={(e) => liveHighlight(e.target.value)} />
+                </label>
                 <div className="cal2-seg" role="radiogroup" aria-label="Caption position">
                   {([["top", "Top"], ["middle", "Middle"], ["lower", "Lower"], ["bottom", "Bottom"]] as const).map(([id, label]) => (
                     <button key={id} type="button" role="radio" aria-checked={st.captions.position === id} className={st.captions.position === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setCaptionStyle({ position: id })}>{label}</button>

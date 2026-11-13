@@ -17,7 +17,7 @@ export const TRANSITION_FRAMES = 9;
 
 /** Frames a cut overlaps the one before it: none for a hard cut, and never more than half of either cut. */
 export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number): number {
-  if (!kind || kind === "cut") return 0;
+  if (!kind || kind === "cut" || kind === "flash") return 0;
   return Math.max(0, Math.min(TRANSITION_FRAMES, Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
 }
 
@@ -168,7 +168,7 @@ export function splitCaptionPage(page: TikTokPage, maxWords: number): TikTokPage
  * to the end of its last word (never cut off at the page length: a word that
  * starts late in the page still finishes), and never past the next page.
  */
-export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, fps: number = FPS, pageMs: number = CAPTION_PAGE_MS, maxWords?: number): CaptionPageSpan[] {
+export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | null | undefined>, fps: number = FPS, pageMs: number = CAPTION_PAGE_MS, maxWords: number = 0): CaptionPageSpan[] {
   if (!edl.captions) return [];
   const captions = captionsForEdl(edl, words);
   if (!captions.length) return [];
@@ -180,7 +180,7 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
   const pages = starts.flatMap((_, i) => {
     const inShot = captions.filter((c) => shotOf(c.startMs) === i);
     const made = inShot.length ? createTikTokStyleCaptions({ captions: inShot, combineTokensWithinMilliseconds: pageMs }).pages : [];
-    return maxWords ? made.flatMap((p) => splitCaptionPage(p, maxWords)) : made;
+    return maxWords > 0 ? made.flatMap((p) => splitCaptionPage(p, maxWords)) : made;
   });
   const out: CaptionPageSpan[] = [];
   pages.forEach((page, i) => {
@@ -210,4 +210,23 @@ export function clearOfText(pages: CaptionPageSpan[], edl: Pick<Edl, "text">, fp
     const end = Math.min(p.from + p.durationInFrames, ...busy.filter((b) => b.from > p.from).map((b) => b.from));
     return end - p.from >= Math.round(fps * 0.3) ? [{ ...p, durationInFrames: end - p.from }] : [];
   });
+}
+
+/**
+ * Pages with at most `maxWords` words each (a caption style's "three words at
+ * a time", "one word at a time"). A page with more is cut into runs of that
+ * many; each run starts when its first word does. Word timings are untouched.
+ */
+export function splitPages(pages: TikTokPage[], maxWords: number): TikTokPage[] {
+  const out: TikTokPage[] = [];
+  for (const p of pages) {
+    const tokens = p.tokens.filter((t) => t.text.trim());
+    if (tokens.length <= maxWords) { out.push(p); continue; }
+    for (let i = 0; i < tokens.length; i += maxWords) {
+      const run = tokens.slice(i, i + maxWords);
+      const startMs = run[0].fromMs;
+      out.push({ text: run.map((t) => t.text).join(""), startMs, durationMs: Math.max(0, run[run.length - 1].toMs - startMs), tokens: run });
+    }
+  }
+  return out;
 }
