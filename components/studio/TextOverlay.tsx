@@ -6,13 +6,13 @@
 // zone can be shown over either as a dashed box (a check for us, off by
 // default; see useSafeZoneGuide).
 import { useEffect, useState } from "react";
-import { peekRendered, renderTextLayer, type RenderArgs, type RenderedText } from "@/lib/textRender";
+import { peekRendered, renderKey, renderTextLayer, type RenderArgs, type RenderedText } from "@/lib/textRender";
 import { safeZoneFor, TEXT_PRESETS, type TextPresetId } from "@/lib/textPresets";
 import type { EdlText } from "@/lib/studioClips/types";
 
 /** The rendered PNG for these inputs, once the fonts and the canvas are done; null until then. */
 export function useRenderedText(a: RenderArgs | null): RenderedText | null {
-  const key = a ? JSON.stringify([a.presetId, a.text, a.slot ?? null, a.width, a.height]) : null;
+  const key = a ? renderKey(a) : null;
   const [out, setOut] = useState<RenderedText | null>(null);
   useEffect(() => {
     if (!a || !a.text.trim() || !a.width || !a.height) { setOut(null); return; }

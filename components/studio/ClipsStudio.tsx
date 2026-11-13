@@ -32,7 +32,7 @@ import type { VideoSummary } from "@/lib/studioClips/videos";
 import LearnCard, { useStudioLearn } from "./LearnCard";
 import StudioEmpty from "./StudioEmpty";
 import NicheScanCard from "@/components/NicheScanCard";
-import { SHRINK_ABOVE, shrinkForUpload } from "@/lib/studioClips/shrink";
+import { SHRINK_ABOVE, needsTranscode, shrinkForUpload } from "@/lib/studioClips/shrink";
 
 type Meta = { limits: { clipsPerProject: number; footageMinutes: number; uploadMb: number }; usage: UsageSnapshot | null; transcription: boolean; autoBuild: boolean };
 
@@ -177,8 +177,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   // ----------------------------------------------------------- uploads ----
   const ensureProject = useCallback(async (): Promise<StudioProject | null> => {
     if (projectRef.current) return projectRef.current;
-    const res = await fetch("/api/studio/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) });
-    const j = await res.json().catch(() => null);
+    const res = await fetch("/api/studio/projects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) }).catch(() => null);
+    const j = res ? await res.json().catch(() => null) : null;
+    if (!res) { setNotice("Couldn't start a project: SOCIA couldn't be reached. Check your connection and drop the clips again."); return null; }
     if (!res.ok) {
       if (isPlanError(j)) setPlanError(j); else if (j?.migration) setMigration(j.error); else setNotice(j?.error ?? "Couldn't start a project.");
       return null;
@@ -187,6 +188,11 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   }, [openProject]);
 
   const patchLocal = (key: string, patch: Partial<LocalClip>) => setLocals((cur) => cur.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  // Thumbnails are object URLs: released when their clip leaves the list and when this screen closes.
+  const thumbs = useRef(new Map<string, string>());
+  const gone = useRef(new AbortController());
+  useEffect(() => { const t = thumbs.current, g = gone.current; return () => { for (const u of t.values()) URL.revokeObjectURL(u); t.clear(); g.abort(); }; }, []);
+  const releaseThumb = (key: string) => { const u = thumbs.current.get(key); if (u) { URL.revokeObjectURL(u); thumbs.current.delete(key); } };
 
   type Registered = { key: string; file: File; probe: Awaited<ReturnType<typeof probeClip>>; clip: StudioClip; paths: Paths };
 
@@ -195,13 +201,16 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     try {
       patchLocal(key, { phase: "reading", progress: 0.1 });
       const [fingerprint, probe] = await Promise.all([fingerprintFile(file), probeClip(file)]);
+      // Over the limit, or an iPhone HEVC clip: it is converted to H.264 on this device before it uploads.
+      const convert = file.size > SHRINK_ABOVE || needsTranscode(probe.codec);
       patchLocal(key, { phase: "registering", progress: 0.3, durationSec: probe.durationSec });
       const reg = await fetch("/api/studio/clips", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ projectId: p.id, fingerprint, name: file.name, mime: file.type || null, bytes: file.size, durationSec: probe.durationSec, width: probe.width, height: probe.height, recordedAt: file.lastModified ? new Date(file.lastModified).toISOString() : null, ext: file.size > SHRINK_ABOVE ? "mp4" : file.name.split(".").pop() }),
+        method: "POST", headers: { "content-type": "application/json" }, signal: gone.current.signal,
+        body: JSON.stringify({ projectId: p.id, fingerprint, name: file.name, mime: convert ? "video/mp4" : file.type || null, bytes: file.size, durationSec: probe.durationSec, width: probe.width, height: probe.height, recordedAt: file.lastModified ? new Date(file.lastModified).toISOString() : null, ext: convert ? "mp4" : file.name.split(".").pop() }),
       });
       const rj = await reg.json().catch(() => null);
       if (reg.status === 409 && rj?.duplicate) { patchLocal(key, { phase: "duplicate", progress: 1 }); return null; }
+      if (!reg.ok && !rj) throw new Error("SOCIA couldn't be reached. Check your connection and add the clip again.");
       if (!reg.ok) {
         if (isPlanError(rj)) { setPlanError(rj); setLocals((cur) => cur.filter((l) => l.key !== key)); return null; }
         throw new Error(rj?.error ?? "Couldn't add this clip.");
@@ -221,14 +230,16 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
       patchLocal(key, { phase: "analyzing", progress: 0, stageNote: "Measuring picture and sound" });
       const ingest = await ingestClip(file, probe, (stage, done, total) => patchLocal(key, { progress: total ? done / total : 0, stageNote: stage === "frames" ? "Finding scene changes" : "Reading the sound" }));
       const first = ingest.frames[0];
-      if (first) patchLocal(key, { thumb: URL.createObjectURL(first.blob) });
+      if (first) { const thumb = URL.createObjectURL(first.blob); thumbs.current.set(key, thumb); patchLocal(key, { thumb }); }
 
       // Storage takes 50 MB a file: a bigger phone clip is made smaller on this device first (lib/studioClips/shrink.ts).
+      // An HEVC clip is converted to H.264 whatever its size, so it plays in every browser on the account.
       let send = file;
-      if (file.size > SHRINK_ABOVE) {
-        patchLocal(key, { phase: "analyzing", progress: 0, stageNote: "Making it small enough to upload" });
-        const small = await shrinkForUpload(file, probe, (p) => patchLocal(key, { progress: p }));
-        if (!small) throw new Error(`This clip is ${Math.round(file.size / 1048576)} MB, over the 50 MB upload limit, and this browser couldn't make it smaller. Export it at 1080p (or a shorter part of it) and add it again.`);
+      const hevc = needsTranscode(probe.codec);
+      if (file.size > SHRINK_ABOVE || hevc) {
+        patchLocal(key, { phase: "analyzing", progress: 0, stageNote: hevc && file.size <= SHRINK_ABOVE ? "Converting from HEVC so it plays everywhere" : "Making it small enough to upload" });
+        const small = await shrinkForUpload(file, probe, (p) => patchLocal(key, { progress: p }), hevc);
+        if (!small) throw new Error(file.size > SHRINK_ABOVE ? `This clip is ${Math.round(file.size / 1048576)} MB, over the 50 MB upload limit, and this browser couldn't make it smaller. Export it at 1080p (or a shorter part of it) and add it again.` : "This HEVC clip couldn't be converted in this browser. Export it as an H.264 MP4 (on an iPhone: Settings, Camera, Formats, Most compatible) and add it again.");
         send = small;
       }
       patchLocal(key, { phase: "uploading", progress: 0, stageNote: "Uploading" });
@@ -244,8 +255,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
         await uploadMedia(supabase, STUDIO_BUCKET, paths.audio, new File([ingest.wav], "audio.wav", { type: "audio/wav" }));
         audioPath = paths.audio;
       }
-      const done = await fetch(`/api/studio/clips/${clip.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sourcePath: paths.source, frames: framePaths, audioPath, facts: ingest.facts }) });
-      const dj = await done.json().catch(() => null);
+      const done = await fetch(`/api/studio/clips/${clip.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sourcePath: paths.source, frames: framePaths, audioPath, facts: ingest.facts, bytes: send !== file ? send.size : null, mime: send !== file ? send.type : null }) }).catch(() => null);
+      const dj = done ? await done.json().catch(() => null) : null;
+      if (!done) throw new Error("The clip uploaded, but SOCIA couldn't be reached to finish it. Check your connection and add it again.");
       if (!done.ok) throw new Error(dj?.error ?? "Couldn't finish adding this clip.");
       patchLocal(key, { phase: "done", progress: 1, stageNote: null, clip: dj as StudioClip });
     } catch (e) {
@@ -301,9 +313,10 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
 
   const removeClip = useCallback(async (l: LocalClip) => {
     if (l.clip) {
-      const res = await fetch(`/api/studio/clips/${l.clip.id}`, { method: "DELETE" });
-      if (!res.ok) { setNotice("Couldn't remove that clip."); return; }
+      const res = await fetch(`/api/studio/clips/${l.clip.id}`, { method: "DELETE" }).catch(() => null);
+      if (!res?.ok) { setNotice(res ? "Couldn't remove that clip." : "Couldn't remove that clip: SOCIA couldn't be reached."); return; }
     }
+    releaseThumb(l.key);
     setLocals((cur) => cur.filter((x) => x.key !== l.key));
     if (project) void openProject(project.id, true);
   }, [project, openProject]);
@@ -312,9 +325,10 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   const understand = useCallback(async () => {
     if (!project) return;
     setStarting(true); setPlanError(null); setNotice(null);
-    const res = await fetch(`/api/studio/projects/${project.id}/understand`, { method: "POST" });
-    const j = await res.json().catch(() => null);
+    const res = await fetch(`/api/studio/projects/${project.id}/understand`, { method: "POST" }).catch(() => null);
+    const j = res ? await res.json().catch(() => null) : null;
     setStarting(false);
+    if (!res) { setNotice("Couldn't start: SOCIA couldn't be reached. Check your connection and try again."); return; }
     if (!res.ok) {
       if (isPlanError(j)) setPlanError(j);
       else if (res.status === 409 && j?.running) { setProject({ ...project, status: "understanding" }); }
@@ -443,9 +457,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
   }, [autoText, busyIds, manualBusy, project]);
 
   const deleteProject = useCallback(async (id: string) => {
-    if (!window.confirm("Delete this project and its uploaded clips?")) return;
-    const res = await fetch(`/api/studio/projects/${id}`, { method: "DELETE" });
-    if (!res.ok) { setNotice("Couldn't delete that project."); return; }
+    if (!window.confirm("Delete this project and its uploaded clips? This can't be undone.")) return;
+    const res = await fetch(`/api/studio/projects/${id}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) { setNotice(res ? "Couldn't delete that project." : "Couldn't delete that project: SOCIA couldn't be reached."); return; }
     if (project?.id === id) { setProject(null); setLocals([]); router.replace(`/studio?mode=${modeParam}`, { scroll: false }); }
     void loadMeta();
   }, [project, router, loadMeta, modeParam]);

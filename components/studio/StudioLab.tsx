@@ -26,6 +26,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 /** The Studio API, answered from the fixtures. Everything else goes to the network. */
 function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): () => void {
   const real = window.fetch.bind(window);
+  // Clips dropped in this tab, so the project lists them after a reload of its data.
+  const labClips: fx.LabClip[] = [];
   const state = screen === "build-collect" ? "collecting" : "ready";
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.href);
@@ -33,10 +35,32 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     const p = url.pathname;
     // Storage uploads (the WAV for transcription) land nowhere.
     if (url.hostname.endsWith("placeholder.supabase.co")) return json({ Key: p, Id: "lab" });
-    if (!p.startsWith("/api/")) return real(input, init);
+    // Only this app's own API is answered here: Remotion's licence ping and any other host go out as they are.
+    if (url.origin !== window.location.origin || !p.startsWith("/api/")) return real(input, init);
+    // The upload flow: a dropped file is registered, its uploads land nowhere, and it is completed, so the whole
+    // path from drop to "ready" can be exercised without an account.
+    if (p === "/api/studio/clips" && method === "POST") {
+      const body = (init?.body ? JSON.parse(String(init.body)) : {}) as { name?: string; bytes?: number; durationSec?: number; width?: number; height?: number; mime?: string };
+      const id = `lab-${(labClips.length + 4)}`;
+      const c = { ...fx.clips(thumbs, durationSec)[0], id, position: labClips.length + 3, name: body.name ?? "clip.mp4", bytes: body.bytes ?? 0, durationSec: body.durationSec ?? durationSec, width: body.width ?? null, height: body.height ?? null, mime: body.mime ?? null, status: "registered" as const, card: null, transcript: null, frames: [], reused: false };
+      labClips.push(c);
+      return json({ clip: c, reused: false, expiresAt: null, paths: { folder: `lab/${id}/`, source: `lab/${id}/source.mp4`, frames: `lab/${id}/frames/`, audio: `lab/${id}/audio.wav` } });
+    }
+    const clipPatch = p.match(/^\/api\/studio\/clips\/([^/]+)$/);
+    if (clipPatch && method === "PATCH") {
+      const c = labClips.find((x) => x.id === clipPatch[1]);
+      if (!c) return json({ error: "That clip does not exist." }, 404);
+      const body = (init?.body ? JSON.parse(String(init.body)) : {}) as { facts?: fx.LabClip["facts"] };
+      Object.assign(c, { status: "uploaded" as const, facts: body.facts ?? null, frames: fx.clips(thumbs, durationSec)[0].frames });
+      return json(c);
+    }
+    if (clipPatch && method === "DELETE") { const i = labClips.findIndex((x) => x.id === clipPatch[1]); if (i >= 0) labClips.splice(i, 1); return json({ ok: true }); }
+    if (p === `/api/studio/projects/${fx.PROJECT_ID}/understand`) return json({ ok: true, started: true });
+    if (p === "/api/studio/audio" || p.startsWith("/api/studio/audio/")) return json({ insights: [], tracks: [], summary: "No audio has been measured in the lab." });
+    if (p === "/api/studio/voices") return json({ voices: [] });
     if (p === "/api/studio/projects" && method === "GET") return json({ projects: [fx.summary()], limits: { clipsPerProject: 30, footageMinutes: 30, uploadMb: 2000 }, usage: { meter: "content_build", used: 1, limit: 10, remaining: 9, resetsOn: "2026-12-01" }, transcription: true, features: { autoBuild: true } });
     if (p === "/api/studio/projects" && method === "POST") return json({ id: fx.PROJECT_ID });
-    if (p === `/api/studio/projects/${fx.PROJECT_ID}` && method === "GET") return json(fx.project(thumbs, durationSec, state));
+    if (p === `/api/studio/projects/${fx.PROJECT_ID}` && method === "GET") { const pr = fx.project(thumbs, durationSec, state); return json({ ...pr, clips: [...pr.clips, ...labClips] }); }
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/opportunities/0`) return json(fx.build(thumbs, durationSec, 0));
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/batch`) return json({ existing: [], history: null, accounts: [], accountsComplete: true, builds: [], canSchedule: true, planError: null, roleBlocked: false });
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/brief` && method === "GET") return json({ builds: [] });

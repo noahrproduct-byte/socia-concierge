@@ -8,7 +8,7 @@ import { extractFrames } from "@/lib/studio";
 import { frameStats, sceneCuts, denseKeyframes, visualSummary, parseWav, pcmWindows, audioSummary, type FrameSample } from "./facts";
 import { KEYFRAME_STEP_SEC, KEYFRAME_WIDTH, SCAN_WIDTH, MIN_KEYFRAMES, MAX_KEYFRAMES, WAV_SAMPLE_RATE, MAX_CLIP_SEC, type AudioFacts, type ClipFacts } from "./types";
 
-export type Probe = { durationSec: number; width: number | null; height: number | null; hasAudio: boolean; method: "mediabunny" | "video-element" };
+export type Probe = { durationSec: number; width: number | null; height: number | null; hasAudio: boolean; method: "mediabunny" | "video-element"; /** the video codec as mediabunny names it ("avc", "hevc", "vp9", "av1"); null when unknown */ codec?: string | null };
 export type Keyframe = { t: number; blob: Blob };
 export type IngestStage = "frames" | "audio";
 export type IngestResult = { frames: Keyframe[]; wav: Blob | null; facts: ClipFacts };
@@ -48,7 +48,7 @@ export async function probeClip(file: File): Promise<Probe> {
       const [video, audio] = await Promise.all([input.getPrimaryVideoTrack(), input.getPrimaryAudioTrack()]);
       if (video && (await video.canDecode())) {
         const [durationSec, width, height] = await Promise.all([input.computeDuration(), video.getDisplayWidth(), video.getDisplayHeight()]);
-        return { durationSec, width, height, hasAudio: Boolean(audio), method: "mediabunny" };
+        return { durationSec, width, height, hasAudio: Boolean(audio), method: "mediabunny", codec: video.codec ?? null };
       }
     } catch {
       /* fall through to the element */

@@ -214,8 +214,8 @@ export default function FinishPanel({
         <b>Not done automatically</b>
         <ul>
           <li><b>Noise reduction.</b> {edl.cleanSound ? "On: Reduce background noise, above, turns it down in this browser." : "Off. Turn on Reduce background noise, above, to turn it down."}{noise.length ? ` Background between words: ${noise.map((n) => (n.db <= -90 ? `${label(n.id)} silent` : `${label(n.id)} ${Math.round(n.db)} dB${n.db > -45 ? " (noticeable: re-record closer to the mic, or with a clip-on mic)" : " (quiet)"}`)).join("; ")}.` : ""}</li>
-          <li><b>Lowering background sound under speech.</b> Raw clips carry one mixed track, so there&apos;s nothing separate to lower.</li>
-          <li><b>Music.</b> SOCIA recommends a direction (Music tab) and never adds a track.</li>
+          <li><b>Lowering background sound under speech.</b> Raw clips carry one mixed track, so there&apos;s nothing separate to lower; a music track added in Voice &amp; music can duck under speech.</li>
+          <li><b>Music.</b> Added and mixed in Voice &amp; music; nothing here changes it.</li>
         </ul>
       </section>
     </div>

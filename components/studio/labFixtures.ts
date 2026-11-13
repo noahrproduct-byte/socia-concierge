@@ -58,6 +58,8 @@ function card(over: Partial<ClipCard> & Pick<ClipCard, "subject" | "setting" | "
 }
 
 /** Three clips from one shoot, each with frames from the sample video. */
+export type LabClip = StudioClip;
+
 export function clips(thumbs: Thumb[], durationSec: number): StudioClip[] {
   const d = Math.max(8, durationSec);
   const frames = (from: number) => thumbs.slice(from, from + 3).map((t) => ({ t: r2(t.t), url: t.src }));

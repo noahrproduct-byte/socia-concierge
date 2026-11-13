@@ -200,10 +200,28 @@ export function presetInFont(p: TextPreset, font?: FontId | null): TextPreset {
  * background draws the outlined presets with the clean soft shadow instead.
  * Labels and tags keep their own boxes.
  */
-export function presetInStyle(p: TextPreset, font?: FontId | null, textBox?: string | null): TextPreset {
+export function presetInStyle(p: TextPreset, font?: FontId | null, textBox?: string | null, accent?: string | null): TextPreset {
   const f = presetInFont(p, font);
   if (textBox === "outline" && f.box === SHADOW) return { ...f, box: OUTLINE };
+  const plain = f.box.kind === "outline" || f.box === SHADOW;
+  // A filled background behind the words (the Style tab's Dark box, Light box and Brand colour): the
+  // outlined and shadowed looks take a box that hugs the words; labels keep their own box, except that
+  // the brand colour takes over a Label's white box so the call to action carries the brand.
+  if (textBox === "dark" && plain) return { ...f, color: BRAND.white, box: { kind: "fill", fill: "rgba(0,0,0,0.72)", padding: { x: 28, y: 14 }, radius: 14 } };
+  if (textBox === "light" && plain) return { ...f, color: BRAND.black, box: { kind: "fill", fill: "rgba(255,255,255,0.92)", padding: { x: 28, y: 14 }, radius: 14 } };
+  if (textBox === "accent" && (plain || f.id === "callout_box")) {
+    const fill = accent && /^#[0-9a-f]{6}$/i.test(accent) ? accent : "#5b4bd6";
+    return { ...f, color: readableOn(fill), lead: f.lead ? { ...f.lead, color: readableOn(fill) } : f.lead, box: { kind: "fill", fill, padding: { x: 28, y: 14 }, radius: 14 } };
+  }
   return textBox && textBox !== "outline" && f.box.kind === "outline" ? { ...f, box: SHADOW } : f;
+}
+
+/** White or black, whichever reads on this fill (WCAG relative luminance). */
+export function readableOn(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const l = 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
+  return l > 0.4 ? BRAND.black : BRAND.white;
 }
 
 /** The look for a new line: an opening written as two lines (small line, then the big words) is a Hook Pair. */

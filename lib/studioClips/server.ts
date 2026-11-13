@@ -211,7 +211,7 @@ export async function registerClip(client: Supa, args: { ownerId: string; viewer
   return { ok: true, clip: rowToClip(clip, {}), folder: clipFolder(viewerId, project.id, clip.id), reused: Boolean(reuse), expiresAt: clip.expires_at ?? "" };
 }
 
-export type CompleteInput = { sourcePath: string; frames: { t: number; path: string }[]; audioPath: string | null; facts: ClipFacts | null };
+export type CompleteInput = { sourcePath: string; frames: { t: number; path: string }[]; audioPath: string | null; facts: ClipFacts | null; /** the uploaded file's size and type when it was converted on the device (HEVC, or over the limit) */ bytes?: number | null; mime?: string | null };
 
 /** The browser finished uploading the bytes, frames and audio and measured the facts. */
 export async function completeClip(client: Supa, ownerId: string, wsId: string | null, clipId: string, input: CompleteInput): Promise<StudioClip | null> {
@@ -224,6 +224,8 @@ export async function completeClip(client: Supa, ownerId: string, wsId: string |
     facts: input.facts ?? row.facts,
     status: row.card ? "ready" : "uploaded", error: null, updated_at: now(),
   };
+  if (typeof input.bytes === "number" && input.bytes > 0) patch.bytes = Math.round(input.bytes);
+  if (typeof input.mime === "string" && /^video\/[a-z0-9.+-]+$/i.test(input.mime)) patch.mime = input.mime;
   const { data, error } = await scopeToWorkspace(client.from("studio_clips").update(patch).eq("id", clipId).eq("user_id", ownerId), wsId).select("*").single();
   if (error) throw error;
   await updateProject(client, row.project_id, {}).catch(() => null);
@@ -464,6 +466,9 @@ export async function saveBuildEdl(client: Supa, ownerId: string, wsId: string |
   if (row.edl?.musicAuto) edl.musicAuto = row.edl.musicAuto;
   const soundtrack = sanitizeSoundtrack(edited.soundtrack, row.edl?.playlist, (trackId) => musicPath(ownerId, row.project_id, buildId, trackId));
   if (soundtrack) edl.soundtrack = soundtrack;
+  // A track SOCIA added on its own while this save was being made (the editor stamps musicAuto when it hears
+  // back) is kept: a save from a browser that never saw it must not erase it.
+  else if (row.edl?.soundtrack && row.edl.musicAuto && !edited.musicAuto) edl.soundtrack = row.edl.soundtrack;
   // The voiceover's lines and audio are the server's (only voicing changes them); the person's switch and level come through.
   const stored = sanitizeVoiceover(row.edl?.voiceover, ownsVoicePath(ownerId, row.project_id, buildId));
   const voiceover = mergeVoiceover(stored, (edited as { voiceover?: unknown }).voiceover ?? {});

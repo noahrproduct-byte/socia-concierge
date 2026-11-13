@@ -11,7 +11,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Minus, Plus, Trash2, ArrowUp, ArrowDown, Type, X } from "lucide-react";
 import { PresetThumb } from "./TextOverlay";
 import { fmtClock, type EdlText } from "@/lib/studioClips/types";
-import { MAX_TEXT_LAYERS, TEXT_PRESETS, TEXT_PRESET_IDS, TEXT_SLOTS, charCount, clampChars, clampWords, defaultTiming, presetOf, type TextPresetId, type TextSlot } from "@/lib/textPresets";
+import { MAX_TEXT_LAYERS, TEXT_PRESETS, TEXT_PRESET_IDS, TEXT_SLOTS, charCount, clampChars, clampWords, defaultTiming, presetInStyle, presetOf, type TextPresetId, type TextSlot } from "@/lib/textPresets";
+import type { FontId } from "@/lib/studioClips/style";
 import { canvasMeasure, fitMessage, layoutTextLayer, presetFonts } from "@/lib/textRender";
 import { ensureTextFonts } from "@/lib/textFonts";
 
@@ -47,6 +48,8 @@ export type TextLayersPanelProps = {
   /** The line to show open (the one selected on the timeline); the panel's own clicks still open and close rows. */
   openId?: string | null;
   title?: string;
+  /** The video's font, text background and brand colour: the fit check measures in the face and box the renderer uses. */
+  style?: { font: FontId; textBox: string; accent?: string } | null;
 };
 
 function PresetPicker({ onPick, onClose, current }: { onPick: (id: TextPresetId) => void; onClose: () => void; current?: TextPresetId | null }) {
@@ -69,7 +72,7 @@ function PresetPicker({ onPick, onClose, current }: { onPick: (id: TextPresetId)
   );
 }
 
-export default function TextLayersPanel({ layers, onChange, durationSec, frame, canEdit = true, busy = false, playhead, onOpen, openId, title = "Text on the video" }: TextLayersPanelProps) {
+export default function TextLayersPanel({ layers, onChange, durationSec, frame, canEdit = true, busy = false, playhead, onOpen, openId, title = "Text on the video", style }: TextLayersPanelProps) {
   const [picking, setPicking] = useState<"new" | string | null>(null);
   const [open, setOpen] = useState<string | null>(openId ?? null);
   useEffect(() => { if (openId) setOpen(openId); }, [openId]);
@@ -80,13 +83,13 @@ export default function TextLayersPanel({ layers, onChange, durationSec, frame, 
   // Measure in the real faces: the fit check re-runs once they are in.
   useEffect(() => {
     let alive = true;
-    ensureTextFonts(TEXT_PRESET_IDS.flatMap((id) => presetFonts(TEXT_PRESETS[id]))).then(() => { if (alive) setFontsReady((n) => n + 1); });
+    ensureTextFonts(TEXT_PRESET_IDS.flatMap((id) => presetFonts(presetInStyle(TEXT_PRESETS[id], style?.font, style?.textBox, style?.accent)))).then(() => { if (alive) setFontsReady((n) => n + 1); });
     return () => { alive = false; };
-  }, []);
+  }, [style?.font, style?.textBox, style?.accent]);
   const measure = useMemo(() => canvasMeasure(), []);
   const fit = (l: EdlText): string | null => {
     if (!measure || !frame.width || !frame.height) return null;
-    const preset = presetOf(l);
+    const preset = presetInStyle(presetOf(l), style?.font, style?.textBox, style?.accent);
     return fitMessage(preset, layoutTextLayer({ preset, text: l.text, slot: l.slot, width: frame.width, height: frame.height, measure }));
   };
 

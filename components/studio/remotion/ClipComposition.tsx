@@ -27,6 +27,7 @@ import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
+import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
@@ -41,17 +42,17 @@ import type { TransitionKind } from "@/lib/studioClips/types";
 import { gainAtDb } from "@/lib/studioClips/sound";
 
 // Inter is the default and loads at once; the others load only when an edit uses them.
-const { fontFamily: interFamily } = loadInter("normal", { weights: ["600", "700"], subsets: ["latin"] });
+const { fontFamily: interFamily } = loadInter("normal", { weights: ["600", "700"], subsets: ["latin", "latin-ext"] });
 const FONT_LOADERS: Record<FontId, () => string> = {
   inter: () => interFamily,
-  montserrat: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin"] }).fontFamily,
-  tiktok: () => loadTikTok("normal", { weights: ["700", "800"], subsets: ["latin"] }).fontFamily,
-  anton: () => loadAnton("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily,
-  poppins: () => loadPoppins("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily,
-  playfair: () => loadPlayfair("normal", { weights: ["600", "700"], subsets: ["latin"] }).fontFamily,
-  bebas: () => loadBebas("normal", { weights: ["400"], subsets: ["latin"] }).fontFamily,
+  montserrat: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin", "latin-ext"] }).fontFamily,
+  tiktok: () => loadTikTok("normal", { weights: ["700", "800"], subsets: ["latin", "latin-ext"] }).fontFamily,
+  anton: () => loadAnton("normal", { weights: ["400"], subsets: ["latin", "latin-ext"] }).fontFamily,
+  poppins: () => loadPoppins("normal", { weights: ["600", "700"], subsets: ["latin", "latin-ext"] }).fontFamily,
+  playfair: () => loadPlayfair("normal", { weights: ["600", "700"], subsets: ["latin", "latin-ext"] }).fontFamily,
+  bebas: () => loadBebas("normal", { weights: ["400"], subsets: ["latin", "latin-ext"] }).fontFamily,
   // Never a whole video's font (sanitizeStyle keeps it out); only Hook Pair's small line uses it, through lib/textFonts.ts.
-  serif: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin"] }).fontFamily,
+  serif: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin", "latin-ext"] }).fontFamily,
 };
 const loaded = new Map<FontId, string>();
 const familyFor = (id: FontId) => { if (!loaded.has(id)) loaded.set(id, FONT_LOADERS[id]()); return loaded.get(id)!; };
@@ -99,11 +100,11 @@ const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === 
  * so neither path ever paints a fallback face. Only the way in and out is
  * animated here: a fade or a small pop, as the preset says.
  */
-function TextLayer({ line, width, height, font, textBox }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"] }) {
+function TextLayer({ line, width, height, font, textBox, accent }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"]; accent: string }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const preset = presetOf(line);
-  const args = useMemo(() => ({ presetId: preset.id, text: line.text, slot: line.slot, width, height, font, textBox }), [preset.id, line.text, line.slot, width, height, font, textBox]);
+  const args = useMemo(() => ({ presetId: preset.id, text: line.text, slot: line.slot, width, height, font, textBox, accent }), [preset.id, line.text, line.slot, width, height, font, textBox, accent]);
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -152,7 +153,7 @@ function SafeZoneLayer({ width, height }: { width: number; height: number }) {
 
 // The ending's face. Drawn only once it has loaded, or the first play shows a fallback serif running off the frame.
 let antonFont: ReturnType<typeof loadAnton> | null = null;
-const endFont = () => (antonFont ??= loadAnton("normal", { weights: ["400"], subsets: ["latin"] }));
+const endFont = () => (antonFont ??= loadAnton("normal", { weights: ["400"], subsets: ["latin", "latin-ext"] }));
 
 /**
  * The place, the ask and the website over the last shot, no box. Set to leave
@@ -201,7 +202,7 @@ const VOICE_TAIL_FRAMES = 6;
  * the page coming in with the style's motion. Everything is driven by the
  * frame, so the Player and the browser render agree.
  */
-export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: EdlStyle; fontFamily: string }) {
+export function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[] }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
@@ -221,12 +222,15 @@ export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; sty
     : {};
   const stroke = outline && !style.captions.box ? { fontWeight: outlineWeight(style.font), WebkitTextStroke: `${Math.max(9, Math.round(l.fontSize * 0.18))}px #000`, paintOrder: "stroke fill" as const } : {};
   const tokens = page.tokens.filter((t) => t.text.trim());
+  // The key word of the line (a marked word, else a number) keeps the highlight colour the whole time the page is up.
+  const keyWord = emphasis?.length ? emphasisIndex(tokens.map((t) => t.text), emphasis) : -1;
+  const wordColor = (i: number, fallback: string) => (i === keyWord ? hi : fallback);
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
       <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: vox ? "8%" : "6%", right: vox ? "14%" : "6%", textAlign: vox ? "left" : "center", ...pageStyle }}>
         <span
           style={{
-            display: "inline-block", fontFamily, fontWeight: 700, fontSize: l.fontSize, lineHeight: vox ? 1.35 : 1.2, whiteSpace: "pre-wrap",
+            display: "inline-block", fontFamily, fontWeight: outlineWeight(style.font) === 400 ? 400 : 700, fontSize: l.fontSize, lineHeight: vox ? 1.35 : 1.2, whiteSpace: "pre-wrap",
             textTransform: style.captions.uppercase ? "uppercase" : "none",
             padding: "10px 18px", borderRadius: 16, backgroundColor: style.captions.box ? "rgba(0,0,0,0.42)" : "transparent",
             textShadow: style.captions.box || outline ? "none" : "0 2px 14px rgba(0,0,0,0.8)",
@@ -242,7 +246,7 @@ export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; sty
             if (spec.mark === "marker") {
               // Vox: a highlighter bar grows under the word as it is said and stays.
               return (
-                <span key={`${t.fromMs}-${i}`} style={{ position: "relative", color: "#fff", zIndex: 1 }}>
+                <span key={`${t.fromMs}-${i}`} style={{ position: "relative", color: wordColor(i, "#fff"), zIndex: 1 }}>
                   <span style={{ position: "absolute", left: 0, bottom: "8%", height: "38%", width: `${sweep * 100}%`, background: hi, opacity: 0.85, zIndex: -1, borderRadius: 4 }} />
                   {text}
                 </span>
@@ -250,7 +254,7 @@ export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; sty
             }
             if (spec.mark === "box") {
               return (
-                <span key={`${t.fromMs}-${i}`} style={{ display: "inline-block", color: "#fff", padding: "0 0.18em", margin: "0 0.1em", borderRadius: Math.round(l.fontSize * 0.18), backgroundColor: active ? hi : "transparent", transform: active ? "scale(1.06)" : "scale(1)" }}>
+                <span key={`${t.fromMs}-${i}`} style={{ display: "inline-block", color: i === keyWord && !active ? hi : "#fff", padding: "0 0.18em", margin: "0 0.1em", borderRadius: Math.round(l.fontSize * 0.18), backgroundColor: active ? hi : "transparent", transform: active ? "scale(1.06)" : "scale(1)" }}>
                   {t.text.trim()}
                 </span>
               );
@@ -258,7 +262,7 @@ export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; sty
             if (spec.mark === "fill") {
               // Karaoke: a coloured copy of the word, clipped to how much of it has been said, over the white one.
               return (
-                <span key={`${t.fromMs}-${i}`} style={{ position: "relative", display: "inline-block", color: "#fff", whiteSpace: "pre" }}>
+                <span key={`${t.fromMs}-${i}`} style={{ position: "relative", display: "inline-block", color: wordColor(i, "#fff"), whiteSpace: "pre" }}>
                   {text}
                   <span aria-hidden style={{ position: "absolute", left: 0, top: 0, width: `${sweep * 100}%`, overflow: "hidden", whiteSpace: "pre", color: hi }}>{text}</span>
                 </span>
@@ -266,15 +270,15 @@ export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; sty
             }
             if (spec.mark === "colour") {
               return (
-                <span key={`${t.fromMs}-${i}`} style={{ display: "inline-block", color: active ? hi : "#fff", transform: active ? "scale(1.12)" : "scale(1)" }}>
+                <span key={`${t.fromMs}-${i}`} style={{ display: "inline-block", color: active ? hi : wordColor(i, "#fff"), transform: active ? "scale(1.12)" : "scale(1)" }}>
                   {text}
                 </span>
               );
             }
             if (spec.mark === "bright") {
-              return <span key={`${t.fromMs}-${i}`} style={{ color: active ? "#fff" : "rgba(255,255,255,0.72)" }}>{text}</span>;
+              return <span key={`${t.fromMs}-${i}`} style={{ color: wordColor(i, active ? "#fff" : "rgba(255,255,255,0.72)") }}>{text}</span>;
             }
-            return <span key={`${t.fromMs}-${i}`} style={{ color: "#fff" }}>{text}</span>;
+            return <span key={`${t.fromMs}-${i}`} style={{ color: wordColor(i, "#fff") }}>{text}</span>;
           })}
         </span>
       </div>
@@ -313,7 +317,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
@@ -429,13 +433,13 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         // premountFor: the line's image is drawn before it is due. Without it the Player paused about 170 ms
         // the moment a line came on ("sliced to order" at 8.9 s, 2026-11-12): a visible hitch in picture and sound.
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} premountFor={PREMOUNT_FRAMES} name={`text · ${presetOf(t).label}`}>
-          <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} />
+          <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} accent={style.accent} />
         </Sequence>
       ))}
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
-          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} />
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis ?? edl.emphasis} />
         </Sequence>
       ))}
       {card && (

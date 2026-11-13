@@ -235,12 +235,12 @@ export function drawTextLayer(ctx: Ctx, preset: TextPreset, layout: TextLayout):
   ctx.restore();
 }
 
-export type RenderArgs = { presetId: TextPreset["id"]; text: string; slot?: TextSlot | null; width: number; height: number; /** the video's font (its Style); the preset's own when absent */ font?: FontId | null; /** the video's text background (its Style): "outline" or the clean shadow */ textBox?: string | null };
+export type RenderArgs = { presetId: TextPreset["id"]; text: string; slot?: TextSlot | null; width: number; height: number; /** the video's font (its Style); the preset's own when absent */ font?: FontId | null; /** the video's text background (its Style): "outline", the clean shadow, or a dark, light or brand-coloured box */ textBox?: string | null; /** the brand colour, for the "accent" background */ accent?: string | null };
 export type RenderedText = { url: string; width: number; height: number; layout: TextLayout };
 
 const cache = new Map<string, Promise<RenderedText>>();
 const CACHE_MAX = 48;
-export const renderKey = (a: RenderArgs): string => JSON.stringify([a.presetId, a.text, a.slot ?? null, a.width, a.height, a.font ?? null, a.textBox ?? null]);
+export const renderKey = (a: RenderArgs): string => JSON.stringify([a.presetId, a.text, a.slot ?? null, a.width, a.height, a.font ?? null, a.textBox ?? null, a.textBox === "accent" ? a.accent ?? null : null]);
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 /** Text widths from a shared 2D context, for live fit checks in the UI. Null where there is no canvas. */
@@ -265,7 +265,7 @@ export function renderTextLayer(a: RenderArgs): Promise<RenderedText> {
   const hit = cache.get(key);
   if (hit) return hit;
   const p = (async () => {
-    const preset = presetInStyle(TEXT_PRESETS[a.presetId], a.font, a.textBox);
+    const preset = presetInStyle(TEXT_PRESETS[a.presetId], a.font, a.textBox, a.accent);
     await ensureTextFonts(presetFonts(preset));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(a.width)); canvas.height = Math.max(1, Math.round(a.height));

@@ -17,13 +17,20 @@ const MAX_VIDEO_BPS = 8_000_000;
 /** Below this the picture would fall apart; such a clip is too long to send. */
 const MIN_VIDEO_BPS = 700_000;
 
+/**
+ * iPhones record HEVC by default; Chrome and Edge on most computers cannot decode it, so a clip left as it is
+ * previews black and renders black for other people on the account. A clip this browser can read is
+ * converted to H.264 on the device before it uploads (it is being re-encoded anyway over 45 MB).
+ */
+export const needsTranscode = (codec: string | null | undefined): boolean => /^(hevc|hvc1|hev1|h265)/i.test(codec ?? "");
+
 export type ShrinkPlan = { needed: false } | { needed: true; possible: false } | { needed: true; possible: true; videoBps: number; width: number; height: number };
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
 
 /** Whether a clip must shrink, and to what: the long side at most 1920, a bitrate that fits the limit. Pure. */
-export function shrinkPlan(bytes: number, durationSec: number, width: number | null, height: number | null): ShrinkPlan {
-  if (bytes <= SHRINK_ABOVE) return { needed: false };
+export function shrinkPlan(bytes: number, durationSec: number, width: number | null, height: number | null, force = false): ShrinkPlan {
+  if (bytes <= SHRINK_ABOVE && !force) return { needed: false };
   const sec = Math.max(1, durationSec);
   const videoBps = Math.min(MAX_VIDEO_BPS, Math.floor((TARGET_BYTES * 8) / sec - AUDIO_BPS));
   if (videoBps < MIN_VIDEO_BPS) return { needed: true, possible: false };
@@ -60,8 +67,8 @@ async function encode(file: File, width: number, height: number, videoBps: numbe
  * (a 25 s 4K clip asked for 8 Mbps came out at 16), so a result over the mark
  * is made once more at a bitrate scaled to fit.
  */
-export async function shrinkForUpload(file: File, probe: { durationSec: number; width: number | null; height: number | null }, onProgress?: (ratio: number) => void): Promise<File | null> {
-  const plan = shrinkPlan(file.size, probe.durationSec, probe.width, probe.height);
+export async function shrinkForUpload(file: File, probe: { durationSec: number; width: number | null; height: number | null }, onProgress?: (ratio: number) => void, force = false): Promise<File | null> {
+  const plan = shrinkPlan(file.size, probe.durationSec, probe.width, probe.height, force);
   if (!plan.needed) return file;
   if (!plan.possible) return null;
   try {

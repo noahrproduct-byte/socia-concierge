@@ -9,6 +9,7 @@ import { cleanSounds } from "@/lib/studioClips/cleanSound";
 import { OUTPUT, type BuildPlayerData, type BuildSource } from "@/lib/studioClips/types";
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
+import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
 
 /** Why this browser can't render, or null when it can. */
 export async function renderBlocker(width: number, height: number): Promise<string | null> {
@@ -43,6 +44,7 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
       videoBitrate: "high",
       pageResponsiveness: "medium",
       signal: opts.signal,
+      licenseKey: remotionLicenseKey(),
       onProgress: ({ progress }) => opts.onProgress?.(progress),
     });
     return getBlob();

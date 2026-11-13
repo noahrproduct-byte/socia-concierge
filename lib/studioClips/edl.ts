@@ -48,7 +48,7 @@ export type RawEdl = {
   /** One of ASPECTS; anything else falls back to vertical. */
   width?: number;
   height?: number;
-  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string; voiceTail?: number; punches?: number[] }[];
+  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number; path?: unknown } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string; voiceTail?: number; punches?: number[] }[];
   style?: unknown;
   text?: { at: number; end?: number; text: string; role?: string; presetId?: string; slot?: string; shortened?: boolean }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];

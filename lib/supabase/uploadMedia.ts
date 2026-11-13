@@ -16,7 +16,11 @@ export async function uploadMedia(
   file: File,
   /** Optional: bytes sent so far, for a progress bar. Called per chunk. */
   onProgress?: (sent: number, total: number) => void,
+  /** Optional: aborting it stops the upload between chunks (the caller's Cancel). */
+  signal?: AbortSignal,
 ): Promise<void> {
+  const aborted = () => { const e = new Error("Upload cancelled."); e.name = "AbortError"; return e; };
+  if (signal?.aborted) throw aborted();
   // Optional client-side guard: when NEXT_PUBLIC_MAX_UPLOAD_MB is set to match
   // the project's Supabase Storage limit, an oversized file fails instantly with
   // actionable guidance instead of waiting for a 413 from storage. Unset (the
@@ -28,6 +32,7 @@ export async function uploadMedia(
   const contentType = file.type || "application/octet-stream";
   if (file.size <= CHUNK) {
     const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: false, contentType });
+    if (signal?.aborted) throw aborted();
     if (error) throw new Error(`Upload failed: ${error.message}`);
     onProgress?.(file.size, file.size);
     return;
@@ -62,11 +67,14 @@ export async function uploadMedia(
   let offset = 0;
   let attempts = 0;
   while (offset < file.size) {
+    if (signal?.aborted) throw aborted();
     const res = await fetch(location, {
       method: "PATCH",
       headers: { ...auth, "upload-offset": String(offset), "content-type": "application/offset+octet-stream" },
       body: file.slice(offset, offset + CHUNK),
+      signal,
     }).catch(() => null);
+    if (signal?.aborted) throw aborted();
 
     if (res?.ok) {
       offset = Number(res.headers.get("upload-offset") ?? offset + CHUNK);

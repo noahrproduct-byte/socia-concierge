@@ -25,7 +25,7 @@ import TextLayersPanel from "./TextLayersPanel";
 import { useSafeZoneGuide } from "./TextOverlay";
 import Timeline, { editorKey, type TimelineSelection } from "./Timeline";
 import { reorder, tracksFor, trimCut } from "@/lib/studioClips/tracks";
-import { cleanSounds } from "@/lib/studioClips/cleanSound";
+import { cleanSounds, releaseCleanSounds } from "@/lib/studioClips/cleanSound";
 import EndCardPanel from "./EndCardPanel";
 import { timeline } from "@/lib/studioClips/timeline";
 import { speechShare, speechSpans } from "@/lib/studioClips/musicDuck";
@@ -42,6 +42,8 @@ import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { emphasisLabels, pickEmphasis } from "@/lib/studioClips/emphasis";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { bestMomentFor } from "@/lib/studioClips/rank";
+import { readLocalDraft, writeLocalDraft, clearLocalDraft, SOURCE_REFRESH_MS } from "@/lib/studioClips/localDraft";
+import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
 import "@/app/(app)/studio/studio.css";
 import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
@@ -137,18 +139,47 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const player = useRef<PlayerRef>(null);
   const abort = useRef<AbortController | null>(null);
 
+  // When the clips' links were signed (they last an hour: lib/studioClips/storage.ts); refreshed before they run out.
+  const signedAt = useRef(Date.now());
+  const [loadTry, setLoadTry] = useState(0);
+  // An edit left unsaved when the page closed (lib/studioClips/localDraft.ts), offered back once.
+  const [localDraft, setLocalDraft] = useState<Edl | null>(null);
   useEffect(() => {
     if (fixture) return;
     let alive = true;
+    setLoadErr(null);
     (async () => {
-      const res = await fetch(`/api/studio/builds/${buildId}`);
-      const j = await res.json().catch(() => null);
+      const res = await fetch(`/api/studio/builds/${buildId}`).catch(() => null);
+      const j = res ? await res.json().catch(() => null) : null;
       if (!alive) return;
+      if (!res) { setLoadErr("Couldn't reach SOCIA. Check your connection and try again."); return; }
       if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setLoadErr(j?.error ?? "Couldn't load this build."); return; }
+      signedAt.current = Date.now();
       setData(j); setEdl(j.build.edl);
+      const kept = readLocalDraft(buildId, j.build.edl);
+      if (kept) setLocalDraft(kept);
     })();
-    return () => { alive = false; abort.current?.abort(); };
+    return () => { alive = false; };
+  }, [buildId, fixture, loadTry]);
+  useEffect(() => () => { abort.current?.abort(); releaseCleanSounds(); }, []);
+
+  /** The clips' links signed again (the same cut, fresh URLs), so a long session never plays or renders an expired link. */
+  const refreshSources = useCallback(async (): Promise<boolean> => {
+    if (fixture) return true;
+    const res = await fetch(`/api/studio/builds/${buildId}`).catch(() => null);
+    const j = res?.ok ? ((await res.json().catch(() => null)) as BuildPlayerData | null) : null;
+    if (!j) return false;
+    signedAt.current = Date.now();
+    setData((d) => (d ? { ...d, sources: j.sources, music: j.music, voice: j.voice } : j));
+    if (j.music) setTrackUrls((u) => ({ ...u, ...j.music }));
+    if (j.voice) setVoiceUrls((u) => ({ ...u, ...j.voice }));
+    return true;
   }, [buildId, fixture]);
+  useEffect(() => {
+    if (fixture) return;
+    const t = setInterval(() => { if (Date.now() - signedAt.current > SOURCE_REFRESH_MS) void refreshSources(); }, 60_000);
+    return () => clearInterval(t);
+  }, [fixture, refreshSources]);
 
   useEffect(() => { if (data?.presets) setPresets(data.presets); }, [data?.presets]);
 
@@ -260,6 +291,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   };
   const sources = useMemo(() => Object.fromEntries((data?.sources ?? []).map((s) => [s.clipId, s])) as Record<string, BuildSource>, [data]);
   const tl = useMemo(() => (edl ? timeline(edl) : null), [edl]);
+  const tlRef = useRef(tl);
+  tlRef.current = tl;
   // How much of the cut has speech, from the transcript's own word timings (the music panel offers ducking only when there is some).
   const speechPct = useMemo(() => {
     if (!edl || !tl) return 0;
@@ -333,12 +366,28 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const missing = useMemo(() => (edl ? edl.segments.filter((s) => !sources[s.clipId]).length : 0), [edl, sources]);
 
   // ------------------------------------------------------------ editing ----
+  // The history is a stack of whole cuts. edlRef is set here as well as in the effect above, so two
+  // commits in one event (a swap, then a note) each push the cut as it was.
+  const HISTORY = 40;
   const commit = useCallback((next: Edl) => {
-    setEdl((cur) => { if (cur) setPast((p) => [...p.slice(-30), cur]); return next; });
+    const cur = edlRef.current;
+    if (cur) setPast((p) => [...p.slice(-(HISTORY - 1)), cur]);
+    edlRef.current = next;
+    setEdl(next);
     setFuture([]); setDirty(true); setSaveErr(null);
   }, []);
-  const undo = () => setPast((p) => { const prev = p[p.length - 1]; if (!prev || !edl) return p; setFuture((f) => [edl, ...f]); setEdl(prev); setDirty(true); return p.slice(0, -1); });
-  const redo = () => setFuture((f) => { const next = f[0]; if (!next || !edl) return f; setPast((p) => [...p, edl]); setEdl(next); setDirty(true); return f.slice(1); });
+  const undo = () => {
+    const cur = edlRef.current, prev = past[past.length - 1];
+    if (!prev || !cur) return;
+    setPast((p) => p.slice(0, -1)); setFuture((f) => [cur, ...f]);
+    edlRef.current = prev; setEdl(prev); setDirty(true);
+  };
+  const redo = () => {
+    const cur = edlRef.current, next = future[0];
+    if (!next || !cur) return;
+    setFuture((f) => f.slice(1)); setPast((p) => [...p.slice(-(HISTORY - 1)), cur]);
+    edlRef.current = next; setEdl(next); setDirty(true);
+  };
 
   const move = (i: number, dir: -1 | 1) => { if (!edl) return; const j = i + dir; if (j < 0 || j >= edl.segments.length) return; const segs = [...edl.segments]; [segs[i], segs[j]] = [segs[j], segs[i]]; commit({ ...edl, segments: segs }); };
   const remove = (i: number) => { if (!edl || edl.segments.length <= 1) return; commit({ ...edl, segments: edl.segments.filter((_, k) => k !== i) }); };
@@ -381,7 +430,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   };
 
   // Reframe: a drag is one undo step (history pushed when it starts), applied live while it moves.
-  const beginLive = () => { if (edl) { setPast((p) => [...p.slice(-49), edl]); setFuture([]); } };
+  const beginLive = () => { if (edl) { setPast((p) => [...p.slice(-(HISTORY - 1)), edl]); setFuture([]); } };
   const setFrame = (i: number, patch: Partial<{ zoom: number; x: number; y: number }>) => {
     if (!edl) return;
     setEdl({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, frame: { zoom: 1, x: 0.5, y: 0.5, ...x.frame, ...patch } } : x)) });
@@ -410,29 +459,59 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const setTransition = (i: number, t: TransitionKind) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, transition: t === "cut" ? undefined : t } : x)) }); };
   const toggleMute = (i: number) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: (x.volume ?? 1) === 0 ? 1 : 0 } : x)) }); };
 
-  const save = async (next?: Edl) => {
-    const body = next ?? edl;
-    if (!body || fixture) { setDirty(false); return; }
+  /** Save the cut. Returns the cut as the server kept it (re-snapped), or null when it couldn't be saved. */
+  const save = async (next?: Edl): Promise<Edl | null> => {
+    const body = next ?? edlRef.current;
+    if (!body) return null;
+    if (fixture) { setDirty(false); clearLocalDraft(buildId); return body; }
     setSaving(true); setSaveErr(null);
-    const res = await fetch(`/api/studio/builds/${buildId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: body }) });
-    const j = await res.json().catch(() => null);
-    setSaving(false);
-    if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setSaveErr(j?.error ?? "Couldn't save."); return; }
-    const b = j as StudioBuild;
-    setData((d) => (d ? { ...d, build: b } : d)); setEdl(b.edl); setDirty(false);
+    try {
+      const res = await fetch(`/api/studio/builds/${buildId}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edl: body }) }).catch(() => null);
+      const j = res ? await res.json().catch(() => null) : null;
+      if (!res) { setSaveErr("Couldn't save: SOCIA couldn't be reached. Your edit is still here; check your connection and save again."); return null; }
+      if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setSaveErr(`Couldn't save: ${j?.error ?? "the server refused it"}. Your edit is still here; try again.`); return null; }
+      const b = j as StudioBuild;
+      // Edits made while the save was in flight are kept: only an unchanged cut takes the server's re-snapped copy.
+      const unchanged = edlRef.current === body;
+      setData((d) => (d ? { ...d, build: b } : d));
+      if (unchanged) { edlRef.current = b.edl; setEdl(b.edl); setDirty(false); clearLocalDraft(buildId); }
+      return b.edl;
+    } finally {
+      setSaving(false);
+    }
   };
 
   const regenerate = async (directive: RegenerateDirective, style?: EditStyleId) => {
     if (!edl || fixture) return;
     setRegen(directive); setRegenErr(null);
-    const res = await fetch(`/api/studio/builds/${buildId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ directive, style }) });
-    const j = await res.json().catch(() => null);
-    setRegen(null);
-    if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setRegenErr(j?.error ?? "Couldn't regenerate."); return; }
-    const b = j as StudioBuild;
-    setPast((p) => [...p.slice(-30), edl]); setFuture([]);
-    setData((d) => (d ? { ...d, build: b } : d)); setEdl(b.edl); setDirty(false);
+    try {
+      const res = await fetch(`/api/studio/builds/${buildId}/regenerate`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ directive, style }) }).catch(() => null);
+      const j = res ? await res.json().catch(() => null) : null;
+      if (!res) { setRegenErr("SOCIA couldn't be reached. Check your connection and try again; the current cut is unchanged."); return; }
+      if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setRegenErr(j?.error ?? "Couldn't regenerate. The current cut is unchanged."); return; }
+      const b = j as StudioBuild;
+      commit(b.edl);
+      setData((d) => (d ? { ...d, build: b } : d)); setDirty(false);
+    } finally {
+      setRegen(null);
+    }
   };
+
+  // Unsaved edits are mirrored to this browser (lib/studioClips/localDraft.ts) and the page warns before it
+  // closes, so a reload or a closed tab never loses work; an export in progress warns too.
+  useEffect(() => {
+    if (fixture) return;
+    if (dirty && edl) writeLocalDraft(buildId, edl);
+  }, [dirty, edl, buildId, fixture]);
+  const exporting = exp.phase !== "idle" && exp.phase !== "done" && exp.phase !== "error" && exp.phase !== "review";
+  useEffect(() => {
+    if (!dirty && !exporting) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, exporting]);
+  const takeLocalDraft = () => { if (localDraft) { commit(localDraft); setLocalDraft(null); } };
+  const dropLocalDraft = () => { clearLocalDraft(buildId); setLocalDraft(null); };
 
   // ------------------------------------------------------------- export ----
   // A render that still has a fault after the second try waits here for the person (Save it anyway, or back to the edit).
@@ -449,10 +528,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       return;
     }
     setExp({ phase: "uploading", progress: 0, message: null, postId: null, report });
+    const signal = abort.current?.signal;
     try {
-      await uploadMedia(supabase, "scheduled-media", path, new File([blob], "video.mp4", { type: "video/mp4" }), (sent, total) => setExp((e) => (e.phase === "uploading" ? { ...e, progress: total ? sent / total : 0 } : e)));
+      await uploadMedia(supabase, "scheduled-media", path, new File([blob], "video.mp4", { type: "video/mp4" }), (sent, total) => setExp((e) => (e.phase === "uploading" ? { ...e, progress: total ? sent / total : 0 } : e)), signal);
       setExp((e) => ({ ...e, phase: "saving", progress: 1 }));
-      const d = await fetch(`/api/studio/builds/${buildId}/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, durationSec: tl.durationSec, caption: edl.caption }) });
+      const d = await fetch(`/api/studio/builds/${buildId}/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, durationSec: tl.durationSec, caption: edl.caption }), signal });
       const dj = await d.json().catch(() => null);
       if (!d.ok) throw new Error(dj?.error ?? "Couldn't save the draft.");
       setExp({ phase: "done", progress: 1, message: null, postId: dj.postId, report });
@@ -466,7 +546,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const giveBack = (path: string | null) => (path && !fixture ? fetch(`/api/studio/builds/${buildId}/export`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) }).catch(() => null) : Promise.resolve(null));
   const failExport = (e: unknown) => {
     if ((e as Error)?.name === "AbortError") { setExp({ phase: "idle", progress: 0, message: null, postId: null }); return; }
-    setExp({ phase: "error", progress: 0, message: (e as Error)?.message?.replace(/^Upload failed: /, "") ?? "Something went wrong.", postId: null });
+    setExp({ phase: "error", progress: 0, message: (e as Error)?.message?.replace(/^Upload failed: /, "") || "The video couldn't be made this time. Your edit is saved; try again, and if it keeps failing open SOCIA in Chrome or Edge on a computer.", postId: null });
   };
 
   const exportVideo = async () => {
@@ -483,25 +563,36 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         setExp({ phase: "error", progress: 0, message: `This browser can't render video: ${why || "WebCodecs is unavailable."} Open SOCIA in Chrome or Edge on a computer to make the video; your edit is saved and opens there as it is.`, postId: null });
         return;
       }
-      if (dirty && !fixture) await save();
+      // What renders is the cut as saved: the server re-snaps cuts to words and pauses, so the file, the
+      // saved edit and the preview after a reload are one and the same.
+      let toRender: Edl = edl;
+      if (dirty && !fixture) {
+        const saved = await save();
+        if (!saved) { setExp({ phase: "error", progress: 0, message: "The edit couldn't be saved, so the video wasn't made. Save it first, then try again.", postId: null }); return; }
+        toRender = saved;
+      }
+      // Links signed over 50 minutes ago are signed again first (they last an hour).
+      if (!fixture && Date.now() - signedAt.current > SOURCE_REFRESH_MS && !(await refreshSources())) { setExp({ phase: "error", progress: 0, message: "Couldn't refresh the clips' links. Check your connection and try again.", postId: null }); return; }
       if (!fixture) {
-        const res = await fetch(`/api/studio/builds/${buildId}/export`, { method: "POST" });
-        const j = await res.json().catch(() => null);
-        if (!res.ok) { if (isPlanError(j)) setPlanError(j); setExp({ phase: "error", progress: 0, message: isPlanError(j) ? null : (j?.error ?? "Couldn't start the export."), postId: null }); return; }
+        const res = await fetch(`/api/studio/builds/${buildId}/export`, { method: "POST" }).catch(() => null);
+        const j = res ? await res.json().catch(() => null) : null;
+        if (!res?.ok) { if (isPlanError(j)) setPlanError(j); setExp({ phase: "error", progress: 0, message: isPlanError(j) ? null : (j?.error ?? "Couldn't start the export: SOCIA couldn't be reached."), postId: null }); return; }
         path = j.path as string;
       }
+      const renderTl = timeline(toRender);
       // The export waits for the cleaned sound, so the video sounds like the preview.
       const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
-      const props = { edl, sources, captionsOn, musicUrl, voiceUrls, cleanAudio: cleaned };
+      const props = { edl: toRender, sources, captionsOn: Boolean(toRender.captions), musicUrl, voiceUrls, cleanAudio: cleaned };
       const render = async (message: string | null) => {
         setExp({ phase: "rendering", progress: 0, message, postId: null });
         const { getBlob } = await renderMediaOnWeb({
-          composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },
+          composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: renderTl.durationFrames, fps: OUTPUT.fps, width: toRender.width, height: toRender.height, defaultProps: props, calculateMetadata: null },
           inputProps: props,
           container: "mp4",
           videoBitrate: quality,
           pageResponsiveness: "medium",
           signal: ctrl.signal,
+          licenseKey: remotionLicenseKey(),
           onProgress: ({ progress }) => setExp((e) => (e.phase === "rendering" ? { ...e, progress } : e)),
         });
         return getBlob();
@@ -510,7 +601,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       const expect = { sound: Boolean(musicUrl) || anySpeech || voiceOn, music: Boolean(musicUrl) };
       const inspect = async (b: Blob, message: string | null) => {
         setExp({ phase: "inspecting", progress: 1, message, postId: null });
-        return inspectRender(b, edl, expect, ctrl.signal);
+        return inspectRender(b, toRender, expect, ctrl.signal);
       };
       let blob = await render(null);
       let report = await inspect(blob, null);
@@ -549,6 +640,15 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [sel, setSel] = useState<TimelineSelection>(null);
   // The playhead in output seconds (from the timeline, ten times a second): the Cut tab follows it when nothing is selected.
   const [playSec, setPlaySec] = useState(0);
+  // Ten reads a second from the timeline, but the state (and so this whole tree) changes only when the
+  // playhead enters another cut.
+  const playCut = useRef(-1);
+  const onPlayTime = useCallback((sec: number) => {
+    const segs = tlRef.current?.segments ?? [];
+    let i = segs.findIndex((x) => sec >= x.startSec && sec < x.startSec + x.durationFrames / OUTPUT.fps);
+    if (i < 0) i = segs.length - 1;
+    if (i !== playCut.current) { playCut.current = i; setPlaySec(sec); }
+  }, []);
   const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text") setPanel("text"); else if (next?.kind === "cut") setPanel("cut"); };
   const trimBase = useRef<Edl | null>(null);
   const cutStart = () => { trimBase.current = edl; beginLive(); };
@@ -602,9 +702,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const playerProps = useMemo(() => ({ edl: edl!, sources, captionsOn, finishOn: compare === "after", musicUrl, voiceUrls, cleanAudio, safeZoneGuide: guide }), [edl, sources, captionsOn, compare, musicUrl, voiceUrls, cleanAudio, guide]);
+
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;
-  if (loadErr) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Couldn&apos;t open the video builder</b><p>{loadErr}</p></div></div></div>;
+  if (loadErr) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Couldn&apos;t open the video editor</b><p>{loadErr}</p><button type="button" className="ov-btn ghost small" onClick={() => setLoadTry((n) => n + 1)}><RefreshCw size={12} /> Try again</button></div></div></div>;
   if (!data || !edl || !tl) return <div className="cbb"><div className="ov-card st-progress"><ul><li className="on"><i />Loading the cut and your clips</li></ul></div></div>;
 
   const busy = Boolean(regen) || saving || (exp.phase !== "idle" && exp.phase !== "done" && exp.phase !== "error");
@@ -621,7 +723,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
           )}
         </div>
       </div>
-      {saveErr && <p className="cbb-err" role="alert"><AlertTriangle size={13} aria-hidden /> {saveErr}</p>}
+      {saveErr && <p className="cbb-err" role="alert"><AlertTriangle size={13} aria-hidden /> {saveErr} <button type="button" className="sd-check-go" onClick={() => void save()}>Save again</button></p>}
+      {localDraft && (
+        <p className="cbb-err sd-draft" role="status"><Info size={13} aria-hidden /> An edit of this video was left unsaved in this browser. <button type="button" className="sd-check-go" onClick={takeLocalDraft}>Bring it back</button> <button type="button" className="sd-check-go" onClick={dropLocalDraft}>Discard it</button></p>
+      )}
 
       <div className="cbb-grid">
         <div className="cbb-player-col">
@@ -630,7 +735,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <Player
                 ref={player}
                 component={ClipComposition}
-                inputProps={{ edl, sources, captionsOn, finishOn: compare === "after", musicUrl, voiceUrls, cleanAudio, safeZoneGuide: guide }}
+                inputProps={playerProps}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={edl.width}
@@ -685,7 +790,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 </div>
               )}
               {guideAvailable && <label className="cbb-guide"><input type="checkbox" checked={guide} onChange={(e) => setGuide(e.target.checked)} /> Show the text safe zone</label>}
-              {missing > 0 && <span className="cb-stale"><AlertTriangle size={12} /> {missing} cut{missing === 1 ? "" : "s"} point{missing === 1 ? "s" : ""} at footage that expired — replace or remove {missing === 1 ? "it" : "them"}.</span>}
+              {missing > 0 && <span className="cb-stale"><AlertTriangle size={12} /> {missing} cut{missing === 1 ? "" : "s"} point{missing === 1 ? "s" : ""} at footage that expired. Replace or remove {missing === 1 ? "it" : "them"}.</span>}
             </div>
           </div>
 
@@ -1033,6 +1138,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 onChange={(text) => commit({ ...edl, text })}
                 durationSec={tl.durationSec}
                 frame={{ width: edl.width, height: edl.height }}
+                style={st}
                 canEdit={data.canEdit}
                 busy={busy}
                 playhead={() => at()?.sec ?? null}
@@ -1086,7 +1192,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             canEdit={data.canEdit && !busy}
             selected={sel}
             onSelect={select}
-            onTime={setPlaySec}
+            onTime={onPlayTime}
             onTextStart={beginLive}
             onTextLive={(i, at, end) => { setEdl((cur) => (cur ? { ...cur, text: cur.text.map((t, k) => (k === i ? { ...t, at, end } : t)) } : cur)); setDirty(true); }}
             onCutStart={cutStart}

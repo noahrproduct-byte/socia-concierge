@@ -32,6 +32,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       frames: body.frames.filter((f) => typeof f?.t === "number").map((f) => ({ t: Number(f.t), path: String(f.path) })).slice(0, MAX_KEYFRAMES),
       audioPath: typeof body.audioPath === "string" ? body.audioPath : null,
       facts: (body.facts as ClipFacts | undefined) ?? null,
+      bytes: typeof body.bytes === "number" && Number.isFinite(body.bytes) ? body.bytes : null,
+      mime: typeof body.mime === "string" ? body.mime.slice(0, 64) : null,
     });
     if (!clip) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     return NextResponse.json(clip);
