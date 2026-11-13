@@ -159,11 +159,20 @@ export function gateEnhancements(raw: NonNullable<RawEdl["enhance"]>, clips: Cli
 }
 
 /** A reframe, bounded; null when it is the default (centred, no zoom). */
-export function cleanFrame(f: { zoom?: number; x?: number; y?: number } | null | undefined): SegmentFrame | null {
+export function cleanFrame(f: { zoom?: number; x?: number; y?: number; path?: unknown } | null | undefined): SegmentFrame | null {
   if (!f) return null;
   const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
-  const out = { zoom: r2(num(f.zoom, 1, 3, 1)), x: r2(num(f.x, 0, 1, 0.5)), y: r2(num(f.y, 0, 1, 0.5)) };
-  return out.zoom === 1 && out.x === 0.5 && out.y === 0.5 ? null : out;
+  const out: SegmentFrame = { zoom: r2(num(f.zoom, 1, 3, 1)), x: r2(num(f.x, 0, 1, 0.5)), y: r2(num(f.y, 0, 1, 0.5)) };
+  // A moving reframe (the AI Clipper's path) travels with the cut: each point bounded, in time order, at most 60 of them.
+  if (Array.isArray(f.path)) {
+    const path = f.path
+      .filter((k): k is { t: unknown; c: unknown; y: unknown; s: unknown } => !!k && typeof k === "object")
+      .map((k) => ({ t: r2(num(k.t, 0, 3600, 0)), c: r2(num(k.c, 0, 1, 0.5)), y: r2(num(k.y, 0, 1, 0.5)), s: r2(num(k.s, 1, 3, 1)) }))
+      .sort((a, b) => a.t - b.t)
+      .slice(0, 60);
+    if (path.length) out.path = path;
+  }
+  return out.zoom === 1 && out.x === 0.5 && out.y === 0.5 && !out.path ? null : out;
 }
 
 /** The cut's length: its segments end to end, less the overlap of each transition (lib/studioClips/timeline.ts). */
@@ -298,8 +307,16 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     notes: edited.notes.filter((n) => !/^This cut runs/.test(n)),
   };
   const r = validateEdl(raw, clips);
-  // Captions are derived from speech; an explicit "off" from the person is kept.
+  // Captions are derived from speech; an explicit "off" from the person is kept, and so is an explicit "on"
+  // while any clip in the cut (or the voiceover) has words to show: a person who turned captions on for a
+  // short line or a voiced cut keeps them on every save.
   if (edited.captions === null) r.edl.captions = null;
+  else if (edited.captions && !r.edl.captions) {
+    const voiced = Boolean(edited.voiceover?.on && edited.voiceover.lines.some((l) => l.words?.length));
+    if (voiced || clips.some((c) => c.words?.length && r.edl.segments.some((s) => s.clipId === c.id))) r.edl.captions = { source: "transcript" };
+  }
+  // The house-style genre travels with the cut: its pacing caps still apply after a person's edit.
+  if (isHouseGenre(edited.genre)) r.edl.genre = edited.genre;
   // Measured corrections (Phase C) travel with the cut, for the clips still in it.
   const finish = sanitizeFinish(edited.finish, new Set(r.edl.segments.map((s) => s.clipId)));
   if (finish) r.edl.finish = finish;

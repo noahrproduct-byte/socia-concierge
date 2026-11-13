@@ -124,7 +124,7 @@ export function sanitizeStyle(v: unknown): EdlStyle | undefined {
     accent: isHex(s.accent) ? s.accent.toLowerCase() : DEFAULT_STYLE.accent,
     textBox: pick<TextBox>(s.textBox, ["outline", "dark", "light", "accent", "none"], DEFAULT_STYLE.textBox),
     captions: {
-      position: pick<CaptionPosition>(c.position, ["top", "middle", "bottom"], "bottom"),
+      position: pick<CaptionPosition>(c.position, ["top", "middle", "lower", "bottom"], "bottom"),
       size: pick<CaptionSize>(c.size, ["s", "m", "l"], "m"),
       box: typeof c.box === "boolean" ? c.box : true,
       uppercase: typeof c.uppercase === "boolean" ? c.uppercase : false,

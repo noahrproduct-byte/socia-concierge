@@ -67,7 +67,7 @@ export async function shrinkForUpload(file: File, probe: { durationSec: number; 
   try {
     let bps = plan.videoBps;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const buf = await encode(file, plan.width, plan.height, bps, (p) => onProgress?.(attempt ? 0.5 + p / 2 : p / (2 - 1)));
+      const buf = await encode(file, plan.width, plan.height, bps, (p) => onProgress?.(attempt ? 0.5 + p / 2 : p / 2));
       if (!buf) return null;
       if (buf.byteLength <= SHRINK_ABOVE) return new File([buf], file.name.replace(/\.[^.]+$/, "") + ".mp4", { type: "video/mp4", lastModified: file.lastModified });
       bps = Math.max(MIN_VIDEO_BPS, Math.floor(bps * (TARGET_BYTES / buf.byteLength) * 0.9));

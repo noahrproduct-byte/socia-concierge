@@ -59,8 +59,16 @@ export function cleanSound(clipId: string, url: string, mode: SoundMode = "clean
     const job = queue.then(() => run(url, n, mode));
     queue = job.catch(() => null);
     cache.set(key, job);
+    // Only a made file is kept: a failure (an expired link, a decode error) is tried again next time it is asked for.
+    job.then((u) => { if (!u && cache.get(key) === job) cache.delete(key); }, () => { if (cache.get(key) === job) cache.delete(key); });
   }
   return cache.get(key)!;
+}
+
+/** Forget every cleaned file made in this tab and release its memory (the editor closing). */
+export function releaseCleanSounds(): void {
+  for (const job of cache.values()) job.then((u) => { if (u) URL.revokeObjectURL(u); }, () => null);
+  cache.clear();
 }
 
 /** Cleaned sound for every clip a cut uses (missing ones are left out: those clips keep their own sound). */
