@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { asHookPair } from "@/lib/textPresets";
 import { EDIT_STYLES, pickStyle, speechShare, styleNote, styleOf, textForStyle, TALKING_SHARE } from "./profiles";
-import { PACING, applyPacing, pacingRules } from "./pacing";
+import { PACING, pacingRules } from "./pacing";
 import { decideJoins } from "./joins";
 import { classifyPauses } from "./speech";
-import type { ClipForEdl } from "./edl";
-import type { Edl, TranscriptWord } from "./types";
+import type { TranscriptWord } from "./types";
 
 const w = (text: string, a: number, b: number): TranscriptWord => ({ text, startMs: a * 1000, endMs: b * 1000, confidence: 1 });
 
@@ -44,14 +43,6 @@ describe("what a style changes", () => {
     expect(pacingRules({ editStyle: "talking" }).speechMaxSec).toBe(15);
     expect(pacingRules({ editStyle: "energetic" }).openerMaxSec).toBe(3);
     expect(styleOf("nonsense").id).toBe("process");
-  });
-  it("lets a calm shot run longer before it is called a drag", () => {
-    const clip: ClipForEdl = { id: "c", position: 0, durationSec: 30, words: null, silences: null, medianLuma: null, warmth: null, brightness: null, contrastLevel: null, rmsDb: null, audioLevel: null, hasSpeech: false };
-    const edl = (editStyle?: Edl["editStyle"]): Edl => ({ version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 5, max: 30 }, text: [], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [], editStyle,
-      segments: [{ id: "s1", clipId: "c", in: 0, out: 3, role: "opener", note: "" }, { id: "s2", clipId: "c", in: 10, out: 16.5, role: "body", note: "" }, { id: "s3", clipId: "c", in: 20, out: 23, role: "ending", note: "" }] });
-    // Straight after the opening, a food cut keeps 3 s of it, its end; a calm cut lets all 6.5 s run.
-    expect([applyPacing(edl(), [clip]).edl.segments[1].in, applyPacing(edl(), [clip]).edl.segments[1].out]).toEqual([13.5, 16.5]);
-    expect([applyPacing(edl("calm"), [clip]).edl.segments[1].in, applyPacing(edl("calm"), [clip]).edl.segments[1].out]).toEqual([10, 16.5]);
   });
   it("joins with hard cuts where the style does, and still dissolves food", () => {
     const segs = [{ clipId: "a", in: 0, out: 3 }, { clipId: "b", in: 0, out: 3 }];

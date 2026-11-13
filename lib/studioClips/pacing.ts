@@ -116,18 +116,11 @@ export function applyPacing(edl: Edl, clips: ClipForEdl[]): { edl: Edl; changes:
     if (outT < s.out - 0.05) { changes.push({ segmentId: s.id, what: `${label} ends at ${outT.toFixed(1)}s, after its last sound, instead of ${s.out.toFixed(1)}s.` }); s.out = outT; }
     // No cut drags.
     const genreCap = edl.genre ? PACING.genreSilentMaxSec[edl.genre] : undefined;
-    const cap = hasSpeech(clip, s) ? Math.max(P.speechMaxSec, genreCap ?? 0) : (genreCap ?? P.silentMaxSec);
+    const cap = hasSpeech(clip, s) ? Math.max(PACING.speechMaxSec, genreCap ?? 0) : (genreCap ?? PACING.silentMaxSec);
     const isOpener = i === 0;
     // A one-take skit IS its opener: the hold before the payoff is the point, so the opener cap doesn't apply.
-    const openerCap = isOpener && !hasSpeech(clip, s) && !genreCap ? Math.min(cap, P.openerMaxSec) : cap;
-    // The silent shot right after the hook keeps the viewer moving: it gives up its start, so the move still lands.
-    const follow = i === 1 && last >= 2 && !hasSpeech(clip, s) && !genreCap;
-    if (follow && s.out - s.in > P.followMaxSec + 0.05) {
-      const target = snapTime(s.out - P.followMaxSec, clip, "in");
-      const inT = target < s.out - MIN && s.out - target <= P.followMaxSec + 0.05 ? target : r2(s.out - P.followMaxSec);
-      changes.push({ segmentId: s.id, what: `${label} starts at ${inT.toFixed(1)}s so the shot after the opening runs ${(s.out - inT).toFixed(1)}s and keeps the pace.` });
-      s.in = inT;
-    } else if (!follow && s.out - s.in > openerCap + 0.05) {
+    const openerCap = isOpener && !hasSpeech(clip, s) && !genreCap ? Math.min(cap, PACING.openerMaxSec) : cap;
+    if (s.out - s.in > openerCap + 0.05) {
       const target = snapTime(s.in + openerCap, clip, "out");
       const out = target > s.in + MIN ? target : r2(s.in + openerCap);
       changes.push({ segmentId: s.id, what: `${label} shortened to ${(out - s.in).toFixed(1)}s so it doesn't drag.` });
@@ -183,17 +176,17 @@ export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number
     const len = first.out - first.in;
     const silentLead = firstClip ? actionStart(firstClip, first.in, first.out) > first.in + 0.05 : false;
     const holdCap = edl.genre ? PACING.genreSilentMaxSec[edl.genre] : undefined;
-    const ok = !silentLead && len >= P.openerMinSec - 0.05 && (hasSpeech(firstClip, first) || len <= (holdCap ?? P.openerMaxSec) + 0.05);
+    const ok = !silentLead && len >= PACING.openerMinSec - 0.05 && (hasSpeech(firstClip, first) || len <= (holdCap ?? PACING.openerMaxSec) + 0.05);
     parts.push({ id: "opener", label: "Strong opening", ok, detail: silentLead ? `The first cut starts ${(actionStart(firstClip!, first.in, first.out) - first.in).toFixed(1)}s before its sound.` : `The first cut runs ${len.toFixed(1)}s${hasSpeech(firstClip, first) ? " with speech" : ""}.` });
   }
   if (segs.length) {
-    const genreCap = edl.genre ? PACING.genreSilentMaxSec[edl.genre] : undefined;
-    // A sports montage runs 0.75–0.9 s a shot (house style); the general floor is the edit style's.
-    const paceFloor = edl.genre ? Math.min(P.averageCutSec[0], HOUSE_PACING[edl.genre].medianShotSec[0]) : P.averageCutSec[0];
-    const ok = avg >= paceFloor - 0.05 && avg <= (genreCap ?? P.averageCutSec[1]) + 0.05;
+    const paceCap = edl.genre ? PACING.genreSilentMaxSec[edl.genre] : undefined;
+    // A sports montage runs 0.75–0.9 s a shot (house style); the general floor is 1 s.
+    const paceFloor = edl.genre ? Math.min(PACING.averageCutSec[0], HOUSE_PACING[edl.genre].medianShotSec[0]) : PACING.averageCutSec[0];
+    const ok = avg >= paceFloor - 0.05 && avg <= (paceCap ?? PACING.averageCutSec[1]) + 0.05;
     parts.push({ id: "pace", label: "Short-form pace", ok, detail: `${segs.length} cut${segs.length === 1 ? "" : "s"} averaging ${avg.toFixed(1)}s.` });
-    const capFor = (s: EdlSegment, i: number) => hasSpeech(byId.get(s.clipId), s) ? Math.max(P.speechMaxSec, genreCap ?? 0) : genreCap ?? (i === 1 && segs.length >= 3 ? Math.min(P.silentMaxSec, P.followMaxSec) : P.silentMaxSec);
-    const dragging = segs.filter((s, i) => s.out - s.in > capFor(s, i) + 0.05);
+    const genreCap = edl.genre ? PACING.genreSilentMaxSec[edl.genre] : undefined;
+    const dragging = segs.filter((s) => s.out - s.in > (hasSpeech(byId.get(s.clipId), s) ? Math.max(PACING.speechMaxSec, genreCap ?? 0) : (genreCap ?? PACING.silentMaxSec)) + 0.05);
     parts.push({ id: "drag", label: "No cut drags", ok: !dragging.length, detail: dragging.length ? `${dragging.map((s) => `${clipLabel(byId.get(s.clipId)?.position ?? 0)} (${(s.out - s.in).toFixed(1)}s)`).join(", ")} run${dragging.length === 1 ? "s" : ""} longer than a viewer waits.` : `The longest cut is ${Math.max(...lens).toFixed(1)}s.` });
     const ending = segs[segs.length - 1];
     const endLen = ending.out - ending.in;

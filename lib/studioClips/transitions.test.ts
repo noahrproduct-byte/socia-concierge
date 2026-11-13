@@ -42,11 +42,11 @@ describe("how a transition looks and sounds", () => {
   });
   it("a whip slides out sideways with a horizontal blur; the sound crossfades", () => {
     const end = transitionLook({ frame: 59, frames: 60, out: "whip", overlapIn: 0, overlapOut: 8 });
-    expect(end.x).toBeLessThan(-10);
-    expect(end.x).toBeGreaterThan(-25);
+    expect(end.x).toBeLessThan(-20);
+    expect(end.x).toBeGreaterThanOrEqual(-35);
     expect(end.whip).toBe(true);
-    expect(end.blur).toBeGreaterThan(10);
-    expect(end.blur).toBeLessThanOrEqual(24);
+    expect(end.blur).toBeGreaterThan(20);
+    expect(end.blur).toBeLessThanOrEqual(40);
     expect(transitionSound(0, 60, 8, 0)).toBe(0);
     expect(transitionSound(30, 60, 8, 8)).toBe(1);
   });

@@ -751,12 +751,12 @@ export async function buildFromBrief(client: Supa, args: {
  * none drags, the ending lands, every line is readable. One note says how
  * many moved; the person's own edits are never paced this way.
  */
-function paced(edl: Edl, forEdl: ClipForEdl[], asked?: string | null): Edl {
+function paced(edl: Edl, forEdl: ClipForEdl[], _asked?: string | null): Edl {
   // House style first (lib/studioClips/houseStyle.ts): the genre's length,
   // transitions, one-take and before/after shape, the ask off screen, the
-  // opening line from 0 s. Then the joins for the edit style, and pacing inside what is left.
+  // opening line from 0 s. Then pacing inside what is left.
   const house = applyHouseStyle(edl, forEdl);
-  const { edl: out, changes } = applyPacing({ ...house.edl, segments: decideJoins(house.edl.segments, forEdl, asked, styleOf(house.edl.editStyle).joins).segments }, forEdl);
+  const { edl: out, changes } = applyPacing(house.edl, forEdl);
   if (house.changes.length) out.notes = [...out.notes, `SOCIA cut this as a ${(house.edl.genre ?? "").replace(/_/g, " ")}: ${house.changes.map((c) => c.what).join(" ")}`];
   if (changes.length) out.notes = [...out.notes, `SOCIA paced the cut: ${changes.length} change${changes.length === 1 ? "" : "s"} so cuts start on the action, nothing drags and every line can be read.`];
   return out;
