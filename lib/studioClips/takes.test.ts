@@ -10,6 +10,8 @@ const c15 = { id: "c15", position: 15, durationSec: 7.5, words: [...w("Come see 
 const c16 = { id: "c16", position: 16, durationSec: 4, words: w("Come see this rug for yourself at Zane Rugs and Furniture.") };
 const c11 = { id: "c11", position: 11, durationSec: 6, words: w("Take it. Fuck, just read it. I'm gonna read it, bro. Okay, all right, go ahead.") };
 const c9 = { id: "c9", position: 9, durationSec: 4, words: w("Look at this beautiful carpet. How much you think this rug costs, huh?") };
+// The long pitch that ends with the same line is its own clip, not a take of the short one.
+const c12 = { id: "c12", position: 12, durationSec: 12.5, words: w("Uh, go. How much would— take a good look, put your guess in the comments before I tell you. It's only $100. Come see it for yourself at Zane Rugs and Furniture.") };
 const broll = { id: "b1", position: 0, durationSec: 3, words: null };
 
 describe("takes", () => {
@@ -18,6 +20,7 @@ describe("takes", () => {
     expect(sameLine(c14, c15)).toBe(true);
     expect(sameLine(c14, c9)).toBe(false);
     expect(sameLine(c14, broll)).toBe(false);
+    expect(sameLine(c14, c12)).toBe(false);
   });
   it("prefers the complete, clean take; marks the broken one and the profane one", () => {
     expect(scoreTake(c14).score).toBeGreaterThan(scoreTake(c15).score);
@@ -26,13 +29,14 @@ describe("takes", () => {
     expect(scoreTake(c11).reasons).toContain("profanity");
   });
   it("groups the four 'come see this rug' takes, keeps one, lists the rest as repeats", () => {
-    const t = findTakes([broll, c9, c11, c13, c14, c15, c16]);
+    const t = findTakes([broll, c9, c11, c12, c13, c14, c15, c16]);
     expect(t.groups).toHaveLength(1);
     const g = t.groups[0];
     expect(g.clipIds.sort()).toEqual(["c13", "c14", "c15", "c16"]);
     expect(["c14", "c16"]).toContain(g.keep);
     expect(t.repeats.has("c15")).toBe(true);
     expect(t.repeats.has("c9")).toBe(false);
+    expect(t.repeats.has("c12")).toBe(false);
     expect(takesNote(t)).toMatch(/cleanest take/);
     expect(takesNote({ groups: [], repeats: new Map() })).toBe("");
   });

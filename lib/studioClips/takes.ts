@@ -22,11 +22,12 @@ const SAME_SHARE = 0.55;
 
 const tokens = (c: TakeClip): string[] => (c.words ?? []).map((w) => norm(w.text)).filter(Boolean);
 
+/** The share of the words the two clips have in common, against the larger of the two: a long pitch that contains a short line is not a take of it. */
 function shared(a: string[], b: string[]): number {
   const sa = new Set(a), sb = new Set(b);
   let hit = 0;
   for (const w of sa) if (sb.has(w)) hit++;
-  return hit / Math.max(1, Math.min(sa.size, sb.size));
+  return hit / Math.max(1, sa.size, sb.size);
 }
 
 /** Whether two clips are takes of the same line. */
