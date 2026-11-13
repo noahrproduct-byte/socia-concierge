@@ -107,7 +107,7 @@ export function transcriptionOverrun(countedSec: number | null | undefined, hear
 }
 
 /** Submit every clip's audio, poll together, store transcripts as they land. */
-async function transcribeClips(client: Supa, provider: TranscriptionProvider, rows: ClipRow[], deadlineAt: number, onProgress: (pending: number, stage: UnderstandStage) => Promise<void>): Promise<void> {
+export async function transcribeClips(client: Supa, provider: TranscriptionProvider, rows: ClipRow[], deadlineAt: number, onProgress: (pending: number, stage: UnderstandStage) => Promise<void>): Promise<void> {
   const urls = await signUrls(client, rows.map((r) => r.audio_path!).filter((p, i) => clipOwnsPath(rows[i], p)));
   const jobs = new Map<string, TranscriptionJob>();
   for (const r of rows) {

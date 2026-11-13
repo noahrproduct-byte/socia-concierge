@@ -564,6 +564,8 @@ export type BuildSource = {
   stable?: Partial<Record<StabilizeStrength, string>>;
   /** when the clip was shot, from the file's own date (a camcorder stamp uses it) */
   recordedAt?: string | null;
+  /** the clip has a sound track (measured at upload); words may still be on their way */
+  hasAudio?: boolean;
 };
 
 export type BuildPlayerData = {

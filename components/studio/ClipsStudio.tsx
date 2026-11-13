@@ -291,6 +291,9 @@ export default function ClipsStudio({ viewerId, modeTabs, variant = "build" }: {
     const fresh = await openProject(p.id, true);
     void loadMeta();
     const usable = Boolean(fresh?.clips.some((c) => c.status === "ready" || c.status === "uploaded"));
+    // The person's own edit: the clips' words are transcribed now (lib/studioClips/job.ts), so captions and the
+    // themes' hooks work in the editor as they do in Build; the editor picks the words up as they land.
+    if ((editing || audio) && fresh && usable) void fetch(`/api/studio/projects/${p.id}/transcribe`, { method: "POST" }).catch(() => null);
     // Audio: the footage opens straight in the editor, on Music. Text from Rate: on Text, with the lines in.
     if (audio && fresh && usable) setAutoAudio(true);
     else if (editing && overlaysRef.current && fresh && usable) setAutoText(true);

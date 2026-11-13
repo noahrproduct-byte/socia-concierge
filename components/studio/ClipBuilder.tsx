@@ -194,6 +194,26 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     const t = setInterval(() => { if (Date.now() - signedAt.current > SOURCE_REFRESH_MS) void refreshSources(); }, 60_000);
     return () => clearInterval(t);
   }, [fixture, refreshSources]);
+  // Clips with sound whose words are still being transcribed (the person's own edit): the sources are read
+  // again every few seconds for up to five minutes; captions come on by themselves once the words are in.
+  const transcribing = useMemo(() => Boolean(data && !fixture && data.sources.some((x) => x.hasAudio && !x.words)), [data, fixture]);
+  const transcribePolls = useRef(0);
+  useEffect(() => {
+    if (!transcribing || transcribePolls.current >= 60) return;
+    const t = setTimeout(async () => { transcribePolls.current += 1; await refreshSources(); }, 5000);
+    return () => clearTimeout(t);
+  }, [transcribing, data, refreshSources]);
+  const hadWords = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!data || fixture) return;
+    const has = data.sources.some((x) => x.words?.length);
+    if (hadWords.current === false && has) {
+      setEdl((cur) => (cur && !cur.captions ? { ...cur, captions: { source: "transcript" } } : cur));
+      setDirty(true);
+      setHereNote("The words are in: captions are on from the transcript.");
+    }
+    hadWords.current = has;
+  }, [data, fixture]);
 
   useEffect(() => { if (data?.presets) setPresets(data.presets); }, [data?.presets]);
 
@@ -1040,6 +1060,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 {autoMusic?.state === "adding" ? <p><Loader2 size={12} className="spin" /> SOCIA is adding a track from your taste (about a minute).</p>
                   : edl.soundtrack ? <p>{edl.musicAuto && autoMusic?.state === "added" ? `SOCIA added “${edl.soundtrack.name}” on its own. Pick another below, change the levels, or take it out.` : `“${edl.soundtrack.name}” plays in this video.`}</p>
                   : <p>{autoMusic?.note ?? "No track in this video yet. Pick one from your playlist below."}</p>}
+                {theme && theme.audio.mood !== "none" && <small className="sd-fx-note">{theme.name} asks for {theme.audio.mood === "lofi" ? "lo-fi" : theme.audio.mood} music; new tracks SOCIA makes for this cut follow that.</small>}
                 {musicAutoOn != null && data.canEdit && (
                   <label className="cbm-auto"><input type="checkbox" checked={musicAutoOn} onChange={(e) => void toggleMusicAuto(e.target.checked)} /> Add a track to new videos on their own</label>
                 )}
@@ -1067,7 +1088,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <div className="ov-card cbb-captions">
                 <div>
                   <b><Captions size={14} /> Captions</b>
-                  <small>{anySpeech ? "From the real transcript, word by word." : voiceOn ? "From the voiceover, word by word as it's read." : "No speech was detected in these clips, so there is nothing to caption."}</small>
+                  <small>{anySpeech ? "From the real transcript, word by word." : voiceOn ? "From the voiceover, word by word as it's read." : transcribing ? "Transcribing the clips' speech; captions come on when the words are in (about a minute)." : "No speech was detected in these clips, so there is nothing to caption."}</small>
                 </div>
                 <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!(anySpeech || voiceOn) || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
               </div>

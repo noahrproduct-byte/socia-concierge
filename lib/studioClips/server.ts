@@ -358,6 +358,7 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
         moments: r.card?.moments ?? [],
         ...(Object.keys(stable).length ? { stable } : {}),
         recordedAt: r.recorded_at,
+        hasAudio: r.facts?.audio?.hasAudio ?? Boolean(r.audio_path),
       };
     });
   const voicePaths = (row.edl?.voiceover?.lines ?? []).map((l) => l.path).filter((p): p is string => Boolean(p) && ownsVoicePath(ownerId, row.project_id, buildId)(p!));
