@@ -15,11 +15,20 @@ import { Audio, Video } from "@remotion/media";
 import { colorCorrection } from "@remotion/effects/color-correction";
 import { zoomBlur } from "@remotion/effects/zoom-blur";
 import { blur } from "@remotion/effects/blur";
+import { vignette } from "@remotion/effects/vignette";
+import { noise } from "@remotion/effects/noise";
+import { chromaticAberration } from "@remotion/effects/chromatic-aberration";
+import { scanlines } from "@remotion/effects/scanlines";
+import { clipSecAt, motionAt, speedPieces, transformCss } from "@/lib/studioClips/motion";
+import { letterboxPx, lookPlan, type LookStep } from "@/lib/studioClips/look";
+import { resolveTheme } from "@/lib/studioClips/themes/apply";
+import type { Theme } from "@/lib/studioClips/themes/schema";
 import { DEFAULT_STYLE, captionLayout, captionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import { familyOf, loadEditorFont } from "@/lib/editorFonts";
 import type { TikTokPage } from "@remotion/captions";
+import type { CaptionAnimation } from "@/lib/studioClips/style";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
 import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
@@ -58,6 +67,8 @@ export type ClipCompositionProps = {
   cleanAudio?: Record<string, string>;
   /** draw the text safe zone over the picture (preview check only; the export never sets it) */
   safeZoneGuide?: boolean;
+  /** the brand mark for a theme with a watermark slot; absent = the slot stays empty */
+  watermarkUrl?: string | null;
 };
 
 /** The soundtrack fades in over 0.2 s and out over the last 0.8 s, so it never starts or stops abruptly. */
@@ -182,37 +193,46 @@ const VOICE_TAIL_FRAMES = 6;
  * the page coming in with the style's motion. Everything is driven by the
  * frame, so the Player and the browser render agree.
  */
-export function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[] }) {
+export function CaptionPage({ page, style, fontFamily, emphasis, theme }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[]; /** the cut's theme, for its type scale, spacing, alignment and pill colour */ theme?: Theme | null }) {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
   const spec = captionStyle(style.captions.preset);
   const base = captionLayout(style.captions);
-  // One word at a time reads at half again the size.
-  const l = spec.maxWords === 1 ? { ...base, fontSize: Math.round(base.fontSize * 1.5) } : base;
+  const ty = theme?.typography;
+  // One word at a time reads at half again the size; a theme scales the type on top.
+  const l = { ...base, fontSize: Math.round(base.fontSize * (spec.maxWords === 1 ? 1.5 : 1) * (ty?.sizeScale ?? 1) * (width / 1080)) };
   const outline = style.textBox === "outline";
   const hi = style.captions.highlight;
-  const vox = spec.id === "vox";
-  // The page's entrance: a spring pop, a short rise, a fade, or nothing.
+  const left = spec.id === "vox" || ty?.align === "left";
+  const animation: CaptionAnimation = style.captions.animation ?? spec.animation;
+  // The page's entrance: a spring pop, a short rise, a fade, a bounce, letters typed in, or nothing.
   const enter = spring({ frame, fps, config: { damping: 14, stiffness: 220, mass: 0.6 }, durationInFrames: 10 });
+  const bounce = spring({ frame, fps, config: { damping: 7, stiffness: 260, mass: 0.7 }, durationInFrames: 14 });
   const pageStyle: React.CSSProperties =
-    spec.animation === "pop" ? { transform: `scale(${interpolate(enter, [0, 1], [0.6, 1])})`, opacity: Math.min(1, frame / 2) }
-    : spec.animation === "rise" ? { transform: `translateY(${interpolate(enter, [0, 1], [18, 0])}px)`, opacity: Math.min(1, frame / 3) }
-    : spec.animation === "fade" ? { opacity: Math.min(1, frame / 4) }
+    animation === "pop" ? { transform: `scale(${interpolate(enter, [0, 1], [0.6, 1])})`, opacity: Math.min(1, frame / 2) }
+    : animation === "rise" ? { transform: `translateY(${interpolate(enter, [0, 1], [18, 0])}px)`, opacity: Math.min(1, frame / 3) }
+    : animation === "fade" ? { opacity: Math.min(1, frame / 4) }
+    : animation === "bounce" ? { transform: `scale(${interpolate(bounce, [0, 1], [0.5, 1])})`, opacity: Math.min(1, frame / 2) }
     : {};
   const stroke = outline && !style.captions.box ? { fontWeight: outlineWeight(style.font), WebkitTextStroke: `${Math.max(9, Math.round(l.fontSize * 0.18))}px #000`, paintOrder: "stroke fill" as const } : {};
   const tokens = page.tokens.filter((t) => t.text.trim());
+  // Typewriter: the page's letters arrive a few a frame; the words before the cursor are shown, the rest held back.
+  const typed = animation === "typewriter" ? Math.floor(frame * 2.5) : Infinity;
+  let seen = 0;
+  const pill = style.captions.box ? (theme ? `${theme.color.captionBg}b8` : "rgba(0,0,0,0.42)") : "transparent";
   // The key word of the line (a marked word, else a number) keeps the highlight colour the whole time the page is up.
   const keyWord = emphasis?.length ? emphasisIndex(tokens.map((t) => t.text), emphasis) : -1;
   const wordColor = (i: number, fallback: string) => (i === keyWord ? hi : fallback);
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
-      <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: vox ? "8%" : "6%", right: vox ? "14%" : "6%", textAlign: vox ? "left" : "center", ...pageStyle }}>
+      <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: left ? "8%" : "6%", right: left ? "14%" : "6%", textAlign: left ? "left" : "center", ...pageStyle }}>
         <span
           style={{
-            display: "inline-block", fontFamily, fontWeight: outlineWeight(style.font) === 400 ? 400 : 700, fontSize: l.fontSize, lineHeight: vox ? 1.35 : 1.2, whiteSpace: "pre-wrap",
+            display: "inline-block", fontFamily, fontWeight: outlineWeight(style.font) === 400 ? 400 : ty?.weight && ty.weight >= 700 ? ty.weight : 700, fontSize: l.fontSize, lineHeight: left ? 1.35 : 1.2, whiteSpace: "pre-wrap",
             textTransform: style.captions.uppercase ? "uppercase" : "none",
-            padding: "10px 18px", borderRadius: 16, backgroundColor: style.captions.box ? "rgba(0,0,0,0.42)" : "transparent",
+            letterSpacing: ty?.letterSpacing ? `${ty.letterSpacing}em` : undefined,
+            padding: "10px 18px", borderRadius: 16, backgroundColor: pill,
             textShadow: style.captions.box || outline ? "none" : "0 2px 14px rgba(0,0,0,0.8)",
             ...stroke,
           }}
@@ -222,7 +242,10 @@ export function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTo
             const spoken = t.toMs <= nowMs;
             // How far the marker or fill has swept across this word, 0..1.
             const sweep = active ? Math.min(1, Math.max(0, (nowMs - t.fromMs) / Math.max(80, t.toMs - t.fromMs))) : spoken ? 1 : 0;
-            const text = i === 0 ? t.text.trimStart() : t.text;
+            const full = i === 0 ? t.text.trimStart() : t.text;
+            const start = seen; seen += full.length;
+            if (typed <= start) return null;
+            const text = typed >= seen ? full : full.slice(0, typed - start);
             if (spec.mark === "marker") {
               // Vox: a highlighter bar grows under the word as it is said and stays.
               return (
@@ -273,23 +296,43 @@ type Effects = ReturnType<typeof colorCorrection>[];
  * it leaves into the next (lib/studioClips/transitions.ts). Blur is a WebGL
  * effect on the video itself, so the Player and the browser render agree.
  */
-function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
-  s: TimelineSegment; into: TransitionKind | undefined; out: TransitionKind | undefined; effects: Effects | undefined;
+/** The theme's look as WebGL effects for one frame (lib/studioClips/look.ts). */
+function lookEffects(plan: LookStep[]): Effects {
+  return plan.map((st) => {
+    switch (st.kind) {
+      case "color": return colorCorrection(st.params);
+      case "vignette": return vignette({ amount: st.amount, radius: st.radius, feather: st.feather });
+      case "grain": return noise({ amount: st.amount, seed: st.seed });
+      case "chroma": return chromaticAberration({ amount: st.amount, angle: 0 });
+      case "scanlines": return scanlines({ amount: st.amount, spacing: st.spacing });
+    }
+  }) as Effects;
+}
+
+function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, children }: {
+  s: TimelineSegment; index: number; into: TransitionKind | undefined; out: TransitionKind | undefined; effects: Effects | undefined;
+  theme: Theme | null;
   /** The frame of this cut where it softens behind the ending, when it is the last one and the cut has an ending card. */
   softenFrom?: number;
   children: (p: { effects: Effects | undefined; frame: number }) => React.ReactNode;
 }) {
   const f = useCurrentFrame();
+  const { width } = useVideoConfig();
   const soft = softenFrom == null ? 0 : interpolate(f, [softenFrom, softenFrom + END_SOFTEN_FRAMES], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const look = transitionLook({ frame: f, frames: s.durationFrames, into, overlapIn: s.overlapIn, out, overlapOut: s.overlapOut });
   // Punch-ins: a continuous take steps in and back out where it would have cut (lib/studioClips/punch.ts).
-  const punch = s.punches?.length ? punchScaleAt(s, s.in + f / FPS) : 1;
-  const fx: Effects = [...(effects ?? [])];
+  const clipSec = clipSecAt(s, f);
+  const punch = s.punches?.length ? punchScaleAt(s, clipSec) : 1;
+  // The cut's own motion (lib/studioClips/motion.ts): the slow move, word punches and shake, one transform with the transition's.
+  const mo = motionAt(s.motion, f, s.durationFrames, clipSec, index);
+  const css = transformCss({ ...mo, scale: mo.scale * look.scale * punch, x: mo.x + look.x / 100, y: mo.y + look.y / 100 });
+  const fx: Effects = [...(effects ?? []), ...lookEffects(lookPlan(theme?.color.grade, s.startFrame + f, width))];
   if (look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
   if (look.blur > 0.5) fx.push(blur({ radius: look.blur, vertical: look.whip ? false : true }));
+  if (look.noise > 0) fx.push(noise({ amount: 0.6 * look.noise, seed: f }));
   // Behind the ending the picture stays sharp (its last shot is the payoff); only the bottom darkens for the words.
   return (
-    <AbsoluteFill style={{ opacity: look.opacity, transform: look.scale !== 1 || look.x !== 0 || punch !== 1 ? `translateX(${look.x}%) scale(${look.scale * punch})` : undefined, transformOrigin: "50% 45%" }}>
+    <AbsoluteFill style={{ opacity: look.opacity, transform: css.transform, transformOrigin: css.transformOrigin }}>
       {children({ effects: fx.length ? fx : undefined, frame: f })}
       {look.flash > 0 ? <AbsoluteFill style={{ background: "#fff", opacity: look.flash, pointerEvents: "none" }} /> : null}
       {soft > 0 && <AbsoluteFill style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)", opacity: soft }} />}
@@ -297,9 +340,127 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide }) => {
+/** A clip's picture inside a cut, in constant-rate pieces (a speed ramp is two or three of them). Sound stays on the first child's volume callback. */
+function SegmentVideo({ s, src, effects, volume, muted, objectFit, style }: { s: TimelineSegment; src: string; effects: Effects | undefined; volume: (f: number) => number; muted: boolean; objectFit: "cover" | "fill"; style: React.CSSProperties }) {
+  const pieces = speedPieces(s);
+  if (pieces.length === 1 && pieces[0].rate === 1) {
+    return <Video src={src} trimBefore={s.inFrame} durationInFrames={s.durationFrames} effects={effects} volume={volume} muted={muted} objectFit={objectFit} style={style} />;
+  }
+  let from = 0;
+  return (
+    <>
+      {pieces.map((p, i) => {
+        const at = from; from += p.frames;
+        return (
+          <Sequence key={i} from={at} durationInFrames={p.frames} name={`${p.rate}x`}>
+            <Video src={src} trimBefore={secToFrames(p.in)} durationInFrames={p.frames} playbackRate={p.rate} effects={effects} volume={(f) => volume(at + f)} muted={muted} objectFit={objectFit} style={style} />
+          </Sequence>
+        );
+      })}
+    </>
+  );
+}
+
+/** A B-roll shot over the picture: in and out over 4 frames, with the theme's look. */
+function BrollLayer({ frames, theme, children }: { frames: number; theme: Theme | null; children: (fx: Effects | undefined) => React.ReactNode }) {
+  const f = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const op = Math.min(1, (f + 1) / 4, (frames - f) / 4);
+  const fx = lookEffects(lookPlan(theme?.color.grade, f, width));
+  return <AbsoluteFill style={{ opacity: Math.max(0, op) }}>{children(fx.length ? fx : undefined)}</AbsoluteFill>;
+}
+
+/** Black bars top and bottom (the Cinematic theme). */
+function Letterbox({ px }: { px: number }) {
+  if (px <= 0) return null;
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: px, background: "#000" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: px, background: "#000" }} />
+    </AbsoluteFill>
+  );
+}
+
+/** A thin bar along the bottom that fills as the video plays (a theme's progress bar). */
+function ProgressBar({ total, color }: { total: number; color: string }) {
+  const f = useCurrentFrame();
+  const { width } = useVideoConfig();
+  const h = Math.max(4, Math.round((8 * width) / 1080));
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none", justifyContent: "flex-end" }}>
+      <div style={{ height: h, width: "100%", background: "rgba(255,255,255,0.18)" }}>
+        <div style={{ height: "100%", width: `${Math.min(100, (f / Math.max(1, total - 1)) * 100)}%`, background: color }} />
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+/**
+ * The lower third: a name and a line under it, bottom-left inside the safe
+ * zone, in the theme's style (a dark tag, an accent pill, or a bar with an
+ * accent edge). It slides in over 8 frames and stays.
+ */
+function LowerThird({ name, line, theme, fontFamily }: { name: string; line: string; theme: Theme; fontFamily: string }) {
+  const f = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const zone = safeZoneFor(width, height);
+  const k = spring({ frame: f, fps, config: { damping: 18, stiffness: 180 }, durationInFrames: 10 });
+  const s = width / 1080;
+  const kind = theme.layout.lowerThird;
+  if (kind === "none" || (!name && !line)) return null;
+  const base: React.CSSProperties = { position: "absolute", left: zone.x, bottom: height - (zone.y + zone.height), maxWidth: zone.width * 0.8, fontFamily, color: "#fff", transform: `translateX(${(1 - k) * -40}px)`, opacity: Math.min(1, f / 4) };
+  const nameStyle: React.CSSProperties = { fontSize: 40 * s, fontWeight: 700, lineHeight: 1.15 };
+  const lineStyle: React.CSSProperties = { fontSize: 28 * s, fontWeight: 600, opacity: 0.85, lineHeight: 1.2 };
+  if (kind === "bar") {
+    return (
+      <div style={{ ...base, borderLeft: `${Math.round(10 * s)}px solid ${theme.color.accent}`, paddingLeft: 22 * s, textShadow: "0 2px 14px rgba(0,0,0,0.7)" }}>
+        {name && <div style={nameStyle}>{name}</div>}
+        {line && <div style={lineStyle}>{line}</div>}
+      </div>
+    );
+  }
+  const fill = kind === "pill" ? theme.color.accent : "rgba(0,0,0,0.72)";
+  const color = kind === "pill" ? readable(theme.color.accent) : "#fff";
+  return (
+    <div style={{ ...base, background: fill, color, padding: `${12 * s}px ${22 * s}px`, borderRadius: kind === "pill" ? 999 : 12 * s }}>
+      {name && <div style={nameStyle}>{name}</div>}
+      {line && <div style={lineStyle}>{line}</div>}
+    </div>
+  );
+}
+
+const readable = (hex: string): string => { const n = parseInt(hex.slice(1), 16); const l = 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255); return l > 150 ? "#000" : "#fff"; };
+
+/** A camcorder corner: REC with a blinking dot and the running time (the Retro theme). Never an invented date. */
+function DateStamp({ fontFamily, color }: { fontFamily: string; color: string }) {
+  const f = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const zone = safeZoneFor(width, height);
+  const s = width / 1080;
+  const t = f / FPS;
+  const mm = String(Math.floor(t / 60)).padStart(2, "0"), ss = String(Math.floor(t % 60)).padStart(2, "0");
+  return (
+    <div style={{ position: "absolute", left: zone.x, top: zone.y, fontFamily, color, fontSize: 36 * s, letterSpacing: "0.08em", textShadow: "0 2px 10px rgba(0,0,0,0.8)", display: "flex", alignItems: "center", gap: 14 * s }}>
+      <span style={{ width: 18 * s, height: 18 * s, borderRadius: "50%", background: "#ff2a2a", opacity: Math.floor(f / 15) % 2 ? 1 : 0.25 }} />
+      REC {mm}:{ss}
+    </div>
+  );
+}
+
+/** A small brand mark in the top-right corner, inside the safe zone. */
+function Watermark({ url }: { url: string }) {
+  const { width, height } = useVideoConfig();
+  const zone = safeZoneFor(width, height);
+  const size = Math.round(88 * (width / 1080));
+  return <Img src={url} style={{ position: "absolute", right: width - (zone.x + zone.width), top: zone.y, width: size, height: size, objectFit: "contain", opacity: 0.85 }} pauseWhenLoading />;
+}
+
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
+  // The cut's theme with the person's overrides (lib/studioClips/themes): the look, the overlays, the caption type.
+  const theme = useMemo(() => resolveTheme(edl), [edl]);
+  const bars = letterboxPx(theme?.color.grade, height);
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
   // Captions and the lower third are DOM text: the frame waits for the face so no frame is painted in a fallback.
   useEffect(() => {
@@ -321,7 +482,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const music = edl.soundtrack && musicUrl ? edl.soundtrack : null;
   const original = music ? music.originalVolume : 1;
   const finish = finishOn === false ? undefined : edl.finish;
-  const card = edl.endCard ?? null;
+  // The ending card shows when the theme has an outro (or the cut has no theme).
+  const card = edl.endCard && (!theme || theme.layout.outro !== "none") ? edl.endCard : null;
   // The ending's font starts loading with the video, not when the card is due (a first play hitched at the card).
   useEffect(() => { if (card) void endFont().waitUntilDone().catch(() => null); }, [card]);
   // One effect instance per graded clip, so the WebGL program isn't rebuilt every frame.
@@ -334,7 +496,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const pageWords = captionWords ?? capSpec.maxWords;
   const pageMs = capSpec.pageMs;
   // One text at a time: the captions step aside while a designed line or the ending card is up.
-  const cardFrom = edl.endCard ? tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES : Infinity;
+  const cardFrom = card ? tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES : Infinity;
   const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, pageMs, pageWords), edl, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageMs, pageWords, cardFrom]);
   // With ducking on, the music sits low under speech and comes up between (lib/studioClips/musicDuck.ts).
   const spoken = useMemo(() => (music?.duck ? speechSpans(edl, words) : []), [music?.duck, edl, words]);
@@ -367,18 +529,18 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         return (
           <React.Fragment key={s.id}>
             <Sequence from={s.startFrame} durationInFrames={s.durationFrames} premountFor={PREMOUNT_FRAMES} name={`${s.role} · clip ${src.position + 1}`}>
-              <SegmentLayer s={s} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]} softenFrom={card && !next ? Math.max(0, s.durationFrames - END_FRAMES) : undefined}>
+              <SegmentLayer s={s} index={i} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]} theme={theme} softenFrom={card && !next ? Math.max(0, s.durationFrames - END_FRAMES) : undefined}>
                 {({ effects: fx, frame: local }) => (
-                  <Video
-                    src={src.url}
-                    trimBefore={s.inFrame}
-                    durationInFrames={s.durationFrames}
+                  <SegmentVideo
+                    s={s}
+                    // The stabilized copy when the cut asks for one and it has been made (lib/studioClips/stabilize.ts).
+                    src={(s.stabilize && src.stable?.[s.stabilize.strength]) || src.url}
                     effects={fx}
                     // Cleanup on: the measured gain curve (it may lift quiet sound; its peaks were measured
                     // to stay under -1 dBFS). Off: the Phase B balance, as attenuation only. Sound crossfades
                     // with the picture through a transition.
                     // With the noise reduced, the clip's own sound is replaced by the cleaned track below.
-                    volume={cleaned ? 0 : level}
+                    volume={cleaned ? () => 0 : level}
                     muted={Boolean(cleaned)}
                     // Cover the frame, never letterboxed: sized to the footage's own aspect and the
                     // person's reframe (videoBox), or centred cover when the size isn't known.
@@ -397,6 +559,27 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           </React.Fragment>
         );
       })}
+      {(edl.broll ?? []).map((b) => {
+        const src = sources[b.clipId];
+        const frames = Math.max(1, secToFrames(b.out - b.in));
+        if (!src) return null;
+        return (
+          <Sequence key={b.id} from={secToFrames(b.at)} durationInFrames={frames} premountFor={PREMOUNT_FRAMES} name={`b-roll · clip ${src.position + 1}`}>
+            <BrollLayer frames={frames} theme={theme}>
+              {(fx) => <Video src={src.url} trimBefore={secToFrames(b.in)} durationInFrames={frames} effects={fx} muted volume={0} objectFit={box(b) ? "fill" : "cover"} style={box(b) ?? { width: "100%", height: "100%" }} />}
+            </BrollLayer>
+          </Sequence>
+        );
+      })}
+      {bars > 0 && <Letterbox px={bars} />}
+      {theme?.layout.progressBar && <ProgressBar total={tl.durationFrames} color={theme.color.accent} />}
+      {theme && edl.lowerThird && (edl.lowerThird.name || edl.lowerThird.line) && theme.layout.lowerThird !== "none" && (
+        <Sequence from={secToFrames(0.4)} durationInFrames={Math.max(1, tl.durationFrames - secToFrames(0.4))} name="lower third">
+          <LowerThird name={edl.lowerThird.name} line={edl.lowerThird.line} theme={theme} fontFamily={fontFamily} />
+        </Sequence>
+      )}
+      {theme?.layout.dateStamp && <DateStamp fontFamily={fontFamily} color={theme.color.text} />}
+      {theme?.layout.watermark && watermarkUrl && <Watermark url={watermarkUrl} />}
       {music && (
         <Sequence from={0} durationInFrames={tl.durationFrames} name="soundtrack">
           <Audio
@@ -424,7 +607,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
-          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis ?? edl.emphasis} />
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} />
         </Sequence>
       ))}
       {card && (

@@ -17,6 +17,8 @@ import GuideStudio from "./GuideStudio";
 import StudioMode from "./StudioMode";
 import { extractFrames } from "@/lib/studio";
 import * as fx from "./labFixtures";
+import { themeById } from "@/lib/studioClips/themes";
+import { applyTheme } from "@/lib/studioClips/themes/apply";
 
 const SCREENS = ["rate", "rate-analysis", "rate-improve", "build", "build-collect", "build-yield", "opportunity", "editor", "editor-text", "editor-finish", "edit", "audio", "guide"] as const;
 type Screen = (typeof SCREENS)[number];
@@ -156,8 +158,13 @@ function Lab() {
         return <ContentStudio userId="lab" niche="Burger shop" location="Downtown" goalDefault="local_orders" drafts={[]} connected={false} postsSynced={0} modeTabs={<StudioMode mode="quick" />} plan={null} />;
       case "build": case "build-collect": case "build-yield": case "opportunity":
         return <ClipsStudio key={screen} viewerId="lab" modeTabs={<StudioMode mode="clips" />} variant="build" />;
-      case "editor": case "editor-text": case "editor-finish":
-        return <ClipBuilder buildId={fx.BUILD_ID} title="The cheese pull, smash to order" fixture={fx.playerData(thumbs, duration, 0)} initialPanel={screen === "editor-text" ? "text" : screen === "editor-finish" ? "finish" : "cut"} onBack={noop} />;
+      case "editor": case "editor-text": case "editor-finish": {
+        // ?theme=<id> opens the fixture with that theme applied (lib/studioClips/themes), for checking every theme on the sample.
+        const data = fx.playerData(thumbs, duration, 0);
+        const theme = themeById(new URLSearchParams(window.location.search).get("theme"));
+        if (theme) data.build.edl = applyTheme({ ...data.build.edl, lowerThird: { name: "Noah Reyes", line: "Burger shop, Downtown" } }, theme, { words: Object.fromEntries(data.sources.map((x) => [x.clipId, x.words])) });
+        return <ClipBuilder buildId={fx.BUILD_ID} title="The cheese pull, smash to order" fixture={data} initialPanel={screen === "editor-text" ? "text" : screen === "editor-finish" ? "finish" : "cut"} onBack={noop} />;
+      }
       case "edit":
         return <ClipsStudio key="edit" viewerId="lab" modeTabs={<StudioMode mode="edit" />} variant="edit" />;
       case "audio":

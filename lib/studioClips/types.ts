@@ -560,6 +560,10 @@ export type BuildSource = {
   words: TranscriptWord[] | null;
   /** usable moments from the clip card, for "replace clip" */
   moments: ClipMoment[];
+  /** signed URLs of the clip's stabilized copies, by strength, once made (lib/studioClips/stabilize.ts) */
+  stable?: Partial<Record<StabilizeStrength, string>>;
+  /** when the clip was shot, from the file's own date (a camcorder stamp uses it) */
+  recordedAt?: string | null;
 };
 
 export type BuildPlayerData = {
