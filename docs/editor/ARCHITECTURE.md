@@ -38,7 +38,7 @@ Entry: `components/studio/ClipsStudio.tsx` (`onFiles`, `registerFile`, `uploadFi
 5. `uploadMedia` (`lib/supabase/uploadMedia.ts`): one request up to 6 MB, otherwise TUS in 6 MB chunks with retries.
 6. `PATCH /api/studio/clips/:id` (`completeClip`): source path, frames, audio path, facts; status `uploaded`, or `ready` once the clip has a card.
 
-HEVC/.MOV: accepted; there is no transcode branch below 45 MB. A clip the browser cannot decode fails at probe with a message to export it as H.264. No preview proxy is made; the editor plays the stored file from a 1 h signed URL.
+HEVC/.MOV: accepted; an HEVC clip the browser can decode is converted to H.264 on the device before it uploads (whatever its size), so it plays in every browser on the account; one the browser cannot decode fails at probe with a message to export it as H.264. No separate preview proxy is made: the stored file is already at most 1080p and 50 MB (the shrink step), and the editor plays it from a 1 h signed URL that is refreshed before it runs out.
 
 ## 2. Understand (transcription + cards + grouping)
 
