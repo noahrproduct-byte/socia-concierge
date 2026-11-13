@@ -24,8 +24,8 @@ const KIND: Record<Kind, { name: string; icon: ReactNode; what: string }> = {
 const LEDGER: { kind: Kind; line: string; source: string }[] = [
   { kind: "measured", line: "Your 8 tutorial Reels in the last 90 days averaged 3,940 views at 48 hours.", source: "Instagram Insights, 90 days" },
   { kind: "compared", line: "Tutorials beat your median post 6 times out of 8. Talking-only Reels beat it 2 times out of 9.", source: "Your 31 posts, same age" },
-  { kind: "competitor", line: "Two accounts you follow posted squat form videos this month; both beat their own medians.", source: "2 of 5 followed accounts" },
-  { kind: "analysis", line: "Your best tutorial shows the movement in the first second; your weakest opens on you talking.", source: "Video read of your top and bottom 3" },
+  { kind: "competitor", line: "Two accounts you follow posted lighting videos this month; both beat their own medians.", source: "2 of 5 followed accounts" },
+  { kind: "analysis", line: "Your best tutorial shows the result in the first second; your weakest opens on you talking.", source: "Video read of your top and bottom 3" },
   { kind: "estimate", line: "Likely above your median if posted Friday after 6 PM.", source: "Confidence: medium" },
   { kind: "unknown", line: "Whether a 30-second version would do better: you haven't posted one yet.", source: "0 posts to compare" },
 ];
@@ -48,8 +48,8 @@ export default function Evidence() {
               <span>Recommendation</span>
               <span className="hm-example">Example</span>
             </header>
-            <b>Film a 20-second squat tutorial for Friday, 6:30 PM.</b>
-            <p>Open on the movement, not on you. Three cues, one per shot, captions in the middle.</p>
+            <b>Film a 20-second lighting tutorial for Friday, 6:30 PM.</b>
+            <p>Open on the result, not on you. Three setups, one per shot, captions in the middle.</p>
             <span className="ev-rec-foot">Built from the six lines beside it. Open any recommendation in SOCIA to see its own.</span>
           </article>
 

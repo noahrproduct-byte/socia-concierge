@@ -40,8 +40,8 @@ const ROWS: Row[] = [
     icon: CalendarClock,
     title: "Today's post goes out at 6:30 PM",
     sub: "Instagram Reel, Tuesday's slot on this week's plan",
-    thumb: "/landing/creators/fitness-stretch.jpg",
-    why: "“Three warm-ups people skip” is Tuesday's slot on this week's Content Plan. It is an educational Reel because your Reels got 1.8× the median views of your other posts over the last 90 days, across 64 posts. 6:30 PM falls inside your best posting window, 5 to 7 PM.",
+    thumb: "/landing/creators/desk-edit.jpg",
+    why: "“Three edits people skip” is Tuesday's slot on this week's Content Plan. It is an educational Reel because your Reels got 1.8× the median views of your other posts over the last 90 days, across 64 posts. 6:30 PM falls inside your best posting window, 5 to 7 PM.",
     action: "Open the Calendar",
     href: "/plan/calendar",
   },
@@ -65,7 +65,7 @@ const ROWS: Row[] = [
     icon: TrendingUp,
     title: "Your Instagram Reel is taking off",
     sub: "2.4× your median views at the same age, two days in",
-    thumb: "/landing/creators/fitness-squat.jpg",
+    thumb: "/landing/creators/lighting.jpg",
     why: "Two days after Sunday's publish, this Reel has 2.4× the median views your last 20 posts had at the same age. A breakout alert fires above 2×. Friday's slot on the plan is a follow-up on the same concept.",
     action: "Draft the follow-up",
     href: "/create",
@@ -92,14 +92,14 @@ export default function HomeWindow({ signedIn }: { signedIn: boolean }) {
           <i />
           <i />
         </span>
-        <span className="hm-app-url">Example account: Dani Reyes, a fictional fitness coach</span>
+        <span className="hm-app-url">Example account: Dani Reyes, a fictional video creator</span>
         <span className="hm-example">Example data</span>
       </div>
       <div className="hm-app-body">
         <nav className="hm-app-side" aria-label="Example of SOCIA's navigation">
           <span className="hm-app-ws">
             <i aria-hidden>D</i>
-            Dani Reyes Fitness
+            Dani Reyes Studio
           </span>
           {SIDE.map((s) => {
             const Icon = s.icon;
@@ -154,7 +154,7 @@ export default function HomeWindow({ signedIn }: { signedIn: boolean }) {
           </div>
           <div className="hm-window-foot">
             <span>
-              <b>Next on the Calendar:</b> &ldquo;What I eat on a training day&rdquo;, Wednesday 12:00 PM, waiting for approval
+              <b>Next on the Calendar:</b> &ldquo;How I plan a month of posts&rdquo;, Wednesday 12:00 PM, waiting for approval
             </span>
           </div>
         </div>
