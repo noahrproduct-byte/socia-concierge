@@ -1,0 +1,83 @@
+{
+  "id": "energetic",
+  "name": "Energetic",
+  "description": "Quick cuts on the beat, whip and zoom transitions, a shake on every cut, a rounded bold font, bright colours and a whoosh on the joins.",
+  "bestFor": "Gyms, sports, events, launches, anything loud.",
+  "tags": [
+    "energetic",
+    "fast",
+    "sports",
+    "beat",
+    "whoosh"
+  ],
+  "sample": {
+    "title": "GAME\nDAY",
+    "caption": "LET'S GO"
+  },
+  "typography": {
+    "font": "nunito",
+    "weight": 800,
+    "sizeScale": 1.15,
+    "letterSpacing": 0,
+    "transform": "upper",
+    "captionPosition": "middle",
+    "align": "center",
+    "maxWords": 3,
+    "captionPreset": "boxed",
+    "captionAnimation": "bounce",
+    "textBox": "accent",
+    "pill": true,
+    "highlight": "#ff3d7f",
+    "titlePreset": "hook_title"
+  },
+  "color": {
+    "primary": "#111111",
+    "accent": "#2ee6a6",
+    "text": "#ffffff",
+    "captionBg": "#2ee6a6",
+    "grade": {
+      "contrast": 1.1,
+      "saturation": 1.2,
+      "warmth": 0,
+      "vignette": 0,
+      "grain": 0,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "alternate",
+      "from": 1,
+      "to": 1.08,
+      "ease": "out"
+    },
+    "punchIn": 0.08,
+    "shake": 0.35,
+    "transition": "whip",
+    "transitionFrames": 6,
+    "brollSec": 1,
+    "beatSync": true,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "none",
+    "progressBar": true,
+    "watermark": false,
+    "intro": "title",
+    "outro": "none",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "upbeat",
+    "duck": 0.5,
+    "sfx": true
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 2,
+    "silenceSec": 0.3
+  }
+}

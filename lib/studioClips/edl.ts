@@ -4,9 +4,11 @@
 import { cleanPunches } from "./punch";
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
 import { MAX_TEXT_LAYERS, TEXT_PRESETS, fitLine, isTextPresetId, isTextSlot, presetForLine } from "@/lib/textPresets";
-import { aspectOf, clipLabel, fmtClock, isSegmentPurpose, isTransition } from "./types";
+import { aspectOf, clipLabel, fmtClock, isSegmentPurpose, isStabilizeStrength, isTransition, type StabilizeStrength } from "./types";
 import { isHouseGenre } from "./houseStyle";
-import { overlapFrames, secToFrames } from "./timeline";
+import { overlapFrames } from "./timeline";
+import { sanitizeMotion, segmentFrames } from "./motion";
+import { isThemeId } from "./themes";
 import { finishSteps, sanitizeFinish } from "./finish";
 import { cleanVolume, sanitizeStyle } from "./style";
 import { cutSpeaks } from "../music/taste";
@@ -48,7 +50,7 @@ export type RawEdl = {
   /** One of ASPECTS; anything else falls back to vertical. */
   width?: number;
   height?: number;
-  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number; path?: unknown } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string; voiceTail?: number; punches?: number[] }[];
+  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number; path?: unknown } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string; voiceTail?: number; punches?: number[]; motion?: unknown; stabilize?: unknown }[];
   style?: unknown;
   text?: { at: number; end?: number; text: string; role?: string; presetId?: string; slot?: string; shortened?: boolean }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
@@ -179,7 +181,7 @@ export function cleanFrame(f: { zoom?: number; x?: number; y?: number; path?: un
 export const edlDurationSec = (edl: Pick<Edl, "segments">): number => {
   let frames = 0, prev = 0;
   edl.segments.forEach((s, i) => {
-    const cur = Math.max(1, secToFrames(s.out - s.in));
+    const cur = Math.max(1, segmentFrames(s));
     frames += cur - (i ? overlapFrames(s.transition, prev, cur) : 0);
     prev = cur;
   });
@@ -222,7 +224,9 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     const volume = cleanVolume(s.volume);
     // How it comes in from the cut before: kept when it's one the renderer has; a hard cut otherwise.
     const transition = segments.length && isTransition(s.transition) && s.transition !== "cut" ? s.transition : undefined;
-    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}), ...(transition ? { transition } : {}), ...(s.sound === true ? { sound: true } : {}), ...(isSegmentPurpose(s.purpose) ? { purpose: s.purpose } : {}), ...(typeof s.voiceTail === "number" && s.voiceTail > 0 && s.voiceTail <= MAX_VOICE_TAIL_SEC ? { voiceTail: r2(s.voiceTail) } : {}), ...(cleanPunches(s.punches, inT, outT).length ? { punches: cleanPunches(s.punches, inT, outT) } : {}) });
+    const motion = sanitizeMotion(s.motion, inT, outT);
+    const stab = s.stabilize && typeof s.stabilize === "object" && isStabilizeStrength((s.stabilize as { strength?: unknown }).strength) ? { strength: (s.stabilize as { strength: StabilizeStrength }).strength } : null;
+    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}), ...(transition ? { transition } : {}), ...(s.sound === true ? { sound: true } : {}), ...(isSegmentPurpose(s.purpose) ? { purpose: s.purpose } : {}), ...(typeof s.voiceTail === "number" && s.voiceTail > 0 && s.voiceTail <= MAX_VOICE_TAIL_SEC ? { voiceTail: r2(s.voiceTail) } : {}), ...(cleanPunches(s.punches, inT, outT).length ? { punches: cleanPunches(s.punches, inT, outT) } : {}), ...(motion ? { motion } : {}), ...(stab ? { stabilize: stab } : {}) });
   });
   if (segments.length) {
     segments[0].role = "opener";
@@ -294,12 +298,13 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
  * a cut they deliberately made longer than the original target.
  */
 export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; warnings: string[] } {
+  const byId = new Map(clips.map((c) => [c.id, c]));
   const total = edlDurationSec(edited);
   const raw: RawEdl = {
     targetSec: { min: edited.targetSec.min, max: Math.max(edited.targetSec.max, Math.ceil(total)) },
     width: edited.width,
     height: edited.height,
-    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition, sound: s.sound, purpose: s.purpose, voiceTail: s.voiceTail, punches: s.punches })),
+    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition, sound: s.sound, purpose: s.purpose, voiceTail: s.voiceTail, punches: s.punches, motion: s.motion, stabilize: s.stabilize })),
     style: edited.style,
     text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, presetId: t.presetId, slot: t.slot, shortened: t.shortened })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),
@@ -317,6 +322,24 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   }
   // The house-style genre travels with the cut: its pacing caps still apply after a person's edit.
   if (isHouseGenre(edited.genre)) r.edl.genre = edited.genre;
+  // The theme and the person's overrides on it (bounded when it is resolved), the lower third's words, the B-roll.
+  if (edited.theme && isThemeId(edited.theme.id)) r.edl.theme = { id: edited.theme.id, ...(edited.theme.overrides && typeof edited.theme.overrides === "object" ? { overrides: edited.theme.overrides } : {}) };
+  if (edited.lowerThird && typeof edited.lowerThird === "object") {
+    const name = String(edited.lowerThird.name ?? "").replace(/\u2014/g, ",").trim().slice(0, 40), line = String(edited.lowerThird.line ?? "").replace(/\u2014/g, ",").trim().slice(0, 60);
+    if (name || line) r.edl.lowerThird = { name, line };
+  }
+  if (Array.isArray(edited.broll)) {
+    const total = edlDurationSec(r.edl);
+    const broll = edited.broll.flatMap((b, i) => {
+      const clip = byId.get(b?.clipId);
+      if (!clip || typeof b.in !== "number" || typeof b.out !== "number" || typeof b.at !== "number") return [];
+      const inT = clamp(Math.min(b.in, b.out), 0, clip.durationSec), outT = clamp(Math.max(b.in, b.out), 0, clip.durationSec);
+      if (outT - inT < 0.5) return [];
+      const at = clamp(b.at, 0, Math.max(0, total - 0.5));
+      return [{ id: typeof b.id === "string" && /^b[0-9a-z]{1,16}$/.test(b.id) ? b.id : `b${i + 1}`, clipId: clip.id, in: r2(inT), out: r2(Math.min(outT, inT + (total - at))), at: r2(at) }];
+    }).slice(0, 12);
+    if (broll.length) r.edl.broll = broll;
+  }
   // Measured corrections (Phase C) travel with the cut, for the clips still in it.
   const finish = sanitizeFinish(edited.finish, new Set(r.edl.segments.map((s) => s.clipId)));
   if (finish) r.edl.finish = finish;

@@ -1,0 +1,83 @@
+{
+  "id": "cinematic",
+  "name": "Cinematic",
+  "description": "Letterbox bars, a warm teal-and-orange grade with a soft vignette and light grain, slow push-ins, crossfades, serif titles, a cinematic music mood.",
+  "bestFor": "Interiors, real estate, travel, cars, before-and-after reveals.",
+  "tags": [
+    "cinematic",
+    "film",
+    "luxury",
+    "real-estate",
+    "cars"
+  ],
+  "sample": {
+    "title": "the front\nvs the back",
+    "caption": "can you guess the price"
+  },
+  "typography": {
+    "font": "playfair",
+    "weight": 600,
+    "sizeScale": 0.95,
+    "letterSpacing": 0.02,
+    "transform": "none",
+    "captionPosition": "bottom",
+    "align": "center",
+    "maxWords": 5,
+    "captionPreset": "subtitle",
+    "captionAnimation": "fade",
+    "textBox": "none",
+    "pill": false,
+    "highlight": "#f2c27b",
+    "titlePreset": "hook_pair"
+  },
+  "color": {
+    "primary": "#0b1a1f",
+    "accent": "#f2c27b",
+    "text": "#ffffff",
+    "captionBg": "#000000",
+    "grade": {
+      "contrast": 1.12,
+      "saturation": 0.92,
+      "warmth": 0.35,
+      "vignette": 0.35,
+      "grain": 0.12,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0.09
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "in",
+      "from": 1,
+      "to": 1.1,
+      "ease": "inOut"
+    },
+    "punchIn": 0,
+    "shake": 0,
+    "transition": "fade",
+    "transitionFrames": 14,
+    "brollSec": 3.5,
+    "beatSync": false,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "none",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "title",
+    "outro": "none",
+    "frame": "letterbox",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "cinematic",
+    "duck": 0.35,
+    "sfx": false
+  },
+  "pacing": {
+    "hook": false,
+    "maxClipSec": 8,
+    "silenceSec": 1
+  }
+}

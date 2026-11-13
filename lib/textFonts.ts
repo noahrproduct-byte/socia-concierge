@@ -1,60 +1,23 @@
 "use client";
 
-// The fonts text presets draw with, loaded once into the page through the
-// same @remotion/google-fonts loaders the composition uses, so the canvas
-// renderer, the Remotion Player and the browser export all see the same
-// faces. ensureTextFonts() resolves only when the faces are usable, so
-// nothing is measured or drawn in a fallback font. Client only.
-import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
-import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
-import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
-import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
-import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
-import { loadFont as loadTikTok } from "@remotion/google-fonts/TikTokSans";
-import { loadFont as loadSerif } from "@remotion/google-fonts/InstrumentSerif";
+// The fonts text presets draw with, loaded once into the page from the
+// site's own files (lib/editorFonts.ts), the same faces the composition
+// uses, so the canvas renderer, the Remotion Player and the browser export
+// all see the same glyphs. ensureTextFonts() resolves only when the faces
+// are usable, so nothing is measured or drawn in a fallback font. Client only.
 import type { FontId } from "./studioClips/style";
 import type { TextFont } from "./textPresets";
-
-type Loaded = { fontFamily: string; waitUntilDone: () => Promise<undefined> };
-
-const SUBSETS = ["latin", "latin-ext"] as const;
-const LOADERS: Partial<Record<FontId, () => Loaded>> = {
-  inter: () => loadInter("normal", { weights: ["600", "700"], subsets: [...SUBSETS] }),
-  montserrat: () => loadMontserrat("normal", { weights: ["600", "800"], subsets: [...SUBSETS] }),
-  anton: () => loadAnton("normal", { weights: ["400"], subsets: [...SUBSETS] }),
-  poppins: () => loadPoppins("normal", { weights: ["600", "800"], subsets: [...SUBSETS] }),
-  bebas: () => loadBebas("normal", { weights: ["400"], subsets: [...SUBSETS] }),
-  tiktok: () => loadTikTok("normal", { weights: ["600", "800"], subsets: [...SUBSETS] }),
-  // Instrument Serif is only used italic: the small line of a paired hook.
-  serif: () => loadSerif("italic", { weights: ["400"], subsets: [...SUBSETS] }),
-};
-
-/** CSS family names, by font id, once loaded. */
-const FAMILY: Partial<Record<FontId, string>> = { inter: "Inter", montserrat: "Montserrat", anton: "Anton", poppins: "Poppins", bebas: "Bebas Neue", tiktok: "TikTok Sans", serif: "Instrument Serif" };
-const loaded = new Map<FontId, Promise<string>>();
+import { familyOf, loadEditorFont } from "./editorFonts";
 
 /** The CSS font-family stack for a preset font (usable before the face arrives; the browser falls back until then). */
 export const fontStack = (f: TextFont): string => (f.family === "serif"
-  ? `"${FAMILY.serif}", Georgia, "Times New Roman", serif`
-  : `"${FAMILY[f.family] ?? "Inter"}", "Helvetica Neue", Helvetica, Arial, sans-serif`);
+  ? `"${familyOf("serif")}", Georgia, "Times New Roman", serif`
+  : f.family === "spacemono"
+    ? `"${familyOf("spacemono")}", Menlo, Consolas, monospace`
+    : `"${familyOf(f.family)}", "Helvetica Neue", Helvetica, Arial, sans-serif`);
 
 /** A canvas font string for a preset font at a size in px. */
 export const canvasFont = (f: TextFont, px: number): string => `${f.italic ? "italic " : ""}${f.weight} ${Math.max(1, Math.round(px))}px ${fontStack(f)}`;
-
-function load(id: FontId): Promise<string> {
-  const cur = loaded.get(id);
-  if (cur) return cur;
-  const loader = LOADERS[id];
-  const p = (async () => {
-    if (!loader) return FAMILY.inter!;
-    const r = loader();
-    FAMILY[id] = r.fontFamily;
-    await r.waitUntilDone();
-    return r.fontFamily;
-  })();
-  loaded.set(id, p);
-  return p;
-}
 
 /**
  * Loads the faces the given fonts need and waits until the browser reports
@@ -65,7 +28,7 @@ export async function ensureTextFonts(fonts: TextFont[]): Promise<void> {
   if (typeof document === "undefined") return;
   const seen = new Set<string>();
   const want = fonts.filter((f) => { const k = `${f.family}/${f.weight}/${f.italic ? "i" : ""}`; if (seen.has(k)) return false; seen.add(k); return true; });
-  await Promise.all(want.map((f) => load(f.family)));
+  await Promise.all(want.map((f) => loadEditorFont(f.family)));
   try {
     await Promise.all(want.map((f) => document.fonts.load(canvasFont(f, 40))));
     await document.fonts.ready;

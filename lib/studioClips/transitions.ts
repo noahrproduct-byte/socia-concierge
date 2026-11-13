@@ -22,6 +22,10 @@ export type TransitionLook = {
   scale: number;
   /** horizontal offset, % of the frame width */
   x: number;
+  /** vertical offset, % of the frame height (a tape roll) */
+  y: number;
+  /** tape noise over the frame, 0..1 (a tape transition's first frames) */
+  noise: number;
   /** zoom-blur amount, px */
   zoomBlur: number;
   /** straight blur radius, px (horizontal only on a whip) */
@@ -32,6 +36,9 @@ export type TransitionLook = {
   /** the cut's sound level through its transitions, 0..1 */
   sound: number;
 };
+
+/** A tape roll settles in this many frames. */
+export const TAPE_FRAMES = 5;
 
 // Ease in and out (cubic), so a transition starts and lands softly.
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -52,9 +59,13 @@ export function transitionSound(frame: number, frames: number, overlapIn: number
 
 export function transitionLook(a: { frame: number; frames: number; into?: TransitionKind; overlapIn: number; out?: TransitionKind; overlapOut: number }): TransitionLook {
   const { inP, outP } = progress(a.frame, a.frames, a.into ? a.overlapIn : 0, a.out ? a.overlapOut : 0);
-  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, zoomBlur: 0, blur: 0, whip: false, flash: 0, sound: Math.min(1 - inP, 1 - outP) };
+  const look: TransitionLook = { opacity: 1, scale: 1, x: 0, y: 0, noise: 0, zoomBlur: 0, blur: 0, whip: false, flash: 0, sound: Math.min(1 - inP, 1 - outP) };
   switch (a.into) {
     case "fade": look.opacity = 1 - inP; break;
+    // Slide: the incoming picture comes in from the right over the shot before, opaque the whole way.
+    case "slide": look.x += 100 * inP; break;
+    // Tape: the first frames roll down a little under tape noise, then settle; no overlap (a hard cut underneath).
+    case "tape": { const k = a.frame < TAPE_FRAMES ? 1 - a.frame / TAPE_FRAMES : 0; look.y = -6 * k; look.noise = k; look.blur = 3 * k; break; }
     case "zoom": look.opacity = 1 - inP; look.scale *= 1 + 0.08 * inP; look.zoomBlur += 20 * inP; break;
     // The incoming whip is opaque for most of the move, so the frame never looks empty.
     case "whip": look.opacity = clamp01((1 - inP) / 0.4); look.x += 35 * inP; look.blur += 40 * inP; look.whip = true; break;
@@ -62,6 +73,7 @@ export function transitionLook(a: { frame: number; frames: number; into?: Transi
   }
   switch (a.out) {
     case "zoom": look.scale *= 1 + 0.08 * outP; look.zoomBlur += 20 * outP; break;
+    // slide: the outgoing cut stays as it is under the incoming one.
     case "whip": look.x -= 35 * outP; look.blur += 40 * outP; look.whip = true; break;
     // fade: the outgoing cut stays as it is under the incoming one.
   }

@@ -220,7 +220,33 @@ export type EdlSegment = {
    * without skipping footage (lib/studioClips/punch.ts). Absent = none.
    */
   punches?: number[];
+  /** How the picture moves inside this cut (lib/studioClips/motion.ts): a slow zoom or pan with easing, handheld shake, a speed change. A theme sets it; the person may change it. */
+  motion?: SegmentMotion;
+  /** Play this clip's stabilized copy (lib/studioClips/stabilize.ts), made on the server at this strength. Absent = the clip as shot. */
+  stabilize?: { strength: StabilizeStrength };
 };
+
+export const STABILIZE_STRENGTHS = ["low", "medium", "high"] as const;
+export type StabilizeStrength = (typeof STABILIZE_STRENGTHS)[number];
+export const isStabilizeStrength = (v: unknown): v is StabilizeStrength => STABILIZE_STRENGTHS.includes(v as StabilizeStrength);
+
+/** A slow move on the picture (Ken Burns): scale at the start and end of the cut, the point it moves toward (0..1 each way), and the easing. */
+export type MotionZoom = { from: number; to: number; x: number; y: number; ease: "inOut" | "linear" | "out" };
+/** Slow motion or speed-up on the whole cut: the rate (0.25 to 2) and how long the ramp in and out takes. */
+export type MotionSpeed = { rate: number; rampSec: number };
+export type SegmentMotion = {
+  zoom?: MotionZoom;
+  /** Handheld shake, 0 (none) to 1 (strong). */
+  shake?: number;
+  speed?: MotionSpeed;
+  /** Punch-ins on emphasised words: times in the clip (seconds) where the picture steps in by `amount` (0.1 = ten percent) for a moment. */
+  punch?: { at: number[]; amount: number };
+  /** The person set this cut's motion by hand: a theme switch leaves it alone. */
+  locked?: true;
+};
+
+/** A B-roll shot laid over the main picture without its sound (the talking-head themes): a clip range placed at an output time. */
+export type BrollItem = { id: string; clipId: string; in: number; out: number; at: number };
 
 export const SEGMENT_PURPOSES = ["hook", "context", "development", "payoff", "close"] as const;
 export type SegmentPurpose = (typeof SEGMENT_PURPOSES)[number];
@@ -232,6 +258,10 @@ export const TRANSITIONS = [
   { id: "zoom", label: "Zoom blur" },
   { id: "whip", label: "Whip blur" },
   { id: "flash", label: "Flash" },
+  // The Retro theme's join: a short roll with tape noise, like a VHS deck changing shot.
+  { id: "tape", label: "Tape roll" },
+  // The picture slides in from the right over the shot before.
+  { id: "slide", label: "Slide" },
 ] as const;
 export type TransitionKind = (typeof TRANSITIONS)[number]["id"];
 export const isTransition = (v: unknown): v is TransitionKind => TRANSITIONS.some((t) => t.id === v);
@@ -339,7 +369,16 @@ export type Edl = {
   voiceover?: Voiceover;
   /** When SOCIA tried adding a voiceover on its own (once per cut, whatever happened). Server-owned. */
   voiceAuto?: string;
+  /** The theme this cut is styled with and the person's changes on top of it (lib/studioClips/themes). Absent = no theme: the cut's own style. */
+  theme?: EdlTheme;
+  /** The lower third's words (a name and a line under it), shown when the theme has a lower third. */
+  lowerThird?: { name: string; line: string };
+  /** B-roll over the main picture (its sound stays off): the talking-head themes place it, the person moves it. */
+  broll?: BrollItem[];
 };
+
+/** A theme by id, and the person's overrides as a diff on top of it (a partial Theme, lib/studioClips/themes/schema.ts). */
+export type EdlTheme = { id: string; overrides?: Record<string, unknown> };
 
 /** One spoken word of a voiceover line, seconds from the line's start. */
 export type VoiceWord = { text: string; start: number; end: number };

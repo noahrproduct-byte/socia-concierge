@@ -1,0 +1,83 @@
+{
+  "id": "luxury",
+  "name": "Luxury",
+  "description": "Black and gold, an elegant serif, very slow zooms, long holds, the fewest captions. Nothing hurries.",
+  "bestFor": "Rugs, furniture, real estate, jewellery, premium services.",
+  "tags": [
+    "luxury",
+    "premium",
+    "serif",
+    "slow",
+    "product"
+  ],
+  "sample": {
+    "title": "hand knotted\nin Kashan",
+    "caption": "one of a kind"
+  },
+  "typography": {
+    "font": "playfair",
+    "weight": 600,
+    "sizeScale": 0.9,
+    "letterSpacing": 0.06,
+    "transform": "upper",
+    "captionPosition": "bottom",
+    "align": "center",
+    "maxWords": 4,
+    "captionPreset": "subtitle",
+    "captionAnimation": "fade",
+    "textBox": "none",
+    "pill": false,
+    "highlight": "#d4af37",
+    "titlePreset": "hook_pair"
+  },
+  "color": {
+    "primary": "#000000",
+    "accent": "#d4af37",
+    "text": "#f6efd9",
+    "captionBg": "#000000",
+    "grade": {
+      "contrast": 1.1,
+      "saturation": 0.9,
+      "warmth": 0.2,
+      "vignette": 0.4,
+      "grain": 0.05,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "in",
+      "from": 1,
+      "to": 1.08,
+      "ease": "inOut"
+    },
+    "punchIn": 0,
+    "shake": 0,
+    "transition": "fade",
+    "transitionFrames": 18,
+    "brollSec": 4.5,
+    "beatSync": false,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "tag",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "title",
+    "outro": "cta",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "cinematic",
+    "duck": 0.3,
+    "sfx": false
+  },
+  "pacing": {
+    "hook": false,
+    "maxClipSec": 9,
+    "silenceSec": 1.2
+  }
+}

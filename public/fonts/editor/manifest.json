@@ -1,0 +1,170 @@
+[
+  {
+    "id": "inter",
+    "family": "Inter",
+    "weight": 600,
+    "style": "normal",
+    "file": "inter-600.woff2",
+    "bytes": 85272
+  },
+  {
+    "id": "inter",
+    "family": "Inter",
+    "weight": 700,
+    "style": "normal",
+    "file": "inter-700.woff2",
+    "bytes": 85272
+  },
+  {
+    "id": "montserrat",
+    "family": "Montserrat",
+    "weight": 600,
+    "style": "normal",
+    "file": "montserrat-600.woff2",
+    "bytes": 68224
+  },
+  {
+    "id": "montserrat",
+    "family": "Montserrat",
+    "weight": 700,
+    "style": "normal",
+    "file": "montserrat-700.woff2",
+    "bytes": 68224
+  },
+  {
+    "id": "montserrat",
+    "family": "Montserrat",
+    "weight": 800,
+    "style": "normal",
+    "file": "montserrat-800.woff2",
+    "bytes": 68224
+  },
+  {
+    "id": "tiktok",
+    "family": "TikTok Sans",
+    "weight": 600,
+    "style": "normal",
+    "file": "tiktok-600.woff2",
+    "bytes": 26620
+  },
+  {
+    "id": "tiktok",
+    "family": "TikTok Sans",
+    "weight": 800,
+    "style": "normal",
+    "file": "tiktok-800.woff2",
+    "bytes": 26620
+  },
+  {
+    "id": "anton",
+    "family": "Anton",
+    "weight": 400,
+    "style": "normal",
+    "file": "anton-400.woff2",
+    "bytes": 21296
+  },
+  {
+    "id": "poppins",
+    "family": "Poppins",
+    "weight": 600,
+    "style": "normal",
+    "file": "poppins-600.woff2",
+    "bytes": 5552
+  },
+  {
+    "id": "poppins",
+    "family": "Poppins",
+    "weight": 700,
+    "style": "normal",
+    "file": "poppins-700.woff2",
+    "bytes": 5448
+  },
+  {
+    "id": "poppins",
+    "family": "Poppins",
+    "weight": 800,
+    "style": "normal",
+    "file": "poppins-800.woff2",
+    "bytes": 5484
+  },
+  {
+    "id": "playfair",
+    "family": "Playfair Display",
+    "weight": 600,
+    "style": "normal",
+    "file": "playfair-600.woff2",
+    "bytes": 20980
+  },
+  {
+    "id": "playfair",
+    "family": "Playfair Display",
+    "weight": 700,
+    "style": "normal",
+    "file": "playfair-700.woff2",
+    "bytes": 20980
+  },
+  {
+    "id": "bebas",
+    "family": "Bebas Neue",
+    "weight": 400,
+    "style": "normal",
+    "file": "bebas-400.woff2",
+    "bytes": 5664
+  },
+  {
+    "id": "nunito",
+    "family": "Nunito",
+    "weight": 700,
+    "style": "normal",
+    "file": "nunito-700.woff2",
+    "bytes": 35464
+  },
+  {
+    "id": "nunito",
+    "family": "Nunito",
+    "weight": 800,
+    "style": "normal",
+    "file": "nunito-800.woff2",
+    "bytes": 35464
+  },
+  {
+    "id": "spacemono",
+    "family": "Space Mono",
+    "weight": 400,
+    "style": "normal",
+    "file": "spacemono-400.woff2",
+    "bytes": 9752
+  },
+  {
+    "id": "spacemono",
+    "family": "Space Mono",
+    "weight": 700,
+    "style": "normal",
+    "file": "spacemono-700.woff2",
+    "bytes": 9732
+  },
+  {
+    "id": "instrument",
+    "family": "Instrument Sans",
+    "weight": 600,
+    "style": "normal",
+    "file": "instrument-600.woff2",
+    "bytes": 11092
+  },
+  {
+    "id": "instrument",
+    "family": "Instrument Sans",
+    "weight": 700,
+    "style": "normal",
+    "file": "instrument-700.woff2",
+    "bytes": 11092
+  },
+  {
+    "id": "serif",
+    "family": "Instrument Serif",
+    "weight": 400,
+    "style": "italic",
+    "file": "serif-400i.woff2",
+    "bytes": 8444
+  }
+]

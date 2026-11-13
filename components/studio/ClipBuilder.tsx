@@ -63,10 +63,11 @@ const r2 = (n: number) => Number(n.toFixed(2));
  */
 const THUMB_FROM: Record<TransitionKind, { opacity: number; scale: number; x: string }> = {
   cut: { opacity: 0, scale: 1, x: "0%" }, fade: { opacity: 0, scale: 1, x: "0%" }, zoom: { opacity: 0, scale: 1.6, x: "0%" }, whip: { opacity: 1, scale: 1, x: "100%" }, flash: { opacity: 0, scale: 1, x: "0%" },
+  tape: { opacity: 1, scale: 1, x: "0%" }, slide: { opacity: 1, scale: 1, x: "100%" },
 };
 function TransitionThumb({ kind, play }: { kind: TransitionKind; play: number }) {
   const ok = useMotionOk();
-  const hard = kind === "cut" || kind === "flash";
+  const hard = kind === "cut" || kind === "flash" || kind === "tape";
   const t = hard ? { duration: 0 } : { duration: 0.5, ease: [0.23, 1, 0.32, 1] as [number, number, number, number] };
   return (
     <span className={`sd-tthumb is-${kind}`} aria-hidden>

@@ -5,6 +5,7 @@ import type { Edl, EdlSegment, TranscriptWord, TransitionKind } from "./types";
 import { OUTPUT } from "./types";
 import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
 import { cleanCaptionWords } from "./captionClean";
+import { clipSecAt, segmentFrames } from "./motion";
 
 export const FPS = OUTPUT.fps;
 export const secToFrames = (s: number): number => Math.max(0, Math.round(s * FPS));
@@ -17,7 +18,7 @@ export const TRANSITION_FRAMES = 9;
 
 /** Frames a cut overlaps the one before it: none for a hard cut, and never more than half of either cut. */
 export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number): number {
-  if (!kind || kind === "cut" || kind === "flash") return 0;
+  if (!kind || kind === "cut" || kind === "flash" || kind === "tape") return 0;
   return Math.max(0, Math.min(TRANSITION_FRAMES, Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
 }
 
@@ -43,7 +44,7 @@ export function timeline(edl: Edl): Timeline {
   let frame = 0;
   const segments: TimelineSegment[] = [];
   edl.segments.forEach((s, i) => {
-    const durationFrames = Math.max(1, secToFrames(s.out - s.in));
+    const durationFrames = Math.max(1, segmentFrames(s));
     const prev = segments[i - 1];
     const overlapIn = prev ? overlapFrames(s.transition, prev.durationFrames, durationFrames) : 0;
     if (prev) prev.overlapOut = overlapIn;
@@ -72,14 +73,17 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
     const ws = cleaned.get(s.clipId) ?? cleaned.set(s.clipId, cleanCaptionWords(said)).get(s.clipId)!;
     // A voice carried over the next shot (an L-cut) keeps its captions.
     const inMs = s.in * 1000, outMs = (s.out + (s.voiceTail ?? 0)) * 1000, offsetMs = s.startSec * 1000 - inMs;
+    // A cut with a speed change: a word's time in the output follows the clip time through the speed pieces.
+    const sped = Boolean(s.motion?.speed && s.motion.speed.rate !== 1);
+    const toOut = (clipMs: number): number => (sped ? Math.round(s.startSec * 1000 + outputMsFor(s, clipMs / 1000)) : Math.round(clipMs + offsetMs));
     for (const w of ws) {
       const mid = (w.startMs + w.endMs) / 2;
       if (mid < inMs || mid > outMs) continue;
       out.push({
         text: ` ${w.text}`,
-        startMs: Math.round(Math.max(inMs, w.startMs) + offsetMs),
-        endMs: Math.round(Math.min(outMs, w.endMs) + offsetMs),
-        timestampMs: Math.round(mid + offsetMs),
+        startMs: toOut(Math.max(inMs, w.startMs)),
+        endMs: toOut(Math.min(outMs, w.endMs)),
+        timestampMs: toOut(mid),
         confidence: w.confidence,
       });
     }
@@ -98,6 +102,14 @@ export function captionsForEdl(edl: Edl, words: Record<string, TranscriptWord[] 
     }
   }
   return out.sort((a, b) => a.startMs - b.startMs);
+}
+
+/** The output time (ms from the cut's start) at which `clipSec` of a sped cut plays: the inverse of clipSecAt, by search. */
+function outputMsFor(s: { in: number; out: number; motion?: EdlSegment["motion"] }, clipSec: number): number {
+  const frames = segmentFrames(s);
+  let lo = 0, hi = frames;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (clipSecAt(s, mid) < clipSec) lo = mid; else hi = mid; }
+  return (hi / FPS) * 1000;
 }
 
 /** Two frames of fade at each segment's edge, so a cut never clicks and a word never ducks; 0..1 by frame within the segment. */

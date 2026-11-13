@@ -1,0 +1,83 @@
+{
+  "id": "talking-head",
+  "name": "Talking Head",
+  "description": "A steady speaker, captions in a pill under the middle, a lower third with the name and the business, a gentle zoom step at every sentence to keep the frame alive, and B-roll laid over the words.",
+  "bestFor": "One person talking to camera, interviews, explainers.",
+  "tags": [
+    "talking-head",
+    "documentary",
+    "interview",
+    "captions",
+    "b-roll"
+  ],
+  "sample": {
+    "title": "the one thing\nnobody tells you",
+    "caption": "here's what we learned"
+  },
+  "typography": {
+    "font": "montserrat",
+    "weight": 700,
+    "sizeScale": 1,
+    "letterSpacing": 0,
+    "transform": "none",
+    "captionPosition": "lower",
+    "align": "center",
+    "maxWords": 4,
+    "captionPreset": "classic",
+    "captionAnimation": "rise",
+    "textBox": "dark",
+    "pill": true,
+    "highlight": "#ffd400",
+    "titlePreset": "hook_pair"
+  },
+  "color": {
+    "primary": "#000000",
+    "accent": "#ffd400",
+    "text": "#ffffff",
+    "captionBg": "#000000",
+    "grade": {
+      "contrast": 1.03,
+      "saturation": 1.02,
+      "warmth": 0,
+      "vignette": 0,
+      "grain": 0,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "alternate",
+      "from": 1,
+      "to": 1.12,
+      "ease": "inOut"
+    },
+    "punchIn": 0.06,
+    "shake": 0,
+    "transition": "cut",
+    "transitionFrames": 9,
+    "brollSec": 3,
+    "beatSync": false,
+    "alternateZoom": true
+  },
+  "layout": {
+    "lowerThird": "bar",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "title",
+    "outro": "cta",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "lofi",
+    "duck": 0.3,
+    "sfx": false
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 12,
+    "silenceSec": 0.6
+  }
+}

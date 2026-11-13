@@ -1,0 +1,83 @@
+{
+  "id": "socia-brand",
+  "name": "SOCIA Brand",
+  "description": "Black, grey and neon blue, SOCIA's own sans, a bar lower third, a neon highlight on the captions and a progress bar along the bottom. The demo theme.",
+  "bestFor": "SOCIA's own posts and product demos.",
+  "tags": [
+    "socia",
+    "brand",
+    "demo",
+    "saas",
+    "neon"
+  ],
+  "sample": {
+    "title": "stop\nguessing",
+    "caption": "know what to post"
+  },
+  "typography": {
+    "font": "instrument",
+    "weight": 700,
+    "sizeScale": 1,
+    "letterSpacing": 0,
+    "transform": "none",
+    "captionPosition": "lower",
+    "align": "center",
+    "maxWords": 4,
+    "captionPreset": "karaoke",
+    "captionAnimation": "rise",
+    "textBox": "dark",
+    "pill": true,
+    "highlight": "#2d9cff",
+    "titlePreset": "hook_pair"
+  },
+  "color": {
+    "primary": "#000000",
+    "accent": "#2d9cff",
+    "text": "#ffffff",
+    "captionBg": "#111111",
+    "grade": {
+      "contrast": 1.05,
+      "saturation": 0.95,
+      "warmth": -0.1,
+      "vignette": 0,
+      "grain": 0,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "in",
+      "from": 1,
+      "to": 1.06,
+      "ease": "inOut"
+    },
+    "punchIn": 0,
+    "shake": 0,
+    "transition": "slide",
+    "transitionFrames": 8,
+    "brollSec": 2.5,
+    "beatSync": false,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "bar",
+    "progressBar": true,
+    "watermark": true,
+    "intro": "title",
+    "outro": "cta",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "upbeat",
+    "duck": 0.4,
+    "sfx": false
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 5,
+    "silenceSec": 0.6
+  }
+}

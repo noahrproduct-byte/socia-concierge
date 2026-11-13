@@ -1,0 +1,83 @@
+{
+  "id": "clean-minimal",
+  "name": "Clean Minimal",
+  "description": "White words with a soft shadow, a slow push in, subtle fades, no grain. The house default: the words and the footage do the work.",
+  "bestFor": "Any business. The safe default.",
+  "tags": [
+    "clean",
+    "minimal",
+    "default",
+    "food",
+    "product"
+  ],
+  "sample": {
+    "title": "made fresh\nevery morning",
+    "caption": "we start at 5am"
+  },
+  "typography": {
+    "font": "montserrat",
+    "weight": 800,
+    "sizeScale": 1,
+    "letterSpacing": 0,
+    "transform": "none",
+    "captionPosition": "lower",
+    "align": "center",
+    "maxWords": 4,
+    "captionPreset": "classic",
+    "captionAnimation": "fade",
+    "textBox": "none",
+    "pill": false,
+    "highlight": "#ffd400",
+    "titlePreset": "hook_pair"
+  },
+  "color": {
+    "primary": "#000000",
+    "accent": "#ffd400",
+    "text": "#ffffff",
+    "captionBg": "#000000",
+    "grade": {
+      "contrast": 1,
+      "saturation": 1,
+      "warmth": 0,
+      "vignette": 0,
+      "grain": 0,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "in",
+      "from": 1,
+      "to": 1.05,
+      "ease": "inOut"
+    },
+    "punchIn": 0,
+    "shake": 0,
+    "transition": "fade",
+    "transitionFrames": 8,
+    "brollSec": 2.5,
+    "beatSync": false,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "none",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "title",
+    "outro": "none",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "none",
+    "duck": 0.4,
+    "sfx": false
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 6,
+    "silenceSec": 0.7
+  }
+}

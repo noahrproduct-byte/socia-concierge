@@ -1,0 +1,82 @@
+{
+  "id": "bold-hook",
+  "name": "Bold Hook",
+  "description": "Huge condensed captions, three words at a time, the spoken word in yellow, a punch-in on every key word, hard cuts and a fast beat. Built from the viral reels study: the line is on screen inside the first second.",
+  "bestFor": "Talking to camera, offers, anything with a strong line.",
+  "tags": [
+    "bold",
+    "fast",
+    "talking-head",
+    "hook"
+  ],
+  "sample": {
+    "title": "STOP\nSCROLLING",
+    "caption": "TWENTY A DAY"
+  },
+  "typography": {
+    "font": "anton",
+    "weight": 400,
+    "sizeScale": 1.25,
+    "letterSpacing": 0,
+    "transform": "upper",
+    "captionPosition": "middle",
+    "align": "center",
+    "maxWords": 3,
+    "captionPreset": "highlight",
+    "captionAnimation": "pop",
+    "textBox": "outline",
+    "pill": false,
+    "highlight": "#ffe600",
+    "titlePreset": "hook_title"
+  },
+  "color": {
+    "primary": "#000000",
+    "accent": "#ffe600",
+    "text": "#ffffff",
+    "captionBg": "#000000",
+    "grade": {
+      "contrast": 1.08,
+      "saturation": 1.08,
+      "warmth": 0,
+      "vignette": 0,
+      "grain": 0,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "alternate",
+      "from": 1,
+      "to": 1.08,
+      "ease": "out"
+    },
+    "punchIn": 0.1,
+    "shake": 0,
+    "transition": "cut",
+    "transitionFrames": 9,
+    "brollSec": 1.5,
+    "beatSync": true,
+    "alternateZoom": true
+  },
+  "layout": {
+    "lowerThird": "none",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "title",
+    "outro": "none",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "none",
+    "duck": 0.4,
+    "sfx": false
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 3,
+    "silenceSec": 0.35
+  }
+}

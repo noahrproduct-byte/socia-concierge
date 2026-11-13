@@ -15,6 +15,10 @@ export const FONTS = [
   { id: "bebas", label: "Bebas Neue" },
   // The italic serif half of a paired hook (Hook Pair's small line). Not a font a whole video is set in.
   { id: "serif", label: "Instrument Serif" },
+  // Theme faces (lib/studioClips/themes): a rounded sans, a mono display face, and SOCIA's own sans.
+  { id: "nunito", label: "Nunito (rounded)" },
+  { id: "spacemono", label: "Space Mono" },
+  { id: "instrument", label: "Instrument Sans (SOCIA)" },
 ] as const;
 export type FontId = (typeof FONTS)[number]["id"];
 
@@ -47,7 +51,17 @@ export const CAPTION_STYLES = [
   { id: "subtitle", label: "Subtitle", hint: "Small, calm, in a soft box. No animation.", maxWords: 7, pageMs: 1800, animation: "none", mark: "none" },
 ] as const;
 export type CaptionStyleId = (typeof CAPTION_STYLES)[number]["id"];
-export type CaptionAnimation = (typeof CAPTION_STYLES)[number]["animation"];
+/** How a caption page comes in: the style's own, or one set by a theme or the person. */
+export const CAPTION_ANIMATIONS = [
+  { id: "none", label: "None" },
+  { id: "pop", label: "Pop" },
+  { id: "rise", label: "Slide up" },
+  { id: "fade", label: "Fade" },
+  { id: "typewriter", label: "Typewriter" },
+  { id: "bounce", label: "Scale bounce" },
+] as const;
+export type CaptionAnimation = (typeof CAPTION_ANIMATIONS)[number]["id"];
+export const isCaptionAnimation = (v: unknown): v is CaptionAnimation => CAPTION_ANIMATIONS.some((a) => a.id === v);
 export type CaptionMark = (typeof CAPTION_STYLES)[number]["mark"];
 export const captionStyle = (id: CaptionStyleId) => CAPTION_STYLES.find((s) => s.id === id) ?? CAPTION_STYLES[0];
 
@@ -80,6 +94,8 @@ export type EdlStyle = {
     preset: CaptionStyleId;
     /** The colour the spoken word, its box or its marker takes, #rrggbb. */
     highlight: string;
+    /** How a page comes in; absent = the caption style's own. */
+    animation?: CaptionAnimation;
   };
 };
 
@@ -130,6 +146,7 @@ export function sanitizeStyle(v: unknown): EdlStyle | undefined {
       uppercase: typeof c.uppercase === "boolean" ? c.uppercase : false,
       preset: pick<CaptionStyleId>(c.preset, CAPTION_STYLES.map((s) => s.id), "classic"),
       highlight: isHex(c.highlight) ? c.highlight.toLowerCase() : DEFAULT_HIGHLIGHT,
+      ...(isCaptionAnimation(c.animation) ? { animation: c.animation } : {}),
     },
   };
 }

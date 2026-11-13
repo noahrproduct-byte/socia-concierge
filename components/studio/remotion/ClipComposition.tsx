@@ -15,16 +15,10 @@ import { Audio, Video } from "@remotion/media";
 import { colorCorrection } from "@remotion/effects/color-correction";
 import { zoomBlur } from "@remotion/effects/zoom-blur";
 import { blur } from "@remotion/effects/blur";
-import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
-import { loadFont as loadMontserrat } from "@remotion/google-fonts/Montserrat";
-import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
-import { loadFont as loadPlayfair } from "@remotion/google-fonts/PlayfairDisplay";
-import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
-import { loadFont as loadTikTok } from "@remotion/google-fonts/TikTokSans";
-import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
 import { DEFAULT_STYLE, captionLayout, captionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
+import { familyOf, loadEditorFont } from "@/lib/editorFonts";
 import type { TikTokPage } from "@remotion/captions";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
 import { emphasisIndex } from "@/lib/clipper/emphasis";
@@ -41,21 +35,8 @@ import { punchScaleAt } from "@/lib/studioClips/punch";
 import type { TransitionKind } from "@/lib/studioClips/types";
 import { gainAtDb } from "@/lib/studioClips/sound";
 
-// Inter is the default and loads at once; the others load only when an edit uses them.
-const { fontFamily: interFamily } = loadInter("normal", { weights: ["600", "700"], subsets: ["latin", "latin-ext"] });
-const FONT_LOADERS: Record<FontId, () => string> = {
-  inter: () => interFamily,
-  montserrat: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin", "latin-ext"] }).fontFamily,
-  tiktok: () => loadTikTok("normal", { weights: ["700", "800"], subsets: ["latin", "latin-ext"] }).fontFamily,
-  anton: () => loadAnton("normal", { weights: ["400"], subsets: ["latin", "latin-ext"] }).fontFamily,
-  poppins: () => loadPoppins("normal", { weights: ["600", "700"], subsets: ["latin", "latin-ext"] }).fontFamily,
-  playfair: () => loadPlayfair("normal", { weights: ["600", "700"], subsets: ["latin", "latin-ext"] }).fontFamily,
-  bebas: () => loadBebas("normal", { weights: ["400"], subsets: ["latin", "latin-ext"] }).fontFamily,
-  // Never a whole video's font (sanitizeStyle keeps it out); only Hook Pair's small line uses it, through lib/textFonts.ts.
-  serif: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin", "latin-ext"] }).fontFamily,
-};
-const loaded = new Map<FontId, string>();
-const familyFor = (id: FontId) => { if (!loaded.has(id)) loaded.set(id, FONT_LOADERS[id]()); return loaded.get(id)!; };
+// Faces come from the site's own files (lib/editorFonts.ts); a face is registered the first time a cut asks for it.
+const familyFor = (id: FontId): string => { void loadEditorFont(id); return familyOf(id); };
 
 export type ClipCompositionProps = {
   edl: Edl;
@@ -152,8 +133,7 @@ function SafeZoneLayer({ width, height }: { width: number; height: number }) {
 }
 
 // The ending's face. Drawn only once it has loaded, or the first play shows a fallback serif running off the frame.
-let antonFont: ReturnType<typeof loadAnton> | null = null;
-const endFont = () => (antonFont ??= loadAnton("normal", { weights: ["400"], subsets: ["latin", "latin-ext"] }));
+const endFont = () => ({ fontFamily: familyOf("anton"), waitUntilDone: () => loadEditorFont("anton") });
 
 /**
  * The place, the ask and the website over the last shot, no box. Set to leave
@@ -321,6 +301,11 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
+  // Captions and the lower third are DOM text: the frame waits for the face so no frame is painted in a fallback.
+  useEffect(() => {
+    const handle = delayRender(`font ${style.font}`, { timeoutInMilliseconds: 30_000 });
+    loadEditorFont(style.font).catch(() => null).finally(() => continueRender(handle));
+  }, [style.font]);
   // Shots that change during the cut (the AI Clipper): the picture for this frame on its path.
   const pathBox = (s: { clipId: string; frame?: SegmentFrame }, local: number) => {
     const src = sources[s.clipId];

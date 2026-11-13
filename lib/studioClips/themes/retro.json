@@ -1,0 +1,83 @@
+{
+  "id": "retro",
+  "name": "Retro VHS",
+  "description": "Grain, a chroma split, scanlines, a camcorder date stamp, a mono display face, a little desaturated, tape rolls between shots.",
+  "bestFor": "Throwbacks, behind the scenes, skate, music, anything nostalgic.",
+  "tags": [
+    "retro",
+    "vhs",
+    "grain",
+    "lofi",
+    "mono"
+  ],
+  "sample": {
+    "title": "REC  1994",
+    "caption": "back in the day"
+  },
+  "typography": {
+    "font": "spacemono",
+    "weight": 700,
+    "sizeScale": 0.9,
+    "letterSpacing": 0.04,
+    "transform": "upper",
+    "captionPosition": "bottom",
+    "align": "left",
+    "maxWords": 5,
+    "captionPreset": "subtitle",
+    "captionAnimation": "typewriter",
+    "textBox": "none",
+    "pill": false,
+    "highlight": "#ffb000",
+    "titlePreset": "lower_third"
+  },
+  "color": {
+    "primary": "#1a1a1a",
+    "accent": "#ffb000",
+    "text": "#f4f1e8",
+    "captionBg": "#000000",
+    "grade": {
+      "contrast": 0.95,
+      "saturation": 0.78,
+      "warmth": 0.15,
+      "vignette": 0.3,
+      "grain": 0.4,
+      "chroma": 4,
+      "scanlines": 0.25,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "none",
+      "from": 1,
+      "to": 1,
+      "ease": "linear"
+    },
+    "punchIn": 0,
+    "shake": 0.15,
+    "transition": "tape",
+    "transitionFrames": 5,
+    "brollSec": 2,
+    "beatSync": false,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "none",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "title",
+    "outro": "none",
+    "frame": "none",
+    "dateStamp": true
+  },
+  "audio": {
+    "mood": "lofi",
+    "duck": 0.4,
+    "sfx": false
+  },
+  "pacing": {
+    "hook": true,
+    "maxClipSec": 5,
+    "silenceSec": 0.7
+  }
+}
