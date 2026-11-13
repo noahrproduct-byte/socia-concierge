@@ -11793,3 +11793,12 @@ p.cbm-muted { display: block; }
 .imw-tab .imw-list { margin-top: 2px; }
 .imw-summary { margin: 0; font-size: 13px; color: var(--text-secondary); }
 .imw-follow { margin: 0; font-size: 12px; }
+
+/* Phone: player, then the timeline, then the tabs, in one column (the grid's children become the column's). */
+@media (max-width: 960px) {
+  .cbb-grid { display: contents; }
+  .cbb-player-col { order: 1; position: static; }
+  .cbb-tl-card { order: 2; }
+  .cbb-panels { order: 3; }
+  .cbb-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

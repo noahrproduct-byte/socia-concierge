@@ -9,6 +9,7 @@ import { isHouseGenre } from "./houseStyle";
 import { overlapFrames } from "./timeline";
 import { sanitizeMotion, segmentFrames } from "./motion";
 import { isThemeId } from "./themes";
+import { resolveTheme } from "./themes/apply";
 import { finishSteps, sanitizeFinish } from "./finish";
 import { cleanVolume, sanitizeStyle } from "./style";
 import { cutSpeaks } from "../music/taste";
@@ -178,11 +179,12 @@ export function cleanFrame(f: { zoom?: number; x?: number; y?: number; path?: un
 }
 
 /** The cut's length: its segments end to end, less the overlap of each transition (lib/studioClips/timeline.ts). */
-export const edlDurationSec = (edl: Pick<Edl, "segments">): number => {
+export const edlDurationSec = (edl: Pick<Edl, "segments"> & Partial<Pick<Edl, "theme">>): number => {
   let frames = 0, prev = 0;
+  const joinFrames = resolveTheme({ theme: edl.theme })?.motion.transitionFrames;
   edl.segments.forEach((s, i) => {
     const cur = Math.max(1, segmentFrames(s));
-    frames += cur - (i ? overlapFrames(s.transition, prev, cur) : 0);
+    frames += cur - (i ? overlapFrames(s.transition, prev, cur, joinFrames) : 0);
     prev = cur;
   });
   return r2(frames / EDL_DEFAULTS.fps);

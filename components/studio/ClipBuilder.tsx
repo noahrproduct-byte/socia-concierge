@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Player, type PlayerRef } from "@remotion/player";
-import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX } from "lucide-react";
+import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX, Type } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
@@ -43,13 +43,18 @@ import { emphasisLabels, pickEmphasis } from "@/lib/studioClips/emphasis";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { bestMomentFor } from "@/lib/studioClips/rank";
 import { readLocalDraft, writeLocalDraft, clearLocalDraft, SOURCE_REFRESH_MS } from "@/lib/studioClips/localDraft";
+import ThemesPanel from "./ThemesPanel";
+import EffectsPanel from "./EffectsPanel";
+import { THEMES, type Theme } from "@/lib/studioClips/themes";
+import { applyTheme, resetToTheme, resolveTheme, setThemeOverride } from "@/lib/studioClips/themes/apply";
+import { autoEdit } from "@/lib/studioClips/themes/autoEdit";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
 import "@/app/(app)/studio/studio.css";
 import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
 import { motion } from "framer-motion";
 import { Bar, Details, Reveal, Ring, useMotionOk } from "@/components/dashboard/motion";
-import { CAPCUT_FONTS, CAPTION_STYLES, DEFAULT_STYLE, FONTS, captionStyle, withCaptionStyle, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
+import { CAPCUT_FONTS, CAPTION_ANIMATIONS, CAPTION_STYLES, DEFAULT_STYLE, FONTS, captionStyle, withCaptionStyle, type CaptionAnimation, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
@@ -101,6 +106,13 @@ function Finished({ message }: { message: string }) {
   );
 }
 
+/** The tabs, in CapCut's order: the theme first, then what it is made of. */
+type Panel = "themes" | "cut" | "text" | "captions" | "effects" | "transitions" | "audio" | "adjust" | "regenerate";
+const PANELS: { id: Panel; label: string }[] = [
+  { id: "themes", label: "Themes" }, { id: "cut", label: "Cut" }, { id: "text", label: "Text" }, { id: "captions", label: "Captions" },
+  { id: "effects", label: "Effects" }, { id: "transitions", label: "Transitions" }, { id: "audio", label: "Audio" }, { id: "adjust", label: "Adjust" },
+];
+
 type ExportPhase = "idle" | "checking" | "rendering" | "inspecting" | "review" | "uploading" | "saving" | "done" | "error";
 /** `report`: what SOCIA saw when it watched the finished video (lib/studioClips/renderCheck.ts). */
 type ExportState = { phase: ExportPhase; progress: number; message: string | null; postId: string | null; report?: RenderReport | null };
@@ -108,7 +120,7 @@ type ExportState = { phase: ExportPhase; progress: number; message: string | nul
 export default function ClipBuilder({ buildId, title, onBack, fixture, initialPanel }: {
   buildId: string; title: string; onBack: () => void; fixture?: BuildPlayerData;
   /** the tab to open on (the Audio tab opens on Music; a fix from Rate opens on its own tab) */
-  initialPanel?: "cut" | "text" | "finish" | "audio";
+  initialPanel?: "cut" | "text" | "finish" | "audio" | "themes";
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [data, setData] = useState<BuildPlayerData | null>(fixture ?? null);
@@ -123,7 +135,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  const [panel, setPanel] = useState<"cut" | "frame" | "style" | "text" | "finish" | "audio" | "regenerate">(initialPanel ?? "cut");
+  const [panel, setPanel] = useState<Panel>(initialPanel === "finish" ? "adjust" : (initialPanel ?? "themes"));
   // Music added on its own (Growth/Pro, once per cut, unless the brand turned it off): lib/music, music/auto.
   const [autoMusic, setAutoMusic] = useState<{ state: "adding" | "added" | "skipped" | "failed"; note: string | null } | null>(null);
   const [musicAutoOn, setMusicAutoOn] = useState<boolean | null>(null);
@@ -443,7 +455,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   // Style (Editor V2): discrete choices are one undo step each; the colour picker is live after one.
   const st: EdlStyle = edl?.style ?? DEFAULT_STYLE;
   const setStyle = (patch: Partial<EdlStyle>) => { if (edl) commit({ ...edl, style: { ...st, ...patch } }); };
-  const setCaptionStyle = (patch: Partial<EdlStyle["captions"]>) => setStyle({ captions: { ...st.captions, ...patch } });
   const liveAccent = (accent: string) => { if (!edl) return; setEdl({ ...edl, style: { ...st, accent } }); setDirty(true); };
   const liveHighlight = (highlight: string) => { if (!edl) return; setEdl({ ...edl, style: { ...st, captions: { ...st.captions, highlight } } }); setDirty(true); };
   const applyPreset = (p: { style: EdlStyle; width: number; height: number }, label: string) => { if (!edl) return; commit({ ...edl, style: p.style, width: p.width, height: p.height }); setStyleNote(`${label} applied.`); };
@@ -456,6 +467,55 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     setPresets(j as VideoPresets);
     setStyleNote(ok);
   };
+  // Themes (lib/studioClips/themes): applying one is instant and pure; the auto-edit on top of it (the hook, the
+  // silences, the B-roll pacing, the beat) runs from the clips' own words and goes in as the same undo step.
+  const applyCtx = useMemo(() => ({ words: Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])) }), [sources]);
+  const theme = useMemo(() => (edl ? resolveTheme(edl) : null), [edl]);
+  const applyThemeHere = (t: Theme) => {
+    if (!edl) return;
+    const themed = applyTheme(edl, t, applyCtx);
+    const r = autoEdit(themed, t, { clips: clipsForEdl(sources), words: applyCtx.words, beat, sources });
+    commit(r.edl);
+    setHereNote(r.notes.length ? r.notes.join(" ") : `${t.name} applied.`);
+  };
+  const resetThemeHere = () => { if (edl) commit(resetToTheme(edl, applyCtx)); };
+  const override = (patch: Record<string, unknown>) => { if (edl?.theme) commit(setThemeOverride(edl, patch, applyCtx)); };
+  /** A style change: an override on the theme when there is one (so Reset can take it back), the cut's own style otherwise. */
+  const styleChange = (patch: Partial<EdlStyle>) => {
+    if (!edl) return;
+    if (!edl.theme) { setStyle(patch); return; }
+    const o: Record<string, unknown> = {};
+    const ty: Record<string, unknown> = {};
+    if (patch.font) ty.font = patch.font;
+    if (patch.textBox) ty.textBox = patch.textBox;
+    if (patch.accent) o.color = { accent: patch.accent };
+    const c = patch.captions;
+    if (c) {
+      if (c.position) ty.captionPosition = c.position;
+      if (c.size) ty.sizeScale = c.size === "s" ? 0.85 : c.size === "l" ? 1.2 : 1;
+      if (typeof c.box === "boolean") ty.pill = c.box;
+      if (typeof c.uppercase === "boolean") ty.transform = c.uppercase ? "upper" : "none";
+      if (c.preset) ty.captionPreset = c.preset;
+      if (c.highlight) ty.highlight = c.highlight;
+      if (c.animation) ty.captionAnimation = c.animation;
+    }
+    if (Object.keys(ty).length) o.typography = ty;
+    override(o);
+  };
+  const captionChange = (patch: Partial<EdlStyle["captions"]>) => styleChange({ captions: { ...st.captions, ...patch } });
+  const setMotion = (i: number, patch: Partial<NonNullable<Edl["segments"][number]["motion"]>> | null) => {
+    if (!edl) return;
+    commit({ ...edl, segments: edl.segments.map((x, k) => {
+      if (k !== i) return x;
+      if (patch === null) { const { motion: _m, ...rest } = x; void _m; return rest; }
+      return { ...x, motion: { ...x.motion, ...patch, locked: true as const } };
+    }) });
+  };
+  const setStabilize = (i: number, strength: Edl["segments"][number]["stabilize"] extends infer T ? (T extends { strength: infer U } ? U : never) | null : never) => {
+    if (!edl) return;
+    commit({ ...edl, segments: edl.segments.map((x, k) => { if (k !== i) return x; if (!strength) { const { stabilize: _s, ...rest } = x; void _s; return rest; } return { ...x, stabilize: { strength } }; }) });
+  };
+  const setAllTransitions = (t: TransitionKind) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === 0 ? x : { ...x, transition: t === "cut" ? undefined : t })) }); };
   const setVolume = (i: number, v: number) => { if (!edl) return; setEdl({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: v } : x)) }); setDirty(true); };
   const setTransition = (i: number, t: TransitionKind) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, transition: t === "cut" ? undefined : t } : x)) }); };
   const toggleMute = (i: number) => { if (!edl) return; commit({ ...edl, segments: edl.segments.map((x, k) => (k === i ? { ...x, volume: (x.volume ?? 1) === 0 ? 1 : 0 } : x)) }); };
@@ -703,7 +763,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const playerProps = useMemo(() => ({ edl: edl!, sources, captionsOn, finishOn: compare === "after", musicUrl, voiceUrls, cleanAudio, safeZoneGuide: guide }), [edl, sources, captionsOn, compare, musicUrl, voiceUrls, cleanAudio, guide]);
+  // The watermark slot: SOCIA's own mark on SOCIA's theme; any other brand's mark would have to be the account's own (not stored yet), so the slot stays empty.
+  const watermarkUrl = edl?.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null;
+  const playerProps = useMemo(() => ({ edl: edl!, sources, captionsOn, finishOn: compare === "after", musicUrl, voiceUrls, cleanAudio, safeZoneGuide: guide, watermarkUrl }), [edl, sources, captionsOn, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl]);
 
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;
@@ -855,17 +917,72 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         </div>
 
         <div className="cbb-panels">
-          <div className="st-tabs cbb-tabs" role="tablist">
-            <button type="button" role="tab" className={panel === "cut" ? "on" : ""} onClick={() => setPanel("cut")}>Cut</button>
-            <button type="button" role="tab" className={panel === "frame" ? "on" : ""} onClick={() => setPanel("frame")}>Frame</button>
-            <button type="button" role="tab" className={panel === "style" ? "on" : ""} onClick={() => setPanel("style")}>Style</button>
-            <button type="button" role="tab" className={panel === "text" ? "on" : ""} onClick={() => setPanel("text")}>Text &amp; captions</button>
-            <button type="button" role="tab" className={panel === "finish" ? "on" : ""} onClick={() => setPanel("finish")}>Look &amp; sound</button>
-            <button type="button" role="tab" className={panel === "audio" ? "on" : ""} onClick={() => setPanel("audio")}>Voice &amp; music</button>
-            {!data.manual && <button type="button" role="tab" className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>}
+          <div className="st-tabs cbb-tabs" role="tablist" aria-label="Editor tabs">
+            {PANELS.map((t) => <button key={t.id} type="button" role="tab" aria-selected={panel === t.id} className={panel === t.id ? "on" : ""} onClick={() => setPanel(t.id)}>{t.label}</button>)}
+            {!data.manual && <button type="button" role="tab" aria-selected={panel === "regenerate"} className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>}
           </div>
 
-          {panel === "finish" && (
+          {panel === "themes" && (
+            <ThemesPanel edl={edl} sources={sources} ctx={applyCtx} canEdit={data.canEdit} busy={busy} onApply={applyThemeHere} onReset={resetThemeHere} />
+          )}
+
+          {panel === "effects" && (
+            <EffectsPanel
+              edl={edl}
+              sources={sources}
+              theme={theme}
+              index={sel?.kind === "cut" && edl.segments[sel.index] ? sel.index : Math.max(0, Math.min(edl.segments.length - 1, tl.segments.findIndex((x) => playSec >= x.startSec && playSec < x.startSec + x.durationFrames / OUTPUT.fps)))}
+              canEdit={data.canEdit}
+              busy={busy}
+              fixture={Boolean(fixture)}
+              onSelect={(i) => { setSel({ kind: "cut", index: i }); const p = player.current; const seg = tl.segments[i]; if (p && seg) { p.pause(); p.seekTo(seg.startFrame + 1); } }}
+              onMotion={setMotion}
+              onStabilize={setStabilize}
+              onLook={(grade) => override({ color: { grade } })}
+              onSources={(patch) => setData((d) => (d ? { ...d, sources: d.sources.map((x) => (patch[x.clipId] ? { ...x, stable: { ...x.stable, ...patch[x.clipId] } } : x)) } : d))}
+            />
+          )}
+
+          {panel === "transitions" && (
+            <div className="sd-fx">
+              <div className="ov-card">
+                <b>Every join</b>
+                <small className="sd-fx-note">{theme ? `${theme.name} joins cuts with ${TRANSITIONS.find((t) => t.id === theme.motion.transition)?.label.toLowerCase() ?? "a cut"}, ${theme.motion.transitionFrames} frames long. Change one join below, or all of them here.` : "The join between two cuts. Change one below, or all of them here."}</small>
+                <div className="sd-trans" role="radiogroup" aria-label="Transition for every join">
+                  {TRANSITIONS.map((t) => (
+                    <TransitionOption key={t.id} kind={t.id} label={t.label} on={edl.segments.length > 1 && edl.segments.slice(1).every((x) => (x.transition ?? "cut") === t.id)} disabled={!data.canEdit || busy || edl.segments.length < 2} onPick={() => { setAllTransitions(t.id); if (edl.theme) override({ motion: { transition: t.id } }); }} />
+                  ))}
+                </div>
+                {theme && (
+                  <label className="sd-fx-row"><span>Join length</span><input type="range" min={2} max={24} step={1} value={theme.motion.transitionFrames} disabled={!data.canEdit || busy} onChange={(e) => override({ motion: { transitionFrames: Number(e.target.value) } })} /><em>{theme.motion.transitionFrames} fr</em></label>
+                )}
+                <small className="sd-fx-note">Whip and zoom joins read as an editor&apos;s showreel in the viral-reels study; plain cuts and short fades won on likes everywhere but sports.</small>
+              </div>
+              <ol className="sd-cutlist" aria-label="Joins">
+                {edl.segments.map((s2, i) => {
+                  if (i === 0) return null;
+                  const src2 = sources[s2.clipId];
+                  return (
+                    <li key={s2.id} className="sd-join">
+                      <span className="sd-join-head">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
+                        {src2?.thumb ? <img src={src2.thumb} alt="" /> : <span className="sd-ph" />}
+                        <b>Into cut {i + 1}</b><small>{src2 ? clipLabel(src2.position) : "Expired clip"}</small>
+                      </span>
+                      <div className="sd-trans" role="radiogroup" aria-label={`Transition into cut ${i + 1}`}>
+                        {TRANSITIONS.map((t) => <TransitionOption key={t.id} kind={t.id} label={t.label} on={(s2.transition ?? "cut") === t.id} disabled={!data.canEdit || busy} onPick={() => setTransition(i, t.id)} />)}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          )}
+
+
+          {panel === "audio" && (
+            <div className="cbb-audio">
+              {panel === "audio" && (
             <div className="ov-card cbb-captions">
               <div>
                 <b><Volume2 size={14} /> Reduce background noise</b>
@@ -878,12 +995,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <button type="button" className={`cbb-toggle${cleanOn ? " on" : ""}`} role="switch" aria-checked={cleanOn} aria-label="Reduce background noise" disabled={!data.canEdit || busy} onClick={() => commit({ ...edl, cleanSound: !cleanOn })}><i /></button>
             </div>
           )}
-          {panel === "finish" && (
-            <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} initialMeasures={measures} onCommit={(next) => { commit(next); setCompare("after"); }} />
-          )}
-
-          {panel === "audio" && (
-            <div className="cbb-audio">
               <VoiceoverCard
                 buildId={buildId}
                 edl={edl}
@@ -923,52 +1034,84 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             </div>
           )}
 
-          {panel === "style" && (
-            <div className="cbb-frame cbb-style">
-              <div className="ov-card">
-                <b><Palette size={14} /> Text</b>
-                <label className="cbb-field">Font
-                  <select value={st.font} disabled={!data.canEdit || busy} onChange={(e) => setStyle({ font: e.target.value as EdlStyle["font"] })}>
-                    {FONTS.filter((f) => f.id === st.font || CAPCUT_FONTS.some((c) => c.id === f.id)).map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-                  </select>
-                </label>
-                <label className="cbb-field">Brand colour
-                  <input type="color" value={st.accent} disabled={!data.canEdit || busy} onPointerDown={beginLive} onFocus={beginLive} onChange={(e) => liveAccent(e.target.value)} />
-                </label>
-                <small>Used for the call to action, and for text boxes set to Brand colour.</small>
-                <div className="cal2-seg" role="radiogroup" aria-label="Text background">
-                  {([["none", "Clean shadow"], ["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"]] as const).map(([id, label]) => (
-                    <button key={id} type="button" role="radio" aria-checked={st.textBox === id} className={st.textBox === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setStyle({ textBox: id })}>{label}</button>
-                  ))}
+          {panel === "captions" && (
+            <div className="cbb-text">
+              <div className="ov-card cbb-captions">
+                <div>
+                  <b><Captions size={14} /> Captions</b>
+                  <small>{anySpeech ? "From the real transcript, word by word." : voiceOn ? "From the voiceover, word by word as it's read." : "No speech was detected in these clips, so there is nothing to caption."}</small>
                 </div>
+                <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!(anySpeech || voiceOn) || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
               </div>
+              {captionsOn && (
+                <div className="ov-card cbb-captions">
+                  <div>
+                    <b>Highlight the key words</b>
+                    <small>
+                      {highlighted.length
+                        ? `One word a line at most, in the highlight colour: ${highlighted.join(", ")}.`
+                        : canHighlight
+                          ? "Colours the number or name that carries each line, one word at most. The fast themes punch in on them too."
+                          : "Nothing in what is said stands out to highlight: no numbers or names."}
+                    </small>
+                  </div>
+                  <button type="button" className={`cbb-toggle${highlighted.length ? " on" : ""}`} role="switch" aria-checked={highlighted.length > 0} aria-label="Highlight the key words" disabled={!canHighlight || !data.canEdit || busy} onClick={toggleEmphasis}><i /></button>
+                </div>
+              )}
               <div className="ov-card">
-                <b><Captions size={14} /> Captions</b>
+                <b>Caption style</b>
                 <div className="cbb-capstyles" role="radiogroup" aria-label="Caption style">
                   {CAPTION_STYLES.map((c) => (
-                    <button key={c.id} type="button" role="radio" aria-checked={st.captions.preset === c.id} className={`cbb-capstyle is-${c.id}${st.captions.preset === c.id ? " on" : ""}`} disabled={!data.canEdit || busy} onClick={() => { setStyle(withCaptionStyle(st, c.id)); setStyleNote(`${c.label} captions: ${c.hint}`); }}>
+                    <button key={c.id} type="button" role="radio" aria-checked={st.captions.preset === c.id} className={`cbb-capstyle is-${c.id}${st.captions.preset === c.id ? " on" : ""}`} disabled={!data.canEdit || busy} onClick={() => { const next = withCaptionStyle(st, c.id); styleChange({ font: next.font, textBox: next.textBox, captions: next.captions }); setStyleNote(`${c.label} captions: ${c.hint}`); }}>
                       <span className="cbb-capstyle-demo" aria-hidden style={{ "--cap-hi": st.captions.highlight } as React.CSSProperties}><i>know</i> <em>what</em> <i>to post</i></span>
                       <span className="cbb-capstyle-name">{c.label}</span>
                     </button>
                   ))}
                 </div>
-                <small>{captionStyle(st.captions.preset).hint} Picking a style sets its font, case and position; change any of them below.</small>
+                <small>{captionStyle(st.captions.preset).hint} Picking a style sets its font, case and position; change any of them below.{theme ? " With a theme, every change here is kept on top of it; Reset to theme (Themes tab) takes it back." : ""}</small>
                 <label className="cbb-field">Highlight colour
-                  <input type="color" value={st.captions.highlight} disabled={!data.canEdit || busy} onPointerDown={beginLive} onFocus={beginLive} onChange={(e) => liveHighlight(e.target.value)} />
+                  <input type="color" value={st.captions.highlight} disabled={!data.canEdit || busy} onPointerDown={beginLive} onFocus={beginLive} onChange={(e) => liveHighlight(e.target.value)} onBlur={(e) => { if (edl.theme) override({ typography: { highlight: e.target.value } }); }} />
+                </label>
+                <label className="cbb-field">Animation
+                  <select value={st.captions.animation ?? captionStyle(st.captions.preset).animation} disabled={!data.canEdit || busy} onChange={(e) => captionChange({ animation: e.target.value as CaptionAnimation })}>
+                    {CAPTION_ANIMATIONS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+                  </select>
                 </label>
                 <div className="cal2-seg" role="radiogroup" aria-label="Caption position">
                   {([["top", "Top"], ["middle", "Middle"], ["lower", "Lower"], ["bottom", "Bottom"]] as const).map(([id, label]) => (
-                    <button key={id} type="button" role="radio" aria-checked={st.captions.position === id} className={st.captions.position === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setCaptionStyle({ position: id })}>{label}</button>
+                    <button key={id} type="button" role="radio" aria-checked={st.captions.position === id} className={st.captions.position === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => captionChange({ position: id })}>{label}</button>
                   ))}
                 </div>
                 <div className="cal2-seg" role="radiogroup" aria-label="Caption size">
                   {([["s", "Small"], ["m", "Medium"], ["l", "Large"]] as const).map(([id, label]) => (
-                    <button key={id} type="button" role="radio" aria-checked={st.captions.size === id} className={st.captions.size === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => setCaptionStyle({ size: id })}>{label}</button>
+                    <button key={id} type="button" role="radio" aria-checked={st.captions.size === id} className={st.captions.size === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => captionChange({ size: id })}>{label}</button>
                   ))}
                 </div>
-                <label className="cbb-check"><input type="checkbox" checked={st.captions.box} disabled={!data.canEdit || busy} onChange={(e) => setCaptionStyle({ box: e.target.checked })} /> Box behind captions</label>
-                <label className="cbb-check"><input type="checkbox" checked={st.captions.uppercase} disabled={!data.canEdit || busy} onChange={(e) => setCaptionStyle({ uppercase: e.target.checked })} /> Capital letters</label>
-                {!edl.captions && <small>Captions are off for this video; turn them on in Text &amp; captions.</small>}
+                <label className="cbb-check"><input type="checkbox" checked={st.captions.box} disabled={!data.canEdit || busy} onChange={(e) => captionChange({ box: e.target.checked })} /> Box behind captions</label>
+                <label className="cbb-check"><input type="checkbox" checked={st.captions.uppercase} disabled={!data.canEdit || busy} onChange={(e) => captionChange({ uppercase: e.target.checked })} /> Capital letters</label>
+                {styleNote && <small role="status">{styleNote}</small>}
+              </div>
+            </div>
+          )}
+
+          {panel === "adjust" && (
+            <div className="cbb-frame cbb-style">
+              <div className="ov-card">
+                <b><Palette size={14} /> Text</b>
+                <label className="cbb-field">Font
+                  <select value={st.font} disabled={!data.canEdit || busy} onChange={(e) => styleChange({ font: e.target.value as EdlStyle["font"] })}>
+                    {FONTS.filter((f) => f.id === st.font || f.id !== "serif" && (CAPCUT_FONTS.some((c) => c.id === f.id) || THEMES.some((t) => t.typography.font === f.id))).map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                  </select>
+                </label>
+                <label className="cbb-field">Brand colour
+                  <input type="color" value={st.accent} disabled={!data.canEdit || busy} onPointerDown={beginLive} onFocus={beginLive} onChange={(e) => liveAccent(e.target.value)} onBlur={(e) => { if (edl.theme) override({ color: { accent: e.target.value } }); }} />
+                </label>
+                <small>Used for the call to action, text boxes set to Brand colour, the lower third bar and the progress bar.</small>
+                <div className="cal2-seg" role="radiogroup" aria-label="Text background">
+                  {([["none", "Clean shadow"], ["outline", "Outline (CapCut)"], ["dark", "Dark box"], ["light", "Light box"], ["accent", "Brand colour"]] as const).map(([id, label]) => (
+                    <button key={id} type="button" role="radio" aria-checked={st.textBox === id} className={st.textBox === id ? "on" : ""} disabled={!data.canEdit || busy} onClick={() => styleChange({ textBox: id })}>{label}</button>
+                  ))}
+                </div>
               </div>
               <div className="ov-card">
                 <b>Brand style and templates</b>
@@ -997,7 +1140,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             </div>
           )}
 
-          {panel === "frame" && (
+          {panel === "adjust" && (
             <div className="cbb-frame">
               <div className="ov-card">
                 <b><Crop size={14} /> Size</b>
@@ -1032,6 +1175,10 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             </div>
           )}
 
+          {panel === "adjust" && (
+            <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} initialMeasures={measures} onCommit={(next) => { commit(next); setCompare("after"); }} />
+          )}
+
           {panel === "cut" && (() => {
             const k = sel?.kind === "cut" && edl.segments[sel.index] ? sel.index : Math.max(0, Math.min(edl.segments.length - 1, tl.segments.findIndex((x) => playSec >= x.startSec && playSec < x.startSec + x.durationFrames / OUTPUT.fps)));
             const cur = edl.segments[k];
@@ -1060,11 +1207,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                     {k > 0 && (
                       <div className="sd-field">
                         <span>Comes in with</span>
-                        <div className="sd-trans" role="radiogroup" aria-label="Transition">
-                          {TRANSITIONS.map((t) => (
-                            <TransitionOption key={t.id} kind={t.id} label={t.label} on={(cur.transition ?? "cut") === t.id} disabled={locked} onPick={() => setTransition(k, t.id)} />
-                          ))}
-                        </div>
+                        <span className="sd-times">{TRANSITIONS.find((t) => t.id === (cur.transition ?? "cut"))?.label} <button type="button" className="sd-check-go" onClick={() => setPanel("transitions")}>Change in Transitions</button></span>
                       </div>
                     )}
                     <div className="sd-field">
@@ -1112,28 +1255,6 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
 
           {panel === "text" && (
             <div className="cbb-text">
-              <div className="ov-card cbb-captions">
-                <div>
-                  <b><Captions size={14} /> Captions</b>
-                  <small>{anySpeech ? "From the real transcript, word by word." : voiceOn ? "From the voiceover, word by word as it's read." : "No speech was detected in these clips, so there is nothing to caption."}</small>
-                </div>
-                <button type="button" className={`cbb-toggle${captionsOn ? " on" : ""}`} role="switch" aria-checked={captionsOn} disabled={!(anySpeech || voiceOn) || !data.canEdit || busy} onClick={toggleCaptions}><i /></button>
-              </div>
-              {captionsOn && (
-                <div className="ov-card cbb-captions">
-                  <div>
-                    <b>Highlight the key words</b>
-                    <small>
-                      {highlighted.length
-                        ? `One word a line at most, in yellow: ${highlighted.join(", ")}.`
-                        : canHighlight
-                          ? "Colours the number or name that carries each line, one word at most."
-                          : "Nothing in what is said stands out to highlight: no numbers or names."}
-                    </small>
-                  </div>
-                  <button type="button" className={`cbb-toggle${highlighted.length ? " on" : ""}`} role="switch" aria-checked={highlighted.length > 0} aria-label="Highlight the key words" disabled={!canHighlight || !data.canEdit || busy} onClick={toggleEmphasis}><i /></button>
-                </div>
-              )}
               <TextLayersPanel
                 layers={edl.text}
                 onChange={(text) => commit({ ...edl, text })}
@@ -1146,6 +1267,14 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 openId={sel?.kind === "text" ? edl.text[sel.index]?.id ?? null : null}
                 onOpen={(l) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, Math.round(l.at * OUTPUT.fps) + 1)); } }}
               />
+              <div className="ov-card cbb-caption-copy">
+                <b><Type size={14} /> Lower third</b>
+                <small className="sd-fx-note">{theme ? (theme.layout.lowerThird === "none" ? `${theme.name} has no lower third; another theme shows these words bottom-left.` : `Shown bottom-left for the whole video in ${theme.name}'s style.`) : "Shown bottom-left with a theme that has a lower third."}</small>
+                <div className="cbb-endcard-fields">
+                  <label>Name<input type="text" maxLength={40} value={edl.lowerThird?.name ?? ""} disabled={!data.canEdit || busy} placeholder="Who is talking" onChange={(e) => commit({ ...edl, lowerThird: { name: e.target.value, line: edl.lowerThird?.line ?? "" } })} /></label>
+                  <label>Line under it<input type="text" maxLength={60} value={edl.lowerThird?.line ?? ""} disabled={!data.canEdit || busy} placeholder="The business, the place" onChange={(e) => commit({ ...edl, lowerThird: { name: edl.lowerThird?.name ?? "", line: e.target.value } })} /></label>
+                </div>
+              </div>
               <EndCardPanel
                 card={edl.endCard ?? null}
                 disabled={!data.canEdit || busy}

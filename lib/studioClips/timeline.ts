@@ -6,6 +6,7 @@ import { OUTPUT } from "./types";
 import { createTikTokStyleCaptions, type TikTokPage } from "@remotion/captions";
 import { cleanCaptionWords } from "./captionClean";
 import { clipSecAt, segmentFrames } from "./motion";
+import { resolveTheme } from "./themes/apply";
 
 export const FPS = OUTPUT.fps;
 export const secToFrames = (s: number): number => Math.max(0, Math.round(s * FPS));
@@ -17,9 +18,9 @@ export const dbToGain = (db: number): number => Math.pow(10, db / 20);
 export const TRANSITION_FRAMES = 9;
 
 /** Frames a cut overlaps the one before it: none for a hard cut, and never more than half of either cut. */
-export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number): number {
+export function overlapFrames(kind: TransitionKind | undefined, prevFrames: number, curFrames: number, frames: number = TRANSITION_FRAMES): number {
   if (!kind || kind === "cut" || kind === "flash" || kind === "tape") return 0;
-  return Math.max(0, Math.min(TRANSITION_FRAMES, Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
+  return Math.max(0, Math.min(frames, Math.floor(prevFrames / 2), Math.floor(curFrames / 2)));
 }
 
 export type TimelineSegment = EdlSegment & {
@@ -40,13 +41,15 @@ export type Timeline = { segments: TimelineSegment[]; durationFrames: number; du
 
 export function timeline(edl: Edl): Timeline {
   const gain = new Map(edl.audio.map((a) => [a.clipId, a.gainDb]));
+  // A theme sets how long its soft joins run; cuts without a theme use the CapCut length.
+  const joinFrames = resolveTheme(edl)?.motion.transitionFrames ?? TRANSITION_FRAMES;
   // Each cut starts where the one before ends, less the overlap of its transition.
   let frame = 0;
   const segments: TimelineSegment[] = [];
   edl.segments.forEach((s, i) => {
     const durationFrames = Math.max(1, segmentFrames(s));
     const prev = segments[i - 1];
-    const overlapIn = prev ? overlapFrames(s.transition, prev.durationFrames, durationFrames) : 0;
+    const overlapIn = prev ? overlapFrames(s.transition, prev.durationFrames, durationFrames, joinFrames) : 0;
     if (prev) prev.overlapOut = overlapIn;
     const startFrame = Math.max(0, frame - overlapIn);
     segments.push({ ...s, startSec: framesToSec(startFrame), startFrame, durationFrames, overlapIn, overlapOut: 0, inFrame: secToFrames(s.in), gainDb: gain.get(s.clipId) ?? 0 });
