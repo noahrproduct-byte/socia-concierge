@@ -54,8 +54,8 @@ export function motionAt(m: SegmentMotion | undefined, frame: number, durationFr
   const out: Transform = { scale: 1, x: 0, y: 0, ox: 0.5, oy: 0.5 };
   if (!m) return out;
   if (m.zoom) {
-    const k = durationFrames > 1 ? frame / (durationFrames - 1) : 1;
-    out.scale = m.zoom.from + (m.zoom.to - m.zoom.from) * ease(k, m.zoom.ease);
+    // Two keyframes, the cut's first and last frame; the generic primitive eases between them.
+    out.scale = keyframeValue(frame, [{ t: 0, v: m.zoom.from }, { t: Math.max(1, durationFrames - 1), v: m.zoom.to }], m.zoom.ease);
     out.ox = m.zoom.x; out.oy = m.zoom.y;
   }
   if (m.punch?.at.length && m.punch.amount > 0) {
