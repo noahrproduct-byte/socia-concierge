@@ -49,6 +49,7 @@ import { THEMES, type Theme } from "@/lib/studioClips/themes";
 import { applyTheme, resetToTheme, resolveTheme, setThemeOverride } from "@/lib/studioClips/themes/apply";
 import { autoEdit } from "@/lib/studioClips/themes/autoEdit";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
+import { exportProps, previewProps } from "@/lib/studioClips/renderProps";
 import "@/app/(app)/studio/studio.css";
 import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
@@ -643,7 +644,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       const renderTl = timeline(toRender);
       // The export waits for the cleaned sound, so the video sounds like the preview.
       const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
-      const props = { edl: toRender, sources, captionsOn: Boolean(toRender.captions), musicUrl, voiceUrls, cleanAudio: cleaned };
+      const props = exportProps({ edl: toRender, sources, musicUrl, voiceUrls, cleanAudio: cleaned, watermarkUrl });
       const render = async (message: string | null) => {
         setExp({ phase: "rendering", progress: 0, message, postId: null });
         const { getBlob } = await renderMediaOnWeb({
@@ -765,7 +766,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
 
   // The watermark slot: SOCIA's own mark on SOCIA's theme; any other brand's mark would have to be the account's own (not stored yet), so the slot stays empty.
   const watermarkUrl = edl?.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null;
-  const playerProps = useMemo(() => ({ edl: edl!, sources, captionsOn, finishOn: compare === "after", musicUrl, voiceUrls, cleanAudio, safeZoneGuide: guide, watermarkUrl }), [edl, sources, captionsOn, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl]);
+  // The preview's props come from the same builder as the export's (lib/studioClips/renderProps.ts): the parity test keeps them one.
+  const playerProps = useMemo(() => previewProps({ edl: edl!, sources, musicUrl, voiceUrls, cleanAudio, watermarkUrl, finishOn: compare === "after", guide }), [edl, sources, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl]);
 
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;

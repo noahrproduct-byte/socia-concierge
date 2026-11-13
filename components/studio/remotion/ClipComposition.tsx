@@ -78,6 +78,10 @@ const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
 const END_FRAMES = Math.round(END_CARD_SEC * FPS);
 const END_SOFTEN_FRAMES = 9;
 
+/** The cut sound (public/studio-sfx, made with ffmpeg: filtered noise, no recording): half a second, led in by six frames. */
+const SFX_WHOOSH = "/studio-sfx/whoosh.m4a";
+const SFX_FRAMES = 15, SFX_LEAD_FRAMES = 6, SFX_LEVEL = 0.5;
+
 /** How long before a shot appears the Player starts loading it. */
 const PREMOUNT_FRAMES = 45;
 
@@ -559,6 +563,12 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           </React.Fragment>
         );
       })}
+      {theme?.audio.sfx && tl.segments.slice(1).map((s) => (
+        // A whoosh on every join (the Energetic theme): starts a few frames before the cut so the sound lands on it.
+        <Sequence key={`sfx-${s.id}`} from={Math.max(0, s.startFrame - SFX_LEAD_FRAMES)} durationInFrames={SFX_FRAMES} name="cut sound">
+          <Audio src={SFX_WHOOSH} volume={SFX_LEVEL} />
+        </Sequence>
+      ))}
       {(edl.broll ?? []).map((b) => {
         const src = sources[b.clipId];
         const frames = Math.max(1, secToFrames(b.out - b.in));

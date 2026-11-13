@@ -10,6 +10,7 @@ import { OUTPUT, type BuildPlayerData, type BuildSource } from "@/lib/studioClip
 import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
+import { exportProps } from "@/lib/studioClips/renderProps";
 
 /** Why this browser can't render, or null when it can. */
 export async function renderBlocker(width: number, height: number): Promise<string | null> {
@@ -35,7 +36,7 @@ export async function renderBuild(data: BuildPlayerData, opts: { signal?: AbortS
   const { renderMediaOnWeb } = await import("@remotion/web-renderer");
   // Background noise reduced first, as in the editor (clips that can't be cleaned keep their own sound).
   const cleanAudio = edl.cleanSound ? await cleanSounds(Array.from(new Set(edl.segments.map((s) => s.clipId))).map((id) => ({ clipId: id, url: sources[id].url }))) : {};
-  const props = { edl, sources, captionsOn: Boolean(edl.captions), musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null, voiceUrls: data.voice ?? {}, cleanAudio };
+  const props = exportProps({ edl, sources, musicUrl: edl.soundtrack ? data.music?.[edl.soundtrack.trackId] ?? null : null, voiceUrls: data.voice ?? {}, cleanAudio, watermarkUrl: edl.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null });
   const once = async () => {
     const { getBlob } = await renderMediaOnWeb({
       composition: { id: "socia-clip-build", component: ClipComposition, durationInFrames: tl.durationFrames, fps: OUTPUT.fps, width: edl.width, height: edl.height, defaultProps: props, calculateMetadata: null },

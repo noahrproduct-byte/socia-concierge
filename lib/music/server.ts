@@ -12,6 +12,7 @@ import { storageClient } from "@/lib/studioClips/storage";
 import { edlDurationSec } from "@/lib/studioClips/edl";
 import { STUDIO_BUCKET, type Edl } from "@/lib/studioClips/types";
 import { composeTrack } from "./elevenlabs";
+import { resolveTheme } from "@/lib/studioClips/themes/apply";
 import { cleanPlaylist, cutSpeaks, musicPath, PLAYLIST_SCHEMA, PLAYLIST_SIZE, tasteLines, trackPrompt, trackSeconds, type MusicPick, type Playlist, type TasteInput } from "./taste";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +50,13 @@ export async function tasteFor(client: Supa, ownerId: string, wsId: string | nul
 }
 
 /** A new playlist for a cut. The track chosen before (if any) stays at the top so the cut keeps playing it. */
+/** The theme's music mood (lib/studioClips/themes), as one line for the playlist writer; nothing when the theme has none. */
+const MOOD_WORDS = { upbeat: "upbeat and bright, a clear steady beat that moves with quick cuts", cinematic: "cinematic and slow, wide and warm, no drums or soft ones", lofi: "lo-fi and relaxed, a soft beat that sits under speech" } as const;
+export function moodLine(edl: Edl): string {
+  const mood = resolveTheme(edl)?.audio.mood;
+  return mood && mood !== "none" ? ` The video's theme asks for music that is ${MOOD_WORDS[mood]}.` : "";
+}
+
 export async function makePlaylist(client: Supa, args: { ownerId: string; wsId: string | null; buildId: string; picks: MusicPick[]; ctx: PlaylistContext; now?: Date }): Promise<Playlist> {
   const { ownerId, wsId, buildId, picks, ctx } = args;
   const row = await loadBuildRow(client, ownerId, wsId, buildId);
@@ -60,7 +68,7 @@ export async function makePlaylist(client: Supa, args: { ownerId: string; wsId: 
     model, max_tokens: 1500, system: SYSTEM,
     output_config: { format: { type: "json_schema", schema: PLAYLIST_SCHEMA }, ...effortFor(model) },
     messages: [{ role: "user", content: `The account: ${ctx.niche ? `niche ${ctx.niche}` : "niche not set"}${ctx.brand ? `; voice: ${ctx.brand}` : ""}.
-The video: "${ctx.title ?? "untitled"}", ${Math.round(taste.videoSec)} seconds, ${taste.hasSpeech ? "with speech" : "no speech"}.${taste.shows ? ` What it shows: ${taste.shows}.` : ""}${taste.cutNote ? ` The editor's music note for this cut: ${taste.cutNote}` : ""}
+The video: "${ctx.title ?? "untitled"}", ${Math.round(taste.videoSec)} seconds, ${taste.hasSpeech ? "with speech" : "no speech"}.${taste.shows ? ` What it shows: ${taste.shows}.` : ""}${taste.cutNote ? ` The editor's music note for this cut: ${taste.cutNote}` : ""}${moodLine(row.edl)}
 Taste:
 ${lines.map((l) => `- ${l}`).join("\n")}
 
