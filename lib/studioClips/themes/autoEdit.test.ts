@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoEdit, detectHook, overlayBroll, paceBroll, pullHookToFront, trimSilences } from "./autoEdit";
+import { autoEdit, detectHook, joinContiguous, overlayBroll, paceBroll, pullHookToFront, trimSilences } from "./autoEdit";
 import { themeById } from "./index";
 import type { ClipForEdl } from "../edl";
 import type { Edl, TranscriptWord } from "../types";
@@ -88,5 +88,14 @@ describe("autoEdit", () => {
     expect(r.edl.captions).toBeNull();
     expect(r.edl.segments).toHaveLength(2);
     expect(r.edl.text).toEqual(silent.text);
+  });
+});
+
+describe("joinContiguous", () => {
+  it("joins pieces of one clip that touch and leaves pieces with a gap or a soft join alone", () => {
+    const e: Edl = { ...edl, segments: [{ id: "a", clipId: "talk", in: 0, out: 2, role: "opener", note: "" }, { id: "b", clipId: "talk", in: 2, out: 4, role: "body", note: "" }, { id: "c", clipId: "talk", in: 5, out: 7, role: "body", note: "" }, { id: "d", clipId: "talk", in: 7, out: 9, role: "ending", note: "", transition: "fade" }] };
+    const out = joinContiguous(e);
+    expect(out.segments.map((s) => [s.id, s.in, s.out])).toEqual([["a", 0, 4], ["c", 5, 7], ["d", 7, 9]]);
+    expect(joinContiguous(edl)).toBe(edl);
   });
 });

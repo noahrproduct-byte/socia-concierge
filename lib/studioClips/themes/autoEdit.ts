@@ -15,6 +15,7 @@ import { edlDurationSec } from "../edl";
 import { sentences } from "../speech";
 import { alignToBeats, type Beat } from "../beats";
 import { varyJumpCuts } from "../jumpCuts";
+import { cleanPunches } from "../punch";
 import type { BrollItem, BuildSource, Edl, EdlSegment, EdlText, TranscriptWord } from "../types";
 import { MIN_CUT_SEC } from "../tracks";
 import { TEXT_PRESETS, fitLine, isTextPresetId, type TextPresetId } from "@/lib/textPresets";
@@ -160,6 +161,20 @@ export function overlayBroll(edl: Edl, words: AutoEditContext["words"], brollSec
   return { edl: { ...main, broll }, placed: broll.length };
 }
 
+/** Consecutive pieces of one clip that touch (the next starts where the last ended, a hard cut between) joined into one. */
+export function joinContiguous(edl: Edl): Edl {
+  const segments: EdlSegment[] = [];
+  for (const s of edl.segments) {
+    const prev = segments[segments.length - 1];
+    if (prev && prev.clipId === s.clipId && Math.abs(s.in - prev.out) <= 0.05 && !s.transition) {
+      segments[segments.length - 1] = { ...prev, out: s.out, role: prev.role === "opener" ? "opener" : s.role === "ending" ? "ending" : prev.role, punches: cleanPunches([...(prev.punches ?? []), ...(s.punches ?? [])], prev.in, s.out) };
+      continue;
+    }
+    segments.push(s);
+  }
+  return segments.length === edl.segments.length ? edl : { ...edl, segments };
+}
+
 /** The theme's edit of the raw footage (see the file's header). */
 export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEditResult {
   const notes: string[] = [];
@@ -188,8 +203,10 @@ export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEdit
     const r = alignToBeats(out, ctx.clips, ctx.beat);
     if (r.moved) { out = r.edl; notes.push(`${r.moved} cut${r.moved === 1 ? "" : "s"} moved onto the beat.`); }
   }
-  // Two pieces of one clip back to back (the hook pulled forward, a pause cut out) read as a jump cut:
-  // every other piece punches in a little so each cut reads as a change of shot (lib/studioClips/jumpCuts.ts).
+  // Two pieces of one clip that follow on exactly (the hook pulled out of the middle of a shot leaves its
+  // neighbours touching) are one shot again; pieces with a real gap read as a jump cut, and every other
+  // one punches in a little so each cut reads as a change of shot (lib/studioClips/jumpCuts.ts).
+  out = joinContiguous(out);
   const varied = varyJumpCuts(out);
   if (varied.changed) out = varied.edl;
   return { edl: out, notes };
