@@ -42,6 +42,9 @@ HEVC/.MOV: accepted; an HEVC clip the browser can decode is converted to H.264 o
 
 ## 2. Understand (transcription + cards + grouping)
 
+The Video editor path (a person's own edit) runs transcription only: `POST /api/studio/projects/:id/transcribe` submits every clip with sound and no transcript to the provider in `after()` and stores the words as they land; the editor polls its build for them and turns captions on. No clip cards, no grouping, no build credit.
+
+
 `POST /api/studio/projects/:id/understand` starts `runUnderstand` (`lib/studioClips/job.ts`) in `after()`: transcribe every clip's WAV with AssemblyAI (polling), write `studio_clips.transcript`; one Anthropic card per clip (`clipCard`); group into post ideas (`batchGroups`) → `studio_projects.yield`. The UI polls `GET /projects/:id` every 2.5 s. Without a transcription key nothing is transcribed and captions stay off.
 
 ## 3. The edit model (EDL)
