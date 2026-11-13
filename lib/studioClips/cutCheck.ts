@@ -203,6 +203,7 @@ export function checkCut(edl: Edl, clips: ClipForEdl[]): CutCheck {
   if (segs.some((s) => punctuated(byId.get(s.clipId)))) {
     ran.push("sentence");
     segs.forEach((s, i) => {
+      if (s.volume === 0) return;
       const end = sentenceEnd(byId.get(s.clipId), { in: s.in, out: s.out + (s.voiceTail ?? 0) });
       if (end != null) findings.push({ id: "sentence", segmentId: s.id, detail: `The shot at ${at(i)} ends mid-sentence; the sentence finishes at ${fmtClock(end)} in ${label(s.clipId)}.` });
     });
@@ -304,6 +305,8 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
   // L-cut) and the picture moves on; otherwise the shot runs on, inside its clip and short of
   // the next showing of the same clip.
   segments.forEach((s, i) => {
+    // A muted shot has no sentence to finish.
+    if (s.volume === 0) return;
     const c = byId.get(s.clipId);
     const end = sentenceEnd(c, { in: s.in, out: s.out + (s.voiceTail ?? 0) });
     if (end == null || end - s.out > CHECK.sentenceReachSec) return;

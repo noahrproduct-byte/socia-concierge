@@ -147,3 +147,15 @@ describe("settleCut (SOCIA listens to its own check)", () => {
     expect(r.edl.segments).toEqual(edl.segments);
   });
 });
+
+describe("a muted shot (2026-11-13)", () => {
+  it("is never lengthened to finish a sentence nobody hears", () => {
+    const w = (text: string, a: number, b: number) => ({ text, startMs: Math.round(a * 1000), endMs: Math.round(b * 1000), confidence: 1 });
+    const talk: ClipForEdl = { id: "t", position: 0, durationSec: 10, words: [w("Take", 4.5, 4.8), w("a", 4.8, 4.9), w("good", 4.9, 5.1), w("look.", 5.1, 7.3)], silences: null, medianLuma: 0.5, warmth: 0, brightness: "ok", contrastLevel: "ok", rmsDb: -20, audioLevel: "ok", hasSpeech: true };
+    const other: ClipForEdl = { ...talk, id: "o", position: 1, words: null, hasSpeech: false };
+    const edl: Edl = { version: 1, fps: 30, width: 1080, height: 1920, targetSec: { min: 5, max: 20 }, segments: [{ id: "s1", clipId: "o", in: 0, out: 3, role: "opener", note: "" }, { id: "s2", clipId: "t", in: 4.6, out: 5.0, role: "body", note: "", volume: 0 }, { id: "s3", clipId: "o", in: 5, out: 8, role: "ending", note: "" }], text: [], captions: null, enhance: [], audio: [], cta: null, music: null, caption: "", notes: [] };
+    const muted = { ...edl, segments: edl.segments.map((s) => (s.id === "s2" ? { ...s, out: 6 } : s)) };
+    expect(repairCut(muted, [talk, other]).edl.segments[1].out).toBe(6);
+    expect(checkCut(muted, [talk, other]).findings.some((f) => f.id === "sentence")).toBe(false);
+  });
+});
