@@ -1,9 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, Mail } from "lucide-react";
 import { PlatformMark } from "@/components/system/PlatformMark";
 import { PLANS, SALE_ORDER, formatHistory, type PlanId } from "@/lib/plans";
-import { offlineReason, openPlatformsText } from "@/lib/platformStatus";
+import { CONTACT_EMAIL, awaitingAccessText, offlineReason, openPlatformsText, platformRequestHref, type OfflinePlatform } from "@/lib/platformStatus";
 import HomeNav from "./HomeNav";
 import HomeFooter from "./HomeFooter";
 import HomeFaq from "./HomeFaq";
@@ -12,9 +12,9 @@ import HomeWindow from "./HomeWindow";
 import HeroStage from "./HeroStage";
 import FeatureExplorer from "./FeatureExplorer";
 import IntroGate from "@/components/intro/IntroGate";
-import { AskDemo, BeforeAfter, Engine, Orbit, Problem, Results, Steps } from "./HomeStory";
-import ReelDemo from "./ReelDemo";
-import { WEEK } from "./exampleWeek";
+import { AskDemo, Engine, Orbit, Problem, Results, Steps } from "./HomeStory";
+import Transform from "./Transform";
+import Evidence from "./Evidence";
 import "./home.css";
 
 // The public homepage. Every screen shown is an HTML example of a real SOCIA
@@ -25,9 +25,7 @@ import "./home.css";
 const FAQ = [
   {
     q: "Which platforms does SOCIA support?",
-    a: offlineReason("facebook")
-      ? `${openPlatformsText()} connect today: analytics, scheduling and publishing. Facebook Pages switch on when Facebook approves SOCIA's access. TikTok accounts register now; analytics and posting switch on when TikTok approves SOCIA's API access.`
-      : "Instagram, Facebook Pages and YouTube connect today: analytics, scheduling and publishing. TikTok accounts register now; analytics and posting switch on when TikTok approves SOCIA's API access.",
+    a: `${openPlatformsText()} connect today: analytics, scheduling and publishing. ${awaitingAccessText("facebook")} ${awaitingAccessText("tiktok")} To connect either one, email ${CONTACT_EMAIL}.`,
   },
   {
     q: "What does the free plan include?",
@@ -66,6 +64,21 @@ const PLAN_LINES: Record<PlanId, string[]> = Object.fromEntries(
     ];
   }),
 ) as Record<PlanId, string[]>;
+
+/** A platform waiting on access: says so plainly, and offers an email to ask for it. */
+function PendingPlatform({ platform }: { platform: OfflinePlatform }) {
+  const name = platform === "facebook" ? "Facebook" : "TikTok";
+  return (
+    <>
+      <p>
+        {awaitingAccessText(platform)} Want to connect your {name} account?
+      </p>
+      <a className="hm-btn hm-btn--outline hm-btn--sm hm-platform-cta" href={platformRequestHref(platform)}>
+        <Mail aria-hidden /> Contact us
+      </a>
+    </>
+  );
+}
 
 export default function Home({ signedIn, intro = false }: { signedIn: boolean; intro?: boolean }) {
   const startHref = signedIn ? "/dashboard" : "/signup";
@@ -143,6 +156,9 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
         {/* ---- the problem: four signals, from the live site ---- */}
         <Problem />
 
+        {/* ---- how SOCIA decides: one recommendation and what it stands on ---- */}
+        <Evidence />
+
         {/* ---- four statements ------------------------------------------- */}
         <section className="hm-section" id="loop" aria-labelledby="hm-loop">
           <div className="hm-wrap hm-loop-wrap">
@@ -180,206 +196,6 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
         {/* ---- the SOCIA engine, from the live site ---- */}
         <Engine />
 
-        {/* ---- what's inside: the four jobs, in order, on the same example week ---- */}
-        <section className="hm-section" id="screens" aria-labelledby="hm-screens">
-          <div className="hm-wrap">
-            <div className="hm-section-head is-center" data-reveal="children">
-              <span className="hm-eyebrow">What&apos;s inside</span>
-              <h2 id="hm-screens" className="hm-h2 is-center">
-                Understand, decide, make, publish.
-              </h2>
-              <p className="hm-lead">The screens behind each step, on the same example account and the same week.</p>
-            </div>
-            <div className="hm-rows">
-              {/* understand: analytics */}
-              <div className="hm-row" data-reveal="children">
-                <div className="hm-row-copy">
-                  <span className="hm-job-tag">Understand</span>
-                  <h3 className="hm-h3">See what beat your median.</h3>
-                  <p>
-                    Every post is compared with your own typical post on the same platform, not with a stranger&apos;s
-                    benchmark. What changed, what is working, what is missing and what to do next, with the numbers
-                    behind each line.
-                  </p>
-                </div>
-                <div className="hm-shot" role="img" aria-label="Example of the Analytics page: four Instagram posts compared with the account's median views">
-                  <div className="hm-shot-head">
-                    <b>Top posts, last 30 days</b>
-                    <span>
-                      Instagram, views <span className="hm-example">Example</span>
-                    </span>
-                  </div>
-                  <ul className="hm-bars">
-                    <li>
-                      <span>
-                        <em>How to make a better latte at home</em>
-                        <span className="hm-bar"><i style={{ width: "100%" }} /></span>
-                      </span>
-                      <output>2.4×</output>
-                    </li>
-                    <li>
-                      <span>
-                        <em>Our new seasonal oat latte</em>
-                        <span className="hm-bar"><i style={{ width: "71%" }} /></span>
-                      </span>
-                      <output>1.7×</output>
-                    </li>
-                    <li>
-                      <span>
-                        <em>Your median post</em>
-                        <span className="hm-bar is-median"><i style={{ width: "42%" }} /></span>
-                      </span>
-                      <output>1.0×</output>
-                    </li>
-                    <li>
-                      <span>
-                        <em>A quiet morning at the cafe</em>
-                        <span className="hm-bar"><i style={{ width: "20%" }} /></span>
-                      </span>
-                      <output>0.5×</output>
-                    </li>
-                  </ul>
-                  <span className="hm-caption">Views two days after posting, against your last 20 posts at the same age. Views as Instagram reports them.</span>
-                </div>
-              </div>
-
-              {/* decide: the Content Plan, the screen the promise rests on, so it gets the most room */}
-              <div className="hm-row is-wide" data-reveal="children">
-                <div className="hm-row-copy">
-                  <span className="hm-job-tag">Decide</span>
-                  <h3 className="hm-h3">A week planned from evidence.</h3>
-                  <p>
-                    The Content Plan says what to post each day and why: the format that is working for you, the gap your
-                    competitors are filling, the time your audience shows up. Accept it, edit it, or schedule it as it is.
-                  </p>
-                </div>
-                <div className="hm-app hm-plan-app" role="img" aria-label="Example of a weekly Content Plan with five planned posts, the reason for each, and their status">
-                  <div className="hm-app-bar">
-                    <span className="hm-app-dots" aria-hidden>
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <span className="hm-app-url">Content Plan: this week, Northside Roasters</span>
-                    <span className="hm-example">Example data</span>
-                  </div>
-                  <ul className="hm-plan-week">
-                    {WEEK.map((w) => (
-                      <li key={w.day}>
-                        <span className="hm-plan-day">{w.day}</span>
-                        <span className="hm-plan-what">
-                          <b>{w.title}</b>
-                          <em>{w.why}</em>
-                        </span>
-                        <span className="hm-plan-when">{w.when}</span>
-                        <span className={`hm-status${w.done ? " is-on" : ""}`}>{w.status}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="hm-window-foot">
-                    <span>Every reason uses your own posts from the last 90 days. Nothing publishes until it is scheduled.</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* make: Content Studio */}
-              <div className="hm-row is-flip" id="studio" data-reveal="children">
-                <div className="hm-row-copy">
-                  <span className="hm-job-tag">Make</span>
-                  <h3 className="hm-h3">Footage in, a first cut out.</h3>
-                  <p>
-                    Upload the clips you already have. Content Studio finds the usable moments, cuts a draft with captions
-                    you can edit, and puts it in the plan&apos;s open slot. Here, Friday&apos;s follow-up to Sunday&apos;s
-                    latte Reel.
-                  </p>
-                </div>
-                <div className="hm-app hm-studio">
-                  <div className="hm-app-bar">
-                    <span className="hm-app-dots" aria-hidden>
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <span className="hm-app-url">Content Studio: one clip, a latte being poured</span>
-                    <span className="hm-example">Example data</span>
-                  </div>
-                  <div className="hm-studio-body">
-                    <div className="hm-studio-preview">
-                      <ReelDemo src="/landing/reel.mp4" poster="/landing/reel.jpg" />
-                    </div>
-                    <div className="hm-studio-panel">
-                      <div className="hm-studio-block">
-                        <span className="hm-job-tag">Moments found</span>
-                        <ul className="hm-studio-strip" aria-label="Moments found in the example clip">
-                          {["04", "16", "28", "40", "52", "64"].map((f, i) => (
-                            <li key={f}>
-                              <Image src={`/landing/frames/f${f}.jpg`} alt="" width={72} height={128} sizes="72px" />
-                              <span>0:0{Math.floor(Number(f) / 10)}</span>
-                              {i === 0 || i === 3 || i === 5 ? <b>Used</b> : null}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="hm-studio-block">
-                        <span className="hm-job-tag">First cut, 8 seconds</span>
-                        <ol className="hm-studio-cut">
-                          <li>
-                            <span>0:00</span>
-                            <em>The pour, close up. &ldquo;A better latte at home&rdquo;</em>
-                          </li>
-                          <li>
-                            <span>0:03</span>
-                            <em>Milk meets espresso. &ldquo;Pour from higher first&rdquo;</em>
-                          </li>
-                          <li>
-                            <span>0:06</span>
-                            <em>The finished cup. &ldquo;Then drop low to draw&rdquo;</em>
-                          </li>
-                        </ol>
-                      </div>
-                      <p className="hm-studio-next">Goes to Friday, 6:30 PM, as a draft. Every cut and caption stays editable.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* publish: approvals */}
-              <div className="hm-row" data-reveal="children">
-                <div className="hm-row-copy">
-                  <span className="hm-job-tag">Publish</span>
-                  <h3 className="hm-h3">Approvals, for teams and clients.</h3>
-                  <p>
-                    Members submit, owners and admins approve, and approving is scheduling. Everyone sees the same
-                    Calendar and gets their own notifications. Nothing publishes by accident.
-                  </p>
-                </div>
-                <div className="hm-shot" role="img" aria-label="Example of the approvals list with two posts waiting for an owner or admin to approve them">
-                  <div className="hm-shot-head">
-                    <b>Waiting for approval</b>
-                    <span>
-                      2 posts <span className="hm-example">Example</span>
-                    </span>
-                  </div>
-                  <div className="hm-approve">
-                    {WEEK.filter((w) => w.status === "Needs approval").map((w) => (
-                      <div key={w.day} className="hm-approve-item">
-                        <span>
-                          <b>{w.title}</b>
-                          <em>
-                            Submitted by Maya, for {w.day} {w.when}, {w.where}
-                          </em>
-                        </span>
-                        <span className="hm-status">Needs approval</span>
-                      </div>
-                    ))}
-                  </div>
-                  <span className="hm-caption">An owner or admin approves each one, and approving schedules it.</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* ---- Ask SOCIA, from the live site ---- */}
         <AskDemo startHref={startHref} startLabel={startLabel} />
 
@@ -405,8 +221,11 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
                   <PlatformMark platform="facebook" brand />
                   Facebook
                 </div>
-                <p>Page posts and Reels, scheduling and analytics for the Pages you manage{offlineReason("facebook") ? ", once Facebook approves SOCIA's access" : ""}.</p>
-                {offlineReason("facebook") && <span className="hm-status">Waiting on Facebook</span>}
+                {offlineReason("facebook") ? (
+                  <PendingPlatform platform="facebook" />
+                ) : (
+                  <p>Page posts and Reels, scheduling and analytics for the Pages you manage.</p>
+                )}
               </li>
               <li className="hm-platform">
                 <div className="hm-platform-head">
@@ -420,8 +239,7 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
                   <PlatformMark platform="tiktok" brand />
                   TikTok
                 </div>
-                <p>Accounts register now. Analytics and posting switch on when TikTok approves SOCIA&apos;s API access.</p>
-                <span className="hm-status">Waiting on TikTok</span>
+                <PendingPlatform platform="tiktok" />
               </li>
             </ul>
           </div>
@@ -470,8 +288,8 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
           </div>
         </section>
 
-        {/* ---- before and after, from the live site ---- */}
-        <BeforeAfter />
+        {/* ---- before and after: six tools become one workspace ---- */}
+        <Transform />
 
         {/* ---- results: what each plan actually did ---- */}
         <Results />
@@ -482,7 +300,7 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
             <div className="hm-section-head is-center" data-reveal="children">
               <span className="hm-eyebrow">Pricing</span>
               <h2 id="hm-pricing" className="hm-h2 is-center">
-                Monthly plans, no lock-in.
+                Monthly plans. <em>No lock-in.</em>
               </h2>
             </div>
             <div className="hm-plans" data-reveal="children" style={{ "--plans": SALE_ORDER.length } as React.CSSProperties}>
@@ -544,7 +362,7 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
               <Image src="/brand/socia-mark-tile.png" alt="" width={72} height={72} />
             </span>
             <h2 id="hm-end" className="hm-h2 is-center">
-              Connect your accounts. Get your next post.
+              Connect your accounts. <em>Get your next post.</em>
             </h2>
             <p className="hm-lead hm-end-lead">
               Link {openPlatformsText("or")}. SOCIA reads your own posts and tells you what to post next, why it should
