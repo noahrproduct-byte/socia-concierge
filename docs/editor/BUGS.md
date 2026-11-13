@@ -30,9 +30,12 @@ The bug pass of 2026-11-12 on the Content Studio video editor (`components/studi
 | 24 | Stale copy in Look & sound ("SOCIA never adds a track") | Read the "Not done automatically" list | Written before auto music and ducking existed | Copy updated | n/a |
 | 25 | An em dash and "Something went wrong." in editor copy | Anti-slop baseline | Old strings | Replaced with what failed and what to do; baseline lowered | `lib/antiSlop.test.ts` |
 
+| 26 | Workspace members got 403 on every editor write while the role doc says members create drafts | Sign in as a member, add a clip or save a cut | `requireMutate` checked the publish role | A `draft` action every role has (`lib/context.ts`); the studio's writes and the editor's `canEdit` use it; scheduling keeps `publish` | BUG-26 |
+| 27 | An export did not survive a reload | Close the tab mid-render; reopen: nothing | The render lives in the tab and nothing remembered it | The reserved path and quality are kept in the browser while rendering; on reopen the editor makes the video again on the same path (no second plan unit), and forgets the record when the export ends | BUG-27 |
+| 28 | Stabilization needed a database column before it worked | On a database without `supabase/studio-stabilize.sql` the route failed | The job's record had nowhere to live | Without the column the route still runs the job and reads the finished copy from storage; the editor gives up after twelve minutes without a file. The column adds progress and failure reasons when it is run | n/a |
+
 Not fixed, noted for the owner:
 
-- Members of a workspace get 403 on every editor write (`requireMutate` allows owner and admin only) while `lib/context.ts` says members create drafts. A product decision, not changed here.
 - `studio_builds` is service-role only since `supabase/studio-cut-meter.sql`; a deployment without `SUPABASE_SERVICE_ROLE_KEY` fails every build read with a generic 500. Documented in ARCHITECTURE.md.
 - Two concurrent brief POSTs can pick the same `opportunity_idx` (`nextBriefIdx`); rare, needs a DB-side sequence.
 - Remotion's `<Img>` logs "The source image cannot be decoded" once per text line when the Player swaps a line's PNG while a decode is in flight; harmless, the line draws.

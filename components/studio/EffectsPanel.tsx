@@ -24,7 +24,9 @@ const GRADE_ROWS: { key: GradeKey; label: string; min: number; max: number; step
   { key: "letterbox", label: "Bars", min: 0, max: 0.2, step: 0.005 },
 ];
 
-type StabJob = { status: "working" | "done" | "failed"; progress?: number; error?: string | null; urls?: Partial<Record<StabilizeStrength, string>> };
+type StabJob = { status: "working" | "done" | "failed"; progress?: number | null; error?: string | null; urls?: Partial<Record<StabilizeStrength, string>>; /** the server keeps no record of this job (its column is missing): the copy's file is the only sign */ untracked?: boolean; startedAt?: number };
+/** A job the server cannot report on is given up after this long. */
+const UNTRACKED_DEADLINE_MS = 12 * 60 * 1000;
 
 export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy, fixture, onSelect, onMotion, onStabilize, onLook, onSources }: {
   edl: Edl;
@@ -68,6 +70,7 @@ export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy
   // Stabilization: a server job per clip and strength (lib/studioClips/stabilize.ts); polled until it is done.
   const [jobs, setJobs] = useState<Record<string, StabJob>>({});
   const polls = useRef<Record<string, number>>({});
+  const startedAtRef = useRef<Record<string, number>>({});
   useEffect(() => { const p = polls.current; return () => { for (const t of Object.values(p)) window.clearTimeout(t); }; }, []);
   const strength = cur?.stabilize?.strength ?? null;
   const ready = Boolean(cur && strength && src?.stable?.[strength]);
@@ -79,7 +82,9 @@ export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy
       const res = await fetch(`/api/studio/clips/${clipId}/stabilize?strength=${st}`).catch(() => null);
       const j = res ? ((await res.json().catch(() => null)) as StabJob | null) : null;
       if (!j) { setJobs((cur) => ({ ...cur, [key]: { status: "failed", error: "SOCIA couldn't be reached. Check your connection and try again." } })); return; }
-      setJobs((cur) => ({ ...cur, [key]: j }));
+      const startedAt = startedAtRef.current[key] ?? Date.now();
+      if (j.status === "working" && j.untracked && Date.now() - startedAt > UNTRACKED_DEADLINE_MS) { setJobs((cur) => ({ ...cur, [key]: { status: "failed", error: "No stabilized copy appeared in twelve minutes. Try again, or try a shorter part of the clip." } })); return; }
+      setJobs((cur) => ({ ...cur, [key]: { ...j, startedAt } }));
       if (j.status === "done" && j.urls) onSources({ [clipId]: j.urls });
       else if (j.status === "working") poll(clipId, st);
     }, 2500);
@@ -90,6 +95,7 @@ export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy
     if (fixture) { setJobs((c) => ({ ...c, [`${cur.clipId}:${st}`]: { status: "failed", error: "The lab has no server to stabilize on; the real editor makes the stabilized copy on SOCIA's server." } })); return; }
     if (src?.stable?.[st]) return;
     const key = `${cur.clipId}:${st}`;
+    startedAtRef.current[key] = Date.now();
     setJobs((c) => ({ ...c, [key]: { status: "working", progress: 0 } }));
     const res = await fetch(`/api/studio/clips/${cur.clipId}/stabilize`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ strength: st }) }).catch(() => null);
     const j = res ? ((await res.json().catch(() => null)) as (StabJob & { error?: string }) | null) : null;
@@ -153,7 +159,7 @@ export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy
                 {STABILIZE_STRENGTHS.map((st) => <button key={st} type="button" role="radio" aria-checked={strength === st} className={strength === st ? "on" : ""} disabled={locked} onClick={() => void start(st)}>{st[0].toUpperCase() + st.slice(1)}</button>)}
               </div>
               {strength && (ready ? <small className="sd-fx-note">Steady copy ready: the preview and the export play it.</small>
-                : job?.status === "working" ? <small className="sd-fx-note"><Loader2 size={11} className="spin" aria-hidden /> Stabilizing on SOCIA&apos;s server{typeof job.progress === "number" ? `, ${Math.round(job.progress * 100)}%` : ""}. This takes about as long as the clip, twice.</small>
+                : job?.status === "working" ? <small className="sd-fx-note"><Loader2 size={11} className="spin" aria-hidden /> Stabilizing on SOCIA&apos;s server{typeof job.progress === "number" && job.progress > 0 ? `, ${Math.round(job.progress * 100)}%` : ""}. This takes about as long as the clip, twice.</small>
                 : job?.status === "failed" ? <small className="sd-fx-note" role="alert">{job.error ?? "Couldn't stabilize this clip."} <button type="button" className="sd-check-go" onClick={() => void start(strength)}>Try again</button></small>
                 : <small className="sd-fx-note">Starting.</small>)}
             </div>

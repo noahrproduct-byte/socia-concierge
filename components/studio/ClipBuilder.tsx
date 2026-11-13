@@ -42,7 +42,7 @@ import { renderFaults, type RenderReport } from "@/lib/studioClips/renderCheck";
 import { emphasisLabels, pickEmphasis } from "@/lib/studioClips/emphasis";
 import { inspectRender } from "@/lib/studioClips/inspectRender";
 import { bestMomentFor } from "@/lib/studioClips/rank";
-import { readLocalDraft, writeLocalDraft, clearLocalDraft, SOURCE_REFRESH_MS } from "@/lib/studioClips/localDraft";
+import { readLocalDraft, writeLocalDraft, clearLocalDraft, readLocalExport, writeLocalExport, clearLocalExport, SOURCE_REFRESH_MS } from "@/lib/studioClips/localDraft";
 import ThemesPanel from "./ThemesPanel";
 import EffectsPanel from "./EffectsPanel";
 import type { Theme } from "@/lib/studioClips/themes";
@@ -573,6 +573,19 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, exporting]);
   const takeLocalDraft = () => { if (localDraft) { commit(localDraft); setLocalDraft(null); } };
+  // An export cut short by a reload (the tab closed mid-render) is made again as soon as the cut and its clips are back.
+  const resumed = useRef(false);
+  const exportRef = useRef<((resume?: { path: string }) => Promise<void>) | null>(null);
+  useEffect(() => {
+    if (fixture || resumed.current || !data || !edl || !tl || !data.canEdit || localDraft) return;
+    const kept = readLocalExport(buildId);
+    if (!kept) return;
+    resumed.current = true;
+    setQuality(kept.quality);
+    void exportRef.current?.({ path: kept.path });
+    // Once, when the cut has loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, edl == null, tl == null, localDraft, fixture, buildId]);
   const dropLocalDraft = () => { clearLocalDraft(buildId); setLocalDraft(null); };
 
   // ------------------------------------------------------------- export ----
@@ -586,6 +599,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = "socia-build.mp4"; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      clearLocalExport(buildId);
       setExp({ phase: "done", progress: 1, message: `Rendered ${(blob.size / 1024 / 1024).toFixed(1)} MB (downloaded in fixture mode).`, postId: null, report });
       return;
     }
@@ -597,6 +611,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       const d = await fetch(`/api/studio/builds/${buildId}/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path, durationSec: tl.durationSec, caption: edl.caption }), signal });
       const dj = await d.json().catch(() => null);
       if (!d.ok) throw new Error(dj?.error ?? "Couldn't save the draft.");
+      clearLocalExport(buildId);
       setExp({ phase: "done", progress: 1, message: null, postId: dj.postId, report });
       setData((cur) => (cur ? { ...cur, build: { ...cur.build, renderPath: path, postId: dj.postId } } : cur));
     } catch (e) {
@@ -607,16 +622,17 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   };
   const giveBack = (path: string | null) => (path && !fixture ? fetch(`/api/studio/builds/${buildId}/export`, { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) }).catch(() => null) : Promise.resolve(null));
   const failExport = (e: unknown) => {
+    clearLocalExport(buildId);
     if ((e as Error)?.name === "AbortError") { setExp({ phase: "idle", progress: 0, message: null, postId: null }); return; }
     setExp({ phase: "error", progress: 0, message: (e as Error)?.message?.replace(/^Upload failed: /, "") || "The video couldn't be made this time. Your edit is saved; try again, and if it keeps failing open SOCIA in Chrome or Edge on a computer.", postId: null });
   };
 
-  const exportVideo = async () => {
+  const exportVideo = async (resume?: { path: string }) => {
     if (!edl || !tl || !data) return;
     const ctrl = new AbortController(); abort.current = ctrl;
     held.current = null;
-    setExp({ phase: "checking", progress: 0, message: null, postId: null });
-    let path: string | null = null;
+    setExp({ phase: "checking", progress: 0, message: resume ? "An export was interrupted by a reload, so SOCIA is making the video again." : null, postId: null });
+    let path: string | null = resume?.path ?? null;
     try {
       const { canRenderMediaOnWeb, renderMediaOnWeb } = await import("@remotion/web-renderer");
       const check = await canRenderMediaOnWeb({ width: edl.width, height: edl.height, container: "mp4" });
@@ -635,12 +651,14 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       }
       // Links signed over 50 minutes ago are signed again first (they last an hour).
       if (!fixture && Date.now() - signedAt.current > SOURCE_REFRESH_MS && !(await refreshSources())) { setExp({ phase: "error", progress: 0, message: "Couldn't refresh the clips' links. Check your connection and try again.", postId: null }); return; }
-      if (!fixture) {
+      if (!fixture && !path) {
         const res = await fetch(`/api/studio/builds/${buildId}/export`, { method: "POST" }).catch(() => null);
         const j = res ? await res.json().catch(() => null) : null;
         if (!res?.ok) { if (isPlanError(j)) setPlanError(j); setExp({ phase: "error", progress: 0, message: isPlanError(j) ? null : (j?.error ?? "Couldn't start the export: SOCIA couldn't be reached."), postId: null }); return; }
         path = j.path as string;
       }
+      // The export in flight is remembered in this browser (lib/studioClips/localDraft.ts): a reload makes it again on the same reserved path.
+      if (!fixture && path) writeLocalExport(buildId, { path, quality });
       const renderTl = timeline(toRender);
       // The export waits for the cleaned sound, so the video sounds like the preview.
       const cleaned = cleanOn ? { ...cleanAudio, ...(await cleanFor()) } : {};
@@ -683,6 +701,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       failExport(e);
     }
   };
+  exportRef.current = exportVideo;
   const saveAnyway = async () => {
     const h = held.current;
     if (!h) return;
@@ -692,6 +711,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const backToEdit = async () => {
     const h = held.current;
     held.current = null;
+    clearLocalExport(buildId);
     await giveBack(h?.path ?? null);
     setExp({ phase: "idle", progress: 0, message: null, postId: null });
   };
@@ -789,7 +809,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         <div className="cbb-head-actions">
           {data.canEdit && <button type="button" className="ov-btn ghost small" disabled={!dirty || busy} onClick={() => void save()}>{saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} {dirty ? "Save changes" : "Saved"}</button>}
           {data.canEdit && (exp.phase === "idle" || exp.phase === "error" || exp.phase === "done") && (
-            <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || lookState?.state === "working"} onClick={exportVideo}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
+            <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || lookState?.state === "working"} onClick={() => void exportVideo()}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
           )}
         </div>
       </div>

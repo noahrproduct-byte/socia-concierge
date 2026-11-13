@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { studioRequest, requireMutate, isMissingTable, MIGRATION_HINT } from "@/lib/studioClips/auth";
 import { scopeToWorkspace } from "@/lib/workspaces";
 import { signUrls } from "@/lib/studioClips/storage";
-import { STAB_MAX_SEC, STAB_STALE_MS, stabilizeClip, type StabRecord, type StabilizedMap } from "@/lib/studioClips/stabilize";
+import { STAB_MAX_SEC, STAB_STALE_MS, isMissingStabColumn, listStable, stabilizeClip, stablePath, type StabRecord, type StabilizedMap } from "@/lib/studioClips/stabilize";
 import { isStabilizeStrength, type StabilizeStrength } from "@/lib/studioClips/types";
 import { errorResponse } from "@/lib/dbError";
 import type { Ctx } from "@/lib/context";
@@ -17,17 +17,28 @@ export const maxDuration = 300;
 
 type Row = { id: string; project_id: string; user_id: string; source_path: string | null; duration_s: number | null; stabilized: StabilizedMap | null };
 
-async function loadRow(ctx: Ctx, id: string): Promise<Row | null> {
-  const { data, error } = await scopeToWorkspace(ctx.client.from("studio_clips").select("id, project_id, user_id, source_path, duration_s, stabilized").eq("id", id).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null).limit(1);
-  if (error) throw error;
-  return ((data ?? []) as Row[])[0] ?? null;
+/** The clip row; `hasColumn` is false when supabase/studio-stabilize.sql has not run (storage then stands in for the record). */
+async function loadRow(ctx: Ctx, id: string): Promise<{ row: Row | null; hasColumn: boolean }> {
+  const base = () => scopeToWorkspace(ctx.client.from("studio_clips").select("id, project_id, user_id, source_path, duration_s, stabilized").eq("id", id).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null).limit(1);
+  const r1 = await base();
+  if (!r1.error) return { row: ((r1.data ?? []) as Row[])[0] ?? null, hasColumn: true };
+  if (!isMissingStabColumn(r1.error)) throw r1.error;
+  const r2 = await scopeToWorkspace(ctx.client.from("studio_clips").select("id, project_id, user_id, source_path, duration_s").eq("id", id).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null).limit(1);
+  if (r2.error) throw r2.error;
+  const row = ((r2.data ?? []) as Omit<Row, "stabilized">[])[0];
+  return { row: row ? { ...row, stabilized: null } : null, hasColumn: false };
 }
 
-async function finishedUrls(ctx: Ctx, map: StabilizedMap | null): Promise<Partial<Record<StabilizeStrength, string>>> {
-  const done = Object.entries(map ?? {}).filter(([, r]) => r?.status === "done" && r.path) as [StabilizeStrength, StabRecord][];
-  if (!done.length) return {};
-  const urls = await signUrls(ctx.client, done.map(([, r]) => r.path!)).catch(() => ({}) as Record<string, string>);
-  return Object.fromEntries(done.map(([k, r]) => [k, urls[r.path!]]).filter(([, u]) => Boolean(u)));
+const folderOf = (sourcePath: string) => sourcePath.slice(0, sourcePath.lastIndexOf("/") + 1);
+
+/** Signed links of every finished copy: the row's records, and whatever copies are in storage (the truth without the column). */
+async function finishedUrls(ctx: Ctx, row: Row): Promise<Partial<Record<StabilizeStrength, string>>> {
+  const paths: Partial<Record<StabilizeStrength, string>> = row.source_path ? await listStable(ctx.client, folderOf(row.source_path)) : {};
+  for (const [k, r] of Object.entries(row.stabilized ?? {}) as [StabilizeStrength, StabRecord | undefined][]) if (r?.status === "done" && r.path) paths[k] = r.path;
+  const list = Object.values(paths).filter((p): p is string => Boolean(p));
+  if (!list.length) return {};
+  const urls = await signUrls(ctx.client, list).catch(() => ({}) as Record<string, string>);
+  return Object.fromEntries((Object.entries(paths) as [StabilizeStrength, string][]).map(([k, p]) => [k, urls[p]]).filter(([, u]) => Boolean(u)));
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -37,10 +48,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const strength = new URL(req.url).searchParams.get("strength");
   if (!isStabilizeStrength(strength)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   try {
-    const row = await loadRow(r.ctx, id);
+    const { row, hasColumn } = await loadRow(r.ctx, id);
     if (!row) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
+    const urls = await finishedUrls(r.ctx, row);
+    if (urls[strength]) return NextResponse.json({ status: "done", progress: 1, error: null, urls });
     const rec = row.stabilized?.[strength];
-    const urls = await finishedUrls(r.ctx, row.stabilized);
+    // Without the column there is no record of a running job: the copy is done when its file appears, and the
+    // editor gives up after its own deadline.
+    if (!hasColumn) return NextResponse.json({ status: "working", progress: null, error: null, urls, untracked: true });
     if (!rec) return NextResponse.json({ status: "failed", error: "No stabilized copy has been asked for.", urls });
     const stale = rec.status === "working" && Date.now() - Date.parse(rec.at) > STAB_STALE_MS;
     return NextResponse.json({ status: stale ? "failed" : rec.status, progress: rec.progress ?? 0, error: stale ? "The job stopped before it finished. Try again." : rec.error ?? null, urls });
@@ -61,14 +76,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const strength = body?.strength;
   if (!isStabilizeStrength(strength)) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   try {
-    const row = await loadRow(ctx, id);
+    const { row, hasColumn } = await loadRow(ctx, id);
     if (!row) return NextResponse.json({ error: "That clip does not exist." }, { status: 404 });
     if (!row.source_path) return NextResponse.json({ error: "This clip hasn't finished uploading." }, { status: 409 });
     if ((row.duration_s ?? 0) > STAB_MAX_SEC) return NextResponse.json({ error: `Clips up to ${STAB_MAX_SEC} seconds can be stabilized on the server. Trim this one first, or stabilize a shorter part.` }, { status: 413 });
+    const existing = await finishedUrls(ctx, row);
+    if (existing[strength]) return NextResponse.json({ status: "done", urls: existing });
     const cur = row.stabilized?.[strength];
-    if (cur?.status === "done" && cur.path) return NextResponse.json({ status: "done", urls: await finishedUrls(ctx, row.stabilized) });
     if (cur?.status === "working" && Date.now() - Date.parse(cur.at) < STAB_STALE_MS) return NextResponse.json({ status: "working", progress: cur.progress ?? 0 });
+    // The record of the job: on the row when the column exists; nowhere otherwise (the copy's file is then the record).
     const write = async (rec: StabRecord) => {
+      if (!hasColumn) return;
       const { data } = await scopeToWorkspace(ctx.client.from("studio_clips").select("stabilized").eq("id", id).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null).limit(1);
       const map = (((data ?? []) as { stabilized: StabilizedMap | null }[])[0]?.stabilized ?? {}) as StabilizedMap;
       await scopeToWorkspace(ctx.client.from("studio_clips").update({ stabilized: { ...map, [strength]: rec } }).eq("id", id).eq("user_id", ctx.ownerId), ctx.workspace?.id ?? null);
@@ -88,7 +106,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         await write({ status: "failed", error: `Couldn't stabilize this clip: ${(e as Error)?.message ?? "ffmpeg failed"}.`, at: new Date().toISOString() }).catch(() => null);
       }
     });
-    return NextResponse.json({ status: "working", progress: 0 });
+    return NextResponse.json({ status: "working", progress: 0, untracked: !hasColumn, path: stablePath(folderOf(row.source_path), strength) });
   } catch (e) {
     if (isMissingTable(e)) return NextResponse.json({ error: MIGRATION_HINT, migration: true }, { status: 503 });
     return errorResponse("studio/clips/[id]/stabilize", e);

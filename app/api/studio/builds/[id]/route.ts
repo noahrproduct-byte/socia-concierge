@@ -34,7 +34,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     // Opening SOCIA's cut is when it counts (once): lib/studioClips/cutMeter.ts.
     const handed = await handOverCut(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, { id, opportunity_idx: manual ? -1 : 0 });
     if (!handed.ok) return handed.res;
-    const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, checkFeature(ent, feature).ok && can(ctx, "publish"));
+    const data = await buildPlayerData(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, id, checkFeature(ent, feature).ok && can(ctx, "draft"));
     if (!data) return NextResponse.json({ error: "That build does not exist." }, { status: 404 });
     data.presets = await readPresets(ctx).catch(() => ({ brand: null, templates: [] }));
     data.canManageBrand = can(ctx, "manage_workspace");

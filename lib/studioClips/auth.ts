@@ -14,9 +14,9 @@ export async function studioRequest(): Promise<StudioRequest> {
   return { ok: true, ctx, viewerId: user.id };
 }
 
-/** Creating projects, adding clips and running analysis are content actions: owners and admins. */
+/** Creating projects, adding clips, running analysis, editing and exporting make drafts: every role in the workspace (BUG-26). Scheduling stays "publish". */
 export function requireMutate(ctx: Ctx): NextResponse | null {
-  return can(ctx, "publish") ? null : NextResponse.json({ error: forbiddenCopy("publish") }, { status: 403 });
+  return can(ctx, "draft") ? null : NextResponse.json({ error: forbiddenCopy("draft") }, { status: 403 });
 }
 
 /** Postgres "relation does not exist": supabase/studio.sql has not been run. */

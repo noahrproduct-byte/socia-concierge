@@ -4,6 +4,9 @@ import { describe, it, expect } from "vitest";
 import { CLEAN_STYLE, sanitizeStyle } from "./style";
 import { cleanFrame, revalidateEdl, validateEdl, type ClipForEdl, type RawEdl } from "./edl";
 import { OUTPUT, type Edl } from "./types";
+import { can } from "@/lib/context";
+import { requireMutate } from "./auth";
+import { clearLocalExport, readLocalExport, writeLocalExport } from "./localDraft";
 
 const clip = (over: Partial<ClipForEdl> & { id: string; position: number }): ClipForEdl => ({
   durationSec: 20, words: null, silences: null, medianLuma: 0.5, warmth: 0, brightness: "ok", contrastLevel: "ok", rmsDb: -20, audioLevel: "ok", hasSpeech: false, ...over,
@@ -53,5 +56,27 @@ describe("BUG-02 a person's save keeps what the cut had", () => {
   it("keeps the output size and fps", () => {
     const edl = cut();
     expect(revalidateEdl({ ...edl, width: 1080, height: 1080 }, [short, silent]).edl).toMatchObject({ width: 1080, height: 1080, fps: OUTPUT.fps });
+  });
+});
+
+describe("BUG-26 a workspace member can make drafts in the studio", () => {
+  it("every role may draft; only owners and admins publish", () => {
+    expect(can({ role: "member" }, "draft")).toBe(true);
+    expect(can({ role: "member" }, "publish")).toBe(false);
+    expect(can({ role: "admin" }, "draft")).toBe(true);
+    expect(requireMutate({ role: "member" } as never)).toBeNull();
+  });
+});
+
+describe("BUG-27 an export interrupted by a reload is made again on its reserved path", () => {
+  it("remembers the path and quality for under an hour, then forgets", () => {
+    class Mem { m = new Map<string, string>(); getItem(k: string) { return this.m.get(k) ?? null; } setItem(k: string, v: string) { this.m.set(k, v); } removeItem(k: string) { this.m.delete(k); } }
+    (globalThis as { localStorage?: unknown }).localStorage = new Mem();
+    writeLocalExport("b1", { path: "u/studio/b1/x.mp4", quality: "medium" });
+    expect(readLocalExport("b1")).toEqual({ path: "u/studio/b1/x.mp4", quality: "medium" });
+    expect(readLocalExport("b1", Date.now() + 2 * 3600 * 1000)).toBeNull();
+    writeLocalExport("b1", { path: "u/studio/b1/x.mp4", quality: "high" });
+    clearLocalExport("b1");
+    expect(readLocalExport("b1")).toBeNull();
   });
 });

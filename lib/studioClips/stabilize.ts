@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { STUDIO_BUCKET, type StabilizeStrength } from "./types";
-import { signUrls } from "./storage";
+import { signUrls, storageClient } from "./storage";
 
 type Supa = SupabaseClient;
 
@@ -95,10 +95,33 @@ export async function stabilizeClip({ client, clip, strength, onProgress }: Stab
     await run(bin, ["-i", src, "-vf", `vidstabtransform=input=${trf}:smoothing=${p.smoothing}:zoom=${p.zoom}:optzoom=0:crop=black:interpol=bicubic,unsharp=5:5:0.6:3:3:0.3`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out], dur, (s) => onProgress?.(0.5 + s * 0.5));
     const bytes = await readFile(out);
     const path = stablePath(folder, strength);
-    const { error } = await client.storage.from(STUDIO_BUCKET).upload(path, bytes, { contentType: "video/mp4", upsert: true });
+    // Stored with the service role when present: a copy made for a member's clip lands in the member's folder, which
+    // the owner's own session could not write to (storage RLS keys on the first folder).
+    const { error } = await storageClient(client).storage.from(STUDIO_BUCKET).upload(path, bytes, { contentType: "video/mp4", upsert: true });
     if (error) throw new Error(`Couldn't store the stabilized copy: ${error.message}`);
     return path;
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => null);
   }
 }
+
+/**
+ * The stabilized copies that exist in storage for a clip folder, by strength.
+ * The source of truth when the database has no `stabilized` column yet (the
+ * migration in supabase/studio-stabilize.sql not run): a copy is "done" when
+ * its file is there. Best-effort: an unreadable folder reads as none.
+ */
+export async function listStable(client: Supa, folder: string): Promise<Partial<Record<StabilizeStrength, string>>> {
+  const dir = folder.replace(/\/$/, "");
+  const st = storageClient(client).storage.from(STUDIO_BUCKET);
+  const { data } = await st.list(dir, { limit: 100 }).catch(() => ({ data: null }));
+  const out: Partial<Record<StabilizeStrength, string>> = {};
+  for (const o of data ?? []) {
+    const m = /^stable-(low|medium|high)\.mp4$/.exec(o.name);
+    if (m && o.id) out[m[1] as StabilizeStrength] = `${dir}/${o.name}`;
+  }
+  return out;
+}
+
+/** Postgres "column does not exist" for the stabilized column: the migration has not run; storage stands in. */
+export const isMissingStabColumn = (e: unknown): boolean => /stabilized|42703|column .* does not exist/i.test((e as Error)?.message ?? String(e));

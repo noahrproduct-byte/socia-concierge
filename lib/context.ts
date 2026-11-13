@@ -79,6 +79,7 @@ export function brandWorkspace(ctx: Pick<Ctx, "workspace">): Workspace | null {
 }
 
 export type Action =
+  | "draft"            // make content that stays a draft: upload clips, run the studio, edit and export a cut (members too)
   | "publish"          // schedule / publish content
   | "connect"          // connect or disconnect a social account
   | "invite"           // create invite links, revoke invites
@@ -91,9 +92,10 @@ export type Action =
   | "assign_work";       // hand a plan post to someone (lib/teamWorkServer)
 
 const ROLE_ACTIONS: Record<WorkspaceRole, Set<Action>> = {
-  owner: new Set(["publish", "connect", "invite", "remove_member", "change_role", "billing", "delete_workspace", "manage_workspace", "delete_on_platform", "assign_work"]),
-  admin: new Set(["publish", "connect", "invite", "remove_member", "manage_workspace", "delete_on_platform", "assign_work"]),
-  member: new Set([]),
+  owner: new Set(["draft", "publish", "connect", "invite", "remove_member", "change_role", "billing", "delete_workspace", "manage_workspace", "delete_on_platform", "assign_work"]),
+  admin: new Set(["draft", "publish", "connect", "invite", "remove_member", "manage_workspace", "delete_on_platform", "assign_work"]),
+  // A member makes drafts (the header of this file): the studio's uploads, cuts and exports are drafts until an owner or admin publishes them.
+  member: new Set(["draft"]),
 };
 
 export function can(ctx: Pick<Ctx, "role">, action: Action): boolean {
@@ -103,6 +105,7 @@ export function can(ctx: Pick<Ctx, "role">, action: Action): boolean {
 /** Plain sentence for a refused action, for a 403 body. */
 export function forbiddenCopy(action: Action): string {
   switch (action) {
+    case "draft": return "Only people in this workspace can make drafts here.";
     case "publish": return "Only the workspace owner or an admin can publish.";
     case "connect": return "Only the workspace owner or an admin can connect or disconnect accounts.";
     case "invite": return "Only the workspace owner or an admin can invite people.";
