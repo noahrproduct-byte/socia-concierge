@@ -19,7 +19,7 @@
 .ev-rec { position: sticky; top: 110px; display: grid; gap: 12px; padding: 24px; border-radius: var(--hm-r-card); background: var(--hm-ink); color: rgba(255, 255, 255, 0.72); }
 .ev-rec header { display: flex; justify-content: space-between; align-items: center; font-family: var(--hm-mono); font-size: var(--hm-fs-eyebrow); letter-spacing: 0.073em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6); }
 .ev-rec .hm-example { background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.7); box-shadow: none; }
-.ev .ev-rec b { font-family: var(--hm-display); font-size: 30px; font-weight: 400; line-height: 1.08; letter-spacing: -0.01em; color: #fff; }
+.ev .ev-rec b { font-size: 26px; font-weight: 700; line-height: 1.12; letter-spacing: -0.035em; color: #fff; }
 .ev-rec p { margin: 0; font-size: var(--hm-fs-sm); line-height: 1.5; }
 .ev-rec-foot { padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.12); font-size: var(--hm-fs-label); color: rgba(255, 255, 255, 0.55); }
 
