@@ -1,4 +1,3 @@
-import { Geist_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements";
 import { recordEvent } from "@/lib/planGuard";
@@ -9,6 +8,7 @@ import PricingCards from "@/components/pricing/PricingCards";
 import ComparisonTable from "@/components/pricing/ComparisonTable";
 import "@/components/home/home.css";
 import "./pricing.css";
+import { marketingFonts } from "@/components/home/fonts";
 
 // Public pricing page. Everything on it is generated from lib/plans.ts and
 // lib/pricingTable.ts; this file only lays it out. Reading the visitor is
@@ -16,7 +16,6 @@ import "./pricing.css";
 // wears the homepage's look (components/home/home.css): its top bar, footer,
 // type, black actions and cards.
 
-const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono" });
 
 export const metadata = {
   title: "Pricing | SOCIA",
@@ -44,7 +43,7 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
   const pro = PLANS.pro.limits;
 
   return (
-    <div className={`${geistMono.variable} hm pr-page`}>
+    <div className={`${marketingFonts} hm pr-page`}>
       <HomeNav signedIn={signedIn} current="/pricing" />
 
       <main className="pr-main">

@@ -1,13 +1,10 @@
-import { Geist_Mono } from "next/font/google";
 import { createClient } from "@/lib/supabase/server";
 import Home from "@/components/home/Home";
 import { cookies, headers } from "next/headers";
 import { openPlatformsText } from "@/lib/platformStatus";
 import { INTRO_COOKIE, visitorIntroDue } from "@/lib/intro";
+import { marketingFonts } from "@/components/home/fonts";
 
-// Inter comes from the root layout (--font-sans). Geist Mono is the
-// reference's face for technical micro-labels and metadata (components/home/home.css).
-const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--font-geist-mono" });
 
 const TAGLINE =
   `SOCIA reads your ${openPlatformsText()} accounts, compares them with the competitors you follow, and tells you what to post next, why it should work and when to publish.`;
@@ -33,7 +30,7 @@ export default async function Landing() {
   // A first-time visitor gets the intro film over the homepage (lib/intro.ts).
   const intro = visitorIntroDue({ signedIn: authed, seenCookie: jar.get(INTRO_COOKIE)?.value, userAgent: head.get("user-agent") });
   return (
-    <div className={geistMono.variable}>
+    <div className={marketingFonts}>
       <Home signedIn={authed} intro={intro} />
     </div>
   );

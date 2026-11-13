@@ -28,3 +28,18 @@ export function openPlatformsText(join: "and" | "or" = "and"): string {
 export function offlineReason(platform: string): string | null {
   return OFFLINE_PLATFORMS[platform.toLowerCase() as OfflinePlatform] ?? null;
 }
+
+/** Where people write to ask for a platform that isn't open yet (Noah, 2026-11-12). */
+export const CONTACT_EMAIL = "socia.app2026@gmail.com";
+
+const OFFLINE_NAME: Record<OfflinePlatform, string> = { facebook: "Facebook", tiktok: "TikTok" };
+
+/** The public line for a platform waiting on access: never says it is approved or launched. */
+export function awaitingAccessText(platform: OfflinePlatform): string {
+  return `${OFFLINE_NAME[platform]} integration is currently awaiting platform access.`;
+}
+
+/** A mailto link with the request's subject filled in, e.g. "Facebook Integration Request". */
+export function platformRequestHref(platform: OfflinePlatform): string {
+  return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`${OFFLINE_NAME[platform]} Integration Request`)}`;
+}

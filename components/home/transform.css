@@ -1,0 +1,222 @@
+/* =========================================================================
+   Less switching (components/home/Transform.tsx). Six panels with two
+   places each: scattered and tilted (each its own little app), or in line
+   inside one SOCIA window. The switch moves them; each panel crossfades from
+   the tool it replaces to SOCIA's screen for the same job. Positions come in
+   as custom properties so the phone layout can use its own set.
+   ========================================================================= */
+.tf {
+  --tf-clip: #c98a1c;
+  --tf-plan: #2f8a57;
+  --tf-plan-tint: #e5f3ea;
+  --tf-note: #fdf6d8;
+  --tf-ease: cubic-bezier(0.65, 0, 0.25, 1);
+}
+
+.tf-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: max-content;
+  margin: 0 auto 28px;
+  padding: 4px;
+  border-radius: var(--hm-r-pill);
+  background: var(--hm-recessed);
+  box-shadow: var(--hm-border) 0 0 0 1px inset;
+}
+.tf-switch button {
+  position: relative;
+  z-index: 1;
+  min-width: 150px;
+  min-height: 38px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--hm-r-pill);
+  background: transparent;
+  color: var(--hm-ash);
+  font: inherit;
+  font-size: var(--hm-fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 300ms;
+}
+.tf-switch button.is-on { color: var(--hm-ink); }
+.tf-switch button:focus-visible { outline: 2px solid var(--hm-mist); outline-offset: 2px; }
+.tf-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  border-radius: var(--hm-r-pill);
+  background: var(--hm-card);
+  box-shadow: var(--hm-key);
+  transition: transform 450ms var(--tf-ease);
+}
+
+.tf-stage {
+  position: relative;
+  max-width: 1040px;
+  height: 560px;
+  margin-inline: auto;
+}
+
+/* the SOCIA window, only once everything is in it */
+.tf-chrome {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: var(--hm-card);
+  box-shadow: var(--hm-window);
+  opacity: 0;
+  transform: scale(0.97);
+  transition: opacity 500ms var(--tf-ease), transform 700ms var(--tf-ease);
+}
+.tf-stage.is-with .tf-chrome { opacity: 1; transform: none; transition-delay: 120ms; }
+.tf-chrome-bar { display: flex; align-items: center; gap: 18px; height: 9%; padding: 0 20px; border-bottom: 1px solid var(--hm-rule); font-size: var(--hm-fs-label); color: var(--hm-ash); }
+.tf-chrome-bar b { color: var(--hm-ink); font-weight: 600; letter-spacing: 0.02em; }
+.tf-chrome-bar i { font-style: normal; }
+.tf-links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.tf-links path { fill: none; stroke: var(--hm-accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0.6; }
+.tf-stage.is-with .tf-links path { stroke-dashoffset: 0; transition: stroke-dashoffset 600ms var(--tf-ease) 650ms; }
+
+.tf-panel {
+  position: absolute;
+  left: var(--bx);
+  top: var(--by);
+  width: var(--bw);
+  height: var(--bh);
+  transform: rotate(var(--br));
+  transition: left 800ms var(--tf-ease), top 800ms var(--tf-ease), width 800ms var(--tf-ease), height 800ms var(--tf-ease), transform 800ms var(--tf-ease);
+}
+.tf-stage.is-with .tf-panel { left: var(--ax); top: var(--ay); width: var(--aw); height: var(--ah); transform: none; }
+.tf-panel:nth-child(3) { transition-delay: 40ms; }
+.tf-panel:nth-child(4) { transition-delay: 80ms; }
+.tf-panel:nth-child(5) { transition-delay: 120ms; }
+.tf-panel:nth-child(6) { transition-delay: 160ms; }
+.tf-panel:nth-child(7) { transition-delay: 200ms; }
+
+.tf-label {
+  position: absolute;
+  z-index: 2;
+  top: -11px;
+  left: 12px;
+  padding: 2px 8px;
+  border-radius: var(--hm-r-pill);
+  background: var(--hm-ink);
+  color: var(--hm-on-mist);
+  font-family: var(--hm-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 300ms;
+}
+.tf-stage.is-with .tf-label { opacity: 1; transition-delay: 700ms; }
+
+.tf-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  transition: opacity 450ms var(--tf-ease);
+}
+.tf-face.is-without { opacity: 1; background: var(--hm-card); box-shadow: rgba(23, 25, 29, 0.12) 0 10px 28px, var(--hm-border) 0 0 0 1px; }
+.tf-face.is-with { opacity: 0; background: var(--hm-canvas); box-shadow: var(--hm-border) 0 0 0 1px; }
+.tf-stage.is-with .tf-face.is-without { opacity: 0; }
+.tf-stage.is-with .tf-face.is-with { opacity: 1; transition-delay: 250ms; }
+
+.tf-face small { display: block; font-size: var(--hm-fs-mono); color: var(--hm-ash); margin-bottom: 8px; }
+.tf-face > div { position: absolute; inset: 0; padding: 14px 16px; }
+
+/* without: each tool looks like its own app */
+.tf-sheet { background: #fafaf8; }
+.tf-sheet table { width: 100%; border-collapse: collapse; font-family: var(--hm-mono); font-size: 11px; color: var(--hm-ink); }
+.tf-sheet td { border: 1px solid var(--hm-border); padding: 4px 6px; height: 22px; }
+.tf-sheet tr:first-child td { background: var(--hm-recessed); color: var(--hm-ash); }
+.tf-tabs { background: #eceef1; }
+.tf-tabstrip { display: flex; gap: 2px; margin-bottom: 12px; overflow: hidden; }
+.tf-tabstrip i { flex: none; padding: 6px 10px; border-radius: 6px 6px 0 0; background: #dfe2e6; font-style: normal; font-size: 11px; color: var(--hm-ash); white-space: nowrap; }
+.tf-tabstrip i:first-child { background: #fff; color: var(--hm-ink); }
+.tf-notes { background: var(--tf-note); }
+.tf-notes ul { margin: 0; padding-left: 16px; display: grid; gap: 6px; font-size: var(--hm-fs-label); color: var(--hm-ink); }
+.tf-raw { padding: 0 !important; background: #000; }
+.tf-raw img { object-fit: cover; filter: saturate(0.55) brightness(0.8); }
+.tf-rawmeta { position: absolute; left: 10px; right: 10px; bottom: 10px; display: grid; gap: 2px; color: #fff; }
+.tf-rawmeta b { font-family: var(--hm-mono); font-size: 11px; font-weight: 500; color: #fff; }
+.tf-rawmeta em { font-style: normal; font-size: 11px; opacity: 0.8; }
+.tf-sticky { background: #fff2a8; display: grid; align-content: center; justify-items: center; text-align: center; gap: 4px; }
+.tf-sticky b { font-size: 18px; font-weight: 600; color: var(--hm-ink); }
+.tf-apps { display: grid; align-content: start; gap: 8px; }
+.tf-apps > span { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--hm-recessed); font-size: var(--hm-fs-label); }
+.tf-apps i { font-style: normal; color: var(--hm-ash); }
+.tf-apps svg { width: 16px; height: 16px; flex: none; }
+
+/* with: SOCIA's own screens */
+.tf-chart { display: grid; grid-template-rows: auto 1fr auto; gap: 8px; }
+.tf-bars { position: relative; display: flex; align-items: flex-end; gap: 5px; min-height: 0; }
+.tf-bars i { flex: 1; border-radius: 3px 3px 0 0; background: var(--hm-accent-soft); }
+.tf-bars i.is-top { background: var(--hm-accent); }
+.tf-stage.is-with .tf-bars i { animation: tf-grow 700ms var(--tf-ease) both; animation-delay: calc(500ms + var(--i) * 50ms); }
+@keyframes tf-grow { from { transform: scaleY(0.15); transform-origin: bottom; } to { transform-origin: bottom; } }
+.tf-median { position: absolute; left: 0; right: 0; bottom: 48%; border-top: 1px dashed var(--hm-iron); }
+.tf-chart b { font-size: var(--hm-fs-label); font-weight: 500; color: var(--hm-ink); }
+.tf-rivals { display: grid; align-content: start; gap: 6px; }
+.tf-rival { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 8px; background: var(--hm-card); box-shadow: var(--hm-border) 0 0 0 1px; font-size: var(--hm-fs-label); }
+.tf-rival b { color: var(--hm-ink); font-weight: 500; }
+.tf-rival em { font-style: normal; font-family: var(--hm-mono); font-size: 11px; color: var(--hm-ash); }
+.tf-rival em.is-up { color: var(--hm-sky); }
+.tf-plan { display: grid; align-content: start; gap: 6px; }
+.tf-planrow { display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--hm-card); box-shadow: var(--hm-border) 0 0 0 1px; font-size: var(--hm-fs-label); }
+.tf-planrow i { grid-row: 1 / 3; font-style: normal; font-family: var(--hm-mono); font-size: 11px; color: var(--tf-plan); }
+.tf-planrow b { font-weight: 500; color: var(--hm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tf-planrow em { font-style: normal; font-size: 11px; color: var(--hm-ash); }
+.tf-edit { display: grid; grid-template-columns: 34% minmax(0, 1fr); gap: 12px; }
+.tf-reel { position: relative; overflow: hidden; border-radius: 8px; background: #000; }
+.tf-reel img { object-fit: cover; }
+.tf-cap { position: absolute; left: 50%; top: 52%; transform: translateX(-50%); max-width: 88%; padding: 2px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.55); text-align: center; font-style: normal; font-size: 10px; font-weight: 700; color: #fff; }
+.tf-cut { display: grid; align-content: center; gap: 6px; }
+.tf-lane { position: relative; height: 18px; border-radius: 4px; background: var(--hm-recessed); }
+.tf-lane i { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; background: var(--hm-accent); opacity: 0.85; }
+.tf-lane.is-text i { background: var(--tf-clip); }
+.tf-today { display: grid; align-content: start; gap: 6px; }
+.tf-today b { font-size: var(--hm-fs-sm); font-weight: 600; color: var(--hm-ink); }
+.tf-today p { margin: 0; font-size: var(--hm-fs-label); line-height: 1.4; color: var(--hm-ash); }
+.tf-evidence { justify-self: start; padding: 2px 8px; border-radius: var(--hm-r-pill); background: var(--hm-accent-tint); color: var(--hm-sky); font-size: 11px; }
+.tf-publish { display: grid; align-content: start; gap: 10px; }
+.tf-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.tf-week i { display: grid; place-items: center; height: 30px; border-radius: 6px; background: var(--hm-card); box-shadow: var(--hm-border) 0 0 0 1px; font-style: normal; font-size: 11px; color: var(--hm-ash); }
+.tf-week i.is-done { background: var(--hm-recessed); }
+.tf-week i.is-on { background: var(--tf-plan-tint); color: var(--tf-plan); box-shadow: var(--tf-plan) 0 0 0 1.5px inset; }
+.tf-sched { display: flex; align-items: center; gap: 6px; font-size: var(--hm-fs-label); }
+.tf-sched svg { width: 15px; height: 15px; }
+.tf-sched b { margin-left: 4px; font-weight: 500; color: var(--hm-ink); }
+.tf-sched em { margin-left: auto; padding: 2px 8px; border-radius: var(--hm-r-pill); background: var(--tf-plan-tint); color: var(--tf-plan); font-style: normal; font-size: 11px; }
+
+.tf-example { position: absolute; right: 12px; bottom: -30px; }
+.tf-caption { max-width: 60ch; margin: 44px auto 0; text-align: center; font-size: var(--hm-fs-sm); color: var(--hm-ash); }
+
+/* phone: a taller stage with its own positions */
+@media (max-width: 760px) {
+  .tf-stage { height: 760px; }
+  .tf-panel { left: var(--mbx); top: var(--mby); width: var(--mbw); height: var(--mbh); transform: rotate(var(--mbr)); }
+  .tf-stage.is-with .tf-panel { left: var(--max); top: var(--may); width: var(--maw); height: var(--mah); }
+  .tf-chrome-bar { height: 5%; gap: 10px; padding: 0 12px; }
+  .tf-chrome-bar i:nth-of-type(n + 3) { display: none; }
+  .tf-links { display: none; }
+  .tf-switch button { min-width: 0; padding: 8px 14px; }
+  .tf-face > div { padding: 10px 10px; }
+  .tf-edit { grid-template-columns: 1fr; }
+  .tf-cut { display: none; }
+  .tf-today p { display: none; }
+  .tf-rival { flex-direction: column; gap: 0; padding: 6px 8px; }
+  .tf-rival b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tf-rival em { font-size: 10px; }
+  .tf-planrow b { font-size: 12px; }
+  .tf-sched b { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-panel, .tf-chrome, .tf-face, .tf-thumb, .tf-label, .tf-links path { transition: none !important; }
+  .tf-stage.is-with .tf-bars i { animation: none; }
+}
