@@ -22,6 +22,7 @@ import { editSpeech, speechNote } from "./speech";
 import { pickStyle, speechShare, styleNote, styleOf, textForStyle, type EditStyleId, type StylePick } from "./profiles";
 import { varyJumpCuts } from "./jumpCuts";
 import { cardIsCurrent, QUIET_ROOM_VOLUME, teachEdit } from "./teach";
+import { applyHouseStyle, HOUSE_PACING } from "./houseStyle";
 import { studioLearnedLine } from "./learnLoad";
 import { createServiceClient } from "@/lib/supabase/service";
 import { playbookText as nichePlaybookText } from "@/lib/nicheScan/run";
@@ -751,7 +752,12 @@ export async function buildFromBrief(client: Supa, args: {
  * many moved; the person's own edits are never paced this way.
  */
 function paced(edl: Edl, forEdl: ClipForEdl[], asked?: string | null): Edl {
-  const { edl: out, changes } = applyPacing({ ...edl, segments: decideJoins(edl.segments, forEdl, asked, styleOf(edl.editStyle).joins).segments }, forEdl);
+  // House style first (lib/studioClips/houseStyle.ts): the genre's length,
+  // transitions, one-take and before/after shape, the ask off screen, the
+  // opening line from 0 s. Then the joins for the edit style, and pacing inside what is left.
+  const house = applyHouseStyle(edl, forEdl);
+  const { edl: out, changes } = applyPacing({ ...house.edl, segments: decideJoins(house.edl.segments, forEdl, asked, styleOf(house.edl.editStyle).joins).segments }, forEdl);
+  if (house.changes.length) out.notes = [...out.notes, `SOCIA cut this as a ${(house.edl.genre ?? "").replace(/_/g, " ")}: ${house.changes.map((c) => c.what).join(" ")}`];
   if (changes.length) out.notes = [...out.notes, `SOCIA paced the cut: ${changes.length} change${changes.length === 1 ? "" : "s"} so cuts start on the action, nothing drags and every line can be read.`];
   return out;
 }
@@ -823,7 +829,9 @@ async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEd
   let edl = shaped(first.raw, forEdl, acct, asked, pick.id, pick);
   let model = first.model;
   const len = edlDurationSec(edl);
-  const floor = Math.min(10, footageSec * 0.5);
+  // A genre with a short band (a 7 s one-take skit, a 7–14 s food reel) is not "too short".
+  const genreMin = edl.genre ? HOUSE_PACING[edl.genre].lengthSec[0] : 10;
+  const floor = Math.min(10, genreMin, footageSec * 0.5);
   if (footageSec >= 6 && len < floor) {
     const again = await make(`Your first cut was only ${len.toFixed(1)} seconds long, from ${Math.round(footageSec)} seconds of footage. That is far too short. Make a cut of at least ${Math.ceil(floor)} seconds that uses all the clips.`);
     const second = shaped(again.raw, forEdl, acct, asked, pick.id, pick);

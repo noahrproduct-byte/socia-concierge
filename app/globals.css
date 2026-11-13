@@ -11597,6 +11597,25 @@ p.cbm-muted { display: block; }
 .cbb-vol em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
 .cbb-quality { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-meta); color: var(--text-secondary); }
 
+/* Editor V2: caption styles (lib/studioClips/style.ts CAPTION_STYLES); each card shows its own look on a dark frame */
+.cbb-capstyles { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: var(--sp-2); }
+.cbb-capstyle { display: grid; gap: var(--sp-1); padding: 0; border: 1px solid var(--border); border-radius: var(--r-control); background: var(--surface); color: var(--text-primary); cursor: pointer; text-align: center; overflow: hidden; }
+.cbb-capstyle.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.cbb-capstyle:disabled { opacity: 0.6; cursor: not-allowed; }
+.cbb-capstyle-demo { display: flex; align-items: flex-end; justify-content: center; gap: 0.25em; height: 3.25rem; padding: var(--sp-1) var(--sp-2); background: #1a1a1a; color: #fff; font-size: var(--fs-meta); font-weight: 800; line-height: 1.1; }
+.cbb-capstyle-demo i, .cbb-capstyle-demo em { font-style: normal; }
+.cbb-capstyle-name { padding: 0 var(--sp-1) var(--sp-1); font-size: var(--fs-meta); font-weight: 650; }
+.cbb-capstyle.is-classic .cbb-capstyle-demo i { color: rgba(255, 255, 255, 0.72); }
+.cbb-capstyle.is-karaoke .cbb-capstyle-demo em, .cbb-capstyle.is-highlight .cbb-capstyle-demo em { color: var(--cap-hi); }
+.cbb-capstyle.is-highlight .cbb-capstyle-demo { text-transform: uppercase; }
+.cbb-capstyle.is-pop .cbb-capstyle-demo i { display: none; }
+.cbb-capstyle.is-pop .cbb-capstyle-demo em { font-size: 1.5em; text-transform: uppercase; }
+.cbb-capstyle.is-boxed .cbb-capstyle-demo em { padding: 0 0.25em; border-radius: 4px; background: var(--cap-hi); }
+.cbb-capstyle.is-vox .cbb-capstyle-demo { justify-content: flex-start; font-weight: 700; }
+.cbb-capstyle.is-vox .cbb-capstyle-demo em { box-shadow: inset 0 -0.45em 0 var(--cap-hi); }
+.cbb-capstyle.is-subtitle .cbb-capstyle-demo { font-weight: 600; }
+.cbb-capstyle.is-subtitle .cbb-capstyle-demo i, .cbb-capstyle.is-subtitle .cbb-capstyle-demo em { background: rgba(0, 0, 0, 0.5); padding: 0 0.2em; }
+
 /* Editor V2: multi-track timeline (components/studio/Timeline.tsx) */
 .cbb-tl-card { padding: var(--sp-3); }
 .cbb-tl-wrap { display: flex; flex-direction: column; gap: var(--sp-2); }

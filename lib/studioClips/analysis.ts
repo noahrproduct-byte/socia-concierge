@@ -15,6 +15,7 @@ import type { RawEdl } from "./edl";
 import { BREAKDOWN_SCHEMA, shotStats, timedSpeech, type ReferenceInput } from "./reference";
 import { CARD_DETAIL, editFrames } from "./teach";
 import { EDIT_STYLES, type EditStyleId } from "./profiles";
+import { HOUSE_STYLE, HOUSE_GENRES } from "./houseStyle";
 
 export type AccountContext = {
   niche: string | null; location: string | null; goals: string | null; brand: BrandDetail | null;
@@ -249,9 +250,11 @@ const cardText = (c: ClipInput): string => {
 export async function batchGroups(clips: ClipInput[], acct: AccountContext): Promise<{ summary: string; groups: ProposedGroup[]; unusable: { clipId: string; reason: string }[]; model: string }> {
   const withCards = clips.filter((c) => c.card);
   const system = `You plan short-form posts (vertical video, 8–60 seconds) from a batch of raw clips, each described by a card. ${HONESTY}
+${HOUSE_GENRES}
 Group clips that belong together — same subject, same story, same session (file times help) — into posts. A clip belongs to at most ONE post. Reference moments by clip id with start/end seconds copied from the cards; do not invent ranges. Skip weak moments.
 Do not force a number of posts: if the footage only supports one post, propose one; if none, propose none. Rank the strongest post first. Titles are short and concrete ("Making a pepperoni pizza"), angles one sentence. opener: the single best moment to open with and why (clipId "" when there is none). cta: a natural closing ask that fits the account's goal, or "".
-unusable: clips that should not be used at all, with a plain reason.`;
+unusable: clips that should not be used at all, with a plain reason.
+summary: two or three plain sentences on what the batch supports, then a line starting "Film next:" with up to three specific things to shoot that would unlock a one_take_skit or a before_after_match for this account (a locked shot of the counter with a POV line; the same angle of the car interior before and after), each in one sentence. These come from the clips' real settings and subjects, never invented facts.`;
   const content: Content = [
     { type: "text", text: `${accountText(acct)}${learnedText(acct)}${playbookText(acct)}
 
@@ -277,7 +280,8 @@ const EDL_SCHEMA = {
   type: "object", additionalProperties: false,
   properties: {
     targetSec: { type: "object", additionalProperties: false, properties: { min: { type: "number" }, max: { type: "number" } }, required: ["min", "max"] },
-    segments: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, in: { type: "number" }, out: { type: "number" }, role: { type: "string", enum: ["opener", "body", "ending"] }, note: { type: "string" }, transition: { type: "string", enum: ["cut", "fade", "zoom", "whip"] }, sound: { type: "boolean" }, purpose: { type: "string", enum: ["hook", "context", "development", "payoff", "close"] } }, required: ["clipId", "in", "out", "role", "note", "transition", "sound", "purpose"] } },
+    segments: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, in: { type: "number" }, out: { type: "number" }, role: { type: "string", enum: ["opener", "body", "ending"] }, note: { type: "string" }, transition: { type: "string", enum: ["cut", "fade", "zoom", "whip", "flash"] }, sound: { type: "boolean" }, purpose: { type: "string", enum: ["hook", "context", "development", "payoff", "close"] } }, required: ["clipId", "in", "out", "role", "note", "transition", "sound", "purpose"] } },
+    genre: { type: "string", enum: ["one_take_skit", "before_after_match", "sports_montage", "food_reel", "food_reel_text_led", "product_ab", "talking_head_reel", "saas_demo"] },
     text: { type: "array", items: { type: "object", additionalProperties: false, properties: { at: { type: "number" }, end: { type: "number" }, text: { type: "string" }, role: { type: "string", enum: ["opening", "mid", "cta"] } }, required: ["at", "end", "text", "role"] } },
     enhance: { type: "array", items: { type: "object", additionalProperties: false, properties: { clipId: { type: "string" }, kind: { type: "string", enum: ["brighten", "darken", "warm", "cool", "contrast"] }, amount: { type: "string", enum: ["slight", "moderate"] }, why: { type: "string" } }, required: ["clipId", "kind", "amount", "why"] } },
     cta: { type: "string" }, music: { type: "string" }, caption: { type: "string" },
@@ -285,7 +289,7 @@ const EDL_SCHEMA = {
     notes: { type: "array", items: { type: "string" } },
     emphasis: { type: "array", items: { type: "string" } },
   },
-  required: ["targetSec", "segments", "text", "enhance", "cta", "music", "caption", "endCard", "notes", "emphasis"],
+  required: ["targetSec", "segments", "text", "enhance", "cta", "music", "caption", "endCard", "notes", "emphasis", "genre"],
 } as const;
 
 const DIRECTIVE_TEXT: Record<RegenerateDirective, string> = {
@@ -319,6 +323,11 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
     ? `\n\nThe previous cut (${variant.previous.segments.reduce((a, s) => a + (s.out - s.in), 0).toFixed(1)}s): ${variant.previous.segments.map((s) => `${clipLabel(used.find((c) => c.id === s.clipId)?.position ?? 0)} ${s.in.toFixed(1)}–${s.out.toFixed(1)}s`).join("; ")}${variant.previous.text[0] ? `; opening line "${variant.previous.text[0].text}"` : ""}.\nChange requested: ${DIRECTIVE_TEXT[variant.directive]}`
     : "";
   const system = `You are cutting ONE short-form vertical post (1080×1920) from the clips given, as an edit decision list another editor could follow exactly. ${HONESTY}
+
+${HOUSE_STYLE}
+
+The house style above sets the genre, length, pace and text density; the format rules below say how to express that in the fields. A brief from the person wins over the house style; the honesty rules win over both.
+- genre: the house-style genre you cut this as (one of the ids above). A one_take_skit is ONE segment of 7 to 12 seconds; a before_after_match is 2 or 3; the pacing rules allow those long holds only when the genre says so.
 - segments: in order; each has a clip id and clip-relative in/out seconds inside that clip, preferring the chosen moments; the first segment is the opener (the strongest attention-holding moment or the spoken hook); the last is the ending. 3 to 10 segments.
 - Plan the story before choosing times, and give every segment its purpose: "hook" (the reason to keep watching, on screen in the first 2 seconds), "context" (what this is, only when the viewer needs it), "development" (something new each time: the next step, more proof, never the same point again), "payoff" (what the opening promised, actually shown) and "close" (the brand, the place or the ask). Every cut has a hook and a payoff. A segment that adds nothing new is left out: a professional editor improves a video by removing things.
 - When someone talks: cut between sentences, never inside one; keep a pause that sets up a punchline or a reveal; leave out false starts, a repeated explanation and dead air. Don't cut away before a line is understood.
@@ -335,7 +344,7 @@ export async function opportunityEdl(opp: Opportunity, clips: ClipInput[], acct:
   - Pace to the brief: for a POV, a rush, "how busy", a day in the life or anything energetic, 6 to 10 segments of 0.8 to 2.5 seconds each; calmer posts, fewer and longer.
   - End on the strongest, most satisfying image and let it run 2.5 to 4 seconds. The last frame is clean and steady: end the shot before a hand, a tool or anything else moves in front of the subject, and before the camera swings, swoops or blurs. Never end mid-motion.
   - Handheld movement is fine; it's how short-form looks.
-- transition: "cut". SOCIA chooses each join itself: hard cuts between quick shots and where someone is talking, a short soft dissolve only between two longer shots of different moments. Use "fade", "zoom" or "whip" only when the brief asks for them by name.
+- transition: "cut". SOCIA chooses each join itself: hard cuts between quick shots and where someone is talking, a short soft dissolve only between two longer shots of different moments. Use "fade", "zoom" or "whip" only when the brief asks for them by name, and "flash" (a hard cut with two white frames) only in sports_montage on the biggest hits, at most one in four cuts. The top-liked reels in every business niche use plain cuts.
 - targetSec: a sensible length for this footage, typically 10–30 seconds; never longer than the footage supports, and never much shorter than it allows when the clips are good.
 - text: 1 or 2 on-screen lines with output-relative at/end seconds, written the way the best edited Reels set their words: few, specific, designed. The first is the hook, role "opening", up from 0 and gone by the first cut: two lines joined by a newline, a small lead-in of 2 to 4 words, then the 1 or 2 words that matter (the shape is "<lead-in>\\n<key words>", the key words in lowercase as they would be said, for a barbershop say "the cleanest\\nfade"; SOCIA sets the lead-in in bold and the key words big in an italic serif; write your own words for this footage, never reuse the example). The hook names the thing or the moment this footage really shows. Never a sentence that trails off, and never a meme frame like "when it comes out looking like this". The second line is optional, role "mid": 2 to 5 words over the middle naming what is happening at that moment (what the hands are doing, what is being added), not a reaction. Never an offer, a slogan, a price or an ask, and never "POV" unless the shot really is that person's point of view. When the brief gives its own lines, use those. No line of text on the last shot. When someone talks to camera, the captions carry their words: add no reaction lines, only a short opening line when the brief asks for one.
 - endCard: the big ending in the middle of the frame. location: the place, spelled out as people say it ("Nashville, Tennessee"), from the brand's location; with more than one location or a neighborhood, the city or metro area people know; "" when the brand notes give no location. cta: the ask in 2 or 3 words in capitals that fit the goal ("ORDER NOW", "BOOK TODAY", "COME TRY IT"); "" when the brief says no ask. Leave both "" when the footage isn't the brand's own business (someone else's speech, event or shop), and when someone talks to camera unless the brief asks for an ending. SOCIA adds the website itself.
