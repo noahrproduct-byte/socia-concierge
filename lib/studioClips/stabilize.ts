@@ -1,0 +1,104 @@
+// Video stabilization, done on the server: the one step the browser export
+// cannot do (ffmpeg.wasm ships without vidstab). Two passes of ffmpeg's
+// vidstab (vidstabdetect, then vidstabtransform with a fixed zoom to hide the
+// borders), written next to the clip's source as stable-<strength>.mp4 and
+// recorded on the clip row. The preview and the export both play that copy,
+// so they match. Progress is written to the row as ffmpeg reports time.
+// Node only (child_process, fs); used by app/api/studio/clips/[id]/stabilize.
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { STUDIO_BUCKET, type StabilizeStrength } from "./types";
+import { signUrls } from "./storage";
+
+type Supa = SupabaseClient;
+
+export type StabRecord = { status: "working" | "done" | "failed"; path?: string; progress?: number; error?: string | null; at: string };
+export type StabilizedMap = Partial<Record<StabilizeStrength, StabRecord>>;
+
+/** vidstab settings per strength: how much shake to look for, how long the smoothing window is, and the zoom that hides the borders (percent). */
+export const STAB_PARAMS: Record<StabilizeStrength, { shakiness: number; smoothing: number; zoom: number }> = {
+  low: { shakiness: 4, smoothing: 10, zoom: 3 },
+  medium: { shakiness: 6, smoothing: 20, zoom: 6 },
+  high: { shakiness: 9, smoothing: 30, zoom: 10 },
+};
+
+/** A job left "working" longer than this is taken as dead and may be started again. */
+export const STAB_STALE_MS = 12 * 60 * 1000;
+/** The longest a clip may be to stabilize on the server (the route's budget is 300 s, two passes). */
+export const STAB_MAX_SEC = 180;
+
+export const stablePath = (folder: string, strength: StabilizeStrength): string => `${folder}stable-${strength}.mp4`;
+
+let ffmpegPath: string | null | undefined;
+async function ffmpegBin(): Promise<string | null> {
+  if (ffmpegPath !== undefined) return ffmpegPath;
+  try {
+    const mod = (await import("ffmpeg-static")) as unknown as { default?: string | null } | string;
+    ffmpegPath = (typeof mod === "string" ? mod : mod.default) ?? null;
+  } catch {
+    ffmpegPath = null;
+  }
+  return ffmpegPath;
+}
+
+/** `ffmpeg args`, with `time=` lines from stderr reported as a share of `durationSec`. */
+function run(bin: string, args: string[], durationSec: number, onProgress?: (share: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(bin, ["-hide_banner", "-y", "-nostdin", ...args], { timeout: 280_000, maxBuffer: 8 * 1024 * 1024 }, (err, _out, stderr) => {
+      if (err) reject(new Error((stderr || err.message).split("\n").filter(Boolean).slice(-3).join(" ").slice(0, 300)));
+      else resolve();
+    });
+    let last = 0;
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      const m = /time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(String(chunk));
+      if (!m || !durationSec) return;
+      const t = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+      const share = Math.min(1, t / durationSec);
+      if (share - last >= 0.04) { last = share; onProgress?.(share); }
+    });
+  });
+}
+
+export type StabilizeArgs = {
+  client: Supa;
+  clip: { id: string; project_id: string; user_id: string; source_path: string; duration_s: number | null };
+  strength: StabilizeStrength;
+  /** write the row's progress (throttled by the caller) */
+  onProgress?: (share: number) => Promise<void> | void;
+};
+
+/**
+ * Make the stabilized copy: download the source, two ffmpeg passes, upload.
+ * Returns the storage path. Throws with a plain message on failure.
+ */
+export async function stabilizeClip({ client, clip, strength, onProgress }: StabilizeArgs): Promise<string> {
+  const bin = await ffmpegBin();
+  if (!bin) throw new Error("ffmpeg is not available on this server.");
+  const folder = clip.source_path.slice(0, clip.source_path.lastIndexOf("/") + 1);
+  const urls = await signUrls(client, [clip.source_path], 600);
+  const url = urls[clip.source_path];
+  if (!url) throw new Error("The clip's file couldn't be read from storage.");
+  const dur = Math.max(1, clip.duration_s ?? 1);
+  const p = STAB_PARAMS[strength];
+  const dir = await mkdtemp(join(tmpdir(), "socia-stab-"));
+  try {
+    const src = join(dir, "in.mp4"), trf = join(dir, "moves.trf"), out = join(dir, "out.mp4");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("The clip's file couldn't be downloaded.");
+    await writeFile(src, Buffer.from(await res.arrayBuffer()));
+    // Pass 1: measure the camera's moves.
+    await run(bin, ["-i", src, "-vf", `vidstabdetect=shakiness=${p.shakiness}:accuracy=15:result=${trf}`, "-an", "-f", "null", "-"], dur, (s) => onProgress?.(s * 0.5));
+    // Pass 2: apply the smoothed path, zoom to hide the borders, a touch of sharpening back.
+    await run(bin, ["-i", src, "-vf", `vidstabtransform=input=${trf}:smoothing=${p.smoothing}:zoom=${p.zoom}:optzoom=0:crop=black:interpol=bicubic,unsharp=5:5:0.6:3:3:0.3`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out], dur, (s) => onProgress?.(0.5 + s * 0.5));
+    const bytes = await readFile(out);
+    const path = stablePath(folder, strength);
+    const { error } = await client.storage.from(STUDIO_BUCKET).upload(path, bytes, { contentType: "video/mp4", upsert: true });
+    if (error) throw new Error(`Couldn't store the stabilized copy: ${error.message}`);
+    return path;
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => null);
+  }
+}

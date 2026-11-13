@@ -32,7 +32,8 @@ import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
 import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
 import { audioLine } from "@/lib/audio/server";
 import { videoKind, videoTitle, type VideoSummary } from "./videos";
-import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult, VoiceoverAsk } from "./types";
+import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult, VoiceoverAsk, StabilizeStrength } from "./types";
+import type { StabRecord, StabilizedMap } from "./stabilize";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -49,6 +50,8 @@ export type ClipRow = {
   recorded_at: string | null; source_path: string | null; frames: { t: number; path: string }[] | null; audio_path: string | null;
   facts: ClipFacts | null; transcript: Transcript | null; card: ClipCard | null; status: ClipStatus; error: string | null;
   expires_at: string | null; purged_at: string | null; created_at: string; updated_at: string;
+  /** stabilized copies by strength (supabase/studio-stabilize.sql); absent before that migration */
+  stabilized?: StabilizedMap | null;
 };
 
 type BuildRow = {
@@ -331,17 +334,24 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
   const row = await loadBuildRow(client, ownerId, wsId, buildId);
   if (!row) return null;
   const rows = (await clipRows(client, row.project_id)).filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && clipOwnsPath(r, r.source_path));
-  const paths = rows.flatMap((r) => [r.source_path!, ...(r.frames?.[0] && clipOwnsPath(r, r.frames[0].path) ? [r.frames[0].path] : [])]);
+  // Stabilized copies that are done and live in the clip's own folder are signed with the source.
+  const stableOf = (r: ClipRow): [StabilizeStrength, string][] => (Object.entries(r.stabilized ?? {}) as [StabilizeStrength, StabRecord | undefined][]).filter(([, v]) => v?.status === "done" && v.path && clipOwnsPath(r, v.path)).map(([k, v]) => [k, v!.path!]);
+  const paths = rows.flatMap((r) => [r.source_path!, ...(r.frames?.[0] && clipOwnsPath(r, r.frames[0].path) ? [r.frames[0].path] : []), ...stableOf(r).map(([, p]) => p)]);
   const urls = await signUrls(client, paths);
   const sources: BuildSource[] = rows
     .filter((r) => urls[r.source_path!])
-    .map((r) => ({
-      clipId: r.id, position: r.position, name: r.name, url: urls[r.source_path!],
-      thumb: r.frames?.[0] ? urls[r.frames[0].path] ?? null : null,
-      durationSec: r.duration_s ?? 0, width: r.width, height: r.height,
-      words: r.transcript?.words?.length ? r.transcript.words : null,
-      moments: r.card?.moments ?? [],
-    }));
+    .map((r) => {
+      const stable = Object.fromEntries(stableOf(r).map(([k, p]) => [k, urls[p]]).filter(([, u]) => Boolean(u))) as Partial<Record<StabilizeStrength, string>>;
+      return {
+        clipId: r.id, position: r.position, name: r.name, url: urls[r.source_path!],
+        thumb: r.frames?.[0] ? urls[r.frames[0].path] ?? null : null,
+        durationSec: r.duration_s ?? 0, width: r.width, height: r.height,
+        words: r.transcript?.words?.length ? r.transcript.words : null,
+        moments: r.card?.moments ?? [],
+        ...(Object.keys(stable).length ? { stable } : {}),
+        recordedAt: r.recorded_at,
+      };
+    });
   const voicePaths = (row.edl?.voiceover?.lines ?? []).map((l) => l.path).filter((p): p is string => Boolean(p) && ownsVoicePath(ownerId, row.project_id, buildId)(p!));
   const [music, voice] = await Promise.all([madeTracks(client, ownerId, row.project_id, buildId), voicePaths.length ? signUrls(client, voicePaths).catch(() => ({})) : Promise.resolve({})]);
   return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx), music, voice };
