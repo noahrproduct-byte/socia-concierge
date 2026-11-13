@@ -7,7 +7,7 @@ import { timeline, captionsForEdl } from "./timeline";
 import type { TranscriptWord } from "@/lib/transcribe/types";
 
 export type TrackItem = { index: number; start: number; end: number; label: string };
-export type Tracks = { duration: number; video: TrackItem[]; text: TrackItem[]; captions: { start: number; end: number }[] };
+export type Tracks = { duration: number; video: TrackItem[]; text: TrackItem[]; captions: { start: number; end: number }[]; /** B-roll laid over the picture (edl.broll), by its index */ broll: TrackItem[] };
 
 /** Captions closer than this merge into one span on the track. */
 const CAPTION_GAP_SEC = 0.6;
@@ -29,7 +29,8 @@ export function tracksFor(edl: Edl, label: (clipId: string) => string, words: Re
       else captions.push({ start, end });
     }
   }
-  return { duration: tl.durationSec, video, text, captions: captions.map((c) => ({ start: r2(c.start), end: r2(c.end) })) };
+  const broll = (edl.broll ?? []).map((b, index) => ({ index, start: b.at, end: r2(b.at + (b.out - b.in)), label: label(b.clipId) }));
+  return { duration: tl.durationSec, video, text, captions: captions.map((c) => ({ start: r2(c.start), end: r2(c.end) })), broll };
 }
 
 /** Move a span by delta seconds, kept inside 0..total and its length unchanged. */

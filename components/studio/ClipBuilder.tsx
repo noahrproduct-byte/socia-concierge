@@ -712,6 +712,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     if (i !== playCut.current) { playCut.current = i; setPlaySec(sec); }
   }, []);
   const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text") setPanel("text"); else if (next?.kind === "cut") setPanel("cut"); };
+  const brollLive = (i: number, at: number) => { setEdl((cur) => (cur?.broll ? { ...cur, broll: cur.broll.map((b, k) => (k === i ? { ...b, at: r2(at) } : b)) } : cur)); setDirty(true); };
+  const removeBroll = (i: number) => { if (!edl?.broll) return; const broll = edl.broll.filter((_, k) => k !== i); const { broll: _b, ...rest } = edl; void _b; commit(broll.length ? { ...rest, broll } : rest); };
   const trimBase = useRef<Edl | null>(null);
   const cutStart = () => { trimBase.current = edl; beginLive(); };
   const cutTrimLive = (i: number, edge: "in" | "out", delta: number) => {
@@ -729,6 +731,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       if (!edl.segments[sel.index]) return setSel(null);
       if (edl.segments.length <= 1) return setHereNote("A video needs at least one cut.");
       setHereNote(null); remove(sel.index);
+    } else if (sel.kind === "broll") {
+      if (!edl.broll?.[sel.index]) return setSel(null);
+      removeBroll(sel.index);
     } else {
       if (!edl.text[sel.index]) return setSel(null);
       removeText(sel.index);
@@ -1330,6 +1335,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
             onCutStart={cutStart}
             onCutTrimLive={cutTrimLive}
             onCutMove={cutMove}
+            onBrollLive={brollLive}
             onSplit={splitHere}
             onDelete={deleteSelected}
             onUndo={undo}

@@ -17,11 +17,12 @@ import { Pause, Play, Redo2, Scissors, Trash2, Undo2, ZoomIn, ZoomOut } from "lu
 import { dropIndex, dropMarker, fmtTenths, moveSpan, reorder, resizeSpan, rulerTicks, snapTo, type Tracks } from "@/lib/studioClips/tracks";
 import "@/app/(app)/studio/studio-motion.css";
 
-export type TimelineSelection = { kind: "cut" | "text"; index: number } | null;
+export type TimelineSelection = { kind: "cut" | "text" | "broll"; index: number } | null;
 
 type Drag =
   | { kind: "scrub" }
   | { kind: "text"; index: number; mode: "move" | "start" | "end"; x0: number; at0: number; end0: number; pps: number }
+  | { kind: "broll"; index: number; x0: number; at0: number; pps: number }
   | { kind: "trim"; index: number; edge: "in" | "out"; x0: number; pps: number }
   | { kind: "cut"; index: number; x0: number; moved: boolean };
 
@@ -45,7 +46,7 @@ const SNAP_PX = 8;
 
 export default function Timeline({
   tracks, fps, player, canEdit, selected, onSelect,
-  onTextStart, onTextLive, onCutStart, onCutTrimLive, onCutMove,
+  onTextStart, onTextLive, onCutStart, onCutTrimLive, onCutMove, onBrollLive,
   onSplit, onDelete, onUndo, onRedo, canUndo, canRedo, note, onTime,
 }: {
   tracks: Tracks;
@@ -66,6 +67,8 @@ export default function Timeline({
   onCutTrimLive: (index: number, edge: "in" | "out", delta: number) => void;
   /** A cut dropped at a new place (one undo step). */
   onCutMove: (from: number, to: number) => void;
+  /** A B-roll shot dragged to a new place in output time (live; onTextStart's undo step covers it). */
+  onBrollLive?: (index: number, at: number) => void;
   onSplit: () => void;
   onDelete: () => void;
   onUndo: () => void;
@@ -163,6 +166,14 @@ export default function Timeline({
     drag.current = { kind: "text", index, mode, x0: e.clientX, at0: t.start, end0: t.end, pps: pps() };
     onTextStart();
   };
+  const startBroll = (e: PointerEvent, index: number) => {
+    e.stopPropagation();
+    onSelect({ kind: "broll", index });
+    if (!canEdit || !onBrollLive) return;
+    capture(e);
+    drag.current = { kind: "broll", index, x0: e.clientX, at0: tracks.broll[index].start, pps: pps() };
+    onTextStart();
+  };
   const startTrim = (e: PointerEvent, index: number, edge: "in" | "out") => {
     e.stopPropagation();
     onSelect({ kind: "cut", index });
@@ -186,6 +197,16 @@ export default function Timeline({
     if (g.kind === "trim") {
       // Measured against the scale when the drag began: the track resizes as the cut does.
       onCutTrimLive(g.index, g.edge, (e.clientX - g.x0) / Math.max(1, g.pps));
+      return;
+    }
+    if (g.kind === "broll") {
+      const b = tracks.broll[g.index];
+      const len = b.end - b.start;
+      const delta = (e.clientX - g.x0) / Math.max(1, g.pps);
+      const targets = [0, now, ...tracks.video.map((v) => v.end)];
+      const tol = SNAP_PX / Math.max(1, g.pps);
+      const at = snapTo(moveSpan(g.at0, g.at0 + len, delta, d).at, targets, tol);
+      onBrollLive?.(g.index, Math.min(Math.max(0, at), Math.max(0, d - len)));
       return;
     }
     if (g.kind === "text") {
@@ -241,7 +262,7 @@ export default function Timeline({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
-  const isSel = (kind: "cut" | "text", i: number) => selected?.kind === kind && selected.index === i;
+  const isSel = (kind: "cut" | "text" | "broll", i: number) => selected?.kind === kind && selected.index === i;
   // While a cut is dragged, where every other cut would start once it is dropped: they slide there.
   const shifted = (() => {
     if (!ghost) return null;
@@ -275,6 +296,7 @@ export default function Timeline({
       <div className="cbb-tl" aria-label="Timeline" data-zoom={zoom}>
         <div className="cbb-tl-labels" aria-hidden>
           <span />
+          {tracks.broll.length > 0 && <span>B-roll</span>}
           <span>Video</span>
           <span>Text</span>
           {tracks.captions.length > 0 && <span>Captions</span>}
@@ -292,6 +314,21 @@ export default function Timeline({
             <div className="cbb-tl-ruler">
               {rulerTicks(d, areaW ? areaW / d : undefined).map((t) => <span key={t} style={{ left: pct(t) }}>{t}s</span>)}
             </div>
+            {tracks.broll.length > 0 && (
+              <div className="cbb-tl-track">
+                {tracks.broll.map((b) => (
+                  <span
+                    key={b.index}
+                    className={`cbb-tl-clip is-broll${isSel("broll", b.index) ? " on" : ""}`}
+                    style={{ left: pct(b.start), width: width(b.start, b.end) }}
+                    title={`B-roll: ${b.label}, ${b.start.toFixed(1)}s to ${b.end.toFixed(1)}s over the picture. Drag to move it.`}
+                    onPointerDown={(e) => startBroll(e, b.index)}
+                  >
+                    <em>{b.label}</em>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="cbb-tl-track">
               {tracks.video.map((v) => (
                 <span

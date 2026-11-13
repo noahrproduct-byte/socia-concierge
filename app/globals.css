@@ -11802,3 +11802,6 @@ p.cbm-muted { display: block; }
   .cbb-panels { order: 3; }
   .cbb-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
+
+/* B-roll over the picture (edl.broll): its own track above the video, dragged to move */
+.cbb-tl-clip.is-broll { background: rgba(var(--accent-rgb, 45, 156, 255), 0.22); border-color: rgba(var(--accent-rgb, 45, 156, 255), 0.6); }
