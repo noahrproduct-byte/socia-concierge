@@ -1,6 +1,7 @@
 // The edit decision list: validated and snapped from the model's proposal,
 // then rendered as a plain-language edit guide. The same EDL feeds the Player
 // in Phase B, so the guide and the preview can never disagree.
+import { cleanPunches } from "./punch";
 import type { AudioFacts, Edl, EdlAudio, EdlEnhance, EdlSegment, EdlText, GuideStep, SegmentFrame, TranscriptWord } from "./types";
 import { MAX_TEXT_LAYERS, TEXT_PRESETS, fitLine, isTextPresetId, isTextSlot, presetForLine } from "@/lib/textPresets";
 import { aspectOf, clipLabel, fmtClock, isSegmentPurpose, isTransition } from "./types";
@@ -46,7 +47,7 @@ export type RawEdl = {
   /** One of ASPECTS; anything else falls back to vertical. */
   width?: number;
   height?: number;
-  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string; voiceTail?: number }[];
+  segments: { clipId: string; in: number; out: number; role?: string; note?: string; frame?: { zoom?: number; x?: number; y?: number } | null; volume?: number; transition?: string; sound?: boolean; purpose?: string; voiceTail?: number; punches?: number[] }[];
   style?: unknown;
   text?: { at: number; end?: number; text: string; role?: string; presetId?: string; slot?: string; shortened?: boolean }[];
   enhance?: { clipId: string; kind: string; amount?: string; why?: string }[];
@@ -190,7 +191,7 @@ export function validateEdl(raw: RawEdl, clips: ClipForEdl[], opts: { targetSec?
     const volume = cleanVolume(s.volume);
     // How it comes in from the cut before: kept when it's one the renderer has; a hard cut otherwise.
     const transition = segments.length && isTransition(s.transition) && s.transition !== "cut" ? s.transition : undefined;
-    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}), ...(transition ? { transition } : {}), ...(s.sound === true ? { sound: true } : {}), ...(isSegmentPurpose(s.purpose) ? { purpose: s.purpose } : {}), ...(typeof s.voiceTail === "number" && s.voiceTail > 0 && s.voiceTail <= MAX_VOICE_TAIL_SEC ? { voiceTail: r2(s.voiceTail) } : {}) });
+    segments.push({ id: `s${segments.length + 1}`, clipId: s.clipId, in: inT, out: outT, role: "body", note: (s.note ?? "").trim(), ...(frame ? { frame } : {}), ...(volume != null ? { volume } : {}), ...(transition ? { transition } : {}), ...(s.sound === true ? { sound: true } : {}), ...(isSegmentPurpose(s.purpose) ? { purpose: s.purpose } : {}), ...(typeof s.voiceTail === "number" && s.voiceTail > 0 && s.voiceTail <= MAX_VOICE_TAIL_SEC ? { voiceTail: r2(s.voiceTail) } : {}), ...(cleanPunches(s.punches, inT, outT).length ? { punches: cleanPunches(s.punches, inT, outT) } : {}) });
   });
   if (segments.length) {
     segments[0].role = "opener";
@@ -272,7 +273,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
     targetSec: { min: edited.targetSec.min, max: Math.max(edited.targetSec.max, Math.ceil(total)) },
     width: edited.width,
     height: edited.height,
-    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition, sound: s.sound, purpose: s.purpose, voiceTail: s.voiceTail })),
+    segments: edited.segments.map((s) => ({ clipId: s.clipId, in: s.in, out: s.out, role: s.role, note: s.note, frame: s.frame, volume: s.volume, transition: s.transition, sound: s.sound, purpose: s.purpose, voiceTail: s.voiceTail, punches: s.punches })),
     style: edited.style,
     text: edited.text.map((t) => ({ at: t.at, end: t.end, text: t.text, role: t.role, presetId: t.presetId, slot: t.slot, shortened: t.shortened })),
     enhance: edited.enhance.map((e) => ({ clipId: e.clipId, kind: e.kind, amount: e.amount, why: e.why })),

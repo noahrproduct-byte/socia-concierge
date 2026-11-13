@@ -6,7 +6,7 @@
 // told (analysis.ts). They are starting points: the person can make the cut
 // again in another style. Pure, unit-tested (profiles.test.ts).
 
-import { asStepLabel, becomesStepLabel } from "@/lib/textPresets";
+import { asHookPair, asStepLabel, becomesStepLabel } from "@/lib/textPresets";
 import type { EdlText } from "./types";
 
 export type EditStyleId = "process" | "talking" | "demo" | "energetic" | "calm";
@@ -75,8 +75,20 @@ export const EDIT_STYLES: Record<EditStyleId, EditStyle> = {
  * process, calm) the opening and middle lines become small Step Labels, on one
  * line and shortened only at a whole word; calls to action keep their label.
  */
-export function textForStyle<E extends { editStyle?: unknown; text: EdlText[] }>(edl: E): E {
-  if (styleOf(edl.editStyle).text !== "labels") return edl;
+export function textForStyle<E extends { editStyle?: unknown; text: EdlText[]; style?: { textBox?: string } | null }>(edl: E): E {
+  if (styleOf(edl.editStyle).text !== "labels") {
+    // The clean look: a one-line opening title is set as a Hook Pair (bold line, big italic key word).
+    if (edl.style?.textBox === "outline") return edl;
+    let changed = false;
+    const text = edl.text.map((t) => {
+      if (t.role !== "opening" || (t.presetId ?? "hook_title") !== "hook_title") return t;
+      const pair = asHookPair(t.text);
+      if (!pair) return t;
+      changed = true;
+      return { ...t, text: pair, presetId: "hook_pair" as const };
+    });
+    return changed ? { ...edl, text } : edl;
+  }
   const text = edl.text.map((t) => {
     if (!becomesStepLabel(t.presetId ?? (t.role === "cta" ? "callout_box" : "caption_bar"))) return t;
     const l = asStepLabel(t.text);

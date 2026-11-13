@@ -19,6 +19,7 @@
 // dissolve into a hard cut; it also ends an opening line with its shot. The
 // rest are reported for the person to decide.
 // Pure, unit-tested (cutCheck.test.ts).
+import { joinedPunches } from "./punch";
 import type { ClipForEdl } from "./edl";
 import { EDL_DEFAULTS } from "./edl";
 import { timeline } from "./timeline";
@@ -289,7 +290,8 @@ export function repairCut(edl: Edl, clips: ClipForEdl[], opts: { keepTransitions
       smooth.push(s);
     } else if (isLast || s.out - prev.in <= CHECK.joinMaxSec) {
       const sound = Boolean(prev.sound || s.sound);
-      smooth[smooth.length - 1] = { ...prev, out: s.out, role: s.role === "ending" ? "ending" : prev.role, ...(sound ? { sound: true } : {}) };
+      const punches = joinedPunches(prev, s, prev.out);
+      smooth[smooth.length - 1] = { ...prev, out: s.out, role: s.role === "ending" ? "ending" : prev.role, ...(sound ? { sound: true } : {}), ...(punches.length ? { punches } : {}) };
       if (sound) delete smooth[smooth.length - 1].volume;
       fixed.push(`played ${label(s.clipId)} ${fmtClock(prev.in)} to ${fmtClock(s.out)} through as one shot instead of skipping a second inside it`);
     } else {

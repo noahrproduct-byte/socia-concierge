@@ -4,6 +4,7 @@
 // place and the ask in big type in the middle of the frame. The real sound of
 // the action up front with steady music under it. These rules are the parts
 // code can hold; the model's rules live in lib/studioClips/analysis.ts. Pure.
+import { joinedPunches } from "./punch";
 import { cutSpeaks } from "../music/taste";
 import { timeline } from "./timeline";
 import type { ClipCard, Edl, EndCard } from "./types";
@@ -58,7 +59,7 @@ export function editFrames<T extends { t: number }>(clips: { id: string; frames:
 export const CONTINUOUS_GAP_SEC = 0.75;
 
 /** Neighbouring shots that are really one stretch of the same clip, joined back into one: no skip, no dissolve, no change of sound in the middle of it. */
-export function joinContinuous<S extends { clipId: string; in: number; out: number; sound?: boolean; volume?: number; transition?: Edl["segments"][number]["transition"]; role?: string; note?: string }>(segments: S[], keepApart?: (prev: S, s: S) => boolean): S[] {
+export function joinContinuous<S extends { clipId: string; in: number; out: number; punches?: number[]; sound?: boolean; volume?: number; transition?: Edl["segments"][number]["transition"]; role?: string; note?: string }>(segments: S[], keepApart?: (prev: S, s: S) => boolean): S[] {
   const out: S[] = [];
   for (const s of segments) {
     const prev = out[out.length - 1];
@@ -68,6 +69,9 @@ export function joinContinuous<S extends { clipId: string; in: number; out: numb
     if (prev && prev.clipId === s.clipId && gap < CONTINUOUS_GAP_SEC && s.out > prev.in && !(gap > 0 && keepApart?.(prev, s))) {
       const sound = Boolean(prev.sound || s.sound);
       const merged = { ...prev, out: Math.max(prev.out, s.out), role: s.role === "ending" ? "ending" : prev.role } as S;
+      // Where it would have cut stays as a punch-in, so the take keeps its rhythm (lib/studioClips/punch.ts).
+      const punches = joinedPunches(prev, s, prev.out);
+      if (punches.length) merged.punches = punches; else delete merged.punches;
       if (sound) { merged.sound = true; delete merged.volume; }
       out[out.length - 1] = merged;
       continue;

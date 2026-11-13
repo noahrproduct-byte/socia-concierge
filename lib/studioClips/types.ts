@@ -213,6 +213,12 @@ export type EdlSegment = {
   purpose?: SegmentPurpose;
   /** An L-cut: this shot's voice keeps playing this many seconds over the start of the next shot, so a sentence finishes without the picture running long (lib/studioClips/cutCheck.ts). */
   voiceTail?: number;
+  /**
+   * Punch-ins: times in the clip (seconds) where the picture steps in closer, then back out at the next one.
+   * The cuts of one continuous take SOCIA joined back into a single shot, so the take keeps its rhythm
+   * without skipping footage (lib/studioClips/punch.ts). Absent = none.
+   */
+  punches?: number[];
 };
 
 export const SEGMENT_PURPOSES = ["hook", "context", "development", "payoff", "close"] as const;

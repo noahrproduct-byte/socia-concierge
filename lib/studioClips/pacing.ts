@@ -12,6 +12,7 @@
 //     1 to 4 seconds), and an opening line is on screen from the start.
 // Pure, unit-tested (pacing.test.ts). Nothing here invents footage: a cut only
 // ever moves inside its own clip.
+import { punchPieces } from "./punch";
 import type { ClipForEdl } from "./edl";
 import { snapTime, EDL_DEFAULTS } from "./edl";
 import { timeline } from "./timeline";
@@ -165,7 +166,8 @@ export function pacingReport(edl: Edl, clips: ClipForEdl[], beat?: { bpm: number
   const byId = new Map(clips.map((c) => [c.id, c]));
   const P = pacingRules(edl);
   const tl = timeline(edl);
-  const segs = edl.segments;
+  // A continuous take with punch-ins reads as its pieces (lib/studioClips/punch.ts).
+  const segs = edl.segments.flatMap((s) => (s.punches?.length ? punchPieces(s).map((p) => ({ ...s, in: p.in, out: p.out })) : [s]));
   const lens = segs.map((s) => s.out - s.in);
   const avg = lens.length ? lens.reduce((a, b) => a + b, 0) / lens.length : 0;
   const parts: PacingPart[] = [];
