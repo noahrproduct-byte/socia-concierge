@@ -14,3 +14,11 @@ export const instrumentSerif = localFont({
   display: "swap",
   fallback: ["Iowan Old Style", "Palatino Linotype", "Georgia", "serif"],
 });
+
+/** Instrument Sans SemiBold (same license, same designers), the headline face the serif is drawn to pair with. */
+export const instrumentSans = localFont({
+  src: [{ path: "./InstrumentSans-SemiBold.woff2", weight: "600", style: "normal" }],
+  variable: "--font-instrument-sans",
+  display: "swap",
+  fallback: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+});

@@ -24,7 +24,7 @@
 .fx-cat { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 8px; padding: 12px 14px; border: 0; border-radius: 12px; background: transparent; box-shadow: var(--hm-border) 0 0 0 1px inset; color: var(--hm-ash); font: inherit; text-align: left; cursor: pointer; transition: background-color 160ms, box-shadow 160ms; }
 .fx-cat:hover { background: var(--hm-recessed); }
 .fx-cat:focus-visible { outline: 2px solid var(--hm-mist); outline-offset: 2px; }
-.fx-cat b { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; color: var(--hm-ink); }
+.fx-cat b { font-family: var(--hm-head); font-size: 17px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; color: var(--hm-ink); }
 .fx-cat small { font-family: var(--hm-mono); font-size: 11px; color: var(--hm-smoke); }
 .fx-cat span { grid-column: 1 / -1; font-size: var(--hm-fs-label); line-height: 1.35; }
 .fx-cat.is-on { background: var(--hm-card); box-shadow: var(--hm-key); }
