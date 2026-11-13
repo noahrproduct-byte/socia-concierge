@@ -33,7 +33,7 @@ import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunit
 import { audioLine } from "@/lib/audio/server";
 import { videoKind, videoTitle, type VideoSummary } from "./videos";
 import type { BuildPlayerData, BuildSource, ClipCard, ClipFacts, ClipStatus, Edl, GuideStep, Opportunity, ProjectStatus, RegenerateDirective, StudioBuild, StudioClip, StudioProject, Transcript, UnderstandProgress, YieldResult, VoiceoverAsk, StabilizeStrength } from "./types";
-import type { StabRecord, StabilizedMap } from "./stabilize";
+import { listStable, type StabRecord, type StabilizedMap } from "./stabilize";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = SupabaseClient<any, any, any>;
@@ -335,7 +335,15 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
   if (!row) return null;
   const rows = (await clipRows(client, row.project_id)).filter((r) => r.source_path && !r.purged_at && r.status !== "expired" && clipOwnsPath(r, r.source_path));
   // Stabilized copies that are done and live in the clip's own folder are signed with the source.
-  const stableOf = (r: ClipRow): [StabilizeStrength, string][] => (Object.entries(r.stabilized ?? {}) as [StabilizeStrength, StabRecord | undefined][]).filter(([, v]) => v?.status === "done" && v.path && clipOwnsPath(r, v.path)).map(([k, v]) => [k, v!.path!]);
+  // Copies recorded on the row (once supabase/studio-stabilize.sql has run) and copies found in the clip's folder (the
+  // truth without the column): a cut that asks for a strength finds its copy after a reload either way.
+  const asked = new Set((row.edl?.segments ?? []).filter((sg) => sg.stabilize).map((sg) => sg.clipId));
+  const fromStorage = new Map(await Promise.all(rows.filter((r) => asked.has(r.id) && r.source_path).map(async (r) => [r.id, await listStable(client, r.source_path!.slice(0, r.source_path!.lastIndexOf("/") + 1))] as const)));
+  const stableOf = (r: ClipRow): [StabilizeStrength, string][] => {
+    const out = new Map<StabilizeStrength, string>(Object.entries(fromStorage.get(r.id) ?? {}) as [StabilizeStrength, string][]);
+    for (const [k, v] of Object.entries(r.stabilized ?? {}) as [StabilizeStrength, StabRecord | undefined][]) if (v?.status === "done" && v.path && clipOwnsPath(r, v.path)) out.set(k, v.path);
+    return Array.from(out.entries());
+  };
   const paths = rows.flatMap((r) => [r.source_path!, ...(r.frames?.[0] && clipOwnsPath(r, r.frames[0].path) ? [r.frames[0].path] : []), ...stableOf(r).map(([, p]) => p)]);
   const urls = await signUrls(client, paths);
   const sources: BuildSource[] = rows
