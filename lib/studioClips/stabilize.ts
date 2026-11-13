@@ -62,6 +62,28 @@ function run(bin: string, args: string[], durationSec: number, onProgress?: (sha
   });
 }
 
+/** Whether this ffmpeg has vidstab (the static builds do); without it the single-pass deshake filter stands in. Checked once. */
+let vidstab: Promise<boolean> | null = null;
+function hasVidstab(bin: string): Promise<boolean> {
+  return (vidstab ??= new Promise((resolve) => {
+    execFile(bin, ["-hide_banner", "-filters"], { timeout: 20_000, maxBuffer: 4 * 1024 * 1024 }, (err, out) => resolve(!err && /vidstabtransform/.test(String(out))));
+  }));
+}
+
+/** The filter graph for one pass. Pure, so the choice of filters can be tested. */
+export function stabilizeFilters(strength: StabilizeStrength, trf: string, withVidstab: boolean): { detect: string | null; transform: string } {
+  const p = STAB_PARAMS[strength];
+  if (withVidstab) {
+    return {
+      detect: `vidstabdetect=shakiness=${p.shakiness}:accuracy=15:result=${trf}`,
+      transform: `vidstabtransform=input=${trf}:smoothing=${p.smoothing}:zoom=${p.zoom}:optzoom=0:crop=black:interpol=bicubic,unsharp=5:5:0.6:3:3:0.3`,
+    };
+  }
+  // deshake: one pass, a search window that grows with the strength (a multiple of 16, as the filter requires); the same zoom hides the borders.
+  const rx = Math.min(64, 16 * Math.max(1, Math.round(p.shakiness / 3))), ry = rx;
+  return { detect: null, transform: `deshake=rx=${rx}:ry=${ry}:edge=mirror:blocksize=8:contrast=125,scale=iw*${(1 + p.zoom / 100).toFixed(3)}:ih*${(1 + p.zoom / 100).toFixed(3)},crop=iw/${(1 + p.zoom / 100).toFixed(3)}:ih/${(1 + p.zoom / 100).toFixed(3)},unsharp=5:5:0.6:3:3:0.3` };
+}
+
 export type StabilizeArgs = {
   client: Supa;
   clip: { id: string; project_id: string; user_id: string; source_path: string; duration_s: number | null };
@@ -82,17 +104,17 @@ export async function stabilizeClip({ client, clip, strength, onProgress }: Stab
   const url = urls[clip.source_path];
   if (!url) throw new Error("The clip's file couldn't be read from storage.");
   const dur = Math.max(1, clip.duration_s ?? 1);
-  const p = STAB_PARAMS[strength];
   const dir = await mkdtemp(join(tmpdir(), "socia-stab-"));
   try {
     const src = join(dir, "in.mp4"), trf = join(dir, "moves.trf"), out = join(dir, "out.mp4");
     const res = await fetch(url);
     if (!res.ok) throw new Error("The clip's file couldn't be downloaded.");
     await writeFile(src, Buffer.from(await res.arrayBuffer()));
-    // Pass 1: measure the camera's moves.
-    await run(bin, ["-i", src, "-vf", `vidstabdetect=shakiness=${p.shakiness}:accuracy=15:result=${trf}`, "-an", "-f", "null", "-"], dur, (s) => onProgress?.(s * 0.5));
+    const filters = stabilizeFilters(strength, trf, await hasVidstab(bin));
+    // Pass 1 (vidstab): measure the camera's moves.
+    if (filters.detect) await run(bin, ["-i", src, "-vf", filters.detect, "-an", "-f", "null", "-"], dur, (s) => onProgress?.(s * 0.5));
     // Pass 2: apply the smoothed path, zoom to hide the borders, a touch of sharpening back.
-    await run(bin, ["-i", src, "-vf", `vidstabtransform=input=${trf}:smoothing=${p.smoothing}:zoom=${p.zoom}:optzoom=0:crop=black:interpol=bicubic,unsharp=5:5:0.6:3:3:0.3`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out], dur, (s) => onProgress?.(0.5 + s * 0.5));
+    await run(bin, ["-i", src, "-vf", filters.transform, "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out], dur, (s) => onProgress?.(filters.detect ? 0.5 + s * 0.5 : s));
     const bytes = await readFile(out);
     const path = stablePath(folder, strength);
     // Stored with the service role when present: a copy made for a member's clip lands in the member's folder, which
