@@ -28,7 +28,9 @@ export type FontId = (typeof FONTS)[number]["id"];
  * these are the bold fonts creators' guides name for it, plus TikTok's own.
  * The others stay valid only so older cuts keep their look.
  */
-export const CAPCUT_FONTS = FONTS.filter((f) => f.id !== "inter" && f.id !== "playfair" && f.id !== "serif");
+/** Faces the themes bring (lib/studioClips/themes): offered in the editor's font list alongside the CapCut ones. */
+export const THEME_FONTS: readonly FontId[] = ["nunito", "spacemono", "instrument", "playfair"];
+export const CAPCUT_FONTS = FONTS.filter((f) => f.id !== "inter" && f.id !== "playfair" && f.id !== "serif" && !THEME_FONTS.includes(f.id));
 
 /** "outline": CapCut's Classic look, white text with a black outline and no box behind it. "none": white text with a soft shadow, the clean look. */
 export type TextBox = "outline" | "dark" | "light" | "accent" | "none";

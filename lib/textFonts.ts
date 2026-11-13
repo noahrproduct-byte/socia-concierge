@@ -5,7 +5,6 @@
 // uses, so the canvas renderer, the Remotion Player and the browser export
 // all see the same glyphs. ensureTextFonts() resolves only when the faces
 // are usable, so nothing is measured or drawn in a fallback font. Client only.
-import type { FontId } from "./studioClips/style";
 import type { TextFont } from "./textPresets";
 import { familyOf, loadEditorFont } from "./editorFonts";
 

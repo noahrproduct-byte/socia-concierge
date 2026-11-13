@@ -45,7 +45,7 @@ import { bestMomentFor } from "@/lib/studioClips/rank";
 import { readLocalDraft, writeLocalDraft, clearLocalDraft, SOURCE_REFRESH_MS } from "@/lib/studioClips/localDraft";
 import ThemesPanel from "./ThemesPanel";
 import EffectsPanel from "./EffectsPanel";
-import { THEMES, type Theme } from "@/lib/studioClips/themes";
+import type { Theme } from "@/lib/studioClips/themes";
 import { applyTheme, resetToTheme, resolveTheme, setThemeOverride } from "@/lib/studioClips/themes/apply";
 import { autoEdit } from "@/lib/studioClips/themes/autoEdit";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
@@ -55,7 +55,7 @@ import "@/app/(app)/studio/studio-motion.css";
 import "@/app/(app)/dashboard/dashboard.css";
 import { motion } from "framer-motion";
 import { Bar, Details, Reveal, Ring, useMotionOk } from "@/components/dashboard/motion";
-import { CAPCUT_FONTS, CAPTION_ANIMATIONS, CAPTION_STYLES, DEFAULT_STYLE, FONTS, captionStyle, withCaptionStyle, type CaptionAnimation, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
+import { CAPCUT_FONTS, CAPTION_ANIMATIONS, CAPTION_STYLES, DEFAULT_STYLE, FONTS, THEME_FONTS, captionStyle, withCaptionStyle, type CaptionAnimation, type EdlStyle, type VideoPresets } from "@/lib/studioClips/style";
 import { ASPECTS, clipLabel, fmtClock, OUTPUT, REGENERATE_OPTIONS, MAX_REGENERATIONS, TRANSITIONS, type BuildPlayerData, type BuildSource, type Edl, type RegenerateDirective, type StudioBuild, type TransitionKind } from "@/lib/studioClips/types";
 
 const MIN_SEG = 0.8;
@@ -1102,7 +1102,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                 <b><Palette size={14} /> Text</b>
                 <label className="cbb-field">Font
                   <select value={st.font} disabled={!data.canEdit || busy} onChange={(e) => styleChange({ font: e.target.value as EdlStyle["font"] })}>
-                    {FONTS.filter((f) => f.id === st.font || f.id !== "serif" && (CAPCUT_FONTS.some((c) => c.id === f.id) || THEMES.some((t) => t.typography.font === f.id))).map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                    {FONTS.filter((f) => f.id === st.font || CAPCUT_FONTS.some((c) => c.id === f.id) || THEME_FONTS.includes(f.id)).map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
                   </select>
                 </label>
                 <label className="cbb-field">Brand colour
