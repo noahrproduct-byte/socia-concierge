@@ -792,7 +792,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   // The watermark slot: SOCIA's own mark on SOCIA's theme; any other brand's mark would have to be the account's own (not stored yet), so the slot stays empty.
   const watermarkUrl = edl?.theme?.id === "socia-brand" ? "/brand/socia-mark.png" : null;
   // The preview's props come from the same builder as the export's (lib/studioClips/renderProps.ts): the parity test keeps them one.
-  const playerProps = useMemo(() => previewProps({ edl: edl!, sources, musicUrl, voiceUrls, cleanAudio, watermarkUrl, finishOn: compare === "after", guide }), [edl, sources, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl]);
+  // Hooks run before the loading guard below: with no cut yet (a build still loading from the server) there are no props.
+  const playerProps = useMemo(() => (edl ? previewProps({ edl, sources, musicUrl, voiceUrls, cleanAudio, watermarkUrl, finishOn: compare === "after", guide }) : null), [edl, sources, compare, musicUrl, voiceUrls, cleanAudio, guide, watermarkUrl]);
 
   // -------------------------------------------------------------- render ----
   if (planError) return <div className="cbb"><button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> Back to the guide</button><div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><PlanNotice error={planError} compact /></div></div></div>;
@@ -825,7 +826,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               <Player
                 ref={player}
                 component={ClipComposition}
-                inputProps={playerProps}
+                inputProps={playerProps!}
                 durationInFrames={tl.durationFrames}
                 fps={OUTPUT.fps}
                 compositionWidth={edl.width}

@@ -20,7 +20,7 @@ import * as fx from "./labFixtures";
 import { themeById } from "@/lib/studioClips/themes";
 import { applyTheme } from "@/lib/studioClips/themes/apply";
 
-const SCREENS = ["rate", "rate-analysis", "rate-improve", "build", "build-collect", "build-yield", "opportunity", "editor", "editor-text", "editor-finish", "edit", "audio", "guide"] as const;
+const SCREENS = ["rate", "rate-analysis", "rate-improve", "build", "build-collect", "build-yield", "opportunity", "editor", "editor-loaded", "editor-text", "editor-finish", "edit", "audio", "guide"] as const;
 type Screen = (typeof SCREENS)[number];
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -158,6 +158,9 @@ function Lab() {
         return <ContentStudio userId="lab" niche="Burger shop" location="Downtown" goalDefault="local_orders" drafts={[]} connected={false} postsSynced={0} modeTabs={<StudioMode mode="quick" />} plan={null} />;
       case "build": case "build-collect": case "build-yield": case "opportunity":
         return <ClipsStudio key={screen} viewerId="lab" modeTabs={<StudioMode mode="clips" />} variant="build" />;
+      // editor-loaded: the editor as the app opens it, the cut fetched from the API after the first render (the path a fixture never exercises).
+      case "editor-loaded":
+        return <ClipBuilder buildId={fx.BUILD_ID} title="The cheese pull, smash to order" onBack={noop} />;
       case "editor": case "editor-text": case "editor-finish": {
         // ?theme=<id> opens the fixture with that theme applied (lib/studioClips/themes), for checking every theme on the sample.
         const data = fx.playerData(thumbs, duration, 0);
