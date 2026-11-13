@@ -25,7 +25,7 @@ A theme is one declarative object that fully describes an edit: typography, colo
   "sample": { "title": "made fresh\nevery morning", "caption": "we start at 5am" },   // what the card shows
   "typography": { "font": "montserrat", "weight": 800, "sizeScale": 1, "letterSpacing": 0, "transform": "none",
                   "captionPosition": "lower", "align": "center", "maxWords": 4, "captionPreset": "classic",
-                  "captionAnimation": "fade", "textBox": "none", "pill": false, "highlight": "#ffd400", "titlePreset": "hook_pair" },
+                  "captionAnimation": "fade", "textBox": "none", "pill": false, "highlight": "#ffd400", "titlePreset": "hook_pair", "titleAnimation": "settle" },
   "color": { "primary": "#000000", "accent": "#ffd400", "text": "#ffffff", "captionBg": "#000000",
              "grade": { "contrast": 1, "saturation": 1, "warmth": 0, "vignette": 0, "grain": 0, "chroma": 0, "scanlines": 0, "letterbox": 0 } },
   "motion": { "zoom": { "kind": "in", "from": 1, "to": 1.05, "ease": "inOut" }, "punchIn": 0, "shake": 0,
@@ -76,6 +76,7 @@ The composition reads `resolveTheme(edl)` once and:
 
 - adds the look (`lookPlan`) as `@remotion/effects` passes on every video: `colorCorrection` (contrast, saturation, warmth), `vignette`, `noise` (grain, re-rolled every other frame), `chromaticAberration`, `scanlines`; these run in the Player and in the browser render alike;
 - draws letterbox bars, the progress bar, the lower third (`tag`, `pill` or `bar` in the theme's accent), the camcorder corner (REC and the running time, never an invented date), the brand mark in the watermark slot when one is given;
+- brings text lines in the theme's way (`typography.titleAnimation`: pop, rise, wipe or the soft settle), keeps captions above a lower third and hides the camcorder stamp while a title is up;
 - animates caption pages per `style.captions.animation` (`none`, `pop`, `rise`, `fade`, `typewriter`, `bounce`) and colours the key word of each page;
 - plays a cut sound on every join when `audio.sfx` is on (`public/editor-sfx/whoosh.m4a`, synthesized with ffmpeg);
 - applies each cut's motion as one CSS transform (`motionAt` + `transformCss`), its speed as constant-rate pieces (`speedPieces`), and the stabilized copy when the cut asks for one and it exists.

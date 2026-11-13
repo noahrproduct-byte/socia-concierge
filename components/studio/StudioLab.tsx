@@ -23,6 +23,7 @@ import { applyTheme } from "@/lib/studioClips/themes/apply";
 const SCREENS = ["rate", "rate-analysis", "rate-improve", "build", "build-collect", "build-yield", "opportunity", "editor", "editor-loaded", "editor-text", "editor-finish", "edit", "audio", "guide"] as const;
 type Screen = (typeof SCREENS)[number];
 
+const NOW_ISO = new Date().toISOString();
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /** The Studio API, answered from the fixtures. Everything else goes to the network. */
@@ -58,7 +59,8 @@ function installMock(thumbs: fx.Thumb[], durationSec: number, screen: Screen): (
     }
     if (clipPatch && method === "DELETE") { const i = labClips.findIndex((x) => x.id === clipPatch[1]); if (i >= 0) labClips.splice(i, 1); return json({ ok: true }); }
     if (p === `/api/studio/projects/${fx.PROJECT_ID}/understand`) return json({ ok: true, started: true });
-    if (p === "/api/studio/audio" || p.startsWith("/api/studio/audio/")) return json({ insights: [], tracks: [], summary: "No audio has been measured in the lab." });
+    if (p === "/api/studio/audio") return json({ insights: { accounts: [], own: null, recommendation: "No posts have been measured in the lab.", evidence: [], coverage: { total: 0, library: 0, measured: 0, pending: 0, failed: 0 }, generatedAt: NOW_ISO }, pending: [], competitors: { enabled: false, refreshed: false, accounts: 0 } });
+    if (p.startsWith("/api/studio/audio/")) return json({ ok: true });
     if (p === "/api/studio/voices") return json({ voices: [] });
     if (p === "/api/studio/projects" && method === "GET") return json({ projects: [fx.summary()], limits: { clipsPerProject: 30, footageMinutes: 30, uploadMb: 2000 }, usage: { meter: "content_build", used: 1, limit: 10, remaining: 9, resetsOn: "2026-12-01" }, transcription: true, features: { autoBuild: true } });
     if (p === "/api/studio/projects" && method === "POST") return json({ id: fx.PROJECT_ID });

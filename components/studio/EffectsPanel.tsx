@@ -28,7 +28,13 @@ type StabJob = { status: "working" | "done" | "failed"; progress?: number | null
 /** A job the server cannot report on is given up after this long. */
 const UNTRACKED_DEADLINE_MS = 12 * 60 * 1000;
 
-export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy, fixture, onSelect, onMotion, onStabilize, onLook, onSources }: {
+export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy, fixture, onSelect, onMotion, onStabilize, onLook, onSources, list = true, cut = true, look = true }: {
+  /** show the cut list (off when a list already sits above) */
+  list?: boolean;
+  /** show the selected cut's motion and stabilization controls */
+  cut?: boolean;
+  /** show the look on the whole video */
+  look?: boolean;
   edl: Edl;
   sources: Record<string, BuildSource>;
   theme: Theme | null;
@@ -107,7 +113,7 @@ export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy
 
   return (
     <div className="sd-fx">
-      <ol className="sd-cutlist" aria-label="Cuts">
+      {list && <ol className="sd-cutlist" aria-label="Cuts">
         {edl.segments.map((s2, i) => {
           const src2 = sources[s2.clipId];
           return (
@@ -120,8 +126,8 @@ export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy
             </li>
           );
         })}
-      </ol>
-      {cur && (
+      </ol>}
+      {cut && cur && (
         <section className="ov-card sd-inspector" aria-label={`Effects on cut ${index + 1}`}>
           <div className="sd-inspector-head">
             <div><b><Move size={14} aria-hidden /> Cut {index + 1} <small>{src ? clipLabel(src.position) : "Expired clip"}, {fmtClock(cur.in)} to {fmtClock(cur.out)}</small></b>
@@ -167,17 +173,17 @@ export default function EffectsPanel({ edl, sources, theme, index, canEdit, busy
           </div>
         </section>
       )}
-      <section className="ov-card" aria-label="Look">
+      {look && <section className="ov-card" aria-label="Look">
         <b>Look on the whole video</b>
         {grade ? (
           <>
             {GRADE_ROWS.map((r) => (
               <label key={r.key} className="sd-fx-row"><span>{r.label}</span><input type="range" min={r.min} max={r.max} step={r.step} value={grade[r.key]} disabled={locked} onChange={(e) => onLook({ [r.key]: Number(e.target.value) })} /><em>{r.key === "letterbox" ? `${Math.round(grade[r.key] * 100)}%` : r.key === "warmth" ? (grade[r.key] > 0 ? "warm" : grade[r.key] < 0 ? "cool" : "neutral") : `${grade[r.key]}${r.unit ?? ""}`}</em></label>
             ))}
-            <small className="sd-fx-note">Changes here sit on top of {theme?.name}; Reset to theme (Themes tab) takes them back. Measured corrections per clip (exposure, white balance) are in Adjust.</small>
+            <small className="sd-fx-note">Changes here sit on top of {theme?.name}; Reset to theme (in Theme) takes them back. Measured corrections per clip (exposure, white balance) are below.</small>
           </>
-        ) : <small className="sd-fx-note">Pick a theme in Themes to get a look to adjust; the measured per-clip corrections are in Adjust.</small>}
-      </section>
+        ) : <small className="sd-fx-note">Pick a theme to get a look to adjust; the measured per-clip corrections are below.</small>}
+      </section>}
     </div>
   );
 }

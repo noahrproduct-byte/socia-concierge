@@ -28,7 +28,8 @@
     "textBox": "none",
     "pill": false,
     "highlight": "#d4af37",
-    "titlePreset": "hook_pair"
+    "titlePreset": "hook_pair",
+    "titleAnimation": "wipe"
   },
   "color": {
     "primary": "#000000",

@@ -43,6 +43,8 @@ export const themeSchema = z.object({
     highlight: hex,
     /** The look the opening line (the hook) is set in. */
     titlePreset: z.enum(TEXT_PRESET_IDS as [string, ...string[]]),
+    /** How text lines come in: a pop, a rise, a wipe from the left, or the soft settle; out is always a short fade. */
+    titleAnimation: z.enum(["pop", "rise", "wipe", "settle"]).default("settle"),
   }),
   color: z.object({
     primary: hex,

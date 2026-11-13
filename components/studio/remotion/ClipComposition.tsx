@@ -97,7 +97,7 @@ const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === 
  * so neither path ever paints a fallback face. Only the way in and out is
  * animated here: a fade or a small pop, as the preset says.
  */
-function TextLayer({ line, width, height, font, textBox, accent }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"]; accent: string }) {
+function TextLayer({ line, width, height, font, textBox, accent, animation }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"]; accent: string; /** the theme's entrance; absent = the look's own */ animation?: "pop" | "rise" | "wipe" | "settle" }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const preset = presetOf(line);
@@ -107,7 +107,7 @@ function TextLayer({ line, width, height, font, textBox, accent }: { line: EdlTe
     let alive = true;
     const handle = delayRender(`text ${line.id}`, { timeoutInMilliseconds: 60_000 });
     renderTextLayer(args)
-      .then((r) => { if (alive) setSrc(r.layout.fits ? r.url : null); })
+      .then((r) => { if (r.layout.fits) lastLayouts.set(line.id, { width: args.width, box: r.layout.box }); if (alive) setSrc(r.layout.fits ? r.url : null); })
       .catch(() => { if (alive) setSrc(null); })
       .finally(() => continueRender(handle));
     return () => { alive = false; };
@@ -116,13 +116,32 @@ function TextLayer({ line, width, height, font, textBox, accent }: { line: EdlTe
   const inF = Math.max(1, Math.round(fps * 0.25)), outF = Math.max(1, Math.round(fps * 0.25));
   const leave = interpolate(frame, [durationInFrames - outF, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const fadeIn = interpolate(frame, [0, inF], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const out3 = interpolate(frame, [durationInFrames - 3, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  // A theme's entrance (lib/studioClips/themes): a spring pop, a rise from below, a wipe from the left; "settle" is the clean look below.
+  if (animation && animation !== "settle") {
+    const k = spring({ frame, fps, config: { damping: animation === "pop" ? 12 : 18, stiffness: animation === "pop" ? 240 : 180, mass: 0.7 }, durationInFrames: 12 });
+    const style: React.CSSProperties =
+      animation === "pop" ? { opacity: Math.min(1, frame / 2, out3), transform: `scale(${interpolate(k, [0, 1], [0.7, 1])})` }
+      : animation === "rise" ? { opacity: Math.min(1, frame / 3, out3), transform: `translateY(${interpolate(k, [0, 1], [3, 0])}%)` }
+      : { opacity: Math.min(1, out3) };
+    const box = layout(line, width, height);
+    return (
+      <AbsoluteFill style={style}>
+        {animation === "wipe" ? (
+          // The wipe: a window the width of the line's box that opens from its left edge; the image behind it never moves.
+          <div style={{ position: "absolute", left: box.x, top: box.y, width: box.width * interpolate(k, [0, 1], [0, 1]), height: box.height, overflow: "hidden" }}>
+            <Img src={src} style={{ position: "absolute", left: -box.x, top: -box.y, width, height }} pauseWhenLoading />
+          </div>
+        ) : <Img src={src} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} pauseWhenLoading />}
+      </AbsoluteFill>
+    );
+  }
   if (textBox !== "outline") {
     // The clean look: the line arrives a little big and soft and settles sharp in WORD_SETTLE_FRAMES, then drifts
     // up very slowly while it is on screen, so it is never static (Noah's picks, 2026-11-12).
     const k = interpolate(frame, [0, WORD_SETTLE_FRAMES], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
     const ease = 1 - (1 - k) * (1 - k);
     const drift = interpolate(frame, [0, durationInFrames], [0, -0.6], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-    const out3 = interpolate(frame, [durationInFrames - 3, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
     return (
       <AbsoluteFill style={{ opacity: Math.min(ease, out3), transform: `translateY(${drift + (1 - ease) * 1.2}%) scale(${1 + (1 - ease) * 0.08})`, filter: ease < 1 ? `blur(${(1 - ease) * 8}px)` : undefined }}>
         <Img src={src} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} pauseWhenLoading />
@@ -137,6 +156,15 @@ function TextLayer({ line, width, height, font, textBox, accent }: { line: EdlTe
     </AbsoluteFill>
   );
 }
+
+/** The box a text line occupies in the frame (from the renderer's layout), for the wipe window; the safe zone when unknown. */
+function layout(line: EdlText, width: number, height: number): { x: number; y: number; width: number; height: number } {
+  const hit = lastLayouts.get(line.id);
+  if (hit && hit.width === width) return hit.box;
+  const z = safeZoneFor(width, height);
+  return { x: z.x, y: z.y, width: z.width, height: z.height };
+}
+const lastLayouts = new Map<string, { width: number; box: { x: number; y: number; width: number; height: number } }>();
 
 /** The Instagram/TikTok safe zone as a dashed box, for checking the preview; never in the export. */
 function SafeZoneLayer({ width, height }: { width: number; height: number }) {
@@ -156,7 +184,7 @@ const endFont = () => ({ fontFamily: familyOf("anton"), waitUntilDone: () => loa
  * the picture readable behind it (the payoff, like the pizza cut into four,
  * stays the last thing seen), and the right side clear of the app's icons.
  */
-function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
+function EndCardLayer({ card, width, accent }: { card: EndCard; width: number; /** the theme's accent for the ask; white without a theme */ accent?: string }) {
   const frame = useCurrentFrame();
   const family = endFont().fontFamily;
   const [ready, setReady] = useState(false);
@@ -178,7 +206,7 @@ function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingRight: `${(40 / 1080) * 100}%`, paddingBottom: "30%", opacity: appear, transform: `scale(${pop})` }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: (18 * width) / 1080, fontFamily: family, fontWeight: 400, color: "#fff", textAlign: "center", textShadow: "0 2px 24px rgba(0,0,0,0.55)" }}>
         {line(card.location.toUpperCase(), 92, 5)}
-        {line(card.cta.toUpperCase(), 190, 7)}
+        <div style={{ color: accent ?? "#fff" }}>{line(card.cta.toUpperCase(), 190, 7)}</div>
         {line(card.site.toUpperCase(), 84, 5)}
       </div>
     </AbsoluteFill>
@@ -198,13 +226,15 @@ const VOICE_TAIL_FRAMES = 6;
  * the page coming in with the style's motion. Everything is driven by the
  * frame, so the Player and the browser render agree.
  */
-export function CaptionPage({ page, style, fontFamily, emphasis, theme }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[]; /** the cut's theme, for its type scale, spacing, alignment and pill colour */ theme?: Theme | null }) {
+export function CaptionPage({ page, style, fontFamily, emphasis, theme, lowerThird }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[]; /** the cut's theme, for its type scale, spacing, alignment and pill colour */ theme?: Theme | null; /** a lower third is on screen: captions keep clear of it */ lowerThird?: boolean }) {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
   const spec = captionStyle(style.captions.preset);
-  const base = captionLayout(style.captions);
+  const base0 = captionLayout(style.captions);
   const ty = theme?.typography;
+  // A lower third sits at the bottom of the safe zone: captions set low move up above it so the two never overlap.
+  const base = lowerThird && base0.bottom && style.captions.position === "bottom" ? { ...base0, bottom: "38%" } : base0;
   // One word at a time reads at half again the size; a theme scales the type on top.
   const l = { ...base, fontSize: Math.round(base.fontSize * (spec.maxWords === 1 ? 1.5 : 1) * (ty?.sizeScale ?? 1) * (width / 1080)) };
   const outline = style.textBox === "outline";
@@ -437,12 +467,13 @@ function LowerThird({ name, line, theme, fontFamily }: { name: string; line: str
 const readable = (hex: string): string => { const n = parseInt(hex.slice(1), 16); const l = 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255); return l > 150 ? "#000" : "#fff"; };
 
 /** A camcorder corner: REC with a blinking dot and the running time (the Retro theme). Never an invented date. */
-function DateStamp({ fontFamily, color }: { fontFamily: string; color: string }) {
+function DateStamp({ fontFamily, color, hideFrames }: { fontFamily: string; color: string; /** frame ranges a text line is up: the stamp steps aside so the two never overlap */ hideFrames: [number, number][] }) {
   const f = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const zone = safeZoneFor(width, height);
   const s = width / 1080;
   const t = f / FPS;
+  if (hideFrames.some(([a, b]) => f >= a - 2 && f < b + 2)) return null;
   const mm = String(Math.floor(t / 60)).padStart(2, "0"), ss = String(Math.floor(t % 60)).padStart(2, "0");
   return (
     <div style={{ position: "absolute", left: zone.x, top: zone.y, fontFamily, color, fontSize: 36 * s, letterSpacing: "0.08em", textShadow: "0 2px 10px rgba(0,0,0,0.8)", display: "flex", alignItems: "center", gap: 14 * s }}>
@@ -466,6 +497,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   // The cut's theme with the person's overrides (lib/studioClips/themes): the look, the overlays, the caption type.
   const theme = useMemo(() => resolveTheme(edl), [edl]);
   const bars = letterboxPx(theme?.color.grade, height);
+  const hasLowerThird = Boolean(theme && theme.layout.lowerThird !== "none" && edl.lowerThird && (edl.lowerThird.name || edl.lowerThird.line));
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
   // Captions and the lower third are DOM text: the frame waits for the face so no frame is painted in a fallback.
   useEffect(() => {
@@ -585,12 +617,12 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       })}
       {bars > 0 && <Letterbox px={bars} />}
       {theme?.layout.progressBar && <ProgressBar total={tl.durationFrames} color={theme.color.accent} />}
-      {theme && edl.lowerThird && (edl.lowerThird.name || edl.lowerThird.line) && theme.layout.lowerThird !== "none" && (
+      {hasLowerThird && theme && edl.lowerThird && (
         <Sequence from={secToFrames(0.4)} durationInFrames={Math.max(1, tl.durationFrames - secToFrames(0.4))} name="lower third">
           <LowerThird name={edl.lowerThird.name} line={edl.lowerThird.line} theme={theme} fontFamily={fontFamily} />
         </Sequence>
       )}
-      {theme?.layout.dateStamp && <DateStamp fontFamily={fontFamily} color={theme.color.text} />}
+      {theme?.layout.dateStamp && <Sequence from={0} durationInFrames={tl.durationFrames} name="rec"><DateStamp fontFamily={fontFamily} color={theme.color.text} hideFrames={edl.text.filter((t) => t.text.trim()).map((t) => [secToFrames(t.at), secToFrames(t.end)] as [number, number])} /></Sequence>}
       {theme?.layout.watermark && watermarkUrl && <Watermark url={watermarkUrl} />}
       {music && (
         <Sequence from={0} durationInFrames={tl.durationFrames} name="soundtrack">
@@ -613,18 +645,18 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         // premountFor: the line's image is drawn before it is due. Without it the Player paused about 170 ms
         // the moment a line came on ("sliced to order" at 8.9 s, 2026-11-12): a visible hitch in picture and sound.
         <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} premountFor={PREMOUNT_FRAMES} name={`text · ${presetOf(t).label}`}>
-          <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} accent={style.accent} />
+          <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} accent={style.accent} animation={theme?.typography.titleAnimation} />
         </Sequence>
       ))}
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
-          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} />
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} />
         </Sequence>
       ))}
       {card && (
         <Sequence from={Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES)} premountFor={PREMOUNT_FRAMES} name="ending">
-          <EndCardLayer card={card} width={width} />
+          <EndCardLayer card={card} width={width} accent={theme?.color.accent} />
         </Sequence>
       )}
       {safeZoneGuide && <SafeZoneLayer width={width} height={height} />}

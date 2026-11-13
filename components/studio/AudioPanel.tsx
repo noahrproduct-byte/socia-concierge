@@ -58,6 +58,9 @@ export default function AudioPanel({ canEdit, current, onUse, fixture }: { canEd
     const j = await res?.json().catch(() => null);
     setLoading(false);
     if (!res || !res.ok) { setErr(j?.error ?? "Couldn't load audio insights."); return; }
+    // The shape is checked before it is drawn: a server answering something else must not take the editor down.
+    const ok = j && typeof j === "object" && j.insights && Array.isArray(j.insights.accounts) && Array.isArray(j.insights.evidence) && Array.isArray(j.pending);
+    if (!ok) { setErr("Audio insights came back in a shape SOCIA didn't expect. Try again later."); return; }
     setData(j);
   }, [fixture]);
 

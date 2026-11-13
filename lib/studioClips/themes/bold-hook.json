@@ -27,7 +27,8 @@
     "textBox": "outline",
     "pill": false,
     "highlight": "#ffe600",
-    "titlePreset": "hook_title"
+    "titlePreset": "hook_title",
+    "titleAnimation": "pop"
   },
   "color": {
     "primary": "#000000",

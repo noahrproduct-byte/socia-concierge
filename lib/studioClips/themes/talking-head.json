@@ -28,7 +28,8 @@
     "textBox": "dark",
     "pill": true,
     "highlight": "#ffd400",
-    "titlePreset": "hook_pair"
+    "titlePreset": "hook_pair",
+    "titleAnimation": "rise"
   },
   "color": {
     "primary": "#000000",

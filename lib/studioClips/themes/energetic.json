@@ -28,7 +28,8 @@
     "textBox": "accent",
     "pill": true,
     "highlight": "#ff3d7f",
-    "titlePreset": "hook_title"
+    "titlePreset": "hook_title",
+    "titleAnimation": "pop"
   },
   "color": {
     "primary": "#111111",

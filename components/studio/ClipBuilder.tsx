@@ -108,11 +108,22 @@ function Finished({ message }: { message: string }) {
 }
 
 /** The tabs, in CapCut's order: the theme first, then what it is made of. */
-type Panel = "themes" | "cut" | "text" | "captions" | "effects" | "transitions" | "audio" | "adjust" | "regenerate";
-const PANELS: { id: Panel; label: string }[] = [
-  { id: "themes", label: "Themes" }, { id: "cut", label: "Cut" }, { id: "text", label: "Text" }, { id: "captions", label: "Captions" },
-  { id: "effects", label: "Effects" }, { id: "transitions", label: "Transitions" }, { id: "audio", label: "Audio" }, { id: "adjust", label: "Adjust" },
+type Panel = "theme" | "cut" | "words" | "sound" | "look" | "regenerate";
+/** The one page's sections, in order; the chips jump to them and follow the scroll. */
+const SECTIONS: { id: Panel; label: string }[] = [
+  { id: "theme", label: "Theme" }, { id: "cut", label: "This cut" }, { id: "words", label: "Words" }, { id: "sound", label: "Sound" }, { id: "look", label: "Look" }, { id: "regenerate", label: "Make it again" },
 ];
+const PANEL_FOR: Record<string, Panel> = { themes: "theme", cut: "cut", text: "words", captions: "words", effects: "cut", transitions: "cut", audio: "sound", finish: "look", adjust: "look", regenerate: "regenerate" };
+
+/** A section's heading on the one page: the anchor the chips jump to. */
+function SectionHead({ id, title, hint, active }: { id: Panel; title: string; hint: string; active: boolean }) {
+  return (
+    <div id={`sd-sec-${id}`} className={`sd-sec-head${active ? " is-on" : ""}`} data-section={id}>
+      <h3>{title}</h3>
+      <small>{hint}</small>
+    </div>
+  );
+}
 
 type ExportPhase = "idle" | "checking" | "rendering" | "inspecting" | "review" | "uploading" | "saving" | "done" | "error";
 /** `report`: what SOCIA saw when it watched the finished video (lib/studioClips/renderCheck.ts). */
@@ -136,7 +147,23 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   const [regen, setRegen] = useState<RegenerateDirective | null>(null);
   const [regenErr, setRegenErr] = useState<string | null>(null);
   const [exp, setExp] = useState<ExportState>({ phase: "idle", progress: 0, message: null, postId: null });
-  const [panel, setPanel] = useState<Panel>(initialPanel === "finish" ? "adjust" : (initialPanel ?? "themes"));
+  // One page: the section the chips mark; a chip (or a timeline selection) scrolls to it.
+  const [section, setSection] = useState<Panel>(PANEL_FOR[initialPanel ?? "themes"] ?? "theme");
+  const motionOk = useMotionOk();
+  const setPanel = useCallback((id: Panel | keyof typeof PANEL_FOR) => {
+    const sec = (PANEL_FOR[id as string] ?? id) as Panel;
+    setSection(sec);
+    if (typeof document !== "undefined") document.getElementById(`sd-sec-${sec}`)?.scrollIntoView({ behavior: motionOk ? "smooth" : "auto", block: "start" });
+  }, [motionOk]);
+  // The chips follow the scroll: the section whose heading last crossed the top of the view is the one on.
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const heads = Array.from(document.querySelectorAll<HTMLElement>("[data-section]"));
+    if (!heads.length) return;
+    const io = new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) setSection(e.target.getAttribute("data-section") as Panel); }, { rootMargin: "-10% 0px -80% 0px" });
+    heads.forEach((h) => io.observe(h));
+    return () => io.disconnect();
+  }, [data?.build.id]);
   // Music added on its own (Growth/Pro, once per cut, unless the brand turned it off): lib/music, music/auto.
   const [autoMusic, setAutoMusic] = useState<{ state: "adding" | "added" | "skipped" | "failed"; note: string | null } | null>(null);
   const [musicAutoOn, setMusicAutoOn] = useState<boolean | null>(null);
@@ -317,9 +344,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
   }, [data?.canEdit, edl == null, sourceCount]);
 
   useEffect(() => {
-    if (fixture || panel !== "audio" || musicAutoOn != null) return;
+    if (fixture || musicAutoOn != null) return;
     fetch("/api/studio/music").then((r) => (r.ok ? r.json() : null)).then((j) => setMusicAutoOn(typeof j?.auto === "boolean" ? j.auto : null)).catch(() => null);
-  }, [panel, fixture, musicAutoOn]);
+  }, [fixture, musicAutoOn]);
   const toggleMusicAuto = async (on: boolean) => {
     setMusicAutoOn(on);
     const res = await fetch("/api/studio/music", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ auto: on }) }).catch(() => null);
@@ -757,7 +784,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     if (i < 0) i = segs.length - 1;
     if (i !== playCut.current) { playCut.current = i; setPlaySec(sec); }
   }, []);
-  const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text") setPanel("text"); else if (next?.kind === "cut") setPanel("cut"); };
+  const select = (next: TimelineSelection) => { setSel(next); if (next?.kind === "text") setPanel("words"); else if (next?.kind === "cut" || next?.kind === "broll") setPanel("cut"); };
   const brollLive = (i: number, at: number) => { setEdl((cur) => (cur?.broll ? { ...cur, broll: cur.broll.map((b, k) => (k === i ? { ...b, at: r2(at) } : b)) } : cur)); setDirty(true); };
   const removeBroll = (i: number) => { if (!edl?.broll) return; const broll = edl.broll.filter((_, k) => k !== i); const { broll: _b, ...rest } = edl; void _b; commit(broll.length ? { ...rest, broll } : rest); };
   const trimBase = useRef<Edl | null>(null);
@@ -971,16 +998,88 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         </div>
 
         <div className="cbb-panels">
-          <div className="st-tabs cbb-tabs" role="tablist" aria-label="Editor tabs">
-            {PANELS.map((t) => <button key={t.id} type="button" role="tab" aria-selected={panel === t.id} className={panel === t.id ? "on" : ""} onClick={() => setPanel(t.id)}>{t.label}</button>)}
-            {!data.manual && <button type="button" role="tab" aria-selected={panel === "regenerate"} className={panel === "regenerate" ? "on" : ""} onClick={() => setPanel("regenerate")}>Regenerate</button>}
-          </div>
-
-          {panel === "themes" && (
+          <nav className="sd-nav" aria-label="Sections">
+            {SECTIONS.filter((x) => x.id !== "regenerate" || !data.manual).map((x) => <button key={x.id} type="button" className={`sd-nav-chip${section === x.id ? " is-on" : ""}`} aria-current={section === x.id ? "true" : undefined} onClick={() => setPanel(x.id)}>{x.label}</button>)}
+          </nav>
+          <SectionHead id="theme" title="Theme" hint="The look, the motion and the joins. Your trims and words stay." active={section === "theme"} />
+          {(
             <ThemesPanel edl={edl} sources={sources} ctx={applyCtx} canEdit={data.canEdit} busy={busy} onApply={applyThemeHere} onReset={resetThemeHere} />
           )}
-
-          {panel === "effects" && (
+          <SectionHead id="cut" title="This cut" hint="Trim, sound, motion and the join of the cut under the playhead." active={section === "cut"} />
+          {(() => {
+            const k = sel?.kind === "cut" && edl.segments[sel.index] ? sel.index : Math.max(0, Math.min(edl.segments.length - 1, tl.segments.findIndex((x) => playSec >= x.startSec && playSec < x.startSec + x.durationFrames / OUTPUT.fps)));
+            const cur = edl.segments[k];
+            const src = cur ? sources[cur.clipId] : undefined;
+            const locked = !data.canEdit || busy;
+            return (
+              <div className="sd-cut">
+                {cur && (
+                  <Reveal key={cur.id} as="section" className="ov-card sd-inspector" aria-label={`Cut ${k + 1}`}>
+                    <div className="sd-inspector-head">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
+                      {src?.thumb ? <img src={src.thumb} alt="" /> : <span className="sd-ph" />}
+                      <div>
+                        <b>{src ? clipLabel(src.position) : "Expired clip"} <small>{cur.role === "opener" ? "opener" : cur.role === "ending" ? "ending" : `cut ${k + 1} of ${edl.segments.length}`}</small></b>
+                        <span className="sd-times">{fmtClock(cur.in)} to {fmtClock(cur.out)} in the clip, {(cur.out - cur.in).toFixed(1)}s</span>
+                        {cur.note && <small className="cbb-note">{cur.note}</small>}
+                      </div>
+                      <button type="button" className="sd-iconbtn is-danger" aria-label="Remove this cut" disabled={locked || edl.segments.length <= 1} onClick={() => { remove(k); setSel(null); }}><Trash2 size={13} /></button>
+                    </div>
+                    <div className="sd-row" role="group" aria-label="At the playhead">
+                      <button type="button" className="ov-btn ghost small" disabled={locked} onClick={startHere}><SkipBack size={12} /> Start here</button>
+                      <button type="button" className="ov-btn ghost small" disabled={locked} onClick={endHere}><SkipForward size={12} /> End here</button>
+                      {beat && <button type="button" className="ov-btn ghost small" disabled={locked} onClick={() => snapToBeat(beat)} title={`Move every cut onto the nearest beat of the track (${Math.round(beat.bpm)} BPM)`}><Music size={12} /> Snap cuts to the beat</button>}
+                      <small className="sd-hint">Drag a cut&apos;s edges on the timeline to trim it; drag its middle to move it.</small>
+                    </div>
+                    {k > 0 && (
+                      <div className="sd-field">
+                        <span>Comes in with</span>
+                        <span className="sd-times">{TRANSITIONS.find((t) => t.id === (cur.transition ?? "cut"))?.label} <button type="button" className="sd-check-go" onClick={() => setPanel("cut")}>Change below</button></span>
+                      </div>
+                    )}
+                    <div className="sd-field">
+                      <span>Sound</span>
+                      <div className="sd-vol">
+                        <button type="button" className="sd-iconbtn" aria-label={(cur.volume ?? 1) === 0 ? "Unmute this clip" : "Mute this clip"} disabled={locked} onClick={() => toggleMute(k)}>{(cur.volume ?? 1) === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
+                        <input type="range" min={0} max={2} step={0.05} value={cur.volume ?? 1} aria-label="Clip volume" disabled={locked} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setVolume(k, Number(e.target.value))} />
+                        <em>{Math.round((cur.volume ?? 1) * 100)}%</em>
+                      </div>
+                    </div>
+                    {data.sources.length > 1 && (
+                      <label className="sd-field">
+                        <span>Swap for</span>
+                        <select aria-label="Swap this cut for another clip" disabled={locked} value="" onChange={(e) => { if (e.target.value) replace(k, e.target.value); }}>
+                          <option value="">Another clip&apos;s best moment</option>
+                          {data.sources.filter((x) => x.clipId !== cur.clipId).map((x) => <option key={x.clipId} value={x.clipId}>{clipLabel(x.position)} · {fmtClock(x.durationSec)}</option>)}
+                        </select>
+                      </label>
+                    )}
+                    {hereNote && <small className="sd-note" role="status">{hereNote}</small>}
+                  </Reveal>
+                )}
+                <ol className="sd-cutlist" aria-label="Cuts in order">
+                  {edl.segments.map((s2, i) => {
+                    const src2 = sources[s2.clipId];
+                    return (
+                      <li key={s2.id} className={`${i === k ? "is-on" : ""}${src2 ? "" : " is-missing"}`}>
+                        <button type="button" className="sd-cutlist-btn" onClick={() => { setSel({ kind: "cut", index: i }); const p = player.current; const seg = tl.segments[i]; if (p && seg) { p.pause(); p.seekTo(seg.startFrame + 1); } }} aria-current={i === k ? "true" : undefined}>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
+                          {src2?.thumb ? <img src={src2.thumb} alt="" /> : <span className="sd-ph" />}
+                          <span><b>{src2 ? clipLabel(src2.position) : "Expired clip"}</b><small>{(s2.out - s2.in).toFixed(1)}s{i > 0 && s2.transition ? ` · ${TRANSITIONS.find((t) => t.id === s2.transition)?.label.toLowerCase()}` : ""}</small></span>
+                        </button>
+                        <span className="sd-cutlist-move">
+                          <button type="button" aria-label={`Move cut ${i + 1} earlier`} disabled={locked || i === 0} onClick={() => { move(i, -1); setSel({ kind: "cut", index: i - 1 }); }}><ArrowUp size={12} /></button>
+                          <button type="button" aria-label={`Move cut ${i + 1} later`} disabled={locked || i === edl.segments.length - 1} onClick={() => { move(i, 1); setSel({ kind: "cut", index: i + 1 }); }}><ArrowDown size={12} /></button>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="cbb-hint"><Info size={12} /> Cuts snap to pauses and word boundaries when you save. Levels are balanced from measured loudness{edl.audio.length ? ` (${edl.audio.map((a) => `${clipLabel(sources[a.clipId]?.position ?? 0)} ${a.gainDb > 0 ? "+" : ""}${a.gainDb} dB`).join(", ")})` : ""}.</p>
+              </div>
+            );
+          })()}
+          {(
             <EffectsPanel
               edl={edl}
               sources={sources}
@@ -989,6 +1088,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               canEdit={data.canEdit}
               busy={busy}
               fixture={Boolean(fixture)}
+              list={false}
+              look={false}
               onSelect={(i) => { setSel({ kind: "cut", index: i }); const p = player.current; const seg = tl.segments[i]; if (p && seg) { p.pause(); p.seekTo(seg.startFrame + 1); } }}
               onMotion={setMotion}
               onStabilize={setStabilize}
@@ -996,8 +1097,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               onSources={(patch) => setData((d) => (d ? { ...d, sources: d.sources.map((x) => (patch[x.clipId] ? { ...x, stable: { ...x.stable, ...patch[x.clipId] } } : x)) } : d))}
             />
           )}
-
-          {panel === "transitions" && (
+          {(
             <div className="sd-fx">
               <div className="ov-card">
                 <b>Every join</b>
@@ -1032,64 +1132,42 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </ol>
             </div>
           )}
-
-
-          {panel === "audio" && (
-            <div className="cbb-audio">
-              {panel === "audio" && (
-            <div className="ov-card cbb-captions">
-              <div>
-                <b><Volume2 size={14} /> Reduce background noise</b>
-                <small>
-                  {cleaning ? `Cleaning the sound in this browser: ${cleaning.done} of ${cleaning.total} clips.`
-                    : cleanOn ? (Object.keys(cleanAudio).length ? (actionOn ? "The hum is taken out and the sound of the action is brought up, over the music." : "Hum, hiss and steady background noise are turned down, and the level is evened out.") : "This browser couldn't clean the sound, so the clips keep their own.")
-                    : "Turns down hum, hiss and steady background noise, and evens out the level. Done in this browser; your clips aren't changed."}
-                </small>
+          <SectionHead id="words" title="Words" hint="The lines on the video, the captions, the lower third and the ending." active={section === "words"} />
+          {(
+            <div className="cbb-text">
+              <TextLayersPanel
+                layers={edl.text}
+                onChange={(text) => commit({ ...edl, text })}
+                durationSec={tl.durationSec}
+                frame={{ width: edl.width, height: edl.height }}
+                style={st}
+                canEdit={data.canEdit}
+                busy={busy}
+                playhead={() => at()?.sec ?? null}
+                openId={sel?.kind === "text" ? edl.text[sel.index]?.id ?? null : null}
+                onOpen={(l) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, Math.round(l.at * OUTPUT.fps) + 1)); } }}
+              />
+              <div className="ov-card cbb-caption-copy">
+                <b><Type size={14} /> Lower third</b>
+                <small className="sd-fx-note">{theme ? (theme.layout.lowerThird === "none" ? `${theme.name} has no lower third; another theme shows these words bottom-left.` : `Shown bottom-left for the whole video in ${theme.name}'s style.`) : "Shown bottom-left with a theme that has a lower third."}</small>
+                <div className="cbb-endcard-fields">
+                  <label>Name<input type="text" maxLength={40} value={edl.lowerThird?.name ?? ""} disabled={!data.canEdit || busy} placeholder="Who is talking" onChange={(e) => commit({ ...edl, lowerThird: { name: e.target.value, line: edl.lowerThird?.line ?? "" } })} /></label>
+                  <label>Line under it<input type="text" maxLength={60} value={edl.lowerThird?.line ?? ""} disabled={!data.canEdit || busy} placeholder="The business, the place" onChange={(e) => commit({ ...edl, lowerThird: { name: edl.lowerThird?.name ?? "", line: e.target.value } })} /></label>
+                </div>
               </div>
-              <button type="button" className={`cbb-toggle${cleanOn ? " on" : ""}`} role="switch" aria-checked={cleanOn} aria-label="Reduce background noise" disabled={!data.canEdit || busy} onClick={() => commit({ ...edl, cleanSound: !cleanOn })}><i /></button>
+              <EndCardPanel
+                card={edl.endCard ?? null}
+                disabled={!data.canEdit || busy}
+                onChange={(endCard) => { const { endCard: _old, ...rest } = edl; commit(endCard ? { ...rest, endCard } : rest); }}
+                onShow={() => { const p = player.current; if (p) { p.pause(); p.seekTo(tl.durationFrames - 2); } }}
+              />
+              <div className="ov-card cbb-caption-copy">
+                <b>Caption for the post</b>
+                <textarea rows={4} value={edl.caption} disabled={!data.canEdit || busy} onChange={(e) => commit({ ...edl, caption: e.target.value.slice(0, 2200) })} />
+              </div>
             </div>
           )}
-              <VoiceoverCard
-                buildId={buildId}
-                edl={edl}
-                canEdit={data.canEdit && !busy && !fixture}
-                adding={autoVoice?.state === "adding"}
-                autoNote={autoVoice?.note ?? null}
-                // The server already saved these: the cut takes them without becoming "unsaved".
-                onVoiceover={(vo) => setEdl((e) => { if (!e) return e; if (vo) return { ...e, voiceover: vo, captions: e.captions ?? (e.voiceover ? e.captions : { source: "transcript" }) }; const { voiceover: _drop, ...rest } = e; void _drop; return rest; })}
-                onUrls={(urls) => setVoiceUrls((u) => ({ ...u, ...urls }))}
-                onLevel={(volume) => { setEdl((e) => (e?.voiceover ? { ...e, voiceover: { ...e.voiceover, volume } } : e)); setDirty(true); }}
-                onSwitch={(on) => { setEdl((e) => (e?.voiceover ? { ...e, voiceover: { ...e.voiceover, on } } : e)); setDirty(true); }}
-              />
-              <div className="ov-card cba-current">
-                <b><Music size={14} /> Music in this video</b>
-                {autoMusic?.state === "adding" ? <p><Loader2 size={12} className="spin" /> SOCIA is adding a track from your taste (about a minute).</p>
-                  : edl.soundtrack ? <p>{edl.musicAuto && autoMusic?.state === "added" ? `SOCIA added “${edl.soundtrack.name}” on its own. Pick another below, change the levels, or take it out.` : `“${edl.soundtrack.name}” plays in this video.`}</p>
-                  : <p>{autoMusic?.note ?? "No track in this video yet. Pick one from your playlist below."}</p>}
-                {theme && theme.audio.mood !== "none" && <small className="sd-fx-note">{theme.name} asks for {theme.audio.mood === "lofi" ? "lo-fi" : theme.audio.mood} music; new tracks SOCIA makes for this cut follow that.</small>}
-                {musicAutoOn != null && data.canEdit && (
-                  <label className="cbm-auto"><input type="checkbox" checked={musicAutoOn} onChange={(e) => void toggleMusicAuto(e.target.checked)} /> Add a track to new videos on their own</label>
-                )}
-              </div>
-              <MusicPlaylist
-                buildId={buildId}
-                edl={edl}
-                canEdit={data.canEdit && !busy && !fixture}
-                autoAdding={autoMusic?.state === "adding"}
-                trackUrls={trackUrls}
-                onTrackUrl={(id, url) => setTrackUrls((u) => ({ ...u, [id]: url }))}
-                // The server already saved these: the cut takes them without becoming "unsaved".
-                onPlaylist={(p) => setEdl((e) => (e ? { ...e, playlist: p } : e))}
-                onSoundtrack={(st) => setEdl((e) => { if (!e) return e; if (st) return { ...e, soundtrack: st }; const { soundtrack: _drop, ...rest } = e; void _drop; return rest; })}
-                onLevels={(musicVolume, originalVolume) => { setEdl((e) => (e?.soundtrack ? { ...e, soundtrack: { ...e.soundtrack, musicVolume, originalVolume } } : e)); setDirty(true); }}
-                onDuck={(on) => { setEdl((e) => { if (!e?.soundtrack) return e; const { duck: _old, ...st } = e.soundtrack; void _old; return { ...e, soundtrack: on ? { ...st, duck: true } : st }; }); setDirty(true); }}
-                speechPct={speechPct}
-              />
-              <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
-            </div>
-          )}
-
-          {panel === "captions" && (
+          {(
             <div className="cbb-text">
               <div className="ov-card cbb-captions">
                 <div>
@@ -1148,8 +1226,64 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </div>
             </div>
           )}
-
-          {panel === "adjust" && (
+          <SectionHead id="sound" title="Sound" hint="Voice, music and background noise." active={section === "sound"} />
+          {(
+            <div className="cbb-audio">
+              {(
+            <div className="ov-card cbb-captions">
+              <div>
+                <b><Volume2 size={14} /> Reduce background noise</b>
+                <small>
+                  {cleaning ? `Cleaning the sound in this browser: ${cleaning.done} of ${cleaning.total} clips.`
+                    : cleanOn ? (Object.keys(cleanAudio).length ? (actionOn ? "The hum is taken out and the sound of the action is brought up, over the music." : "Hum, hiss and steady background noise are turned down, and the level is evened out.") : "This browser couldn't clean the sound, so the clips keep their own.")
+                    : "Turns down hum, hiss and steady background noise, and evens out the level. Done in this browser; your clips aren't changed."}
+                </small>
+              </div>
+              <button type="button" className={`cbb-toggle${cleanOn ? " on" : ""}`} role="switch" aria-checked={cleanOn} aria-label="Reduce background noise" disabled={!data.canEdit || busy} onClick={() => commit({ ...edl, cleanSound: !cleanOn })}><i /></button>
+            </div>
+          )}
+              <VoiceoverCard
+                buildId={buildId}
+                edl={edl}
+                canEdit={data.canEdit && !busy && !fixture}
+                adding={autoVoice?.state === "adding"}
+                autoNote={autoVoice?.note ?? null}
+                // The server already saved these: the cut takes them without becoming "unsaved".
+                onVoiceover={(vo) => setEdl((e) => { if (!e) return e; if (vo) return { ...e, voiceover: vo, captions: e.captions ?? (e.voiceover ? e.captions : { source: "transcript" }) }; const { voiceover: _drop, ...rest } = e; void _drop; return rest; })}
+                onUrls={(urls) => setVoiceUrls((u) => ({ ...u, ...urls }))}
+                onLevel={(volume) => { setEdl((e) => (e?.voiceover ? { ...e, voiceover: { ...e.voiceover, volume } } : e)); setDirty(true); }}
+                onSwitch={(on) => { setEdl((e) => (e?.voiceover ? { ...e, voiceover: { ...e.voiceover, on } } : e)); setDirty(true); }}
+              />
+              <div className="ov-card cba-current">
+                <b><Music size={14} /> Music in this video</b>
+                {autoMusic?.state === "adding" ? <p><Loader2 size={12} className="spin" /> SOCIA is adding a track from your taste (about a minute).</p>
+                  : edl.soundtrack ? <p>{edl.musicAuto && autoMusic?.state === "added" ? `SOCIA added “${edl.soundtrack.name}” on its own. Pick another below, change the levels, or take it out.` : `“${edl.soundtrack.name}” plays in this video.`}</p>
+                  : <p>{autoMusic?.note ?? "No track in this video yet. Pick one from your playlist below."}</p>}
+                {theme && theme.audio.mood !== "none" && <small className="sd-fx-note">{theme.name} asks for {theme.audio.mood === "lofi" ? "lo-fi" : theme.audio.mood} music; new tracks SOCIA makes for this cut follow that.</small>}
+                {musicAutoOn != null && data.canEdit && (
+                  <label className="cbm-auto"><input type="checkbox" checked={musicAutoOn} onChange={(e) => void toggleMusicAuto(e.target.checked)} /> Add a track to new videos on their own</label>
+                )}
+              </div>
+              <MusicPlaylist
+                buildId={buildId}
+                edl={edl}
+                canEdit={data.canEdit && !busy && !fixture}
+                autoAdding={autoMusic?.state === "adding"}
+                trackUrls={trackUrls}
+                onTrackUrl={(id, url) => setTrackUrls((u) => ({ ...u, [id]: url }))}
+                // The server already saved these: the cut takes them without becoming "unsaved".
+                onPlaylist={(p) => setEdl((e) => (e ? { ...e, playlist: p } : e))}
+                onSoundtrack={(st) => setEdl((e) => { if (!e) return e; if (st) return { ...e, soundtrack: st }; const { soundtrack: _drop, ...rest } = e; void _drop; return rest; })}
+                onLevels={(musicVolume, originalVolume) => { setEdl((e) => (e?.soundtrack ? { ...e, soundtrack: { ...e.soundtrack, musicVolume, originalVolume } } : e)); setDirty(true); }}
+                onDuck={(on) => { setEdl((e) => { if (!e?.soundtrack) return e; const { duck: _old, ...st } = e.soundtrack; void _old; return { ...e, soundtrack: on ? { ...st, duck: true } : st }; }); setDirty(true); }}
+                speechPct={speechPct}
+              />
+              <AudioPanel canEdit={data.canEdit && !busy} current={edl.music} onUse={(line) => commit({ ...edl, music: line })} />
+            </div>
+          )}
+          <SectionHead id="look" title="Look" hint="Size, framing, the type, the brand, the theme's look, and measured corrections." active={section === "look"} />
+          <EffectsPanel edl={edl} sources={sources} theme={theme} index={0} canEdit={data.canEdit} busy={busy} fixture={Boolean(fixture)} list={false} cut={false} onSelect={() => undefined} onMotion={setMotion} onStabilize={setStabilize} onLook={(grade) => override({ color: { grade } })} onSources={() => undefined} />
+          {(
             <div className="cbb-frame cbb-style">
               <div className="ov-card">
                 <b><Palette size={14} /> Text</b>
@@ -1194,8 +1328,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </div>
             </div>
           )}
-
-          {panel === "adjust" && (
+          {(
             <div className="cbb-frame">
               <div className="ov-card">
                 <b><Crop size={14} /> Size</b>
@@ -1229,121 +1362,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               </ol>
             </div>
           )}
-
-          {panel === "adjust" && (
+          {(
             <FinishPanel edl={edl} sources={sources} canEdit={data.canEdit} busy={busy} initialMeasures={measures} onCommit={(next) => { commit(next); setCompare("after"); }} />
           )}
-
-          {panel === "cut" && (() => {
-            const k = sel?.kind === "cut" && edl.segments[sel.index] ? sel.index : Math.max(0, Math.min(edl.segments.length - 1, tl.segments.findIndex((x) => playSec >= x.startSec && playSec < x.startSec + x.durationFrames / OUTPUT.fps)));
-            const cur = edl.segments[k];
-            const src = cur ? sources[cur.clipId] : undefined;
-            const locked = !data.canEdit || busy;
-            return (
-              <div className="sd-cut">
-                {cur && (
-                  <Reveal key={cur.id} as="section" className="ov-card sd-inspector" aria-label={`Cut ${k + 1}`}>
-                    <div className="sd-inspector-head">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
-                      {src?.thumb ? <img src={src.thumb} alt="" /> : <span className="sd-ph" />}
-                      <div>
-                        <b>{src ? clipLabel(src.position) : "Expired clip"} <small>{cur.role === "opener" ? "opener" : cur.role === "ending" ? "ending" : `cut ${k + 1} of ${edl.segments.length}`}</small></b>
-                        <span className="sd-times">{fmtClock(cur.in)} to {fmtClock(cur.out)} in the clip, {(cur.out - cur.in).toFixed(1)}s</span>
-                        {cur.note && <small className="cbb-note">{cur.note}</small>}
-                      </div>
-                      <button type="button" className="sd-iconbtn is-danger" aria-label="Remove this cut" disabled={locked || edl.segments.length <= 1} onClick={() => { remove(k); setSel(null); }}><Trash2 size={13} /></button>
-                    </div>
-                    <div className="sd-row" role="group" aria-label="At the playhead">
-                      <button type="button" className="ov-btn ghost small" disabled={locked} onClick={startHere}><SkipBack size={12} /> Start here</button>
-                      <button type="button" className="ov-btn ghost small" disabled={locked} onClick={endHere}><SkipForward size={12} /> End here</button>
-                      {beat && <button type="button" className="ov-btn ghost small" disabled={locked} onClick={() => snapToBeat(beat)} title={`Move every cut onto the nearest beat of the track (${Math.round(beat.bpm)} BPM)`}><Music size={12} /> Snap cuts to the beat</button>}
-                      <small className="sd-hint">Drag a cut&apos;s edges on the timeline to trim it; drag its middle to move it.</small>
-                    </div>
-                    {k > 0 && (
-                      <div className="sd-field">
-                        <span>Comes in with</span>
-                        <span className="sd-times">{TRANSITIONS.find((t) => t.id === (cur.transition ?? "cut"))?.label} <button type="button" className="sd-check-go" onClick={() => setPanel("transitions")}>Change in Transitions</button></span>
-                      </div>
-                    )}
-                    <div className="sd-field">
-                      <span>Sound</span>
-                      <div className="sd-vol">
-                        <button type="button" className="sd-iconbtn" aria-label={(cur.volume ?? 1) === 0 ? "Unmute this clip" : "Mute this clip"} disabled={locked} onClick={() => toggleMute(k)}>{(cur.volume ?? 1) === 0 ? <VolumeX size={13} /> : <Volume2 size={13} />}</button>
-                        <input type="range" min={0} max={2} step={0.05} value={cur.volume ?? 1} aria-label="Clip volume" disabled={locked} onPointerDown={beginLive} onKeyDown={beginLive} onChange={(e) => setVolume(k, Number(e.target.value))} />
-                        <em>{Math.round((cur.volume ?? 1) * 100)}%</em>
-                      </div>
-                    </div>
-                    {data.sources.length > 1 && (
-                      <label className="sd-field">
-                        <span>Swap for</span>
-                        <select aria-label="Swap this cut for another clip" disabled={locked} value="" onChange={(e) => { if (e.target.value) replace(k, e.target.value); }}>
-                          <option value="">Another clip&apos;s best moment</option>
-                          {data.sources.filter((x) => x.clipId !== cur.clipId).map((x) => <option key={x.clipId} value={x.clipId}>{clipLabel(x.position)} · {fmtClock(x.durationSec)}</option>)}
-                        </select>
-                      </label>
-                    )}
-                    {hereNote && <small className="sd-note" role="status">{hereNote}</small>}
-                  </Reveal>
-                )}
-                <ol className="sd-cutlist" aria-label="Cuts in order">
-                  {edl.segments.map((s2, i) => {
-                    const src2 = sources[s2.clipId];
-                    return (
-                      <li key={s2.id} className={`${i === k ? "is-on" : ""}${src2 ? "" : " is-missing"}`}>
-                        <button type="button" className="sd-cutlist-btn" onClick={() => { setSel({ kind: "cut", index: i }); const p = player.current; const seg = tl.segments[i]; if (p && seg) { p.pause(); p.seekTo(seg.startFrame + 1); } }} aria-current={i === k ? "true" : undefined}>
-                          {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
-                          {src2?.thumb ? <img src={src2.thumb} alt="" /> : <span className="sd-ph" />}
-                          <span><b>{src2 ? clipLabel(src2.position) : "Expired clip"}</b><small>{(s2.out - s2.in).toFixed(1)}s{i > 0 && s2.transition ? ` · ${TRANSITIONS.find((t) => t.id === s2.transition)?.label.toLowerCase()}` : ""}</small></span>
-                        </button>
-                        <span className="sd-cutlist-move">
-                          <button type="button" aria-label={`Move cut ${i + 1} earlier`} disabled={locked || i === 0} onClick={() => { move(i, -1); setSel({ kind: "cut", index: i - 1 }); }}><ArrowUp size={12} /></button>
-                          <button type="button" aria-label={`Move cut ${i + 1} later`} disabled={locked || i === edl.segments.length - 1} onClick={() => { move(i, 1); setSel({ kind: "cut", index: i + 1 }); }}><ArrowDown size={12} /></button>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
-                <p className="cbb-hint"><Info size={12} /> Cuts snap to pauses and word boundaries when you save. Levels are balanced from measured loudness{edl.audio.length ? ` (${edl.audio.map((a) => `${clipLabel(sources[a.clipId]?.position ?? 0)} ${a.gainDb > 0 ? "+" : ""}${a.gainDb} dB`).join(", ")})` : ""}.</p>
-              </div>
-            );
-          })()}
-
-          {panel === "text" && (
-            <div className="cbb-text">
-              <TextLayersPanel
-                layers={edl.text}
-                onChange={(text) => commit({ ...edl, text })}
-                durationSec={tl.durationSec}
-                frame={{ width: edl.width, height: edl.height }}
-                style={st}
-                canEdit={data.canEdit}
-                busy={busy}
-                playhead={() => at()?.sec ?? null}
-                openId={sel?.kind === "text" ? edl.text[sel.index]?.id ?? null : null}
-                onOpen={(l) => { const p = player.current; if (p) { p.pause(); p.seekTo(Math.min(tl.durationFrames - 1, Math.round(l.at * OUTPUT.fps) + 1)); } }}
-              />
-              <div className="ov-card cbb-caption-copy">
-                <b><Type size={14} /> Lower third</b>
-                <small className="sd-fx-note">{theme ? (theme.layout.lowerThird === "none" ? `${theme.name} has no lower third; another theme shows these words bottom-left.` : `Shown bottom-left for the whole video in ${theme.name}'s style.`) : "Shown bottom-left with a theme that has a lower third."}</small>
-                <div className="cbb-endcard-fields">
-                  <label>Name<input type="text" maxLength={40} value={edl.lowerThird?.name ?? ""} disabled={!data.canEdit || busy} placeholder="Who is talking" onChange={(e) => commit({ ...edl, lowerThird: { name: e.target.value, line: edl.lowerThird?.line ?? "" } })} /></label>
-                  <label>Line under it<input type="text" maxLength={60} value={edl.lowerThird?.line ?? ""} disabled={!data.canEdit || busy} placeholder="The business, the place" onChange={(e) => commit({ ...edl, lowerThird: { name: edl.lowerThird?.name ?? "", line: e.target.value } })} /></label>
-                </div>
-              </div>
-              <EndCardPanel
-                card={edl.endCard ?? null}
-                disabled={!data.canEdit || busy}
-                onChange={(endCard) => { const { endCard: _old, ...rest } = edl; commit(endCard ? { ...rest, endCard } : rest); }}
-                onShow={() => { const p = player.current; if (p) { p.pause(); p.seekTo(tl.durationFrames - 2); } }}
-              />
-              <div className="ov-card cbb-caption-copy">
-                <b>Caption for the post</b>
-                <textarea rows={4} value={edl.caption} disabled={!data.canEdit || busy} onChange={(e) => commit({ ...edl, caption: e.target.value.slice(0, 2200) })} />
-              </div>
-            </div>
-          )}
-
-          {panel === "regenerate" && (
+          {!data.manual && <SectionHead id="regenerate" title="Make it again" hint="Another first cut, from SOCIA." active={section === "regenerate"} />}
+          {(
             <div className="cbb-regen">
               <p>A new first cut of the same post with one change. The current cut stays in Undo.</p>
               <ul>
