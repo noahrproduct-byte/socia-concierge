@@ -38,6 +38,7 @@ import { timeline, captionPages, clearOfText, dbToGain, edgeEnvelope, secToFrame
 import { duckLevel, speechSpans } from "@/lib/studioClips/musicDuck";
 import { UNDER_VOICEOVER, voiceSpans } from "@/lib/studioClips/voiceover";
 import { transitionLook, transitionSound } from "@/lib/studioClips/transitions";
+import { punchScaleAt } from "@/lib/studioClips/punch";
 import type { TransitionKind } from "@/lib/studioClips/types";
 import { gainAtDb } from "@/lib/studioClips/sound";
 
@@ -153,10 +154,25 @@ function SafeZoneLayer({ width, height }: { width: number; height: number }) {
   );
 }
 
-/** The place, the ask and the website, big and in the middle, no box. The right side stays clear of the app's icons. */
+// The ending's face. Drawn only once it has loaded, or the first play shows a fallback serif running off the frame.
+let antonFont: ReturnType<typeof loadAnton> | null = null;
+const endFont = () => (antonFont ??= loadAnton("normal", { weights: ["400"], subsets: ["latin"] }));
+
+/**
+ * The place, the ask and the website over the last shot, no box. Set to leave
+ * the picture readable behind it (the payoff, like the pizza cut into four,
+ * stays the last thing seen), and the right side clear of the app's icons.
+ */
 function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
   const frame = useCurrentFrame();
-  const family = useMemo(() => familyFor("anton"), []);
+  const family = endFont().fontFamily;
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const handle = delayRender("ending font", { timeoutInMilliseconds: 30_000 });
+    endFont().waitUntilDone().catch(() => null).finally(() => { if (alive) setReady(true); continueRender(handle); });
+    return () => { alive = false; };
+  }, []);
   const appear = interpolate(frame, [0, 4], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const pop = interpolate(frame, [0, 5], [0.92, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const line = (text: string, base: number, stroke: number) => {
@@ -164,12 +180,13 @@ function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
     const size = endLineSize(text, base, width);
     return <div style={{ fontSize: size, lineHeight: 1.12, WebkitTextStroke: `${Math.round((stroke * 2 * width) / 1080)}px #000`, paintOrder: "stroke fill", whiteSpace: "nowrap" }}>{text}</div>;
   };
+  if (!ready) return null;
   return (
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", paddingRight: `${(40 / 1080) * 100}%`, opacity: appear, transform: `scale(${pop})` }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: (28 * width) / 1080, fontFamily: family, fontWeight: 400, color: "#fff", textAlign: "center" }}>
-        {line(card.location.toUpperCase(), 168, 7)}
-        {line(card.cta.toUpperCase(), 330, 9)}
-        {line(card.site.toUpperCase(), 142, 7)}
+    <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingRight: `${(40 / 1080) * 100}%`, paddingBottom: "30%", opacity: appear, transform: `scale(${pop})` }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: (18 * width) / 1080, fontFamily: family, fontWeight: 400, color: "#fff", textAlign: "center", textShadow: "0 2px 24px rgba(0,0,0,0.55)" }}>
+        {line(card.location.toUpperCase(), 92, 5)}
+        {line(card.cta.toUpperCase(), 190, 7)}
+        {line(card.site.toUpperCase(), 84, 5)}
       </div>
     </AbsoluteFill>
   );
@@ -248,14 +265,16 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   const look = transitionLook({ frame: f, frames: s.durationFrames, into, overlapIn: s.overlapIn, out, overlapOut: s.overlapOut });
   // The camera never stops: every shot pushes in slowly from its first frame to its last (Noah's picks, 2026-11-12).
   const drift = interpolate(f, [0, Math.max(1, s.durationFrames)], [1, PUSH_IN], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  // Punch-ins: a continuous take steps in and back out where it would have cut (lib/studioClips/punch.ts).
+  const punch = s.punches?.length ? punchScaleAt(s, s.in + f / FPS) : 1;
   const fx: Effects = [...(effects ?? [])];
   if (look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
   if (look.blur > 0.5) fx.push(blur({ radius: look.blur, vertical: look.whip ? false : true }));
-  if (soft > 0) fx.push(blur({ radius: 40 * soft }));
+  // Behind the ending the picture stays sharp (its last shot is the payoff); only the bottom darkens for the words.
   return (
-    <AbsoluteFill style={{ opacity: look.opacity, transform: `translateX(${look.x}%) scale(${look.scale * drift})`, transformOrigin: "50% 45%" }}>
+    <AbsoluteFill style={{ opacity: look.opacity, transform: `translateX(${look.x}%) scale(${look.scale * drift * punch})`, transformOrigin: "50% 45%" }}>
       {children({ effects: fx.length ? fx : undefined, frame: f })}
-      {soft > 0 && <AbsoluteFill style={{ backgroundColor: "#000", opacity: 0.42 * soft }} />}
+      {soft > 0 && <AbsoluteFill style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)", opacity: soft }} />}
     </AbsoluteFill>
   );
 }
@@ -280,6 +299,8 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const original = music ? music.originalVolume : 1;
   const finish = finishOn === false ? undefined : edl.finish;
   const card = edl.endCard ?? null;
+  // The ending's font starts loading with the video, not when the card is due (a first play hitched at the card).
+  useEffect(() => { if (card) void endFont().waitUntilDone().catch(() => null); }, [card]);
   // One effect instance per graded clip, so the WebGL program isn't rebuilt every frame.
   const effects = useMemo(() => {
     if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
@@ -369,7 +390,9 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         );
       })}
       {edl.text.filter((t) => t.text.trim()).map((t) => (
-        <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} name={`text · ${presetOf(t).label}`}>
+        // premountFor: the line's image is drawn before it is due. Without it the Player paused about 170 ms
+        // the moment a line came on ("sliced to order" at 8.9 s, 2026-11-12): a visible hitch in picture and sound.
+        <Sequence key={t.id} from={secToFrames(t.at)} durationInFrames={Math.max(1, secToFrames(t.end - t.at))} premountFor={PREMOUNT_FRAMES} name={`text · ${presetOf(t).label}`}>
           <TextLayer line={t} width={width} height={height} font={style.font} textBox={style.textBox} />
         </Sequence>
       ))}
@@ -380,7 +403,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         </Sequence>
       ))}
       {card && (
-        <Sequence from={Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES)} name="ending">
+        <Sequence from={Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES)} premountFor={PREMOUNT_FRAMES} name="ending">
           <EndCardLayer card={card} width={width} />
         </Sequence>
       )}

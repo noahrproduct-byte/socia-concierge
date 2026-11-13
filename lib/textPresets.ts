@@ -212,6 +212,24 @@ export function presetForLine(role: TextRole | string | null | undefined, text: 
   return presetForRole(role);
 }
 
+/**
+ * A one-line opening as a Hook Pair: the line in bold, its last word (the last
+ * two when that word is one or two letters) set big in the italic serif below it. Noah's
+ * caption taste (2026-11-12): "fresh out of the oven" plain was "so basic";
+ * "fresh out of the / oven" is the look he picked. Null when it doesn't split
+ * well: under three words, already two lines, or a key word too long to set big.
+ */
+export function asHookPair(text: string): string | null {
+  const t = text.trim();
+  if (!t || t.includes("\n")) return null;
+  const words = t.split(/\s+/);
+  if (words.length < 3) return null;
+  const take = words[words.length - 1].replace(/[^\p{L}\p{N}']/gu, "").length <= 2 ? 2 : 1;
+  const key = words.slice(-take).join(" ");
+  if (key.length > 14) return null;
+  return `${words.slice(0, -take).join(" ")}\n${key}`;
+}
+
 /** How many lines of text one video may carry. */
 export const MAX_TEXT_LAYERS = 5;
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { asHookPair } from "@/lib/textPresets";
 import { EDIT_STYLES, pickStyle, speechShare, styleNote, styleOf, textForStyle, TALKING_SHARE } from "./profiles";
 import { PACING, applyPacing, pacingRules } from "./pacing";
 import { decideJoins } from "./joins";
@@ -72,6 +73,15 @@ describe("on-screen words by style (Noah's caption taste, 2026-11-12)", () => {
   ];
   it("keeps the designed hook on every style, food and calm included", () => {
     for (const id of ["process", "calm", "talking", "demo", "energetic"] as const) expect(textForStyle({ editStyle: id, text }).text).toEqual(text);
+  });
+  it("sets a one-line opening title as a Hook Pair in the clean look, never in the outline look", () => {
+    // Build 9d78cf7f (2026-11-12): "fresh out of the oven" came out as a plain title.
+    const plain = [{ id: "t1", at: 0, end: 2.5, text: "fresh out of the oven", role: "opening" as const, presetId: "hook_title" as const }];
+    expect(textForStyle({ editStyle: "process", text: plain, style: { textBox: "none" } }).text[0]).toMatchObject({ text: "fresh out of the\noven", presetId: "hook_pair" });
+    expect(textForStyle({ editStyle: "process", text: plain, style: { textBox: "outline" } }).text).toEqual(plain);
+    expect(asHookPair("the first slice of the day")).toBe("the first slice of the\nday");
+    expect(asHookPair("wait for it")).toBe("wait\nfor it");
+    expect(asHookPair("hot")).toBeNull();
   });
   it("tells the model at most two text moments on food, never a label on every shot", () => {
     expect(EDIT_STYLES.process.prompt).toMatch(/at most two text moments/);

@@ -28,7 +28,8 @@ Rules you never break:
 - Spoken English, the way a person talks to a friend: short sentences, plain words. No hashtags, emojis, stage directions, sound effects or quotation marks. No em dashes.
 - The first line starts at 0 on the opening shot and tells the viewer what they're watching and why to stay. Then one line for each beat that matters, starting when its shot starts. The last line closes: the place or an invitation to come or try it, only from the brand facts, never a price or a discount.
 - Fit the time: about 2.6 words a second, each line finished before the next one starts, with a breath between. Leave quiet stretches where the footage speaks for itself.
-- Don't read out the on-screen text word for word; the voice adds to it.`;
+- Never say what the on-screen text says while it is up, not even in other words ("right out of the deck oven" under "fresh out of the oven" is the same line twice). The voice adds what the text doesn't say, or stays quiet while the text is up.
+- When the video ends on a card naming a place, never name a different place in the voice; the card and the voice agree.`;
 
 /** The words of every clip the cut uses, for the need decision. */
 async function cutWords(client: Supa, projectId: string) {
@@ -48,7 +49,7 @@ export async function writeScript(edl: Edl, acct: AccountContext, ownerId: strin
   const total = edlDurationSec(edl);
   const speakEnd = speakingEndSec(edl, total);
   const shots = timeline(edl).segments.map((s, i) => `Shot ${i + 1}, ${s.startSec.toFixed(1)}s to ${(s.startSec + s.durationFrames / 30).toFixed(1)}s${s.purpose ? ` (${s.purpose})` : ""}: ${s.note || "no note"}`);
-  const onScreen = edl.text.filter((t) => t.text.trim()).map((t) => `"${t.text.replace(/\n/g, " ")}" from ${t.at}s`);
+  const onScreen = edl.text.filter((t) => t.text.trim()).map((t) => `"${t.text.replace(/\n/g, " ")}" from ${t.at}s to ${t.end}s`);
   const brand = brandContext(acct.brand);
   const model = modelFor("fast");
   const res = await anthropic.messages.create({
@@ -60,6 +61,7 @@ ${brand ? `Brand facts:\n${brand}` : "No brand facts are set: name no place, pro
 ${edl.brief?.prompt ? `The person's prompt: ${edl.brief.prompt}` : ""}
 ${said ? `What the owner wants the voiceover to say (their own words and facts about their business; build the script on these, keep their facts exactly, and add no fact beyond these, the brand facts and the shots):\n${said}` : ""}
 ${onScreen.length ? `On-screen text: ${onScreen.join("; ")}` : ""}
+${edl.endCard ? `The ending card (from ${speakEnd.toFixed(1)}s) shows: ${[edl.endCard.location, edl.endCard.cta, edl.endCard.site].filter(Boolean).join(" / ")}.` : ""}
 The shots, in order on the video's own timeline:
 ${shots.join("\n")}
 
