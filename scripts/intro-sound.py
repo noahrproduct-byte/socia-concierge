@@ -1,17 +1,19 @@
 # Makes the intro film's sound (public/intro/intro-sound.mp3) from recorded
-# sound effects made for this film with Higgsfield (Mirelo SFX), kept in
-# scripts/intro-sound/. Nothing is synthesised any more (Noah, 2026-11-12:
-# the synthesised tones "sound too AI, too robotic"): every layer is a
-# recording, placed on a beat of the film. Rerun this when T, the stagger or
-# the name timing in components/intro/SociaIntro.tsx change.
+# sounds made for this film with Higgsfield (Mirelo SFX), kept in
+# scripts/intro-sound/. Nothing is synthesised (Noah, 2026-11-12: synthesised
+# tones "sound too AI, too robotic"), and nothing plays that the picture isn't
+# doing: no air, wind, whooshes or noise risers (Noah: "it sounds like there is
+# wind in the audio ... it just matches the animation"). Rerun this when T,
+# the stagger or the name timing in components/intro/SociaIntro.tsx change.
 #   python3 scripts/intro-sound.py   (needs numpy, and ffmpeg on the PATH)
 #
 # The score, in the film's seconds:
-#   0.0 to 2.4   low air under "Introducing"; a soft hit as SOCIA's letters land
-#   2.2 to 4.4   a whoosh per strand, cresting as its name appears, each at its
-#                own speed and on its own side
-#   4.5 to 6.95  a riser while the strands wind in, cut just before the hit
-#   7.0          the mark fills: a deep cinematic hit with a piano chord struck on it
+#   0.3          a low piano note as "Introducing" appears
+#   1.1          a soft deep hit as SOCIA's letters land
+#   2.9 to 4.0   a piano note as each feature's name appears, rising, each on
+#                its name's side of the screen
+#   4.9 to 7.0   the closing strings, played backwards, swelling into the hit
+#   7.0          the mark fills: a deep cinematic hit with a piano chord on it
 #   7.0 to 12    warm strings carry it out under "Everything. One platform.",
 #                fading with the picture
 #
@@ -30,7 +32,7 @@ NAME_AT = GROW * 0.7  # a name fades in this long after its strand starts
 FILL, WORDS, END, FADE = 7.0, 7.45, 10.6, 1.4
 PARTS = 11
 LENGTH = END + FADE
-MAKEUP = 8  # dB raised before the limiter
+MAKEUP = 12  # dB raised before the limiter
 
 n = int(SR * LENGTH)
 dry = np.zeros((2, n))
@@ -90,20 +92,21 @@ def lowpass(x, cutoff):
 
 
 # ---- title -----------------------------------------------------------------------------
-place(fade(lowpass(load("swell"), 1600), inn=1.0, out=0.9), 0.0, gain=0.55, send=0.3)
-place(fade(load("land"), out=0.6), 1.1 - 0.12, gain=0.45, send=0.25)  # its hit is 0.12 s in
+note = load("note-a", start=0.68)  # one soft grand-piano note, struck 0.02 s in
+place(fade(rate(note, 0.75), out=1.0), 0.3, gain=0.22, send=0.35)
+place(fade(load("land"), out=0.6), 1.1 - 0.12, gain=0.42, send=0.25)  # its hit is 0.12 s in
 
-# ---- the eleven parts arrive -----------------------------------------------------------------
-whoosh = load("whoosh")  # crests at 0.98 s
+# ---- the eleven names: a piano note each, climbing a pentatonic scale --------------------------
+STEPS = [-10, -8, -5, -3, 0, 2, 4, 7, 9, 12, 14]  # semitones from the recorded note
 for i in range(PARTS):
     theta = -math.pi / 2 + i * 2 * math.pi / PARTS + math.pi / (2 * PARTS)
-    r = 0.9 + 0.22 * ((i * 7) % PARTS) / (PARTS - 1)
-    place(fade(rate(whoosh, r), out=0.08), ARRIVE + i * STAGGER + NAME_AT - 0.98 / r, gain=0.2 - 0.004 * i, pan=0.6 * math.cos(theta), send=0.3)
+    r = 2 ** (STEPS[i] / 12)
+    place(fade(rate(note, r), out=0.6), ARRIVE + i * STAGGER + NAME_AT - 0.02 / r, gain=0.2 - 0.006 * i, pan=0.55 * math.cos(theta), send=0.4)
 
-# ---- winding in: the riser (silent for its first 0.5 s), cut just before the hit ----------------------
-riser = load("riser", start=0.5, length=2.0)
-riser *= np.linspace(0.3, 1, riser.shape[1]) ** 1.5
-place(fade(riser, inn=0.4), FILL - 0.05 - riser.shape[1] / SR, gain=0.6, send=0.25)
+# ---- winding in: the closing strings, backwards, swelling into the hit -----------------------------
+swell = load("strings", length=2.1)[:, ::-1]
+swell *= np.linspace(0.15, 1, swell.shape[1]) ** 1.2
+place(fade(swell, inn=0.5), FILL - swell.shape[1] / SR, gain=1.0, send=0.3)
 
 # ---- the mark fills ------------------------------------------------------------------------------
 place(fade(load("hit-a"), out=0.8), FILL - 0.1, gain=0.62, send=0.2)  # its attack is 0.1 s in
