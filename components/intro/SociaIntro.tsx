@@ -56,9 +56,10 @@ const T = {
   form: 6.3, // they start laying onto the outline
   fill: 7.0, // the mark fills in
   words: 7.45, // "Everything. One platform."
-  end: 8.9, // the last frame; the fade into the page follows
+  end: 10.6, // the last frame: the mark and the words hold about three seconds, then the slow fade into the page
 };
-const LEAVE_MS = 600;
+const LEAVE_MS = 600; // Skip intro: a quick fade
+const END_FADE_MS = 1400; // the film's own end: a slow fade, the sound fading with it in the file
 
 const clamp = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const ease = (v: number) => {
@@ -232,26 +233,29 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
   const audio = useRef<HTMLAudioElement | null>(null);
   const filmTime = useRef(0);
   const [sound, setSound] = useState<"none" | "off" | "on">("none");
+  const [leaveMs, setLeaveMs] = useState(LEAVE_MS);
 
-  const leave = useCallback(() => {
+  const leave = useCallback((ending = false) => {
     if (leaving.current) return;
     leaving.current = true;
+    const ms = ending ? END_FADE_MS : LEAVE_MS;
+    setLeaveMs(ms);
     setPhase("leaving");
     // The page shows again under the fade.
     delete document.documentElement.dataset.introPlaying;
-    // The sound fades with the picture.
+    // On a skip the sound fades with the picture; at the end the file fades by itself.
     const a = audio.current;
-    if (a && !a.paused) {
+    if (a && !a.paused && !ending) {
       const from = a.volume;
       const started = performance.now();
       const step = () => {
-        const f = Math.min(1, (performance.now() - started) / LEAVE_MS);
+        const f = Math.min(1, (performance.now() - started) / ms);
         a.volume = from * (1 - f);
         if (f < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
     }
-    window.setTimeout(onDone, LEAVE_MS);
+    window.setTimeout(onDone, ms);
   }, [onDone]);
 
   const soundOn = () => {
@@ -432,7 +436,7 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
         setPhase(nextPhase);
       }
       if (t >= (still ? 3.2 : T.end)) {
-        leave();
+        leave(true);
         return;
       }
       raf = requestAnimationFrame(tick);
@@ -447,7 +451,7 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
   }, [leave, motion]);
 
   return (
-    <div className={`intro ${serif.variable} is-${phase}${reduced ? " is-still" : ""}${motion ? " is-chosen" : ""}`} role="dialog" aria-modal="true" aria-label="Introducing SOCIA">
+    <div className={`intro ${serif.variable} is-${phase}${reduced ? " is-still" : ""}${motion ? " is-chosen" : ""}`} role="dialog" aria-modal="true" aria-label="Introducing SOCIA" style={{ "--intro-leave": `${leaveMs}ms` } as React.CSSProperties}>
       <canvas ref={canvas} className="intro-canvas" aria-hidden />
       <div className="intro-title">
         <span className="intro-kicker">Introducing</span>
@@ -472,7 +476,7 @@ export default function SociaIntro({ onDone, motion = false }: { onDone: () => v
             Sound on
           </button>
         )}
-        <button ref={skipRef} type="button" className="intro-skip" onClick={leave}>
+        <button ref={skipRef} type="button" className="intro-skip" onClick={() => leave()}>
           Skip intro
         </button>
       </div>

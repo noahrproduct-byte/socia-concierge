@@ -37,8 +37,8 @@ export default function IntroPreview({ next }: { next: string }) {
       <img src="/brand/socia-mark.png" alt="SOCIA" width={220} height={220} />
       <p>
         {reduced
-          ? "This device is set to reduce motion. The intro has strands moving across the screen for about ten seconds, with sound."
-          : "About ten seconds, with sound."}
+          ? "This device is set to reduce motion. The intro has strands moving across the screen for about twelve seconds, with sound."
+          : "About twelve seconds, with sound."}
       </p>
       <div>
         <button type="button" className="is-primary" onClick={() => setPlaying(true)} autoFocus>
