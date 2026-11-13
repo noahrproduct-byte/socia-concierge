@@ -78,8 +78,8 @@ const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
 const END_FRAMES = Math.round(END_CARD_SEC * FPS);
 const END_SOFTEN_FRAMES = 9;
 
-/** The cut sound (public/studio-sfx, made with ffmpeg: filtered noise, no recording): half a second, led in by six frames. */
-const SFX_WHOOSH = "/studio-sfx/whoosh.m4a";
+/** The cut sound (public/editor-sfx, made with ffmpeg: filtered noise, no recording): half a second, led in by six frames. */
+const SFX_WHOOSH = "/editor-sfx/whoosh.m4a";
 const SFX_FRAMES = 15, SFX_LEAD_FRAMES = 6, SFX_LEVEL = 0.5;
 
 /** How long before a shot appears the Player starts loading it. */

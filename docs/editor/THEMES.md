@@ -77,7 +77,7 @@ The composition reads `resolveTheme(edl)` once and:
 - adds the look (`lookPlan`) as `@remotion/effects` passes on every video: `colorCorrection` (contrast, saturation, warmth), `vignette`, `noise` (grain, re-rolled every other frame), `chromaticAberration`, `scanlines`; these run in the Player and in the browser render alike;
 - draws letterbox bars, the progress bar, the lower third (`tag`, `pill` or `bar` in the theme's accent), the camcorder corner (REC and the running time, never an invented date), the brand mark in the watermark slot when one is given;
 - animates caption pages per `style.captions.animation` (`none`, `pop`, `rise`, `fade`, `typewriter`, `bounce`) and colours the key word of each page;
-- plays a cut sound on every join when `audio.sfx` is on (`public/studio-sfx/whoosh.m4a`, synthesized with ffmpeg);
+- plays a cut sound on every join when `audio.sfx` is on (`public/editor-sfx/whoosh.m4a`, synthesized with ffmpeg);
 - applies each cut's motion as one CSS transform (`motionAt` + `transformCss`), its speed as constant-rate pieces (`speedPieces`), and the stabilized copy when the cut asks for one and it exists.
 
 The export uses the same composition and the same props builder (`lib/studioClips/renderProps.ts`); `lib/studioClips/parity.test.ts` compares the preview's and the export's plan frame by frame.
