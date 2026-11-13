@@ -7,7 +7,7 @@ A theme is one declarative object that fully describes an edit: typography, colo
 | Path | What |
 | --- | --- |
 | `lib/studioClips/themes/schema.ts` | The `Theme` zod schema (the single source of truth for every field and its bounds), `parseTheme`, `deepMerge`, `deepDiff`, `withOverrides` |
-| `lib/studioClips/themes/*.json` | The eight shipped themes |
+| `lib/studioClips/themes/*.json` | The nine shipped themes; `showroom.json` is the default every new cut gets |
 | `lib/studioClips/themes/index.ts` | The registry (`THEMES`, `themeById`, `isThemeId`) |
 | `lib/studioClips/themes/apply.ts` | `applyTheme`, `setThemeOverride`, `resetToTheme`, `resolveTheme`, `styleFromTheme` |
 | `lib/studioClips/themes/autoEdit.ts` | The edit a theme makes from the raw footage (captions, dead air, hook, B-roll pacing and overlay, beat) |
@@ -91,7 +91,21 @@ The export uses the same composition and the same props builder (`lib/studioClip
 
 A new font needs its face in `public/fonts/editor` (`scripts/fetch-editor-fonts.mjs` adds a family to the manifest) and its id in `FONTS` (`lib/studioClips/style.ts`). A new caption animation is a case in `CaptionPage`; a new overlay is a layer in the composition keyed off a new `layout` field in the schema.
 
+## Showroom, the default
+
+The owner's two rug reels cut by hand (Zein Rugs and Furniture, Nov 2026) are the reference: the footage untouched, hard cuts only, and the words doing the work. `showroom.json` is that look, and `DEFAULT_THEME_ID` points at it, so every cut SOCIA makes (brief, whole video, one clip, opportunity, regenerate) carries it; the Theme strip switches to any other.
+
+- Captions: the `script` caption style (`CAPTION_STYLES`): a phrase of up to five words in a dark pill, each word slamming in as it is said (a spring from 1.55x, white Inter Tight 800), the key word of the phrase a size up in Kaushan Script with a gold gradient and glow. The key word is a marked word when the cut has them, else the last word that is not a small word (`keyWordOf`).
+- Lines: `titleAnimation: "letters"` renders a text line as live type (`KineticLine`): letters rise out of a mask one after another, a gold rule draws under them, a short rise and fade out. Lines keep their slot (top, middle, bottom of the safe zone).
+- Ending: `layout.outro: "lockup"`: the picture dims softly, the ask lands in gold script on a spring, the place in spaced capitals under it.
+- Sound: `audio.pops: true` plays a soft pop (`public/editor-sfx/pop.m4a`, a short sine) as each line and the ending land. No whoosh on cuts.
+- Motion: none (`zoom.kind: "none"`, no punch-ins, no shake, `transition: "cut"`), as the owner asked for both reels.
+- Fonts: `intertight` and `kaushan` (`scripts/fetch-editor-fonts.mjs`, OFL), `typography.scriptFont` names the second face.
+
 ## Decisions made on the way
+
+- The Player draws shots with the browser's video element and the export with `@remotion/media` (`ShotVideo`): the media decoder left every hard cut black for a moment in the Player (bug 37), and the video element buffers during the premount. The grade is a CSS filter in the Player and WebGL in the export; a join's blur is approximated there. What is on screen, when, and the words are the same plan (`parity.test.ts`).
+- In a cut with speech the shots where no one speaks are muted (`lib/studioClips/shotSound.ts`), the way a hand edit lays B-roll in without its sound; the person can turn any shot's sound back on in This cut.
 
 - Fonts are self-hosted woff2 files under the SIL Open Font License, loaded with the FontFace API, instead of `@remotion/google-fonts`, so an export never waits on Google Fonts (the intro film still uses the Google loaders).
 - The watermark slot shows SOCIA's own mark on the SOCIA Brand theme only. An account's logo is not stored anywhere the editor can read yet, so other themes leave the slot empty rather than show a placeholder.

@@ -1,0 +1,86 @@
+{
+  "id": "showroom",
+  "name": "Showroom",
+  "description": "The footage untouched and hard cuts, the words carrying it: a phrase at a time in a dark pill, each word landing as it is said, the key word big in gold script. Lines over the close-ups rise in letter by letter under a gold rule, a soft pop as each lands, and a gold lockup to close. No zooms, no dissolves.",
+  "bestFor": "A shop or showroom: someone talking, then close-ups of the product.",
+  "tags": [
+    "shop",
+    "product",
+    "talking-head",
+    "captions",
+    "gold"
+  ],
+  "sample": {
+    "title": "complete the look",
+    "caption": "it just needs a rug"
+  },
+  "typography": {
+    "font": "intertight",
+    "weight": 800,
+    "sizeScale": 1.1,
+    "letterSpacing": 0,
+    "transform": "none",
+    "captionPosition": "lower",
+    "align": "center",
+    "maxWords": 5,
+    "captionPreset": "script",
+    "captionAnimation": "none",
+    "textBox": "dark",
+    "pill": true,
+    "highlight": "#f2c25b",
+    "titlePreset": "caption_bar",
+    "titleAnimation": "letters",
+    "scriptFont": "kaushan"
+  },
+  "color": {
+    "primary": "#0a0806",
+    "accent": "#f2c25b",
+    "text": "#ffffff",
+    "captionBg": "#0a0806",
+    "grade": {
+      "contrast": 1,
+      "saturation": 1,
+      "warmth": 0,
+      "vignette": 0,
+      "grain": 0,
+      "chroma": 0,
+      "scanlines": 0,
+      "letterbox": 0
+    }
+  },
+  "motion": {
+    "zoom": {
+      "kind": "none",
+      "from": 1,
+      "to": 1,
+      "ease": "inOut"
+    },
+    "punchIn": 0,
+    "shake": 0,
+    "transition": "cut",
+    "transitionFrames": 2,
+    "brollSec": 2.2,
+    "beatSync": false,
+    "alternateZoom": false
+  },
+  "layout": {
+    "lowerThird": "none",
+    "progressBar": false,
+    "watermark": false,
+    "intro": "none",
+    "outro": "lockup",
+    "frame": "none",
+    "dateStamp": false
+  },
+  "audio": {
+    "mood": "none",
+    "duck": 0.3,
+    "sfx": false,
+    "pops": true
+  },
+  "pacing": {
+    "hook": false,
+    "maxClipSec": 8,
+    "silenceSec": 0.7
+  }
+}

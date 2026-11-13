@@ -144,20 +144,20 @@
     "bytes": 9732
   },
   {
-    "id": "instrument",
-    "family": "Instrument Sans",
-    "weight": 600,
+    "id": "intertight",
+    "family": "Inter Tight",
+    "weight": 800,
     "style": "normal",
-    "file": "instrument-600.woff2",
-    "bytes": 11092
+    "file": "intertight-800.woff2",
+    "bytes": 38140
   },
   {
-    "id": "instrument",
-    "family": "Instrument Sans",
-    "weight": 700,
+    "id": "kaushan",
+    "family": "Kaushan Script",
+    "weight": 400,
     "style": "normal",
-    "file": "instrument-700.woff2",
-    "bytes": 11092
+    "file": "kaushan-400.woff2",
+    "bytes": 12872
   },
   {
     "id": "serif",

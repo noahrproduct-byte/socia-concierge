@@ -16,7 +16,7 @@ import { validateEdl, revalidateEdl, guideFromEdl, edlDurationSec, type ClipForE
 import { sanitizeFinish } from "./finish";
 import { applyPacing } from "./pacing";
 import { decideJoins, joinsNote } from "./joins";
-import { endOpeningWithShot, repairCut } from "./cutCheck";
+import { endOpeningWithShot } from "./cutCheck";
 import { pickEmphasis } from "./emphasis";
 import { editSpeech, speechNote } from "./speech";
 import { pickStyle, speechShare, styleNote, styleOf, textForStyle, type EditStyleId, type StylePick } from "./profiles";
@@ -30,6 +30,8 @@ import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { findTakes, takesNote, type Takes } from "./takes";
 import { settleCut } from "./cutCheck";
 import { SHOT_SOUND_NOTE, muteSilentShots, shotSoundNote } from "./shotSound";
+import { applyTheme } from "./themes/apply";
+import { DEFAULT_THEME_ID, themeById } from "./themes";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
 import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
 import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
@@ -440,6 +442,7 @@ export async function manualBuild(client: Supa, args: { ownerId: string; wsId: s
   edl.captions = null;
   edl.cleanSound = true;
   if (!edl.segments.length) throw new Error("These clips are too short to edit.");
+  Object.assign(edl, withDefaultTheme(edl, forEdl, preset?.style));
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: MANUAL_IDX, edl, guide, caption: null, model: "manual", updated_at: now() };
   if (wsId) row.workspace_id = wsId;
@@ -471,6 +474,7 @@ export async function clipBuild(client: Supa, args: { ownerId: string; wsId: str
   edl.captions = clip.transcript?.words?.length ? { source: "transcript" } : null;
   edl.cleanSound = true;
   if (!edl.segments.length) throw new Error("That clip is too short to post.");
+  Object.assign(edl, withDefaultTheme(edl, [toClipForEdl(clip)]));
   const guide = guideFromEdl(edl, [toClipForEdl(clip)]);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: null, model: "manual", updated_at: now() };
   if (wsId) row.workspace_id = wsId;
@@ -551,6 +555,8 @@ export async function regenerateBuild(client: Supa, args: { ownerId: string; wsI
   // cut pauses belonged to the old cut.
   const kept = sanitizeFinish(row.edl.finish, new Set(edl.segments.map((s) => s.clipId)));
   if (kept && (kept.look !== "off" || kept.sound)) edl.finish = { ...kept, pausesCut: null };
+  // The new cut keeps the theme the old one had (or takes the default).
+  Object.assign(edl, withDefaultTheme(edl, forEdl, null, row.edl.theme?.id));
   const guide = guideFromEdl(edl, forEdl);
   const history = [...(row.edl_history ?? []), row.edl].slice(-HISTORY_MAX);
   const patch: Record<string, unknown> = { edl, edl_history: history, guide, caption: edl.caption || null, model, updated_at: now() };
@@ -725,6 +731,7 @@ export async function wholeFromBrief(client: Supa, args: { ownerId: string; wsId
   edl.brief = { prompt, reference: null, referenceName: null, ...(args.voiceover ? { voiceover: args.voiceover } : {}) };
   // Music wasn't asked for: SOCIA doesn't add a track on its own to this one.
   if (!music) edl.musicAuto = now();
+  Object.assign(edl, withDefaultTheme(edl, forEdl, preset?.style));
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: null, model: "manual", updated_at: now() };
   if (wsId) row.workspace_id = wsId;
@@ -778,6 +785,7 @@ export async function buildFromBrief(client: Supa, args: {
     if (reference.breakdown.captions && usable.some((r) => r.transcript?.words?.length)) edl.captions = { source: "transcript" };
   }
   edl.brief = brief;
+  Object.assign(edl, withDefaultTheme(edl, forEdl, preset?.style ?? (reference ? edl.style : null)));
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: edl.caption || null, model, updated_at: now() };
   if (wsId) row.workspace_id = wsId;
@@ -875,6 +883,20 @@ function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: 
   return { ...out, notes };
 }
 
+/**
+ * Every new cut carries the default theme (lib/studioClips/themes DEFAULT_THEME_ID): its look, its joins
+ * and its motion, applied the way the editor's Theme strip applies one. A cut made from a brand preset or
+ * a reference video keeps that style on top. Until this (2026-11-13) a cut from a brief had no theme at
+ * all and rendered plain: no caption look, no motion, every join as the model left it.
+ */
+function withDefaultTheme(edl: Edl, forEdl: ClipForEdl[], keepStyle?: EdlStyle | null, themeId?: string | null): Edl {
+  const theme = themeById(themeId ?? edl.theme?.id) ?? themeById(DEFAULT_THEME_ID);
+  if (!theme) return edl;
+  const words = Object.fromEntries(forEdl.map((c) => [c.id, c.words]));
+  const themed = applyTheme(edl, theme, { words });
+  return keepStyle ? { ...themed, style: keepStyle } : themed;
+}
+
 async function edlWithFloor(make: (retry: string | null) => Promise<{ raw: RawEdl; model: string }>, forEdl: ClipForEdl[], footageSec: number, acct: AccountContext, pick: StylePick, asked?: string | null): Promise<{ edl: Edl; model: string }> {
   const first = await make(null);
   let edl = shaped(first.raw, forEdl, acct, asked, pick.id, pick);
@@ -920,6 +942,7 @@ export async function buildOpportunity(client: Supa, args: { ownerId: string; ws
   if (takeLine) edl.notes.push(takeLine);
   edl.style = edl.style ?? CLEAN_STYLE;
   edl.cleanSound = true;
+  Object.assign(edl, withDefaultTheme(edl, forEdl));
   const guide = guideFromEdl(edl, forEdl);
   const row: Record<string, unknown> = { project_id: project.id, user_id: ownerId, opportunity_idx: idx, edl, guide, caption: edl.caption || null, model, updated_at: now() };
   if (wsId) row.workspace_id = wsId;

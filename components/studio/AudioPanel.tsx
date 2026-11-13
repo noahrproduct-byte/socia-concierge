@@ -89,7 +89,9 @@ export default function AudioPanel({ canEdit, current, onUse, fixture }: { canEd
   if (err && !data) return <div className="ov-card st-error"><span className="st-error-ico"><AlertTriangle size={16} /></span><div><b>Audio insights unavailable</b><p>{err}</p></div></div>;
   if (!data) return null;
 
-  const { insights, pending, competitors } = data;
+  // Read defensively: a stale or partial answer never takes the editor down (the lab saw one, 2026-11-13).
+  const { insights, pending = [], competitors = { enabled: false, refreshed: false, accounts: 0 } } = data;
+  if (!insights || !Array.isArray(insights.accounts)) return null;
   const inUse = current != null && current === insights.recommendation;
 
   return (

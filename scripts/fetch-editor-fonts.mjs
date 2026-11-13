@@ -16,6 +16,9 @@ const FAMILIES = {
   nunito: { family: "Nunito", weights: [700, 800] },
   spacemono: { family: "Space Mono", weights: [400, 700] },
   instrument: { family: "Instrument Sans", weights: [600, 700] },
+  // The Showroom theme (lib/studioClips/themes/showroom.json): heavy captions and a brush script for the key word.
+  intertight: { family: "Inter Tight", weights: [800] },
+  kaushan: { family: "Kaushan Script", weights: [400] },
 };
 const ITALIC = { serif: { family: "Instrument Serif", weights: [400], italic: true } };
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";

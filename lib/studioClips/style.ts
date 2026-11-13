@@ -19,6 +19,9 @@ export const FONTS = [
   { id: "nunito", label: "Nunito (rounded)" },
   { id: "spacemono", label: "Space Mono" },
   { id: "instrument", label: "Instrument Sans (SOCIA)" },
+  // The Showroom theme's pair: heavy captions, and a brush script the key word is set in (the rug reels cut by hand, Nov 2026).
+  { id: "intertight", label: "Inter Tight" },
+  { id: "kaushan", label: "Kaushan Script" },
 ] as const;
 export type FontId = (typeof FONTS)[number]["id"];
 
@@ -29,7 +32,7 @@ export type FontId = (typeof FONTS)[number]["id"];
  * The others stay valid only so older cuts keep their look.
  */
 /** Faces the themes bring (lib/studioClips/themes): offered in the editor's font list alongside the CapCut ones. */
-export const THEME_FONTS: readonly FontId[] = ["nunito", "spacemono", "instrument", "playfair"];
+export const THEME_FONTS: readonly FontId[] = ["nunito", "spacemono", "instrument", "playfair", "intertight", "kaushan"];
 export const CAPCUT_FONTS = FONTS.filter((f) => f.id !== "inter" && f.id !== "playfair" && f.id !== "serif" && !THEME_FONTS.includes(f.id));
 
 /** "outline": CapCut's Classic look, white text with a black outline and no box behind it. "none": white text with a soft shadow, the clean look. */
@@ -51,6 +54,8 @@ export const CAPTION_STYLES = [
   { id: "boxed", label: "Boxed", hint: "A filled box slides onto the spoken word.", maxWords: 4, pageMs: 1000, animation: "rise", mark: "box" },
   { id: "vox", label: "Vox", hint: "Lower-left, sentence case, a yellow marker sweeps under each word as it is said.", maxWords: 6, pageMs: 1600, animation: "fade", mark: "marker" },
   { id: "subtitle", label: "Subtitle", hint: "Small, calm, in a soft box. No animation.", maxWords: 7, pageMs: 1800, animation: "none", mark: "none" },
+  // The hand-cut rug reels (Nov 2026): a phrase at a time in a dark pill, each word slamming in as it is said, the key word in gold script.
+  { id: "script", label: "Script key word", hint: "A phrase at a time, each word landing as it is said, the key word big in gold script.", maxWords: 5, pageMs: 1500, animation: "none", mark: "script" },
 ] as const;
 export type CaptionStyleId = (typeof CAPTION_STYLES)[number]["id"];
 /** How a caption page comes in: the style's own, or one set by a theme or the person. */
@@ -80,6 +85,7 @@ export const CAPTION_STYLE_DEFAULTS: Record<CaptionStyleId, { font: FontId; text
   boxed: { font: "poppins", textBox: "none", captions: { position: "bottom", size: "m", box: false, uppercase: false } },
   vox: { font: "inter", textBox: "none", captions: { position: "bottom", size: "m", box: false, uppercase: false } },
   subtitle: { font: "inter", textBox: "dark", captions: { position: "bottom", size: "s", box: true, uppercase: false } },
+  script: { font: "intertight", textBox: "dark", captions: { position: "lower", size: "l", box: true, uppercase: false } },
 };
 
 /** The marker and highlight colour new styles start with: CapCut's yellow. */

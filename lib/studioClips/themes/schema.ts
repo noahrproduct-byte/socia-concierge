@@ -44,7 +44,9 @@ export const themeSchema = z.object({
     /** The look the opening line (the hook) is set in. */
     titlePreset: z.enum(TEXT_PRESET_IDS as [string, ...string[]]),
     /** How text lines come in: a pop, a rise, a wipe from the left, or the soft settle; out is always a short fade. */
-    titleAnimation: z.enum(["pop", "rise", "wipe", "settle"]).default("settle"),
+    titleAnimation: z.enum(["pop", "rise", "wipe", "settle", "letters"]).default("settle"),
+    /** A second face the key word of a caption page is set in (the "script" caption style); absent = the caption face. */
+    scriptFont: z.enum(fontIds).optional(),
   }),
   color: z.object({
     primary: hex,
@@ -95,7 +97,7 @@ export const themeSchema = z.object({
     /** How the opening line is treated: as the hook over the first shot (never a card on its own: house rule). */
     intro: z.enum(["none", "title"]),
     /** The ending: a call-to-action card over the last shot, or nothing. */
-    outro: z.enum(["none", "cta"]),
+    outro: z.enum(["none", "cta", "lockup"]),
     frame: z.enum(["none", "letterbox", "border"]),
     /** A camcorder date stamp in the corner. */
     dateStamp: z.boolean(),
@@ -105,6 +107,8 @@ export const themeSchema = z.object({
     /** How low the music sits under speech, 0 (silent) to 1 (no ducking). */
     duck: unit,
     sfx: z.boolean(),
+    /** A soft pop when a text line or the ending lands (the hand-cut rug reels); off by default. */
+    pops: z.boolean().default(false),
   }),
   pacing: z.object({
     /** Pull the strongest spoken line to the front as a big text hook. */

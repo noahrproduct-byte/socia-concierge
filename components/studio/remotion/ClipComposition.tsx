@@ -92,6 +92,8 @@ const END_SOFTEN_FRAMES = 9;
 /** The cut sound (public/editor-sfx, made with ffmpeg: filtered noise, no recording): half a second, led in by six frames. */
 const SFX_WHOOSH = "/editor-sfx/whoosh.m4a";
 const SFX_FRAMES = 15, SFX_LEAD_FRAMES = 6, SFX_LEVEL = 0.5;
+const SFX_POP = "/editor-sfx/pop.m4a";
+const POP_FRAMES = 8, POP_LEVEL = 0.5;
 
 /** How long before a shot appears the Player starts loading it. */
 const PREMOUNT_FRAMES = 45;
@@ -107,7 +109,7 @@ const outlineWeight = (font: EdlStyle["font"]) => (font === "anton" || font === 
  * so neither path ever paints a fallback face. Only the way in and out is
  * animated here: a fade or a small pop, as the preset says.
  */
-function TextLayer({ line, width, height, font, textBox, accent, animation }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"]; accent: string; /** the theme's entrance; absent = the look's own */ animation?: "pop" | "rise" | "wipe" | "settle" }) {
+function TextLayer({ line, width, height, font, textBox, accent, animation }: { line: EdlText; width: number; height: number; font: FontId; textBox: EdlStyle["textBox"]; accent: string; /** the theme's entrance; absent = the look's own */ animation?: "pop" | "rise" | "wipe" | "settle" | "letters" }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const preset = presetOf(line);
@@ -122,6 +124,8 @@ function TextLayer({ line, width, height, font, textBox, accent, animation }: { 
       .finally(() => continueRender(handle));
     return () => { alive = false; };
   }, [args, line.id]);
+  // The Showroom theme's lines are live type, not an image: letters rise in one by one under a gold rule.
+  if (animation === "letters") return <KineticLine text={line.text} slot={line.slot ?? preset.slot} family={familyFor(font)} accent={accent} width={width} height={height} />;
   if (!src) return null;
   const inF = Math.max(1, Math.round(fps * 0.25)), outF = Math.max(1, Math.round(fps * 0.25));
   const leave = interpolate(frame, [durationInFrames - outF, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
@@ -167,6 +171,42 @@ function TextLayer({ line, width, height, font, textBox, accent, animation }: { 
   );
 }
 
+/**
+ * A line of live type (the Showroom theme, from the hand-cut rug reels): the letters rise out of a
+ * clipping mask one after another on a spring, then a gold rule draws under them; out is a short
+ * rise and fade. Sits in the line's slot of the safe zone, in a dark pill. Everything is frame-driven.
+ */
+function KineticLine({ text, slot, family, accent, width, height }: { text: string; slot: "top" | "middle" | "bottom"; family: string; accent: string; width: number; height: number }) {
+  const frame = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const letters = lines.join(" ").length;
+  const out = interpolate(frame, [durationInFrames - 6, durationInFrames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const ruleAt = letters * 1.2 + 4;
+  const rule = interpolate(frame, [ruleAt, ruleAt + 14], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const z = safeZoneFor(width, height);
+  const top = slot === "top" ? z.y + z.height * 0.06 : slot === "middle" ? z.y + z.height * 0.42 : z.y + z.height * 0.74;
+  const size = Math.round((lines.some((l) => l.length > 16) ? 64 : 78) * (width / 1080));
+  let n = 0;
+  return (
+    <AbsoluteFill style={{ opacity: 1 - out, transform: `translateY(${-out * 40}px)` }}>
+      <div style={{ position: "absolute", top, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ overflow: "hidden", padding: `${Math.round(10 * width / 1080)}px ${Math.round(36 * width / 1080)}px ${Math.round(4 * width / 1080)}px`, borderRadius: Math.round(24 * width / 1080), backgroundColor: "rgba(10,8,6,0.55)", display: "flex", flexDirection: "column", alignItems: "center", maxWidth: "92%" }}>
+          {lines.map((l, li) => (
+            <div key={li} style={{ overflow: "hidden", display: "flex", lineHeight: 1.1, paddingBottom: Math.round(6 * width / 1080), fontFamily: family, fontWeight: 800, fontSize: size, letterSpacing: 1, color: "#fff", textShadow: "0 3px 10px rgba(0,0,0,0.6)", whiteSpace: "pre" }}>
+              {l.split("").map((ch, i) => {
+                const k = spring({ frame: frame - n++ * 1.2, fps, config: { damping: 14, stiffness: 190, mass: 0.7 }, durationInFrames: 16 });
+                return <span key={i} style={{ display: "inline-block", transform: `translateY(${(1 - k) * 110}%)` }}>{ch}</span>;
+              })}
+            </div>
+          ))}
+          <div style={{ height: Math.round(6 * width / 1080), width: `${rule * 100}%`, backgroundImage: `linear-gradient(90deg, ${lighten(accent)} 0%, ${accent} 50%, ${darken(accent)} 100%)`, borderRadius: 3, marginBottom: Math.round(10 * width / 1080) }} />
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
 /** The box a text line occupies in the frame (from the renderer's layout), for the wipe window; the safe zone when unknown. */
 function layout(line: EdlText, width: number, height: number): { x: number; y: number; width: number; height: number } {
   const hit = lastLayouts.get(line.id);
@@ -194,8 +234,9 @@ const endFont = () => ({ fontFamily: familyOf("anton"), waitUntilDone: () => loa
  * the picture readable behind it (the payoff, like the pizza cut into four,
  * stays the last thing seen), and the right side clear of the app's icons.
  */
-function EndCardLayer({ card, width, accent }: { card: EndCard; width: number; /** the theme's accent for the ask; white without a theme */ accent?: string }) {
+function EndCardLayer({ card, width, accent, variant, scriptFamily }: { card: EndCard; width: number; /** the theme's accent for the ask; white without a theme */ accent?: string; /** "lockup": the Showroom ending, the ask in the script face over a soft dim */ variant?: "cta" | "lockup"; scriptFamily?: string }) {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
   const family = endFont().fontFamily;
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -212,6 +253,27 @@ function EndCardLayer({ card, width, accent }: { card: EndCard; width: number; /
     return <div style={{ fontSize: size, lineHeight: 1.12, WebkitTextStroke: `${Math.round((stroke * 2 * width) / 1080)}px #000`, paintOrder: "stroke fill", whiteSpace: "nowrap" }}>{text}</div>;
   };
   if (!ready) return null;
+  if (variant === "lockup") {
+    // The hand-cut rug reels' close: the picture dims softly, the ask lands in gold script on a spring, the place
+    // and the site under it in spaced capitals.
+    const gold = accent ?? "#f2c25b";
+    const dim = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: "clamp" });
+    const cta = spring({ frame: frame - 6, fps, config: { damping: 20, stiffness: 120, mass: 0.9 }, durationInFrames: 22 });
+    const sub = interpolate(frame, [18, 30], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    const px = (n: number) => Math.round((n * width) / 1080);
+    return (
+      <AbsoluteFill>
+        <AbsoluteFill style={{ backgroundImage: "radial-gradient(ellipse 90% 70% at 50% 45%, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.78) 100%)", opacity: dim }} />
+        <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", paddingBottom: "8%" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: px(18), textAlign: "center", opacity: cta, transform: `translateY(${(1 - cta) * 40}px)` }}>
+            <div style={{ fontFamily: scriptFamily ?? family, fontWeight: 400, fontSize: endLineSize(card.cta, scriptFamily ? 104 : 150, width), lineHeight: 1.1, padding: `0 ${px(20)}px`, backgroundImage: `linear-gradient(180deg, ${lighten(gold)} 0%, ${gold} 45%, ${darken(gold)} 100%)`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", filter: "drop-shadow(0 3px 3px rgba(0,0,0,0.6))", whiteSpace: "pre-wrap", maxWidth: "92%" }}>{card.cta}</div>
+            {card.location && <div style={{ fontFamily: family, fontWeight: 400, fontSize: endLineSize(card.location.toUpperCase(), 44, width), letterSpacing: px(6), color: "#fff", textShadow: "0 2px 4px rgba(0,0,0,0.55), 0 8px 24px rgba(0,0,0,0.45)", opacity: sub, textTransform: "uppercase", whiteSpace: "nowrap" }}>{card.location}</div>}
+            {card.site && <div style={{ fontFamily: family, fontWeight: 400, fontSize: endLineSize(card.site, 38, width), letterSpacing: px(3), color: "rgba(255,255,255,0.85)", opacity: sub, whiteSpace: "nowrap" }}>{card.site}</div>}
+          </div>
+        </AbsoluteFill>
+      </AbsoluteFill>
+    );
+  }
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingRight: `${(40 / 1080) * 100}%`, paddingBottom: "30%", opacity: appear, transform: `scale(${pop})` }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: (18 * width) / 1080, fontFamily: family, fontWeight: 400, color: "#fff", textAlign: "center", textShadow: "0 2px 24px rgba(0,0,0,0.55)" }}>
@@ -225,6 +287,19 @@ function EndCardLayer({ card, width, accent }: { card: EndCard; width: number; /
 
 /** A caption word settles in this many frames: from a little big and soft to sharp (measured on Noah's picks, 2026-11-12). */
 const WORD_SETTLE_FRAMES = 5;
+
+/** Words that never carry a line: the key word of a "script" caption page is the last word that is not one of these. */
+const SMALL_WORDS = new Set(["the", "a", "an", "and", "or", "but", "so", "to", "of", "in", "on", "at", "for", "with", "by", "from", "is", "are", "was", "were", "be", "been", "it", "its", "it's", "this", "that", "these", "those", "i", "you", "we", "they", "he", "she", "me", "my", "your", "our", "us", "them", "his", "her", "if", "as", "than", "then", "just", "very", "really", "here", "there", "do", "does", "did", "have", "has", "had", "can", "could", "would", "should", "will", "not", "no", "yes", "up", "out", "how", "what", "huh", "um", "uh", "like"]);
+export function keyWordOf(words: string[]): number {
+  const clean = words.map((w) => w.toLowerCase().replace(/[^\p{L}\p{N}'$%]/gu, ""));
+  for (let i = clean.length - 1; i >= 0; i--) if (clean[i].length >= 3 && !SMALL_WORDS.has(clean[i])) return i;
+  return clean.length ? clean.length - 1 : -1;
+}
+const hexRgb = (hex: string): [number, number, number] => { const h = hex.replace("#", ""); const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h; return [parseInt(v.slice(0, 2), 16) || 0, parseInt(v.slice(2, 4), 16) || 0, parseInt(v.slice(4, 6), 16) || 0]; };
+const mix = (hex: string, to: number, k: number): string => { const [r, g, b] = hexRgb(hex); const m = (c: number) => Math.round(c + (to - c) * k).toString(16).padStart(2, "0"); return `#${m(r)}${m(g)}${m(b)}`; };
+/** A lighter and a darker step of the highlight colour, for the gold's top light and bottom shade. */
+const lighten = (hex: string) => mix(hex, 255, 0.45);
+const darken = (hex: string) => mix(hex, 0, 0.35);
 /** A voiced line fades in and out over this many frames, and keeps this many after its last word, so it never clicks or clips a breath. */
 const VOICE_FADE_FRAMES = 3;
 const VOICE_TAIL_FRAMES = 6;
@@ -236,7 +311,7 @@ const VOICE_TAIL_FRAMES = 6;
  * the page coming in with the style's motion. Everything is driven by the
  * frame, so the Player and the browser render agree.
  */
-export function CaptionPage({ page, style, fontFamily, emphasis, theme, lowerThird }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[]; /** the cut's theme, for its type scale, spacing, alignment and pill colour */ theme?: Theme | null; /** a lower third is on screen: captions keep clear of it */ lowerThird?: boolean }) {
+export function CaptionPage({ page, style, fontFamily, scriptFamily, emphasis, theme, lowerThird }: { page: TikTokPage; style: EdlStyle; fontFamily: string; /** the face the key word of a "script" page is set in; absent = the caption face */ scriptFamily?: string; /** normalised words to colour, one a line at most (lib/clipper/emphasis.ts) */ emphasis?: string[]; /** the cut's theme, for its type scale, spacing, alignment and pill colour */ theme?: Theme | null; /** a lower third is on screen: captions keep clear of it */ lowerThird?: boolean }) {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
@@ -267,7 +342,7 @@ export function CaptionPage({ page, style, fontFamily, emphasis, theme, lowerThi
   let seen = 0;
   const pill = style.captions.box ? (theme ? `${theme.color.captionBg}b8` : "rgba(0,0,0,0.42)") : "transparent";
   // The key word of the line (a marked word, else a number) keeps the highlight colour the whole time the page is up.
-  const keyWord = emphasis?.length ? emphasisIndex(tokens.map((t) => t.text), emphasis) : -1;
+  const keyWord = emphasis?.length ? emphasisIndex(tokens.map((t) => t.text), emphasis) : spec.mark === "script" ? keyWordOf(tokens.map((t) => t.text)) : -1;
   const wordColor = (i: number, fallback: string) => (i === keyWord ? hi : fallback);
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
@@ -291,6 +366,30 @@ export function CaptionPage({ page, style, fontFamily, emphasis, theme, lowerThi
             const start = seen; seen += full.length;
             if (typed <= start) return null;
             const text = typed >= seen ? full : full.slice(0, typed - start);
+            if (spec.mark === "script") {
+              // The hand-cut rug reels: each word slams in (big, a touch of tilt) as it is said and stays; the key
+              // word is set in the script face, in gold, a size up. The pill is laid out for the whole phrase from
+              // the start, so nothing jumps as words land.
+              const since = (nowMs - t.fromMs + 100) / 1000 * fps;
+              const landed = since >= 0;
+              const k = spring({ frame: Math.max(0, since), fps, config: { damping: 14, stiffness: 190, mass: 0.7 }, durationInFrames: 14 });
+              const slam = 1.55 - 0.55 * k;
+              const key = i === keyWord;
+              return (
+                <span
+                  key={`${t.fromMs}-${i}`}
+                  style={{
+                    display: "inline-block", whiteSpace: "pre", visibility: landed ? "visible" : "hidden",
+                    opacity: Math.min(1, Math.max(0, since) / 3),
+                    transform: key ? `scale(${slam}) rotate(${-6 * (1 - k)}deg)` : `scale(${slam}) translateY(${(1 - k) * 10}px)`,
+                    transformOrigin: key ? "center 70%" : "center bottom",
+                    ...(key ? { fontFamily: scriptFamily ?? fontFamily, fontWeight: 400, fontSize: Math.round(l.fontSize * 1.5), lineHeight: 1, padding: "0 0.08em", backgroundImage: `linear-gradient(180deg, ${lighten(hi)} 0%, ${hi} 45%, ${darken(hi)} 100%)`, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", filter: `drop-shadow(0 3px 3px rgba(0,0,0,0.6)) drop-shadow(0 0 22px ${hi}${since < 24 ? "80" : "50"})` } : { color: "#fff" }),
+                  }}
+                >
+                  {text}
+                </span>
+              );
+            }
             if (spec.mark === "marker") {
               // Vox: a highlighter bar grows under the word as it is said and stays.
               return (
@@ -523,6 +622,14 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const bars = letterboxPx(theme?.color.grade, height);
   const hasLowerThird = Boolean(theme && theme.layout.lowerThird !== "none" && edl.lowerThird && (edl.lowerThird.name || edl.lowerThird.line));
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
+  // The theme's second face (the key word of a "script" caption page, the ending's line): loaded with the cut's own.
+  const scriptFont = theme?.typography.scriptFont as FontId | undefined;
+  const scriptFamily = useMemo(() => (scriptFont ? familyFor(scriptFont) : undefined), [scriptFont]);
+  useEffect(() => {
+    if (!scriptFont) return;
+    const handle = delayRender(`font ${scriptFont}`, { timeoutInMilliseconds: 30_000 });
+    loadEditorFont(scriptFont).catch(() => null).finally(() => continueRender(handle));
+  }, [scriptFont]);
   // Captions and the lower third are DOM text: the frame waits for the face so no frame is painted in a fallback.
   useEffect(() => {
     const handle = delayRender(`font ${style.font}`, { timeoutInMilliseconds: 30_000 });
@@ -629,6 +736,12 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           <Audio src={SFX_WHOOSH} volume={SFX_LEVEL} />
         </Sequence>
       ))}
+      {theme?.audio.pops && [...edl.text.filter((t) => t.text.trim()).map((t) => ({ id: t.id, at: secToFrames(t.at) })), ...(card ? [{ id: "ending", at: Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES + 4) }] : [])].map((p) => (
+        // A soft pop as a line or the ending lands (the hand-cut rug reels): a short sine, made with ffmpeg.
+        <Sequence key={`pop-${p.id}`} from={p.at} durationInFrames={POP_FRAMES} name="pop">
+          <Audio src={SFX_POP} volume={POP_LEVEL} />
+        </Sequence>
+      ))}
       {(edl.broll ?? []).map((b) => {
         const src = sources[b.clipId];
         const frames = Math.max(1, secToFrames(b.out - b.in));
@@ -677,12 +790,12 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
-          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} />
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} scriptFamily={scriptFamily} emphasis={emphasis ?? edl.emphasis} theme={theme} lowerThird={hasLowerThird} />
         </Sequence>
       ))}
       {card && (
         <Sequence from={Math.max(0, tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES)} premountFor={PREMOUNT_FRAMES} name="ending">
-          <EndCardLayer card={card} width={width} accent={theme?.color.accent} />
+          <EndCardLayer card={card} width={width} accent={theme?.color.accent} variant={theme?.layout.outro === "lockup" ? "lockup" : "cta"} scriptFamily={scriptFamily} />
         </Sequence>
       )}
       {safeZoneGuide && <SafeZoneLayer width={width} height={height} />}

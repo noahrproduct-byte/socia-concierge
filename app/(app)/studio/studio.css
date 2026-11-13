@@ -1672,3 +1672,16 @@
 .sd-sec-head h3 { margin: 0; font-size: var(--fs-section); line-height: var(--lh-section); font-weight: var(--fw-semibold); color: var(--text-primary); }
 .sd-sec-head small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
 @media (max-width: 960px) { .sd-nav { top: 0; } }
+
+/* The join picker inside the cut inspector: the same tiles, small, in a row (the long per-join list is gone, 2026-11-13). */
+.sd-trans-inline { gap: var(--sp-1); }
+.sd-trans-inline button { padding: 2px var(--sp-1); font-size: var(--fs-meta); }
+.sd-trans-inline .sd-tthumb { width: 2rem; height: 1.25rem; }
+
+/* Settings that stay folded until asked for. */
+.sd-more { border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.sd-more > summary { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-nav); color: var(--ink-2); cursor: pointer; list-style: none; }
+.sd-more > summary::-webkit-details-marker { display: none; }
+.sd-more > summary::before { content: "+ "; color: var(--text-muted); }
+.sd-more[open] > summary::before { content: "\2013  "; }
+.sd-more > div { padding: var(--sp-3); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--sp-2); }

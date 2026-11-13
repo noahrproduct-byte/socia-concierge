@@ -45,7 +45,8 @@ import { bestMomentFor } from "@/lib/studioClips/rank";
 import { readLocalDraft, writeLocalDraft, clearLocalDraft, readLocalExport, writeLocalExport, clearLocalExport, SOURCE_REFRESH_MS } from "@/lib/studioClips/localDraft";
 import ThemesPanel from "./ThemesPanel";
 import EffectsPanel from "./EffectsPanel";
-import type { Theme } from "@/lib/studioClips/themes";
+import { DEFAULT_THEME_ID, themeById, type Theme } from "@/lib/studioClips/themes";
+import { muteSilentShots } from "@/lib/studioClips/shotSound";
 import { applyTheme, resetToTheme, resolveTheme, setThemeOverride } from "@/lib/studioClips/themes/apply";
 import { autoEdit } from "@/lib/studioClips/themes/autoEdit";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
@@ -196,7 +197,16 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       if (!res) { setLoadErr("Couldn't reach SOCIA. Check your connection and try again."); return; }
       if (!res.ok) { if (isPlanError(j)) setPlanError(j); else setLoadErr(j?.error ?? "Couldn't load this build."); return; }
       signedAt.current = Date.now();
-      setData(j); setEdl(j.build.edl);
+      setData(j);
+      // A cut saved before every new cut carried a theme (2026-11-13) opens with the default one applied and its
+      // silent shots quiet, so it looks like the cuts SOCIA makes now; it is saved with the next change.
+      const loaded = j.build.edl as Edl;
+      const theme = !loaded.theme && j.canEdit ? themeById(DEFAULT_THEME_ID) : null;
+      if (theme) {
+        const words = Object.fromEntries((j.sources as BuildSource[]).map((x) => [x.clipId, x.words]));
+        const themed = muteSilentShots(applyTheme(loaded, theme, { words }), words).edl;
+        edlRef.current = themed; setEdl(themed); setDirty(true);
+      } else setEdl(loaded);
       const kept = readLocalDraft(buildId, j.build.edl);
       if (kept) setLocalDraft(kept);
     })();
@@ -1034,7 +1044,9 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                     {k > 0 && (
                       <div className="sd-field">
                         <span>Comes in with</span>
-                        <span className="sd-times">{TRANSITIONS.find((t) => t.id === (cur.transition ?? "cut"))?.label} <button type="button" className="sd-check-go" onClick={() => setPanel("cut")}>Change below</button></span>
+                        <div className="sd-trans sd-trans-inline" role="radiogroup" aria-label={`Transition into cut ${k + 1}`}>
+                          {TRANSITIONS.map((t) => <TransitionOption key={t.id} kind={t.id} label={t.label} on={(cur.transition ?? "cut") === t.id} disabled={locked} onPick={() => setTransition(k, t.id)} />)}
+                        </div>
                       </div>
                     )}
                     <div className="sd-field">
@@ -1097,41 +1109,20 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
               onSources={(patch) => setData((d) => (d ? { ...d, sources: d.sources.map((x) => (patch[x.clipId] ? { ...x, stable: { ...x.stable, ...patch[x.clipId] } } : x)) } : d))}
             />
           )}
-          {(
-            <div className="sd-fx">
-              <div className="ov-card">
-                <b>Every join</b>
-                <small className="sd-fx-note">{theme ? `${theme.name} joins cuts with ${TRANSITIONS.find((t) => t.id === theme.motion.transition)?.label.toLowerCase() ?? "a cut"}, ${theme.motion.transitionFrames} frames long. Change one join below, or all of them here.` : "The join between two cuts. Change one below, or all of them here."}</small>
-                <div className="sd-trans" role="radiogroup" aria-label="Transition for every join">
-                  {TRANSITIONS.map((t) => (
-                    <TransitionOption key={t.id} kind={t.id} label={t.label} on={edl.segments.length > 1 && edl.segments.slice(1).every((x) => (x.transition ?? "cut") === t.id)} disabled={!data.canEdit || busy || edl.segments.length < 2} onPick={() => { setAllTransitions(t.id); if (edl.theme) override({ motion: { transition: t.id } }); }} />
-                  ))}
-                </div>
-                {theme && (
-                  <label className="sd-fx-row"><span>Join length</span><input type="range" min={2} max={24} step={1} value={theme.motion.transitionFrames} disabled={!data.canEdit || busy} onChange={(e) => override({ motion: { transitionFrames: Number(e.target.value) } })} /><em>{theme.motion.transitionFrames} fr</em></label>
-                )}
-                <small className="sd-fx-note">Whip and zoom joins read as an editor&apos;s showreel in the viral-reels study; plain cuts and short fades won on likes everywhere but sports.</small>
+          <details className="sd-more">
+            <summary>Every join at once</summary>
+            <div>
+              <small className="sd-fx-note">{theme ? `${theme.name} joins cuts with ${TRANSITIONS.find((t) => t.id === theme.motion.transition)?.label.toLowerCase() ?? "a cut"}. Set every join here; one join is set on its cut above.` : "The join between two cuts. Set every join here; one join is set on its cut above."}</small>
+              <div className="sd-trans" role="radiogroup" aria-label="Transition for every join">
+                {TRANSITIONS.map((t) => (
+                  <TransitionOption key={t.id} kind={t.id} label={t.label} on={edl.segments.length > 1 && edl.segments.slice(1).every((x) => (x.transition ?? "cut") === t.id)} disabled={!data.canEdit || busy || edl.segments.length < 2} onPick={() => { setAllTransitions(t.id); if (edl.theme) override({ motion: { transition: t.id } }); }} />
+                ))}
               </div>
-              <ol className="sd-cutlist" aria-label="Joins">
-                {edl.segments.map((s2, i) => {
-                  if (i === 0) return null;
-                  const src2 = sources[s2.clipId];
-                  return (
-                    <li key={s2.id} className="sd-join">
-                      <span className="sd-join-head">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL */}
-                        {src2?.thumb ? <img src={src2.thumb} alt="" /> : <span className="sd-ph" />}
-                        <b>Into cut {i + 1}</b><small>{src2 ? clipLabel(src2.position) : "Expired clip"}</small>
-                      </span>
-                      <div className="sd-trans" role="radiogroup" aria-label={`Transition into cut ${i + 1}`}>
-                        {TRANSITIONS.map((t) => <TransitionOption key={t.id} kind={t.id} label={t.label} on={(s2.transition ?? "cut") === t.id} disabled={!data.canEdit || busy} onPick={() => setTransition(i, t.id)} />)}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              {theme && (
+                <label className="sd-fx-row"><span>Join length</span><input type="range" min={2} max={24} step={1} value={theme.motion.transitionFrames} disabled={!data.canEdit || busy} onChange={(e) => override({ motion: { transitionFrames: Number(e.target.value) } })} /><em>{theme.motion.transitionFrames} fr</em></label>
+              )}
             </div>
-          )}
+          </details>
           <SectionHead id="words" title="Words" hint="The lines on the video, the captions, the lower third and the ending." active={section === "words"} />
           {(
             <div className="cbb-text">
