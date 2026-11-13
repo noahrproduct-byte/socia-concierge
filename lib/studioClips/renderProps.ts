@@ -8,4 +8,6 @@ export type RenderInputs = { edl: Edl; sources: Record<string, BuildSource>; mus
 
 export const exportProps = (a: RenderInputs) => ({ edl: a.edl, sources: a.sources, captionsOn: Boolean(a.edl.captions), musicUrl: a.musicUrl, voiceUrls: a.voiceUrls, cleanAudio: a.cleanAudio, watermarkUrl: a.watermarkUrl });
 
-export const previewProps = (a: RenderInputs & { finishOn: boolean; guide: boolean }) => ({ ...exportProps(a), finishOn: a.finishOn, safeZoneGuide: a.guide });
+// `preview` only tells the composition it is in the Player, where shots are drawn with the browser's video
+// element (ClipComposition.tsx ShotVideo); the plan is the same.
+export const previewProps = (a: RenderInputs & { finishOn: boolean; guide: boolean }) => ({ ...exportProps(a), finishOn: a.finishOn, safeZoneGuide: a.guide, preview: true as const });

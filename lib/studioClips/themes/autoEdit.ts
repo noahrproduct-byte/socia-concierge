@@ -18,6 +18,7 @@ import { varyJumpCuts } from "../jumpCuts";
 import { cleanPunches } from "../punch";
 import { findTakes } from "../takes";
 import { settleCut } from "../cutCheck";
+import { muteSilentShots, shotSoundNote } from "../shotSound";
 import type { BrollItem, BuildSource, Edl, EdlSegment, EdlText, TranscriptWord } from "../types";
 import { MIN_CUT_SEC } from "../tracks";
 import { TEXT_PRESETS, fitLine, isTextPresetId, type TextPresetId } from "@/lib/textPresets";
@@ -238,6 +239,9 @@ export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEdit
   const settled = settleCut(out, ctx.clips);
   out = settled.edl;
   if (settled.fixed.length) notes.push(`Checked and fixed: ${settled.fixed.slice(0, 3).join("; ")}${settled.fixed.length > 3 ? ` and ${settled.fixed.length - 3} more` : ""}.`);
+  // The voice carries a cut with speech: shots where no one speaks play without their camera sound (lib/studioClips/shotSound.ts).
+  const quiet = muteSilentShots(out, ctx.words);
+  if (quiet.muted) { out = quiet.edl; notes.push(shotSoundNote(quiet.muted)); }
   const varied = varyJumpCuts(out);
   if (varied.changed) out = varied.edl;
   return { edl: out, notes };

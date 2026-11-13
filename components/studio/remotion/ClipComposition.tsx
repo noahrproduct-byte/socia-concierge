@@ -10,8 +10,9 @@
 // corrections use @remotion/effects' colorCorrection(), a WebGL pass that
 // the Player, the browser render and Safari all support.
 import React, { useEffect, useMemo, useState } from "react";
-import { AbsoluteFill, Img, Sequence, continueRender, delayRender, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, Sequence, Video as Html5Video, continueRender, delayRender, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { Audio, Video } from "@remotion/media";
+import { createContext, useContext } from "react";
 import { colorCorrection } from "@remotion/effects/color-correction";
 import { zoomBlur } from "@remotion/effects/zoom-blur";
 import { blur } from "@remotion/effects/blur";
@@ -20,7 +21,7 @@ import { noise } from "@remotion/effects/noise";
 import { chromaticAberration } from "@remotion/effects/chromatic-aberration";
 import { scanlines } from "@remotion/effects/scanlines";
 import { clipSecAt, motionAt, speedPieces, transformCss } from "@/lib/studioClips/motion";
-import { letterboxPx, lookPlan, type LookStep } from "@/lib/studioClips/look";
+import { letterboxPx, lookCssFilter, lookPlan, type LookStep } from "@/lib/studioClips/look";
 import { resolveTheme } from "@/lib/studioClips/themes/apply";
 import type { Theme } from "@/lib/studioClips/themes/schema";
 import { DEFAULT_STYLE, captionLayout, captionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
@@ -70,7 +71,16 @@ export type ClipCompositionProps = {
   safeZoneGuide?: boolean;
   /** the brand mark for a theme with a watermark slot; absent = the slot stays empty */
   watermarkUrl?: string | null;
+  /**
+   * The Player is showing the cut (renderProps.ts previewProps). Shots are then drawn with the browser's
+   * own video element, which loads and seeks each shot during its premount, so a cut never shows black
+   * while the next shot decodes (bug 37). The export keeps @remotion/media's frame-accurate decoder.
+   */
+  preview?: boolean;
 };
+
+/** Whether this composition is the Player's preview (see ClipCompositionProps.preview). */
+const PreviewCtx = createContext(false);
 
 /** The soundtrack fades in over 0.2 s and out over the last 0.8 s, so it never starts or stops abruptly. */
 const MUSIC_FADE_IN = 6, MUSIC_FADE_OUT = 24;
@@ -349,7 +359,7 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
   theme: Theme | null;
   /** The frame of this cut where it softens behind the ending, when it is the last one and the cut has an ending card. */
   softenFrom?: number;
-  children: (p: { effects: Effects | undefined; frame: number }) => React.ReactNode;
+  children: (p: { effects: Effects | undefined; frame: number; cssFilter?: string }) => React.ReactNode;
 }) {
   const f = useCurrentFrame();
   const { width } = useVideoConfig();
@@ -365,10 +375,12 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
   if (look.zoomBlur > 0.5) fx.push(zoomBlur({ amount: look.zoomBlur, samples: 16 }));
   if (look.blur > 0.5) fx.push(blur({ radius: look.blur, vertical: look.whip ? false : true }));
   if (look.noise > 0) fx.push(noise({ amount: 0.6 * look.noise, seed: f }));
+  // The Player's video element takes no WebGL effects: the grade and a join's blur become a CSS filter there.
+  const cssFilter = [lookCssFilter(theme?.color.grade), look.blur > 0.5 ? `blur(${Math.round(look.blur / 4)}px)` : undefined, look.zoomBlur > 0.5 ? `blur(${Math.round(look.zoomBlur / 8)}px)` : undefined].filter(Boolean).join(" ") || undefined;
   // Behind the ending the picture stays sharp (its last shot is the payoff); only the bottom darkens for the words.
   return (
     <AbsoluteFill style={{ opacity: look.opacity, transform: css.transform, transformOrigin: css.transformOrigin }}>
-      {children({ effects: fx.length ? fx : undefined, frame: f })}
+      {children({ effects: fx.length ? fx : undefined, frame: f, cssFilter })}
       {look.flash > 0 ? <AbsoluteFill style={{ background: "#fff", opacity: look.flash, pointerEvents: "none" }} /> : null}
       {soft > 0 && <AbsoluteFill style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)", opacity: soft }} />}
     </AbsoluteFill>
@@ -376,10 +388,11 @@ function SegmentLayer({ s, index, into, out, effects, theme, softenFrom, childre
 }
 
 /** A clip's picture inside a cut, in constant-rate pieces (a speed ramp is two or three of them). Sound stays on the first child's volume callback. */
-function SegmentVideo({ s, src, effects, volume, muted, objectFit, style }: { s: TimelineSegment; src: string; effects: Effects | undefined; volume: (f: number) => number; muted: boolean; objectFit: "cover" | "fill"; style: React.CSSProperties }) {
+function SegmentVideo({ s, src, effects, cssFilter, volume, muted, objectFit, style }: { s: TimelineSegment; src: string; effects: Effects | undefined; /** the look for the Player's video element (no WebGL there) */ cssFilter?: string; volume: (f: number) => number; muted: boolean; objectFit: "cover" | "fill"; style: React.CSSProperties }) {
+  const preview = useContext(PreviewCtx);
   const pieces = speedPieces(s);
   if (pieces.length === 1 && pieces[0].rate === 1) {
-    return <Video src={src} trimBefore={s.inFrame} durationInFrames={s.durationFrames} effects={effects} volume={volume} muted={muted} objectFit={objectFit} style={style} />;
+    return <ShotVideo preview={preview} src={src} trimBefore={s.inFrame} frames={s.durationFrames} effects={effects} cssFilter={cssFilter} volume={volume} muted={muted} objectFit={objectFit} style={style} />;
   }
   let from = 0;
   return (
@@ -388,12 +401,23 @@ function SegmentVideo({ s, src, effects, volume, muted, objectFit, style }: { s:
         const at = from; from += p.frames;
         return (
           <Sequence key={i} from={at} durationInFrames={p.frames} name={`${p.rate}x`}>
-            <Video src={src} trimBefore={secToFrames(p.in)} durationInFrames={p.frames} playbackRate={p.rate} effects={effects} volume={(f) => volume(at + f)} muted={muted} objectFit={objectFit} style={style} />
+            <ShotVideo preview={preview} src={src} trimBefore={secToFrames(p.in)} frames={p.frames} playbackRate={p.rate} effects={effects} cssFilter={cssFilter} volume={(f) => volume(at + f)} muted={muted} objectFit={objectFit} style={style} />
           </Sequence>
         );
       })}
     </>
   );
+}
+
+/**
+ * One run of a clip at one rate. In the export: @remotion/media's decoder, frame-accurate, with the WebGL look.
+ * In the Player: the browser's video element, which buffers and seeks during the shot's premount so the cut
+ * lands on a drawn frame (the decoder started at the cut and left ~0.4 s of black at every join: bug 37);
+ * the look is a CSS filter there, and playback pauses to buffer rather than skipping.
+ */
+function ShotVideo({ preview, src, trimBefore, frames, playbackRate, effects, cssFilter, volume, muted, objectFit, style }: { preview: boolean; src: string; trimBefore: number; frames: number; playbackRate?: number; effects: Effects | undefined; cssFilter?: string; volume: ((f: number) => number) | number; muted: boolean; objectFit: "cover" | "fill"; style: React.CSSProperties }) {
+  if (!preview) return <Video src={src} trimBefore={trimBefore} durationInFrames={frames} playbackRate={playbackRate} effects={effects} volume={volume} muted={muted} objectFit={objectFit} style={style} />;
+  return <Html5Video src={src} trimBefore={trimBefore} trimAfter={trimBefore + frames} playbackRate={playbackRate} volume={volume} muted={muted} pauseWhenBuffering style={{ ...style, objectFit, filter: cssFilter }} />;
 }
 
 /** A B-roll shot over the picture: in and out over 4 frames, with the theme's look. */
@@ -491,7 +515,7 @@ function Watermark({ url }: { url: string }) {
   return <Img src={url} style={{ position: "absolute", right: width - (zone.x + zone.width), top: zone.y, width: size, height: size, objectFit: "contain", opacity: 0.85 }} pauseWhenLoading />;
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide, watermarkUrl, preview }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   // The cut's theme with the person's overrides (lib/studioClips/themes): the look, the overlays, the caption type.
@@ -546,6 +570,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
   const underVoiceover = (t: number) => (voiceSp.length ? duckLevel(t, voiceSp, UNDER_VOICEOVER) : 1);
 
   return (
+    <PreviewCtx.Provider value={Boolean(preview)}>
     <AbsoluteFill style={{ backgroundColor: "#000", fontFamily }}>
       {tl.segments.map((s, i) => {
         const src = sources[s.clipId];
@@ -568,9 +593,10 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
           <React.Fragment key={s.id}>
             <Sequence from={s.startFrame} durationInFrames={s.durationFrames} premountFor={PREMOUNT_FRAMES} name={`${s.role} · clip ${src.position + 1}`}>
               <SegmentLayer s={s} index={i} into={i ? s.transition : undefined} out={next?.transition} effects={effects[s.clipId]} theme={theme} softenFrom={card && !next ? Math.max(0, s.durationFrames - END_FRAMES) : undefined}>
-                {({ effects: fx, frame: local }) => (
+                {({ effects: fx, frame: local, cssFilter }) => (
                   <SegmentVideo
                     s={s}
+                    cssFilter={cssFilter}
                     // The stabilized copy when the cut asks for one and it has been made (lib/studioClips/stabilize.ts).
                     src={(s.stabilize && src.stable?.[s.stabilize.strength]) || src.url}
                     effects={fx}
@@ -610,7 +636,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
         return (
           <Sequence key={b.id} from={secToFrames(b.at)} durationInFrames={frames} premountFor={PREMOUNT_FRAMES} name={`b-roll · clip ${src.position + 1}`}>
             <BrollLayer frames={frames} theme={theme}>
-              {(fx) => <Video src={src.url} trimBefore={secToFrames(b.in)} durationInFrames={frames} effects={fx} muted volume={0} objectFit={box(b) ? "fill" : "cover"} style={box(b) ?? { width: "100%", height: "100%" }} />}
+              {(fx) => <ShotVideo preview={Boolean(preview)} src={src.url} trimBefore={secToFrames(b.in)} frames={frames} effects={fx} cssFilter={lookCssFilter(theme?.color.grade)} muted volume={0} objectFit={box(b) ? "fill" : "cover"} style={box(b) ?? { width: "100%", height: "100%" }} />}
             </BrollLayer>
           </Sequence>
         );
@@ -661,5 +687,6 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       )}
       {safeZoneGuide && <SafeZoneLayer width={width} height={height} />}
     </AbsoluteFill>
+    </PreviewCtx.Provider>
   );
 };

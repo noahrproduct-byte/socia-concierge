@@ -29,6 +29,7 @@ import { playbookText as nichePlaybookText } from "@/lib/nicheScan/run";
 import { MAX_REGENERATIONS, STUDIO_BUCKET, clipLabel } from "./types";
 import { findTakes, takesNote, type Takes } from "./takes";
 import { settleCut } from "./cutCheck";
+import { SHOT_SOUND_NOTE, muteSilentShots, shotSoundNote } from "./shotSound";
 import { musicPath, sanitizeSoundtrack } from "@/lib/music/taste";
 import { mergeVoiceover, ownsVoicePath, sanitizeVoiceover } from "./voiceover";
 import { briefFloorSec, briefText, fillCut, isBriefIdx, nextBriefIdx, opportunityFromBrief, referenceStyle, titleFor, withBrief, type ReferenceBreakdown } from "./reference";
@@ -856,11 +857,15 @@ function finishCut(edl: Edl, forEdl: ClipForEdl[], asked?: string | null, opts: 
   const repaired = settled.edl, fixed = settled.fixed;
   const { segments, joins } = decideJoins(repaired.segments, forEdl, asked, style.joins);
   let out: Edl = { ...repaired, segments };
+  // In a cut with speech, the shots where no one speaks play without their camera sound (lib/studioClips/shotSound.ts).
+  const quiet = muteSilentShots(out, words);
+  out = quiet.edl;
   // Every run of cuts from one shot alternates its framing, so each cut reads as a new angle (Noah's picks, 2026-11-12).
   out = varyJumpCuts(out).edl;
   const notes = edl.notes.filter((n) => !JOIN_NOTE.test(n));
   const replace = (re: RegExp, line: string) => { if (!line) return; for (let i = notes.length - 1; i >= 0; i--) if (re.test(notes[i])) notes.splice(i, 1); notes.push(line); };
   replace(SPEECH_NOTE, speechNote(spoken.removed));
+  replace(SHOT_SOUND_NOTE, shotSoundNote(quiet.muted));
   const joinLine = joinsNote(joins);
   if (joinLine) notes.push(joinLine);
   // An opening line ends with its shot rather than flashing onto the next one.
