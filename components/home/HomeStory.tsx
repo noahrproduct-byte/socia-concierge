@@ -27,7 +27,7 @@ import { OPEN_PLATFORMS, openPlatformsText } from "@/lib/platformStatus";
 // main), rebuilt in this page's system: the four "problem" mini-charts, the
 // orbit loop, the Ask SOCIA conversation and the before/after comparison.
 // What changed on the way, against docs/design/anti-slop-standard.md:
-// - every number is the example account's (a fictional fitness coach), labelled, with its basis and window
+// - every number is the example account's (a fictional video creator), labelled, with its basis and window
 //   (the live versions used unlabelled figures, "Competitor A/B" and
 //   predicted scores, which are P0);
 // - the conversation appears message by message, never typed out (17.2);
@@ -78,10 +78,10 @@ const POSTED_DAYS = WEEKS.flat().filter((n) => n > 0).length;
 
 /** Four recent posts: views two days after posting, against the median at the same age. */
 const POSTS = [
-  { src: "/landing/creators/fitness-run.jpg", t: "Morning run vlog", x: 0.5 },
-  { src: "/landing/creators/fitness-mealprep.jpg", t: "Meal prep, Sunday", x: 0.8 },
-  { src: "/landing/creators/fitness-squat.jpg", t: "Three squat cues", x: 2.4 },
-  { src: "/landing/creators/fitness-gym.jpg", t: "New gym, first look", x: 0.6 },
+  { src: "/landing/creators/vlog-street.jpg", t: "City walk vlog", x: 0.5 },
+  { src: "/landing/creators/planning-wall.jpg", t: "Planning wall", x: 0.8 },
+  { src: "/landing/creators/lighting.jpg", t: "One-lamp lighting", x: 2.4 },
+  { src: "/landing/creators/talking-camera.jpg", t: "New studio, first look", x: 0.6 },
 ];
 
 /** Story carousels from the three competitors you follow: median interactions per post, last 8 weeks. */
@@ -212,10 +212,10 @@ export function Problem() {
               <div className="hmx-chart">
                 <div className="hmx-legend">
                   <span>
-                    <i className="is-sky" /> Run Club East <b>+{pct(RACE.eastside)}%</b>
+                    <i className="is-sky" /> The Creator Desk <b>+{pct(RACE.eastside)}%</b>
                   </span>
                   <span>
-                    <i className="is-grey" /> Lift With Mia <b>+{pct(RACE.harbor)}%</b>
+                    <i className="is-grey" /> Film With Maya <b>+{pct(RACE.harbor)}%</b>
                   </span>
                   <span>
                     <i className="is-gold" /> You <b>+{pct(RACE.you)}%</b>
@@ -504,7 +504,7 @@ export function AskDemo({ startHref, startLabel }: { startHref: string; startLab
               <div>
                 <small>Observed</small>
                 <p>
-                  Sunday&apos;s squat Reel has 2.4× your median views at the same age. Your posts between 5 and 7 PM get
+                  Sunday&apos;s lighting Reel has 2.4× your median views at the same age. Your posts between 5 and 7 PM get
                   1.6× your median, across 31 posts.
                 </p>
               </div>
@@ -523,11 +523,11 @@ export function AskDemo({ startHref, startLabel }: { startHref: string; startLab
               <small>Suggested update | Friday</small>
               <div>
                 <span>Current</span>
-                <s>Photo: new gym, first look</s>
+                <s>Photo: new studio, first look</s>
               </div>
               <div>
                 <span>New</span>
-                <b>Reel: three cues for a cleaner squat, part 2</b>
+                <b>Reel: light a video with one lamp, part 2</b>
               </div>
             </div>
             <div className={`hmx-chat-foot${on(5)}`}>
@@ -610,7 +610,7 @@ export function Steps() {
             <p>Cut the Reel in Content Studio, schedule it, and its result shapes next week&apos;s plan.</p>
             <div className="hmx-step-vis hmx-flow">
               <div style={{ "--j": 0 } as CSSProperties}>
-                <Image src="/landing/creators/fitness-squat.jpg" alt="" width={96} height={160} sizes="48px" />
+                <Image src="/landing/creators/lighting.jpg" alt="" width={96} height={160} sizes="48px" />
                 <span>First cut</span>
               </div>
               <ArrowRight aria-hidden />
@@ -713,13 +713,15 @@ export function Engine() {
             <ul className="hmx-comps">
               {(
                 [
-                  ["L", "Lift With Mia", "2 posts above twice their median this week", [150, 158, 163, 171, 178, 186, 194, 201]],
-                  ["C", "Coach Dan Moves", "Switched to Reels: 3 this week", [120, 118, 121, 117, 119, 116, 118, 117]],
-                  ["R", "Run Club East", "Story carousels at 1.4× their median", [176, 181, 190, 196, 205, 212, 221, 228]],
+                  ["/landing/avatars/maya.jpg", "Film With Maya", "2 posts above twice their median this week", [150, 158, 163, 171, 178, 186, 194, 201]],
+                  ["/landing/avatars/theo.jpg", "Theo Shoots", "Switched to Reels: 3 this week", [120, 118, 121, 117, 119, 116, 118, 117]],
+                  ["/landing/avatars/creator-desk.jpg", "The Creator Desk", "Story carousels at 1.4× their median", [176, 181, 190, 196, 205, 212, 221, 228]],
                 ] as [string, string, string, number[]][]
-              ).map(([i, n, note, vals]) => (
+              ).map(([avatar, n, note, vals]) => (
                 <li key={n}>
-                  <i>{i}</i>
+                  <i>
+                    <Image src={avatar} alt="" width={64} height={64} sizes="32px" />
+                  </i>
                   <div>
                     <b>{n}</b>
                     <span>{note}</span>
@@ -738,11 +740,11 @@ export function Engine() {
             </header>
             <span className="hmx-next-tag">This week</span>
             <h3>Post a follow-up Reel on Friday at 6:30 PM.</h3>
-            <Image className="hmx-next-img" src="/landing/creators/fitness-squat.jpg" alt="" width={560} height={300} sizes="(max-width: 960px) 100vw, 360px" />
+            <Image className="hmx-next-img" src="/landing/creators/lighting.jpg" alt="" width={560} height={300} sizes="(max-width: 960px) 100vw, 360px" />
             <small>Why it should work</small>
             <ul className="hmx-why">
               <li>
-                <TrendingUp aria-hidden /> Sunday&apos;s squat Reel has 2.4× your median views at the same age.
+                <TrendingUp aria-hidden /> Sunday&apos;s lighting Reel has 2.4× your median views at the same age.
               </li>
               <li>
                 <Clock aria-hidden /> 5 to 7 PM is your best window: 1.6× your median, across 31 posts.
@@ -819,11 +821,11 @@ export function Engine() {
 
 /** Last week's planned posts (19 to 25 October): views seven days after posting against the median at the same age. */
 const LAST_WEEK = [
-  { day: "Mon", t: "What I eat on a rest day", img: "/landing/creators/fitness-mealprep.jpg", f: "Reel", x: 1.3 },
-  { day: "Tue", t: "My weekly training split", img: "/landing/creators/fitness-class.jpg", f: "Carousel", x: 1.1 },
-  { day: "Thu", t: "New gym, first look", img: "/landing/creators/fitness-gym.jpg", f: "Photo", x: 0.8 },
-  { day: "Sat", t: "The park at 7 AM", img: "/landing/creators/fitness-stretch.jpg", f: "Photo", x: 0.6 },
-  { day: "Sun", t: "Three cues for a cleaner squat", img: "/landing/creators/fitness-squat.jpg", f: "Reel", x: 2.4 },
+  { day: "Mon", t: "My editing desk at night", img: "/landing/creators/planning-wall.jpg", f: "Reel", x: 1.3 },
+  { day: "Tue", t: "Filming a week in one day", img: "/landing/creators/studio-film.jpg", f: "Carousel", x: 1.1 },
+  { day: "Thu", t: "New studio, first look", img: "/landing/creators/talking-camera.jpg", f: "Photo", x: 0.8 },
+  { day: "Sat", t: "City walk at 7 AM", img: "/landing/creators/desk-edit.jpg", f: "Photo", x: 0.6 },
+  { day: "Sun", t: "Light a video with one lamp", img: "/landing/creators/lighting.jpg", f: "Reel", x: 2.4 },
 ];
 
 export function Results() {
@@ -873,13 +875,13 @@ export function Results() {
             </div>
             <div className="hmx-res-stat">
               <b>2.4×</b>
-              <span>best post: the squat Reel</span>
+              <span>best post: the lighting Reel</span>
             </div>
             <div className="hmx-res-next">
               <small>What changes this week</small>
               <ul>
                 <li>Reels beat your median again, so this week has three.</li>
-                <li>Photos of the gym stayed below it, so they are out.</li>
+                <li>Photos of the studio stayed below it, so they are out.</li>
                 <li>Sunday&apos;s Reel gets a follow-up on Friday.</li>
               </ul>
             </div>

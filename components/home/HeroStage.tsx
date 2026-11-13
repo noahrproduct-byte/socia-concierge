@@ -15,7 +15,7 @@ import {
 import { WEEK } from "./exampleWeek";
 
 // The hero's background, from Noah's reference (2026-10-27): SOCIA's own
-// screens on the example account (a fictional fitness coach), joined edge to edge with no gap into
+// screens on the example account (a fictional video creator), joined edge to edge with no gap into
 // one closed ring that turns at a constant speed and never stops. Screens come
 // round from the back on the right, pass the front, and circle away to the
 // back on the left, always in the same order (the sequence runs round
@@ -34,7 +34,7 @@ import { WEEK } from "./exampleWeek";
 // labelled on each screen, and the same screens appear, readable and
 // interactive, further down the page.
 
-/** Views per day on the example account, 28 Sep to 27 Oct; Sunday's squat Reel lands on the 25th. */
+/** Views per day on the example account, 28 Sep to 27 Oct; Sunday's lighting Reel lands on the 25th. */
 const VIEWS = [
   1140, 980, 1210, 1065, 1320, 1490, 1180, 1030, 1260, 1105, 1385, 1220, 1560, 1290, 1075, 1340, 1190, 1450,
   1235, 1610, 1380, 1160, 1295, 1420, 1270, 1500, 1330, 2840, 2460, 1720,
@@ -156,10 +156,10 @@ function Audience() {
       </div>
       <span className="hx-label">What lands with them</span>
       <div className="hx-chips">
-        <span>Form tutorials</span>
+        <span>Lighting tips</span>
         <span>Behind the scenes</span>
-        <span>Meal prep</span>
-        <span>Class Q&amp;A</span>
+        <span>Gear</span>
+        <span>Q&amp;A</span>
       </div>
     </Screen>
   );
@@ -167,17 +167,19 @@ function Audience() {
 
 function Competitors() {
   const rows: [string, string, number][] = [
-    ["You", "N", 142],
-    ["Lift With Mia", "L", 201],
-    ["Coach Dan Moves", "C", 117],
-    ["Run Club East", "R", 228],
+    ["You", "/landing/creators/studio-film.jpg", 142],
+    ["Film With Maya", "/landing/avatars/maya.jpg", 201],
+    ["Theo Shoots", "/landing/avatars/theo.jpg", 117],
+    ["The Creator Desk", "/landing/avatars/creator-desk.jpg", 228],
   ];
   return (
     <Screen title="Competitors" chip="Last 30 days">
       <div className="hx-comp">
-        {rows.map(([name, initial, v]) => (
+        {rows.map(([name, avatar, v]) => (
           <div key={name} className={name === "You" ? "is-you" : undefined}>
-            <i>{initial}</i>
+            <i>
+              <Image src={avatar} alt="" width={80} height={80} sizes="40px" loading="eager" />
+            </i>
             <span>{name}</span>
             <span className="hx-track">
               <em style={{ width: `${(v / 228) * 100}%` }} />
@@ -192,7 +194,7 @@ function Competitors() {
 }
 
 function Studio() {
-  const clips = ["/landing/creators/fitness-squat.jpg", "/landing/creators/fitness-gym.jpg", "/landing/creators/fitness-stretch.jpg", "/landing/creators/fitness-run.jpg"];
+  const clips = ["/landing/creators/lighting.jpg", "/landing/creators/talking-camera.jpg", "/landing/creators/desk-edit.jpg", "/landing/creators/vlog-street.jpg"];
   return (
     <Screen title="Content Studio" chip="Build from clips">
       <div className="hx-strip">
@@ -235,7 +237,7 @@ function Ask() {
       <div className="hx-a">
         <i>S</i>
         <p>
-          A follow-up Reel on Friday at 6:30 PM. Sunday&apos;s squat Reel has 2.4× your median views at the same age,
+          A follow-up Reel on Friday at 6:30 PM. Sunday&apos;s lighting Reel has 2.4× your median views at the same age,
           and 5 to 7 PM is your best window.
         </p>
       </div>

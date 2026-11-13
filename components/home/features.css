@@ -28,6 +28,11 @@
 .fx-cat small { font-family: var(--hm-mono); font-size: 11px; color: var(--hm-smoke); }
 .fx-cat span { grid-column: 1 / -1; font-size: var(--hm-fs-label); line-height: 1.35; }
 .fx-cat.is-on { background: var(--hm-card); box-shadow: var(--hm-key); }
+.fx-cat { position: relative; overflow: hidden; }
+/* While the groups play on their own, the chosen tab fills along its bottom edge. */
+.fx-cat-timer { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--hm-ink); transform-origin: left; transform: scaleX(0); animation: fx-timer linear forwards; animation-play-state: paused; }
+.fx.is-auto .fx-cat-timer { animation-play-state: running; }
+@keyframes fx-timer { to { transform: scaleX(1); } }
 .fx-cat.is-on b { font-family: var(--hm-display); font-size: 21px; font-weight: 400; font-style: italic; letter-spacing: 0; line-height: 1.05; }
 .fx-tag { display: inline-block; margin-left: 8px; padding: 1px 6px; border-radius: var(--hm-r-badge); background: var(--hm-badge); box-shadow: var(--hm-border) 0 0 0 1px inset; font-style: normal; font-family: var(--hm-mono); font-size: 10px; font-weight: 500; color: var(--hm-ash); vertical-align: 1px; }
 .fx-tag.is-soon { background: transparent; box-shadow: var(--hm-iron) 0 0 0 1px inset; }
@@ -196,6 +201,7 @@
 .fx-comp { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 .fx-accounts { display: grid; gap: 8px; }
 .fx-accounts .fx-thumb { width: 32px; }
+.fx-acct-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; box-shadow: var(--hm-border) 0 0 0 1px; }
 .fx-vs { font-family: var(--hm-mono); font-size: var(--hm-fs-mono); color: var(--hm-ash); white-space: nowrap; }
 .fx-vs.is-up { color: var(--hm-sky); }
 .fx-copy { display: grid; gap: 10px; padding: 16px; border-radius: 10px; background: var(--hm-canvas); box-shadow: var(--hm-border) 0 0 0 1px inset; }
@@ -326,6 +332,7 @@
   .fx-cat.is-on b { font-size: 18px; }
   .fx-cat.is-on { background: var(--hm-mist); box-shadow: none; }
   .fx-cat.is-on b, .fx-cat.is-on small { color: var(--hm-on-mist); }
+  .fx-cat-timer { background: var(--hm-on-mist); opacity: 0.6; }
   .fx-tag { display: none; }
   .fx-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .fx-rail { position: relative; display: flex; gap: 6px; overflow-x: auto; margin-inline: calc(var(--hm-pad) * -1); padding: 2px var(--hm-pad) 8px; scrollbar-width: none; scroll-snap-type: x proximity; }
