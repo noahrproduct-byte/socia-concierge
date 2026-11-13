@@ -180,7 +180,7 @@ export function captionPages(edl: Edl, words: Record<string, TranscriptWord[] | 
   const pages = starts.flatMap((_, i) => {
     const inShot = captions.filter((c) => shotOf(c.startMs) === i);
     const made = inShot.length ? createTikTokStyleCaptions({ captions: inShot, combineTokensWithinMilliseconds: pageMs }).pages : [];
-    return maxWords > 0 ? made.flatMap((p) => splitCaptionPage(p, maxWords)) : made;
+    return maxWords > 0 ? splitPages(made, maxWords) : made;
   });
   const out: CaptionPageSpan[] = [];
   pages.forEach((page, i) => {

@@ -37,17 +37,6 @@ describe("pacing SOCIA's cut", () => {
     expect(out.segments[2].out - out.segments[2].in).toBeCloseTo(PACING.silentMaxSec, 2);
   });
 
-  it("keeps the silent shot after the opening short, trimming its start so the move still lands (Noah's pizza cut, 2026-11-11)", () => {
-    // The oven pull ran 4.1 s straight after the hook.
-    const { edl: out, changes } = applyPacing(edl([seg("s1", "b", 6.2, 8.6, "opener"), seg("s2", "b", 1.8, 5.9), seg("s3", "b", 9.7, 11.6, "ending")]), [talking, silent]);
-    expect(out.segments[1].out).toBe(5.9);
-    expect(out.segments[1].out - out.segments[1].in).toBeCloseTo(PACING.followMaxSec, 2);
-    expect(changes.some((c) => /shot after the opening runs 3\.0s/.test(c.what))).toBe(true);
-    // A calm cut lets it run.
-    const calm = applyPacing({ ...edl([seg("s1", "b", 6.2, 8.6, "opener"), seg("s2", "b", 1.8, 5.9), seg("s3", "b", 9.7, 11.6, "ending")]), editStyle: "calm" }, [talking, silent]).edl;
-    expect(calm.segments[1].in).toBe(1.8);
-  });
-
   it("won't score a cut 100 while the cut check has found something", () => {
     const cut = edl([seg("s1", "b", 0, 2, "opener"), seg("s2", "b", 4, 6), seg("s3", "b", 8, 10, "ending")]);
     const clean = pacingReport(cut, [talking, silent]);

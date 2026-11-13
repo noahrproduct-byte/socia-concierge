@@ -22,13 +22,11 @@ import { loadFont as loadPlayfair } from "@remotion/google-fonts/PlayfairDisplay
 import { loadFont as loadBebas } from "@remotion/google-fonts/BebasNeue";
 import { loadFont as loadTikTok } from "@remotion/google-fonts/TikTokSans";
 import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
-import { loadFont as loadSerif } from "@remotion/google-fonts/InstrumentSerif";
 import { DEFAULT_STYLE, captionLayout, captionStyle, type EdlStyle, type FontId } from "@/lib/studioClips/style";
 import { presetOf, safeZoneFor } from "@/lib/textPresets";
 import { renderTextLayer } from "@/lib/textRender";
 import type { TikTokPage } from "@remotion/captions";
 import { rankingBox, type RankingOverlay } from "@/lib/clipper/ranking";
-import { emphasisIndex } from "@/lib/clipper/emphasis";
 import { RankingLayer } from "./RankingLayer";
 import type { BuildSource, Edl, EdlText, EndCard } from "@/lib/studioClips/types";
 import { END_CARD_SEC, endLineSize } from "@/lib/studioClips/teach";
@@ -44,8 +42,6 @@ import { gainAtDb } from "@/lib/studioClips/sound";
 
 // Inter is the default and loads at once; the others load only when an edit uses them.
 const { fontFamily: interFamily } = loadInter("normal", { weights: ["600", "700"], subsets: ["latin"] });
-// The italic serif the clean captions set their key word in.
-const { fontFamily: serifFamily } = loadSerif("italic", { weights: ["400"], subsets: ["latin"] });
 const FONT_LOADERS: Record<FontId, () => string> = {
   inter: () => interFamily,
   montserrat: () => loadMontserrat("normal", { weights: ["600", "700", "800"], subsets: ["latin"] }).fontFamily,
@@ -192,23 +188,11 @@ function EndCardLayer({ card, width }: { card: EndCard; width: number }) {
   );
 }
 
-const EMPHASIS_COLOR = "#ffd400";
-/** How far every shot pushes in over its length: slow enough to feel like a camera move, never a zoom. */
-const PUSH_IN = 1.035;
 /** A caption word settles in this many frames: from a little big and soft to sharp (measured on Noah's picks, 2026-11-12). */
 const WORD_SETTLE_FRAMES = 5;
 /** A voiced line fades in and out over this many frames, and keeps this many after its last word, so it never clicks or clips a breath. */
 const VOICE_FADE_FRAMES = 3;
 const VOICE_TAIL_FRAMES = 6;
-/** Words on screen at once in the clean caption look. */
-const CLEAN_CAPTION_WORDS = 3;
-/** The clean look: no outline and no box. Its key word is set bigger rather than yellow. */
-const cleanCaptions = (style: EdlStyle) => style.textBox !== "outline" && !style.captions.box;
-/**
- * The premium captions Noah approved (2026-11-12): the clean look in the Classic caption style builds each
- * line as it is spoken with the key word in the italic serif. Any other caption style draws its own way.
- */
-const premiumCaptions = (style: EdlStyle) => cleanCaptions(style) && captionStyle(style.captions.preset).id === "classic";
 
 /**
  * One caption page in the cut's caption style (lib/studioClips/style.ts
@@ -217,7 +201,7 @@ const premiumCaptions = (style: EdlStyle) => cleanCaptions(style) && captionStyl
  * the page coming in with the style's motion. Everything is driven by the
  * frame, so the Player and the browser render agree.
  */
-export function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTokPage; style: EdlStyle; fontFamily: string; emphasis?: string[] }) {
+export function CaptionPage({ page, style, fontFamily }: { page: TikTokPage; style: EdlStyle; fontFamily: string }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const nowMs = page.startMs + (frame / fps) * 1000;
@@ -226,20 +210,17 @@ export function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTo
   // One word at a time reads at half again the size.
   const l = spec.maxWords === 1 ? { ...base, fontSize: Math.round(base.fontSize * 1.5) } : base;
   const outline = style.textBox === "outline";
-  const clean = premiumCaptions(style);
-  const tokens = page.tokens.filter((t) => t.text.trim());
-  const marked = emphasis ? emphasisIndex(tokens.map((t) => t.text), emphasis) : -1;
   const hi = style.captions.highlight;
   const vox = spec.id === "vox";
   // The page's entrance: a spring pop, a short rise, a fade, or nothing.
   const enter = spring({ frame, fps, config: { damping: 14, stiffness: 220, mass: 0.6 }, durationInFrames: 10 });
   const pageStyle: React.CSSProperties =
-    clean ? {}
-    : spec.animation === "pop" ? { transform: `scale(${interpolate(enter, [0, 1], [0.6, 1])})`, opacity: Math.min(1, frame / 2) }
+    spec.animation === "pop" ? { transform: `scale(${interpolate(enter, [0, 1], [0.6, 1])})`, opacity: Math.min(1, frame / 2) }
     : spec.animation === "rise" ? { transform: `translateY(${interpolate(enter, [0, 1], [18, 0])}px)`, opacity: Math.min(1, frame / 3) }
     : spec.animation === "fade" ? { opacity: Math.min(1, frame / 4) }
     : {};
   const stroke = outline && !style.captions.box ? { fontWeight: outlineWeight(style.font), WebkitTextStroke: `${Math.max(9, Math.round(l.fontSize * 0.18))}px #000`, paintOrder: "stroke fill" as const } : {};
+  const tokens = page.tokens.filter((t) => t.text.trim());
   return (
     <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center" }}>
       <div style={{ position: "absolute", ...(l.top ? { top: l.top } : { bottom: l.bottom! }), left: vox ? "8%" : "6%", right: vox ? "14%" : "6%", textAlign: vox ? "left" : "center", ...pageStyle }}>
@@ -248,23 +229,12 @@ export function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTo
             display: "inline-block", fontFamily, fontWeight: 700, fontSize: l.fontSize, lineHeight: vox ? 1.35 : 1.2, whiteSpace: "pre-wrap",
             textTransform: style.captions.uppercase ? "uppercase" : "none",
             padding: "10px 18px", borderRadius: 16, backgroundColor: style.captions.box ? "rgba(0,0,0,0.42)" : "transparent",
-            textShadow: style.captions.box || outline ? "none" : clean ? "0 0 4px rgba(0,0,0,0.55), 0 2px 18px rgba(0,0,0,0.75)" : "0 2px 14px rgba(0,0,0,0.8)",
+            textShadow: style.captions.box || outline ? "none" : "0 2px 14px rgba(0,0,0,0.8)",
             ...stroke,
           }}
         >
           {tokens.map((t, i) => {
             const active = t.fromMs <= nowMs && t.toMs > nowMs;
-            if (clean) {
-              // The clean look builds the line as it is spoken: each word arrives on its word, a little big and soft, and
-              // settles sharp in WORD_SETTLE_FRAMES; the key word is set big in the italic serif on its own line.
-              const since = ((nowMs - t.fromMs) / 1000) * fps;
-              if (since < 0) return <span key={`${t.fromMs}-${i}`} style={{ visibility: "hidden" }}>{t.text}</span>;
-              const k = Math.min(1, since / WORD_SETTLE_FRAMES);
-              const ease = 1 - (1 - k) * (1 - k);
-              const settle: React.CSSProperties = { display: "inline-block", opacity: ease, transform: `translateY(${(1 - ease) * 0.14}em) scale(${1 + (1 - ease) * 0.08})`, filter: ease < 1 ? `blur(${(1 - ease) * 6}px)` : undefined };
-              if (i === marked) return <span key={`${t.fromMs}-${i}`} style={{ ...settle, display: "block", fontFamily: serifFamily, fontStyle: "italic", fontWeight: 400, fontSize: "2.7em", lineHeight: 0.95, letterSpacing: "-0.01em", color: "#fff" }}>{t.text}</span>;
-              return <span key={`${t.fromMs}-${i}`} style={{ ...settle, color: "#fff" }}>{t.text}</span>;
-            }
             const spoken = t.toMs <= nowMs;
             // How far the marker or fill has swept across this word, 0..1.
             const sweep = active ? Math.min(1, Math.max(0, (nowMs - t.fromMs) / Math.max(80, t.toMs - t.fromMs))) : spoken ? 1 : 0;
@@ -302,7 +272,7 @@ export function CaptionPage({ page, style, fontFamily, emphasis }: { page: TikTo
               );
             }
             if (spec.mark === "bright") {
-              return <span key={`${t.fromMs}-${i}`} style={{ color: i === marked ? EMPHASIS_COLOR : active ? "#fff" : "rgba(255,255,255,0.72)" }}>{text}</span>;
+              return <span key={`${t.fromMs}-${i}`} style={{ color: active ? "#fff" : "rgba(255,255,255,0.72)" }}>{text}</span>;
             }
             return <span key={`${t.fromMs}-${i}`} style={{ color: "#fff" }}>{text}</span>;
           })}
@@ -328,8 +298,6 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   const f = useCurrentFrame();
   const soft = softenFrom == null ? 0 : interpolate(f, [softenFrom, softenFrom + END_SOFTEN_FRAMES], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const look = transitionLook({ frame: f, frames: s.durationFrames, into, overlapIn: s.overlapIn, out, overlapOut: s.overlapOut });
-  // The camera never stops: every shot pushes in slowly from its first frame to its last (Noah's picks, 2026-11-12).
-  const drift = interpolate(f, [0, Math.max(1, s.durationFrames)], [1, PUSH_IN], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   // Punch-ins: a continuous take steps in and back out where it would have cut (lib/studioClips/punch.ts).
   const punch = s.punches?.length ? punchScaleAt(s, s.in + f / FPS) : 1;
   const fx: Effects = [...(effects ?? [])];
@@ -337,7 +305,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   if (look.blur > 0.5) fx.push(blur({ radius: look.blur, vertical: look.whip ? false : true }));
   // Behind the ending the picture stays sharp (its last shot is the payoff); only the bottom darkens for the words.
   return (
-    <AbsoluteFill style={{ opacity: look.opacity, transform: `translateX(${look.x}%) scale(${look.scale * drift * punch})`, transformOrigin: "50% 45%" }}>
+    <AbsoluteFill style={{ opacity: look.opacity, transform: look.scale !== 1 || look.x !== 0 || punch !== 1 ? `translateX(${look.x}%) scale(${look.scale * punch})` : undefined, transformOrigin: "50% 45%" }}>
       {children({ effects: fx.length ? fx : undefined, frame: f })}
       {look.flash > 0 ? <AbsoluteFill style={{ background: "#fff", opacity: look.flash, pointerEvents: "none" }} /> : null}
       {soft > 0 && <AbsoluteFill style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)", opacity: soft }} />}
@@ -345,7 +313,7 @@ function SegmentLayer({ s, into, out, effects, softenFrom, children }: {
   );
 }
 
-export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, emphasis, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide }) => {
+export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, captionsOn, ranking, captionWords, finishOn, musicUrl, voiceUrls, cleanAudio, safeZoneGuide }) => {
   const { fps, width, height } = useVideoConfig();
   const style = edl.style ?? DEFAULT_STYLE;
   const fontFamily = useMemo(() => familyFor(style.font), [style.font]);
@@ -372,12 +340,10 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
     if (!finish || finish.look === "off") return {} as Record<string, ReturnType<typeof colorCorrection>[]>;
     return Object.fromEntries(Object.entries(finish.grades).map(([id, g]) => [id, [colorCorrection(g.params)]]));
   }, [finish]);
-  // The premium look shows a few words at a time, as the polished Reels do (docs/studio/edit-references.md);
-  // the other caption styles set their own words per page and page length (lib/studioClips/style.ts).
+  // Each caption style sets its own words per page and page length (lib/studioClips/style.ts).
   const capSpec = captionStyle(style.captions.preset);
-  const premium = premiumCaptions(style);
-  const pageWords = captionWords ?? (premium ? CLEAN_CAPTION_WORDS : capSpec.maxWords);
-  const pageMs = premium ? undefined : capSpec.pageMs;
+  const pageWords = captionWords ?? capSpec.maxWords;
+  const pageMs = capSpec.pageMs;
   // One text at a time: the captions step aside while a designed line or the ending card is up.
   const cardFrom = edl.endCard ? tl.durationFrames - END_FRAMES + END_SOFTEN_FRAMES : Infinity;
   const pages = useMemo(() => (captionsOn ? clearOfText(captionPages(edl, words, fps, pageMs, pageWords), edl, fps, cardFrom) : []), [edl, words, captionsOn, fps, pageMs, pageWords, cardFrom]);
@@ -469,7 +435,7 @@ export const ClipComposition: React.FC<ClipCompositionProps> = ({ edl, sources, 
       {ranking && <RankingLayer ranking={ranking} fontFamily={fontFamily} />}
       {pages.map((p, i) => (
         <Sequence key={`c${i}`} from={p.from} durationInFrames={p.durationInFrames} name="captions">
-          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} emphasis={emphasis ?? edl.emphasis} />
+          <CaptionPage page={p.page} style={style} fontFamily={fontFamily} />
         </Sequence>
       ))}
       {card && (
