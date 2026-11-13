@@ -48,6 +48,8 @@ describe("the hook", () => {
     expect(out.segments[0].in).toBeCloseTo(3.12, 2);
     expect(out.segments.map((s) => s.clipId)).toEqual(["talk", "broll1", "talk", "talk", "broll2"]);
     expect(out.text[0]).toMatchObject({ role: "opening", at: 0, text: "We sell two hundred a day", presetId: "hook_title" });
+    // A hook that starts mid-sentence opens with a capital.
+    expect(pullHookToFront(edl, { ...detectHook(edl, words)!, text: "called the agency" }, "hook_title").text[0].text).toBe("Called the agency");
     // The later line moved by the hook's length.
     expect(out.text[1].at).toBeGreaterThan(10);
     // Every piece is a usable cut.
@@ -75,6 +77,8 @@ describe("autoEdit", () => {
   it("the Bold Hook theme captions, trims, hooks and paces; the Talking Head theme overlays", () => {
     const bold = autoEdit(edl, themeById("bold-hook")!, { clips, words });
     expect(bold.edl.captions).toEqual({ source: "transcript" });
+    // Captions a person switched off stay off.
+    expect(autoEdit({ ...edl, captionsOff: true }, themeById("bold-hook")!, { clips, words }).edl.captions).toBeNull();
     expect(bold.edl.segments[0].clipId).toBe("talk");
     expect(bold.notes.join(" ")).toMatch(/dead air/);
     expect(bold.notes.join(" ")).toMatch(/Opens on/);

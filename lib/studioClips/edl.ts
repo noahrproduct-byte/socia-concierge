@@ -318,6 +318,7 @@ export function revalidateEdl(edited: Edl, clips: ClipForEdl[]): { edl: Edl; war
   // while any clip in the cut (or the voiceover) has words to show: a person who turned captions on for a
   // short line or a voiced cut keeps them on every save.
   if (edited.captions === null) r.edl.captions = null;
+  if (edited.captionsOff === true && !edited.captions) r.edl.captionsOff = true;
   else if (edited.captions && !r.edl.captions) {
     const voiced = Boolean(edited.voiceover?.on && edited.voiceover.lines.some((l) => l.words?.length));
     if (voiced || clips.some((c) => c.words?.length && r.edl.segments.some((s) => s.clipId === c.id))) r.edl.captions = { source: "transcript" };

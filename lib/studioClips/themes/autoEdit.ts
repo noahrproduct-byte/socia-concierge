@@ -22,6 +22,8 @@ import { TEXT_PRESETS, fitLine, isTextPresetId, type TextPresetId } from "@/lib/
 import type { Theme } from "./schema";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+/** A line that starts mid-sentence (the clip was cut there) still opens with a capital. */
+const capital = (s: string) => s.replace(/^\s*\p{Ll}/u, (c) => c.toUpperCase());
 /** Air kept either side of a trimmed pause, so words never clip. */
 const AIR_SEC = 0.15;
 /** The most words a hook line may run. */
@@ -115,7 +117,7 @@ export function pullHookToFront(edl: Edl, hook: Hook, titlePreset: TextPresetId)
   if (segments.length >= 3) segments[segments.length - 1] = { ...segments[segments.length - 1], role: "ending" };
   // The opening line: the person's own words stay; otherwise the hook, in the theme's title look.
   const preset = isTextPresetId(titlePreset) ? TEXT_PRESETS[titlePreset] : TEXT_PRESETS.hook_title;
-  const fit = fitLine(hook.text.replace(/[.!]+$/, ""), preset);
+  const fit = fitLine(capital(hook.text.replace(/[.!]+$/, "")), preset);
   const line: EdlText = { id: "thook", at: 0, end: r2(Math.min(b - a + 0.4, 3)), text: fit.text, role: "opening", presetId: fit.preset.id, ...(fit.slot ? { slot: fit.slot } : {}), ...(fit.shortened ? { shortened: true as const } : {}) };
   const hasOpening = edl.text.some((t) => t.role === "opening" && t.text.trim());
   // Text that was timed to the shot that moved keeps its place in output time (the hook is added at 0).
@@ -180,7 +182,7 @@ export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEdit
   const notes: string[] = [];
   let out: Edl = edl;
   const anyWords = out.segments.some((s) => (ctx.words[s.clipId] ?? []).length);
-  if (anyWords && !out.captions) out = { ...out, captions: { source: "transcript" } };
+  if (anyWords && !out.captions && !out.captionsOff) out = { ...out, captions: { source: "transcript" } };
   const dead = trimSilences(out, ctx.words, theme.pacing.silenceSec);
   if (dead.count) { out = dead.edl; notes.push(`${dead.seconds}s of dead air trimmed (${dead.count} pause${dead.count === 1 ? "" : "s"}).`); }
   if (theme.pacing.hook) {
@@ -189,7 +191,7 @@ export function autoEdit(edl: Edl, theme: Theme, ctx: AutoEditContext): AutoEdit
     if (hook && !alreadyFirst) { out = pullHookToFront(out, hook, theme.typography.titlePreset as TextPresetId); notes.push(`Opens on “${hook.text}”.`); }
     else if (hook && !out.text.some((t) => t.role === "opening" && t.text.trim())) {
       const preset = isTextPresetId(theme.typography.titlePreset) ? TEXT_PRESETS[theme.typography.titlePreset] : TEXT_PRESETS.hook_title;
-      const fit = fitLine(hook.text.replace(/[.!]+$/, ""), preset);
+      const fit = fitLine(capital(hook.text.replace(/[.!]+$/, "")), preset);
       out = { ...out, text: [{ id: "thook", at: 0, end: r2(Math.min(hook.end - hook.start + 0.4, 3)), text: fit.text, role: "opening", presetId: fit.preset.id, ...(fit.slot ? { slot: fit.slot } : {}) }, ...out.text] };
     }
   }

@@ -53,6 +53,11 @@ describe("BUG-02 a person's save keeps what the cut had", () => {
     const none = revalidateEdl({ ...edl, segments: [edl.segments[1]], captions: { source: "transcript" } }, [short, silent]).edl;
     expect(none.captions).toBeNull();
   });
+  it("keeps the person's captions-off choice through a save", () => {
+    const edl = cut();
+    expect(revalidateEdl({ ...edl, captions: null, captionsOff: true }, [short, silent]).edl.captionsOff).toBe(true);
+    expect(revalidateEdl({ ...edl, captions: { source: "transcript" } }, [short, silent]).edl.captionsOff).toBeUndefined();
+  });
   it("keeps the output size and fps", () => {
     const edl = cut();
     expect(revalidateEdl({ ...edl, width: 1080, height: 1080 }, [short, silent]).edl).toMatchObject({ width: 1080, height: 1080, fps: OUTPUT.fps });

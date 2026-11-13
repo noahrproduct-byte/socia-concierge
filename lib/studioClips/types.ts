@@ -332,6 +332,8 @@ export type Edl = {
   text: EdlText[];
   /** captions come from the real transcript or not at all */
   captions: { source: "transcript" } | null;
+  /** The person switched captions off themselves: they stay off when words arrive later or a theme is applied. */
+  captionsOff?: true;
   enhance: EdlEnhance[];
   audio: EdlAudio[];
   cta: string | null;

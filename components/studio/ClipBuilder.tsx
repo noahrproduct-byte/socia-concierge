@@ -203,14 +203,16 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     const t = setTimeout(async () => { transcribePolls.current += 1; await refreshSources(); }, 5000);
     return () => clearTimeout(t);
   }, [transcribing, data, refreshSources]);
+  // Words in (at open, or when the transcription lands): captions come on unless the person switched them off.
   const hadWords = useRef<boolean | null>(null);
   useEffect(() => {
     if (!data || fixture) return;
     const has = data.sources.some((x) => x.words?.length);
-    if (hadWords.current === false && has) {
-      setEdl((cur) => (cur && !cur.captions ? { ...cur, captions: { source: "transcript" } } : cur));
-      setDirty(true);
-      setHereNote("The words are in: captions are on from the transcript.");
+    const cur = edlRef.current;
+    if (has && cur && !cur.captions && !cur.captionsOff && cur.segments.some((sg) => data.sources.find((x) => x.clipId === sg.clipId)?.words?.length)) {
+      const next = { ...cur, captions: { source: "transcript" as const } };
+      edlRef.current = next; setEdl(next); setDirty(true);
+      if (hadWords.current === false) setHereNote("The words are in: captions are on from the transcript.");
     }
     hadWords.current = has;
   }, [data, fixture]);
@@ -432,7 +434,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
     setHereNote(`Swapped in ${m.why}`);
   };
   const removeText = (i: number) => { if (!edl) return; commit({ ...edl, text: edl.text.filter((_, k) => k !== i) }); };
-  const toggleCaptions = () => { if (!edl) return; commit({ ...edl, captions: edl.captions ? null : { source: "transcript" } }); };
+  const toggleCaptions = () => {
+    if (!edl) return;
+    const { captionsOff: _off, ...rest } = edl; void _off;
+    commit(edl.captions ? { ...rest, captions: null, captionsOff: true } : { ...rest, captions: { source: "transcript" } });
+  };
   // Highlighted words in the captions (lib/studioClips/emphasis.ts): on picks numbers and names in what is said; off clears them.
   const spokenWords = useMemo(() => Object.fromEntries(Object.values(sources).map((x) => [x.clipId, x.words])), [sources]);
   const highlighted = useMemo(() => (edl?.emphasis?.length ? emphasisLabels(edl, spokenWords, edl.emphasis) : []), [edl, spokenWords]);
