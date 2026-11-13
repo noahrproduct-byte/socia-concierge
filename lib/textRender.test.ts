@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ASPECTS } from "./studioClips/types";
 import { fitMessage, isRtl, layoutTextLayer, normalizeText, wrapParagraph, type Measure } from "./textRender";
-import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, clampWords, fitLine, defaultTiming, frameScale, presetForRole, presetForLine, presetInStyle, asStepLabel, becomesStepLabel, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont } from "./textPresets";
+import { TEXT_PRESETS, TEXT_PRESET_IDS, charCount, clampChars, clampWords, fitLine, defaultTiming, frameScale, presetForRole, presetForLine, presetInStyle, asStepLabel, becomesStepLabel, presetOf, safeZoneFor, type TextPresetId, type TextSlot, presetInFont, readableOn } from "./textPresets";
 import { CAPCUT_FONTS } from "./studioClips/style";
 
 /** A fake canvas: every character is 0.55 em wide (emoji 1 em), whatever the face. */
@@ -259,5 +259,33 @@ describe("layout inside the safe zone", () => {
     expect(b.box.x * 2).toBeCloseTo(a.box.x, -1);
     expect(b.box.y * 2).toBeCloseTo(a.box.y, -1);
     expect(b.fontSize * 2).toBeCloseTo(a.fontSize, 0);
+  });
+});
+
+describe("text backgrounds (BUG-03: the Style tab's boxes draw)", () => {
+  it("dark and light boxes wrap the outlined and shadowed looks, with readable text", () => {
+    const dark = presetInStyle(TEXT_PRESETS.hook_title, "montserrat", "dark");
+    expect(dark.box.kind).toBe("fill");
+    expect(dark.color).toBe("#ffffff");
+    const light = presetInStyle(TEXT_PRESETS.caption_bar, "montserrat", "light");
+    expect(light.box.kind).toBe("fill");
+    expect(light.color).toBe("#000000");
+  });
+  it("the brand colour fills the box and takes over a Label's white box; the text flips to what reads on it", () => {
+    const navy = presetInStyle(TEXT_PRESETS.callout_box, "montserrat", "accent", "#1f2a6b");
+    expect(navy.box.kind === "fill" && navy.box.fill).toBe("#1f2a6b");
+    expect(navy.color).toBe("#ffffff");
+    const yellow = presetInStyle(TEXT_PRESETS.hook_title, "montserrat", "accent", "#ffd400");
+    expect(yellow.color).toBe("#000000");
+    // A bad colour never reaches the canvas.
+    expect(presetInStyle(TEXT_PRESETS.hook_title, "montserrat", "accent", "red").box.kind === "fill" && (presetInStyle(TEXT_PRESETS.hook_title, "montserrat", "accent", "red").box as { fill?: string }).fill).toBe("#5b4bd6");
+  });
+  it("the dark tag keeps its own box under every background", () => {
+    expect(presetInStyle(TEXT_PRESETS.lower_third, "montserrat", "light").box).toEqual(TEXT_PRESETS.lower_third.box);
+  });
+  it("readableOn picks black on light fills and white on dark ones", () => {
+    expect(readableOn("#ffffff")).toBe("#000000");
+    expect(readableOn("#000000")).toBe("#ffffff");
+    expect(readableOn("#5b4bd6")).toBe("#ffffff");
   });
 });

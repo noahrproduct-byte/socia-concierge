@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SHRINK_ABOVE, STORAGE_FILE_LIMIT, shrinkPlan } from "./shrink";
+import { SHRINK_ABOVE, STORAGE_FILE_LIMIT, needsTranscode, shrinkPlan } from "./shrink";
 
 const MB = 1024 * 1024;
 
@@ -26,5 +26,19 @@ describe("shrinkPlan", () => {
   });
   it("says so when a clip is too long to fit at a watchable quality", () => {
     expect(shrinkPlan(2000 * MB, 600, 2160, 3840)).toEqual({ needed: true, possible: false });
+  });
+});
+
+describe("needsTranscode (BUG-12: HEVC converted on the device)", () => {
+  it("names HEVC however the file calls it, and nothing else", () => {
+    expect(needsTranscode("hevc")).toBe(true);
+    expect(needsTranscode("hvc1")).toBe(true);
+    expect(needsTranscode("avc")).toBe(false);
+    expect(needsTranscode(null)).toBe(false);
+  });
+  it("a forced plan converts a small clip without shrinking it", () => {
+    const p = shrinkPlan(10 * 1024 * 1024, 20, 1920, 1080, true);
+    expect(p.needed).toBe(true);
+    expect(p.needed && p.possible && p.width).toBe(1920);
   });
 });
