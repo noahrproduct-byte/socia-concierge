@@ -34,7 +34,7 @@ html[data-intro-playing] .hm-hero { visibility: hidden; }
   transition: opacity 500ms cubic-bezier(0.4, 0, 0.2, 1), transform 700ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .intro-kicker {
-  font-family: var(--font-intro-serif), "Iowan Old Style", Georgia, serif;
+  font-family: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
   font-style: italic;
   font-size: clamp(30px, 4.4vw, 60px);
   line-height: 1;
