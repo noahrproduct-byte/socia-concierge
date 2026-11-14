@@ -18,6 +18,7 @@ import {
   Target,
   MapPin,
   Eye,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ const GROUPS: Group[] = [
     label: "Workspace",
     items: [
       { id: "about", label: "About your account", Icon: Eye },
+      { id: "video-style", label: "Your video style", Icon: Palette },
       { id: "brand", label: "Profile & Brand", Icon: UserRound },
       { id: "place", label: "Your place", Icon: MapPin },
       { id: "growth", label: "Growth Profile", Icon: Target },

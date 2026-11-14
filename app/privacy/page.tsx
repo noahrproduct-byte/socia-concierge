@@ -116,6 +116,16 @@ export default function PrivacyPage() {
           kept.
         </li>
         <li>
+          <b>Your video style</b>: on plans with animated videos, when you ask
+          SOCIA to read your video style it downloads up to eight of your own
+          Reels and up to six public Reels from the competitors you follow,
+          measures their length, cuts and colours on our server, and sends a
+          few frames from each to Anthropic to describe how your videos look
+          and how theirs are built. SOCIA keeps that description and links to
+          the Reels, which you can change in Settings; the video files and
+          frames are deleted as soon as they are measured.
+        </li>
+        <li>
           <b>Comments on your posts</b>: for AI comment replies, we store the
           commenter&apos;s name or username, the comment and the post&apos;s
           caption, alongside the reply SOCIA suggests. Nothing is sent until you
