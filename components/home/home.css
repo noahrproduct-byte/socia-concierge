@@ -320,7 +320,11 @@ html:has(.hm) { background: #f7f6f3; }
 .hm-platform-head svg { width: 22px; height: 22px; }
 .hm-platform p { margin: 0; color: var(--hm-ash); font-size: var(--hm-fs-sm); line-height: 1.5; }
 .hm-platform.is-pending .hm-platform-head { color: var(--hm-ash); }
+.hm-platforms.hm-about { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.hm-platform p a, .hm-about-links a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.hm-about-links { margin: 16px 0 0; }
 @media (max-width: 960px) { .hm-platforms { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 960px) { .hm-platforms.hm-about { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .hm-platforms { grid-template-columns: 1fr; } }
 
 /* AI assistants */

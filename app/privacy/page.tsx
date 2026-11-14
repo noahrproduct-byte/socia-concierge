@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page">
       <h1>Privacy Policy</h1>
-      <p className="legal-date">Last updated: November 12, 2026</p>
+      <p className="legal-date">Last updated: November 14, 2026</p>
 
       <p>
         SOCIA (sociaos.com) is an AI social media strategist operated by SOCIA
@@ -404,7 +404,8 @@ export default function PrivacyPage() {
         , including the Limited Use requirements. Specifically, data obtained
         from your connected YouTube channel is used only to provide and improve
         the analytics and recommendations you see in SOCIA. We do not sell it,
-        we do not use it for advertising, and we do not use it to develop,
+        we do not use it for advertising, we never use it to create sexual or
+        intimate images of anyone, real or AI-generated, and we do not use it to develop,
         improve or train generalized AI or machine-learning models; when it is
         sent to Anthropic to produce your analysis, Anthropic does not train on
         it. We do not transfer it to others except as needed to provide these

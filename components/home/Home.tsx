@@ -150,6 +150,50 @@ export default function Home({ signedIn, intro = false }: { signedIn: boolean; i
           </div>
         </section>
 
+        {/* ---- what SOCIA is, in plain words, and how it uses Google data (Google's branding review asks for both on the homepage) ---- */}
+        <section className="hm-section" id="about" aria-labelledby="hm-about">
+          <div className="hm-wrap">
+            <div className="hm-section-head" data-reveal="children">
+              <span className="hm-eyebrow">What SOCIA is</span>
+              <h2 id="hm-about" className="hm-h2">A social media planner for small businesses and creators.</h2>
+              <p className="hm-lead">
+                SOCIA connects the Instagram, Facebook and YouTube accounts you own, shows how your posts perform,
+                compares them with competitors you choose, and helps you plan, schedule and publish what you post next.
+              </p>
+            </div>
+            <ul className="hm-platforms hm-about" data-reveal="children">
+              <li className="hm-platform">
+                <div className="hm-platform-head">
+                  <PlatformMark platform="youtube" brand />
+                  How SOCIA uses YouTube
+                </div>
+                <p>
+                  When you connect your channel with Google, SOCIA reads your channel details, your videos and your YouTube
+                  Analytics to show your results and suggest what to post. It uploads only the videos you choose to publish.
+                  You can disconnect at any time.
+                </p>
+              </li>
+              <li className="hm-platform">
+                <div className="hm-platform-head">Your Google data stays yours</div>
+                <p>
+                  Data from Google is used only for these features, under Google&apos;s Limited Use rules. It is never sold,
+                  never used for advertising and never used to train AI models.
+                </p>
+              </li>
+              <li className="hm-platform">
+                <div className="hm-platform-head">No intimate imagery</div>
+                <p>
+                  SOCIA never uses Google data to create sexual or intimate images of anyone, real or AI-generated. Its AI
+                  video tools decline those requests, and the <Link href="/terms">terms</Link> forbid using SOCIA for them.
+                </p>
+              </li>
+            </ul>
+            <p className="hm-caption hm-about-links">
+              Details are in the <Link href="/privacy">privacy policy</Link> and the <Link href="/terms">terms of service</Link>.
+            </p>
+          </div>
+        </section>
+
         {/* ---- everything you need: the ten parts of SOCIA, one example window each ---- */}
         <FeatureExplorer signedIn={signedIn} />
 
