@@ -162,6 +162,8 @@ export default async function ContentPlanPage() {
     animatedAllowed: start.animatedAllowed,
     competitors,
     canAddCompetitor: can(ctx, "manage_workspace"),
+    // Whether the person has confirmed what the account is about (Settings, What SOCIA knows about your account).
+    aboutConfirmed: Boolean(brandDetail?.description?.trim() || brandDetail?.formats?.length),
   };
 
   return (

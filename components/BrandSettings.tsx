@@ -20,7 +20,6 @@ export default function BrandSettings({ email, goalsManaged = false }: {
   const [goals, setGoals] = useState("");
   const [website, setWebsite] = useState("");
   const [location, setLocation] = useState("");
-  const [description, setDescription] = useState("");
   const [voice, setVoice] = useState("");
   const [avoid, setAvoid] = useState("");
   const [snapshot, setSnapshot] = useState("");
@@ -29,7 +28,7 @@ export default function BrandSettings({ email, goalsManaged = false }: {
   const [err, setErr] = useState<string | null>(null);
   const [needsMigration, setNeedsMigration] = useState(false);
 
-  const state = JSON.stringify([niche, brand, goals, website, location, description, voice, avoid]);
+  const state = JSON.stringify([niche, brand, goals, website, location, voice, avoid]);
 
   useEffect(() => {
     fetch("/api/profile")
@@ -43,7 +42,6 @@ export default function BrandSettings({ email, goalsManaged = false }: {
         setGoals(p.goals ?? "");
         setWebsite(d.website ?? "");
         setLocation(d.location ?? "");
-        setDescription(d.description ?? "");
         setVoice(d.voice ?? "");
         setAvoid(d.avoid ?? "");
         setSnapshot(
@@ -53,7 +51,6 @@ export default function BrandSettings({ email, goalsManaged = false }: {
             p.goals ?? "",
             d.website ?? "",
             d.location ?? "",
-            d.description ?? "",
             d.voice ?? "",
             d.avoid ?? "",
           ])
@@ -83,7 +80,7 @@ export default function BrandSettings({ email, goalsManaged = false }: {
           niche,
           brand_name: brand,
           ...(goalsManaged ? {} : { goals }),
-          brand_detail: { website, location, description, voice, avoid },
+          brand_detail: { website, location, voice, avoid },
         }),
       });
       const json = await res.json();
@@ -156,15 +153,9 @@ export default function BrandSettings({ email, goalsManaged = false }: {
         </div>
       </div>
 
-      <div className="st2-field st3-wide">
-        <label>Brand description <em>— one or two sentences</em></label>
-        <textarea
-          rows={2}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="What you make, who it's for, what makes it different."
-        />
-      </div>
+      <p className="st2-field st3-wide br-note">
+        What the account is about, and the kinds of video it posts, are under <a href="#about">What SOCIA knows about your account</a>.
+      </p>
 
       <div className="st2-field st3-wide">
         <label>Brand voice <em>— the AI writes hooks in this tone</em></label>

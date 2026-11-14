@@ -9,6 +9,7 @@
 // lib/intel/understandLoad.ts.
 
 import { NICHES } from "../niches";
+import type { VisualRead } from "./reelReadCore";
 import { ACCOUNT_TYPES, MAIN_GOALS, REACH_SCOPES, type AccountType, type MainGoalId, type ReachScope } from "../growth";
 import type { AccountSample, PlatformFacts } from "./accountSample";
 
@@ -28,6 +29,8 @@ export type Understanding = {
   suggested_goal: { goal: MainGoalId; reason: string } | null;
   /** What the sample could not show, in plain words. */
   limitations: string[];
+  /** What SOCIA saw watching the account's own Reels (./reelRead.ts): what it's about, its kinds of video and their look. */
+  visual?: VisualRead | null;
 };
 
 const inferred = (value: Record<string, unknown>) => ({

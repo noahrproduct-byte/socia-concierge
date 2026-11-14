@@ -1,4 +1,5 @@
 import type { AnimatedPref } from "@/lib/animated/fitCore";
+import type { BrandFormat } from "./brandBrief";
 import type { GrowthProfile } from "./growth";
 import type { GrowthStrategy } from "./strategy";
 import type { Place } from "./place";
@@ -22,6 +23,10 @@ export type BrandDetail = {
   /** "Post animated videos": the person's choice, and SOCIA's last scan of whether it suits the account (lib/animated/fit.ts). */
   animated?: AnimatedPref;
   description?: string;
+  /** The kinds of video the account posts, as the person confirmed them from SOCIA's read of its Reels (lib/brandBrief.ts). */
+  formats?: BrandFormat[];
+  /** What the account's videos share (palette, type, logo, characters), as confirmed. */
+  look?: string;
   voice?: string; // Professional | Casual | Bold | Funny | Educational
   avoid?: string; // words/topics the AI must avoid
   strategist?: {

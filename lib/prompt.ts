@@ -4,6 +4,7 @@ import type { GenerateInput } from "./schema";
 import type { BrandDetail } from "./profile";
 import type { Evidence } from "./planEvidence";
 import { FILMING_DIRECTION_RULE, placeLines } from "./place";
+import { MADE_LABEL } from "./intel/reelReadCore";
 
 /** Renders the user's saved brand & strategist settings as prompt context.
  *  Returns "" when nothing is set, so callers can append unconditionally. */
@@ -15,6 +16,11 @@ export function brandContext(brand?: BrandDetail | null): string {
     brand.location ? `Location / market: ${brand.location}` : null,
     brand.website ? `Website: ${brand.website}` : null,
     brand.description ? `About the brand: ${brand.description}` : null,
+    // How the account posts, confirmed by the owner from SOCIA's read of its Reels (lib/brandBrief.ts).
+    brand.formats?.length
+      ? `How the account posts (confirmed by the owner; keep to these kinds of video unless told otherwise):\n${brand.formats.map((f) => `- ${f.name} (${MADE_LABEL[f.made]?.toLowerCase() ?? f.made}): ${f.look}`).join("\n")}`
+      : null,
+    brand.look ? `The account's look: ${brand.look}` : null,
     brand.avoid ? `Words/topics to AVOID (hard rule): ${brand.avoid}` : null,
     s.aggressiveness
       ? `Recommendation appetite: ${s.aggressiveness} (safe = proven plays only; balanced = mostly proven with light experiments; experimental = push bolder, higher-variance ideas)`

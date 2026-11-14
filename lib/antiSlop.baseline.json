@@ -29,7 +29,7 @@
     "app/opengraph-image.tsx": 1,
     "components/AllPlatformsAnalytics.tsx": 5,
     "components/AnalyticsV3.tsx": 11,
-    "components/BrandSettings.tsx": 6,
+    "components/BrandSettings.tsx": 5,
     "components/CalendarBoard.tsx": 1,
     "components/CommentsInbox.tsx": 1,
     "components/ContentLibrary.tsx": 2,

@@ -14,6 +14,7 @@ import type { Evidence } from "./planEvidence";
 import { isMissingColumnError } from "./workspaces";
 import { writeAnimatedPosts } from "./animated/planPosts";
 import { platformName } from "./planItems";
+import { brandLines } from "./brandBrief";
 import { postsStarted, type PlanEvent } from "./planProgress";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,14 +101,19 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   // Animated posts on top of the filmed ones (lib/animated/planPosts.ts): the number chosen for this week
   // (lib/planMix.ts), or, when none was given, the brand's setting of one or two a day.
   if (input.animated != null ? input.animated > 0 : brand?.animated?.on) {
-    const brandLine = [
-      input.clientHandle && `Account: ${input.clientHandle}`,
-      input.niche && `Niche: ${input.niche}`,
-      brand?.description && `About: ${brand.description.slice(0, 500)}`,
-      brand?.location && `Location: ${brand.location.slice(0, 120)}`,
-      brand?.voice && `Voice: ${brand.voice}`,
-      brand?.avoid && `Avoid: ${brand.avoid.slice(0, 200)}`,
-    ].filter(Boolean).join("\n");
+    // Everything the person confirmed about the account: what it is, who it's for, how it posts and its look (lib/brandBrief.ts).
+    const brandLine = brandLines({
+      handle: input.clientHandle,
+      niche: input.niche,
+      description: brand?.description,
+      specific: brand?.growth?.niche_path?.specific,
+      audience: brand?.growth?.audience?.who,
+      formats: brand?.formats,
+      look: brand?.look,
+      voice: brand?.voice,
+      location: brand?.location,
+      avoid: brand?.avoid,
+    }).join("\n");
     onProgress?.({ type: "step", step: "animated", state: "active" });
     const animated = await writeAnimatedPosts({ brand, brandLine, filmed: data.weeklyPlan, platform: platformName(input.platform) ?? undefined, ownerId, count: input.animated });
     if (animated.length) data.weeklyPlan = [...data.weeklyPlan, ...withItemIds(animated)];
