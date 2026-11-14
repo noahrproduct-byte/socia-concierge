@@ -55,7 +55,7 @@ async function cachedIgCompetitors(client: Supa, ownerId: string, handles: strin
   return { competitors: rows.map((r) => ({ handle: r.handle, found: true, displayName: r.display_name, profilePicture: r.profile_picture, media: r.media ?? [] }) as IgCompetitor) };
 }
 
-async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date, cachedOnly = false): Promise<NicheRead | null> {
+async function read(client: Supa, ownerId: string, scopeId: string | null, location: string | null, now: Date, cachedOnly = false, provenMax = 8): Promise<NicheRead | null> {
   const ent = await getEntitlements(client, ownerId);
   if (!canUseFeature(ent, "niche_intelligence")) return null;
   const mine = await ownAccounts(client, ownerId).catch(() => null);
@@ -122,15 +122,15 @@ async function read(client: Supa, ownerId: string, scopeId: string | null, locat
   if (!reels.length) return null;
   const loc = locationTokens(location);
   // Every hook and topic group, not only the six a prompt lists, so each Reel's track record finds its own.
-  return { signals: trendSignals(reels, { loc }), proven: provenReels(reels, { loc, max: 8, signals: trendSignals(reels, { loc, max: 40 }) }) };
+  return { signals: trendSignals(reels, { loc }), proven: provenReels(reels, { loc, max: provenMax, signals: trendSignals(reels, { loc, max: 40 }) }) };
 }
 
 /** The niche's trends for one brand, or null when the plan lacks niche trends, nothing was found, or the read ran out of time. */
-export async function loadNicheRead(client: Supa, ownerId: string, scopeId: string | null, opts: { location?: string | null; now?: Date } = {}): Promise<NicheRead | null> {
+export async function loadNicheRead(client: Supa, ownerId: string, scopeId: string | null, opts: { location?: string | null; now?: Date; provenMax?: number } = {}): Promise<NicheRead | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), READ_BUDGET_MS); });
   try {
-    return await Promise.race([read(client, ownerId, scopeId, opts.location ?? null, opts.now ?? new Date()).catch(() => null), timeout]);
+    return await Promise.race([read(client, ownerId, scopeId, opts.location ?? null, opts.now ?? new Date(), false, opts.provenMax).catch(() => null), timeout]);
   } finally {
     clearTimeout(timer);
   }

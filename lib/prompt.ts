@@ -71,7 +71,7 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   if (strategy) {
     parts.push(`\n# The account's growth strategy (written with SOCIA and kept by the user; build the week from it)`);
     parts.push(strategy);
-    parts.push(`Plan ${brand!.strategy!.frequency.posts_per_week} posts this week, the strategy's pace, even where the general rule says 5 to 7. Spread them across the content pillars, include a running experiment's test when one is due, and say in each post's rationale which pillar or priority it serves. A post that tests a running experiment carries that experiment's id in its experiment field; every other post has an empty experiment field.`);
+    parts.push(`${input.onCamera != null ? "Spread" : `Plan ${brand!.strategy!.frequency.posts_per_week} posts this week, the strategy's pace, even where the general rule says 5 to 7. Spread`} them across the content pillars, include a running experiment's test when one is due, and say in each post's rationale which pillar or priority it serves. A post that tests a running experiment carries that experiment's id in its experiment field; every other post has an empty experiment field.`);
   }
 
   // Real data first, the user's own notes after it. When SOCIA holds nothing,
@@ -140,7 +140,7 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
   if (evidence?.provenBlock) {
     parts.push(`\n# Reels that took off in this niche (build the week on these)`);
     parts.push(evidence.provenBlock);
-    parts.push(`Build every Reel or short video in the week on one of these whenever one fits the account: the same format, hook structure, pacing and angle, remade with this account's own subject, place, footage and words. Put that Reel's id (for example "R2") in the post's "reference" field, and say in its evidence field what the post takes from it. Start with the Reels that have the higher track record (a count, out of 100, of how that Reel and the niche Reels sharing its hook and topic did). Use a different Reel for each post while they last; when there are fewer Reels than posts, or none fits a post, leave that post's "reference" as "". Never reuse the Reel's wording, never cite an id that isn't listed, and never say the post will match the Reel's result: it is another account's number.`);
+    parts.push(`These come from the competitors the account follows and the accounts SOCIA found in its niche, and none of them has been used in an earlier plan. Put them in the week: build the posts on them first, one Reel per post, until the Reels or the posts run out, keeping the same format, hook structure, pacing and angle, remade with this account's own subject, place, footage and words. Put that Reel's id (for example "R2") in the post's "reference" field, and say in its evidence field whose Reel it is and what the post takes from it. Start with the Reels that have the higher track record (a count, out of 100, of how that Reel and the niche Reels sharing its hook and topic did). When a Reel can't be filmed by this account at all, skip it, and leave a post's "reference" as "" when it isn't built on one. Never reuse the Reel's wording, never cite an id that isn't listed, and never say the post will match the Reel's result: it is another account's number.`);
   }
 
   if (evidence?.outcomesBlock) {
@@ -151,8 +151,17 @@ export function buildUserPrompt(input: GenerateInput, brand?: BrandDetail | null
     );
   }
 
+  // The number of filmed posts the person chose (or their last plan's, lib/planMix.ts) beats every general rule above.
+  if (input.onCamera != null) {
+    parts.push(`\n# How many posts this week (chosen by the person; this overrides the 5 to 7 rule and the strategy's pace)`);
+    parts.push(
+      input.onCamera > 0
+        ? `weeklyPlan has exactly ${input.onCamera} post${input.onCamera === 1 ? "" : "s"}, each filmed with the person on camera or filming their own footage.${input.animated ? ` SOCIA adds ${input.animated} animated post${input.animated === 1 ? "" : "s"} separately, so don't write animated or no-filming posts here.` : ""} Keep to the kind of content the account already makes; change it only where the evidence says to, and say so.`
+        : `weeklyPlan is an empty list: this week is ${input.animated ?? 0} animated post${input.animated === 1 ? "" : "s"} only, which SOCIA writes separately. Still give the full audit, fixes and competitor insights.`,
+    );
+  }
   parts.push(
-    `\n# Task\nProduce the full deliverable: a health score with a one-line diagnosis, an honest audit, the account's strengths, its concrete problems (with the evidence and the impact of each), the top 3 fixes ranked by expected impact, competitor insights with the specific gap this account should close, and a 5-7 post plan for the coming week where each post has a written hook and cites its evidence.`,
+    `\n# Task\nProduce the full deliverable: a health score with a one-line diagnosis, an honest audit, the account's strengths, its concrete problems (with the evidence and the impact of each), the top 3 fixes ranked by expected impact, competitor insights with the specific gap this account should close, and ${input.onCamera != null ? `a plan of exactly ${input.onCamera} post${input.onCamera === 1 ? "" : "s"}` : "a 5-7 post plan"} for the coming week where each post has a written hook and cites its evidence.`,
   );
 
   return parts.join("\n");

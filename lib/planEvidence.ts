@@ -310,6 +310,24 @@ export function decisionsBlock(plans: PlanRow[]): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Supa = any;
 
+/** A Reel's address without its query or trailing slash, so the same Reel matches however it was linked. */
+export const reelKey = (url: string) => url.trim().replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+
+/** The Reels earlier plans built a post on (each post's reference). Pure. */
+export function usedReelUrls(plans: { data: unknown }[]): Set<string> {
+  const out = new Set<string>();
+  for (const p of plans) {
+    const items = (p.data as { weeklyPlan?: { ref?: { url?: unknown } }[] } | null)?.weeklyPlan;
+    for (const it of Array.isArray(items) ? items : []) if (typeof it?.ref?.url === "string") out.add(reelKey(it.ref.url));
+  }
+  return out;
+}
+
+/** The Reels not yet used by an earlier plan. Pure. */
+export function unusedReels<T extends { url: string }>(reels: T[], used: Set<string>): T[] {
+  return used.size ? reels.filter((r) => !used.has(reelKey(r.url))) : reels;
+}
+
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
 export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null } = {}): Promise<Evidence> {
@@ -343,21 +361,27 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   } catch { /* none */ }
 
   // The niche's trends read live alongside the stored rows; null off the plan feature or on a slow platform.
-  const trendsP = loadNicheRead(supabase, userId, workspaceId ?? null, { location: opts.location ?? null }).catch(() => null);
+  // Twice as many Reels as a plan shows, so there are still eight once the ones earlier plans used are left out.
+  const trendsP = loadNicheRead(supabase, userId, workspaceId ?? null, { location: opts.location ?? null, provenMax: 16 }).catch(() => null);
   const formats = await activeFindings(supabase, userId, workspaceId, FORMATS_PRODUCER, 5);
   // What goes viral in the niche, from the Reels the niche scan studied (lib/nicheScan).
   const playbook = await playbookTextFor(supabase, userId, workspaceId).catch(() => "");
   let recentPlans: PlanRow[] = [];
+  let usedRefs = new Set<string>();
   try {
+    // The last twelve plans: the latest three for what the person decided, all twelve for the Reels already used.
     const { data } = await scopeToWorkspace(supabase.from("plans").select("created_at, data").eq("user_id", userId), workspaceId)
-      .order("created_at", { ascending: false }).limit(3);
-    recentPlans = (data ?? []) as PlanRow[];
+      .order("created_at", { ascending: false }).limit(12);
+    const rows = (data ?? []) as PlanRow[];
+    recentPlans = rows.slice(0, 3);
+    usedRefs = usedReelUrls(rows);
   } catch { /* none */ }
 
   const postsBlock = ownPostsBlock(media, followers);
   const niche = await trendsP;
   const trends = niche?.signals ?? null;
-  const proven = niche?.proven ?? [];
+  // A competitor's Reel goes into one plan only: Reels an earlier plan already built a post on are left out.
+  const proven = unusedReels(niche?.proven ?? [], usedRefs).slice(0, 8);
   const trendsBlock_ = trendsEvidence(trends);
   const igSnaps = await loadIgSnaps(supabase, userId, [...tracked, ...accounts].filter((x) => x.platform === "instagram" && x.handle).map((x) => x.handle!));
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning, igSnaps);

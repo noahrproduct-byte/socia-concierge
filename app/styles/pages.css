@@ -323,3 +323,16 @@
 .wka-grid li > div:first-child { border-radius: var(--r-card); overflow: hidden; border: 1px solid var(--border); }
 .wka-grid li.is-off > div:first-child { opacity: 0.4; }
 .wka-grid small { color: var(--ink-3); }
+
+/* Content Plan "This week" (components/plan/PlanMixControls.tsx): how many posts of each kind. */
+.cpl-mix { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-3); }
+.cpl-step { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.cpl-step-text { display: flex; flex-direction: column; min-width: 0; }
+.cpl-step-text b { font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); font-weight: var(--fw-semibold); }
+.cpl-step-text small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.cpl-step-ctl { display: inline-flex; align-items: center; gap: var(--sp-2); flex: none; }
+.cpl-step-n { min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; font-size: var(--fs-body); font-weight: var(--fw-semibold); color: var(--ink); }
+.cpl-mix-note { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); }
+.cpl-mix-note a { color: var(--ink); text-decoration: underline; }
+.cpl-note-x { flex: none; background: none; border: 0; padding: 0; color: var(--ink-2); font: inherit; text-decoration: underline; cursor: pointer; }
+.cpl-note-x:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

@@ -197,6 +197,10 @@ export type GenerateInput = {
   /** Audience timing, computed in the browser (viewer's time zone) from the
    *  account's own posts. Optional; empty when there isn't enough data. */
   audienceWindows?: string;
+  /** How many filmed (on-camera) posts this week, from the plan form or the brand's last plan (lib/planMix.ts). Unset: the strategist's own 5 to 7, or the strategy's pace. */
+  onCamera?: number;
+  /** How many animated posts this week (lib/animated/planPosts.ts). Unset: the brand's animated setting. */
+  animated?: number;
 };
 
 /** What a plan was actually built from. Stored with the plan so history is

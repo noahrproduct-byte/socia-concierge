@@ -10,6 +10,8 @@ import { requireUsage } from "@/lib/planGuard";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { competitorScopeId } from "@/lib/workspaces";
 import { recentPlanOutcomes } from "@/lib/planOutcomesLoad";
+import { resolveMix } from "@/lib/planMix";
+import { startingMix } from "@/lib/planMixLoad";
 
 export const runtime = "nodejs";
 // Opus 5.5 thinks before answering; give the request room.
@@ -79,6 +81,17 @@ export async function POST(req: Request) {
     evidence.used.windows = Boolean(input.audienceWindows?.trim());
   } catch {
     // generation still works without settings or evidence
+  }
+
+  // How many filmed and animated posts: what the form sent, made safe, with the
+  // brand's last plan as the fallback (lib/planMix.ts). No animated posts on a
+  // plan without animated videos.
+  try {
+    const start = await startingMix(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, brand);
+    const mix = resolveMix({ onCamera: input.onCamera, animated: input.animated }, start.mix, start.animatedAllowed);
+    input = { ...input, onCamera: mix.onCamera, animated: mix.animated };
+  } catch {
+    input = { ...input, onCamera: undefined, animated: undefined };
   }
 
   // Weekly plans are a Starter feature, and each one counts against the

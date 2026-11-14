@@ -73,17 +73,18 @@ export async function generatePlanData(input: GenerateInput, brand: BrandDetail 
   // A post's "reference" is an id from the Reels the strategist was shown: SOCIA swaps it for that Reel's own link and numbers.
   const proven = evidence?.proven ?? [];
   data.weeklyPlan = withItemIds((data.weeklyPlan ?? []).map((p) => normalizePlanItem({ ...p, ref: pickRef(p.reference, proven) ?? undefined })));
-  // A brand that posts animated videos gets one or two a day on top of the filmed posts (lib/animated/planPosts.ts).
-  if (brand?.animated?.on) {
+  // Animated posts on top of the filmed ones (lib/animated/planPosts.ts): the number chosen for this week
+  // (lib/planMix.ts), or, when none was given, the brand's setting of one or two a day.
+  if (input.animated != null ? input.animated > 0 : brand?.animated?.on) {
     const brandLine = [
       input.clientHandle && `Account: ${input.clientHandle}`,
       input.niche && `Niche: ${input.niche}`,
-      brand.description && `About: ${brand.description.slice(0, 500)}`,
-      brand.location && `Location: ${brand.location.slice(0, 120)}`,
-      brand.voice && `Voice: ${brand.voice}`,
-      brand.avoid && `Avoid: ${brand.avoid.slice(0, 200)}`,
+      brand?.description && `About: ${brand.description.slice(0, 500)}`,
+      brand?.location && `Location: ${brand.location.slice(0, 120)}`,
+      brand?.voice && `Voice: ${brand.voice}`,
+      brand?.avoid && `Avoid: ${brand.avoid.slice(0, 200)}`,
     ].filter(Boolean).join("\n");
-    const animated = await writeAnimatedPosts({ brand, brandLine, filmed: data.weeklyPlan, platform: platformName(input.platform) ?? undefined, ownerId });
+    const animated = await writeAnimatedPosts({ brand, brandLine, filmed: data.weeklyPlan, platform: platformName(input.platform) ?? undefined, ownerId, count: input.animated });
     if (animated.length) data.weeklyPlan = [...data.weeklyPlan, ...withItemIds(animated)];
   }
   // Record what the plan was built from, so the report and history can say so.
