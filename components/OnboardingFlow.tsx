@@ -26,6 +26,7 @@ import ConnectAccounts, { type ConnectState } from "./ConnectAccounts";
 import BrandMark from "./BrandMark";
 import ReadReveal from "./ReadReveal";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
+import BrandRead, { brandReadToSave, seedBrandRead, type BrandReadValue } from "@/components/brand/BrandRead";
 
 /** A platform's ?<key>= return code from its OAuth callback, in words. */
 const RETURN_ERRORS: Record<string, string> = {
@@ -101,6 +102,8 @@ export default function OnboardingFlow({
   const [audience, setAudience] = useState(g0.audience?.who ?? "");
   const [location, setLocation] = useState(d.location ?? "");
   const [mainGoal, setMainGoal] = useState<MainGoalId | "">(g0.main_goal ?? "");
+  // What the account is about and the kinds of video it posts, from watching its Reels; the person confirms or changes it.
+  const [brandRead, setBrandRead] = useState<BrandReadValue>(() => seedBrandRead(g0.understanding?.visual, d));
   const [target, setTarget] = useState("");
   const [due, setDue] = useState("");
 
@@ -153,6 +156,8 @@ export default function OnboardingFlow({
       } else if (j?.understanding) {
         setUnderstanding(j.understanding);
         seedFrom(j.understanding);
+        // A fresh read fills the account section, unless the person already confirmed one.
+        if (!d.description && !d.formats?.length) setBrandRead(seedBrandRead((j.understanding as Understanding).visual, d));
         if ((j.understanding as Understanding).facts?.length) setRevealing(true);
       }
     } catch {
@@ -190,6 +195,7 @@ export default function OnboardingFlow({
       platforms: connected,
       ...(connected.includes("Instagram") ? { account_connected: true } : {}),
       brand_detail: {
+        ...brandReadToSave(brandRead),
         location: location.trim() || undefined,
         growth: {
           account_type: accountType || undefined,
@@ -312,7 +318,7 @@ export default function OnboardingFlow({
           <div className="ob-stage ob-reading" role="status" aria-live="polite">
             <Loader2 size={22} className="spin" aria-hidden />
             <h1 ref={headRef} tabIndex={-1}>Reading your accounts</h1>
-            <p>SOCIA is reading your profile and recent posts on {connected.join(", ")} to work out what the account is about.</p>
+            <p>SOCIA is reading your profile, watching your recent Reels and reading their captions on {connected.join(", ")}, to work out what the account is about and how you post. This takes about a minute.</p>
           </div>
         ) : revealing && u ? (
           <ReadReveal understanding={u} onContinue={() => setRevealing(false)} />
@@ -381,6 +387,7 @@ export default function OnboardingFlow({
                 )}
 
                 <div className="ob-fields">
+                  <BrandRead visual={u?.visual} value={brandRead} onChange={setBrandRead} />
                   <Field label="Account or brand name">
                     <Input maxLength={80} value={brandName} placeholder="@yourhandle or your business name" onChange={(e) => setBrandName(e.target.value)} />
                   </Field>

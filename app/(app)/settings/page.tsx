@@ -19,6 +19,7 @@ import {
 import { getViewer } from "@/lib/supabase/server";
 import PageHeader from "@/components/PageHeader";
 import BrandSettings from "@/components/BrandSettings";
+import BrandReadCard from "@/components/brand/BrandReadCard";
 import StrategistSettings from "@/components/StrategistSettings";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
 import IntelligenceCard, { type IntelState } from "@/components/IntelligenceCard";
@@ -58,7 +59,7 @@ import { listGoals } from "@/lib/growthStore";
 import { recordStartingPoints } from "@/lib/briefingLoad";
 import type { GoalPlatform } from "@/lib/growth";
 import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
-import { Briefcase, MapPin } from "lucide-react";
+import { Briefcase, Eye, MapPin } from "lucide-react";
 import PlaceScan from "@/components/PlaceScan";
 import { offlineFor } from "@/lib/platformAccess";
 import { isAdminEmail } from "@/lib/admin";
@@ -381,6 +382,9 @@ export default async function SettingsPage({
     snap?.last_synced_at && Date.now() - new Date(snap.last_synced_at).getTime() < 12 * 3600_000
   );
 
+  // Fresh covers for the Reels SOCIA read: Instagram's image links expire, the latest sync's don't yet.
+  const reelThumbs: Record<string, string> = Object.fromEntries((snap?.media ?? []).filter((m) => m.id && m.thumbnail_url).map((m) => [m.id!, m.thumbnail_url!]));
+
   return (
     <>
       <div className="st2 st3">
@@ -390,6 +394,16 @@ export default async function SettingsPage({
           <SettingsNav hidden={[...(wsEnabled ? [] : ["workspaces"]), ...(team ? [] : ["team"])]} />
 
           <div className="st3-main">
+            {/* What SOCIA understood from the account's Reels and captions, for the person to confirm. */}
+            <section className="st2-card" id="about">
+              <div className="st2-card-head">
+                <span className="st2-card-ico"><Eye size={15} /></span>
+                <h3>What SOCIA knows about your account</h3>
+                <span className="st2-card-note">Every plan and video is written from this</span>
+              </div>
+              <BrandReadCard initial={brandDetail} thumbs={reelThumbs} canEdit={can(connCtx, "manage_workspace")} connected={Boolean(snap)} />
+            </section>
+
             {/* 1 — Profile & Brand */}
             <section className="st2-card" id="brand">
               <div className="st2-card-head">

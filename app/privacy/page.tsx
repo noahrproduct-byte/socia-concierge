@@ -103,6 +103,15 @@ export default function PrivacyPage() {
           research run replaces the last playbook; cover images are not kept.
         </li>
         <li>
+          <b>Reading your own account</b>: when you set up a brand, and when
+          you ask SOCIA to read your account again, it sends your bio, your
+          recent captions, and the cover and a few frames from up to ten of
+          your own Reels to Anthropic, to describe what the account is about
+          and the kinds of video you post. SOCIA keeps that description, which
+          you can change or remove in Settings; the images and frames are not
+          kept.
+        </li>
+        <li>
           <b>Comments on your posts</b>: for AI comment replies, we store the
           commenter&apos;s name or username, the comment and the post&apos;s
           caption, alongside the reply SOCIA suggests. Nothing is sent until you

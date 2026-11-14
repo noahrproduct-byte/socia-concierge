@@ -16,6 +16,7 @@ import { updateWorkspace } from "../workspaces";
 import type { BrandDetail } from "../profile";
 import type { TtVideo } from "../tiktokAuth";
 import { buildAccountSample, sampleIsEnough } from "./accountSample";
+import { readOwnReels } from "./reelRead";
 import { UNDERSTAND_SYSTEM, normalizeUnderstanding, understandPrompt, understandingSchema, type Understanding } from "./understanding";
 
 export type UnderstandResult =
@@ -85,6 +86,13 @@ export async function runUnderstanding(ctx: Ctx): Promise<UnderstandResult> {
       output_config: { format: { type: "json_schema", schema: understandingSchema }, ...effortFor(MODEL) },
       messages: [{ role: "user", content: understandPrompt(sample) }],
     };
+    // Watching the Reels runs beside the caption read; if it fails, the caption read still stands.
+    const visualP = src.ig
+      ? readOwnReels({ ownerId: ctx.ownerId, handle: src.ig.snap.username, bio: src.ig.snap.biography, media: src.ig.media, now: src.now }).catch((e) => {
+          console.error("[understand] reel read failed:", e instanceof Error ? e.message : e);
+          return null;
+        })
+      : Promise.resolve(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const res = await anthropic.messages.create(params as any);
     recordAiUsage(ctx.ownerId, "account_audit", res);
@@ -101,6 +109,8 @@ export async function runUnderstanding(ctx: Ctx): Promise<UnderstandResult> {
       return { status: "failed", reason: "The analysis came back unreadable. Try again." };
     }
     const u = normalizeUnderstanding(raw, sample.facts, src.now);
+    u.visual = await visualP;
+    if (src.ig && !u.visual) u.limitations = [...u.limitations, "SOCIA couldn't watch your Reels this time, so this is read from captions only."].slice(0, 5);
     if (!(await saveUnderstanding(ctx, u))) return { status: "failed", reason: "Couldn't save the analysis. Try again." };
     return { status: "done", understanding: u };
   } catch (e) {

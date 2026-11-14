@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cleanFormats } from "@/lib/brandBrief";
 import { LIMITS, clipList, firstTooLong, tooLongResponse } from "@/lib/inputLimits";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, type BrandDetail } from "@/lib/profile";
@@ -103,6 +104,9 @@ export async function POST(req: Request) {
     for (const k of ["website", "location", "description", "voice", "avoid"] as const) {
       if (k in sent) filled[k] = typeof sent[k] === "string" ? (sent[k] as string) : undefined;
     }
+    // What the account is and how it posts, confirmed from SOCIA's read of its Reels.
+    if ("look" in sent) filled.look = typeof sent.look === "string" ? sent.look.slice(0, 240) : undefined;
+    if ("formats" in sent) filled.formats = cleanFormats(sent.formats);
     const sentStrategist = sent.strategist && typeof sent.strategist === "object" ? (sent.strategist as Record<string, unknown>) : {};
     const strategist: Record<string, unknown> = {};
     for (const k of ["aggressiveness", "formats", "frequency", "prioritize"]) if (k in sentStrategist) strategist[k] = sentStrategist[k];

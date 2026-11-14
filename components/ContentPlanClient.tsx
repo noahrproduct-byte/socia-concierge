@@ -95,6 +95,8 @@ export type PlanContext = {
   competitors: PlanCompetitor[];
   /** Whether this person may add to the Competitors list (owners and admins). */
   canAddCompetitor: boolean;
+  /** Whether what the account is about has been confirmed; until it is, the form asks for it. */
+  aboutConfirmed?: boolean;
 };
 
 // Soft guidance limits — counters only, never truncation.
@@ -284,6 +286,13 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
         {/* configuration */}
         <section className="cpl-form">
           <small className="cpl-sec">Your account</small>
+          {context.aboutConfirmed === false && (
+            <p className="cpl-fixed cpl-about-ask">
+              <Sparkles size={12} />
+              <span>Check what SOCIA knows about your account first, so the plan is about the right things.</span>
+              <Link href="/settings#about">Check it</Link>
+            </p>
+          )}
 
           <label className="cpl-lab">
             <span>

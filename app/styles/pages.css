@@ -371,3 +371,24 @@
 .cpl-build-step.active .cpl-build-text b, .cpl-build-step.done .cpl-build-text b { color: var(--ink); }
 .cpl-build-text small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
 @media (prefers-reduced-motion: reduce) { .cpl-build-dot.cpl-btn-spin { border-style: dashed; } }
+
+/* What SOCIA knows about the account (components/brand/BrandRead.tsx): confirm or change it. */
+.br { display: flex; flex-direction: column; gap: var(--sp-4); }
+.br-block { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.br-note { margin: 0; font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-2); }
+.br-formats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.br-formats li { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-card); background: var(--surface); }
+.br-formats li.off { background: var(--surface-raised); }
+.br-formats li.off .br-cover { opacity: 0.4; }
+.br-cover { flex: none; width: 54px; height: 96px; border-radius: var(--r-control); object-fit: cover; background: var(--surface-raised); border: 1px solid var(--border); display: block; }
+.br-format-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.br-format-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.br-format-head > .s-input:first-child, .br-format-head > input { flex: 1 1 160px; min-width: 0; }
+.br-made { flex: 0 1 170px; min-width: 0; }
+.br-keep { display: inline-flex; align-items: center; gap: var(--sp-2); flex: none; }
+.br-keep small { font-size: var(--fs-meta); color: var(--ink-2); min-width: 7ch; }
+.br-stats { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.br-card { display: flex; flex-direction: column; gap: var(--sp-3); }
+.br-banner { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-control); background: var(--surface-raised); border: 1px solid var(--border); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.br-reading { display: flex; align-items: center; gap: var(--sp-2); margin: 0; color: var(--ink-2); font-size: var(--fs-body); }
+.br-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }

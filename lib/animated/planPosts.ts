@@ -40,7 +40,8 @@ Write exactly the posts asked for, on the days and slots asked for: a second pos
 Rules:
 - Each idea must work as one of the templates. Prefer compare and counter; use words for tips, myths, opinions and announcements.
 - Different from the filmed posts listed, and from each other. Mix the templates across the week.
-- About the brand's own world: its niche, products, customers and know-how. Never invent the brand's own results, sales, prices, ratings, awards or offers; general facts and clearly typical examples are fine.
+- About the brand's own world, as "What the account is" says: its subject, products, customers and know-how. Never take a topic from a word in the account's name alone (a "beta" app for climbers is about climbing beta, not software testing). When the brand line says nothing about what the account is, keep to what its filmed posts are about.
+- When "How it posts" lists the account's own animated kinds of video, pick ideas those videos would tell: the same subject, characters and stories, in the closest template. Never invent the brand's own results, sales, prices, ratings, awards or offers; general facts and clearly typical examples are fine.
 - title: at most 8 words. hook: the first line a viewer reads, at most 12 words. concept: two or three sentences saying what the video shows and which numbers or points it uses.
 - Sentence case, plain words, no hashtags, emoji or em dashes.`;
 

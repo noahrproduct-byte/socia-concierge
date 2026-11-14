@@ -17,6 +17,7 @@ import {
   Bot,
   Target,
   MapPin,
+  Eye,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ const GROUPS: Group[] = [
   {
     label: "Workspace",
     items: [
+      { id: "about", label: "About your account", Icon: Eye },
       { id: "brand", label: "Profile & Brand", Icon: UserRound },
       { id: "place", label: "Your place", Icon: MapPin },
       { id: "growth", label: "Growth Profile", Icon: Target },
@@ -61,7 +63,7 @@ const GROUPS: Group[] = [
 
 /** `hidden`: sections this page didn't render (workspaces or team not set up), so their links are left out. */
 export default function SettingsNav({ hidden = [] }: { hidden?: string[] }) {
-  const [active, setActive] = useState("brand");
+  const [active, setActive] = useState("about");
   const groups = GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !hidden.includes(i.id)) }));
 
   useEffect(() => {
