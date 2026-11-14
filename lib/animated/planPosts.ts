@@ -88,19 +88,34 @@ export async function writeAnimatedPosts(opts: { brand: BrandDetail | null; bran
   const asked = slots
     ? `Write exactly these ${slots.length} animated post${slots.length === 1 ? "" : "s"}: ${slots.map((s) => `${WEEK[s.weekday]} (slot ${s.slot})`).join(", ")}.`
     : `Write ${perDay === 2 ? "two animated posts for each day, Monday to Sunday (slot 1 and slot 2)" : "one animated post for each day, Monday to Sunday (slot 1)"}.`;
-  const only = slots ? new Set(slots.map((s) => `${WEEK[s.weekday]}${s.slot}`)) : undefined;
   const filmed = opts.filmed.map((p) => `- ${p.day}: ${p.title ?? p.hook}`).join("\n");
-  try {
+  const wanted = slots ? slots.map((s) => `${WEEK[s.weekday]}${s.slot}`) : WEEK.flatMap((d) => (perDay === 2 ? [`${d}1`, `${d}2`] : [`${d}1`]));
+  const call = async (ask: string, only: Set<string>): Promise<PlanItem[]> => {
     const res = await anthropic.messages.create({
       model: MODEL, max_tokens: 6000, system: SYSTEM,
       output_config: { format: { type: "json_schema", schema: SCHEMA }, ...effortFor(MODEL, "low") },
-      messages: [{ role: "user", content: `# Brand\n${opts.brandLine}\n\n# This week's filmed posts\n${filmed || "(none)"}\n\n${asked}` }],
+      messages: [{ role: "user", content: `# Brand\n${opts.brandLine}\n\n# This week's filmed posts\n${filmed || "(none)"}\n\n${ask}` }],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
     recordAiUsage(opts.ownerId, "animated_plan", res);
     const block = res.content.find((b: { type: string }) => b.type === "text");
     const text = block && "text" in block ? (block as { text: string }).text : "";
-    return cleanAnimatedPosts(JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()), perDay, opts.platform, only);
+    const posts = cleanAnimatedPosts(JSON.parse(text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()), perDay, opts.platform, only);
+    if (posts.length < only.size) console.error(`[animated/planPosts] asked for ${only.size}, kept ${posts.length} (stop: ${res.stop_reason})`);
+    return posts;
+  };
+  try {
+    const out = await call(asked, new Set(wanted));
+    // Every post the person asked for: when some days came back empty, ask once more for just those days.
+    const have = new Set(out.map((p) => `${p.day.split(" ")[0]}${p.slot ?? 1}`));
+    const missing = wanted.filter((k) => !have.has(k));
+    if (missing.length) {
+      const names = missing.map((k) => `${k.slice(0, -1)} (slot ${k.slice(-1)})`).join(", ");
+      const done = out.map((p) => `- ${p.day}: ${p.title ?? p.hook}`).join("\n");
+      const more = await call(`These animated posts are already written:\n${done || "(none)"}\n\nWrite exactly these ${missing.length} more, each a different idea from those: ${names}.`, new Set(missing)).catch(() => [] as PlanItem[]);
+      out.push(...more);
+    }
+    return out.sort((a, b) => WEEK.indexOf(a.day.split(" ")[0] as (typeof WEEK)[number]) - WEEK.indexOf(b.day.split(" ")[0] as (typeof WEEK)[number]) || (a.slot ?? 1) - (b.slot ?? 1));
   } catch (e) {
     console.error("[animated/planPosts]", (e as Error)?.message ?? e);
     return [];
