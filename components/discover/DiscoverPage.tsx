@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, Plus, RefreshCw, Users, X } from "lucide-react";
+import { ExternalLink, Loader2, Plus, RefreshCw, Trash2, Users, X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import PlanNotice from "@/components/PlanNotice";
 import AddCompetitor from "@/components/competitors/AddCompetitor";
@@ -39,7 +39,7 @@ function Avatar({ a }: { a: DiscoverAccount }) {
     : <span className="dsc-avatar is-letter" aria-hidden>{letter}</span>;
 }
 
-function AccountCard({ a, action }: { a: DiscoverAccount; action: React.ReactNode }) {
+function AccountCard({ a, action, footer }: { a: DiscoverAccount; action: React.ReactNode; footer?: React.ReactNode }) {
   const followers = a.audience.value;
   const reels = a.posts.filter((p) => p.format === "Reel" || p.format === "Short").length;
   const status = a.posts.length ? null : a.reading ? "Reading this account on Instagram." : a.postsGate ? GATE_WORD[a.postsGate] ?? null : null;
@@ -64,6 +64,7 @@ function AccountCard({ a, action }: { a: DiscoverAccount; action: React.ReactNod
       </div>
       {a.why && !a.posts.length ? <p className="dsc-acct-why">{a.why}</p> : a.why && a.addedBy !== "you" ? <p className="dsc-acct-why">{a.why}</p> : null}
       {status && <p className="dsc-acct-status">{a.reading && <Loader2 size={12} className="cx-spin" aria-hidden />} {status}</p>}
+      {footer}
     </li>
   );
 }
@@ -76,6 +77,8 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [finding, setFinding] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [dropError, setDropError] = useState<{ id: string; text: string } | null>(null);
   const asked = useRef(false);
 
   // One background read per visit for what is missing or old, then the page shows it.
@@ -107,10 +110,18 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
 
   // Removing a competitor, or saying no to a suggestion: either way SOCIA won't suggest it again.
   const drop = useCallback(async (a: DiscoverAccount) => {
-    setBusy(a.id);
+    setBusy(a.id); setDropError(null);
     try {
-      await fetch("/api/competitors", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: a.handle, platform: a.platform }) });
+      const res = await fetch("/api/competitors", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ handle: a.handle, platform: a.platform }) });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setDropError({ id: a.id, text: j.error ?? "Couldn't remove that account. Try again." });
+        return;
+      }
+      setConfirming(null);
       router.refresh();
+    } catch {
+      setDropError({ id: a.id, text: "Couldn't reach SOCIA. Try again." });
     } finally { setBusy(null); }
   }, [router]);
 
@@ -151,9 +162,26 @@ export default function DiscoverPage({ d }: { d: DiscoverData }) {
         ) : (
           <ul className="dsc-accts">
             {d.competitors.map((a) => (
-              <AccountCard key={a.id} a={a} action={
-                <button type="button" className="dsc-x" aria-label={`Stop tracking @${a.handle}`} title="Stop tracking" disabled={busy === a.id} onClick={() => drop(a)}><X size={14} /></button>
-              } />
+              <AccountCard key={a.id} a={a}
+                action={
+                  <button type="button" className="ov-btn ghost small dsc-remove" aria-label={`Remove @${a.handle}`} aria-expanded={confirming === a.id} disabled={busy === a.id} onClick={() => { setDropError(null); setConfirming(confirming === a.id ? null : a.id); }}>
+                    <Trash2 size={12} aria-hidden /> Remove
+                  </button>
+                }
+                footer={confirming === a.id ? (
+                  <div className="dsc-confirm" role="group" aria-label={`Remove @${a.handle}`}
+                    onKeyDown={(e) => { if (e.key === "Escape") setConfirming(null); }}>
+                    <p>Stop tracking @{a.handle}? Its Reels leave Reels you can copy, it frees a place on your plan, and SOCIA won&apos;t suggest it again. You can add it back any time.</p>
+                    <div className="dsc-actions">
+                      <button type="button" className="ov-btn small dsc-danger" autoFocus disabled={busy === a.id} onClick={() => drop(a)}>
+                        {busy === a.id ? <Loader2 size={12} className="cx-spin" aria-hidden /> : <Trash2 size={12} aria-hidden />} {busy === a.id ? "Removing…" : "Remove"}
+                      </button>
+                      <button type="button" className="ov-btn ghost small" disabled={busy === a.id} onClick={() => setConfirming(null)}>Keep</button>
+                    </div>
+                    {dropError?.id === a.id && <p className="dsc-confirm-err" role="alert">{dropError.text}</p>}
+                  </div>
+                ) : null}
+              />
             ))}
           </ul>
         )}

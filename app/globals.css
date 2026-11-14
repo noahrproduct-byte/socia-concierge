@@ -11833,6 +11833,12 @@ p.cbm-muted { display: block; }
 .dsc-x:hover { color: var(--text-primary); border-color: var(--border-strong); }
 .dsc-x:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .dsc-actions { display: flex; align-items: center; gap: 6px; }
+.dsc-remove { flex: none; }
+.dsc-confirm { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--danger); background: var(--danger-subtle); }
+.dsc-confirm p { margin: 0; color: var(--text-primary); font-size: 13px; line-height: 1.45; }
+.dsc-confirm .dsc-confirm-err { color: var(--danger-text); font-weight: 600; }
+.ov-btn.dsc-danger { background: var(--danger); color: var(--on-primary); border: 1px solid var(--danger); }
+.ov-btn.dsc-danger:hover { filter: brightness(0.95); }
 .dsc-empty { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0; color: var(--text-primary); font-size: 14px; line-height: 1.5; }
 .dsc-empty p { margin: 0; }
 .dsc-own, .dsc-lead { margin: 10px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
