@@ -3,7 +3,7 @@
 // names none). Older saved plans lack the newer fields; readers treat them
 // as optional. Pure.
 
-import type { Deliverable, PlanDecision } from "./schema";
+import type { Deliverable, PlanBeat, PlanDecision } from "./schema";
 import { sanitizeGuide } from "./studioGuide";
 import { isExperimentId } from "./strategy";
 import { sanitizeRef } from "./trendSignals";
@@ -66,6 +66,24 @@ export function withItemIds<T extends object>(items: T[], newId: () => string = 
   });
 }
 
+/** A post's timed beats, made safe: at most four, each with a label and what to show, times in order within three minutes. Pure. */
+export function cleanBeats(v: unknown): PlanBeat[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: PlanBeat[] = [];
+  for (const raw of v.slice(0, 12)) {
+    if (out.length >= 4) break;
+    const b = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const label = clip(b.label as string, 40);
+    const show = clip(b.show as string, 220);
+    const from = Math.max(0, Math.min(180, Math.round(Number(b.from))));
+    const to = Math.max(0, Math.min(180, Math.round(Number(b.to))));
+    if (!label || !show || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) continue;
+    if (out.length && from < out[out.length - 1].from) continue;
+    out.push({ label, from, to, show });
+  }
+  return out.length >= 2 ? out : undefined;
+}
+
 export function normalizePlanItem(p: PlanItem): PlanItem {
   return {
     ...p,
@@ -76,6 +94,7 @@ export function normalizePlanItem(p: PlanItem): PlanItem {
     platform: platformName(p.platform) ?? undefined,
     direction: clip(p.direction, 400),
     production: clip(p.production, 300),
+    beats: cleanBeats(p.beats),
     successMetric: clip(p.successMetric, 160),
     experiment: isExperimentId(p.experiment) ? p.experiment : undefined,
     // The model's cited id never reaches a saved plan; the Reel it named does, bounded.
@@ -95,7 +114,7 @@ export function sanitizePlanItems(items: unknown[]): PlanItem[] {
     const r = raw as Record<string, unknown>;
     const core = Object.fromEntries(Object.entries(CORE).map(([k, n]) => [k, typeof r[k] === "string" ? (r[k] as string).slice(0, n) : ""])) as Pick<PlanItem, "day" | "concept" | "hook" | "format" | "rationale" | "evidence" | "predictedPerformance">;
     if (!core.day || !core.concept) return [];
-    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
+    const item = normalizePlanItem({ ...core, title: r.title as string, purpose: r.purpose as string, audience: r.audience as string, platform: r.platform as string, direction: r.direction as string, production: r.production as string, successMetric: r.successMetric as string, beats: r.beats as PlanItem["beats"], experiment: r.experiment as string, maker: r.maker as PlanItem["maker"], ref: r.ref as PlanItem["ref"], animated: r.animated as boolean, slot: r.slot as PlanItem["slot"] });
     const decision = cleanDecision(r.decision);
     const guide = sanitizeGuide(r.guide, new Date());
     return [{ ...item, ...(isItemId(r.id) ? { id: r.id } : {}), ...(r.source === "own" ? { source: "own" as const } : {}), ...(decision ? { decision } : {}), ...(guide ? { guide } : {}) }];

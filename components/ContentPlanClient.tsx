@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
-  AtSign,
   Compass,
   Target,
   Sparkles,
@@ -17,7 +16,6 @@ import {
   ArrowRight,
   Clock,
   Activity,
-  Grid3x3,
   FileDown,
   Plug,
   Database,
@@ -26,6 +24,11 @@ import {
   Plus,
   Clapperboard,
   Film,
+  Check,
+  X,
+  Undo2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { AskDrawer } from "@/components/AskSocia";
@@ -48,8 +51,9 @@ import { isPlanError, type PlanError } from "@/lib/planErrors";
 import type { UsageSnapshot } from "@/lib/entitlements";
 import { pricingHref, PLANS, minPlanWithFeature } from "@/lib/plans";
 import PlanNotice, { UsageLine } from "@/components/PlanNotice";
-import { Button, ReelRefNote } from "@/components/system";
-import { DecisionTag, ItemActions, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
+import { Button, ButtonLink, IconButton, ReelRefNote } from "@/components/system";
+import { DecisionTag, ItemDialog, RejectDialog, RejectedNote } from "@/components/plan/PlanItemControls";
+import { Storyboard, WeekStrip, beatsLength, builtOn, type StripItem } from "@/components/plan/PostFocus";
 import { animatedHour, weekdayOf } from "@/lib/animated/day";
 
 // Loaded on demand: the video preview and renderer are large and only needed once someone presses Make it with AI.
@@ -97,6 +101,8 @@ export type PlanContext = {
   canAddCompetitor: boolean;
   /** Whether what the account is about has been confirmed; until it is, the form asks for it. */
   aboutConfirmed?: boolean;
+  /** The connected account's profile picture. */
+  avatar?: string | null;
 };
 
 // Soft guidance limits — counters only, never truncation.
@@ -104,28 +110,27 @@ const MAX: Partial<Record<keyof GenerateInput, number>> = {
   goal: 240,
 };
 
-function Counter({ value, max }: { value: string; max: number }) {
+
+/** A line in the sidebar's Research sources: a tick when SOCIA has it, an empty circle when not. */
+function Source({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   return (
-    <small className={`cpl-count${value.length > max ? " over" : ""}`}>
-      {value.length}/{max}
-    </small>
+    <li className={ok ? "ok" : ""}>
+      <span className="cpl-src-dot" aria-hidden>{ok ? <Check size={11} /> : null}</span>
+      <span>{children}</span>
+      <span className="sr-only">{ok ? "Included" : "Missing"}</span>
+    </li>
   );
 }
 
-// Older plans (and an occasionally wordy model) put a paragraph in
-// `predictedPerformance`. Tags show a short label; the full text still renders
-// underneath as its own line. (Format labels: components/plan/PlanSections.)
-function perfLabel(p: string): string {
-  const s = p.trim();
-  if (s.length <= 28) return s;
-  const head = s.split(/[,;:.–—(]/)[0].trim();
-  return head.length <= 28 ? head : "See notes";
-}
-
-// No green: a guess about a post that doesn't exist yet isn't a good result.
-function perfTone(p: string): "amber" | "blue" {
-  if (/experiment|test|risk/i.test(p)) return "amber";
-  return "blue";
+/** A competitor's picture in the folded Competitors row, or its first letter. */
+function MiniAvatar({ c }: { c: PlanCompetitor }) {
+  const [broken, setBroken] = useState(false);
+  const letter = (c.name || c.handle).replace(/^@/, "").charAt(0).toUpperCase();
+  if (c.avatar && !broken) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={c.avatar} alt="" width={22} height={22} referrerPolicy="no-referrer" onError={() => setBroken(true)} ref={(el) => { if (el && el.complete && el.naturalWidth === 0) setBroken(true); }} />;
+  }
+  return <span>{letter}</span>;
 }
 
 export default function ContentPlanClient({ context, canSchedule = true }: { context: PlanContext; canSchedule?: boolean }) {
@@ -254,6 +259,7 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
   }
 
   const onFile = context.evidence;
+  const competitorsUsed = competitors.filter((c) => !skip.has(c.handle)).length;
   const total = mix.onCamera + mix.animated;
   // An animated-led account turns on-camera videos on and off as a whole.
   function toggleOnCamera(on: boolean) {
@@ -285,108 +291,108 @@ export default function ContentPlanClient({ context, canSchedule = true }: { con
       <div className="cpl-grid">
         {/* configuration */}
         <section className="cpl-form">
-          <small className="cpl-sec">Your account</small>
-          {context.aboutConfirmed === false && (
-            <p className="cpl-fixed cpl-about-ask">
-              <Sparkles size={12} />
-              <span>Check what SOCIA knows about your account first, so the plan is about the right things.</span>
-              <Link href="/settings#about">Check it</Link>
-            </p>
-          )}
+          <div className="cpl-side">
+            <h3>Your account</h3>
+            <div className="cpl-acct">
+              {context.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="cpl-acct-av" src={context.avatar} alt="" width={44} height={44} referrerPolicy="no-referrer" />
+              ) : (
+                <span className="cpl-acct-av" aria-hidden>{(form.clientHandle || "?").replace(/^@/, "").charAt(0).toUpperCase()}</span>
+              )}
+              <div className="cpl-acct-id">
+                {context.connected ? (
+                  <b>{context.username ? `@${context.username}` : form.clientHandle}</b>
+                ) : (
+                  <input aria-label="Your account or handle" placeholder="@yourhandle or your brand name" value={form.clientHandle} onChange={(e) => set("clientHandle", e.target.value)} />
+                )}
+                <select aria-label="Platform" className="cpl-acct-plat" value={form.platform} onChange={(e) => set("platform", e.target.value)}>
+                  <option>Instagram</option>
+                  <option>Facebook</option>
+                  <option>TikTok</option>
+                  <option>YouTube Shorts</option>
+                </select>
+              </div>
+            </div>
+            {context.profile.niche ? (
+              <p className="cpl-fixed">
+                <Compass size={12} /> <span>{context.profile.niche}</span>
+                <Link href="/settings#brand">Change</Link>
+              </p>
+            ) : (
+              <>
+                <input aria-label="Your niche" placeholder="Your niche, e.g. Fitness & health" value={form.niche} onChange={(e) => set("niche", e.target.value)} />
+                {note("niche")}
+              </>
+            )}
+            {context.aboutConfirmed === false && (
+              <p className="cpl-fixed cpl-about-ask">
+                <Sparkles size={12} />
+                <span>Check what SOCIA knows about your account first, so the plan is about the right things.</span>
+                <Link href="/settings#about">Check it</Link>
+              </p>
+            )}
+          </div>
 
-          <label className="cpl-lab">
-            <span>
-              <AtSign size={12} /> Your account / handle
-            </span>
-          </label>
-          <input
-            placeholder="@yourhandle or your brand name"
-            value={form.clientHandle}
-            onChange={(e) => set("clientHandle", e.target.value)}
-          />
-          {note("clientHandle")}
+          <div className="cpl-side">
+            <h3>This week</h3>
+            <PlanMixControls
+              start={context.mix}
+              animatedAllowed={context.animatedAllowed}
+              value={mix}
+              onChange={setMix}
+              addOnCamera={addOnCamera}
+              onAddOnCamera={toggleOnCamera}
+            />
+          </div>
 
-          {context.profile.niche ? (
-            <p className="cpl-fixed">
-              <Compass size={12} /> <span>Niche: <b>{context.profile.niche}</b></span>
-              <Link href="/settings#brand">Change</Link>
-            </p>
-          ) : (
-            <>
-              <label className="cpl-lab">
-                <span>
-                  <Compass size={12} /> Your niche
+          <div className="cpl-side">
+            <h3>Goal</h3>
+            {context.profile.goal ? (
+              <p className="cpl-fixed">
+                <Target size={12} /> <span>{context.profile.goal}</span>
+                <Link href="/settings#growth">Change</Link>
+              </p>
+            ) : (
+              <>
+                <input aria-label="Your goal" placeholder="e.g. grow to 50k, drive bookings, sell a course" value={form.goal} maxLength={MAX.goal} onChange={(e) => set("goal", e.target.value)} />
+                {note("goal")}
+              </>
+            )}
+          </div>
+
+          <div className="cpl-side">
+            <h3>Competitors</h3>
+            <details className="cpl-cmp-fold">
+              <summary>
+                <span className="cpl-cmp-stack" aria-hidden>
+                  {competitors.slice(0, 5).map((c) => <MiniAvatar key={c.handle} c={c} />)}
                 </span>
-              </label>
-              <input
-                placeholder="e.g. Fitness & health"
-                value={form.niche}
-                onChange={(e) => set("niche", e.target.value)}
-              />
-              {note("niche")}
-              <small className="cpl-tip">
-                Tip: <Link href="/settings#brand">set your niche</Link> for sharper plans.
-              </small>
-            </>
-          )}
+                <span>{competitors.length ? `Using ${competitorsUsed} of ${competitors.length}` : "None yet"}</span>
+                <span className="cpl-cmp-fold-cta">Choose</span>
+              </summary>
+              <PlanCompetitors list={competitors} onList={setCompetitors} skip={skip} onSkip={setSkip} canAdd={context.canAddCompetitor} platform={form.platform} />
+            </details>
+          </div>
 
-          <label className="cpl-lab">
-            <span>
-              <Grid3x3 size={12} /> Platform
-            </span>
-          </label>
-          <select value={form.platform} onChange={(e) => set("platform", e.target.value)}>
-            <option>Instagram</option>
-            <option>Facebook</option>
-            <option>TikTok</option>
-            <option>YouTube Shorts</option>
-          </select>
+          <div className="cpl-side">
+            <h3>Research sources</h3>
+            <ul className="cpl-sources">
+              <Source ok={onFile.posts > 0}>{onFile.posts > 0 ? `${onFile.posts} of your recent posts read` : <>No posts read yet. <Link href="/settings#accounts">Connect Instagram</Link></>}</Source>
+              <Source ok={competitorsUsed > 0}>{competitorsUsed > 0 ? `${competitorsUsed} competitor${competitorsUsed === 1 ? "" : "s"} selected` : "No competitors selected"}</Source>
+              <Source ok={context.aboutConfirmed !== false}>{context.aboutConfirmed !== false ? "What your account is about, confirmed" : <>What your account is about isn&apos;t confirmed. <Link href="/settings#about">Check it</Link></>}</Source>
+              {result?.data.evidenceUsed?.references != null && (
+                <Source ok={result.data.evidenceUsed.references > 0}>{`${result.data.evidenceUsed.references} post${result.data.evidenceUsed.references === 1 ? "" : "s"} built on Reels that took off`}</Source>
+              )}
+            </ul>
+          </div>
 
-          <small className="cpl-sec cpl-sec-gap">This week</small>
-          <PlanMixControls
-            start={context.mix}
-            animatedAllowed={context.animatedAllowed}
-            value={mix}
-            onChange={setMix}
-            addOnCamera={addOnCamera}
-            onAddOnCamera={toggleOnCamera}
-          />
-
-          {context.profile.goal ? (
-            <p className="cpl-fixed">
-              <Target size={12} /> <span>Goal: <b>{context.profile.goal}</b></span>
-              <Link href="/settings#growth">Change</Link>
-            </p>
-          ) : (
-            <>
-              <label className="cpl-lab">
-                <span>
-                  <Target size={12} /> Your goal <em>optional</em>
-                </span>
-                <Counter value={form.goal} max={MAX.goal!} />
-              </label>
-              <input
-                placeholder="e.g. grow to 50k, drive bookings, sell a course"
-                value={form.goal}
-                onChange={(e) => set("goal", e.target.value)}
-              />
-              {note("goal")}
-            </>
-          )}
-
-          {onFile.posts > 0 && (
-            <p className="cpl-fixed">
-              <BarChart3 size={12} /> <span>SOCIA reads your last {onFile.posts} posts with their real numbers.</span>
-            </p>
-          )}
           {form.recentPosts.trim() && (
             <p className="cpl-fixed cpl-added-note">
               <PenSquare size={12} /> <span>Added note: {form.recentPosts.trim()}</span>
               <button type="button" className="cpl-note-x" onClick={() => set("recentPosts", "")}>Remove</button>
             </p>
           )}
-          <small className="cpl-sec cpl-sec-gap">Competitors</small>
-          <PlanCompetitors list={competitors} onList={setCompetitors} skip={skip} onSkip={setSkip} canAdd={context.canAddCompetitor} platform={form.platform} />
 
           {usage && (
             <small className="cpl-auto">
@@ -619,6 +625,8 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [making, setMaking] = useState<number | null>(null);
   const [animatingWeek, setAnimatingWeek] = useState(false);
+  // The post shown in full (its index in the saved plan); the first of the week until one is chosen.
+  const [focus, setFocus] = useState(-1);
   const persist = async (weeklyPlan: Deliverable["weeklyPlan"], ok: string): Promise<boolean> => {
     onUpdate({ ...data, weeklyPlan });
     if (!planId) { setSaveNote("Changed on screen. Generate or open a saved plan to keep changes."); return false; }
@@ -700,9 +708,6 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
   const ev = data.evidenceUsed;
   // Shown Monday first; actions keep each post's index in the saved plan.
   const weekIdx = useMemo(() => (data.weeklyPlan ?? []).map((_, i) => i).sort((a, b) => weekOrder(data.weeklyPlan[a].day) - weekOrder(data.weeklyPlan[b].day) || a - b), [data.weeklyPlan]);
-  // Filmed posts are the plan's main list; the animated ones (brands that post animated videos) get their own section.
-  const filmedIdx = weekIdx.filter((i) => !data.weeklyPlan[i].animated);
-  const animatedIdx = weekIdx.filter((i) => data.weeklyPlan[i].animated);
   // What became of this plan: each day's state on the Calendar and, once
   // published, the result against the account's own median. Re-read after
   // "Schedule this week" so the chips update at once.
@@ -800,10 +805,9 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
     <div className="cpl-r">
       <div className="cpl-rhead">
         <div>
-          <small className="cpl-eyebrow">Content audit &amp; weekly plan</small>
-          <h1>{data.clientHandle}</h1>
+          <h1>Your next {data.weeklyPlan?.length ?? 0} post{data.weeklyPlan?.length === 1 ? "" : "s"}</h1>
           <div className="cpl-rsub">
-            {data.niche} · {data.platform}
+            {[data.clientHandle, data.niche, data.platform].filter(Boolean).join(", ")}
           </div>
         </div>
       </div>
@@ -909,119 +913,126 @@ function Report({ data, planId, posts, canSchedule, strategy, goal, animatedOn =
               )}
             </div>
           )}
-          <div className="cpl-posts">
-            {filmedIdx.map((i) => { const post = data.weeklyPlan[i]; return (
-              <article className={`cpl-post${applied === post.day ? " applied" : ""}${post.decision?.status === "rejected" ? " pi-rejected" : ""}`} key={i} style={{ animationDelay: `${i * 70}ms` }}>
-                <div className="cpl-post-tags">
-                  <span className="cpl-tag day">{post.day}</span>
-                  <DecisionTag item={post} />
-                  <OutcomeTags o={itemOutcome(i)} />
-                  <button type="button" className="cpl-improve" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to film.`, day: post.day })}><Sparkles size={11} /> Improve</button>
-                  {timeFor(post) && (
-                    <span className="cpl-tag time" title={aud.enough ? "When your own posts got the most likes and comments" : "No posting history yet, so this is noon by default"}>
-                      <Clock size={10} /> {timeFor(post)}{aud.enough ? "" : " (default)"}
-                    </span>
-                  )}
-                  {post.platform && <span className="cpl-tag fmt">{post.platform}</span>}
-                  <span className="cpl-tag fmt">{formatLabel(post.format)}</span>
-                  {post.predictedPerformance.trim() && (
-                    <span className={`cpl-tag perf ${perfTone(post.predictedPerformance)}`} title="SOCIA's guess before posting, not a result">
-                      Guess: {perfLabel(post.predictedPerformance)}
-                    </span>
-                  )}
-                </div>
-                {post.title && <h4 className="cpl-title">{post.title}</h4>}
-                <div className="cpl-concept">{post.concept}</div>
-                {post.hook.trim() && (
-                  <div className="cpl-hook">
-                    <b>Hook</b>
-                    {post.hook}
+          {weekIdx.length > 0 && (() => {
+            // One post at a time: the week as a strip, the chosen post in full below it.
+            const i = weekIdx.includes(focus) ? focus : weekIdx[0];
+            const post = data.weeklyPlan[i];
+            const pos = weekIdx.indexOf(i);
+            const when = timeFor(post);
+            const length = beatsLength(post.beats);
+            const basis = builtOn(post.ref);
+            const stripItems: StripItem[] = weekIdx.map((k) => {
+              const it = data.weeklyPlan[k];
+              return {
+                index: k,
+                day: weekdayOf(it.day).slice(0, 3),
+                time: timeFor(it),
+                title: it.title ?? it.hook,
+                animated: Boolean(it.animated),
+                state: it.decision?.status === "rejected" ? "rejected" : it.decision?.status === "approved" ? "approved" : onCalendar(k) ? "calendar" : null,
+              };
+            });
+            return (
+              <>
+                <WeekStrip items={stripItems} selected={i} onSelect={setFocus} />
+                <article className={`pf-card${applied === post.day ? " applied" : ""}${post.decision?.status === "rejected" ? " pi-rejected" : ""}`} aria-label={`${post.day}: ${post.title ?? post.hook}`}>
+                  <div className="pf-chips">
+                    <span className="pf-pill"><CalendarDays size={14} aria-hidden /> {weekdayOf(post.day)}{when ? `, ${when}` : ""}{when && !aud.enough ? " (default)" : ""}</span>
+                    <span className="pf-pill">{post.animated ? <Film size={14} aria-hidden /> : <Clapperboard size={14} aria-hidden />} {[post.platform, post.animated ? "Animated video" : formatLabel(post.format), length].filter(Boolean).join(", ")}</span>
+                    <DecisionTag item={post} />
+                    <OutcomeTags o={itemOutcome(i)} />
+                    {basis && <span className="pf-basis" title="From the numbers SOCIA read for that Reel; another account's result, not a prediction">{basis}</span>}
                   </div>
-                )}
-                <div className="cpl-postmeta">
-                  {post.purpose && (<><b>Purpose:</b> {post.purpose}<br /></>)}
-                  {post.audience && (<><b>For:</b> {post.audience}<br /></>)}
-                  {post.direction && (<><b>Direction:</b> {post.direction}<br /></>)}
-                  {post.production
-                    ? (<><b>To make it:</b> {post.production}<br /></>)
-                    : formatLabel(post.format) !== post.format.trim() && (<><b>Production:</b> {post.format}<br /></>)}
-                  {post.successMetric && (<><b>Success measure:</b> {post.successMetric}<br /></>)}
-                  {post.predictedPerformance.trim() && perfLabel(post.predictedPerformance) !== post.predictedPerformance.trim() && (
-                    <>
-                      <b>SOCIA&apos;s guess:</b> {post.predictedPerformance}
-                      <br />
-                    </>
+                  {post.title && <h2 className="pf-title">{post.title}</h2>}
+                  <p className="pf-concept">{post.concept}</p>
+                  {post.hook.trim() && (
+                    <div className="pf-hook"><b>Hook</b><span>{post.hook}</span></div>
                   )}
-                  {post.rationale.trim() && (<><b>Why this:</b> {post.rationale}<br /></>)}
-                  {post.evidence.trim() && (<><b>Based on:</b> {post.evidence}</>)}
-                </div>
-                {post.ref && <ReelRefNote r={post.ref} />}
-                <div className="cpl-postmeta">
-                  <Link href={createHref(post)} className="ov-link" title="Open Create Post with this hook and concept as the caption">
-                    <PenSquare size={11} /> Create this post
-                  </Link>
-                  {planId && post.decision?.status !== "rejected" && (
-                    <>
-                      {" "}
-                      <Link href={`/studio?mode=guide&plan=${planId}&i=${i}`} className="ov-link" title="Hooks, script and shot list for this post">
-                        <Clapperboard size={11} /> {post.guide ? "Open its production guide" : "Open in Studio"}
-                      </Link>
-                      {" "}
-                      <button type="button" className="ov-link" onClick={() => setMaking(i)} title="SOCIA writes this post as an animated video you can edit, then saves it as a draft">
-                        <Film size={11} /> Make it with AI
-                      </button>
-                    </>
-                  )}
-                </div>
-                <RejectedNote item={post} />
-                {planId && team.state && post.decision?.status !== "rejected" && <PlanTaskRow planId={planId} item={post} state={team.state} reload={team.reload} />}
-                <ItemActions
-                  item={post}
-                  canApprove={Boolean(planId) && !onCalendar(i)}
-                  approveHint={!planId ? "Open a saved plan to approve." : onCalendar(i) ? "Already on the Calendar." : null}
-                  busy={itemBusy === i}
-                  onApprove={() => approve(i)}
-                  onReject={() => setRejecting(i)}
-                  onEdit={() => setEditing(i)}
-                  onUndo={() => undo(i)}
-                />
-              </article>
-            ); })}
-          </div>
-          <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
-          {animatedIdx.length > 0 && (
-            <section className="cpl-anim" aria-labelledby="cpl-anim-h">
-              <div className="cpl-anim-head">
-                <h3 id="cpl-anim-h">Animated videos this week</h3>
-                {planId && (
-                  <Button size="sm" variant="primary" onClick={() => setAnimatingWeek(true)} title="SOCIA makes each animated video in this browser; you check them all before they're scheduled">
-                    <Film size={14} aria-hidden /> Make all {animatedIdx.length}
-                  </Button>
-                )}
-              </div>
-              <p className="cpl-approve-note">No filming: SOCIA writes each one as a comparison, a counter or words on screen and makes it in this browser. You check them all, then schedule them together, at times around your audience&apos;s best hour.</p>
-              <ul className="cpl-anim-list">
-                {animatedIdx.map((i) => { const post = data.weeklyPlan[i]; const when = timeFor(post); return (
-                  <li key={i} className={post.decision?.status === "rejected" ? "pi-rejected" : ""}>
-                    <div className="cpl-anim-when">
-                      <b>{weekdayOf(post.day)}</b>
-                      {when && <span><Clock size={10} aria-hidden /> {when}</span>}
-                    </div>
-                    <div className="cpl-anim-body">
-                      <span className="cpl-anim-title">{post.title ?? post.hook}</span>
-                      {post.title && <span className="cpl-anim-hook">{post.hook}</span>}
-                      <OutcomeTags o={itemOutcome(i)} />
-                    </div>
-                    {planId && post.decision?.status !== "rejected" && !onCalendar(i) && (
-                      <button type="button" className="ov-link" onClick={() => setMaking(i)} title="Make just this one and save it as a draft">
-                        <Film size={11} /> Make this one
-                      </button>
+                  {post.beats?.length ? (
+                    <Storyboard beats={post.beats} />
+                  ) : post.animated ? (
+                    <p className="pf-note">Animated, no filming: SOCIA writes it as a comparison, a counter or words on screen and makes it in this browser. Make it to see every scene before it&apos;s saved.</p>
+                  ) : null}
+
+                  <Tabs defaultValue="overview" key={i}>
+                    <TabList className="pf-tabs" aria-label="About this post">
+                      <Tab value="overview">Overview</Tab>
+                      {!post.animated && <Tab value="guide">Production guide</Tab>}
+                      <Tab value="evidence">Research and evidence</Tab>
+                    </TabList>
+                    <TabPanel value="overview" className="pf-panel">
+                      <dl className="pf-facts">
+                        {post.purpose && (<><dt>Purpose</dt><dd>{post.purpose}</dd></>)}
+                        {post.audience && (<><dt>For</dt><dd>{post.audience}</dd></>)}
+                        {post.rationale.trim() && (<><dt>Why this</dt><dd>{post.rationale}</dd></>)}
+                        {post.successMetric && (<><dt>Success measure</dt><dd>{post.successMetric}</dd></>)}
+                      </dl>
+                      {!post.purpose && !post.audience && !post.rationale.trim() && !post.successMetric && (
+                        <p className="pf-note">{post.animated ? "Animated, no filming: SOCIA writes every scene when you make it, and you check them before it's saved." : "This idea has no more detail yet. Edit it to add some."}</p>
+                      )}
+                    </TabPanel>
+                    {!post.animated && (
+                      <TabPanel value="guide" className="pf-panel">
+                        <dl className="pf-facts">
+                          {post.direction && (<><dt>Direction</dt><dd>{post.direction}</dd></>)}
+                          {post.production ? (<><dt>To make it</dt><dd>{post.production}</dd></>) : formatLabel(post.format) !== post.format.trim() && (<><dt>Production</dt><dd>{post.format}</dd></>)}
+                        </dl>
+                        {planId && post.decision?.status !== "rejected" && (
+                          <Link href={`/studio?mode=guide&plan=${planId}&i=${i}`} className="ov-link" title="Hooks, script and shot list for this post">
+                            <Clapperboard size={11} /> {post.guide ? "Open its full production guide" : "Write the full guide in Studio"}
+                          </Link>
+                        )}
+                      </TabPanel>
                     )}
-                  </li>
-                ); })}
-              </ul>
-            </section>
-          )}
+                    <TabPanel value="evidence" className="pf-panel">
+                      <dl className="pf-facts">
+                        {post.evidence.trim() && (<><dt>Based on</dt><dd>{post.evidence}</dd></>)}
+                        {post.predictedPerformance.trim() && (<><dt>SOCIA&apos;s guess</dt><dd>{post.predictedPerformance} <small>(a guess before posting, not a result)</small></dd></>)}
+                      </dl>
+                      {post.ref && <ReelRefNote r={post.ref} />}
+                      {!post.evidence.trim() && !post.ref && <p className="pf-note">{post.animated ? "An animated idea written for your account; it isn't built on a particular Reel." : "No research is attached to this post."}</p>}
+                    </TabPanel>
+                  </Tabs>
+
+                  <RejectedNote item={post} />
+                  {planId && team.state && post.decision?.status !== "rejected" && <PlanTaskRow planId={planId} item={post} state={team.state} reload={team.reload} />}
+                  <div className="pf-actions">
+                    {post.decision?.status !== "rejected" && (
+                      post.animated ? (
+                        planId && !onCalendar(i) && (
+                          <Button variant="primary" onClick={() => setMaking(i)} title="SOCIA writes this post as an animated video you can edit, then saves it as a draft"><Film size={15} aria-hidden /> Make the video</Button>
+                        )
+                      ) : (
+                        <ButtonLink variant="primary" href={planId ? `/studio?mode=guide&plan=${planId}&i=${i}` : createHref(post)} title={planId ? "Hooks, script and shot list, then film and edit it in Studio" : "Open Create Post with this hook and concept"}>
+                          <Clapperboard size={15} aria-hidden /> Create the Reel
+                        </ButtonLink>
+                      )
+                    )}
+                    {!post.decision && (
+                      <>
+                        <Button onClick={() => setEditing(i)}><PenSquare size={14} aria-hidden /> Edit idea</Button>
+                        {!post.animated && (
+                          <Button onClick={() => approve(i)} busy={itemBusy === i} disabled={!planId || onCalendar(i)} title={!planId ? "Open a saved plan to approve." : onCalendar(i) ? "Already on the Calendar." : "Put it on the Calendar as a draft at your audience's hour"}>
+                            <Check size={14} aria-hidden /> Approve
+                          </Button>
+                        )}
+                        <Button variant="ghost" onClick={() => setRejecting(i)}><X size={14} aria-hidden /> Turn down</Button>
+                      </>
+                    )}
+                    {post.decision?.status === "rejected" && <Button variant="ghost" onClick={() => undo(i)} busy={itemBusy === i}><Undo2 size={14} aria-hidden /> Undo</Button>}
+                    {post.decision?.status === "approved" && <span className="pi-hint">On the Calendar as a draft.</span>}
+                    <span className="pf-actions-end">
+                      <button type="button" className="ov-link" title={`Ask SOCIA to rework ${post.day}`} onClick={() => setAsk({ q: `Give me a stronger idea for ${post.day}, keeping it easy to make.`, day: post.day })}><Sparkles size={11} /> Improve</button>
+                      <IconButton label="Previous post" size="sm" variant="ghost" disabled={pos <= 0} onClick={() => setFocus(weekIdx[pos - 1])}><ChevronLeft size={16} aria-hidden /></IconButton>
+                      <span className="pf-count">{pos + 1} of {weekIdx.length}</span>
+                      <IconButton label="Next post" size="sm" variant="ghost" disabled={pos >= weekIdx.length - 1} onClick={() => setFocus(weekIdx[pos + 1])}><ChevronRight size={16} aria-hidden /></IconButton>
+                    </span>
+                  </div>
+                </article>
+              </>
+            );
+          })()}
+          <Button className="pi-add" size="sm" onClick={() => setEditing("new")}><Plus size={13} aria-hidden /> Add your own idea</Button>
           {planId && animatingWeek && (
             <WeekAnimator open onOpenChange={(o) => { if (!o) setAnimatingWeek(false); }} planId={planId} skip={animatedSkip} whenFor={whenFor} canSchedule={canSchedule} onDone={() => setOutcomeTick((t) => t + 1)} />
           )}

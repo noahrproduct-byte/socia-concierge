@@ -20,6 +20,9 @@ import { loadNicheRead } from "./trendSignalsLoad";
 import { playbookTextFor } from "./nicheScan/run";
 import { nicheVetted } from "./discovery";
 import { provenEvidence, trendsEvidence, type ProvenReel } from "./trendSignals";
+import { isOwnAccount, ownAccounts } from "./ownAccounts";
+import { createServiceClient } from "./supabase/service";
+import { dismissedHandles } from "./competitorAutoPick";
 
 export type Evidence = {
   postsBlock: string;
@@ -344,51 +347,53 @@ export function withoutSkipped<T>(rows: T[], skip: Set<string>, names: (r: T) =>
 export type PlanCompetitor = { platform: string; handle: string; name: string | null; avatar: string | null; source: "tracked" | "found" };
 
 /**
- * The competitors a plan uses, as the form lists them: the ones the brand
- * tracks first, then up to ten SOCIA found in its niche (the same rows
- * loadEvidence reads). Photos come from SOCIA's saved Instagram reads.
+ * The competitors a plan uses, as the form lists them: exactly the ones on
+ * Discover's "Your competitors" (the tracked list, in the order added, never
+ * the account's own, up to the plan's limit), so adding or removing one there
+ * changes the plan too. Photos come from SOCIA's saved Instagram reads, else
+ * the profile picture Discover found.
  */
-export async function planCompetitors(supabase: Supa, userId: string, workspaceId?: string | null): Promise<PlanCompetitor[]> {
+export async function planCompetitors(supabase: Supa, userId: string, workspaceId?: string | null, limit?: number): Promise<PlanCompetitor[]> {
+  const [tracked, mine] = await Promise.all([
+    listTracked<TrackedRow>(supabase, userId, "platform, handle", { byAdded: true, workspaceId }).catch(() => [] as TrackedRow[]),
+    ownAccounts(supabase, userId).catch(() => null),
+  ]);
   const out: PlanCompetitor[] = [];
   const seen = new Set<string>();
-  const push = (c: PlanCompetitor) => {
-    const k = handleKey(c.handle);
-    if (!k || seen.has(k)) return;
+  for (const t of tracked) {
+    const k = handleKey(t.handle);
+    if (!k || seen.has(k) || (mine && isOwnAccount(mine, { handle: t.handle }))) continue;
     seen.add(k);
-    out.push({ ...c, handle: k });
-  };
-  try {
-    for (const t of await listTracked<TrackedRow>(supabase, userId, "platform, handle", { limit: 20, workspaceId })) push({ platform: t.platform, handle: t.handle, name: null, avatar: null, source: "tracked" });
-  } catch { /* none */ }
-  try {
-    const { data } = await scopeToWorkspace(supabase
-      .from("discovered_accounts")
-      .select("platform, handle, display_name, data_source, relevance_reasons")
-      .eq("user_id", userId), workspaceId)
-      .order("relevance_score", { ascending: false, nullsFirst: false })
-      .limit(40);
-    const found = ((data ?? []) as (CompetitorRow & { data_source?: string; relevance_reasons?: unknown })[]).filter(nicheVetted).filter((a) => a.handle).slice(0, 10);
-    for (const a of found) push({ platform: a.platform, handle: a.handle!, name: a.display_name, avatar: null, source: "found" });
-  } catch { /* none */ }
-  const ig = out.filter((c) => c.platform === "instagram").map((c) => c.handle);
-  if (ig.length) {
-    try {
-      const { data } = await supabase.from("ig_competitor_snapshots").select("handle, display_name, profile_picture").eq("user_id", userId).in("handle", ig.slice(0, 30));
-      const by = new Map(((data ?? []) as { handle: string; display_name: string | null; profile_picture: string | null }[]).map((r) => [handleKey(r.handle), r]));
-      for (const c of out) {
-        const r = c.platform === "instagram" ? by.get(c.handle) : undefined;
-        if (r) { c.avatar = r.profile_picture ?? null; c.name = c.name ?? r.display_name ?? null; }
-      }
-    } catch { /* no saved reads */ }
+    out.push({ platform: t.platform, handle: k, name: null, avatar: null, source: "tracked" });
   }
-  return out;
+  const list = limit != null ? out.slice(0, Math.max(limit, 1)) : out;
+  if (!list.length) return list;
+  const handles = list.map((c) => c.handle).slice(0, 30);
+  const [snaps, found] = await Promise.all([
+    supabase.from("ig_competitor_snapshots").select("handle, display_name, profile_picture").eq("user_id", userId).in("handle", handles).then((r: { data: unknown }) => (r.data ?? []) as { handle: string; display_name: string | null; profile_picture: string | null }[], () => []),
+    scopeToWorkspace(supabase.from("discovered_accounts").select("platform, handle, display_name, profile_image").eq("user_id", userId), workspaceId).in("handle", handles)
+      .then((r: { data: unknown }) => (r.data ?? []) as { platform: string; handle: string; display_name: string | null; profile_image: string | null }[], () => []),
+  ]);
+  const snapBy = new Map((snaps as { handle: string; display_name: string | null; profile_picture: string | null }[]).map((r) => [handleKey(r.handle), r]));
+  for (const c of list) {
+    const sn = c.platform === "instagram" ? snapBy.get(c.handle) : undefined;
+    const f = (found as { platform: string; handle: string; display_name: string | null; profile_image: string | null }[]).find((r) => r.platform === c.platform && handleKey(r.handle) === c.handle);
+    c.avatar = sn?.profile_picture ?? f?.profile_image ?? null;
+    c.name = sn?.display_name ?? f?.display_name ?? null;
+  }
+  return list;
 }
 
 /** Everything the strategist may cite, read from the user's own rows. Each
  *  source is best-effort: a missing table simply contributes nothing. */
 export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnapshot | null, workspaceId?: string | null, opts: { outcomes?: PlanOutcome[]; strategy?: GrowthStrategy | null; location?: string | null; skip?: string[] } = {}): Promise<Evidence> {
-  // Competitors the person unticked on the form are left out of this plan entirely.
+  // Competitors the person unticked on the form, and accounts they removed on Discover, are left out of this plan entirely.
   const skip = new Set((opts.skip ?? []).map(handleKey).filter(Boolean));
+  try {
+    const svc = createServiceClient();
+    const dismissed = svc ? await dismissedHandles(svc, userId, workspaceId ?? null) : null;
+    for (const h of dismissed ?? []) skip.add(handleKey(h));
+  } catch { /* none */ }
   const media = snap?.media ?? [];
   const followers = snap?.followers_count ?? null;
 
@@ -445,10 +450,7 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
   const competitorsBlock_ = competitorsBlock(accounts, tracked, winning, igSnaps);
   const outcomesBlock_ = outcomesBlock(opts.outcomes ?? []);
   const outcomeItems = (opts.outcomes ?? []).filter((o) => o.summary.onCalendar > 0).slice(0, 2).reduce((n, o) => n + o.items.length, 0);
-  const competitorCount = new Set([
-    ...accounts.map((a) => `${a.platform}:${(a.handle ?? a.display_name ?? "").toLowerCase().replace(/^@/, "")}`),
-    ...tracked.map((t) => `${t.platform}:${t.handle.toLowerCase().replace(/^@/, "")}`),
-  ]).size;
+  const trackedKeys = new Set(tracked.map((t) => handleKey(t.handle)));
 
   return {
     postsBlock,
@@ -459,12 +461,14 @@ export async function loadEvidence(supabase: Supa, userId: string, snap: IgSnaps
     decisionsBlock: decisionsBlock(recentPlans),
     experimentsBlock: experimentsEvidence(await experimentResults(supabase, userId, workspaceId ?? null, opts.strategy).catch(() => [])),
     trendsBlock: trendsBlock_,
-    provenBlock: provenEvidence(proven),
+    // Each Reel says whether it's from one of the competitors on Discover or another account in the niche.
+    provenBlock: provenEvidence(proven, (r) => trackedKeys.has(handleKey(r.accountHandle ?? r.accountName))),
     proven,
     used: {
       outcomes: outcomesBlock_ ? outcomeItems : 0,
       posts: postsBlock ? Math.min(media.length, 25) : 0,
-      competitors: competitorsBlock_ ? Math.min(competitorCount, 10 + tracked.length) : 0,
+      // Competitors are the ones on Discover (the tracked list); accounts SOCIA found in the niche count as niche Reels, not competitors.
+      competitors: competitorsBlock_ ? trackedKeys.size : 0,
       winning: competitorsBlock_ ? Math.min(winning.length, 12) : 0,
       windows: false,
       followers,

@@ -3,7 +3,7 @@ import { getViewer } from "@/lib/supabase/server";
 import ContentPlanClient, { type PlanContext } from "@/components/ContentPlanClient";
 import { getIgSnapshot, type IgMediaItem } from "@/lib/instagramSync";
 import type { GenerateInput } from "@/lib/schema";
-import { getEntitlements, canUseFeature } from "@/lib/entitlements";
+import { getEntitlements, canUseFeature, getLimit } from "@/lib/entitlements";
 import { resolveContext, brandWorkspace, can, type Ctx } from "@/lib/context";
 import { competitorScopeId } from "@/lib/workspaces";
 import { readStrategy } from "@/lib/strategyLoad";
@@ -112,16 +112,16 @@ export default async function ContentPlanPage() {
   // Entitlements are the workspace owner's: a member's plans count against
   // the owner's allowance.
   const cwid = await competitorScopeId(ctx.client, ctx.workspace?.id);
-  const [counts, ent, strategy, start, competitors] = await Promise.all([
+  const [counts, ent, strategy, start] = await Promise.all([
     evidenceCounts(ctx.client, ctx.ownerId, cwid),
     getEntitlements(ctx.client, ctx.ownerId),
     readStrategy(ctx).catch(() => null),
     // How many posts of each kind this week starts from: the last plan's mix (lib/planMix.ts).
     startingMix(ctx.client, ctx.ownerId, ctx.workspace?.id ?? null, brandDetail),
-    // The competitors this plan builds on, from Discover and the Competitors list.
-    planCompetitors(ctx.client, ctx.ownerId, cwid).catch(() => []),
   ]);
-  const evidence = { posts: Math.min(media.length, 25), ...counts };
+  // The competitors this plan builds on: the same list as Discover's "Your competitors", up to the plan's limit.
+  const competitors = await planCompetitors(ctx.client, ctx.ownerId, cwid, getLimit(ent, "competitors")).catch(() => []);
+  const evidence = { posts: Math.min(media.length, 25), ...counts, competitors: competitors.length };
   // Drafts are always saved; whether they can publish themselves is a plan question.
   const canSchedule = canUseFeature(ent, "scheduling");
 
@@ -151,6 +151,7 @@ export default async function ContentPlanPage() {
     profile: { niche: niche || null, goal: goal || null, voice: voice || null },
     connected: Boolean(snap),
     username: snap?.username ?? null,
+    avatar: snap?.profile_picture_url ?? null,
     syncedAgo: snap?.last_synced_at ? ago(snap.last_synced_at) : null,
     postsAnalyzed: snap ? media.length : null,
     engRate,

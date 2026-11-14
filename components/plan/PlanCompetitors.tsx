@@ -75,8 +75,8 @@ export default function PlanCompetitors({ list, onList, skip, onSkip, canAdd, pl
     <div className="cpl-cmp">
       <p className="cpl-cmp-lead">
         {list.length
-          ? `SOCIA builds posts on the Reels that took off for these accounts, and skips any an earlier plan already used. Using ${used} of ${list.length}.`
-          : "No competitors yet. Add an account below, or find some on Discover."}
+          ? `Your competitors on Discover: add or remove one there and it changes here. SOCIA builds posts on their Reels that took off, mixes in ideas from other Reels in your niche changed to fit your account, and skips any an earlier plan used. Using ${used} of ${list.length}.`
+          : "No competitors yet. Add an account below or on Discover, and SOCIA builds your posts on their Reels that took off."}
       </p>
       {list.length > 0 && (
         <ul className="cpl-cmp-list">
@@ -89,7 +89,7 @@ export default function PlanCompetitors({ list, onList, skip, onSkip, canAdd, pl
                   <Avatar c={c} />
                   <span className="cpl-cmp-name">
                     <b>{c.name || `@${c.handle}`}</b>
-                    <small>{c.name ? `@${c.handle} · ` : ""}{c.source === "tracked" ? "You follow" : "SOCIA found"}</small>
+                    {c.name && <small>@{c.handle}</small>}
                   </span>
                 </label>
               </li>
@@ -107,7 +107,7 @@ export default function PlanCompetitors({ list, onList, skip, onSkip, canAdd, pl
       )}
       {msg && <small className="cpl-mix-note" role="status">{msg}</small>}
       {planError && <PlanNotice error={planError} compact />}
-      <small className="cpl-mix-note"><Link href="/discover">Find more on Discover</Link></small>
+      <small className="cpl-mix-note"><Link href="/discover">Add or remove on Discover</Link></small>
     </div>
   );
 }

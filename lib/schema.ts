@@ -41,6 +41,8 @@ export type Deliverable = {
     direction?: string;
     /** What it takes to make: people, gear, time, within the person's stated resources. */
     production?: string;
+    /** The video as 3 or 4 timed beats (the hook, then what happens, then the ending), for the storyboard. Plans before 2026-11-14 lack them. */
+    beats?: PlanBeat[];
     /** The one number that says whether it worked, against the account's own median. */
     successMetric?: string;
     /** The running experiment this post tests (its id in the Growth Strategy), when it tests one. */
@@ -71,6 +73,9 @@ export type Deliverable = {
 };
 
 import type { ProductionGuide } from "./studioGuide";
+
+/** One timed beat of a planned video: "The problem", 0 to 7 seconds, what is on screen and said. */
+export type PlanBeat = { label: string; from: number; to: number; show: string };
 
 export type PlanDecision = { status: "approved" | "rejected"; at: string; reasons?: string[]; note?: string | null };
 
@@ -148,6 +153,15 @@ export const deliverableSchema = {
           production: { type: "string" },
           successMetric: { type: "string" },
           experiment: { type: "string" },
+          beats: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: { label: { type: "string" }, from: { type: "integer" }, to: { type: "integer" }, show: { type: "string" } },
+              required: ["label", "from", "to", "show"],
+            },
+          },
           maker: { type: "string", enum: ["you", "claude"] },
           reference: { type: "string" },
         },
@@ -169,6 +183,7 @@ export const deliverableSchema = {
           "production",
           "successMetric",
           "experiment",
+          "beats",
         ],
       },
     },
