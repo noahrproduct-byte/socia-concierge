@@ -489,3 +489,19 @@
   .pf-actions-end { margin-left: 0; width: 100%; justify-content: space-between; }
   .pf-tabs { flex-wrap: wrap; row-gap: var(--sp-1); }
 }
+
+/* Settings: your video style (components/brand/VideoStyleCard.tsx). */
+.vs-thumbs { display: flex; gap: var(--sp-2); overflow-x: auto; padding-bottom: var(--sp-1); }
+.vs-thumb { flex: none; display: block; width: 54px; height: 96px; border-radius: var(--r-control); overflow: hidden; border: 1px solid var(--border); background: var(--surface-raised); }
+.vs-thumb img, .vs-thumb span { display: block; width: 100%; height: 100%; object-fit: cover; }
+.vs-thumb:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.vs-colors { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.vs-color { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-body); color: var(--ink); cursor: pointer; }
+.vs-color input { width: 36px; height: 36px; padding: 0; border: 1px solid var(--border); border-radius: var(--r-control); background: none; cursor: pointer; }
+.vs-color span { display: flex; flex-direction: column; }
+.vs-color small { font-size: var(--fs-meta); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.vs-palette { display: flex; height: 18px; border-radius: var(--r-control); overflow: hidden; border: 1px solid var(--border); }
+.vs-palette span { display: block; min-width: 6px; }
+.vs-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-3); }
+.vs-structure { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink-2); }
+.vs-structure b { color: var(--ink); font-weight: var(--fw-semibold); margin-right: var(--sp-1); }

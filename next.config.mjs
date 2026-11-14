@@ -52,6 +52,9 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/niche-scan": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/jobs/niche-scan": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // Reading the account's own Reels (lib/intel/reelRead.ts) and its video style (lib/videoStyleLoad.ts).
+    "/api/understand": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/video-style": ["./node_modules/ffmpeg-static/ffmpeg"],
     // Stabilization (lib/studioClips/stabilize.ts) runs ffmpeg's vidstab on the clip.
     "/api/studio/clips/[id]/stabilize": ["./node_modules/ffmpeg-static/ffmpeg"],
   },

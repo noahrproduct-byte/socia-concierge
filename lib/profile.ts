@@ -27,6 +27,8 @@ export type BrandDetail = {
   formats?: BrandFormat[];
   /** What the account's videos share (palette, type, logo, characters), as confirmed. */
   look?: string;
+  /** How the account's videos look, read from its own and its competitors' Reels (lib/videoStyle.ts); written by /api/video-style only. */
+  videoStyle?: import("./videoStyle").VideoStyle;
   voice?: string; // Professional | Casual | Bold | Funny | Educational
   avoid?: string; // words/topics the AI must avoid
   strategist?: {

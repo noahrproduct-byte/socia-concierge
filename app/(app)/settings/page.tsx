@@ -20,6 +20,9 @@ import { getViewer } from "@/lib/supabase/server";
 import PageHeader from "@/components/PageHeader";
 import BrandSettings from "@/components/BrandSettings";
 import BrandReadCard from "@/components/brand/BrandReadCard";
+import VideoStyleCard from "@/components/brand/VideoStyleCard";
+import { readSavedStyle } from "@/lib/videoStyle";
+import { animatedAllowed } from "@/lib/planMixLoad";
 import StrategistSettings from "@/components/StrategistSettings";
 import AnimatedChoice from "@/components/animated/AnimatedChoice";
 import IntelligenceCard, { type IntelState } from "@/components/IntelligenceCard";
@@ -59,7 +62,7 @@ import { listGoals } from "@/lib/growthStore";
 import { recordStartingPoints } from "@/lib/briefingLoad";
 import type { GoalPlatform } from "@/lib/growth";
 import GrowthProfileCard from "@/components/growth/GrowthProfileCard";
-import { Briefcase, Eye, MapPin } from "lucide-react";
+import { Briefcase, Eye, MapPin, Palette } from "lucide-react";
 import PlaceScan from "@/components/PlaceScan";
 import { offlineFor } from "@/lib/platformAccess";
 import { isAdminEmail } from "@/lib/admin";
@@ -382,6 +385,8 @@ export default async function SettingsPage({
     snap?.last_synced_at && Date.now() - new Date(snap.last_synced_at).getTime() < 12 * 3600_000
   );
 
+  // The video style is read for animated videos, so it shows on plans that have them.
+  const videoStyleOn = await animatedAllowed(connCtx.client, connCtx.ownerId).catch(() => false);
   // Fresh covers for the Reels SOCIA read: Instagram's image links expire, the latest sync's don't yet.
   const reelThumbs: Record<string, string> = Object.fromEntries((snap?.media ?? []).filter((m) => m.id && m.thumbnail_url).map((m) => [m.id!, m.thumbnail_url!]));
 
@@ -391,7 +396,7 @@ export default async function SettingsPage({
         <PageHeader title="Settings" sub="Manage your brand, connections, intelligence, and plan." />
 
         <div className="st3-layout">
-          <SettingsNav hidden={[...(wsEnabled ? [] : ["workspaces"]), ...(team ? [] : ["team"])]} />
+          <SettingsNav hidden={[...(wsEnabled ? [] : ["workspaces"]), ...(team ? [] : ["team"]), ...(videoStyleOn ? [] : ["video-style"])]} />
 
           <div className="st3-main">
             {/* What SOCIA understood from the account's Reels and captions, for the person to confirm. */}
@@ -403,6 +408,18 @@ export default async function SettingsPage({
               </div>
               <BrandReadCard initial={brandDetail} thumbs={reelThumbs} canEdit={can(connCtx, "manage_workspace")} connected={Boolean(snap)} />
             </section>
+
+            {/* How the account's videos look, read from its Reels: animated videos are drawn from it. */}
+            {videoStyleOn && (
+              <section className="st2-card" id="video-style">
+                <div className="st2-card-head">
+                  <span className="st2-card-ico"><Palette size={15} /></span>
+                  <h3>Your video style</h3>
+                  <span className="st2-card-note">Animated videos are drawn in it</span>
+                </div>
+                <VideoStyleCard initial={readSavedStyle((brandDetail as { videoStyle?: unknown } | null)?.videoStyle)} canEdit={can(connCtx, "manage_workspace")} connected={Boolean(snap)} />
+              </section>
+            )}
 
             {/* 1 — Profile & Brand */}
             <section className="st2-card" id="brand">
