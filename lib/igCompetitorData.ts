@@ -105,10 +105,20 @@ async function ownPageConnection(supabase: Supa, userId: string): Promise<{ igUs
   }
 }
 
-async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: string[], refresh = false): Promise<IgCompetitorResult> {
+/** Accounts read at once: Meta is asked a few at a time, not thirty in a burst. */
+const AT_ONCE = 6;
+
+export type IgReadOptions = {
+  /** Most accounts read in one call (10 unless a caller reads a whole roster). */
+  max?: number;
+  /** Only what is saved, however old, and nothing asked of Meta: for a page that must load fast. */
+  cacheOnly?: boolean;
+};
+
+async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: string[], refresh = false, opts: IgReadOptions = {}): Promise<IgCompetitorResult> {
   const conn = await igConnection(supabase, userId);
   if (!conn) return { enabled: false, reason: IG_DISCOVERY_REASON.not_connected, competitors: [] };
-  const wanted = [...new Set(handles.map((h) => h.replace(/^@/, "").toLowerCase()))].slice(0, 10);
+  const wanted = [...new Set(handles.map((h) => h.replace(/^@/, "").toLowerCase()))].slice(0, opts.max ?? 10);
   if (!wanted.length) return { enabled: true, competitors: [] };
 
   const cached = new Map<string, IgCompetitor>();
@@ -116,7 +126,7 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
     try {
       const { data } = await supabase.from("ig_competitor_snapshots").select("*").eq("user_id", userId).in("handle", wanted);
       for (const r of data ?? []) {
-        if (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media) && hasVideoField(r.media)) {
+        if (opts.cacheOnly || (Date.now() - new Date(r.fetched_at).getTime() < FRESH_MS && hasViewsField(r.media) && hasVideoField(r.media))) {
           cached.set(r.handle, {
             handle: r.handle, found: true, displayName: r.display_name, biography: r.biography, profilePicture: r.profile_picture,
             followers: r.followers, mediaCount: r.media_count,
@@ -132,8 +142,11 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
     }
   }
 
-  const competitors = await Promise.all(
-    wanted.map(async (h): Promise<IgCompetitor> => {
+  if (opts.cacheOnly) {
+    return { enabled: true, competitors: wanted.map((h) => cached.get(h) ?? { handle: h, found: false }) };
+  }
+
+  const readOne = async (h: string): Promise<IgCompetitor> => {
       const hit = cached.get(h);
       if (hit) return hit;
       const res = await businessDiscovery(conn.igUserId, conn.pageToken, h);
@@ -170,10 +183,15 @@ async function igCompetitorRowsImpl(supabase: Supa, userId: string, handles: str
         postsPerWeek: stats.postsPerWeek, medianEngagement: stats.medianEngagement,
         engagementRate: stats.engagementRate, media, fetchedAt,
       };
-    }),
-  );
+  };
+  const competitors: IgCompetitor[] = [];
+  for (let i = 0; i < wanted.length; i += AT_ONCE) competitors.push(...(await Promise.all(wanted.slice(i, i + AT_ONCE).map(readOne))));
   return { enabled: true, competitors };
 }
+
+/** Whether a saved row is due to be read again. */
+export const igRowStale = (c: Pick<IgCompetitor, "found" | "fetchedAt">, now: Date = new Date()): boolean =>
+  !c.found || !c.fetchedAt || now.getTime() - Date.parse(c.fetchedAt) >= FRESH_MS;
 
 /** igCompetitorRows, logged when slow (lib/timing.ts). */
 export const igCompetitorRows = timedFn("igCompetitorRows", igCompetitorRowsImpl);
