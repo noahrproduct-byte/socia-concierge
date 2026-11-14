@@ -37,32 +37,33 @@ export default function PlanBuilding({ build, onCamera, animated, typical }: { b
   const p = build.posts;
 
   const ideasDetail = !f
-    ? null
+    ? "Your competitors and niche Reels"
     : f.reels > 0
-      ? `Found ${f.reels} Reel${f.reels === 1 ? "" : "s"} that took off from ${f.competitors ? `your ${f.competitors} competitor${f.competitors === 1 ? "" : "s"} and ` : ""}your niche${f.posts ? `, and read your last ${f.posts} posts` : ""}.`
+      ? `${f.reels} Reel${f.reels === 1 ? "" : "s"} that took off${f.posts ? `, ${f.posts} of your posts` : ""}`
       : f.competitors > 0
-        ? `Read ${f.competitors} competitor${f.competitors === 1 ? "" : "s"}; no new Reels to build on this week, so the plan uses your niche's trends.`
-        : "No competitors on file, so the plan uses your niche's trends.";
+        ? `No new Reels from ${f.competitors} competitor${f.competitors === 1 ? "" : "s"}; using niche trends`
+        : "No competitors yet; using niche trends";
 
   // Time left on the filmed posts, from how fast the ones before went (needs two started).
   let left: string | null = null;
   if (p && p.started >= 2 && build.steps.posts === "active") {
     const per = (now - p.firstAt) / 1000 / (p.started - 1);
     const remaining = per * (p.total - p.started + 1);
-    if (remaining > 5) left = `About ${about(remaining)} left on these posts.`;
+    if (remaining > 5) left = `About ${about(remaining)} left`;
   }
 
   const rows: { id: PlanStep; label: string; detail: string | null; show: boolean }[] = [
-    { id: "ideas", label: "Getting ideas from your competitors and Reels in your niche", detail: ideasDetail, show: true },
-    { id: "fit", label: "Making those ideas fit your channel", detail: null, show: true },
-    { id: "posts", label: p && build.steps.posts === "active" ? `Writing post ${p.started} of ${p.total}` : `Writing your ${onCamera} on-camera post${onCamera === 1 ? "" : "s"}`, detail: left, show: onCamera > 0 },
-    { id: "animated", label: `Adding ${animated} animated video${animated === 1 ? "" : "s"}`, detail: null, show: animated > 0 },
-    { id: "saving", label: "Saving your plan", detail: null, show: true },
+    { id: "ideas", label: "Researching", detail: ideasDetail, show: true },
+    { id: "fit", label: "Fitting your account", detail: "Changing the ideas to suit you", show: true },
+    { id: "posts", label: "Writing posts", detail: p && build.steps.posts === "active" ? `Post ${p.started} of ${p.total}${left ? `. ${left}` : ""}` : `${onCamera} on-camera post${onCamera === 1 ? "" : "s"}`, show: onCamera > 0 },
+    { id: "animated", label: "Animated ideas", detail: `${animated} animated video${animated === 1 ? "" : "s"}`, show: animated > 0 },
+    { id: "saving", label: "Saving", detail: "Your plan and its sources", show: true },
   ];
+  const total = onCamera + animated;
 
   return (
     <div className="cpl-build" aria-busy="true">
-      <h2>Building your plan</h2>
+      <h2>Your next {total} post{total === 1 ? " is" : "s are"} taking shape</h2>
       <p className="cpl-build-time">
         <span className="cpl-build-clock">{mmss(elapsed)}</span>{" "}
         {typical ? `Your plans usually take about ${about(typical)}.` : "Usually takes one to three minutes."}
@@ -76,7 +77,7 @@ export default function PlanBuilding({ build, onCamera, animated, typical }: { b
                 <span className={`cpl-build-dot${st === "active" ? " cpl-btn-spin" : ""}`} aria-hidden>{st === "done" ? <Check size={12} /> : null}</span>
                 <span className="cpl-build-text">
                   <b>{r.label}</b>
-                  {r.detail && (st === "done" || r.id === "posts") && <small>{r.detail}</small>}
+                  {r.detail && <small>{r.detail}</small>}
                 </span>
                 <span className="sr-only">{st === "done" ? "Done" : st === "active" ? "In progress" : "Waiting"}</span>
               </li>

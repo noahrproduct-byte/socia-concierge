@@ -151,6 +151,7 @@ export default async function ContentPlanPage() {
     profile: { niche: niche || null, goal: goal || null, voice: voice || null },
     connected: Boolean(snap),
     username: snap?.username ?? null,
+    avatar: snap?.profile_picture_url ?? null,
     syncedAgo: snap?.last_synced_at ? ago(snap.last_synced_at) : null,
     postsAnalyzed: snap ? media.length : null,
     engRate,
