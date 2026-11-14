@@ -8,7 +8,7 @@
 import manifest from "@/public/fonts/editor/manifest.json";
 import type { FontId } from "./studioClips/style";
 
-type Face = { id: string; family: string; weight: number; style: "normal" | "italic"; file: string };
+type Face = { id: string; family: string; weight: number; style: "normal" | "italic"; file: string; bytes: number };
 const FACES = manifest as Face[];
 
 /** The CSS family name of a font id (the file's own name, so a fallback never masquerades as it). */
@@ -27,7 +27,9 @@ export function loadEditorFont(id: FontId): Promise<void> {
   const p = Promise.all(faces.map(async (f) => {
     const already = Array.from(document.fonts).find((x) => x.family === f.family && x.weight === String(f.weight) && x.style === f.style);
     if (already) { await already.load().catch(() => null); return; }
-    const face = new FontFace(f.family, `url(/fonts/editor/${f.file}) format("woff2")`, { weight: String(f.weight), style: f.style, display: "swap" });
+    // The file's size is its version: browsers cache a decoded face by URL, and the faces fetched before
+    // 2026-11-14 were the latin-ext subset (bug 40), so an unchanged URL would keep serving that from cache.
+    const face = new FontFace(f.family, `url(/fonts/editor/${f.file}?v=${f.bytes}) format("woff2")`, { weight: String(f.weight), style: f.style, display: "swap" });
     try { await face.load(); document.fonts.add(face); } catch { /* the browser falls back; the layout still fits its box */ }
   })).then(() => undefined);
   loading.set(id, p);
