@@ -1,28 +1,7 @@
-// The words a person typed or said about a finished cut, turned into the
-// operations in instruct.ts by the fast model. The model never touches the
-// cut: it names operations by the cut and line numbers the editor shows, and
-// writes one plain sentence back; applyOps does the work and checks it.
-// Server only (lib/studioClips/analysis.ts structured).
-import { structured } from "./analysis";
+import { anthropic, effortFor, modelFor } from "@/lib/anthropic";
+import { recordAiUsage } from "@/lib/aiUsage";
+import { AnalysisError } from "./analysis";
 import { parseOps, type EditOp } from "./instruct";
-
-// The API's structured output wants every object closed, so one item shape carries every field any
-// operation may use; opSchema (instruct.ts) then checks each operation's own shape and bounds.
-const num = { type: "number" }, str = { type: "string" }, bool = { type: "boolean" };
-const numOrAll = { anyOf: [{ type: "number" }, { type: "string" }] };
-const OP_SCHEMA = {
-  type: "object", additionalProperties: false, required: ["op"],
-  properties: {
-    op: str, index: numOrAll, to: num, clip: num, startSec: num, endSec: num, lengthSec: num, level: num, rate: num, kind: str, amount: num, id: str, on: bool,
-    preset: str, size: str, position: str, highlight: str, uppercase: bool, animation: str, font: str, box: bool,
-    text: str, atSec: num, slot: str, role: str, cta: str, location: str, site: str, off: bool, volume: num, duck: bool, name: str, line: str, color: str, directive: str,
-  },
-};
-const OPS_SCHEMA = {
-  type: "object", additionalProperties: false,
-  properties: { ops: { type: "array", items: OP_SCHEMA }, reply: { type: "string" } },
-  required: ["ops", "reply"],
-};
 
 const SYSTEM = `You turn what a person says about their short video into edit operations for SOCIA's editor. The cut is described with numbered cuts (shots) and numbered text lines; use those numbers. Answer ONLY with operations from this list, in the order they should happen, and one plain sentence (reply) saying what you are doing, in the person's words, no jargon. Do nothing the person did not ask for.
 
@@ -49,8 +28,25 @@ Operations (JSON objects; "index" is a cut number, or "all"; cut numbers and lin
 
 Rules: "cut 3" and "the third shot" are cut 3; "the last cut" is the highest number; "the talking part" is the cut whose line says it. A time like "at 5 seconds" is an output time. If the request cannot be done with these operations, return no operations and say so in reply, in one sentence, with what they can do instead. If part can be done, do that part and say what was left out. Never invent clip numbers that are not listed.`;
 
+const ANSWER = `\n\nAnswer with JSON only, no prose around it: {"ops":[...],"reply":"..."}.`;
+
+/** The first JSON object in a model's text, fences or not. */
+function jsonIn(text: string): unknown {
+  const t = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) throw new AnalysisError("parse", "SOCIA's answer came back without a change in it. Try again.");
+  return JSON.parse(t.slice(a, b + 1));
+}
+
 export async function opsFor(instruction: string, description: string, ownerId: string): Promise<{ ops: EditOp[]; reply: string; rejected: number }> {
-  const { data } = await structured<{ ops: unknown[]; reply: string }>("fast", SYSTEM, [{ type: "text", text: `The cut now:\n${description}\n\nThe person says: """${instruction.trim()}"""` }], OPS_SCHEMA, 2000, { ownerId, feature: "studio_instruct" });
+  const model = modelFor("fast");
+  const res = await anthropic.messages.create({ model, max_tokens: 1500, system: SYSTEM + ANSWER, messages: [{ role: "user", content: `The cut now:\n${description}\n\nThe person says: """${instruction.trim()}"""` }], output_config: { ...effortFor(model, "low") } });
+  recordAiUsage(ownerId, "studio_instruct", res);
+  if (res.stop_reason === "refusal") throw new AnalysisError("refusal", "The model declined this request.");
+  const block = res.content.find((b) => b.type === "text");
+  const text = block && "text" in block ? block.text : "";
+  if (!text) throw new AnalysisError("empty", "Empty response from the model.");
+  const data = jsonIn(text) as { ops?: unknown[]; reply?: string };
   const { ops, rejected } = parseOps(data.ops);
   return { ops, reply: typeof data.reply === "string" ? data.reply.trim().slice(0, 300) : "", rejected };
 }
