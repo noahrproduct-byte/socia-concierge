@@ -50,7 +50,8 @@ export function readableVideo(url: string | null | undefined): URL | null {
 }
 
 let ffmpegPath: string | null | undefined;
-async function ffmpeg(): Promise<string | null> {
+/** The ffmpeg binary shipped with the route, or null where there isn't one. */
+export async function ffmpeg(): Promise<string | null> {
   if (ffmpegPath !== undefined) return ffmpegPath;
   try {
     const mod = (await import("ffmpeg-static")) as unknown as { default?: string | null } | string;
