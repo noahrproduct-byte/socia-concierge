@@ -62,7 +62,7 @@ export function Locked({ what, upgrade }: { what: string; upgrade: string | null
       <Lock size={15} aria-hidden />
       <div>
         <b>{what}</b>
-        <p>Accounts and recent Reels in your niche are on {upgrade ? upgrade[0].toUpperCase() + upgrade.slice(1) : "a paid plan"} and up.</p>
+        <p>On {upgrade ? upgrade[0].toUpperCase() + upgrade.slice(1) : "a paid plan"} and up.</p>
       </div>
       <Link href="/settings#plan" className="ov-btn primary small">
         See plans
@@ -221,9 +221,12 @@ function brief(r: ProvenReel): string {
  * (lib/trendSignals.ts provenReels), each with what it does and how to make
  * your own. The same Reels are what Content Plans and video ideas build on.
  */
-export function ReelsToCopy({ d }: { d: CompetitorsData }) {
+/** What Reels to copy needs from the page that shows it. */
+export type ReelsToCopyInput = Pick<CompetitorsData, "nicheAccess" | "nicheUpgrade" | "now" | "reelsToCopy" | "reelsRead" | "ytConfigured"> & { ig: { enabled: boolean } };
+
+export function ReelsToCopy({ d }: { d: ReelsToCopyInput }) {
   const [copied, setCopied] = useState<string | null>(null);
-  if (!d.nicheAccess) return <Locked what="Reels you can copy from your niche" upgrade={d.nicheUpgrade} />;
+  if (!d.nicheAccess) return <Locked what="Reels you can copy from your competitors" upgrade={d.nicheUpgrade} />;
   const now = new Date(d.now);
   const proven = d.reelsToCopy.filter((r) => r.proven).length;
 
@@ -254,14 +257,14 @@ export function ReelsToCopy({ d }: { d: CompetitorsData }) {
       {d.reelsToCopy.length === 0 ? (
         <p className="cx3-empty">
           {d.ig.enabled || d.ytConfigured
-            ? "No Reels or Shorts found in your niche yet. Refresh discovery or track a few accounts."
-            : "Link a Facebook Page to your Instagram to see Reels from accounts in your niche."}
+            ? "No Reels from your competitors yet. Track a few accounts above, or wait for SOCIA to finish reading them."
+            : "Link a Facebook Page to your Instagram to see your competitors' Reels."}
         </p>
       ) : (
         <>
           <p className="cx5-lead">
             {proven > 0
-              ? `${proven === 1 ? "One Reel took off for an account" : `These ${proven} Reels took off for accounts`} in your niche: ${PROVEN_AT}× their own usual or more, or past ${fmtN(PROVEN_VIEWS)} views. Make your own version${proven === 1 ? "" : " of one"}. Your Content Plans and video ideas build on ${proven === 1 ? "it" : "them"} too.`
+              ? `${proven === 1 ? "One Reel took off for one of your competitors" : `These ${proven} Reels took off for your competitors`}: ${PROVEN_AT}× their own usual or more, or past ${fmtN(PROVEN_VIEWS)} views. Make your own version${proven === 1 ? "" : " of one"}. Your Content Plans and video ideas build on ${proven === 1 ? "it" : "them"} too.`
               : `None of the recent Reels SOCIA read beat their creator's usual by ${PROVEN_AT}× yet. These are the best of the last ${TREND_WINDOW_DAYS} days.`}
             {proven > 0 && proven < d.reelsToCopy.length ? " The others are the best of the rest SOCIA read." : ""}
           </p>

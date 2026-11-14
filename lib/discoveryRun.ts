@@ -25,13 +25,17 @@ import {
   type AccountCandidate, type ContentCandidate, type DiscoveryProfile,
   type ScoredAccount, type ScoredContent, type TrendRollup,
 } from "./discovery";
-import { autoPickCompetitors, type Pick } from "./competitorAutoPick";
+import { verifySuggestions, type Pick } from "./competitorAutoPick";
+import { mainPlatform, STYLE_MEANS, type Platform } from "./discoverStyle";
+import { readStyleMemory } from "./discoverStyleLoad";
+import { youtubeRecentUploads } from "./youtubeData";
+import { listTracked } from "./trackedCompetitors";
 import { checkNiche, type NicheCheckItem } from "./nicheCheck";
 
 const SEARCH_MODEL = process.env.ANTHROPIC_SEARCH_MODEL ?? MODEL;
 
 export type IntelSources = {
-  youtube: "ok" | "not_configured" | "failed";
+  youtube: "ok" | "not_configured" | "failed" | "skipped";
   web: "ok" | AiUnavailable;
 };
 
@@ -42,7 +46,7 @@ export type IntelDoc = {
   ranAt: string | null;
   sources: IntelSources;
   profileGaps: string[];
-  /** Competitors SOCIA added to the roster on this run (fresh runs only). */
+  /** Kept for older readers: SOCIA no longer adds competitors itself; it suggests them (2026-11-14). */
   picked?: Pick[];
 };
 
@@ -54,6 +58,12 @@ export type DiscoveryInputs = {
   profileGaps: string[];
   /** The workspace discovery rows are scoped to; null keeps the pooled, pre-migration behaviour. */
   wsId: string | null;
+  /** The platform the brand mostly posts on; research looks there (lib/discoverStyle.ts mainPlatform). */
+  main: Platform | null;
+  /** Accounts the person added themselves: research looks for more like them. */
+  seeds: string[];
+  /** How the brand's own videos are made, when SOCIA has looked (brand_detail.discover). */
+  ownStyle: string | null;
 };
 
 function parseJsonArray(text: string): unknown[] {
@@ -91,13 +101,16 @@ export async function loadDiscoveryInputs(ctx: Ctx): Promise<DiscoveryInputs> {
   let ownHandle: string | null = null;
   let ownFollowers: number | null = null;
   let ownFormats: string[] = [];
+  let igRecent = 0;
+  const since = Date.now() - 60 * 86_400_000;
   try {
     const conn = await getActiveConnection(ctx.client, ctx.ownerId, "username, followers_count, media", ctx.workspace?.id ?? null);
     const c = conn as { username?: string; followers_count?: number; media?: unknown } | null;
     ownHandle = c?.username ?? null;
     ownFollowers = c?.followers_count ?? null;
-    const media = Array.isArray(c?.media) ? (c!.media as { media_type?: string }[]) : [];
+    const media = Array.isArray(c?.media) ? (c!.media as { media_type?: string; timestamp?: string }[]) : [];
     ownFormats = [...new Set(media.map((m) => m.media_type ?? "IMAGE"))];
+    igRecent = media.filter((m) => m.timestamp && Date.parse(m.timestamp) >= since).length;
   } catch {
     /* discovery still works without a connected account */
   }
@@ -123,7 +136,16 @@ export async function loadDiscoveryInputs(ctx: Ctx): Promise<DiscoveryInputs> {
   // several runs, read none, and every Refresh skipped the 6-hour reuse.
   const scoped = await competitorsScopedEnabled(ctx.client);
   const wsId = scoped ? (ctx.workspace?.id ?? (await ensureDefaultWorkspace(ctx.client, ctx.ownerId))?.id ?? null) : null;
-  return { profile, own, ownHandle, profileGaps, wsId };
+  // Where the brand mostly posts, what it makes and who it chose to follow: what research looks for.
+  const ytRecent = await youtubeRecentUploads(ctx.client, ctx.ownerId, 25, ctx.workspace?.id ?? undefined)
+    .then((vs) => vs.filter((v) => v.publishedAt && Date.parse(v.publishedAt) >= since).length).catch(() => 0);
+  const main = mainPlatform({ instagram: igRecent, youtube: ytRecent });
+  const seeds = await listTracked<{ handle: string; platform: string; added_by?: string }>(ctx.client, ctx.ownerId, "handle, platform, added_by", { workspaceId: wsId })
+    .then((rows) => rows.filter((r) => r.added_by !== "socia" && (!main || r.platform === main)).map((r) => r.handle).slice(0, 10))
+    .catch(() => [] as string[]);
+  const memory = await readStyleMemory(ctx).catch(() => null);
+  const ownStyle = memory?.own && memory.own.style !== "mixed" ? STYLE_MEANS[memory.own.style] : null;
+  return { profile, own, ownHandle, profileGaps, wsId, main, seeds, ownStyle };
 }
 
 /**
@@ -132,7 +154,7 @@ export async function loadDiscoveryInputs(ctx: Ctx): Promise<DiscoveryInputs> {
  * caller has already decided the run is due and allowed (cache, plan, rate limit).
  */
 export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Promise<IntelDoc> {
-  const { profile, own, ownHandle, profileGaps, wsId } = inputs;
+  const { profile, own, ownHandle, profileGaps, wsId, main, seeds, ownStyle } = inputs;
   const { brandName, location } = profile;
   const queries = buildQueries(profile);
   const sources: IntelSources = { youtube: "not_configured", web: "failed" };
@@ -141,7 +163,9 @@ export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Prom
   const accountCandidates: AccountCandidate[] = [];
   const contentCandidates: ContentCandidate[] = [];
 
-  if (ytConfigured()) {
+  // A brand that mostly posts somewhere else gets its suggestions there, and YouTube's search quota is kept.
+  if (main && main !== "youtube") sources.youtube = "skipped";
+  else if (ytConfigured()) {
     try {
       // Two channel searches and three video searches keep quota sane
       // (search costs 100 units each against a 10k/day budget). Video
@@ -230,7 +254,11 @@ export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Prom
     profile.audience ? `Their audience: ${profile.audience}.` : "",
     location ? `Based in ${location}${locationMatters(profile) ? ", and their customers or audience are mostly nearby" : ""}.` : "",
     profile.goalText ? `Their stated goal: "${profile.goalText}".` : "",
+    ownStyle ? `Their own videos are mostly ${ownStyle}.` : "",
+    seeds.length ? `They chose to follow these accounts as competitors: ${seeds.map((h) => `@${h}`).join(", ")}.` : "",
   ].filter(Boolean).join("\n");
+  // Suggestions on the platform the brand mostly uses (Noah, 2026-11-14).
+  const webPlatforms = main === "instagram" ? "Instagram" : main === "facebook" ? "Facebook" : "Instagram and Facebook";
 
   // ---- YouTube results must be in the niche before anything is kept ------
   // A keyword search matches words, not meaning (lib/nicheCheck.ts). Only
@@ -253,16 +281,16 @@ export async function runFreshDiscovery(ctx: Ctx, inputs: DiscoveryInputs): Prom
   if (!process.env.ANTHROPIC_API_KEY) {
     sources.web = "no_key";
   } else {
-    const prompt = `A ${who}${brandName ? ` called ${brandName}` : ""} wants to know which Instagram and Facebook accounts to study, and which recent posts are worth learning from.
+    const prompt = `A ${who}${brandName ? ` called ${brandName}` : ""} wants to know which ${webPlatforms} accounts to study, and which recent posts are worth learning from.
 ${facts}
 
 Relevant does not mean biggest. Look for, in this order:
-- accounts like theirs: the same specific niche${locationMatters(profile) ? ", ideally competing for the same local customers" : ""}
-${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}- creators in this niche whose content formats they could adapt
+${seeds.length ? "- accounts like the ones they chose to follow: the same kind of business or product, doing well\n" : ""}- accounts like theirs: the same specific niche${locationMatters(profile) ? ", ideally competing for the same local customers" : ""}
+${locationMatters(profile) ? "- successful accounts in the same area, even in a neighbouring category\n" : ""}- creators in this niche whose content formats they could adapt${ownStyle ? `\n- accounts whose videos are made the same way as theirs (${ownStyle}), even in a neighbouring niche, such as another app when they are an app` : ""}
 
 Search the web and return BOTH:
-1. Up to 6 real Instagram or Facebook ACCOUNTS from those groups.
-2. Up to 5 real recent Instagram Reels or Facebook videos in this niche.
+1. Up to 10 real ${webPlatforms} ACCOUNTS from those groups, doing well: posting regularly with an engaged audience.
+2. Up to 5 real recent ${main === "instagram" ? "Instagram Reels" : main === "facebook" ? "Facebook videos" : "Instagram Reels or Facebook videos"} in this niche.
 
 ${own.handles.length || ownHandle ? `These are their own accounts; never return them: ${[...new Set([...own.handles, ...(ownHandle ? [ownHandle] : [])])].map((h) => `"@${h}"`).join(", ")}.` : ""}
 
@@ -426,10 +454,10 @@ Output ONLY this JSON, no other text:
     /* tables may not exist yet */
   }
 
-  // ---- SOCIA picks competitors into empty roster slots -------------------
-  // Only Instagram accounts that Business Discovery confirms, never more than
-  // the plan allows, never one the customer removed (lib/competitorAutoPick.ts).
-  const picked = await autoPickCompetitors({ client: ctx.client, ownerId: ctx.ownerId, wsId, accounts, own });
+  // ---- SOCIA checks its suggestions ---------------------------------------
+  // Suggestions only: SOCIA checks the best candidates on Instagram so they show
+  // their picture and numbers, and the person decides which to track (Noah, 2026-11-14).
+  const picked = await verifySuggestions({ client: ctx.client, ownerId: ctx.ownerId, wsId, accounts, own });
 
   // Return everything SOCIA knows, not just what this run happened to find —
   // otherwise a refresh visibly loses accounts it had already discovered.

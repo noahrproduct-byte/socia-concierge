@@ -91,9 +91,13 @@ export default function PrivacyPage() {
           information about other accounts through the platforms&apos; APIs and
           public web research, to compare it with yours. For Instagram, SOCIA
           asks through your own linked Facebook Page when you have one, and
-          otherwise through SOCIA&apos;s own Instagram account. SOCIA may add
-          competitors it finds this way to your list; you can remove any of
-          them, and SOCIA remembers the removal so it does not add them again.
+          otherwise through SOCIA&apos;s own Instagram account. SOCIA suggests
+          accounts it finds this way and adds one to your list only when you
+          choose Track; when you choose Not for me, SOCIA remembers it and does
+          not suggest it again. To show which accounts make videos the way you
+          do, SOCIA sends a few recent Reel cover images from each account,
+          and from your own account, to Anthropic, and keeps only the style
+          it reads (for example animated) with your brand, refreshed weekly.
           When you connect an account, and then about once a week, SOCIA
           researches what goes viral in your niche the same way: it reads
           other accounts&apos; public Reels and Shorts (their captions, cover

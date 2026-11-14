@@ -123,7 +123,7 @@ export function chooseUnverifiedPicks(candidates: ScoredAccount[], freeSlots: nu
 type Supa = SupabaseClient<any, any, any>;
 
 /** Handles the customer removed from this workspace's roster; null when the table is missing. */
-async function dismissedHandles(svc: SupabaseClient, ownerId: string, wsId: string | null): Promise<Set<string> | null> {
+export async function dismissedHandles(svc: SupabaseClient, ownerId: string, wsId: string | null): Promise<Set<string> | null> {
   let q = svc.from("competitor_dismissals").select("handle").eq("user_id", ownerId).eq("platform", "instagram");
   q = wsId ? q.eq("workspace_id", wsId) : q.is("workspace_id", null);
   const { data, error } = await q;
@@ -131,8 +131,38 @@ async function dismissedHandles(svc: SupabaseClient, ownerId: string, wsId: stri
   return new Set((data ?? []).map((r: { handle: string }) => r.handle.toLowerCase()));
 }
 
+/** Candidates SOCIA looks up on Instagram per research run, so its suggestions show their picture and numbers. */
+export const SUGGESTION_CHECKS = 12;
+
 /**
- * Fill empty roster slots with verified competitors. Best effort: any failure
+ * Look up the best Instagram suggestions so they show a picture, followers and
+ * posts (the lookups are saved per account by lib/igCompetitorData.ts). Nothing
+ * is added to the roster: the person tracks the ones they want (Noah,
+ * 2026-11-14: "suggest them"). Never a dismissed or own account. Best effort.
+ */
+export async function verifySuggestions(opts: { client: Supa; ownerId: string; wsId: string | null; accounts: ScoredAccount[]; own: OwnAccounts }): Promise<Pick[]> {
+  const { client, ownerId, wsId, accounts, own } = opts;
+  try {
+    const svc = createServiceClient();
+    const dismissed = svc ? (await dismissedHandles(svc, ownerId, wsId)) ?? new Set<string>() : new Set<string>();
+    const tracked = await listTracked<{ handle: string }>(client, ownerId, "handle", { platform: "instagram", workspaceId: wsId });
+    const taken = new Set(tracked.map((t) => t.handle.toLowerCase()));
+    const handles = accounts
+      .filter((a) => a.platform === "instagram" && a.handle)
+      .filter((a) => !taken.has(a.handle!.toLowerCase()) && !dismissed.has(a.handle!.toLowerCase()))
+      .filter((a) => !isOwnAccount(own, { handle: a.handle, name: a.displayName }))
+      .sort((a, b) => b.relevanceScore - a.relevanceScore)
+      .slice(0, SUGGESTION_CHECKS)
+      .map((a) => a.handle!);
+    if (handles.length) await igCompetitorRows(client, ownerId, handles, false, { max: SUGGESTION_CHECKS });
+  } catch {
+    /* suggestions still show, without their numbers */
+  }
+  return [];
+}
+
+/**
+ * Fill empty roster slots with verified competitors. No longer called by research (suggestions only, 2026-11-14). Best effort: any failure
  * leaves the roster as it was. Returns what was added.
  */
 export async function autoPickCompetitors(opts: {
