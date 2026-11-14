@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Player, type PlayerRef } from "@remotion/player";
-import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX, Type } from "lucide-react";
+import { ChevronLeft, Save, ArrowUp, ArrowDown, Trash2, Captions, Info, RefreshCw, Loader2, AlertTriangle, Clapperboard, ArrowRight, Check, Music, Crop, SkipBack, SkipForward, Palette, Volume2, VolumeX, Type, Download } from "lucide-react";
 import PlanNotice from "../PlanNotice";
 import { isPlanError, type PlanError } from "@/lib/planErrors";
 import { createClient } from "@/lib/supabase/client";
@@ -47,6 +47,7 @@ import ThemesPanel from "./ThemesPanel";
 import EffectsPanel from "./EffectsPanel";
 import { DEFAULT_THEME_ID, themeById, type Theme } from "@/lib/studioClips/themes";
 import { muteSilentShots } from "@/lib/studioClips/shotSound";
+import AskPanel from "./AskPanel";
 import { applyTheme, resetToTheme, resolveTheme, setThemeOverride } from "@/lib/studioClips/themes/apply";
 import { autoEdit } from "@/lib/studioClips/themes/autoEdit";
 import { remotionLicenseKey } from "@/lib/studioClips/renderLicense";
@@ -128,7 +129,7 @@ function SectionHead({ id, title, hint, active }: { id: Panel; title: string; hi
 
 type ExportPhase = "idle" | "checking" | "rendering" | "inspecting" | "review" | "uploading" | "saving" | "done" | "error";
 /** `report`: what SOCIA saw when it watched the finished video (lib/studioClips/renderCheck.ts). */
-type ExportState = { phase: ExportPhase; progress: number; message: string | null; postId: string | null; report?: RenderReport | null };
+type ExportState = { phase: ExportPhase; progress: number; message: string | null; postId: string | null; report?: RenderReport | null; /** the finished file, for Download video (an object URL, freed when the editor closes) */ url?: string | null };
 
 export default function ClipBuilder({ buildId, title, onBack, fixture, initialPanel }: {
   buildId: string; title: string; onBack: () => void; fixture?: BuildPlayerData;
@@ -675,7 +676,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       const dj = await d.json().catch(() => null);
       if (!d.ok) throw new Error(dj?.error ?? "Couldn't save the draft.");
       clearLocalExport(buildId);
-      setExp({ phase: "done", progress: 1, message: null, postId: dj.postId, report });
+      setExp({ phase: "done", progress: 1, message: null, postId: dj.postId, report, url: URL.createObjectURL(blob) });
       setData((cur) => (cur ? { ...cur, build: { ...cur.build, renderPath: path, postId: dj.postId } } : cur));
     } catch (e) {
       // The render happened but nothing was saved: give the video build back.
@@ -832,8 +833,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
 
   // Keyboard shortcuts, as in a video editor. The handlers change every
   // render; the listener reads the latest through a ref.
-  const keys = useRef({ edit: false, undo, redo, split: splitHere, del: deleteSelected, step });
-  keys.current = { edit: Boolean(data?.canEdit) && !regen && !saving && !(exp.phase !== "idle" && exp.phase !== "done" && exp.phase !== "error"), undo, redo, split: splitHere, del: deleteSelected, step };
+  const keys = useRef({ edit: false, undo, redo, split: splitHere, del: deleteSelected, step, save: () => {} });
+  keys.current = { edit: Boolean(data?.canEdit) && !regen && !saving && !(exp.phase !== "idle" && exp.phase !== "done" && exp.phase !== "error"), undo, redo, split: splitHere, del: deleteSelected, step, save: () => { if (dirtyRef.current) void save(); } };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!editorKey(e.target, e.key)) return;
@@ -845,6 +846,7 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       else if (!k.edit) return;
       else if (mod && key === "z") { e.preventDefault(); if (e.shiftKey) k.redo(); else k.undo(); }
       else if (mod && key === "y") { e.preventDefault(); k.redo(); }
+      else if (mod && key === "s") { e.preventDefault(); k.save(); }
       else if (!mod && !e.altKey && key === "s") { e.preventDefault(); k.split(); }
       else if (!mod && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); k.del(); }
     };
@@ -871,7 +873,8 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
       <div className="cbb-head">
         <button type="button" className="cb-back" onClick={onBack}><ChevronLeft size={14} /> {data.manual ? "Back to your clips" : "Back to the guide"}</button>
         <div className="cbb-head-actions">
-          {data.canEdit && <button type="button" className="ov-btn ghost small" disabled={!dirty || busy} onClick={() => void save()}>{saving ? <Loader2 size={13} className="spin" /> : <Save size={13} />} {dirty ? "Save changes" : "Saved"}</button>}
+          {data.canEdit && <button type="button" className={`ov-btn ${dirty ? "primary" : "ghost"} small sd-save`} disabled={!dirty || busy} title="Save (Ctrl+S or Cmd+S)" onClick={() => void save()}>{saving ? <Loader2 size={13} className="spin" /> : dirty ? <Save size={13} /> : <Check size={13} />} {saving ? "Saving" : dirty ? "Save" : "Saved"}</button>}
+          {build.renderUrl && exp.phase === "idle" && <a className="ov-btn ghost small" href={build.renderUrl} download={`socia-${buildId.slice(0, 8)}.mp4`} title="The last video made from this cut"><Download size={13} /> Download</a>}
           {data.canEdit && (exp.phase === "idle" || exp.phase === "error" || exp.phase === "done") && (
             <button type="button" className="ov-btn primary" disabled={busy || missing > 0 || lookState?.state === "working"} onClick={() => void exportVideo()}><Clapperboard size={14} /> {build.renderPath ? "Make it again" : "Make this video"}</button>
           )}
@@ -986,8 +989,11 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
                     {exp.report.findings.length > 0 && <ul className="sd-parts">{exp.report.findings.map((f, i) => <li key={`${f.id}-${i}`} className="is-off"><span>{f.detail}</span></li>)}</ul>}
                   </div>
                 )}
-                {exp.postId && <Link className="ov-btn primary small" href={`/create?post=${exp.postId}`}>Review in Create Post <ArrowRight size={12} /></Link>}
-                <button type="button" className="ov-btn ghost small" onClick={() => setExp({ phase: "idle", progress: 0, message: null, postId: null })}>Make another version</button>
+                <div className="sd-done-actions">
+                  {exp.url && <a className="ov-btn primary small" href={exp.url} download={`socia-${buildId.slice(0, 8)}.mp4`}><Download size={12} /> Download video</a>}
+                  {exp.postId && <Link className={`ov-btn ${exp.url ? "ghost" : "primary"} small`} href={`/create?post=${exp.postId}`}>Review in Create Post <ArrowRight size={12} /></Link>}
+                  <button type="button" className="ov-btn ghost small" onClick={() => setExp({ phase: "idle", progress: 0, message: null, postId: null })}>Make another version</button>
+                </div>
               </>
             ) : (
               <>
@@ -1008,6 +1014,15 @@ export default function ClipBuilder({ buildId, title, onBack, fixture, initialPa
         </div>
 
         <div className="cbb-panels">
+          <AskPanel
+            buildId={buildId}
+            edl={edl}
+            canEdit={data.canEdit}
+            busy={busy}
+            fixture={Boolean(fixture)}
+            onApply={(next) => { commit(next); setSel(null); }}
+            onRegenerate={(directive) => { if (!data.manual) void regenerate(directive); }}
+          />
           <nav className="sd-nav" aria-label="Sections">
             {SECTIONS.filter((x) => x.id !== "regenerate" || !data.manual).map((x) => <button key={x.id} type="button" className={`sd-nav-chip${section === x.id ? " is-on" : ""}`} aria-current={section === x.id ? "true" : undefined} onClick={() => setPanel(x.id)}>{x.label}</button>)}
           </nav>

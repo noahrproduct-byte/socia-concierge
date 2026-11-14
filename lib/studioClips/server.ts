@@ -368,7 +368,10 @@ export async function buildPlayerData(client: Supa, ownerId: string, wsId: strin
     });
   const voicePaths = (row.edl?.voiceover?.lines ?? []).map((l) => l.path).filter((p): p is string => Boolean(p) && ownsVoicePath(ownerId, row.project_id, buildId)(p!));
   const [music, voice] = await Promise.all([madeTracks(client, ownerId, row.project_id, buildId), voicePaths.length ? signUrls(client, voicePaths).catch(() => ({})) : Promise.resolve({})]);
-  return { build: rowToBuild(row, await clipRows(client, row.project_id)), sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx), music, voice };
+  const build = rowToBuild(row, await clipRows(client, row.project_id));
+  // The last video made from this cut is a public file in scheduled-media (the draft post plays it): the editor offers it to download.
+  if (row.render_path) build.renderUrl = client.storage.from("scheduled-media").getPublicUrl(row.render_path).data.publicUrl;
+  return { build, sources, canEdit, manual: isOwnCutIdx(row.opportunity_idx), music, voice };
 }
 
 /** The tracks already made for a cut, as signed URLs by track id (files are named <buildId>-<trackId>.mp3). */

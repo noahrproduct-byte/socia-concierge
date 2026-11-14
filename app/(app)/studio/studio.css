@@ -1685,3 +1685,20 @@
 .sd-more > summary::before { content: "+ "; color: var(--text-muted); }
 .sd-more[open] > summary::before { content: "\2013  "; }
 .sd-more > div { padding: var(--sp-3); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* Tell SOCIA what to change: the box at the top of the editor (components/studio/AskPanel.tsx). */
+.sd-ask { display: flex; flex-direction: column; gap: var(--sp-2); }
+.sd-ask-head { display: flex; flex-direction: column; gap: 2px; }
+.sd-ask-head small { font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-muted); }
+.sd-ask-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-2); align-items: end; }
+.sd-ask-input { width: 100%; min-height: 3.25rem; resize: vertical; padding: var(--sp-2) var(--sp-3); font: inherit; font-size: var(--fs-nav); line-height: var(--lh-nav); color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); }
+.sd-ask-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sd-ask-btns { display: flex; align-items: center; gap: var(--sp-2); }
+.sd-ask-mic.is-on { color: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.sd-ask-err { display: flex; align-items: center; gap: var(--sp-1); margin: 0; font-size: var(--fs-meta); color: var(--danger-text); }
+.sd-ask-reply { display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-meta); line-height: var(--lh-meta); color: var(--text-secondary); }
+.sd-ask-reply p { display: flex; align-items: center; gap: var(--sp-1); margin: 0; color: var(--ink); }
+.sd-ask-reply ul { margin: 0; padding-left: 1.1rem; }
+.sd-ask-reply ul.is-off { color: var(--text-muted); }
+.sd-done-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+@media (max-width: 640px) { .sd-ask-row { grid-template-columns: minmax(0, 1fr); } .sd-ask-btns { justify-content: flex-end; } }

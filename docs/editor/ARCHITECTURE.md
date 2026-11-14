@@ -98,3 +98,10 @@ Stabilization is the one step the browser cannot do: it is a server job (`POST /
 - `/dev/text-lab`: text presets at any aspect plus a real web render.
 - Unit tests: `lib/studioClips/*.test.ts`, `lib/textRender.test.ts`, `lib/studioClips/themes/*.test.ts`. The preview/export parity check is `lib/studioClips/parity.test.ts`.
 - Gates: `lib/antiSlop.test.ts` (ratchet), `lib/designBudget.test.ts` (tokens), `npx tsc --noEmit`, `npx eslint .`, `next build`.
+
+## Tell SOCIA what to change (2026-11-14)
+
+A box at the top of the editor (`components/studio/AskPanel.tsx`) takes a sentence, typed or spoken (the browser's own speech recognition; Chrome, Edge and Safari have it, the microphone says so where it is missing). The sentence and the editor's working copy of the cut go to `POST /api/studio/builds/[id]/instruct`. The route describes the cut in numbered cuts and lines (`describeCut`), asks the fast model for a list of operations and one plain sentence (`lib/studioClips/instructModel.ts`), validates every operation against `opSchema` and applies them with `applyOps` (`lib/studioClips/instruct.ts`): remove, trim, move and swap cuts, sound levels (including "every cut where no one speaks"), speed, zoom, joins, theme, captions on or off and their style, text lines added, changed or removed, the ending, music, the lower third and the brand colour. A cut whose shots changed goes through `settleCut`. A structural request ("make it shorter", "a different hook") comes back as a `regenerate` directive and the editor runs its own Make it again. The changed cut is one undoable step in the editor and is saved with Save (Ctrl+S or Cmd+S). Nothing is written by the route.
+
+Save and Download: the header's Save button is solid when there is something to save and reads Saved otherwise; after an export the finished file can be downloaded straight from the done panel (an object URL of the rendered blob), and a cut rendered earlier offers its public file (`build.renderUrl`).
+

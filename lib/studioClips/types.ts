@@ -528,6 +528,8 @@ export type StudioBuild = {
   renderedAt: string | null;
   /** the draft post the render was saved to */
   postId: string | null;
+  /** a public link to the last video made from this cut (the player data only), for Download */
+  renderUrl?: string | null;
 };
 
 // -------------------------------------------------------- Make This Video ----

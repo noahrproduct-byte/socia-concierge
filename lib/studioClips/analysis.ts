@@ -137,7 +137,7 @@ The images that follow are frames at ${ref.frames.map((f) => `${f.t}s`).join(", 
   return { raw: data, model };
 }
 
-async function structured<T>(task: Parameters<typeof modelFor>[0], system: string, content: Content, schema: unknown, maxTokens: number, usage: { ownerId?: string; feature: AiFeature }): Promise<{ data: T; model: string }> {
+export async function structured<T>(task: Parameters<typeof modelFor>[0], system: string, content: Content, schema: unknown, maxTokens: number, usage: { ownerId?: string; feature: AiFeature }): Promise<{ data: T; model: string }> {
   const model = modelFor(task);
   const params = {
     model,
