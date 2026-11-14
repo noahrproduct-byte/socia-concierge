@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accountStyle, mainPlatform, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, STYLE_TTL_MS } from "./discoverStyle";
+import { accountStyle, mainPlatform, missKind, sameStyle, sanitizeMemory, styleKey, styleStale, styleWord, triedRecently, STYLE_TTL_MS, TRY_TTL_MS } from "./discoverStyle";
 
 const AT = "2026-11-14T12:00:00.000Z";
 
@@ -30,7 +30,7 @@ describe("the saved memory", () => {
     });
     expect(m.own?.style).toBe("animated");
     expect(Object.keys(m.accounts)).toEqual(["instagram:therefundapp"]);
-    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {} });
+    expect(sanitizeMemory(null)).toEqual({ own: null, accounts: {}, tried: {} });
   });
   it("is looked at again after a week", () => {
     const s = accountStyle(["animated"], AT)!;
@@ -47,5 +47,35 @@ describe("the main platform", () => {
     expect(mainPlatform({ instagram: 2, youtube: 9 })).toBe("youtube");
     expect(mainPlatform({ instagram: 4, youtube: 4 })).toBe("instagram");
     expect(mainPlatform({ instagram: 0, youtube: null })).toBeNull();
+  });
+});
+
+describe("tried record", () => {
+  const now = new Date("2026-11-14T12:00:00Z");
+  it("keeps valid tries, drops bad keys, dates and reasons", () => {
+    const m = sanitizeMemory({ tried: {
+      "instagram:BoulderBot": { at: "2026-11-14T10:00:00Z", miss: "not_business" },
+      own: { at: "2026-11-14T10:00:00Z" },
+      "instagram:x": { at: "nope" },
+      "evil key": { at: "2026-11-14T10:00:00Z" },
+      "instagram:y": { at: "2026-11-14T10:00:00Z", miss: "<script>" },
+    } });
+    expect(m.tried).toEqual({
+      "instagram:boulderbot": { at: "2026-11-14T10:00:00Z", miss: "not_business" },
+      own: { at: "2026-11-14T10:00:00Z" },
+      "instagram:y": { at: "2026-11-14T10:00:00Z" },
+    });
+  });
+  it("waits a day after any try", () => {
+    const m = sanitizeMemory({ tried: { "instagram:a": { at: new Date(now.getTime() - TRY_TTL_MS + 60_000).toISOString() }, "instagram:b": { at: new Date(now.getTime() - TRY_TTL_MS - 60_000).toISOString() } } });
+    expect(triedRecently(m, "instagram:a", now)).toBe(true);
+    expect(triedRecently(m, "instagram:b", now)).toBe(false);
+    expect(triedRecently(m, "instagram:c", now)).toBe(false);
+  });
+  it("names a miss", () => {
+    expect(missKind("not_found")).toBe("not_found");
+    expect(missKind("not_business")).toBe("not_business");
+    expect(missKind("no_permission")).toBe("unavailable");
+    expect(missKind(undefined)).toBe("unavailable");
   });
 });

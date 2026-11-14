@@ -21,7 +21,7 @@ import { listTracked } from "@/lib/trackedCompetitors";
 import { resolveContext, brandWorkspace } from "@/lib/context";
 import { createServiceClient } from "@/lib/supabase/service";
 import { dismissedHandles } from "@/lib/competitorAutoPick";
-import { mainPlatform, sameStyle, styleKey, styleStale, styleWord, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
+import { mainPlatform, sameStyle, styleKey, styleStale, styleWord, triedRecently, type AccountStyle, type StyleMemory } from "@/lib/discoverStyle";
 import { readStyleMemory } from "@/lib/discoverStyleLoad";
 import { SUGGESTIONS_READ } from "@/lib/discoverRead";
 
@@ -52,7 +52,7 @@ export default async function Page() {
     competitorScopeId(ctx.client, ctx.workspace?.id),
     getProfile(ctx.client, ctx.ownerId, brandWorkspace(ctx)).catch(() => null),
     ownAccounts(ctx.client, ctx.ownerId).catch(() => null),
-    readStyleMemory(ctx).catch((): StyleMemory => ({ own: null, accounts: {} })),
+    readStyleMemory(ctx).catch((): StyleMemory => ({ own: null, accounts: {}, tried: {} })),
     youtubeRecentUploads(ctx.client, ctx.ownerId, 25, ctx.workspace?.id ?? undefined).catch(() => []),
   ]);
   // Every account the owner has connected: never shown, suggested or counted as a competitor.
@@ -134,6 +134,9 @@ export default async function Page() {
     if (p === "instagram") {
       const c = ig.get(handle.toLowerCase());
       const live = c?.found ? c : null;
+      // Tried in the last day: show what came back rather than "Reading" (the read waits a day either way).
+      const recent = triedRecently(memory, styleKey(p, handle), now);
+      const miss = recent ? memory.tried[styleKey(p, handle)]?.miss : undefined;
       const postsRead = live ? igPosts(live) : [];
       const n = postsRead.length || null;
       const views = postsRead.map((x) => x.views).filter((v): v is number => v != null);
@@ -146,9 +149,9 @@ export default async function Page() {
         medianViews: views.length ? cell(median(views), "public_api", views.length) : absent("unavailable"),
         topFormat: null, description: live?.biography ?? null, postsCount: live?.mediaCount ?? null,
         posts: postsRead, postsSource: postsRead.length ? "instagram_discovery" : null,
-        postsGate: !igRes.enabled ? "connection_needed" : postsRead.length ? null : c?.reasonKind === "not_business" ? "not_business" : c?.reasonKind === "not_found" ? "not_found" : "unavailable",
+        postsGate: !igRes.enabled ? "connection_needed" : postsRead.length ? null : (miss ?? c?.reasonKind) === "not_business" ? "not_business" : (miss ?? c?.reasonKind) === "not_found" ? "not_found" : "unavailable",
       };
-      return { ...base, ...row, reading: igRes.enabled && (!c || igRowStale(c, now) || (live != null && styleStale(style, now))) };
+      return { ...base, ...row, reading: igRes.enabled && !recent && (!live || igRowStale(live, now) || (live.media?.length ? styleStale(style, now) : false)) };
     }
     if (p === "youtube") {
       const s = yt.get(handle.toLowerCase());
@@ -190,7 +193,7 @@ export default async function Page() {
   const tookOff = provenReels(ordered, { max: 12, perAccount: 3 });
   const reelsToCopy = tookOff.length >= 4 ? tookOff : provenReels(ordered, { max: 9, perAccount: 3, fill: true });
 
-  const ownStale = Boolean(snap?.media?.length) && styleStale(memory.own, now);
+  const ownStale = Boolean(snap?.media?.length) && styleStale(memory.own, now) && !triedRecently(memory, "own", now);
   const data: DiscoverData = {
     now: now.toISOString(),
     igEnabled: igRes.enabled, igReason: igRes.enabled ? null : (igRes.reason ?? null), ytConfigured: ytConfigured(),
